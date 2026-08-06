@@ -71,6 +71,7 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
       return;
     }
     setLoginError('');
+    GameAudioEngine.play('loginChime');
     onLogin(username, password);
   };
 
@@ -252,7 +253,10 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
               {/* Submit button */}
               <motion.button
                 type="submit"
-                onHoverStart={() => setBtnHovered(true)}
+                onHoverStart={() => {
+                  setBtnHovered(true);
+                  GameAudioEngine.play('uiHover');
+                }}
                 onHoverEnd={() => setBtnHovered(false)}
                 whileTap={{ scale: 0.97 }}
                 className="relative mt-2 w-full overflow-hidden rounded-2xl py-4 text-lg font-black text-white"

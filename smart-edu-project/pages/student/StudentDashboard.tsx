@@ -177,7 +177,10 @@ const GameModeCard = ({
       whileHover={{ scale: 1.055, y: -10 }}
       whileTap={{ scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-      onHoverStart={() => setHovered(true)}
+       onHoverStart={() => {
+         setHovered(true);
+         GameAudioEngine.play('uiHover');
+       }}
       onHoverEnd={() => setHovered(false)}
       onClick={() => { GameAudioEngine.play('portalTransition'); onClick(); }}
       className={`${color} text-white rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}

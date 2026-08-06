@@ -1,6 +1,7 @@
 /* Welcome voice helpers for MANARA SYSTEM — role-specific greetings */
 
 import * as Tone from 'tone';
+import { GameAudioEngine } from './gameAudioEngine';
 
 type HowlerGlobal = {
   Howl?: new (options: { src: string[]; volume?: number; autoplay?: boolean }) => {
@@ -100,7 +101,7 @@ const playToneJsChime = (type: 'welcome' | 'success') => {
 };
 
 export const playWelcomeStudent = () => {
-  playAudioWithGain('/audio/welcome-student.mp3', 2.0, 'WelcomeStudent');
+  GameAudioEngine.play('studentWelcome');
 };
 
 export const playWelcomeAdult = () => {

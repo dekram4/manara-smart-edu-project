@@ -12,6 +12,7 @@ interface GameButtonProps {
 export const GameButton: React.FC<GameButtonProps> = ({ icon, title, color = 'bg-indigo-500', onClick }) => {
   return (
     <button
+      onMouseEnter={() => GameAudioEngine.play('uiHover')}
       onClick={() => {
         GameAudioEngine.play('portalTransition');
         onClick();

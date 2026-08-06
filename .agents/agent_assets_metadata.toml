@@ -21,3 +21,24 @@ uri = "file://attached_assets/generated_audio/sound_effect_manara_victory_applau
 type = "audio"
 title = "manara victory applause"
 description = "Generated sound effect: A joyful child-friendly achievement celebration for a learning app: warm bright success chime followed by gentle enthusiastic applause and a tiny sparkle, uplifting and premiu…"
+
+[[outputs]]
+id = "2_oHE5f3U53AdH5dhOzD2"
+uri = "file://attached_assets/generated_audio/manara-arabic-student-welcome.mp3"
+type = "audio"
+title = "manara Arabic student welcome"
+description = "Text-to-speech audio: مرحباً يا بطل! أهلاً بك في منصة منارة المعرفة. سعيد جداً بانضمامك إلينا. هيا نبدأ رحلة التعلم والمغامرة!"
+
+[[outputs]]
+id = "ShXxSNHIhhw7SPgR6fL8p"
+uri = "file://attached_assets/generated_audio/manara-gem-reward.mp3"
+type = "audio"
+title = "manara gem reward"
+description = "Generated sound effect: Premium educational game gem reward sound: bright crystalline coin and jewel sparkle, elegant short arpeggio, satisfying but soft, clearly distinct from applause, no harsh arc…"
+
+[[outputs]]
+id = "FpUj0bDHiaQUqCo3xypuD"
+uri = "file://attached_assets/generated_audio/manara-login-chime.mp3"
+type = "audio"
+title = "manara login chime"
+description = "Generated sound effect: Premium global education platform login confirmation sound: a clean warm digital chime with a subtle soft click at the start and a confident gentle ascending sparkle, polished…"

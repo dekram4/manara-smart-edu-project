@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { GameAudioEngine } from '../../utils/gameAudioEngine';
 
 interface Interactive3DEmojiProps {
   emoji: string;
@@ -47,7 +48,10 @@ const Interactive3DEmoji: React.FC<Interactive3DEmojiProps> = ({
     <div
       className={`relative inline-flex flex-col items-center ${className}`}
       style={{ perspective: '900px', touchAction: 'none' }}
-      onPointerEnter={() => setActive(true)}
+       onPointerEnter={() => {
+         setActive(true);
+         GameAudioEngine.play('uiHover');
+       }}
       onPointerMove={handlePointerMove}
       onPointerLeave={resetTilt}
       onPointerCancel={resetTilt}

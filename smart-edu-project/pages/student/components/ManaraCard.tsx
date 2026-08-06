@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
 import Interactive3DEmoji from '../../../components/effects/Interactive3DEmoji';
+import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 
 interface ManaraCardProps {
   emoji: string;
@@ -27,7 +28,10 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
       transition={{ duration: 0.42, delay, type: 'spring', stiffness: 220, damping: 20 }}
       whileHover={{ scale: 1.07, y: -10 }}
       whileTap={{ scale: 0.94 }}
-      onHoverStart={() => setHovered(true)}
+       onHoverStart={() => {
+         setHovered(true);
+         GameAudioEngine.play('uiHover');
+       }}
       onHoverEnd={() => setHovered(false)}
       onClick={onClick}
       style={{ WebkitTapHighlightColor: 'transparent' }}
