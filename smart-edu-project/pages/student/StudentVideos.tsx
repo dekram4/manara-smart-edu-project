@@ -103,6 +103,26 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
     return () => window.clearTimeout(timer);
   }, [previewVideoId]);
 
+  const activeVideo = playingVideo
+    ? videos.find(video => video.id === playingVideo) || null
+    : null;
+
+  useEffect(() => {
+    if (!playingVideo) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPlayingVideo(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [playingVideo]);
+
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
   };
@@ -174,12 +194,11 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
             <div className="grid gap-4 md:grid-cols-3">
               {visibleVideos.map((video, index) => {
                 const vid = extractVideoId(video.url);
-                const isPlaying = playingVideo === video.id;
                 const isCenter = index === 1;
                 const videoIndex = videos.findIndex(item => item.id === video.id);
                 const isUnlocked = videoIndex > -1 && videoIndex < unlockedVideoCount;
 
-                const showPreview = previewVideoId === video.id && !isPlaying && isUnlocked;
+                const showPreview = previewVideoId === video.id && !playingVideo && isUnlocked;
 
                 return (
                   <motion.div
@@ -193,17 +212,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
                     className={`relative overflow-hidden rounded-[28px] border bg-rose-50 shadow-2xl ${isCenter ? 'border-amber-300 ring-2 ring-amber-200' : 'border-rose-100'} ${!isUnlocked ? 'opacity-80' : ''}`}
                   >
                     <EducationalCardEffects accent="#fb7185" compact />
-                    {isPlaying && vid ? (
-                      <div className="aspect-video">
-                        <iframe
-                          className="w-full h-full"
-                          src={`https://www.youtube.com/embed/${vid}?autoplay=1`}
-                          title={video.title}
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        ></iframe>
-                      </div>
-                    ) : vid ? (
+                    {vid ? (
                       <div className={`relative aspect-video ${isUnlocked ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={() => handleVideoSelect(video)}>
                         {showPreview ? (
                           <iframe
@@ -286,6 +295,52 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
           <p className="font-bold text-rose-600">راجِ المعلم بإضافة فيديوهات جديدة للمادة والمستوى الذي تدرسه ✍️</p>
         </div>
       )}
+
+      <AnimatePresence>
+        {activeVideo && extractVideoId(activeVideo.url) && (
+          <motion.div
+            key="cinema-video-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md md:p-8"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`تشغيل فيديو ${activeVideo.title}`}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setPlayingVideo(null);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+              className="relative w-full max-w-5xl overflow-hidden rounded-[28px] border border-white/20 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+            >
+              <div className="aspect-video w-full">
+                <iframe
+                  className="h-full w-full"
+                  src={`https://www.youtube.com/embed/${extractVideoId(activeVideo.url)}?autoplay=1&rel=0`}
+                  title={activeVideo.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white md:px-6">
+                <p className="truncate text-sm font-black md:text-base">{activeVideo.title}</p>
+                <button
+                  type="button"
+                  onClick={() => setPlayingVideo(null)}
+                  className="shrink-0 rounded-xl bg-white/15 px-4 py-2 text-sm font-black text-white transition hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                >
+                  ✕ إغلاق الفيديو
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
