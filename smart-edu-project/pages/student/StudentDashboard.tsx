@@ -34,6 +34,7 @@ import { getStickerAsset } from '../../utils/contentAssets';
 import { AnimatedCelebration } from '../../components/AnimatedCelebration';
 import { InteractiveScene } from '../../components/InteractiveScene';
 import PremiumBackground from '../../components/PremiumBackground';
+import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -167,6 +168,7 @@ const GameModeCard = ({
     }}
     className={`${color} text-white p-8 rounded-[36px] shadow-2xl border-b-8 border-black/20 cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none transition-all`}
   >
+    <EducationalCardEffects accent="#ffffff" compact />
     <motion.div
       className="pointer-events-none absolute left-4 top-5 h-14 w-1 rounded-full bg-white/80"
       animate={{ opacity: [0.75, 1, 0.75] }}
@@ -1325,7 +1327,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               />
 
               {/* بطاقة الاختبارات */}
-              <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-8 rounded-[36px] shadow-2xl border-b-8 border-indigo-900 select-none flex flex-col justify-between">
+               <div className="relative overflow-hidden bg-gradient-to-br from-indigo-500 to-indigo-700 p-8 rounded-[36px] shadow-2xl border-b-8 border-indigo-900 select-none flex flex-col justify-between">
+                 <EducationalCardEffects accent="#fbbf24" />
                 <div>
                   <div className="text-6xl mb-3">📝</div>
                   <h3 className="text-3xl font-black mb-1">مركز الاختبارات</h3>
@@ -1406,13 +1409,13 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         {/* Step 3: Active Module Content */}
         {activeModule && !showChat && (
           <AnimatePresence mode="wait">
-            <motion.div
+             <motion.div
               key={activeModule}
               initial={{ opacity: 0, y: 24, scale: 0.97, rotateX: -3 }}
               animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
               exit={{ opacity: 0, y: -16, scale: 0.98 }}
               transition={{ duration: 0.33, ease: 'easeOut' }}
-              className="space-y-6"
+               className="space-y-6"
             >
             <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl p-4 flex justify-between items-center border border-slate-700">
               <button
@@ -1445,6 +1448,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             {activeModule === StudentModuleType.EXPLANATION && (
               <InteractiveScene className="p-8" intensity={1.2} accent={moduleTheme.portalClass}>
                 <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+                  <EducationalCardEffects accent="#fbbf24" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
                   <h2 className="text-3xl font-black text-white mb-6">📺 سينما الشرح الممتع</h2>
@@ -1480,6 +1484,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             {activeModule === StudentModuleType.AVATAR_INTERACTION && (
               <InteractiveScene className="p-8" intensity={1.1}>
                 <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+                  <EducationalCardEffects accent="#c084fc" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(192,132,252,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
                   <h2 className="text-3xl font-black text-white mb-6">🤖 صديقك المعلم الافتراضي</h2>
@@ -1516,6 +1521,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             {activeModule === StudentModuleType.PROBLEM_SOLVING && (
               <InteractiveScene className="p-8" intensity={1.1}>
                 <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 border border-slate-700">
+                  <EducationalCardEffects accent="#2dd4bf" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
                   <h2 className="text-3xl font-black text-white mb-6 text-center">💡 اسأل المساعد السحري</h2>
@@ -1548,6 +1554,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             {activeModule === StudentModuleType.LIVE_MEETING && (
               <InteractiveScene className="p-8" intensity={1.1}>
                 <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 border border-slate-700">
+                  <EducationalCardEffects accent="#fb7185" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(248,113,113,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.16),_transparent_30%)]" />
                   <div className="relative z-10">
                     <h2 className="text-3xl font-black text-white mb-6">📞 البث المباشر الممتع</h2>
@@ -1568,29 +1575,36 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
             {/* Entertainment / Games */}
             {activeModule === StudentModuleType.ENTERTAINMENT && (
-              <EntertainmentGames
-                grade={selectedGrade}
-                subject={selectedSubject}
-                term={selectedTerm}
-                unit={selectedUnit}
-                lessonContent={activeLesson?.lessonContent}
-              />
+              <div className="relative overflow-hidden rounded-[40px]">
+                <EducationalCardEffects accent="#a78bfa" />
+                <EntertainmentGames
+                  grade={selectedGrade}
+                  subject={selectedSubject}
+                  term={selectedTerm}
+                  unit={selectedUnit}
+                  lessonContent={activeLesson?.lessonContent}
+                />
+              </div>
             )}
 
             {/* Videos */}
             {activeModule === StudentModuleType.VIDEOS && (
-              <StudentVideos
-                grade={selectedGrade}
-                subject={selectedSubject}
-                term={selectedTerm}
-                unit={selectedUnit}
-              />
+              <div className="relative overflow-hidden rounded-[40px]">
+                <EducationalCardEffects accent="#38bdf8" />
+                <StudentVideos
+                  grade={selectedGrade}
+                  subject={selectedSubject}
+                  term={selectedTerm}
+                  unit={selectedUnit}
+                />
+              </div>
             )}
 
             {/* Quiz */}
             {activeModule === StudentModuleType.QUIZ && (
               <InteractiveScene className="p-8" intensity={1.1}>
                 <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 border border-slate-700">
+                  <EducationalCardEffects accent="#facc15" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(250,204,21,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(244,114,182,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
                   {!quizResult ? (
@@ -1677,6 +1691,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         {/* Chat (Full Screen) */}
         {showChat && (
           <div className="relative overflow-hidden bg-slate-800/95 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 h-[600px] flex flex-col border border-slate-700 animate-fadeIn">
+            <EducationalCardEffects accent="#ec4899" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,72,153,0.16),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.16),_transparent_32%)]" />
             <div className="relative z-10 flex h-full flex-col">
             <div className="flex justify-between items-center mb-6">

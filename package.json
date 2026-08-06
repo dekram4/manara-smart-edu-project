@@ -2,16 +2,20 @@
   "dependencies": {
     "@emotion/is-prop-valid": "^1.4.0",
     "@lottiefiles/dotlottie-react": "^0.19.13",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "@splinetool/react-spline": "^4.1.0",
     "@splinetool/runtime": "^1.12.98",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^12.43.0",
     "howler": "^2.2.4",
     "lottie-web": "^5.13.0",
+    "three": "^0.185.1",
     "use-sound": "^5.0.0"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
-    "@types/howler": "^2.2.13"
+    "@types/howler": "^2.2.13",
+    "@types/three": "^0.185.4"
   }
 }

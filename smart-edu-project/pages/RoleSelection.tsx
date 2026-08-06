@@ -2,6 +2,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { playLamsaSound } from '../utils/sounds';
 import Interactive3DBackground from '../components/effects/Interactive3DBackground';
+import Educational3DViewer from '../components/effects/Educational3DViewer';
+import EducationalCardEffects from '../components/effects/EducationalCardEffects';
 
 interface RoleCard {
   id: 'student' | 'teacher' | 'parent' | 'admin';
@@ -89,6 +91,10 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
         </p>
       </motion.div>
 
+      <div className="pointer-events-none absolute left-1/2 top-16 z-[1] hidden h-28 w-44 -translate-x-1/2 opacity-75 md:block">
+        <Educational3DViewer className="h-28" fallbackEmoji="📖" />
+      </div>
+
       <div className="z-10 grid w-full max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
         {roles.map((role, index) => (
           <motion.button
@@ -111,6 +117,10 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
             }}
             className={`group relative overflow-hidden rounded-3xl border border-white/15 bg-slate-900/60 p-6 text-right shadow-xl backdrop-blur-xl transition-all duration-300 hover:border-white/40 ${role.shadowColor}`}
           >
+            <EducationalCardEffects
+              accent={role.id === 'student' ? '#60a5fa' : role.id === 'teacher' ? '#2dd4bf' : role.id === 'parent' ? '#fb923c' : '#f472b6'}
+              compact
+            />
             <div
               className={`pointer-events-none absolute -inset-1 rounded-3xl bg-gradient-to-r ${role.gradient} opacity-0 blur-xl transition-opacity duration-500 group-hover:opacity-20`}
             />

@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
 
 export type NavTab = 'home' | 'games' | 'lessons' | 'profile';
 
@@ -26,12 +27,13 @@ const ManaraNav: React.FC<ManaraNavProps> = ({ activeTab, onTabChange }) => {
       }}
     >
       <div 
-        className="flex items-center justify-around rounded-full px-2 py-1.5"
+        className="relative flex items-center justify-around rounded-full px-2 py-1.5"
         style={{
           background: 'rgba(106,27,154,0.5)',
           border: '1px solid rgba(255,255,255,0.1)',
         }}
       >
+        <EducationalCardEffects accent="#c084fc" compact />
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (

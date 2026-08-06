@@ -221,6 +221,27 @@ function PhysicsOrbs({ accent }: { accent: string }) {
 }
 
 const Immersive3DScene: React.FC<Immersive3DSceneProps> = ({ accent = '#38bdf8', intensity = 1 }) => {
+  const [webglAvailable, setWebglAvailable] = useState(false);
+
+  useEffect(() => {
+    const canvas = document.createElement('canvas');
+    const context =
+      canvas.getContext('webgl', { failIfMajorPerformanceCaveat: true }) ||
+      canvas.getContext('experimental-webgl', { failIfMajorPerformanceCaveat: true });
+    setWebglAvailable(Boolean(context));
+  }, []);
+
+  if (!webglAvailable) {
+    return (
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+        <div className="absolute left-[12%] top-[18%] text-4xl opacity-35 animate-float">📚</div>
+        <div className="absolute right-[14%] top-[24%] text-3xl opacity-35 animate-float [animation-delay:500ms]">✏️</div>
+        <div className="absolute bottom-[18%] right-[12%] text-4xl opacity-35 animate-float [animation-delay:900ms]">🌍</div>
+        <div className="absolute bottom-[16%] left-[14%] text-3xl opacity-35 animate-float [animation-delay:1.3s]">🔬</div>
+      </div>
+    );
+  }
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
       <PhysicsOrbs accent={accent} />

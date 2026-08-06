@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { playSuccessSound, playErrorSound, playLamsaSound } from '../../utils/sounds';
 import { InteractiveScene } from '../../components/InteractiveScene';
-import Immersive3DScene from '../../components/Immersive3DScene';
+import Educational3DViewer from '../../components/effects/Educational3DViewer';
 
 interface StudentLoginProps {
   onLogin: (username: string, password: string) => void;
@@ -85,7 +85,6 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
       {/* main card */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="relative z-10 w-full max-w-md">
       <InteractiveScene className="relative z-10 w-full max-w-md p-8 animate-bounce-in" intensity={1.1}>
-        <Immersive3DScene accent="#ff6b35" intensity={1.15} />
         <div className={`w-full bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border-4 border-orange-200 p-8 ${
           isShaking ? 'animate-shake' : ''
         }`}>
@@ -109,6 +108,7 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
         </div>
 
         <div className="mt-10 text-center">
+           <Educational3DViewer className="mx-auto -mb-2 h-24 max-w-[180px]" fallbackEmoji="📚" />
           <h1 className="text-3xl font-black text-gray-800 mb-1">منارة المعرفة</h1>
           <p className="text-lg text-orange-500 font-bold animate-pulse">بوابة الطالب ✨</p>
         </div>

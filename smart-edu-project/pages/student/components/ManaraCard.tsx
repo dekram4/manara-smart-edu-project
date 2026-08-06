@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
 
 interface ManaraCardProps {
   emoji: string;
@@ -26,6 +27,7 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
       onClick={onClick}
       style={{ WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
     >
+        <EducationalCardEffects accent={color} compact />
       {/* NEW badge */}
       {isNew && (
         <div 

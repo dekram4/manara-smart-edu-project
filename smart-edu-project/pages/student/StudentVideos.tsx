@@ -5,6 +5,7 @@ import { playLamsaSound, playSectionSound } from '../../utils/sounds';
 import { filterTeacherOwnedRecords, matchesAcademicScope } from '../../utils/scope';
 import { StudentInfo } from '../../types';
 import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/gamification';
+import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 
 const GEMS_PER_VIDEO = 2;
 
@@ -139,6 +140,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
       animate={{ opacity: 1, y: 0 }}
       className="rounded-[40px] border border-rose-200/70 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-6 md:p-10 shadow-[0_30px_90px_-20px_rgba(244,63,94,0.35)]"
     >
+      <EducationalCardEffects accent="#f43f5e" compact />
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
           <h2 className="text-3xl md:text-4xl font-black text-rose-800">🎬 سينما منارة</h2>
@@ -185,6 +187,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
                     onMouseLeave={() => setPreviewVideoId(null)}
                     className={`relative overflow-hidden rounded-[28px] border bg-rose-50 shadow-2xl ${isCenter ? 'border-amber-300 ring-2 ring-amber-200' : 'border-rose-100'} ${!isUnlocked ? 'opacity-80' : ''}`}
                   >
+                    <EducationalCardEffects accent="#fb7185" compact />
                     {isPlaying && vid ? (
                       <div className="aspect-video">
                         <iframe
