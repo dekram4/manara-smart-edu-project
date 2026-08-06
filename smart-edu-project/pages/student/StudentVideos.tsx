@@ -5,6 +5,7 @@ import { playLamsaSound, playSectionSound } from '../../utils/sounds';
 import { filterTeacherOwnedRecords, matchesAcademicScope } from '../../utils/scope';
 import { StudentInfo } from '../../types';
 import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/gamification';
+import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 
 const GEMS_PER_VIDEO = 2;
@@ -131,7 +132,11 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
     const reward = rewardVideoComplete(video.id);
     setWatchedVideos(current => current.includes(video.id) ? current : [...current, video.id]);
     setCurrentGems(getGems());
-    playLamsaSound(reward.alreadyRewarded ? 'click' : 'success');
+     if (reward.alreadyRewarded) {
+       playLamsaSound('click');
+     } else {
+       GameAudioEngine.play('collectGem');
+     }
   };
 
   return (

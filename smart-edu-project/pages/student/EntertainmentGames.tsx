@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { getGamificationStats, rewardGamePerformanceWithId } from '../../utils/gamification';
 import { playLamsaSound, playSectionSound } from '../../utils/sounds';
+import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentGameCanvas from '../../components/StudentGameCanvas';
 import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 
@@ -39,6 +40,10 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     const dayKey = new Date().toISOString().slice(0, 10);
     const reward = rewardGamePerformanceWithId('speed', earnedScore, 100, `entertainment-hero-${dayKey}`);
     setRefreshKey((prev) => prev + 1);
+    if (!reward.alreadyRewarded) {
+      GameAudioEngine.play('collectGem');
+      if (reward.xp >= 100) GameAudioEngine.play('levelUp');
+    }
     setRewardMessage(
       reward.alreadyRewarded
         ? 'تم صرف مكافأة لعبة اليوم مسبقاً ✅'

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { rewardGamePerformanceWithId } from '../../../utils/gamification';
+import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 import { playLamsaSound } from '../../../utils/sounds';
 import GameHud from './shared/GameHud';
 
@@ -142,7 +143,12 @@ const PhaserMiniGame: React.FC = () => {
     const dailyId = new Date().toISOString().slice(0, 10);
     const result = rewardGamePerformanceWithId('speed', performanceScore, config.goal, `phaser-arcade-${difficulty}-${dailyId}`);
     setReward(result);
-    playLamsaSound(result.alreadyRewarded ? 'notification' : 'success');
+     if (result.alreadyRewarded) {
+       playLamsaSound('notification');
+     } else {
+       GameAudioEngine.play('collectGem');
+       if (result.xp >= 100) GameAudioEngine.play('levelUp');
+     }
   }, [finished, score, hits, config.goal, difficulty]);
 
   const restart = () => {

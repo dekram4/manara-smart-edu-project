@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Application, Graphics, Text } from 'pixi.js';
 import { rewardGamePerformanceWithId } from '../../../utils/gamification';
+import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 import { playLamsaSound } from '../../../utils/sounds';
 import GameHud from './shared/GameHud';
 
@@ -164,7 +165,12 @@ const PixiArcadeGame: React.FC = () => {
     const dailyId = new Date().toISOString().slice(0, 10);
     const result = rewardGamePerformanceWithId('speed', normalized, config.maxScore, `pixi-arcade-${difficulty}-${dailyId}`);
     setReward(result);
-    playLamsaSound(result.alreadyRewarded ? 'notification' : 'success');
+     if (result.alreadyRewarded) {
+       playLamsaSound('notification');
+     } else {
+       GameAudioEngine.play('collectGem');
+       if (result.xp >= 100) GameAudioEngine.play('levelUp');
+     }
   }, [finished, goodHits, badHits, config.maxScore, difficulty]);
 
   const restart = () => {

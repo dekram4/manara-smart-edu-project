@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Application, Graphics, Text } from 'pixi.js';
 import { rewardWeeklyBossWithId } from '../../../utils/gamification';
+import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 import { playLamsaSound } from '../../../utils/sounds';
 import GameHud from './shared/GameHud';
 
@@ -202,7 +203,12 @@ const BossChallengeGame: React.FC = () => {
     const rewardId = `boss-weekly-${difficulty}-${weekKey}`;
     const result = rewardWeeklyBossWithId(finalScore, config.maxScore, rewardId);
     setReward(result);
-    playLamsaSound(result.alreadyRewarded ? 'notification' : 'success');
+     if (result.alreadyRewarded) {
+       playLamsaSound('notification');
+     } else {
+       GameAudioEngine.play('collectGem');
+       if (result.xp >= 100) GameAudioEngine.play('levelUp');
+     }
   }, [finished, started, difficulty, finalScore, config.maxScore]);
 
   const startGame = () => {

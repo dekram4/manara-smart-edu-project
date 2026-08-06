@@ -11,6 +11,7 @@
     "howler": "^2.2.4",
     "lottie-web": "^5.13.0",
     "three": "^0.185.1",
+    "tone": "^15.1.22",
     "use-sound": "^5.0.0"
   },
   "devDependencies": {

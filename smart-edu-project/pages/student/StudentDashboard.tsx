@@ -37,6 +37,7 @@ import PremiumBackground from '../../components/PremiumBackground';
 import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 import Interactive3DEmoji from '../../components/effects/Interactive3DEmoji';
 import { getStudentEmoji } from '../../utils/studentAppearance';
+import { GameAudioEngine } from '../../utils/gameAudioEngine';
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -764,6 +765,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
     const percentage = Math.round((score / currentQuiz.length) * 100);
     let feedback = 'حاول مجدداً، أنت بطل ذكي وستتحسن بالتأكيد! 💪';
+
+    GameAudioEngine.play(percentage >= 60 ? 'correctAnswer' : 'wrongAnswer');
     
     // Gamification rewards
     const rewardId = getQuizRewardId(currentQuiz, activeLesson, currentQuiz[0]?.quizType || QuizType.UNIT);
@@ -780,6 +783,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     }
 
     if (!reward.alreadyRewarded && percentage >= 90) {
+      GameAudioEngine.play('levelUp');
       feedback = 'رائع ومذهل جداً! أنت عبقري ومتميز اليوم! 🏆✨';
       playEncouragementSound();
       speakWin();

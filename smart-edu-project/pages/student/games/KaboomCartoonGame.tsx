@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import kaboom from 'kaboom';
 import { rewardGamePerformanceWithId } from '../../../utils/gamification';
+import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 import { playLamsaSound } from '../../../utils/sounds';
 import GameHud from './shared/GameHud';
 
@@ -119,7 +120,12 @@ const KaboomCartoonGame: React.FC = () => {
     const dailyId = new Date().toISOString().slice(0, 10);
     const result = rewardGamePerformanceWithId('memory', normalized, config.maxScore, `kaboom-cartoon-${difficulty}-${dailyId}`);
     setReward(result);
-    playLamsaSound(result.alreadyRewarded ? 'notification' : 'success');
+     if (result.alreadyRewarded) {
+       playLamsaSound('notification');
+     } else {
+       GameAudioEngine.play('collectGem');
+       if (result.xp >= 100) GameAudioEngine.play('levelUp');
+     }
   }, [finished, stars, damage, config.maxScore, difficulty]);
 
   const restart = () => {
