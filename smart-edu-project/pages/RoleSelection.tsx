@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { soundPop } from '../App';
+import { playLamsaSound } from '../utils/sounds';
 import Interactive3DBackground from '../components/effects/Interactive3DBackground';
 
 interface RoleCard {
@@ -104,9 +104,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               translateZ: 20,
             }}
             whileTap={{ scale: 0.97 }}
-            onMouseEnter={() => soundPop.play()}
+            onMouseEnter={() => playLamsaSound('star')}
             onClick={() => {
-              soundPop.play();
+              playLamsaSound('success');
               handlers[role.id]();
             }}
             className={`group relative overflow-hidden rounded-3xl border border-white/15 bg-slate-900/60 p-6 text-right shadow-xl backdrop-blur-xl transition-all duration-300 hover:border-white/40 ${role.shadowColor}`}

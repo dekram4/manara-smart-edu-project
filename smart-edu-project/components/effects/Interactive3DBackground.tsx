@@ -15,6 +15,14 @@ const Interactive3DBackground: React.FC = () => {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden bg-[linear-gradient(135deg,_#070b1f_0%,_#151039_48%,_#071d32_100%)]">
       {webglAvailable && <Immersive3DScene accent="#6366f1" intensity={1.15} />}
+      {!webglAvailable && (
+        <div className="absolute inset-0 select-none text-5xl opacity-60">
+          <span className="animate-float absolute left-[8%] top-[18%] -rotate-12 drop-shadow-[0_0_18px_rgba(129,140,248,0.8)]">📚</span>
+          <span className="animate-float absolute right-[9%] top-[20%] rotate-45 drop-shadow-[0_0_18px_rgba(250,204,21,0.8)] [animation-delay:500ms]">✏️</span>
+          <span className="animate-float absolute bottom-[16%] right-[12%] drop-shadow-[0_0_18px_rgba(56,189,248,0.8)] [animation-delay:900ms]">🌍</span>
+          <span className="animate-float absolute bottom-[15%] left-[10%] rotate-12 drop-shadow-[0_0_18px_rgba(45,212,191,0.8)] [animation-delay:1.3s]">🔬</span>
+        </div>
+      )}
       <div className="absolute -left-16 top-16 h-72 w-72 animate-pulse rounded-full bg-indigo-500/20 blur-3xl" />
       <div className="absolute -right-20 bottom-0 h-80 w-80 animate-pulse rounded-full bg-fuchsia-500/15 blur-3xl [animation-delay:700ms]" />
       <div className="absolute left-1/3 top-1/3 h-40 w-40 animate-pulse rounded-full bg-cyan-400/10 blur-3xl [animation-delay:1.4s]" />

@@ -8,36 +8,145 @@ interface Immersive3DSceneProps {
   intensity?: number;
 }
 
-function FloatingCard({
+function EducationalBook({
   position,
-  color,
-  scale = 1,
-  speed = 1.2,
+  rotation = [0, 0, 0],
 }: {
   position: [number, number, number];
-  color: string;
-  scale?: number;
-  speed?: number;
+  rotation?: [number, number, number];
 }) {
   const meshRef = useRef<any>(null);
 
   useFrame((state, delta) => {
     if (!meshRef.current) return;
-    meshRef.current.rotation.y += delta * 0.55;
-    meshRef.current.rotation.x += delta * 0.2;
-    meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * speed) * 0.25;
+    meshRef.current.rotation.y += delta * 0.45;
+    meshRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.8) * 0.08;
   });
 
   return (
-    <Float speed={1.8} rotationIntensity={0.8} floatIntensity={0.9}>
-      <mesh ref={meshRef} position={position} scale={scale}>
-        <boxGeometry args={[1.25, 0.8, 0.25]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.28} roughness={0.2} metalness={0.35} />
-      </mesh>
-      <mesh position={[position[0], position[1], position[2] + 0.13]}>
-        <planeGeometry args={[1.1, 0.7]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.1} />
-      </mesh>
+    <Float speed={1.7} rotationIntensity={0.45} floatIntensity={0.75}>
+      <group ref={meshRef} position={position} rotation={rotation}>
+        {/* غلاف الكتاب */}
+        <mesh position={[-0.38, 0, 0]}>
+          <boxGeometry args={[0.78, 1.25, 0.12]} />
+          <meshStandardMaterial color="#4f46e5" emissive="#312e81" emissiveIntensity={0.35} roughness={0.28} metalness={0.2} />
+        </mesh>
+        <mesh position={[0.38, 0, 0]}>
+          <boxGeometry args={[0.78, 1.25, 0.12]} />
+          <meshStandardMaterial color="#7c3aed" emissive="#4c1d95" emissiveIntensity={0.3} roughness={0.28} metalness={0.2} />
+        </mesh>
+        {/* صفحات الكتاب المفتوح */}
+        <mesh position={[-0.38, 0, 0.08]} rotation={[0, -0.08, 0]}>
+          <boxGeometry args={[0.7, 1.12, 0.06]} />
+          <meshStandardMaterial color="#fef3c7" roughness={0.8} />
+        </mesh>
+        <mesh position={[0.38, 0, 0.08]} rotation={[0, 0.08, 0]}>
+          <boxGeometry args={[0.7, 1.12, 0.06]} />
+          <meshStandardMaterial color="#fff7ed" roughness={0.8} />
+        </mesh>
+        {/* سطران مضيئان على الصفحات */}
+        <mesh position={[-0.38, 0.22, 0.12]}>
+          <boxGeometry args={[0.42, 0.025, 0.015]} />
+          <meshBasicMaterial color="#38bdf8" />
+        </mesh>
+        <mesh position={[0.38, 0.22, 0.12]}>
+          <boxGeometry args={[0.42, 0.025, 0.015]} />
+          <meshBasicMaterial color="#f472b6" />
+        </mesh>
+      </group>
+    </Float>
+  );
+}
+
+function EducationalPencil({ position }: { position: [number, number, number] }) {
+  const meshRef = useRef<any>(null);
+
+  useFrame((_, delta) => {
+    if (meshRef.current) meshRef.current.rotation.z += delta * 0.35;
+  });
+
+  return (
+    <Float speed={2.1} rotationIntensity={0.7} floatIntensity={1.1}>
+      <group ref={meshRef} position={position} rotation={[0.5, 0.3, -0.6]}>
+        <mesh>
+          <cylinderGeometry args={[0.1, 0.1, 1.65, 12]} />
+          <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.25} />
+        </mesh>
+        <mesh position={[0, 0.9, 0]}>
+          <coneGeometry args={[0.1, 0.28, 12]} />
+          <meshStandardMaterial color="#f5deb3" />
+        </mesh>
+        <mesh position={[0, 1.06, 0]}>
+          <coneGeometry args={[0.035, 0.1, 8]} />
+          <meshStandardMaterial color="#334155" />
+        </mesh>
+        <mesh position={[0, -0.9, 0]}>
+          <cylinderGeometry args={[0.105, 0.105, 0.18, 12]} />
+          <meshStandardMaterial color="#f472b6" emissive="#be185d" emissiveIntensity={0.25} />
+        </mesh>
+      </group>
+    </Float>
+  );
+}
+
+function EducationalGlobe({ position }: { position: [number, number, number] }) {
+  const meshRef = useRef<any>(null);
+
+  useFrame((_, delta) => {
+    if (meshRef.current) meshRef.current.rotation.y += delta * 0.3;
+  });
+
+  return (
+    <Float speed={1.5} rotationIntensity={0.35} floatIntensity={0.8}>
+      <group ref={meshRef} position={position}>
+        <mesh>
+          <sphereGeometry args={[0.62, 24, 16]} />
+          <meshStandardMaterial color="#0ea5e9" emissive="#075985" emissiveIntensity={0.35} roughness={0.45} metalness={0.15} />
+        </mesh>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.74, 0.025, 8, 40]} />
+          <meshStandardMaterial color="#fbbf24" emissive="#d97706" emissiveIntensity={0.5} />
+        </mesh>
+        <mesh rotation={[0.2, 0, 0.5]}>
+          <torusGeometry args={[0.62, 0.018, 8, 40]} />
+          <meshStandardMaterial color="#f8fafc" emissive="#bae6fd" emissiveIntensity={0.3} />
+        </mesh>
+      </group>
+    </Float>
+  );
+}
+
+function EducationalMicroscope({ position }: { position: [number, number, number] }) {
+  const meshRef = useRef<any>(null);
+
+  useFrame((state) => {
+    if (meshRef.current) meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.7) * 0.18;
+  });
+
+  return (
+    <Float speed={1.8} rotationIntensity={0.4} floatIntensity={0.7}>
+      <group ref={meshRef} position={position} scale={0.75}>
+        <mesh position={[0, -0.58, 0]}>
+          <boxGeometry args={[1.2, 0.12, 0.6]} />
+          <meshStandardMaterial color="#14b8a6" emissive="#0f766e" emissiveIntensity={0.35} />
+        </mesh>
+        <mesh position={[0, -0.2, 0]}>
+          <cylinderGeometry args={[0.08, 0.08, 0.75, 12]} />
+          <meshStandardMaterial color="#e2e8f0" metalness={0.65} roughness={0.25} />
+        </mesh>
+        <mesh position={[0.2, 0.22, 0]} rotation={[0, 0, -0.7]}>
+          <cylinderGeometry args={[0.1, 0.13, 0.85, 12]} />
+          <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.25} />
+        </mesh>
+        <mesh position={[0.48, 0.56, 0]} rotation={[0, 0, -0.7]}>
+          <cylinderGeometry args={[0.13, 0.09, 0.42, 12]} />
+          <meshStandardMaterial color="#a78bfa" emissive="#7c3aed" emissiveIntensity={0.35} />
+        </mesh>
+        <mesh position={[0, 0.02, 0.18]}>
+          <cylinderGeometry args={[0.2, 0.2, 0.06, 16]} />
+          <meshStandardMaterial color="#fbbf24" emissive="#d97706" emissiveIntensity={0.3} />
+        </mesh>
+      </group>
     </Float>
   );
 }
@@ -120,9 +229,10 @@ const Immersive3DScene: React.FC<Immersive3DSceneProps> = ({ accent = '#38bdf8',
         <pointLight position={[4, 4, 4]} intensity={1.3} color="#38bdf8" />
         <pointLight position={[-3, -2, 4]} intensity={1.05} color="#f472b6" />
         <Stars radius={7} depth={18} count={1200} factor={4} saturation={0} fade speed={0.85} />
-        <FloatingCard position={[-2.2, 0.8, 0]} color={accent} scale={1.05 + intensity * 0.08} speed={1.2} />
-        <FloatingCard position={[2.1, -0.2, 0]} color="#f59e0b" scale={0.95 + intensity * 0.06} speed={1.5} />
-        <FloatingCard position={[0.2, -1.2, 0]} color="#22d3ee" scale={0.9 + intensity * 0.05} speed={1.35} />
+        <EducationalBook position={[-2.15, 0.85, 0]} rotation={[0.25, 0.15, -0.15]} />
+        <EducationalPencil position={[2.1, 0.8, 0]} />
+        <EducationalGlobe position={[2.15, -1.1, 0]} />
+        <EducationalMicroscope position={[-1.9, -1.2, 0]} />
       </Canvas>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.12),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(255,255,255,0.08),_transparent_35%)]" />
     </div>
