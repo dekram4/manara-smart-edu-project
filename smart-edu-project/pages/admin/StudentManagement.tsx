@@ -5,6 +5,7 @@ import { STORAGE_KEYS, COLORS, DEFAULT_PASSWORD } from '../../constants';
 import { ensureHashed } from '../../utils/password';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
+import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 
 interface StudentManagementProps {
   onUpdate: () => void;
@@ -30,6 +31,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   
   const [studentForm, setStudentForm] = useState({
     name: '',
+    gender: 'male' as StudentGender,
     username: '',
     password: DEFAULT_PASSWORD,
     parentPhoneNumber: '',
@@ -232,6 +234,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     const student: StudentInfo = {
       id: editingStudent?.id || Date.now().toString(),
       name: studentForm.name,
+      gender: studentForm.gender,
       username: username,
       password: ensureHashed(studentForm.password || editingStudent?.password || DEFAULT_PASSWORD),
       parentPhoneNumber: parentPhoneNumber,
@@ -308,6 +311,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   const resetStudentForm = () => {
     setStudentForm({ 
       name: '', 
+      gender: 'male',
       username: '', 
       password: DEFAULT_PASSWORD, 
       parentPhoneNumber: '', 
@@ -378,6 +382,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   const handleEditStudent = (s: StudentInfo) => {
     setStudentForm({
       name: s.name,
+      gender: s.gender || 'male',
       username: s.username || '',
       password: '',
       parentPhoneNumber: s.parentPhoneNumber,
@@ -464,7 +469,13 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
           <form onSubmit={handleAddStudent} style={styles.form}>
             <div style={styles.formGrid}>
                <div style={styles.formGroup}><label style={styles.label}>الاسم *</label><input type="text" value={studentForm.name} onChange={e => setStudentForm({...studentForm, name: e.target.value})} style={styles.input} required /></div>
-               <div style={styles.formGroup}><label style={styles.label}>اسم المستخدم</label><input type="text" value={studentForm.username} onChange={e => setStudentForm({...studentForm, username: e.target.value})} style={styles.input} placeholder="سيتم توليده تلقائياً" /></div>
+                <div style={styles.formGroup}><label style={styles.label}>اسم المستخدم</label><input type="text" value={studentForm.username} onChange={e => setStudentForm({...studentForm, username: e.target.value})} style={styles.input} placeholder="سيتم توليده تلقائياً" /></div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>جنس الطالب *</label>
+                  <select value={studentForm.gender} onChange={e => setStudentForm({...studentForm, gender: e.target.value as StudentGender})} style={styles.select} required>
+                    {STUDENT_GENDER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.emoji} {option.label}</option>)}
+                  </select>
+                </div>
                <div style={styles.formGroup}><label style={styles.label}>رقم الهوية *</label><input type="text" value={studentForm.studentIdNumber} onChange={e => setStudentForm({...studentForm, studentIdNumber: e.target.value})} style={styles.input} required /></div>
                <div style={styles.formGroup}><label style={styles.label}>كلمة المرور {editingStudent ? '' : '*'}</label><input type="text" value={studentForm.password} onChange={e => setStudentForm({...studentForm, password: e.target.value})} style={styles.input} placeholder={editingStudent ? 'اتركه فارغاً للإبقاء على الحالية' : ''} required={!editingStudent} /></div>
                <div style={styles.formGroup}>
@@ -689,7 +700,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                             return s.parentPhoneNumber === item.phoneNumber;
                           }).map(student => (
                             <span key={student.id} className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">
-                              👨‍🎓 {student.name}
+                             {getStudentEmoji(student)} {student.name}
                             </span>
                           ))}
                         </div>

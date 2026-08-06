@@ -51,6 +51,8 @@ export enum QuizType {
 export interface StudentInfo {
   id: string;
   name: string;
+  /** Student-selected gender, used for the student avatar/emoji. */
+  gender?: 'male' | 'female';
   username?: string;
   password: string;
   parentPhoneNumber: string;

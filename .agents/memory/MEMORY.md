@@ -1,1 +1,2 @@
 - [WebGL fallback](webgl-fallback.md) — 3D backgrounds must degrade gracefully because Replit preview may run without a usable WebGL context.
+- [Student gender compatibility](student-gender.md) — keep gender optional for legacy students and derive student avatars through one shared helper.

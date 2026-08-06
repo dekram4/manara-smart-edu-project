@@ -9,6 +9,7 @@ import { getParentPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
+import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -45,6 +46,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [showAddChildForm, setShowAddChildForm] = useState(false);
   const [newChild, setNewChild] = useState({
     name: '',
+    gender: 'male' as StudentGender,
     username: '',
     password: '',
     studentIdNumber: '',
@@ -220,6 +222,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const child: StudentInfo = {
       id: Date.now().toString(),
       name: newChild.name,
+      gender: newChild.gender,
       password: hashPassword(newChild.password),
       username: newChild.username && newChild.username.trim() ? newChild.username.trim() : (newChild.studentIdNumber ? `stu_${newChild.studentIdNumber}` : `stu_${Date.now().toString().slice(-5)}`),
       parentPhoneNumber: parent?.phoneNumber || '',
@@ -250,7 +253,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     localStorage.setItem(STORAGE_KEYS.ACTIVE_PARENT, JSON.stringify(refreshedParent));
     setParent(refreshedParent);
      if (parent) setChildren(getParentChildren(updatedStudents, parent));
-    setNewChild({ name: '', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' });
+    setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' });
     setShowAddChildForm(false);
     alert(`تمت إضافة ${newChild.name} بنجاح!`);
   };
@@ -606,7 +609,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h1 className="text-2xl font-black">
-                    {activeChild ? `👤 ${activeChild.name}` : '🏠 لوحة المتابعة'}
+                    {activeChild ? `${getStudentEmoji(activeChild)} ${activeChild.name}` : '🏠 لوحة المتابعة'}
                   </h1>
                   <p className="text-rose-200 font-bold text-xs mt-1">
                     {activeChild ? 'تفاصيل الأداء والتحصيل الدراسي' : 'نظرة شاملة على تقدم جميع أبنائك'}
@@ -890,13 +893,12 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         const avg = getChildAverage(child.id);
                         const subjs = getChildSubjects(child);
                         const lastQuiz = qs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-                        const initials = child.name.split(' ').map(n => n[0]).join('').slice(0, 2);
                         const colors = ['from-rose-400 to-orange-400', 'from-emerald-400 to-teal-400', 'from-sky-400 to-rose-400', 'from-violet-400 to-purple-400', 'from-amber-400 to-yellow-400'];
                         const avatarGrad = colors[child.name.length % colors.length];
                         return (
                           <div key={child.id} className="bg-white p-5 rounded-2xl shadow-sm border border-rose-100 hover:shadow-md hover:border-rose-300 transition-all">
                             <div className="flex items-center gap-3 mb-3">
-                              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-black text-sm shrink-0`}>{initials}</div>
+                               <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-3xl shrink-0`}>{getStudentEmoji(child)}</div>
                               <div className="flex-1 min-w-0">
                                 <h4 className="text-base font-black text-rose-800 truncate">{child.name}</h4>
                                 <p className="text-rose-400 text-xs font-bold truncate">{child.primaryGrade || child.grade || 'غير محدد'}</p>
@@ -1178,6 +1180,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <form onSubmit={handleAddChild} className="space-y-4 text-right">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1"><label className="text-xs font-bold text-rose-600 block">الاسم الكامل *</label><input type="text" placeholder="أدخل اسم الابن" value={newChild.name} onChange={e => setNewChild({...newChild, name: e.target.value})} className="w-full p-3 bg-white rounded-xl border border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none font-bold text-sm transition-all" required /></div>
+                   <div className="space-y-1"><label className="text-xs font-bold text-rose-600 block">جنس الطالب *</label><select value={newChild.gender} onChange={e => setNewChild({...newChild, gender: e.target.value as StudentGender})} className="w-full p-3 bg-white rounded-xl border border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none font-bold text-sm transition-all" required>{STUDENT_GENDER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.emoji} {option.label}</option>)}</select></div>
                   <div className="space-y-1"><label className="text-xs font-bold text-rose-600 block">اسم المستخدم (اختياري)</label><input type="text" placeholder="مثال: ali123" value={newChild.username} onChange={e => setNewChild({...newChild, username: e.target.value})} className="w-full p-3 bg-white rounded-xl border border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none font-bold text-sm transition-all" /></div>
                   <div className="space-y-1"><label className="text-xs font-bold text-rose-600 block">رقم الهوية *</label><input type="text" placeholder="رقم الهوية الفريد" value={newChild.studentIdNumber} onChange={e => setNewChild({...newChild, studentIdNumber: e.target.value})} className="w-full p-3 bg-white rounded-xl border border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none font-bold text-sm transition-all" required /></div>
                   <div className="space-y-1"><label className="text-xs font-bold text-rose-600 block">كلمة المرور *</label><input type="password" placeholder="كلمة المرور (6+ رموز)" value={newChild.password} onChange={e => setNewChild({...newChild, password: e.target.value})} className="w-full p-3 bg-white rounded-xl border border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none font-bold text-sm transition-all" required /></div>
@@ -1186,7 +1189,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="submit" className="flex-1 bg-rose-500 text-white px-5 py-2.5 rounded-xl font-black text-sm hover:bg-rose-600 shadow-md transition-all">✅ حفظ البيانات</button>
-                  <button type="button" onClick={() => setNewChild({ name: '', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' })} className="px-5 py-2.5 bg-rose-100 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-200 transition-all">إلغاء</button>
+                   <button type="button" onClick={() => setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' })} className="px-5 py-2.5 bg-rose-100 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-200 transition-all">إلغاء</button>
                 </div>
               </form>
             </div>
@@ -1214,7 +1217,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       certSelectedChild?.id === child.id ? 'bg-rose-500 text-white shadow-sm' : 'hover:bg-rose-50 text-rose-700'
                     }`}
                   >
-                    👤 {child.name}
+                    {getStudentEmoji(child)} {child.name}
                   </button>
                 ))}
               </div>

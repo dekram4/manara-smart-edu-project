@@ -5,6 +5,7 @@ import { ensureHashed } from '../../utils/password';
 import { getTeacherPermissions } from '../../permissions';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
+import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 
 interface ParentStudentManagementProps {
   teacherId: string;
@@ -44,6 +45,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
   const [studentForm, setStudentForm] = useState({
     name: '',
+    gender: 'male' as StudentGender,
     username: '',
     password: DEFAULT_PASSWORD,
     parentPhoneNumber: '',
@@ -210,6 +212,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       }
     }
     
+    let savedStudent: StudentInfo | undefined;
+
     if (editingStudent) {
       // تعديل طالب موجود
       const index = allStudents.findIndex(s => s.id === editingStudent.id);
@@ -217,6 +221,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         allStudents[index] = {
           ...allStudents[index],
           name: studentForm.name,
+          gender: studentForm.gender,
           username: studentForm.username || allStudents[index].username,
           password: ensureHashed(studentForm.password || allStudents[index].password),
           parentPhoneNumber: studentForm.parentPhoneNumber,
@@ -228,12 +233,14 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           teacherId,
           createdBy: teacherId,
         };
+        savedStudent = allStudents[index];
       }
     } else {
       // إنشاء طالب جديد
       const newStudent: StudentInfo = {
         id: Date.now().toString(),
         name: studentForm.name,
+        gender: studentForm.gender,
         username: studentForm.username,
         password: ensureHashed(studentForm.password || DEFAULT_PASSWORD),
         parentPhoneNumber: studentForm.parentPhoneNumber,
@@ -250,6 +257,19 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         createdBy: teacherId, // ربط بالمعلم
       };
       allStudents.push(newStudent);
+      savedStudent = newStudent;
+    }
+
+    // Keep the embedded child record on every parent synchronized with the
+    // canonical student record, including parent changes during an edit.
+    if (savedStudent) {
+      const updatedParents = allParents.map(parent => {
+        const remainingChildren = (parent.children || []).filter(child => child.id !== savedStudent!.id);
+        return parent.id === savedStudent!.parentId
+          ? { ...parent, children: [...remainingChildren, savedStudent] }
+          : { ...parent, children: remainingChildren };
+      });
+      localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
     }
 
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(allStudents));
@@ -311,6 +331,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const resetStudentForm = () => {
     setStudentForm({
       name: '',
+      gender: 'male',
       username: '',
       password: DEFAULT_PASSWORD,
       parentPhoneNumber: '',
@@ -557,7 +578,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                       <div key={student.id} className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center text-white text-2xl">👨‍🎓</div>
+                             <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center text-white text-2xl">{getStudentEmoji(student)}</div>
                             <div>
                               <h3 className="text-lg font-black text-gray-800">{student.name}</h3>
                               <p className="text-xs text-gray-500">الصف: {student.primaryGrade} {parent && `· ولي الأمر: ${parent.name}`}</p>
@@ -566,7 +587,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                              <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -656,7 +677,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xl ${
                               studentMatches ? 'bg-yellow-200' : 'bg-blue-100'
                             }`}>
-                              👨‍🎓
+                              {getStudentEmoji(student)}
                             </div>
                             <div>
                               <p className="font-bold text-gray-800">
@@ -669,7 +690,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                              <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -699,7 +720,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           <div className="bg-gradient-to-br from-green-50 to-orange-50 p-8 rounded-2xl border-2 border-green-300 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="text-4xl">👨‍🎓</div>
+                <div className="text-4xl">{getStudentEmoji(editingStudent)}</div>
                 <h3 className="text-2xl font-black text-gray-800">
                   {editingStudent ? 'تعديل بيانات طالب' : 'إضافة طالب جديد'}
                 </h3>
@@ -713,7 +734,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+                <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">اسم الطالب *</label>
                 <input
                   type="text"
@@ -722,6 +743,12 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
                 />
               </div>
+               <div>
+                 <label className="block text-sm font-bold text-gray-700 mb-2">جنس الطالب *</label>
+                 <select value={studentForm.gender} onChange={e => setStudentForm({ ...studentForm, gender: e.target.value as StudentGender })} className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none" required>
+                   {STUDENT_GENDER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.emoji} {option.label}</option>)}
+                 </select>
+               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">ولي الأمر *</label>
                 <select

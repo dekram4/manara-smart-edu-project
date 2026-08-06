@@ -36,6 +36,7 @@ import { InteractiveScene } from '../../components/InteractiveScene';
 import PremiumBackground from '../../components/PremiumBackground';
 import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 import Interactive3DEmoji from '../../components/effects/Interactive3DEmoji';
+import { getStudentEmoji } from '../../utils/studentAppearance';
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -1020,7 +1021,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       {/* الهيدر العلوي */}
       <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between gap-4 z-10 relative">
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 px-5 border border-white/10 shadow-xl">
-          <Interactive3DEmoji emoji="👨‍🎓" accent="#38bdf8" size="sm" />
+          <Interactive3DEmoji emoji={getStudentEmoji(student)} accent="#38bdf8" size="sm" />
           <div>
             <h1 className="text-lg font-black text-white">أهلاً يا {student?.name}!</h1>
             <p className="text-amber-300 text-xs font-bold">Lv.{level} | ⭐ {xp} | 💎 {gems} {streak > 0 ? `| 🔥 ${streak}` : ''}</p>
