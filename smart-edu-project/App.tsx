@@ -47,7 +47,11 @@ export const soundClick = {
 };
 
 export const triggerCelebration = (won = true) => {
-  GameAudioEngine.play(won ? 'correctAnswer' : 'wrongAnswer');
+  if (won) {
+    GameAudioEngine.play('correctAnswer');
+  } else {
+    GameAudioEngine.play('wrongAnswer');
+  }
 };
 
 type MainView = 'role' | 'admin' | 'teacher' | 'student' | 'parent';

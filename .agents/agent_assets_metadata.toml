@@ -42,3 +42,24 @@ uri = "file://attached_assets/generated_audio/manara-login-chime.mp3"
 type = "audio"
 title = "manara login chime"
 description = "Generated sound effect: Premium global education platform login confirmation sound: a clean warm digital chime with a subtle soft click at the start and a confident gentle ascending sparkle, polished…"
+
+[[outputs]]
+id = "JCFxFv7yJrf7eRlId04zj"
+uri = "file://attached_assets/generated_audio/manara-applause-clarity.mp3"
+type = "audio"
+title = "manara applause clarity"
+description = "Generated sound effect: A clearly audible joyful educational achievement celebration: uplifting warm success fanfare followed by real gentle hand claps, child-friendly but premium, bright and encoura…"
+
+[[outputs]]
+id = "qBfsmekiQIMQLuB1TbN_d"
+uri = "file://attached_assets/generated_audio/manara-hover-clarity.mp3"
+type = "audio"
+title = "manara hover clarity"
+description = "Generated sound effect: A premium worldwide product interface hover sound for an education platform: a crisp but soft single glass tick with a warm rounded digital shimmer, clearly audible on laptop …"
+
+[[outputs]]
+id = "STX_T2qsJOg6yuLmL64RG"
+uri = "file://attached_assets/generated_audio/manara-gem-clarity.mp3"
+type = "audio"
+title = "manara gem clarity"
+description = "Generated sound effect: A clearly audible premium jewel reward sound for an educational app: bright crystalline gem sparkle with a clean three-note ascending chime, satisfying and polished, distinct …"

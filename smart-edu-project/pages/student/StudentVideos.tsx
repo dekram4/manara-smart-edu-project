@@ -135,7 +135,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
      if (reward.alreadyRewarded) {
        playLamsaSound('click');
      } else {
-       GameAudioEngine.play('collectGem');
+        GameAudioEngine.playRewardSequence({ gems: reward.gems });
      }
   };
 

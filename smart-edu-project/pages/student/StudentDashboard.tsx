@@ -772,7 +772,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     // Gamification rewards
     const rewardId = getQuizRewardId(currentQuiz, activeLesson, currentQuiz[0]?.quizType || QuizType.UNIT);
     const reward = rewardQuizCompleteWithId(score, currentQuiz.length, rewardId);
-    triggerCelebration(percentage >= 60);
+    if (percentage >= 60) {
+      GameAudioEngine.playRewardSequence({ celebrate: true, gems: reward.gems });
+    } else {
+      triggerCelebration(false);
+    }
     refreshGamification();
 
     if (reward.alreadyRewarded) {
@@ -946,6 +950,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         if (data.answer) {
           playLamsaSound('magic');
           const reward = rewardProblemSolved();
+          GameAudioEngine.playRewardSequence({ gems: reward.gems });
           refreshGamification();
           setRewardInfo({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! حللت مسألة!' });
           setShowRewardPopup(true);
@@ -978,7 +983,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       playLamsaSound('click');
       setRewardInfo({ xp: 0, gems: 0, message: 'هذا الدرس مكتمل في سجل إنجازاتك ✅' });
     } else {
-      GameAudioEngine.play('correctAnswer');
+      GameAudioEngine.playRewardSequence({ celebrate: true, gems: reward.gems });
       setRewardInfo({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! أنهيت الدرس بنجاح! +5 جواهر' });
     }
     refreshGamification();

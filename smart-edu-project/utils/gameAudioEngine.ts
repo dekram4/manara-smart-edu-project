@@ -15,6 +15,7 @@ const isSoundEnabled = () => {
 
 let audioUnlocked = false;
 let lastHoverAt = 0;
+let rewardTimer: ReturnType<typeof setTimeout> | null = null;
 
 const unlockAudio = () => {
   if (typeof window === 'undefined') return;
@@ -37,53 +38,30 @@ if (typeof window !== 'undefined') {
   });
 }
 
+const audioOptions = (src: string[], volume: number) => ({
+  src,
+  volume,
+  preload: true,
+  html5: true,
+  onloaderror: (_id: number, error: unknown) => {
+    console.warn('[MANARA audio] Could not load sound:', src[0], error);
+  },
+  onplayerror: (_id: number, error: unknown) => {
+    console.warn('[MANARA audio] Could not play sound:', src[0], error);
+  },
+});
+
 // أصوات أصلية محلية للواجهة والتعلم والمكافآت — يتم تحميلها مسبقًا حتى تستجيب فورًا.
 export const gameSounds = {
-  uiHover: new Howl({
-    src: ['/audio/manara-soft-hover.mp3'],
-    volume: 0.48,
-    preload: true,
-  }),
-  uiSelect: new Howl({
-    src: ['/audio/manara-portal-transition.mp3'],
-    volume: 0.58,
-    preload: true,
-  }),
-  portalTransition: new Howl({
-    src: ['/audio/manara-portal-transition.mp3'],
-    volume: 0.52,
-    preload: true,
-  }),
-  loginChime: new Howl({
-    src: ['/audio/manara-login-chime.mp3'],
-    volume: 0.62,
-    preload: true,
-  }),
-  studentWelcome: new Howl({
-    src: ['/audio/manara-arabic-student-welcome.mp3'],
-    volume: 0.92,
-    preload: true,
-  }),
-  correctAnswer: new Howl({
-    src: ['/audio/manara-victory-applause.mp3'],
-    volume: 0.64,
-    preload: true,
-  }),
-  wrongAnswer: new Howl({
-    src: ['/audio/manara-soft-hover.mp3'],
-    volume: 0.2,
-    preload: true,
-  }),
-  collectGem: new Howl({
-    src: ['/audio/manara-gem-reward.mp3'],
-    volume: 0.7,
-    preload: true,
-  }),
-  levelUp: new Howl({
-    src: ['/audio/manara-victory-applause.mp3'],
-    volume: 0.72,
-    preload: true,
-  }),
+  uiHover: new Howl(audioOptions(['/audio/manara-hover-clarity.mp3'], 0.68)),
+  uiSelect: new Howl(audioOptions(['/audio/manara-portal-transition.mp3'], 0.64)),
+  portalTransition: new Howl(audioOptions(['/audio/manara-portal-transition.mp3'], 0.6)),
+  loginChime: new Howl(audioOptions(['/audio/manara-login-chime.mp3'], 0.72)),
+  studentWelcome: new Howl(audioOptions(['/audio/manara-arabic-student-welcome.mp3'], 1)),
+  correctAnswer: new Howl(audioOptions(['/audio/manara-applause-clarity.mp3'], 0.82)),
+  wrongAnswer: new Howl(audioOptions(['/audio/manara-hover-clarity.mp3'], 0.24)),
+  collectGem: new Howl(audioOptions(['/audio/manara-gem-clarity.mp3'], 0.95)),
+  levelUp: new Howl(audioOptions(['/audio/manara-applause-clarity.mp3'], 0.9)),
 };
 
 export type GameSoundName = keyof typeof gameSounds;
@@ -110,6 +88,25 @@ export class GameAudioEngine {
       return;
     }
     start();
+  }
+
+  static playRewardSequence({ celebrate = false, gems = 0 }: { celebrate?: boolean; gems?: number } = {}) {
+    if (!isSoundEnabled()) return;
+    if (rewardTimer) {
+      clearTimeout(rewardTimer);
+      rewardTimer = null;
+    }
+
+    if (celebrate) {
+      GameAudioEngine.play('correctAnswer');
+    }
+
+    if (gems > 0) {
+      rewardTimer = setTimeout(() => {
+        rewardTimer = null;
+        GameAudioEngine.play('collectGem');
+      }, celebrate ? 2300 : 80);
+    }
   }
 
   static setGlobalVolume(volume: number) {

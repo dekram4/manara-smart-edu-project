@@ -41,7 +41,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     const reward = rewardGamePerformanceWithId('speed', earnedScore, 100, `entertainment-hero-${dayKey}`);
     setRefreshKey((prev) => prev + 1);
     if (!reward.alreadyRewarded) {
-      GameAudioEngine.play(reward.xp >= 100 ? 'levelUp' : 'collectGem');
+      GameAudioEngine.playRewardSequence({ celebrate: reward.xp >= 100, gems: reward.gems });
     }
     setRewardMessage(
       reward.alreadyRewarded

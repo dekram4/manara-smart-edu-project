@@ -206,7 +206,7 @@ const BossChallengeGame: React.FC = () => {
      if (result.alreadyRewarded) {
        playLamsaSound('notification');
      } else {
-       GameAudioEngine.play(result.xp >= 100 ? 'levelUp' : 'collectGem');
+       GameAudioEngine.playRewardSequence({ celebrate: result.xp >= 100, gems: result.gems });
      }
   }, [finished, started, difficulty, finalScore, config.maxScore]);
 

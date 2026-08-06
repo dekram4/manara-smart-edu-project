@@ -168,7 +168,7 @@ const PixiArcadeGame: React.FC = () => {
      if (result.alreadyRewarded) {
        playLamsaSound('notification');
      } else {
-       GameAudioEngine.play(result.xp >= 100 ? 'levelUp' : 'collectGem');
+       GameAudioEngine.playRewardSequence({ celebrate: result.xp >= 100, gems: result.gems });
      }
   }, [finished, goodHits, badHits, config.maxScore, difficulty]);
 
