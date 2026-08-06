@@ -39,6 +39,10 @@ const KV_KEYS = [
   'smartEdu_adminSettings',
   'smartEdu_permissions',
   'smartEdu_reports',
+  // Shared collections that were historically kept only in browser storage.
+  'smartEdu_quizQuestions',
+  'smartEdu_videos',
+  'smartEdu_videoNotifications',
 ];
 
 const KV_SET = new Set(KV_KEYS);
@@ -63,6 +67,33 @@ function safeParse(raw: string | null): any {
   } catch {
     return null;
   }
+}
+
+function mergeArrayRecords(remote: any[], local: any[]): any[] {
+  const merged = [...remote];
+  const remoteIds = new Set(
+    remote
+      .filter((item) => item && typeof item === 'object' && item.id != null)
+      .map((item) => String(item.id)),
+  );
+
+  for (const item of local) {
+    if (item && typeof item === 'object' && item.id != null) {
+      if (!remoteIds.has(String(item.id))) merged.push(item);
+      continue;
+    }
+    if (!merged.some((existing) => JSON.stringify(existing) === JSON.stringify(item))) {
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
+function mergeSharedValue(remoteValue: any, localValue: any): any {
+  if (Array.isArray(remoteValue) && Array.isArray(localValue)) {
+    return mergeArrayRecords(remoteValue, localValue);
+  }
+  return remoteValue ?? localValue;
 }
 
 function mergeLegacyPublicMessages(): string | null {
@@ -195,21 +226,20 @@ async function hydrateRowTable(
   const remote = (data || []).map((row: any) => row.data);
   const local = safeParse(nativeGetItem(storageKey));
   const localArr = Array.isArray(local) ? local : [];
+  const merged = mergeArrayRecords(remote, localArr);
+  const remoteIds = new Set(remote.map((item: any) => String(item?.id)));
+  const localOnly = merged
+    .filter((item: any) => item?.id != null && !remoteIds.has(String(item.id)))
+    .map((item: any) => ({ id: String(item.id), data: item }));
 
-  if (remote.length === 0 && localArr.length > 0) {
-    const upserts = localArr
-      .filter((r: any) => r && r.id != null)
-      .map((r: any) => ({ id: String(r.id), data: r }));
-    if (upserts.length) {
-      const res = await withRetry(`رفع ${table} (هجرة أولى)`, () =>
-        supabase.from(table).upsert(upserts, { onConflict: 'id' })
-      );
-      if (res.error) appendPending({ type: 'row_upsert', table, rows: upserts });
-    }
-    return; // التخزين المحلي صحيح أصلاً
+  if (localOnly.length) {
+    const res = await withRetry(`دمج ${table}`, () =>
+      supabase.from(table).upsert(localOnly, { onConflict: 'id' }),
+    );
+    if (res.error) appendPending({ type: 'row_upsert', table, rows: localOnly });
   }
 
-  nativeSetItem(storageKey, JSON.stringify(remote));
+  nativeSetItem(storageKey, JSON.stringify(merged));
 }
 
 async function hydrateKv(pendingKv: Set<string>): Promise<void> {
@@ -223,10 +253,14 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
 
   for (const key of KV_KEYS) {
     if (pendingKv.has(key)) continue; // تغييرات محلية معلّقة، لا تطمسها
+    const localVal = safeParse(nativeGetItem(key));
     if (byKey.has(key)) {
-      nativeSetItem(key, JSON.stringify(byKey.get(key)));
+      const merged = mergeSharedValue(byKey.get(key), localVal);
+      nativeSetItem(key, JSON.stringify(merged));
+      if (JSON.stringify(merged) !== JSON.stringify(byKey.get(key))) {
+        toUpload.push({ key, value: merged });
+      }
     } else {
-      const localVal = safeParse(nativeGetItem(key));
       if (localVal !== null) toUpload.push({ key, value: localVal });
     }
   }
