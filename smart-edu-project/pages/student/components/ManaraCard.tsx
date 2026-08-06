@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
 
@@ -6,8 +6,8 @@ interface ManaraCardProps {
   emoji: string;
   title: string;
   subtitle: string;
-  color: string;
-  bgColor: string;
+  color: string;       // accent hex
+  bgColor: string;     // card bg (can be gradient string or color)
   delay?: number;
   isNew?: boolean;
   onClick: () => void;
@@ -16,66 +16,86 @@ interface ManaraCardProps {
 const ManaraCard: React.FC<ManaraCardProps> = ({
   emoji, title, subtitle, color, bgColor, delay = 0, isNew = false, onClick,
 }) => {
+  const [hovered, setHovered] = useState(false);
+
   return (
     <motion.div
-      className="relative"
-      initial={{ opacity: 0, y: 30, scale: 0.9 }}
+      className="relative cursor-pointer"
+      initial={{ opacity: 0, y: 30, scale: 0.88 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.4, delay, type: "spring", stiffness: 200 }}
-      whileHover={{ scale: 1.05, y: -8, rotate: -2, boxShadow: '0 24px 48px rgba(15, 23, 42, 0.2)' }}
-      whileTap={{ scale: 0.94, rotate: -1 }}
+      transition={{ duration: 0.42, delay, type: 'spring', stiffness: 220, damping: 20 }}
+      whileHover={{ scale: 1.07, y: -10 }}
+      whileTap={{ scale: 0.94 }}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
       onClick={onClick}
-      style={{ WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
-        <EducationalCardEffects accent={color} compact />
       {/* NEW badge */}
       {isNew && (
-        <div 
-          className="absolute -top-1.5 -right-1 z-10"
-          style={{ WebkitAnimation: 'badgeBounce 2s ease-in-out infinite' }}
-        >
-          <span 
-            className="text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md"
-            style={{ background: '#EF4444' }}
-          >
+        <div className="absolute -right-1 -top-1.5 z-20">
+          <span className="rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-black text-white shadow-lg shadow-red-500/40">
             جديد!
           </span>
         </div>
       )}
 
+      {/* Card shell */}
       <div
-        className="relative rounded-2xl p-3 h-32 flex flex-col items-center justify-center text-center overflow-hidden"
+        className="relative h-32 overflow-hidden rounded-2xl border"
         style={{
           background: bgColor,
-          border: `1px solid ${color}30`,
-          WebkitBoxShadow: `0 4px 16px ${color}25`,
-          boxShadow: `0 4px 16px ${color}25`,
+          borderColor: `${color}30`,
+          boxShadow: hovered
+            ? `0 16px 40px ${color}45, 0 0 0 1px ${color}25, inset 0 1px 0 rgba(255,255,255,0.15)`
+            : `0 4px 16px ${color}20, inset 0 1px 0 rgba(255,255,255,0.08)`,
+          transition: 'box-shadow 0.3s',
         }}
       >
-        {/* Decorative circles */}
+        {/* Rich card effects */}
+        <EducationalCardEffects accent={color} compact />
+
+        {/* Large decorative orb top-right */}
         <div
-          className="absolute -top-4 -right-4 w-16 h-16 rounded-full opacity-20"
-          style={{ background: color }}
+          className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full"
+          style={{ background: `radial-gradient(circle, ${color}35, transparent 72%)` }}
         />
+        {/* Bottom-left secondary orb */}
         <div
-          className="absolute -bottom-6 -left-6 w-20 h-20 rounded-full opacity-15"
-          style={{ background: color }}
+          className="pointer-events-none absolute -bottom-8 -left-8 h-20 w-20 rounded-full"
+          style={{ background: `radial-gradient(circle, ${color}25, transparent 72%)` }}
         />
 
-        {/* Floating emoji */}
+        {/* Top shimmer line */}
         <div
-          className="relative z-10 text-4xl mb-1"
-          style={{ WebkitTransform: 'translateZ(0)' }}
-        >
-          {emoji}
+          className="pointer-events-none absolute inset-x-0 top-0 h-px"
+          style={{ background: `linear-gradient(90deg, transparent, ${color}80, transparent)` }}
+        />
+
+        {/* Animated corner sparkle */}
+        <motion.div
+          className="pointer-events-none absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-white"
+          animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.4, 0.8] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay }}
+        />
+
+        {/* Content */}
+        <div className="relative z-10 flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
+          {/* Emoji with glow */}
+          <motion.div
+            className="text-4xl"
+            animate={hovered ? { scale: 1.2, rotate: [-4, 4, -2, 0] } : { scale: 1, rotate: 0 }}
+            transition={{ duration: 0.35 }}
+            style={{
+              filter: hovered ? `drop-shadow(0 0 8px ${color})` : 'none',
+            }}
+          >
+            {emoji}
+          </motion.div>
+
+          <h3 className="font-black text-sm leading-tight text-gray-800">{title}</h3>
+          <p className="text-[11px] text-gray-600">{subtitle}</p>
         </div>
-
-        <h3 className="relative z-10 font-bold text-sm text-gray-800 leading-tight">
-          {title}
-        </h3>
-        <p className="relative z-10 text-[11px] text-gray-600 mt-0.5">
-          {subtitle}
-        </p>
       </div>
     </motion.div>
   );

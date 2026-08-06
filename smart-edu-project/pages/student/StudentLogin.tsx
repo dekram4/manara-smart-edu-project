@@ -1,32 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { playSuccessSound, playErrorSound, playLamsaSound } from '../../utils/sounds';
-import { InteractiveScene } from '../../components/InteractiveScene';
-import Educational3DViewer from '../../components/effects/Educational3DViewer';
 
 interface StudentLoginProps {
   onLogin: (username: string, password: string) => void;
   onBack?: () => void;
 }
 
-/* floating decoration */
-function FloatEmoji({ emoji, delay, x, y, size = 'text-4xl' }: { emoji: string; delay: number; x: number; y: number; size?: string }) {
+/* ─── Floating emoji decoration ─── */
+function FloatEmoji({ emoji, delay, x, y }: { emoji: string; delay: number; x: number; y: number }) {
   return (
     <div
-      className={`absolute ${size} select-none pointer-events-none opacity-40 animate-float`}
-      style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s` }}
+      aria-hidden="true"
+      className="pointer-events-none absolute select-none text-4xl opacity-30"
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        animation: `loginFloat 5.5s ease-in-out infinite`,
+        animationDelay: `${delay}s`,
+        filter: 'drop-shadow(0 0 10px rgba(251,146,60,0.6))',
+      }}
     >
       {emoji}
     </div>
   );
 }
 
-/* sparkle star */
-function Star({ size, color, x, y, delay }: { size: number; color: string; x: number; y: number; delay: number }) {
+/* ─── SVG sparkle star ─── */
+function SparkStar({ size, color, x, y, delay }: { size: number; color: string; x: number; y: number; delay: number }) {
   return (
     <svg
-      className="absolute animate-spin-slow"
-      style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s`, opacity: 0.7 }}
+      aria-hidden="true"
+      className="pointer-events-none absolute"
+      style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s`, opacity: 0.75, animation: `loginSpin ${3 + delay}s linear infinite` }}
       width={size}
       height={size}
       viewBox="0 0 24 24"
@@ -42,18 +48,17 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isShaking, setIsShaking] = useState(false);
-  const [btnHover, setBtnHover] = useState(false);
+  const [btnHovered, setBtnHovered] = useState(false);
 
-  /* floating emojis config */
   const emojis = [
-    { emoji: '📚', x: 5, y: 10, delay: 0 },
-    { emoji: '🎨', x: 88, y: 15, delay: 0.5 },
-    { emoji: '🚀', x: 10, y: 70, delay: 1 },
-    { emoji: '🌟', x: 90, y: 60, delay: 1.5 },
-    { emoji: '🎵', x: 75, y: 80, delay: 2 },
-    { emoji: '🧮', x: 15, y: 85, delay: 0.8 },
-    { emoji: '🌍', x: 80, y: 5, delay: 1.2 },
-    { emoji: '🔬', x: 5, y: 45, delay: 2.5 },
+    { emoji: '📚', x: 4,  y: 10, delay: 0 },
+    { emoji: '🎨', x: 87, y: 14, delay: 0.5 },
+    { emoji: '🚀', x: 8,  y: 68, delay: 1 },
+    { emoji: '🌟', x: 89, y: 60, delay: 1.5 },
+    { emoji: '🎵', x: 74, y: 80, delay: 2 },
+    { emoji: '🧮', x: 13, y: 84, delay: 0.8 },
+    { emoji: '🌍', x: 79, y: 4,  delay: 1.2 },
+    { emoji: '🔬', x: 4,  y: 44, delay: 2.5 },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -63,7 +68,7 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
       playErrorSound();
       setLoginError('يرجى إدخال اسم المستخدم وكلمة المرور');
       setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 500);
+      setTimeout(() => setIsShaking(false), 520);
       return;
     }
     setLoginError('');
@@ -73,156 +78,246 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
   };
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen p-4 overflow-hidden bg-gradient-to-br from-orange-50 via-rose-50 to-amber-50">
-      {/* floating decorations */}
-      {emojis.map((e, i) => (
-        <FloatEmoji key={i} {...e} />
-      ))}
-      <Star size={30} color="#FFE66D" x={92} y={30} delay={0} />
-      <Star size={20} color="#FF6B9D" x={8} y={25} delay={0.5} />
-      <Star size={25} color="#4ECDC4" x={88} y={75} delay={1} />
-
-      {/* main card */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="relative z-10 w-full max-w-md">
-      <InteractiveScene className="relative z-10 w-full max-w-md p-8 animate-bounce-in" intensity={1.1}>
-        <div className={`w-full bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border-4 border-orange-200 p-8 ${
-          isShaking ? 'animate-shake' : ''
-        }`}>
-        {/* back button */}
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-400 hover:text-orange-500 font-bold mb-4 transition-all hover:-translate-x-1 active:scale-95"
-          >
-            <span className="text-xl">→</span>
-            <span>رجوع لاختيار الحساب</span>
-          </button>
-        )}
-
-        {/* top mascot */}
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2">
-          <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center shadow-lg animate-wiggle">
-            <span className="text-4xl">🎓</span>
-          </div>
-        </div>
-
-        <div className="mt-10 text-center">
-           <Educational3DViewer className="mx-auto -mb-2 h-24 max-w-[180px]" fallbackEmoji="📚" />
-          <h1 className="text-3xl font-black text-gray-800 mb-1">منارة المعرفة</h1>
-          <p className="text-lg text-orange-500 font-bold animate-pulse">بوابة الطالب ✨</p>
-        </div>
-
-        {loginError && (
-          <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-2xl animate-bounce-in">
-            <p className="text-red-600 font-bold text-sm text-center">{loginError}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="mt-6 space-y-5 text-right">
-          <div className="relative group">
-            <label className="block text-gray-700 font-bold mb-2 text-lg flex items-center justify-end gap-2">
-              <span>👤</span>
-              <span>اسم المستخدم أو رقم الهوية</span>
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                setLoginError('');
-              }}
-              placeholder="اكتب اسمك هنا..."
-              className="w-full px-5 py-4 text-right rounded-2xl border-[3px] border-orange-200 bg-orange-50/50 text-lg font-semibold text-gray-800 placeholder-gray-400 focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-100 transition-all duration-300 hover:border-orange-300 hover:shadow-md"
-            />
-          </div>
-
-          <div className="relative group">
-            <label className="block text-gray-700 font-bold mb-2 text-lg flex items-center justify-end gap-2">
-              <span>🔐</span>
-              <span>كلمة المرور</span>
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setLoginError('');
-              }}
-              placeholder="كلمة السر السرية 🤫"
-              className="w-full px-5 py-4 text-right rounded-2xl border-[3px] border-orange-200 bg-orange-50/50 text-lg font-semibold text-gray-800 placeholder-gray-400 focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-100 transition-all duration-300 hover:border-orange-300 hover:shadow-md"
-            />
-          </div>
-
-          <button
-            type="submit"
-            onMouseEnter={() => setBtnHover(true)}
-            onMouseLeave={() => setBtnHover(false)}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-orange-400 via-pink-500 to-purple-500 text-white text-xl font-black shadow-lg hover:shadow-xl transition-all duration-300 active:scale-95 animate-pulse-glow"
-            style={{
-              transform: btnHover ? 'scale(1.05)' : 'scale(1)',
-            }}
-          >
-            🚀 ادخل للمغامرة!
-          </button>
-        </form>
-
-        {/* mascot */}
-        <div className="mt-4 flex justify-center">
-          <div className="text-5xl animate-float">🦊</div>
-        </div>
-
-        <p className="text-center text-gray-500 mt-3 text-sm font-semibold">
-          🌈 تعلم يلعب... يلعب يتعلم!
-        </p>
-        </div>
-      </InteractiveScene>
-      </motion.div>
-
-      {/* bottom wave */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 opacity-30 pointer-events-none">
-        <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-          <path d="M0 60C240 100 480 20 720 60C960 100 1200 20 1440 60V120H0V60Z" fill="#FF6B35" />
-        </svg>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4" dir="rtl">
+      {/* ─── Background ─── */}
+      <div className="pointer-events-none absolute inset-0">
+        {/* warm dark gradient */}
+        <div className="absolute inset-0 bg-[linear-gradient(145deg,_#1a0a00_0%,_#2d1000_35%,_#200a14_65%,_#12001c_100%)]" />
+        {/* nebula blobs */}
+        <div className="absolute -left-16 top-8 h-72 w-72 animate-pulse rounded-full bg-orange-600/20 blur-[70px]" />
+        <div className="absolute -right-20 bottom-0 h-80 w-80 animate-pulse rounded-full bg-pink-600/16 blur-[70px]"
+          style={{ animationDelay: '1s' }} />
+        <div className="absolute left-1/2 top-1/3 h-48 w-48 -translate-x-1/2 animate-pulse rounded-full bg-amber-400/10 blur-[50px]"
+          style={{ animationDelay: '2s' }} />
+        {/* top highlight */}
+        <div className="absolute inset-x-0 top-0 h-64 bg-[radial-gradient(ellipse_55%_50%_at_50%_0%,_rgba(251,146,60,0.18),_transparent)]" />
+        {/* fine grid */}
+        <div
+          className="absolute inset-0 opacity-[0.055]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(251,146,60,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(251,146,60,0.5) 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
+        />
       </div>
 
-      {/* extra animations */}
+      {/* floating emojis */}
+      {emojis.map((e, i) => <FloatEmoji key={i} {...e} />)}
+
+      {/* sparkle stars */}
+      <SparkStar size={28} color="#FFE66D" x={91} y={28} delay={0} />
+      <SparkStar size={18} color="#FF6B9D" x={7}  y={23} delay={0.7} />
+      <SparkStar size={22} color="#4ECDC4" x={87} y={74} delay={1.3} />
+
+      {/* ─── Main login card ─── */}
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, type: 'spring', stiffness: 200, damping: 22 }}
+        className="relative z-10 w-full max-w-md"
+      >
+        {/* Outer glow ring */}
+        <div
+          className="pointer-events-none absolute -inset-1 rounded-[2.8rem] blur-xl"
+          style={{ background: 'radial-gradient(ellipse, rgba(251,146,60,0.3), rgba(236,72,153,0.2), transparent 70%)' }}
+        />
+
+        {/* Card */}
+        <div
+          className={`relative overflow-hidden rounded-[2.5rem] border border-white/10 ${isShaking ? 'animate-loginShake' : ''}`}
+          style={{
+            background: 'linear-gradient(160deg, rgba(30,12,0,0.97) 0%, rgba(20,6,20,0.97) 100%)',
+            backdropFilter: 'blur(24px)',
+            boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(251,146,60,0.2), inset 0 1px 0 rgba(255,255,255,0.07)',
+          }}
+        >
+          {/* Top aurora decoration */}
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-40"
+            style={{
+              background: 'linear-gradient(180deg, rgba(251,146,60,0.16) 0%, rgba(236,72,153,0.10) 40%, transparent 100%)',
+            }}
+          />
+          {/* Top edge line */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(251,146,60,0.7),rgba(236,72,153,0.5),transparent)]" />
+          {/* Bottom edge line */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgba(251,146,60,0.3),transparent)]" />
+
+          {/* Orbiting mascot */}
+          <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-20">
+            <motion.div
+              animate={{ rotate: [-4, 4, -4] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              className="flex h-[72px] w-[72px] items-center justify-center rounded-full text-4xl shadow-2xl"
+              style={{
+                background: 'linear-gradient(145deg, #f97316, #ec4899)',
+                boxShadow: '0 8px 32px rgba(249,115,22,0.55), 0 0 0 3px rgba(255,255,255,0.08)',
+              }}
+            >
+              🎓
+            </motion.div>
+          </div>
+
+          <div className="px-8 pb-8 pt-14">
+            {/* Back button */}
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="mb-5 flex items-center gap-2 text-sm font-bold text-slate-400 transition-all hover:translate-x-[-4px] hover:text-orange-400 active:scale-95"
+              >
+                <span className="text-base">→</span>
+                <span>رجوع لاختيار الحساب</span>
+              </button>
+            )}
+
+            {/* Header */}
+            <div className="mb-7 text-center">
+              {/* Decorative icon cluster */}
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[22px] text-5xl"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(249,115,22,0.22), rgba(236,72,153,0.16))',
+                  border: '1px solid rgba(249,115,22,0.3)',
+                  boxShadow: '0 0 28px rgba(249,115,22,0.25), inset 0 1px 0 rgba(255,255,255,0.07)',
+                }}>
+                📚
+              </div>
+              <h1
+                className="text-3xl font-black"
+                style={{
+                  background: 'linear-gradient(135deg, #fed7aa 0%, #fb923c 40%, #f472b6 70%, #c084fc 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                منارة المعرفة
+              </h1>
+              <p className="mt-1.5 text-sm font-bold text-orange-400/80">✨ بوابة الطالب · ادخل وابدأ رحلتك</p>
+            </div>
+
+            {/* Error */}
+            {loginError && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-center"
+              >
+                <p className="text-sm font-bold text-red-400">{loginError}</p>
+              </motion.div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4 text-right">
+              {/* Username */}
+              <div>
+                <label className="mb-2 flex items-center justify-end gap-2 text-sm font-bold text-slate-300">
+                  <span>اسم المستخدم أو رقم الهوية</span>
+                  <span>👤</span>
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => { setUsername(e.target.value); setLoginError(''); }}
+                  placeholder="اكتب اسمك هنا..."
+                  className="w-full rounded-2xl border-2 px-5 py-4 text-right text-base font-semibold text-white placeholder-slate-500 outline-none transition-all duration-300"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    borderColor: 'rgba(249,115,22,0.3)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(249,115,22,0.7)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.12)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'rgba(249,115,22,0.3)'; e.currentTarget.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="mb-2 flex items-center justify-end gap-2 text-sm font-bold text-slate-300">
+                  <span>كلمة المرور</span>
+                  <span>🔐</span>
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setLoginError(''); }}
+                  placeholder="كلمة السر السرية 🤫"
+                  className="w-full rounded-2xl border-2 px-5 py-4 text-right text-base font-semibold text-white placeholder-slate-500 outline-none transition-all duration-300"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    borderColor: 'rgba(249,115,22,0.3)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(249,115,22,0.7)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.12)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'rgba(249,115,22,0.3)'; e.currentTarget.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              {/* Submit button */}
+              <motion.button
+                type="submit"
+                onHoverStart={() => setBtnHovered(true)}
+                onHoverEnd={() => setBtnHovered(false)}
+                whileTap={{ scale: 0.97 }}
+                className="relative mt-2 w-full overflow-hidden rounded-2xl py-4 text-lg font-black text-white"
+                style={{
+                  background: 'linear-gradient(135deg, #f97316, #ec4899, #8b5cf6)',
+                  boxShadow: btnHovered
+                    ? '0 0 0 1px rgba(249,115,22,0.5), 0 16px 48px rgba(249,115,22,0.4)'
+                    : '0 8px 28px rgba(249,115,22,0.3)',
+                  transition: 'box-shadow 0.3s',
+                }}
+              >
+                {/* shimmer on hover */}
+                {btnHovered && (
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.2) 50%, transparent 65%)',
+                      animation: 'shimmerSweepBtn 1.4s ease-in-out infinite',
+                    }}
+                  />
+                )}
+                <span className="relative z-10">🚀 ادخل للمغامرة!</span>
+              </motion.button>
+            </form>
+
+            {/* Mascot + tagline */}
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <motion.div
+                className="text-5xl"
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                🦊
+              </motion.div>
+              <p className="text-xs font-semibold text-slate-500">🌈 تعلّم يلعب... يلعب يتعلّم!</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ─── Global keyframes ─── */}
       <style>{`
-        @keyframes bounce-in {
-          0% { transform: scale(0.3); opacity: 0; }
-          50% { transform: scale(1.05); }
-          70% { transform: scale(0.9); }
-          100% { transform: scale(1); opacity: 1; }
+        @keyframes loginFloat {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50%       { transform: translateY(-14px) rotate(5deg); }
         }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-10px); }
-          40% { transform: translateX(10px); }
-          60% { transform: translateX(-10px); }
-          80% { transform: translateX(10px); }
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        @keyframes wiggle {
-          0%, 100% { transform: rotate(-3deg); }
-          50% { transform: rotate(3deg); }
-        }
-        @keyframes spin-slow {
+        @keyframes loginSpin {
           from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          to   { transform: rotate(360deg); }
         }
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 5px rgba(255,107,53,0.4); }
-          50% { box-shadow: 0 0 20px rgba(255,107,53,0.8), 0 0 40px rgba(255,107,53,0.3); }
+        @keyframes loginShake {
+          0%, 100% { transform: translateX(0); }
+          20%      { transform: translateX(-10px); }
+          40%      { transform: translateX(10px); }
+          60%      { transform: translateX(-8px); }
+          80%      { transform: translateX(8px); }
         }
-        .animate-bounce-in { animation: bounce-in 0.6s ease-out; }
-        .animate-shake { animation: shake 0.5s ease-in-out; }
-        .animate-float { animation: float 3s ease-in-out infinite; }
-        .animate-wiggle { animation: wiggle 0.5s ease-in-out infinite; }
-        .animate-spin-slow { animation: spin-slow 3s ease-in-out infinite; }
-        .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+        @keyframes shimmerSweepBtn {
+          0%   { background-position: -200% 0; }
+          100% { background-position:  200% 0; }
+        }
+        .animate-loginShake { animation: loginShake 0.5s ease-in-out; }
       `}</style>
     </div>
   );

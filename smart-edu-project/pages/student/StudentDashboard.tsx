@@ -140,54 +140,112 @@ const ensureGamificationResetIfNeeded = (studentInfo: StudentInfo) => {
 };
 
 // 2. مكون بطاقات الألعاب التفاعلية (Game Engine Style Card)
-const GameModeCard = ({ 
-  title, 
+const GameModeCard = ({
+  title,
   subtitle,
-  icon, 
-  color, 
+  icon,
+  color,
   onClick,
-  badge
-}: { 
-  title: string; 
+  badge,
+}: {
+  title: string;
   subtitle?: string;
-  icon: string; 
-  color: string; 
+  icon: string;
+  color: string;
   onClick: () => void;
   badge?: string;
-}) => (
-  <motion.div
-    layout
-    initial={{ opacity: 0, y: 20, scale: 0.96 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    whileHover={{ scale: 1.06, y: -10, rotate: -1.4, boxShadow: '0 28px 55px rgba(0,0,0,0.3)' }}
-    whileTap={{ scale: 0.95, rotate: -1 }}
-    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
-    onClick={() => {
-      soundPop.play();
-      onClick();
-    }}
-    className={`${color} text-white p-8 rounded-[36px] shadow-2xl border-b-8 border-black/20 cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none transition-all`}
-  >
-    <EducationalCardEffects accent="#ffffff" compact />
+}) => {
+  const [hovered, setHovered] = React.useState(false);
+
+  /* Extract a rough accent colour from the Tailwind gradient class for EducationalCardEffects */
+  const accentMap: Record<string, string> = {
+    amber: '#fbbf24', orange: '#fb923c', purple: '#a855f7', pink: '#ec4899',
+    emerald: '#34d399', teal: '#2dd4bf', cyan: '#22d3ee', blue: '#60a5fa',
+    violet: '#8b5cf6', rose: '#fb7185', red: '#f87171', indigo: '#818cf8',
+  };
+  const guessedAccent =
+    Object.entries(accentMap).find(([k]) => color.includes(k))?.[1] ?? '#ffffff';
+
+  return (
     <motion.div
-      className="pointer-events-none absolute left-4 top-5 h-14 w-1 rounded-full bg-white/80"
-      animate={{ opacity: [0.75, 1, 0.75] }}
-      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-    />
-    {badge && (
-      <div className="absolute top-4 left-4 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-black shadow-md">
-        {badge}
+      layout
+      initial={{ opacity: 0, y: 24, scale: 0.93 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ scale: 1.055, y: -10 }}
+      whileTap={{ scale: 0.95 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      onClick={() => { soundPop.play(); onClick(); }}
+      className={`${color} text-white rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}
+      style={{
+        padding: '1.75rem 1.75rem 1.5rem',
+        boxShadow: hovered
+          ? `0 28px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.18)`
+          : `0 10px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.12)`,
+        transition: 'box-shadow 0.3s',
+      }}
+    >
+      {/* Rich layered effects */}
+      <EducationalCardEffects accent={guessedAccent} compact />
+
+      {/* Top shimmer line */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.55),transparent)]" />
+
+      {/* Animated vertical accent bar */}
+      <motion.div
+        className="pointer-events-none absolute left-4 top-5 w-1 rounded-full bg-white/70"
+        animate={{ height: hovered ? 56 : 40, opacity: hovered ? 1 : 0.65 }}
+        transition={{ duration: 0.3 }}
+      />
+
+      {/* Large corner radial glow */}
+      <div
+        className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,255,255,0.22), transparent 70%)',
+          transform: hovered ? 'scale(1.35)' : 'scale(1)',
+          transition: 'transform 0.4s',
+        }}
+      />
+
+      {/* Bottom-left secondary glow */}
+      <div className="pointer-events-none absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-black/20 blur-xl" />
+
+      {/* Badge */}
+      {badge && (
+        <motion.div
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 1.8, repeat: Infinity }}
+          className="absolute left-4 top-4 z-10 rounded-full bg-yellow-400 px-3 py-1 text-xs font-black text-slate-900 shadow-lg shadow-yellow-400/40"
+        >
+          {badge}
+        </motion.div>
+      )}
+
+      {/* Emoji with animated glow on hover */}
+      <motion.div
+        className="relative z-10 mb-4 text-6xl transition-transform duration-300 filter group-hover:scale-110"
+        animate={hovered ? { rotate: [-3, 3, -2, 0] } : { rotate: 0 }}
+        transition={{ duration: 0.4 }}
+        style={{ filter: hovered ? `drop-shadow(0 0 14px rgba(255,255,255,0.6))` : 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))' }}
+      >
+        {icon}
+      </motion.div>
+
+      {/* Text */}
+      <div className="relative z-10">
+        <h3 className="mb-1 text-3xl font-black leading-tight drop-shadow-sm">{title}</h3>
+        {subtitle && (
+          <p className="text-sm font-medium text-white/85 leading-relaxed">{subtitle}</p>
+        )}
       </div>
-    )}
-    <div className="text-6xl mb-4 transition-transform duration-300 filter drop-shadow-md group-hover:scale-110">
-      {icon}
-    </div>
-    <div>
-      <h3 className="text-3xl font-black mb-1 drop-shadow-sm">{title}</h3>
-      {subtitle && <p className="text-white/95 font-medium text-base">{subtitle}</p>}
-    </div>
-  </motion.div>
-);
+
+      {/* Bottom edge shimmer */}
+      <div className="pointer-events-none absolute inset-x-[10%] bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent)]" />
+    </motion.div>
+  );
+};
 
 // 3. المكون الرئيسي
 const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {

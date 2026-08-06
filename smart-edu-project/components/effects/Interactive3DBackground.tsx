@@ -6,35 +6,70 @@ const Interactive3DBackground: React.FC = () => {
 
   useEffect(() => {
     const canvas = document.createElement('canvas');
-    const context =
+    const ctx =
       canvas.getContext('webgl', { failIfMajorPerformanceCaveat: true }) ||
       canvas.getContext('experimental-webgl', { failIfMajorPerformanceCaveat: true });
-    setWebglAvailable(Boolean(context));
+    setWebglAvailable(Boolean(ctx));
   }, []);
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden bg-[linear-gradient(135deg,_#070b1f_0%,_#151039_48%,_#071d32_100%)]">
-      {webglAvailable && <Immersive3DScene accent="#6366f1" intensity={1.15} />}
-      {!webglAvailable && (
-        <div className="absolute inset-0 select-none text-5xl opacity-60">
-          <span className="animate-float absolute left-[8%] top-[18%] -rotate-12 drop-shadow-[0_0_18px_rgba(129,140,248,0.8)]">📚</span>
-          <span className="animate-float absolute right-[9%] top-[20%] rotate-45 drop-shadow-[0_0_18px_rgba(250,204,21,0.8)] [animation-delay:500ms]">✏️</span>
-          <span className="animate-float absolute bottom-[16%] right-[12%] drop-shadow-[0_0_18px_rgba(56,189,248,0.8)] [animation-delay:900ms]">🌍</span>
-          <span className="animate-float absolute bottom-[15%] left-[10%] rotate-12 drop-shadow-[0_0_18px_rgba(45,212,191,0.8)] [animation-delay:1.3s]">🔬</span>
-        </div>
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* base gradient */}
+      <div className="absolute inset-0 bg-[linear-gradient(145deg,_#04041e_0%,_#100d3a_42%,_#071d36_70%,_#030516_100%)]" />
+
+      {/* WebGL scene or rich CSS fallback */}
+      {webglAvailable ? (
+        <Immersive3DScene accent="#6366f1" intensity={1.15} />
+      ) : (
+        <>
+          {/* floating icons with deep glow */}
+          <span className="absolute left-[7%] top-[17%] -rotate-12 text-5xl opacity-55"
+            style={{ animation: 'bgFloat 5s ease-in-out infinite', filter: 'drop-shadow(0 0 20px rgba(129,140,248,0.9))' }}>📚</span>
+          <span className="absolute right-[8%] top-[19%] rotate-[30deg] text-5xl opacity-50"
+            style={{ animation: 'bgFloat 5.5s ease-in-out infinite 0.6s', filter: 'drop-shadow(0 0 20px rgba(250,204,21,0.9))' }}>✏️</span>
+          <span className="absolute bottom-[14%] right-[11%] text-5xl opacity-50"
+            style={{ animation: 'bgFloat 6s ease-in-out infinite 1.1s', filter: 'drop-shadow(0 0 20px rgba(56,189,248,0.9))' }}>🌍</span>
+          <span className="absolute bottom-[13%] left-[9%] rotate-12 text-5xl opacity-50"
+            style={{ animation: 'bgFloat 5.8s ease-in-out infinite 1.6s', filter: 'drop-shadow(0 0 20px rgba(45,212,191,0.9))' }}>🔬</span>
+          <span className="absolute left-[42%] top-[8%] text-4xl opacity-35"
+            style={{ animation: 'bgFloat 6.5s ease-in-out infinite 2s', filter: 'drop-shadow(0 0 16px rgba(244,114,182,0.8))' }}>⭐</span>
+          <span className="absolute right-[35%] bottom-[8%] text-4xl opacity-30"
+            style={{ animation: 'bgFloat 5.2s ease-in-out infinite 0.4s', filter: 'drop-shadow(0 0 16px rgba(129,140,248,0.8))' }}>🎵</span>
+        </>
       )}
-      <div className="absolute -left-16 top-16 h-72 w-72 animate-pulse rounded-full bg-indigo-500/20 blur-3xl" />
-      <div className="absolute -right-20 bottom-0 h-80 w-80 animate-pulse rounded-full bg-fuchsia-500/15 blur-3xl [animation-delay:700ms]" />
-      <div className="absolute left-1/3 top-1/3 h-40 w-40 animate-pulse rounded-full bg-cyan-400/10 blur-3xl [animation-delay:1.4s]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,_rgba(129,140,248,0.2),_transparent_34%),radial-gradient(circle_at_85%_85%,_rgba(236,72,153,0.14),_transparent_32%)]" />
+
+      {/* animated nebula blobs */}
+      <div className="absolute -left-20 top-10 h-80 w-80 animate-pulse rounded-full bg-indigo-600/22 blur-[80px]" />
+      <div className="absolute -right-24 bottom-0 h-96 w-96 animate-pulse rounded-full bg-fuchsia-600/16 blur-[80px]"
+        style={{ animationDelay: '0.9s' }} />
+      <div className="absolute left-[38%] top-[30%] h-48 w-48 animate-pulse rounded-full bg-cyan-500/10 blur-[60px]"
+        style={{ animationDelay: '1.8s' }} />
+
+      {/* top-centre spotlight */}
+      <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,_rgba(99,102,241,0.22),_transparent)]" />
+      {/* bottom-right warm glow */}
+      <div className="absolute bottom-0 right-0 h-60 w-60 bg-[radial-gradient(circle_at_100%_100%,_rgba(244,114,182,0.14),_transparent_70%)]" />
+
+      {/* fine grid */}
       <div
-        className="absolute inset-0 opacity-20"
+        className="absolute inset-0 opacity-[0.065]"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.12) 1px, transparent 1px)',
-          backgroundSize: '48px 48px',
+            'linear-gradient(rgba(148,163,184,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.6) 1px, transparent 1px)',
+          backgroundSize: '52px 52px',
         }}
       />
+
+      {/* horizontal aurora bands */}
+      <div className="absolute inset-x-0 top-[25%] h-px bg-[linear-gradient(90deg,transparent,rgba(99,102,241,0.25),transparent)]" />
+      <div className="absolute inset-x-0 top-[55%] h-px bg-[linear-gradient(90deg,transparent,rgba(244,114,182,0.18),transparent)]" />
+
+      <style>{`
+        @keyframes bgFloat {
+          0%, 100% { transform: translateY(0px) rotate(var(--rot, 0deg)); }
+          50%       { transform: translateY(-18px) rotate(calc(var(--rot, 0deg) + 5deg)); }
+        }
+      `}</style>
     </div>
   );
 };
