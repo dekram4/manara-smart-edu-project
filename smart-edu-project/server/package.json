@@ -1,6 +1,7 @@
 {
     "name":  "gemini-proxy-server",
     "version":  "1.0.0",
+    "type": "module",
     "main":  "gemini-proxy.js",
     "scripts":  {
                     "start":  "node gemini-proxy.js"

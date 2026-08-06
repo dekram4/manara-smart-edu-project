@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { supabase } from './remoteSupabase';
 
 // ============================================================
 // طبقة المزامنة بين localStorage و Supabase
