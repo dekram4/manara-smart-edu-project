@@ -1,8 +1,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { soundPop } from '../App';
-import { getStickerAsset } from '../utils/contentAssets';
-import PremiumBackground from '../components/PremiumBackground';
+import Interactive3DBackground from '../components/effects/Interactive3DBackground';
+
+interface RoleCard {
+  id: 'student' | 'teacher' | 'parent' | 'admin';
+  title: string;
+  subtitle: string;
+  icon: string;
+  gradient: string;
+  shadowColor: string;
+}
 
 interface RoleSelectionProps {
   onSelectAdmin: () => void;
@@ -11,109 +19,123 @@ interface RoleSelectionProps {
   onSelectParent: () => void;
 }
 
-const roles = [
+const roles: RoleCard[] = [
   {
     id: 'student',
-    title: 'بوابة الأبطال (الطالب)',
-    icon: '🎓',
-    color: 'from-amber-400 to-orange-500',
-    shadow: 'shadow-orange-500/40',
-    border: 'border-orange-600',
-    desc: 'ألعاب، أوسمة، وتحديات ممتعة!',
-    action: 'onSelectStudent',
+    title: 'بوابة الطالب',
+    subtitle: 'متابعة الدروس، الواجبات، وشارات التفوق',
+    icon: '👨‍🎓',
+    gradient: 'from-blue-600 via-indigo-600 to-purple-600',
+    shadowColor: 'shadow-blue-500/25',
   },
   {
     id: 'teacher',
-    title: 'المعلم الذكي',
+    title: 'بوابة المعلم',
+    subtitle: 'إدارة الفصول، نشر الدروس، والتقييم الذكي',
     icon: '👨‍🏫',
-    color: 'from-blue-500 to-indigo-600',
-    shadow: 'shadow-indigo-500/40',
-    border: 'border-indigo-700',
-    desc: 'إدارة الدروس والاختبارات',
-    action: 'onSelectTeacher',
+    gradient: 'from-emerald-600 via-teal-600 to-cyan-600',
+    shadowColor: 'shadow-emerald-500/25',
   },
   {
     id: 'parent',
     title: 'ولي الأمر',
-    icon: '👨‍👩‍👧',
-    color: 'from-emerald-400 to-teal-600',
-    shadow: 'shadow-teal-500/40',
-    border: 'border-teal-700',
-    desc: 'متابعة مستوى الأبطال',
-    action: 'onSelectParent',
+    subtitle: 'متابعة مستوى الأبناء والتقارير الأكاديمية',
+    icon: '👨‍👩‍👧‍👦',
+    gradient: 'from-amber-500 via-orange-600 to-red-600',
+    shadowColor: 'shadow-orange-500/25',
   },
   {
     id: 'admin',
-    title: 'الإدارة والتحكم',
-    icon: '⚡',
-    color: 'from-purple-500 to-pink-600',
-    shadow: 'shadow-pink-500/40',
-    border: 'border-pink-700',
-    desc: 'إعدادات النظام الشاملة',
-    action: 'onSelectAdmin',
+    title: 'لوحة المشرف',
+    subtitle: 'إدارة النظام الشاملة والعمليات الأكاديمية',
+    icon: '⚙️',
+    gradient: 'from-purple-600 via-pink-600 to-rose-600',
+    shadowColor: 'shadow-purple-500/25',
   },
 ];
 
 const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
+  const handlers: Record<RoleCard['id'], () => void> = {
+    student: props.onSelectStudent,
+    teacher: props.onSelectTeacher,
+    parent: props.onSelectParent,
+    admin: props.onSelectAdmin,
+  };
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,_#0f172a,_#1e1b4b,_#312e81)] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-tajawal">
-      <PremiumBackground accent="#38bdf8" />
-      <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[32rem] h-[32rem] bg-cyan-500/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[26rem] h-[26rem] bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
+    <div
+      className="relative flex min-h-screen w-full select-none flex-col items-center justify-center overflow-hidden p-6 font-tajawal"
+      dir="rtl"
+    >
+      <Interactive3DBackground />
 
-      <div className="absolute bottom-8 left-8 z-10 rounded-3xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-lg">
-        <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-200">ملصقات جاهزة</p>
-        <div className="mt-2 flex gap-2">
-          {['star','trophy','badge','spark'].map((key) => (
-            <img key={key} src={getStickerAsset(key)} alt={key} className="h-10 w-10 rounded-2xl border border-white/20 bg-white/80 p-1 shadow" />
-          ))}
-        </div>
-      </div>
-
-      {/* العنوان الرئيسي بأيقونة متحركة */}
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }} className="text-center z-10 mb-10">
-        <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 2.2 }} className="text-7xl inline-block mb-3 filter drop-shadow-lg">
-          🚀
+      <motion.div
+        initial={{ opacity: 0, y: -30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="z-10 mb-12 text-center"
+      >
+        <motion.div
+          whileHover={{ rotate: 10, scale: 1.1 }}
+          className="mb-4 inline-block rounded-3xl border border-white/20 bg-white/10 p-4 shadow-2xl backdrop-blur-xl"
+        >
+          <span className="text-5xl">🏛️</span>
         </motion.div>
-        <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-300 via-pink-400 to-cyan-300 bg-clip-text text-transparent">
-          منصة المنارة التعليمية
+        <h1 className="bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 bg-clip-text text-4xl font-black text-transparent md:text-5xl">
+          منصة التعليم الذكي
         </h1>
-        <p className="text-slate-300 mt-2 text-lg font-bold">اختر بوابتك وابدأ المغامرة!</p>
+        <p className="mt-3 text-lg font-medium text-slate-400">
+          اختر بوابتك المخصصة للدخول إلى المنصة
+        </p>
       </motion.div>
 
-      {/* شبكة البطاقات الكبيرة بخاصية Game Engine UI */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl z-10 mt-2">
-        {roles.map((role, idx) => {
-          const handler = props[role.action as keyof RoleSelectionProps];
+      <div className="z-10 grid w-full max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
+        {roles.map((role, index) => (
+          <motion.button
+            key={role.id}
+            type="button"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: index * 0.15 }}
+            whileHover={{
+              scale: 1.03,
+              rotateX: 5,
+              rotateY: -5,
+              translateZ: 20,
+            }}
+            whileTap={{ scale: 0.97 }}
+            onMouseEnter={() => soundPop.play()}
+            onClick={() => {
+              soundPop.play();
+              handlers[role.id]();
+            }}
+            className={`group relative overflow-hidden rounded-3xl border border-white/15 bg-slate-900/60 p-6 text-right shadow-xl backdrop-blur-xl transition-all duration-300 hover:border-white/40 ${role.shadowColor}`}
+          >
+            <div
+              className={`pointer-events-none absolute -inset-1 rounded-3xl bg-gradient-to-r ${role.gradient} opacity-0 blur-xl transition-opacity duration-500 group-hover:opacity-20`}
+            />
 
-          return (
-            <motion.button
-              key={role.id}
-              initial={{ y: 24, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: idx * 0.08, duration: 0.35 }}
-              whileHover={{ scale: 1.04, y: -6, rotate: -0.8, boxShadow: '0 24px 60px rgba(0,0,0,0.28)' }}
-              whileTap={{ scale: 0.97, rotate: -0.5 }}
-              onClick={() => {
-                soundPop.play();
-                handler();
-              }}
-              className={`bg-gradient-to-br ${role.color} p-6 rounded-3xl ${role.shadow} shadow-2xl border-b-8 ${role.border} text-right flex items-center justify-between cursor-pointer transition-all duration-150 relative overflow-hidden group`}
-            >
-              <div className="z-10">
-                <h3 className="text-2xl font-black text-white drop-shadow-sm">{role.title}</h3>
-                <p className="text-white font-medium text-sm mt-1">{role.desc}</p>
+            <div className="relative z-10 flex items-center gap-5">
+              <div
+                className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-gradient-to-br text-3xl shadow-lg transition-transform duration-300 group-hover:scale-110 ${role.gradient}`}
+              >
+                {role.icon}
               </div>
 
-              {/* أيقونة كبيرة بارزة */}
-              <span className="text-6xl z-10 filter drop-shadow-md select-none">
-                {role.icon}
-              </span>
-            </motion.button>
-          );
-        })}
-      </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-2xl font-bold text-white transition-colors group-hover:text-indigo-200">
+                  {role.title}
+                </h3>
+                <p className="mt-1 text-sm leading-relaxed text-slate-400">{role.subtitle}</p>
+              </div>
 
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-400 transition-all group-hover:translate-x-[-4px] group-hover:bg-white group-hover:text-slate-900">
+                ←
+              </div>
+            </div>
+          </motion.button>
+        ))}
+      </div>
     </div>
   );
 };

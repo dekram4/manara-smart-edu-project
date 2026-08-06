@@ -1,0 +1,138 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import useSound from 'use-sound';
+import { Interactive3DBackground } from '../components/effects/Interactive3DBackground';
+
+interface RoleCard {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  gradient: string;
+  shadowColor: string;
+}
+
+const roles: RoleCard[] = [
+  {
+    id: 'student',
+    title: 'بوابة الطالب',
+    subtitle: 'متابعة الدروس، الواجبات، وشارات التفوق',
+    icon: '👨‍🎓',
+    gradient: 'from-blue-600 via-indigo-600 to-purple-600',
+    shadowColor: 'shadow-blue-500/25',
+  },
+  {
+    id: 'teacher',
+    title: 'بوابة المعلم',
+    subtitle: 'إدارة الفصول، نشر الدروس، والتقييم الذكي',
+    icon: '👨‍🏫',
+    gradient: 'from-emerald-600 via-teal-600 to-cyan-600',
+    shadowColor: 'shadow-emerald-500/25',
+  },
+  {
+    id: 'parent',
+    title: 'ولي الأمر',
+    subtitle: 'متابعة مستوى الأبناء والتقارير الأكاديمية',
+    icon: '👨‍👩‍👧‍👦',
+    gradient: 'from-amber-500 via-orange-600 to-red-600',
+    shadowColor: 'shadow-orange-500/25',
+  },
+  {
+    id: 'admin',
+    title: 'لوحة المشرف',
+    subtitle: 'إدارة النظام الشاملة والعمليات الأكاديمية',
+    icon: '⚙️',
+    gradient: 'from-purple-600 via-pink-600 to-rose-600',
+    shadowColor: 'shadow-purple-500/25',
+  },
+];
+
+export const RoleSelectionPage: React.FC<{ onSelectRole?: (roleId: string) => void }> = ({ onSelectRole }) => {
+  // المؤثرات الصوتية عند التمرير والضغط
+  const [playHover] = useSound('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', { volume: 0.2 });
+  const [playClick] = useSound('https://assets.mixkit.co/active_storage/sfx/2568/2571-preview.mp3', { volume: 0.4 });
+  const [playSuccess] = useSound('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3', { volume: 0.5 });
+
+  const handleRoleClick = (roleId: string) => {
+    playSuccess();
+    if (onSelectRole) {
+      onSelectRole(roleId);
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-6 font-sans select-none overflow-hidden" dir="rtl">
+      {/* 1. الخلفية الـ 3D التفاعلية */}
+      <Interactive3DBackground />
+
+      {/* 2. عنوان الصفحة الرئيسي مع حركة زجاجية */}
+      <motion.div
+        initial={{ opacity: 0, y: -30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="text-center z-10 mb-12"
+      >
+        <motion.div
+          whileHover={{ rotate: 10, scale: 1.1 }}
+          className="inline-block p-4 rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl mb-4"
+        >
+          <span className="text-5xl">🏛️</span>
+        </motion.div>
+        <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 bg-clip-text text-transparent">
+          منصة التعليم الذكي
+        </h1>
+        <p className="text-slate-400 text-lg mt-3 font-medium">اختر بوابتك المخصصة للدخول إلى المنصة</p>
+      </motion.div>
+
+      {/* 3. شبكة بطاقات الأدوار التفاعلية 3D */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full z-10">
+        {roles.map((role, index) => (
+          <motion.div
+            key={role.id}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: index * 0.15 }}
+            whileHover={{
+              scale: 1.03,
+              rotateX: 5,
+              rotateY: -5,
+              translateZ: 20,
+            }}
+            whileTap={{ scale: 0.97 }}
+            onMouseEnter={() => playHover()}
+            onClick={() => {
+              playClick();
+              handleRoleClick(role.id);
+            }}
+            className={`relative group p-6 rounded-3xl bg-slate-900/60 border border-white/15 backdrop-blur-xl cursor-pointer transition-all duration-300 shadow-xl ${role.shadowColor} hover:border-white/40 overflow-hidden`}
+          >
+            {/* إضاءة خلفية نيون لكل بطاقة عند الـ Hover */}
+            <div className={`absolute -inset-1 bg-gradient-to-r ${role.gradient} opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-500 rounded-3xl pointer-events-none`} />
+
+            <div className="flex items-center gap-5 relative z-10">
+              {/* أيقونة الدور الـ 3D */}
+              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${role.gradient} flex items-center justify-center text-3xl shadow-lg border border-white/20 group-hover:scale-110 transition-transform duration-300`}>
+                {role.icon}
+              </div>
+
+              {/* تفاصيل الدور */}
+              <div className="flex-1">
+                <h3 className="text-2xl font-bold text-white group-hover:text-indigo-200 transition-colors">
+                  {role.title}
+                </h3>
+                <p className="text-slate-400 text-sm mt-1 leading-relaxed">
+                  {role.subtitle}
+                </p>
+              </div>
+
+              {/* سهم الدخول */}
+              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-slate-900 group-hover:translate-x-[-4px] transition-all">
+                ←
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
