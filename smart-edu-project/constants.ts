@@ -1,0 +1,83 @@
+
+export const ADMIN_USERNAME = 'dekram';
+export const ADMIN_PASSWORD = '123';
+export const DEFAULT_PASSWORD = '123456';
+
+export const STORAGE_KEYS = {
+  LESSON_CONFIGS: 'smartEdu_lessonConfigs',
+  STUDENTS: 'smartEdu_students',
+  GRADES: 'smartEdu_grades',
+  SUBJECTS: 'smartEdu_subjects',
+  GRADE_CONFIGS: 'smartEdu_gradeConfigs',
+  HIERARCHICAL_CONFIGS: 'smartEdu_hierarchicalConfigs',
+  TERMS: 'smartEdu_terms',
+  ATRAMS: 'smartEdu_atrams',
+  UNITS: 'smartEdu_units',
+  ACTIVE_STUDENT: 'smartEdu_activeStudent',
+  ACTIVE_PARENT: 'smartEdu_activeParent',
+  PARENTS: 'smartEdu_parents',
+  TEACHERS: 'smartEdu_teachers', // 👨‍🏫 المعلمون
+  CURRENT_TEACHER: 'smartEdu_currentTeacher', // المعلم الحالي المسجل دخوله
+  QUIZ_RESULTS: 'smartEdu_quizResults',
+  QUIZ_QUESTIONS: 'smartEdu_quizQuestions',
+  CREATED_QUIZZES: 'smartEdu_createdQuizzes', // 🎯 اختبارات منشأة من المشرف
+  CHAT_MESSAGES: 'smartEdu_chatMessages',
+  INTERACTIONS: 'smartEdu_interactions',
+  ADMIN_SETTINGS: 'smartEdu_adminSettings',
+  REPORTS: 'smartEdu_reports',
+  PERMISSIONS: 'smartEdu_permissions', // 🔐 نظام الصلاحيات
+  PRIVATE_MESSAGES: 'smartEdu_privateMessages', // 💬 الدردشة الخاصة
+  VIDEOS: 'smartEdu_videos', // 🎬 فيديوهات المعلم
+  VIDEO_NOTIFICATIONS: 'smartEdu_videoNotifications', // 🔔 إشعارات الفيديوهات للمشرف
+};
+
+export const COLORS = {
+  primary: '#0B8693',
+  secondary: '#10B981',
+  danger: '#EF4444',
+  warning: '#F59E0B',
+  info: '#274E76',
+  dark: '#0E1B2A',
+  light: '#F3F8F9',
+  success: '#10B981',
+  gray: '#6B7280',
+};
+
+export const QUIZ_TYPES = [
+  { value: 'unit', label: 'اختبار وحدة (5 أسئلة)' },
+  { value: 'term', label: 'اختبار الترم (15 سؤال)' },
+  { value: 'final', label: 'اختبار نهاية سنة (20 سؤال)' },
+];
+
+// الصلاحيات الافتراضية
+export const DEFAULT_PERMISSIONS = {
+  teacher: {
+    canManageAcademicSettings: true,
+    canEditGeneralSettings: true,
+    canManageContent: true,
+    canCreateParents: true,
+    canEditParents: true,
+    canDeleteParents: true,
+    canCreateStudents: true,
+    canEditStudents: true,
+    canDeleteStudents: true,
+    canViewReports: true,
+    canManageQuizzes: true,
+  },
+  parent: {
+    canCreateStudents: true,
+    canEditStudents: true,
+    canDeleteStudents: false,
+    canViewReports: true,
+    canChangeGrade: false,
+    canChatWithSupport: true,
+  },
+  student: {
+    canChangeGrade: false,
+    canAccessChat: true,
+    canAccessLiveMeeting: true,
+    canRetakeQuiz: true,
+    canViewSolutions: true,
+    canDownloadCertificates: true,
+  },
+};

@@ -1,0 +1,24 @@
+import React from 'react';
+import { playSound } from '../../../utils/soundEngine';
+
+interface GameButtonProps {
+  icon: string;       // إيموجي أو مسار أيقونة كبيرة
+  title: string;      // نص الزر
+  color?: string;     // لون البطاقة
+  onClick: () => void;
+}
+
+export const GameButton: React.FC<GameButtonProps> = ({ icon, title, color = 'bg-indigo-500', onClick }) => {
+  return (
+    <button
+      onClick={() => {
+        playSound('pop');
+        onClick();
+      }}
+      className={`${color} text-white font-bold p-6 rounded-3xl shadow-2xl flex flex-col items-center justify-center border-b-8 border-black/20 cursor-pointer select-none`}
+    >
+      <span className="text-6xl mb-3 filter drop-shadow-md">{icon}</span>
+      <span className="text-xl tracking-wide">{title}</span>
+    </button>
+  );
+};

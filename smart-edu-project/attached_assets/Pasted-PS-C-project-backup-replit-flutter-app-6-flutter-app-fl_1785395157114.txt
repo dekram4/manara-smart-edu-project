@@ -1,0 +1,128 @@
+PS C:\project\backup\replit\flutter_app (6)\flutter_app> flutter run -d chrome --dart-define=SUPABASE_URL=https://lpipqttxkwcmfiinjngw.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_6WveLl3qRQPhq3b6-159kQ_pLQuUuqD
+Launching lib\main.dart on Chrome in debug mode...
+lib/screens/video_hub.dart:82:9: Error: Type 'VideoLesson' not found.
+  final VideoLesson video;
+        ^^^^^^^^^^^
+lib/services/gamification_engine.dart:16:32: Error: 'Achievement' isn't a type.
+  static const achievements = <Achievement>[
+                               ^^^^^^^^^^^
+lib/services/gamification_engine.dart:17:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'أول اختبار', icon: '🎯', description: 'أكمل أول اختبار'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:18:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'مقاتل الاختبارات', icon: '⚔️', description: 'أكمل 10 اختبارات'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:19:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'نتيجة مثالية', icon: '⭐', description: 'حصل على 100% في اختبار'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:20:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'أول درس', icon: '📚', description: 'أكمل أول درس'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:21:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'سيد الدروس', icon: '🏆', description: 'أكمل 10 دروس'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:22:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'حلال الرياضيات', icon: '🔢', description: 'حل أول مسألة رياضية'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:23:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'سيد الألعاب', icon: '🎮', description: 'العب 5 ألعاب'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:24:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'سيد الذاكرة', icon: '🧠', description: 'انتصر في لعبة الذاكرة'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:25:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'سريع كالبرق', icon: '⚡', description: 'فوز في الاختبار السريع'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:26:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'عقل صافي', icon: '✅', description: 'أجب عن جولة صح أو خطأ كاملة بشكل صحيح'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:27:5: Error: Method not found: 'Achievement'.
+    Achievement(title: '3 أيام متواصل', icon: '🔥', description: 'تعلم 3 أيام متتالية'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:28:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'أسبوع متواصل', icon: '🔥', description: 'تعلم 7 أيام متتالية'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:29:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'المستوى 5', icon: '💪', description: 'اوصل إلى المستوى 5'),
+    ^^^^^^^^^^^
+lib/services/gamification_engine.dart:30:5: Error: Method not found: 'Achievement'.
+    Achievement(title: 'جامع الجواهر', icon: '💎', description: 'اجمع 50 جوهرة'),
+    ^^^^^^^^^^^
+lib/state/app_state.dart:197:32: Error: The getter 'title' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'title'.
+            title: achievement.title,
+                               ^^^^^
+lib/state/app_state.dart:198:31: Error: The getter 'icon' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'icon'.
+            icon: achievement.icon,
+                              ^^^^
+lib/state/app_state.dart:199:38: Error: The getter 'description' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'description'.
+            description: achievement.description,
+                                     ^^^^^^^^^^^
+lib/state/app_state.dart:200:70: Error: The getter 'title' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'title'.
+            unlocked: unlockedAchievementTitles.contains(achievement.title),
+                                                                     ^^^^^
+lib/state/app_state.dart:202:8: Error: A value of type 'List<dynamic>' can't be returned from a function with return type 'List<Achievement>'.
+ - 'List' is from 'dart:core'.
+ - 'Achievement' is from 'package:manara_knowledge/models/app_models.dart' ('lib/models/app_models.dart').
+      .toList();
+       ^
+lib/services/learning_assistant_service.dart:95:19: Error: Expected ':' before this.
+            : null;
+                  ^
+lib/services/learning_assistant_service.dart:95:19: Error: Expected an identifier, but got ';'.
+Try inserting an identifier before ';'.
+            : null;
+                  ^
+lib/services/learning_assistant_service.dart:94:61: Error: A value of type 'String' can't be assigned to a variable of type 'int'.
+            ? candidates!.first['content']?['parts']?.first['text']?.toString()
+                                                            ^
+lib/screens/video_hub.dart:82:9: Error: 'VideoLesson' isn't a type.
+  final VideoLesson video;
+        ^^^^^^^^^^^
+lib/screens/chat_screen.dart:27:7: Error: Not a constant expression.
+      UserRole.teacher => [
+      ^^^^^^^^
+lib/screens/chat_screen.dart:40:7: Error: Not a constant expression.
+      UserRole.student => [
+      ^^^^^^^^
+lib/screens/chat_screen.dart:54:7: Error: Not a constant expression.
+      UserRole.guardian => [
+      ^^^^^^^^
+lib/screens/chat_screen.dart:73:7: Error: Not a constant expression.
+      UserRole.admin || null => [
+      ^^^^^^^^
+lib/screens/chat_screen.dart:26:36: Error: The type 'UserRole?' is not exhaustively matched by the switch cases since it doesn't match 'UserRole.admin'.
+ - 'UserRole' is from 'package:manara_knowledge/models/app_models.dart' ('lib/models/app_models.dart').
+Try adding a wildcard pattern or cases that match 'UserRole.admin'.
+    final contacts = switch (state.role) {
+                                   ^
+Unhandled exception:
+Unsupported operation: Unsupported invalid type InvalidType(<invalid>) (InvalidType). Encountered while compiling
+file:///C:/project/backup/replit/flutter_app%20(6)/flutter_app/lib/services/gamification_engine.dart, which contains the type: InterfaceType(List<<invalid>>).
+#0      LibraryCompiler._typeCompilationError (package:dev_compiler/src/kernel/compiler_new.dart:4493)
+#1      LibraryCompiler._emitType (package:dev_compiler/src/kernel/compiler_new.dart:4458)
+#2      LibraryCompiler._emitClassSignature.emitClassFieldSignature (package:dev_compiler/src/kernel/compiler_new.dart:2163)
+#3      LibraryCompiler._emitClassSignature (package:dev_compiler/src/kernel/compiler_new.dart:2337)
+#4      LibraryCompiler._emitClassDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:1560)
+#5      LibraryCompiler._emitClass (package:dev_compiler/src/kernel/compiler_new.dart:1426)
+#6      List.forEach (dart:core-patch/growable_array.dart:428)
+#7      LibraryCompiler._emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:1348)
+#8      LibraryCompiler.emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:962)
+#9      LibraryBundleCompiler.emitModule (package:dev_compiler/src/kernel/compiler_new.dart:164)
+#10     IncrementalJavaScriptBundler.compile (package:frontend_server/src/javascript_bundle.dart:324)
+#11     FrontendCompiler.writeJavaScriptBundle (package:frontend_server/frontend_server.dart:922)
+<asynchronous suspension>
+#12     FrontendCompiler.compile (package:frontend_server/frontend_server.dart:728)
+<asynchronous suspension>
+#13     listenAndCompile.<anonymous closure> (package:frontend_server/frontend_server.dart:1449)
+<asynchronous suspension>
+The Dart compiler exited unexpectedly.
+Waiting for connection from debug service on Chrome...             41.3s
+Failed to compile application.

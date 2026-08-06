@@ -1,0 +1,14 @@
+{
+    "name":  "gemini-proxy-server",
+    "version":  "1.0.0",
+    "main":  "gemini-proxy.js",
+    "scripts":  {
+                    "start":  "node gemini-proxy.js"
+                },
+    "dependencies":  {
+                         "cors":  "^2.8.5",
+                         "dotenv":  "^16.0.3",
+                         "express":  "^4.18.2",
+                         "node-fetch":  "^2.6.7"
+                     }
+}

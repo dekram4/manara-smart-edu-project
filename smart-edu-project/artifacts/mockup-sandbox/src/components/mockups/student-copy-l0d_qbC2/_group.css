@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@400;700;900&display=swap');
+
+.lamsa-root {
+  --lamsa-primary: #FF6B35;
+  --lamsa-secondary: #4ECDC4;
+  --lamsa-accent: #FFE66D;
+  --lamsa-pink: #FF6B9D;
+  --lamsa-purple: #A78BFA;
+  --lamsa-green: #4ADE80;
+  --lamsa-blue: #60A5FA;
+  --lamsa-bg: #FFF8F0;
+  --lamsa-card: #FFFFFF;
+  --lamsa-text: #2D3748;
+  --lamsa-text-light: #718096;
+  font-family: 'Noto Sans Arabic', sans-serif;
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(255, 107, 53, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(255, 107, 53, 0.8), 0 0 40px rgba(255, 107, 53, 0.3); }
+}
+
+@keyframes star-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+.lamsa-bounce { animation: bounceIn 0.6s ease-out; }
+.lamsa-float { animation: float 3s ease-in-out infinite; }
+.lamsa-wiggle { animation: wiggle 0.5s ease-in-out infinite; }
+.lamsa-pulse { animation: pulse-glow 2s ease-in-out infinite; }
+.lamsa-star { animation: star-spin 3s ease-in-out infinite; }

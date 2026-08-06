@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "منارة",
+    "slug": "manara-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.manara.edu"
+    },
+    "android": {
+      "package": "com.manara.edu",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF8F0",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF8F0"
+    }
+  }
+}

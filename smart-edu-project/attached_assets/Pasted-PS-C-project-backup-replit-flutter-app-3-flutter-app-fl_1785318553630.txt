@@ -1,0 +1,115 @@
+PS C:\project\backup\replit\flutter_app (3)\flutter_app> flutter run -d chrome --dart-define=SUPABASE_URL=https://lpipqttxkwcmfiinjngw.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_6WveLl3qRQPhq3b6-159kQ_pLQuUuqD
+Launching lib\main.dart on Chrome in debug mode...
+lib/screens/student_dashboard.dart:111:22: Error: Can't find ')' to match '('.
+        SliverPadding(
+                     ^
+lib/screens/quiz_manager.dart:97:3: Error: Type 'QuizType' not found.
+  QuizType type = QuizType.unit;
+  ^^^^^^^^
+lib/screens/account_screen.dart:17:114: Error: The getter 'icon' isn't defined for the type 'UserRole'.
+ - 'UserRole' is from 'package:manara_knowledge/models/app_models.dart' ('lib/models/app_models.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'icon'.
+          Center(child: CircleAvatar(radius: 42, backgroundColor: ManaraColors.lavender, child: Text(state.role?.icon ?? '👤', style: const TextStyle(fontSize: 38)))),
+                                                                                                                 ^^^^
+lib/screens/account_screen.dart:21:42: Error: The getter 'label' isn't defined for the type 'UserRole'.
+ - 'UserRole' is from 'package:manara_knowledge/models/app_models.dart' ('lib/models/app_models.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'label'.
+          Center(child: Text(state.role?.label ?? '', style: const TextStyle(color: ManaraColors.muted))),
+                                         ^^^^^
+lib/screens/quiz_manager.dart:97:3: Error: 'QuizType' isn't a type.
+  QuizType type = QuizType.unit;
+  ^^^^^^^^
+lib/screens/quiz_manager.dart:97:19: Error: Undefined name 'QuizType'.
+  QuizType type = QuizType.unit;
+                  ^^^^^^^^
+lib/screens/quiz_manager.dart:137:37: Error: 'QuizType' isn't a type.
+            DropdownButtonFormField<QuizType>(
+                                    ^^^^^^^^
+lib/screens/quiz_manager.dart:141:41: Error: Not a constant expression.
+                DropdownMenuItem(value: QuizType.unit, child: Text('اختبار وحدة')),
+                                        ^^^^^^^^
+lib/screens/quiz_manager.dart:142:41: Error: Not a constant expression.
+                DropdownMenuItem(value: QuizType.term, child: Text('اختبار ترم')),
+                                        ^^^^^^^^
+lib/screens/quiz_manager.dart:143:41: Error: Not a constant expression.
+                DropdownMenuItem(value: QuizType.finalExam, child: Text('اختبار نهائي')),
+                                        ^^^^^^^^
+lib/screens/quiz_manager.dart:145:68: Error: The getter 'QuizType' isn't defined for the type '_CreateQuizScreenState'.
+ - '_CreateQuizScreenState' is from 'package:manara_knowledge/screens/quiz_manager.dart' ('lib/screens/quiz_manager.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'QuizType'.
+              onChanged: (value) => setState(() => type = value ?? QuizType.unit),
+                                                                   ^^^^^^^^
+lib/screens/quiz_manager.dart:173:24: Error: 'QuizQuestion' isn't a type.
+    final questions = <QuizQuestion>[];
+                       ^^^^^^^^^^^^
+lib/screens/quiz_manager.dart:182:21: Error: The method 'QuizQuestion' isn't defined for the type '_CreateQuizScreenState'.
+ - '_CreateQuizScreenState' is from 'package:manara_knowledge/screens/quiz_manager.dart' ('lib/screens/quiz_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'QuizQuestion'.
+      questions.add(QuizQuestion(question: question, options: options, correctAnswer: answer));
+                    ^^^^^^^^^^^^
+Unhandled exception:
+Unsupported operation: Unsupported invalid type InvalidType(<invalid>) (InvalidType). Encountered while compiling
+file:///C:/project/backup/replit/flutter_app%20(3)/flutter_app/lib/screens/quiz_manager.dart, which contains the type: InterfaceType(DropdownButtonFormField<<invalid>>).
+#0      LibraryCompiler._typeCompilationError (package:dev_compiler/src/kernel/compiler_new.dart:4493)
+#1      LibraryCompiler._emitType (package:dev_compiler/src/kernel/compiler_new.dart:4458)
+#2      LibraryCompiler.visitConstructorInvocation (package:dev_compiler/src/kernel/compiler_new.dart:8293)
+#3      ConstructorInvocation.accept (package:kernel/src/ast/expressions.dart:2950)
+#4      LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5138)
+#5      MappedIterable.elementAt (dart:_internal/iterable.dart:402)
+#6      ListIterator.moveNext (dart:_internal/iterable.dart:371)
+#7      new _GrowableList._ofEfficientLengthIterable (dart:core-patch/growable_array.dart:194)
+#8      new _GrowableList.of (dart:core-patch/growable_array.dart:154)
+#9      new List.of (dart:core-patch/array_patch.dart:39)
+#10     SetBase.toList (dart:collection/set.dart:119)
+#11     LibraryCompiler._visitExpressionList (package:dev_compiler/src/kernel/compiler_new.dart:5099)
+#12     LibraryCompiler.visitListLiteral (package:dev_compiler/src/kernel/compiler_new.dart:8733)
+#13     ListLiteral.accept (package:kernel/src/ast/expressions.dart:4552)
+#14     LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5138)
+#15     LibraryCompiler._visitInitializer (package:dev_compiler/src/kernel/compiler_new.dart:2731)
+#16     LibraryCompiler.visitVariableDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:6027)
+#17     StatementVisitorExperimentExclusionMixin.visitVariableStatement (package:kernel/visitor.dart:3207)
+#18     VariableStatement.accept (package:kernel/src/ast/statements.dart:1946)
+#19     LibraryCompiler._visitStatement (package:dev_compiler/src/kernel/compiler_new.dart:5035)
+#20     LibraryCompiler.visitBlockExpression (package:dev_compiler/src/kernel/compiler_new.dart:8974)
+#21     BlockExpression.accept (package:kernel/src/ast/expressions.dart:5232)
+#22     LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5138)
+#23     LibraryCompiler._emitNamedExpression (package:dev_compiler/src/kernel/compiler_new.dart:8054)
+#24     LibraryCompiler._emitArgumentGroups (package:dev_compiler/src/kernel/compiler_new.dart:8044)
+#25     LibraryCompiler._emitArgumentList (package:dev_compiler/src/kernel/compiler_new.dart:7998)
+#26     LibraryCompiler.visitConstructorInvocation (package:dev_compiler/src/kernel/compiler_new.dart:8300)
+#27     ConstructorInvocation.accept (package:kernel/src/ast/expressions.dart:2950)
+#28     LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5138)
+#29     LibraryCompiler._emitNamedExpression (package:dev_compiler/src/kernel/compiler_new.dart:8054)
+#30     LibraryCompiler._emitArgumentGroups (package:dev_compiler/src/kernel/compiler_new.dart:8044)
+#31     LibraryCompiler._emitArgumentList (package:dev_compiler/src/kernel/compiler_new.dart:7998)
+#32     LibraryCompiler.visitConstructorInvocation (package:dev_compiler/src/kernel/compiler_new.dart:8300)
+#33     ConstructorInvocation.accept (package:kernel/src/ast/expressions.dart:2950)
+#34     LibraryCompiler._visitExpression (package:dev_compiler/src/kernel/compiler_new.dart:5138)
+#35     LibraryCompiler.visitReturnStatement (package:dev_compiler/src/kernel/compiler_new.dart:5893)
+#36     ReturnStatement.accept (package:kernel/src/ast/statements.dart:1139)
+#37     LibraryCompiler._visitStatement (package:dev_compiler/src/kernel/compiler_new.dart:5035)
+#38     LibraryCompiler._emitFunctionScopedBody (package:dev_compiler/src/kernel/compiler_new.dart:5072)
+#39     LibraryCompiler._emitFunction.<anonymous closure> (package:dev_compiler/src/kernel/compiler_new.dart:4680)
+#40     LibraryCompiler._withLetScope (package:dev_compiler/src/kernel/compiler_new.dart:3674)
+#41     LibraryCompiler._withCurrentFunction (package:dev_compiler/src/kernel/compiler_new.dart:4854)
+#42     LibraryCompiler._emitFunction (package:dev_compiler/src/kernel/compiler_new.dart:4672)
+#43     LibraryCompiler._emitMethodDeclaration.<anonymous closure> (package:dev_compiler/src/kernel/compiler_new.dart:2941)
+#44     LibraryCompiler._withMethodDeclarationContext (package:dev_compiler/src/kernel/compiler_new.dart:4879)
+#45     LibraryCompiler._emitMethodDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:2939)
+#46     LibraryCompiler._emitClassProperties (package:dev_compiler/src/kernel/compiler_new.dart:2880)
+#47     LibraryCompiler._emitClassDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:1488)
+#48     LibraryCompiler._emitClass (package:dev_compiler/src/kernel/compiler_new.dart:1426)
+#49     List.forEach (dart:core-patch/growable_array.dart:428)
+#50     LibraryCompiler._emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:1348)
+#51     LibraryCompiler.emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:962)
+#52     LibraryBundleCompiler.emitModule (package:dev_compiler/src/kernel/compiler_new.dart:164)
+#53     IncrementalJavaScriptBundler.compile (package:frontend_server/src/javascript_bundle.dart:324)
+#54     FrontendCompiler.writeJavaScriptBundle (package:frontend_server/frontend_server.dart:922)
+<asynchronous suspension>
+#55     FrontendCompiler.compile (package:frontend_server/frontend_server.dart:728)
+<asynchronous suspension>
+#56     listenAndCompile.<anonymous closure> (package:frontend_server/frontend_server.dart:1449)
+<asynchronous suspension>
+The Dart compiler exited unexpectedly.
+Waiting for connection from debug service on Chrome...             16.1s
+Failed to compile application.

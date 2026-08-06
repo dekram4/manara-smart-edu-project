@@ -1,0 +1,1790 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { StudentInfo, LessonConfig, StudentModuleType, QuizQuestion, QuizResult, QuizType, CreatedQuiz } from '../../types';
+import EntertainmentGames from './EntertainmentGames';
+import StudentVideos from './StudentVideos';
+import { STORAGE_KEYS, COLORS, QUIZ_TYPES } from '../../constants';
+import { passwordsMatch } from '../../utils/password';
+import StudentLogin from './StudentLogin';
+import * as math from 'mathjs';
+import { getStudentPermissions } from '../../permissions';
+import { playWelcomeStudent, playLamsaSound, playEncouragementSound, playPortalEntranceSound, playSectionSound } from '../../utils/sounds';
+import { speakGreeting, speakQuizStart, speakWin, speakEncouragement, speakError } from '../../utils/speech';
+import { triggerCelebration } from '../../App';
+import {
+  filterTeacherOwnedRecords,
+  getRecordTeacherId,
+  getStudentTeacherScope,
+  matchesAcademicScope,
+  normalizeScopeValue,
+} from '../../utils/scope';
+import {
+  checkStreak,
+  getGamificationStats,
+  hasCompletedActivity,
+  resetGamification,
+  rewardLessonComplete,
+  rewardProblemSolved,
+  rewardQuizCompleteWithId,
+} from '../../utils/gamification';
+
+// 1. استدعاءات framer-motion والمؤثرات الصوتية من App.tsx
+import { motion, AnimatePresence } from 'framer-motion';
+import { soundPop, soundClick } from '../../App';
+import { getStickerAsset } from '../../utils/contentAssets';
+import { AnimatedCelebration } from '../../components/AnimatedCelebration';
+import { InteractiveScene } from '../../components/InteractiveScene';
+import PremiumBackground from '../../components/PremiumBackground';
+
+const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
+  explanation: {
+    shellClass: 'from-amber-500/18 via-orange-500/10 to-transparent',
+    glowClass: 'from-amber-400/30 via-orange-500/15 to-transparent',
+    borderClass: 'border-amber-400/30',
+    portalClass: 'from-amber-400/70 via-orange-500/45 to-transparent',
+  },
+  avatar: {
+    shellClass: 'from-fuchsia-500/18 via-purple-500/10 to-transparent',
+    glowClass: 'from-fuchsia-400/30 via-purple-500/15 to-transparent',
+    borderClass: 'border-fuchsia-400/30',
+    portalClass: 'from-fuchsia-400/70 via-purple-500/45 to-transparent',
+  },
+  problem: {
+    shellClass: 'from-cyan-500/18 via-teal-500/10 to-transparent',
+    glowClass: 'from-cyan-400/30 via-teal-500/15 to-transparent',
+    borderClass: 'border-cyan-400/30',
+    portalClass: 'from-cyan-400/70 via-teal-500/45 to-transparent',
+  },
+  meeting: {
+    shellClass: 'from-rose-500/18 via-red-500/10 to-transparent',
+    glowClass: 'from-rose-400/30 via-red-500/15 to-transparent',
+    borderClass: 'border-rose-400/30',
+    portalClass: 'from-rose-400/70 via-red-500/45 to-transparent',
+  },
+  entertainment: {
+    shellClass: 'from-violet-500/18 via-purple-600/10 to-transparent',
+    glowClass: 'from-violet-400/30 via-purple-500/15 to-transparent',
+    borderClass: 'border-violet-400/30',
+    portalClass: 'from-violet-400/70 via-purple-500/45 to-transparent',
+  },
+  videos: {
+    shellClass: 'from-sky-500/18 via-blue-500/10 to-transparent',
+    glowClass: 'from-sky-400/30 via-blue-500/15 to-transparent',
+    borderClass: 'border-sky-400/30',
+    portalClass: 'from-sky-400/70 via-blue-500/45 to-transparent',
+  },
+  quiz: {
+    shellClass: 'from-amber-500/18 via-yellow-500/10 to-transparent',
+    glowClass: 'from-amber-400/30 via-yellow-500/15 to-transparent',
+    borderClass: 'border-amber-400/30',
+    portalClass: 'from-amber-400/70 via-yellow-500/45 to-transparent',
+  },
+  default: {
+    shellClass: 'from-slate-500/15 via-slate-600/10 to-transparent',
+    glowClass: 'from-slate-400/20 via-slate-500/10 to-transparent',
+    borderClass: 'border-white/15',
+    portalClass: 'from-cyan-400/60 via-indigo-500/40 to-transparent',
+  },
+};
+
+const getModuleTheme = (module: StudentModuleType | null) => {
+  switch (module) {
+    case StudentModuleType.EXPLANATION:
+      return moduleThemes.explanation;
+    case StudentModuleType.AVATAR_INTERACTION:
+      return moduleThemes.avatar;
+    case StudentModuleType.PROBLEM_SOLVING:
+      return moduleThemes.problem;
+    case StudentModuleType.LIVE_MEETING:
+      return moduleThemes.meeting;
+    case StudentModuleType.ENTERTAINMENT:
+      return moduleThemes.entertainment;
+    case StudentModuleType.VIDEOS:
+      return moduleThemes.videos;
+    case StudentModuleType.QUIZ:
+      return moduleThemes.quiz;
+    default:
+      return moduleThemes.default;
+  }
+};
+
+const getLessonRewardId = (lesson: LessonConfig) => {
+  const unitKey = [lesson.grade, lesson.atram, lesson.subject, lesson.term, lesson.unit]
+    .map((value) => normalizeScopeValue(value || ''))
+    .join('|');
+  const videoKey = normalizeScopeValue(lesson.explanationVideoUrl || 'no-video');
+  return `lesson_reward:${lesson.id}:${unitKey}:${videoKey}`;
+};
+
+const getQuizRewardId = (questions: QuizQuestion[], lesson: LessonConfig | null, quizType: QuizType) => {
+  const first = questions[0];
+  const scopeKey = [first?.grade, first?.atram, first?.subject, first?.term, first?.unit]
+    .map((value) => normalizeScopeValue(value || ''))
+    .join('|');
+  const lessonKey = normalizeScopeValue(first?.lessonId || lesson?.id || 'no-lesson');
+  return `quiz_reward:${normalizeScopeValue(quizType)}:${lessonKey}:${scopeKey}`;
+};
+
+const getGamificationResetKey = (studentInfo: StudentInfo) => {
+  const identity = studentInfo.id || studentInfo.studentIdNumber || studentInfo.username || 'anonymous';
+  return `MANARA_GAMIFICATION_RESET_V4_${String(identity)}`;
+};
+
+const ensureGamificationResetIfNeeded = (studentInfo: StudentInfo) => {
+  const resetKey = getGamificationResetKey(studentInfo);
+  const isResetDone = localStorage.getItem(resetKey) === '1';
+  if (!isResetDone) {
+    resetGamification();
+    localStorage.setItem(resetKey, '1');
+  }
+};
+
+// 2. مكون بطاقات الألعاب التفاعلية (Game Engine Style Card)
+const GameModeCard = ({ 
+  title, 
+  subtitle,
+  icon, 
+  color, 
+  onClick,
+  badge
+}: { 
+  title: string; 
+  subtitle?: string;
+  icon: string; 
+  color: string; 
+  onClick: () => void;
+  badge?: string;
+}) => (
+  <motion.div
+    layout
+    initial={{ opacity: 0, y: 20, scale: 0.96 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    whileHover={{ scale: 1.06, y: -10, rotate: -1.4, boxShadow: '0 28px 55px rgba(0,0,0,0.3)' }}
+    whileTap={{ scale: 0.95, rotate: -1 }}
+    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+    onClick={() => {
+      soundPop.play();
+      onClick();
+    }}
+    className={`${color} text-white p-8 rounded-[36px] shadow-2xl border-b-8 border-black/20 cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none transition-all`}
+  >
+    <motion.div
+      className="pointer-events-none absolute left-4 top-5 h-14 w-1 rounded-full bg-white/80"
+      animate={{ opacity: [0.75, 1, 0.75] }}
+      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+    />
+    {badge && (
+      <div className="absolute top-4 left-4 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-black shadow-md">
+        {badge}
+      </div>
+    )}
+    <div className="text-6xl mb-4 transition-transform duration-300 filter drop-shadow-md group-hover:scale-110">
+      {icon}
+    </div>
+    <div>
+      <h3 className="text-3xl font-black mb-1 drop-shadow-sm">{title}</h3>
+      {subtitle && <p className="text-white/95 font-medium text-base">{subtitle}</p>}
+    </div>
+  </motion.div>
+);
+
+// 3. المكون الرئيسي
+const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [activeLesson, setActiveLesson] = useState<LessonConfig | null>(null);
+  const [activeModule, setActiveModule] = useState<StudentModuleType | null>(null);
+  const [problemText, setProblemText] = useState('');
+  const [solutionText, setSolutionText] = useState('');
+  const [isSolving, setIsSolving] = useState(false);
+
+  const permissions = getStudentPermissions();
+
+  const [grades, setGrades] = useState<string[]>([]);
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [terms, setTerms] = useState<string[]>([]);
+  const [units, setUnits] = useState<string[]>([]);
+  const [atrams, setAtrams] = useState<string[]>([]);
+
+  const [selectedGrade, setSelectedGrade] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedAtram, setSelectedAtram] = useState('');
+  const [selectedTerm, setSelectedTerm] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState('');
+  const [showSelectionPanel, setShowSelectionPanel] = useState(false);
+
+  const [currentQuiz, setCurrentQuiz] = useState<QuizQuestion[]>([]);
+  const [qIndex, setQIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
+
+  const [chatMessages, setChatMessages] = useState<Array<{id: string; name: string; message: string; time: string}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+  const [chatTarget, setChatTarget] = useState<'all' | string>('all');
+  const [peers, setPeers] = useState<Array<{id: string; name: string}>>([]);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [lastMessageCount, setLastMessageCount] = useState(0);
+
+  const [showModuleCards, setShowModuleCards] = useState(false);
+  const [selectedPath, setSelectedPath] = useState(false);
+
+  // Gamification state
+  const [xp, setXp] = useState(0);
+  const [gems, setGems] = useState(0);
+  const [level, setLevel] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [levelProgress, setLevelProgress] = useState(0);
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [showRewardPopup, setShowRewardPopup] = useState(false);
+  const [rewardInfo, setRewardInfo] = useState({ xp: 0, gems: 0, message: '' });
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load gamification stats
+  const refreshGamification = () => {
+    const stats = getGamificationStats();
+    setXp(stats.xp);
+    setGems(stats.gems);
+    setLevel(stats.level);
+    setStreak(stats.streak);
+    setLevelProgress(stats.levelProgress);
+    setAchievements(stats.achievements);
+  };
+
+  useEffect(() => {
+    const active = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
+    if (active) {
+      ensureGamificationResetIfNeeded(active);
+
+      setStudent(active);
+      setIsAuthenticated(true);
+      speakGreeting();
+      checkStreak();
+      refreshGamification();
+
+      let primaryGrade = active.primaryGrade || active.grade;
+      if (!primaryGrade && active.gradeEnrollments && active.gradeEnrollments.length > 0) {
+        primaryGrade = active.gradeEnrollments[0].grade;
+      }
+      setSelectedGrade(primaryGrade || '');
+
+      let hasCompleteSelection = false;
+
+      if (active.gradeEnrollments && active.gradeEnrollments.length > 0) {
+        const primaryGradeEnrollments = active.gradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(primaryGrade));
+        const enrollSource = primaryGradeEnrollments || active.gradeEnrollments[0];
+        if (enrollSource.enrollments.length > 0) {
+          const firstEnroll = enrollSource.enrollments[0];
+          setSelectedSubject(firstEnroll.subject);
+          setSelectedAtram(firstEnroll.atram);
+          setSelectedTerm(firstEnroll.term);
+          setSelectedUnit(firstEnroll.unit);
+          hasCompleteSelection = !!(firstEnroll.atram && firstEnroll.subject && firstEnroll.term && firstEnroll.unit);
+        }
+      } else {
+        setSelectedSubject(active.subject);
+        setSelectedAtram(active.atram);
+        setSelectedTerm(active.term);
+        setSelectedUnit(active.unit);
+        hasCompleteSelection = !!(active.atram && active.subject && active.term && active.unit);
+      }
+
+      setSelectedPath(false);
+      setShowSelectionPanel(true);
+      setShowModuleCards(false);
+      setActiveModule(null);
+      matchContent(active);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (student) {
+      loadAcademicSettings();
+    }
+  }, [student]);
+
+  useEffect(() => {
+    if (selectedGrade) {
+      loadAcademicSettings();
+    }
+  }, [selectedGrade]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
+      if (current) {
+        const accountChanged = current.id !== student?.id;
+        const sessionDataChanged = current.lastActivity !== student?.lastActivity ||
+          current.grade !== student?.grade ||
+          current.subject !== student?.subject ||
+          current.atram !== student?.atram ||
+          current.term !== student?.term ||
+          current.unit !== student?.unit;
+        if (accountChanged || sessionDataChanged) {
+          if (accountChanged) {
+            ensureGamificationResetIfNeeded(current);
+          }
+          setStudent(current);
+          let fallbackGrade = current.primaryGrade || current.grade || '';
+          if (!fallbackGrade && current.gradeEnrollments && current.gradeEnrollments.length > 0) {
+            fallbackGrade = current.gradeEnrollments[0].grade;
+          }
+          setSelectedGrade(fallbackGrade);
+          setSelectedSubject(current.subject || '');
+          setSelectedAtram(current.atram || '');
+          setSelectedTerm(current.term || '');
+          setSelectedUnit(current.unit || '');
+          setIsAuthenticated(true);
+          refreshGamification();
+        }
+        matchContent(current);
+      } else if (isAuthenticated) {
+        setStudent(null);
+        setIsAuthenticated(false);
+        setActiveLesson(null);
+        setActiveModule(null);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [student, isAuthenticated]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isAuthenticated) refreshGamification();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (chatEnabled) {
+      loadChatMessages();
+      const interval = setInterval(loadChatMessages, 1500);
+      return () => clearInterval(interval);
+    }
+  }, [student?.grade, chatEnabled, showChat]);
+
+  useEffect(() => {
+    if (showChat) {
+      setHasNewMessage(false);
+      const timer = setTimeout(() => setHasNewMessage(false), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showChat]);
+
+  useEffect(() => {
+    if (chatContainerRef.current && showChat) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages, showChat]);
+
+  useEffect(() => {
+    if (!student?.grade) return;
+    const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const studentScope = getStudentTeacherScope(student);
+    const same = allStudents.filter((s: any) => {
+      const sameGrade = (s.grade || '').toString().trim().toLowerCase() === (student.grade || '').toString().trim().toLowerCase();
+      const candidateScope = getStudentTeacherScope(s);
+      const sameTeacher = studentScope.explicit
+        ? candidateScope.explicit && candidateScope.teacherId === studentScope.teacherId
+        : candidateScope.teacherId === studentScope.teacherId;
+      return sameGrade && sameTeacher;
+    });
+    setPeers(same.filter((s: any) => s.id !== student.id).map((s: any) => ({ id: s.id, name: s.name })));
+  }, [student]);
+
+  const loadChatMessages = () => {
+    if (!student?.grade || !chatEnabled) return;
+
+    const allMessages = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_MESSAGES) || '[]');
+    const studentScope = getStudentTeacherScope(student);
+
+    const gradeMessages = allMessages
+      .filter((m: any) => {
+        const sameGrade = normalizeScopeValue(m.grade) === normalizeScopeValue(student.grade);
+        const sameTeacher = studentScope.explicit
+          ? normalizeScopeValue(m.teacherId) === studentScope.teacherId
+          : !m.teacherId || normalizeScopeValue(m.teacherId) === studentScope.teacherId;
+        return sameGrade && sameTeacher;
+      })
+      .filter((m: any) => m.to === 'all' || m.to === student.id || m.from === student.id)
+      .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+    const lastReadKey = `LAST_READ_MESSAGE_${student.id}_${student.grade}_${studentScope.teacherId}`;
+    const lastReadTime = localStorage.getItem(lastReadKey) || '0';
+
+    if (!showChat) {
+      const unreadMessages = gradeMessages.filter((m: any) => {
+        const isNew = new Date(m.time).getTime() > parseInt(lastReadTime);
+        const isFromOthers = m.from !== student.id;
+        const isForMe = m.to === student.id || m.to === 'all';
+        return isNew && isFromOthers && isForMe;
+      });
+
+      if (unreadMessages.length > 0) {
+        setHasNewMessage(true);
+      }
+    }
+
+    if (showChat && gradeMessages.length > 0) {
+      const latestMessageTime = new Date(gradeMessages[gradeMessages.length - 1].time).getTime();
+      localStorage.setItem(lastReadKey, latestMessageTime.toString());
+      setHasNewMessage(false);
+    }
+
+    setLastMessageCount(gradeMessages.length);
+    setChatMessages(gradeMessages);
+  };
+
+  const sendChatMessage = () => {
+    if (!chatInput.trim() || !student) return;
+    playLamsaSound('send');
+    const toName = chatTarget === 'all' ? 'الجميع' : (peers.find(p => p.id === chatTarget)?.name || 'مخفي');
+    const newMessage = {
+      id: Date.now().toString(),
+      from: student.id,
+      name: student.name,
+      to: chatTarget || 'all',
+      toName,
+      message: chatInput,
+      grade: student.grade,
+      time: new Date().toISOString(),
+      teacherId: getStudentTeacherScope(student).teacherId
+    };
+    const allMessages = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_MESSAGES) || '[]');
+    allMessages.push(newMessage);
+    localStorage.setItem(STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(allMessages));
+    loadChatMessages();
+    setChatInput('');
+    setHasNewMessage(false);
+  };
+
+  const getFilteredHierarchicalConfigs = () => {
+    const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const allParents = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    if (!student) return [];
+
+    const filtered = filterTeacherOwnedRecords(allConfigs, student, allParents, allStudents);
+    if (filtered && filtered.length > 0) {
+      return filtered;
+    }
+
+    const studentTeacherId = getStudentTeacherScope(student, allParents, allStudents).teacherId;
+    if (studentTeacherId) {
+      const scoped = allConfigs.filter(
+        (config: any) => getRecordTeacherId(config) === studentTeacherId || normalizeScopeValue(config.createdBy) === studentTeacherId,
+      );
+      if (scoped.length > 0) return scoped;
+    }
+
+    const generalConfigs = allConfigs.filter((config: any) => !normalizeScopeValue(config.createdBy) || normalizeScopeValue(config.createdBy) === 'admin');
+    if (generalConfigs.length > 0) return generalConfigs;
+
+    return allConfigs;
+  };
+
+  const loadAcademicSettings = () => {
+    const hierarchicalConfigs = getFilteredHierarchicalConfigs();
+    const gradesList = hierarchicalConfigs.map((c: any) => c.grade).filter(Boolean);
+    setGrades(gradesList);
+
+    if (student?.gradeEnrollments && student.gradeEnrollments.length > 0) {
+      const studentGrades = student.gradeEnrollments.map((g: any) => g.grade).filter(Boolean);
+      setGrades(studentGrades);
+
+      const selectedGradeValue = selectedGrade || student.primaryGrade || studentGrades[0] || '';
+      if (selectedGradeValue) {
+        setSelectedGrade(selectedGradeValue);
+      }
+
+      const gradeEntry = student.gradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(selectedGradeValue)) || student.gradeEnrollments[0];
+      if (gradeEntry?.enrollments?.length) {
+        const firstEnroll = gradeEntry.enrollments[0];
+        const uniqueAtrams = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.atram).filter(Boolean)));
+        const uniqueSubjects = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.subject).filter(Boolean)));
+        const uniqueTerms = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.term).filter(Boolean)));
+        const uniqueUnits = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.unit).filter(Boolean)));
+
+        setAtrams(uniqueAtrams);
+        setSubjects(uniqueSubjects);
+        setTerms(uniqueTerms);
+        setUnits(uniqueUnits);
+
+        setSelectedAtram(firstEnroll?.atram || '');
+        setSelectedSubject(firstEnroll?.subject || '');
+        setSelectedTerm(firstEnroll?.term || '');
+        setSelectedUnit(firstEnroll?.unit || '');
+      }
+      return;
+    }
+
+    const normalizedGrade = normalizeScopeValue(selectedGrade || '');
+    const gradeConfig = hierarchicalConfigs.find((c: any) => normalizeScopeValue(c.grade) === normalizedGrade) || hierarchicalConfigs[0];
+
+    if (gradeConfig) {
+      if (normalizeScopeValue(gradeConfig.grade) !== normalizedGrade) {
+        setSelectedGrade(gradeConfig.grade);
+      }
+
+      const atrams = (gradeConfig.atrams || []).map((a: any) => a.atram).filter(Boolean);
+      setAtrams(atrams);
+
+      const normalizedAtram = normalizeScopeValue(selectedAtram || '');
+      const atramConfig = (gradeConfig.atrams || []).find((a: any) => normalizeScopeValue(a.atram) === normalizedAtram) || gradeConfig.atrams?.[0];
+
+      if (atramConfig) {
+        setSubjects((atramConfig.subjects || []).map((s: any) => s.subject).filter(Boolean));
+
+        const normalizedSubject = normalizeScopeValue(selectedSubject || '');
+        const subjectConfig = (atramConfig.subjects || []).find((s: any) => normalizeScopeValue(s.subject) === normalizedSubject) || atramConfig.subjects?.[0];
+
+        if (subjectConfig) {
+          setTerms((subjectConfig.terms || []).map((t: any) => t.term).filter(Boolean));
+
+          const normalizedTerm = normalizeScopeValue(selectedTerm || '');
+          const termConfig = (subjectConfig.terms || []).find((t: any) => normalizeScopeValue(t.term) === normalizedTerm) || subjectConfig.terms?.[0];
+
+          if (termConfig) {
+            const units = (termConfig.units || []).filter(Boolean);
+            setUnits(units);
+            if (!units.find((unit: any) => normalizeScopeValue(unit) === normalizeScopeValue(selectedUnit || ''))) {
+              setSelectedUnit(units[0] || '');
+            }
+          } else {
+            setUnits([]);
+            setSelectedUnit('');
+          }
+        } else {
+          setTerms([]);
+          setUnits([]);
+          setSelectedSubject('');
+          setSelectedTerm('');
+          setSelectedUnit('');
+        }
+      } else {
+        setSubjects([]);
+        setTerms([]);
+        setUnits([]);
+        setSelectedAtram('');
+        setSelectedSubject('');
+        setSelectedTerm('');
+        setSelectedUnit('');
+      }
+    } else {
+      setAtrams([]);
+      setSubjects([]);
+      setTerms([]);
+      setUnits([]);
+    }
+  };
+
+  const handleSelectContent = () => {
+    if (!student) return;
+
+    if (!selectedAtram || !selectedSubject || !selectedTerm || !selectedUnit) {
+      playLamsaSound('error');
+      alert('الرجاء اختيار جميع الحقول (الترم، المادة، الفصل، الوحدة)');
+      return;
+    }
+
+    const updatedStudent = {
+      ...student,
+      grade: selectedGrade || student.primaryGrade || student.grade,
+      subject: selectedSubject,
+      atram: selectedAtram,
+      term: selectedTerm,
+      unit: selectedUnit,
+    };
+    setStudent(updatedStudent);
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
+
+    const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const updated = allStudents.map((s: StudentInfo) => s.id === student.id ? updatedStudent : s);
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+
+    matchContent(updatedStudent);
+    setShowSelectionPanel(false);
+    setShowModuleCards(true);
+    setSelectedPath(true);
+  };
+
+  const matchContent = (s: StudentInfo) => {
+    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]');
+    const filteredContent = filterTeacherOwnedRecords(all, s);
+    const normalize = (v: any) => (v || '').toString().trim().toLowerCase();
+
+    const studentKey = {
+      grade: normalize(s.grade || s.primaryGrade),
+      atram: normalize(s.atram),
+      subject: normalize(s.subject),
+      term: normalize(s.term),
+      unit: normalize(s.unit),
+    };
+
+    let found = filteredContent.find((l: LessonConfig) => 
+      normalize(l.grade) === studentKey.grade && 
+      normalize(l.atram) === studentKey.atram && 
+      normalize(l.subject) === studentKey.subject && 
+      normalize(l.term) === studentKey.term && 
+      normalize(l.unit) === studentKey.unit
+    );
+
+    if (!found && !studentKey.unit) {
+      found = filteredContent.find((l: LessonConfig) =>
+        normalize(l.grade) === studentKey.grade && 
+        normalize(l.atram) === studentKey.atram && 
+        normalize(l.subject) === studentKey.subject && 
+        normalize(l.term) === studentKey.term
+      );
+    }
+
+    if (!found && !studentKey.term) {
+      found = filteredContent.find((l: LessonConfig) =>
+        normalize(l.grade) === studentKey.grade && 
+        normalize(l.atram) === studentKey.atram && 
+        normalize(l.subject) === studentKey.subject
+      );
+    }
+
+    setActiveLesson(found || null);
+  };
+
+  const startQuiz = (type: QuizType) => {
+    playLamsaSound('pop');
+    if (!student) return;
+    const allQuestions: QuizQuestion[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_QUESTIONS) || '[]');
+    const createdQuizzes: CreatedQuiz[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
+    );
+
+    const academicPath = {
+      grade: selectedGrade,
+      subject: selectedSubject,
+      atram: selectedAtram,
+      term: selectedTerm,
+      unit: selectedUnit,
+    };
+    const scopedCreatedQuestions = filterTeacherOwnedRecords(createdQuizzes, student)
+      .filter(quiz => quiz.isActive && quiz.quizType === type)
+      .flatMap(quiz => quiz.questions || [])
+      .filter(question => matchesAcademicScope(question, academicPath));
+    const scopedLegacyQuestions = filterTeacherOwnedRecords(allQuestions, student)
+      .filter(question => question.quizType === type && matchesAcademicScope(question, academicPath));
+
+    let filtered = [...scopedCreatedQuestions, ...scopedLegacyQuestions];
+
+    if (filtered.length === 0 && activeLesson?.lessonContent) {
+      const count = type === QuizType.UNIT ? 5 : type === QuizType.TERM ? 15 : 20;
+      filtered = localGenerateQuestionsFromLesson(activeLesson.lessonContent, count, type);
+    }
+
+    if (filtered.length === 0) {
+      playLamsaSound('error');
+      alert('لا توجد أسئلة متوفرة لهذا الاختبار حالياً.');
+      return;
+    }
+
+    let limit = 5;
+    if (type === QuizType.TERM) limit = 15;
+    if (type === QuizType.FINAL) limit = 20;
+
+    setCurrentQuiz(filtered.slice(0, limit));
+    setQIndex(0);
+    setUserAnswers({});
+    setQuizResult(null);
+    setActiveModule(StudentModuleType.QUIZ);
+    speakQuizStart();
+  };
+
+  const submitQuiz = () => {
+    if (!student || currentQuiz.length === 0) return;
+
+    let score = 0;
+    currentQuiz.forEach((q) => {
+      if (userAnswers[q.id] === q.correctAnswer) {
+        score++;
+      }
+    });
+
+    const percentage = Math.round((score / currentQuiz.length) * 100);
+    let feedback = 'حاول مجدداً، أنت بطل ذكي وستتحسن بالتأكيد! 💪';
+    
+    // Gamification rewards
+    const rewardId = getQuizRewardId(currentQuiz, activeLesson, currentQuiz[0]?.quizType || QuizType.UNIT);
+    const reward = rewardQuizCompleteWithId(score, currentQuiz.length, rewardId);
+    triggerCelebration();
+    speakWin();
+    refreshGamification();
+
+    if (reward.alreadyRewarded) {
+      feedback = 'تمت إعادة نفس الاختبار: النتيجة محفوظة، بدون جواهر إضافية لهذه المحاولة. ✅';
+      setRewardInfo({ xp: 0, gems: 0, message: 'لا توجد جواهر إضافية عند إعادة نفس الاختبار' });
+      setShowRewardPopup(true);
+      setTimeout(() => setShowRewardPopup(false), 2500);
+    }
+
+    if (!reward.alreadyRewarded && percentage >= 90) {
+      feedback = 'رائع ومذهل جداً! أنت عبقري ومتميز اليوم! 🏆✨';
+      playEncouragementSound();
+      speakWin();
+      setRewardInfo({ xp: reward.xp, gems: reward.gems, message: `عبقري! حصلت على ${percentage}%` });
+      setShowRewardPopup(true);
+      setTimeout(() => setShowRewardPopup(false), 3000);
+    } else if (!reward.alreadyRewarded && percentage >= 60) {
+      feedback = 'عمل رائع ودرجة ممتازة! تستحق نجمة لمسة البراقة! ⭐';
+      playEncouragementSound();
+      speakEncouragement();
+      setRewardInfo({ xp: reward.xp, gems: reward.gems, message: `ممتاز! حصلت على ${percentage}%` });
+      setShowRewardPopup(true);
+      setTimeout(() => setShowRewardPopup(false), 3000);
+    } else if (!reward.alreadyRewarded) {
+      playLamsaSound('magic');
+      speakError();
+    }
+
+    const createdAt = new Date().toISOString();
+    const quizResultRecord: QuizResult = {
+      id: `result_${student.id}_${Date.now()}`,
+      studentId: student.id,
+      studentName: student.name,
+      quizId: currentQuiz[0]?.lessonId || `quiz_${createdAt}`,
+      quizType: currentQuiz[0]?.quizType || QuizType.UNIT,
+      subject: currentQuiz[0]?.subject || student.subject || selectedSubject || '',
+      unit: currentQuiz[0]?.unit || student.unit || selectedUnit || '',
+      grade: currentQuiz[0]?.grade || student.grade || student.primaryGrade || selectedGrade || '',
+      score,
+      total: currentQuiz.length,
+      percentage,
+      level: percentage >= 90 ? 'ممتاز' : percentage >= 70 ? 'جيد جداً' : percentage >= 50 ? 'جيد' : 'يحتاج تحسين',
+      feedback,
+      details: currentQuiz.map((question) => ({
+        question: question.question,
+        userAnswer: userAnswers[question.id] || '',
+        correctAnswer: question.correctAnswer,
+        isCorrect: userAnswers[question.id] === question.correctAnswer,
+      })),
+      createdAt,
+    };
+
+    const allResults: QuizResult[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]',
+    );
+    localStorage.setItem(
+      STORAGE_KEYS.QUIZ_RESULTS,
+      JSON.stringify([...allResults, quizResultRecord]),
+    );
+
+    const updatedStudent: StudentInfo = {
+      ...student,
+      lastActivity: createdAt,
+      quizResults: [...(student.quizResults || []), quizResultRecord],
+    };
+    const allStudents: StudentInfo[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]',
+    );
+    localStorage.setItem(
+      STORAGE_KEYS.STUDENTS,
+      JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
+    );
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
+    setStudent(updatedStudent);
+    setQuizResult(quizResultRecord);
+  };
+
+  const localGenerateQuestionsFromLesson = (lessonText: string, count: number, type: QuizType) => {
+    const sentences = lessonText.split(/\.|\?|!|\n/).map(s => s.trim()).filter(Boolean);
+    const picks = sentences.slice(0, Math.max(count, 1));
+    return picks.map((s, idx) => {
+      const correct = s.length > 80 ? s.substring(0, 80) + '...' : s;
+      const options = [correct, 'خلاصة قصيرة', 'فكرة رئيسية', 'نقطة هامة'].slice(0,4);
+      return {
+        id: Date.now().toString() + '_' + idx + Math.random(),
+        grade: student?.grade || '',
+        subject: student?.subject || '',
+        atram: student?.atram || '',
+        term: student?.term || '',
+        unit: student?.unit || '',
+        question: `اختر الفكرة الأكثر ملاءمة للنص الآتي: "${s}"`,
+        options,
+        correctAnswer: options[0],
+        quizType: type,
+        lessonId: 'local-fallback',
+        createdAt: new Date().toISOString()
+      } as QuizQuestion;
+    });
+  };
+
+  const handleLogin = (username: string, password: string) => {
+    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const found = all.find((s: StudentInfo) => 
+      (s.username === username || s.studentIdNumber === username) && passwordsMatch(password, s.password)
+    );
+    if (found) {
+      const firstEnroll = (found.enrollments && found.enrollments.length > 0) ? found.enrollments[0] : null;
+      const activeStudent = { ...found } as StudentInfo;
+      const modernEnrollment = activeStudent.gradeEnrollments?.[0]?.enrollments?.[0];
+      if (modernEnrollment) {
+        activeStudent.grade = activeStudent.gradeEnrollments[0].grade;
+        activeStudent.subject = modernEnrollment.subject;
+        activeStudent.atram = modernEnrollment.atram;
+        activeStudent.term = modernEnrollment.term;
+        activeStudent.unit = modernEnrollment.unit;
+      } else if (firstEnroll) {
+        activeStudent.grade = firstEnroll.grade;
+        activeStudent.subject = firstEnroll.subject;
+        activeStudent.atram = firstEnroll.atram;
+        activeStudent.term = firstEnroll.term;
+        activeStudent.unit = firstEnroll.unit;
+      }
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(activeStudent));
+      ensureGamificationResetIfNeeded(activeStudent);
+      setStudent(activeStudent);
+      setIsAuthenticated(true);
+      playWelcomeStudent();
+      playPortalEntranceSound();
+      checkStreak();
+      refreshGamification();
+      let fallbackGrade = activeStudent.grade || activeStudent.primaryGrade || '';
+      if (!fallbackGrade && activeStudent.gradeEnrollments && activeStudent.gradeEnrollments.length > 0) {
+        fallbackGrade = activeStudent.gradeEnrollments[0].grade;
+      }
+      setSelectedGrade(fallbackGrade);
+      setSelectedSubject(activeStudent.subject || '');
+      setSelectedAtram(activeStudent.atram || '');
+      setSelectedTerm(activeStudent.term || '');
+      setSelectedUnit(activeStudent.unit || '');
+      setSelectedPath(false);
+      setShowSelectionPanel(true);
+      setShowModuleCards(false);
+      setActiveModule(null);
+      matchContent(activeStudent);
+    } else {
+      playLamsaSound('error');
+      alert('اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+  };
+
+  const handleSolveProblem = async () => {
+    if (!problemText.trim() || !activeLesson) {
+      playLamsaSound('error');
+      setSolutionText('يرجى اختيار مادة تعليمية صالحة قبل طرح الأسئلة');
+      return;
+    }
+    if (!activeLesson.lessonContent || activeLesson.lessonContent.trim() === '') {
+      playLamsaSound('error');
+      setSolutionText('عذراً، لم يتم إضافة محتوى تعليمي لهذا الدرس بعد. يرجى التواصل مع المشرف لإضافة المحتوى.');
+      return;
+    }
+    setIsSolving(true);
+    setSolutionText('');
+    playLamsaSound('send');
+    try {
+      const response = await fetch('http://localhost:4000/api/gemini/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lesson: activeLesson.lessonContent,
+          question: problemText
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.answer) {
+          playLamsaSound('magic');
+          const reward = rewardProblemSolved();
+          refreshGamification();
+          setRewardInfo({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! حللت مسألة!' });
+          setShowRewardPopup(true);
+          setTimeout(() => setShowRewardPopup(false), 3000);
+          setSolutionText(`💡 ${data.answer}`);
+        } else {
+          playLamsaSound('error');
+          setSolutionText('❌ لم يتم الحصول على إجابة من Gemini.');
+        }
+      } else {
+        playLamsaSound('error');
+        setSolutionText('❌ حدث خطأ في الاتصال بالسيرفر أو Gemini.');
+      }
+    } catch (e) {
+      playLamsaSound('error');
+      setSolutionText('❌ حدث خطأ أثناء الاتصال بالسيرفر.');
+    }
+    setIsSolving(false);
+  };
+
+  const completeCurrentLesson = () => {
+    if (!activeLesson?.id) {
+      playLamsaSound('error');
+      return;
+    }
+
+    const rewardId = getLessonRewardId(activeLesson);
+    const reward = rewardLessonComplete(rewardId);
+    if (reward.alreadyRewarded) {
+      playLamsaSound('click');
+      setRewardInfo({ xp: 0, gems: 0, message: 'هذا الدرس مكتمل في سجل إنجازاتك ✅' });
+    } else {
+      playEncouragementSound();
+      setRewardInfo({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! أنهيت الدرس بنجاح! +5 جواهر' });
+    }
+    refreshGamification();
+    setShowRewardPopup(true);
+    setTimeout(() => setShowRewardPopup(false), 3000);
+  };
+
+  const openModule = (module: StudentModuleType) => {
+    playPortalEntranceSound();
+    setActiveModule(module);
+    setShowModuleCards(false);
+  };
+
+  const moduleTheme = getModuleTheme(activeModule);
+  const lessonRewarded = activeLesson ? hasCompletedActivity('lesson', getLessonRewardId(activeLesson)) : false;
+  const nextLevelXP = (level + 1) * 100;
+  const xpRemainingToNextLevel = Math.max(0, nextLevelXP - xp);
+
+  if (!isAuthenticated) {
+    return <StudentLogin onLogin={handleLogin} onBack={onLogout} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-[linear-gradient(135deg,_#020617,_#111827,_#312e81)] text-white p-6 font-tajawal relative overflow-hidden">
+      <PremiumBackground accent="#8b5cf6" />
+      <div className="absolute left-6 top-6 z-10 flex items-center gap-3 rounded-[28px] border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-lg">
+        <img src={getStickerAsset('spark')} alt="spark" className="h-12 w-12 rounded-2xl border border-white/20 bg-white/80 p-2 shadow" />
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-200">مكافآت اليوم</p>
+          <p className="text-sm font-bold text-white">{gems} جِمّات • {xp} XP</p>
+        </div>
+      </div>
+
+      {/* خلفية تفاعلية ضوئية للألعاب */}
+      <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* الهيدر العلوي */}
+      <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between gap-4 z-10 relative">
+        <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 px-5 border border-white/10 shadow-xl">
+          <span className="text-3xl filter drop-shadow">👨‍🎓</span>
+          <div>
+            <h1 className="text-lg font-black text-white">أهلاً يا {student?.name}!</h1>
+            <p className="text-amber-300 text-xs font-bold">Lv.{level} | ⭐ {xp} | 💎 {gems} {streak > 0 ? `| 🔥 ${streak}` : ''}</p>
+          </div>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => {
+            soundClick.play();
+            localStorage.removeItem(STORAGE_KEYS.ACTIVE_STUDENT);
+            onLogout();
+          }}
+          className="px-5 py-3 bg-red-500/20 text-red-200 border border-red-500/40 rounded-xl font-bold hover:bg-red-500/30 transition-all cursor-pointer"
+        >
+          🚪 خروج
+        </motion.button>
+      </div>
+
+      <div className="max-w-7xl mx-auto z-10 relative">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4 }} className="rounded-[32px] border border-white/10 bg-white/10 backdrop-blur-xl p-5 md:p-6 mb-6 shadow-2xl">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200 text-sm font-semibold mb-3">
+                <span>✨</span> رحلة التقدم اليوم
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black text-white">مرحبًا، {student?.name || 'طالب'}!</h2>
+              <p className="text-slate-300 mt-1">أكمل المهام، ارفع مستواك، وحقق إنجازات جديدة.</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="rounded-2xl bg-slate-900/70 px-4 py-3 min-w-[110px] text-center">
+                <div className="text-2xl font-black text-yellow-300">{xp}</div>
+                <div className="text-xs text-slate-300">XP</div>
+              </div>
+              <div className="rounded-2xl bg-slate-900/70 px-4 py-3 min-w-[110px] text-center">
+                <div className="text-2xl font-black text-cyan-300">{gems}</div>
+                <div className="text-xs text-slate-300">جواهر</div>
+              </div>
+              <div className="rounded-2xl bg-slate-900/70 px-4 py-3 min-w-[110px] text-center">
+                <div className="text-2xl font-black text-fuchsia-300">{streak}</div>
+                <div className="text-xs text-slate-300">استمرار</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-sm text-slate-300 mb-2">
+              <span>تقدم المستوى {level}</span>
+              <span>{levelProgress}%</span>
+            </div>
+            <div className="h-3 rounded-full bg-slate-800 overflow-hidden">
+              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(levelProgress, 100)}%` }} transition={{ duration: 0.5 }} className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-fuchsia-500" />
+            </div>
+            <p className="mt-2 text-xs font-bold text-cyan-200">
+              المستوى القادم {level + 1} عند {nextLevelXP} XP • المتبقي {xpRemainingToNextLevel} XP
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Step 1: Selection Form */}
+        {(!selectedPath || showSelectionPanel) && !activeModule && (
+          <InteractiveScene className="p-8 md:p-12" intensity={1.15}>
+            <div className="bg-slate-800/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-8 md:p-12 border border-slate-700 relative overflow-hidden">
+              <div className="text-center mb-10">
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 2.5 }}
+                className="text-7xl mb-4 inline-block"
+              >
+                🎓
+              </motion.div>
+              <h2 className="text-4xl font-black text-white mb-3">مرحباً يا بطل! ✨</h2>
+              <p className="text-lg text-slate-300 mb-2">اختر مسارك السحري وابدأ التحدي والمرح</p>
+              <p className="text-xl text-amber-400 font-bold">
+                {student?.createdByName ? `مع معلمك ${student.createdByName}` : 'اختر تفاصيل درسك اليوم 🚀'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+              <div>
+                <label className="block font-bold text-slate-300 mb-3 text-right">🎒 الصف *</label>
+                <select
+                  value={selectedGrade}
+                  onChange={e => {
+                    soundClick.play();
+                    const newGrade = e.target.value;
+                    setSelectedGrade(newGrade);
+                    setSelectedAtram('');
+                    setSelectedSubject('');
+                    setSelectedTerm('');
+                    setSelectedUnit('');
+                  }}
+                  className="w-full p-4 bg-slate-900/90 border-2 border-slate-700 rounded-2xl text-white font-bold text-right outline-none focus:border-amber-400 transition-all"
+                >
+                  <option value="">اختر الصف</option>
+                  {grades.map((grade, i) => <option key={i} value={grade}>{grade}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-3 text-right">📅 الترم *</label>
+                <select
+                  value={selectedAtram}
+                  onChange={e => {
+                    soundClick.play();
+                    const newAtram = e.target.value;
+                    setSelectedAtram(newAtram);
+                    setSelectedSubject('');
+                    setSelectedTerm('');
+                    setSelectedUnit('');
+
+                    const hierarchicalConfigs = getFilteredHierarchicalConfigs();
+                    const gradeConfig = hierarchicalConfigs.find((c: any) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
+                    if (gradeConfig) {
+                      const atramConfig = gradeConfig.atrams.find((a: any) => normalizeScopeValue(a.atram) === normalizeScopeValue(newAtram));
+                      if (atramConfig) {
+                        setSubjects(atramConfig.subjects.map((s: any) => s.subject));
+                      }
+                    }
+                  }}
+                  disabled={!selectedGrade}
+                  className="w-full p-4 bg-slate-900/90 border-2 border-slate-700 rounded-2xl text-white font-bold text-right outline-none focus:border-amber-400 transition-all disabled:opacity-40"
+                >
+                  <option value="">اختر الترم</option>
+                  {atrams.map((a, i) => <option key={i} value={a}>{a}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-3 text-right">📚 المادة *</label>
+                <select
+                  value={selectedSubject}
+                  onChange={e => {
+                    soundClick.play();
+                    const newSubject = e.target.value;
+                    setSelectedSubject(newSubject);
+                    setSelectedTerm('');
+                    setSelectedUnit('');
+
+                    const hierarchicalConfigs = getFilteredHierarchicalConfigs();
+                    const gradeConfig = hierarchicalConfigs.find((c: any) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
+                    if (gradeConfig) {
+                      const atramConfig = gradeConfig.atrams.find((a: any) => normalizeScopeValue(a.atram) === normalizeScopeValue(selectedAtram));
+                      if (atramConfig) {
+                        const subjectConfig = atramConfig.subjects.find((s: any) => normalizeScopeValue(s.subject) === normalizeScopeValue(newSubject));
+                        if (subjectConfig) {
+                          setTerms(subjectConfig.terms.map((t: any) => t.term));
+                        }
+                      }
+                    }
+                  }}
+                  disabled={!selectedAtram}
+                  className="w-full p-4 bg-slate-900/90 border-2 border-slate-700 rounded-2xl text-white font-bold text-right outline-none focus:border-amber-400 transition-all disabled:opacity-40"
+                >
+                  <option value="">اختر المادة</option>
+                  {subjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-3 text-right">📖 الفصل</label>
+                <select
+                  value={selectedTerm}
+                  onChange={e => {
+                    soundClick.play();
+                    const newTerm = e.target.value;
+                    setSelectedTerm(newTerm);
+                    setSelectedUnit('');
+
+                    const hierarchicalConfigs = getFilteredHierarchicalConfigs();
+                    const gradeConfig = hierarchicalConfigs.find((c: any) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
+                    if (gradeConfig) {
+                      const atramConfig = gradeConfig.atrams.find((a: any) => normalizeScopeValue(a.atram) === normalizeScopeValue(selectedAtram));
+                      if (atramConfig) {
+                        const subjectConfig = atramConfig.subjects.find((s: any) => normalizeScopeValue(s.subject) === normalizeScopeValue(selectedSubject));
+                        if (subjectConfig) {
+                          const termConfig = subjectConfig.terms.find((t: any) => normalizeScopeValue(t.term) === normalizeScopeValue(newTerm));
+                          if (termConfig) {
+                            setUnits(termConfig.units);
+                          }
+                        }
+                      }
+                    }
+                  }}
+                  disabled={!selectedSubject}
+                  className="w-full p-4 bg-slate-900/90 border-2 border-slate-700 rounded-2xl text-white font-bold text-right outline-none focus:border-amber-400 transition-all disabled:opacity-40"
+                >
+                  <option value="">اختر الفصل</option>
+                  {terms.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-3 text-right">📝 الوحدة</label>
+                <select
+                  value={selectedUnit}
+                  onChange={e => { soundClick.play(); setSelectedUnit(e.target.value); }}
+                  disabled={!selectedTerm}
+                  className="w-full p-4 bg-slate-900/90 border-2 border-slate-700 rounded-2xl text-white font-bold text-right outline-none focus:border-amber-400 transition-all disabled:opacity-40"
+                >
+                  <option value="">اختر الوحدة</option>
+                  {units.map((u, i) => <option key={i} value={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="text-center">
+              {(() => {
+                const isFormComplete = selectedAtram && selectedAtram !== '' && 
+                                       selectedSubject && selectedSubject !== '' && 
+                                       selectedTerm && selectedTerm !== '' && 
+                                       selectedUnit && selectedUnit !== '';
+
+                return (
+                  <motion.button
+                    whileHover={{ scale: isFormComplete ? 1.05 : 1 }}
+                    whileTap={{ scale: isFormComplete ? 0.95 : 1 }}
+                    onClick={() => {
+                      if (!isFormComplete) {
+                        playLamsaSound('error');
+                        alert('الرجاء اختيار جميع الحقول (الترم، المادة، الفصل، الوحدة)');
+                        return;
+                      }
+                      soundPop.play();
+                      handleSelectContent();
+                      setSelectedPath(true);
+                      setShowModuleCards(true);
+                      setShowSelectionPanel(false);
+                    }}
+                    disabled={!isFormComplete}
+                    className={`px-16 py-5 rounded-3xl font-black text-2xl transition-all shadow-2xl ${
+                      isFormComplete
+                        ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 text-slate-950 border-b-8 border-orange-700 cursor-pointer'
+                        : 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    🚀 ابدأ رحلة التعلم! ✨
+                  </motion.button>
+                );
+              })()}
+            </div>
+            </div>
+          </InteractiveScene>
+        )}
+
+        {/* Step 2: Module Cards (Game Engine UI) */}
+        {selectedPath && showModuleCards && !activeModule && !showSelectionPanel && (
+          <InteractiveScene className="p-6 md:p-8" intensity={1.08}>
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl p-6 flex flex-wrap justify-between items-center border border-slate-700 gap-4">
+              <div>
+                <h2 className="text-3xl font-black text-white">اختر مغامرتك اليوم يا بطل! 🌟</h2>
+                <p className="text-amber-400 font-bold mt-1">
+                  {selectedSubject} • {selectedAtram} {selectedTerm && `• ${selectedTerm}`} {selectedUnit && `• ${selectedUnit}`}
+                </p>
+              </div>
+
+              <div className="flex gap-3 items-center">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    soundClick.play();
+                    setShowSelectionPanel(true);
+                    setShowModuleCards(false);
+                    loadAcademicSettings();
+                  }}
+                  className="px-5 py-3 bg-slate-700 text-amber-300 rounded-2xl font-bold hover:bg-slate-600 transition-all border border-slate-600 cursor-pointer"
+                >
+                  ⚙️ تغيير المواد
+                </motion.button>
+
+                <select
+                  value={selectedUnit}
+                  onChange={e => {
+                    soundClick.play();
+                    const newUnit = e.target.value;
+                    setSelectedUnit(newUnit);
+                    if (student) {
+                      const updatedStudent = { ...student, unit: newUnit };
+                      setStudent(updatedStudent);
+                      localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
+                      const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+                      const updated = allStudents.map((s) => s.id === student.id ? updatedStudent : s);
+                      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+                      matchContent(updatedStudent);
+                    }
+                  }}
+                  className="px-5 py-3 bg-slate-900 text-amber-300 rounded-2xl font-bold border border-slate-700 outline-none cursor-pointer"
+                >
+                  {(() => {
+                    const hierarchicalConfigs = getFilteredHierarchicalConfigs();
+                    const gradeConfig = hierarchicalConfigs.find((c) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
+                    let availableUnits: string[] = [];
+                    if (gradeConfig) {
+                      const atramConfig = gradeConfig.atrams.find((a) => normalizeScopeValue(a.atram) === normalizeScopeValue(selectedAtram));
+                      if (atramConfig) {
+                        const subjectConfig = atramConfig.subjects.find((s) => normalizeScopeValue(s.subject) === normalizeScopeValue(selectedSubject));
+                        if (subjectConfig) {
+                          const termConfig = subjectConfig.terms.find((t) => normalizeScopeValue(t.term) === normalizeScopeValue(selectedTerm));
+                          if (termConfig && termConfig.units) {
+                            availableUnits = termConfig.units;
+                          }
+                        }
+                      }
+                    }
+                    if (availableUnits.length === 0) {
+                      return <option value="">لا توجد وحدات متاحة</option>;
+                    }
+                    return availableUnits.map((u, i) => (
+                      <option key={i} value={u}>{u}</option>
+                    ));
+                  })()}
+                </select>
+              </div>
+            </div>
+
+            {/* شبكة الأبطال التفاعلية بروح محرك الألعاب */}
+            <motion.div
+              initial={{ opacity: 0, y: 22 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              
+              <GameModeCard
+                title="شرح الدرس"
+                subtitle="شاهد سينما الشرح الممتع"
+                icon="📺"
+                color="bg-gradient-to-br from-amber-400 to-orange-600 border-orange-700"
+                onClick={() => {
+                  playSectionSound('lessons');
+                  openModule(StudentModuleType.EXPLANATION);
+                }}
+              />
+
+              <GameModeCard
+                title="المعلم الافتراضي"
+                subtitle="تفاعل وتحدث مع الشخصية الذكية"
+                icon="🤖"
+                color="bg-gradient-to-br from-purple-500 to-pink-600 border-pink-700"
+                onClick={() => {
+                  openModule(StudentModuleType.AVATAR_INTERACTION);
+                }}
+              />
+
+              <GameModeCard
+                title="حل المسائل"
+                subtitle="اسأل مساعدك الذكي السحري"
+                icon="💡"
+                color="bg-gradient-to-br from-emerald-400 to-teal-600 border-teal-700"
+                onClick={() => {
+                  openModule(StudentModuleType.PROBLEM_SOLVING);
+                  setSolutionText('');
+                  setProblemText('');
+                }}
+              />
+
+              {/* بطاقة الاختبارات */}
+              <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-8 rounded-[36px] shadow-2xl border-b-8 border-indigo-900 select-none flex flex-col justify-between">
+                <div>
+                  <div className="text-6xl mb-3">📝</div>
+                  <h3 className="text-3xl font-black mb-1">مركز الاختبارات</h3>
+                  <p className="text-indigo-200 text-sm font-medium mb-4">تحدّ معلوماتك واجمع النجوم الذهبية!</p>
+                </div>
+                <div className="space-y-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); playSectionSound('quiz'); soundPop.play(); startQuiz(QuizType.UNIT); setShowModuleCards(false); }}
+                    className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
+                  >
+                    اختبار الوحدة ⭐
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); playSectionSound('quiz'); soundPop.play(); startQuiz(QuizType.TERM); setShowModuleCards(false); }}
+                    className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
+                  >
+                    اختبار الترم 🏆
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); playSectionSound('quiz'); soundPop.play(); startQuiz(QuizType.FINAL); setShowModuleCards(false); }}
+                    className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
+                  >
+                    الاختبار النهائي الكبير 👑
+                  </button>
+                </div>
+              </div>
+
+              <GameModeCard
+                title="الدردشة التفاعلية"
+                subtitle="تواصل وامرح مع أصدقائك"
+                icon="💬"
+                color="bg-gradient-to-br from-pink-500 to-rose-600 border-rose-800"
+                badge={hasNewMessage ? 'رسالة جديدة 📬' : undefined}
+                onClick={() => {
+                  setShowChat(true);
+                  setShowModuleCards(false);
+                  setHasNewMessage(false);
+                }}
+              />
+
+              <GameModeCard
+                title="اجتماع مباشر"
+                subtitle="انضم للحصة المباشرة فوراً"
+                icon="📞"
+                color="bg-gradient-to-br from-red-500 to-rose-700 border-red-900"
+                onClick={() => {
+                  openModule(StudentModuleType.LIVE_MEETING);
+                }}
+              />
+
+              <GameModeCard
+                title="عالم الترفيه والألعاب"
+                subtitle="ألعاب تعليمية شيقة جداً"
+                icon="🎮"
+                color="bg-gradient-to-br from-violet-500 to-purple-800 border-purple-950"
+                onClick={() => {
+                  playSectionSound('games');
+                  openModule(StudentModuleType.ENTERTAINMENT);
+                }}
+              />
+
+              <GameModeCard
+                title="سينما منارة"
+                subtitle="شاهد الفيديوهات المفضلة"
+                icon="🎬"
+                color="bg-gradient-to-br from-cyan-500 to-blue-700 border-blue-900"
+                onClick={() => {
+                  playSectionSound('videos');
+                  openModule(StudentModuleType.VIDEOS);
+                }}
+              />
+
+            </motion.div>
+            </div>
+          </InteractiveScene>
+        )}
+
+        {/* Step 3: Active Module Content */}
+        {activeModule && !showChat && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeModule}
+              initial={{ opacity: 0, y: 24, scale: 0.97, rotateX: -3 }}
+              animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+              exit={{ opacity: 0, y: -16, scale: 0.98 }}
+              transition={{ duration: 0.33, ease: 'easeOut' }}
+              className="space-y-6"
+            >
+            <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl p-4 flex justify-between items-center border border-slate-700">
+              <button
+                onClick={() => {
+                  playSectionSound('portal');
+                  soundClick.play();
+                  setActiveModule(null);
+                  setShowModuleCards(true);
+                }}
+                className="px-6 py-3 bg-amber-400 text-slate-950 font-black rounded-xl hover:bg-amber-300 transition-all flex items-center gap-2 cursor-pointer shadow-lg"
+              >
+                ← عودة لبوابة المغامرات
+              </button>
+              <button
+                onClick={() => {
+                  playSectionSound('portal');
+                  soundClick.play();
+                  setActiveModule(null);
+                  setShowModuleCards(false);
+                  setShowSelectionPanel(true);
+                  loadAcademicSettings();
+                }}
+                className="px-6 py-3 bg-slate-700 text-slate-300 font-bold rounded-xl hover:bg-slate-600 transition-all cursor-pointer"
+              >
+                ⚙️ تغيير المواد
+              </button>
+            </div>
+
+            {/* Video Explanation */}
+            {activeModule === StudentModuleType.EXPLANATION && (
+              <InteractiveScene className="p-8" intensity={1.2} accent={moduleTheme.portalClass}>
+                <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.18),_transparent_30%)]" />
+                  <div className="relative z-10">
+                  <h2 className="text-3xl font-black text-white mb-6">📺 سينما الشرح الممتع</h2>
+                  <div className="overflow-hidden rounded-[28px] bg-black shadow-2xl aspect-video">
+                    {activeLesson?.explanationVideoUrl ? (
+                      <iframe className="h-full w-full" src={activeLesson.explanationVideoUrl} title="Lesson Video" allowFullScreen></iframe>
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900 text-slate-400">
+                        <div className="mb-4 text-8xl">📴</div>
+                        <p className="text-2xl font-bold">لم يتم رفع فيديو لهذا الدرس بعد</p>
+                      </div>
+                    )}
+                  </div>
+                  {activeLesson?.lessonContent && (
+                    <button
+                      onClick={completeCurrentLesson}
+                      disabled={lessonRewarded}
+                      className={`mt-6 w-full rounded-2xl px-6 py-4 text-xl font-black shadow-lg transition-all ${
+                        lessonRewarded
+                          ? 'bg-slate-700 text-slate-300 cursor-not-allowed opacity-70'
+                          : 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 hover:scale-[1.01] active:scale-95 cursor-pointer'
+                      }`}
+                    >
+                      {lessonRewarded ? '✅ تم استلام مكافأة هذا المقطع لهذه الوحدة' : '✅ أنهيت الدرس — احصل على المكافأة 🎉'}
+                    </button>
+                  )}
+                  </div>
+                </div>
+              </InteractiveScene>
+            )}
+
+            {/* Avatar Interaction */}
+            {activeModule === StudentModuleType.AVATAR_INTERACTION && (
+              <InteractiveScene className="p-8" intensity={1.1}>
+                <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(192,132,252,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.18),_transparent_30%)]" />
+                  <div className="relative z-10">
+                  <h2 className="text-3xl font-black text-white mb-6">🤖 صديقك المعلم الافتراضي</h2>
+                  {activeLesson?.avatarInteractionUrl ? (
+                    <div className="space-y-6">
+                      <div className="rounded-[28px] border border-purple-500/30 bg-purple-950/40 p-6">
+                        <p className="mb-4 text-xl font-bold text-purple-200">صديقك الذكي مستعد للعب والكلام!</p>
+                        <div className="flex w-full flex-col items-center">
+                          <div className="mb-6 aspect-video w-full max-w-4xl overflow-hidden rounded-2xl border-4 border-purple-500/40 shadow-2xl">
+                            <iframe
+                              src={activeLesson.avatarInteractionUrl}
+                              title="المعلم الافتراضي"
+                              allow="camera; microphone; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                              allowFullScreen
+                              className="h-full w-full"
+                              style={{ minHeight: 400, background: '#000' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-20 text-center text-slate-500">
+                      <div className="mb-4 text-8xl">🤖</div>
+                      <p className="text-2xl font-bold">لم يتم إضافة رابط التفاعل بعد</p>
+                    </div>
+                  )}
+                  </div>
+                </div>
+              </InteractiveScene>
+            )}
+
+            {/* Problem Solving */}
+            {activeModule === StudentModuleType.PROBLEM_SOLVING && (
+              <InteractiveScene className="p-8" intensity={1.1}>
+                <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 border border-slate-700">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.18),_transparent_30%)]" />
+                  <div className="relative z-10">
+                  <h2 className="text-3xl font-black text-white mb-6 text-center">💡 اسأل المساعد السحري</h2>
+                  <textarea
+                    className="w-full p-6 bg-slate-900/90 rounded-3xl border-2 border-slate-700 focus:border-amber-400 outline-none h-48 text-lg font-medium mb-6 text-white"
+                    placeholder="اكتب سؤالك هنا يا بطل وصديقك الذكي سيجيبك فوراً..."
+                    value={problemText}
+                    onChange={e => setProblemText(e.target.value)}
+                  />
+                  <button
+                    onClick={handleSolveProblem}
+                    disabled={isSolving || !problemText.trim()}
+                    className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 py-5 rounded-2xl font-black text-xl shadow-xl disabled:opacity-50 cursor-pointer active:scale-95 transition-all"
+                  >
+                    {isSolving ? 'جاري التفكير وحل المسألة... 🤔' : 'إرسال السؤال السحري ✨'}
+                  </button>
+
+                  {solutionText && (
+                    <div className="mt-6 p-8 bg-slate-900 rounded-3xl border border-slate-700">
+                      <h4 className="font-black text-amber-400 text-2xl mb-4">فانوس الإجابة الذكية:</h4>
+                      <div className="text-slate-200 text-lg leading-relaxed whitespace-pre-wrap">{solutionText}</div>
+                    </div>
+                  )}
+                  </div>
+                </div>
+              </InteractiveScene>
+            )}
+
+            {/* Live Meeting */}
+            {activeModule === StudentModuleType.LIVE_MEETING && (
+              <InteractiveScene className="p-8" intensity={1.1}>
+                <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 border border-slate-700">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(248,113,113,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.16),_transparent_30%)]" />
+                  <div className="relative z-10">
+                    <h2 className="text-3xl font-black text-white mb-6">📞 البث المباشر الممتع</h2>
+                    <div className="bg-black rounded-3xl overflow-hidden aspect-video shadow-2xl">
+                      {activeLesson?.liveMeetingUrl ? (
+                        <iframe src={activeLesson.liveMeetingUrl} className="w-full h-full" allow="camera; microphone; display-capture" allowFullScreen />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-900">
+                          <div className="text-8xl mb-4">📞</div>
+                          <p className="text-2xl font-bold">لم يتم بدء الحصة المباشرة بعد</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </InteractiveScene>
+            )}
+
+            {/* Entertainment / Games */}
+            {activeModule === StudentModuleType.ENTERTAINMENT && (
+              <EntertainmentGames
+                grade={selectedGrade}
+                subject={selectedSubject}
+                term={selectedTerm}
+                unit={selectedUnit}
+                lessonContent={activeLesson?.lessonContent}
+              />
+            )}
+
+            {/* Videos */}
+            {activeModule === StudentModuleType.VIDEOS && (
+              <StudentVideos
+                grade={selectedGrade}
+                subject={selectedSubject}
+                term={selectedTerm}
+                unit={selectedUnit}
+              />
+            )}
+
+            {/* Quiz */}
+            {activeModule === StudentModuleType.QUIZ && (
+              <InteractiveScene className="p-8" intensity={1.1}>
+                <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 border border-slate-700">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(250,204,21,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(244,114,182,0.18),_transparent_30%)]" />
+                  <div className="relative z-10">
+                  {!quizResult ? (
+                    <div>
+                      <div className="flex justify-between items-center mb-8">
+                        <div className="bg-slate-900 px-6 py-3 rounded-full font-black text-amber-400 text-lg border border-slate-700">
+                          السؤال {qIndex + 1} / {currentQuiz.length} ⭐
+                        </div>
+                        <div className="h-4 w-64 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                          <div className="h-full bg-gradient-to-r from-amber-400 to-pink-500 transition-all" style={{ width: `${((qIndex + 1) / currentQuiz.length) * 100}%` }}></div>
+                        </div>
+                      </div>
+
+                      <h3 className="text-3xl font-black mb-8 text-white text-right">{currentQuiz[qIndex]?.question}</h3>
+
+                      <div className="space-y-4 mb-8">
+                        {currentQuiz[qIndex]?.options.map((opt, i) => (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              playLamsaSound('star');
+                              setUserAnswers({...userAnswers, [currentQuiz[qIndex].id]: opt});
+                            }}
+                            className={`w-full p-6 text-right rounded-2xl border-2 transition-all font-bold text-lg cursor-pointer ${
+                              userAnswers[currentQuiz[qIndex].id] === opt
+                                ? 'bg-gradient-to-r from-amber-400 to-orange-500 border-amber-300 text-slate-950 shadow-xl scale-[1.01]'
+                                : 'bg-slate-900/80 border-slate-700 hover:border-amber-400 text-slate-200'
+                            }`}
+                          >
+                            ✨ {opt}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex justify-between pt-6 border-t border-slate-700">
+                        <button 
+                          onClick={() => { soundClick.play(); setQIndex(Math.max(0, qIndex - 1)); }} 
+                          disabled={qIndex === 0}
+                          className="px-8 py-3 bg-slate-700 text-slate-300 rounded-xl font-bold hover:bg-slate-600 disabled:opacity-40 cursor-pointer"
+                        >
+                          السابق
+                        </button>
+                        {qIndex === currentQuiz.length - 1 ? (
+                          <button onClick={submitQuiz} className="px-8 py-3 bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 rounded-xl font-black text-lg shadow-xl cursor-pointer active:scale-95">
+                            تسليم وإنهاء الاختبار 🏆
+                          </button>
+                        ) : (
+                          <button onClick={() => { soundClick.play(); setQIndex(qIndex + 1); }} className="px-8 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 rounded-xl font-black text-lg shadow-xl cursor-pointer active:scale-95">
+                            التالي
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <div className="text-9xl mb-6 animate-bounce">{quizResult.percentage >= 90 ? '🏆' : quizResult.percentage >= 60 ? '⭐' : '💪'}</div>
+                      <h2 className="text-5xl font-black mb-4 text-white">انتهت المغامرة بنجاح!</h2>
+                      <p className="text-2xl text-amber-400 font-bold mb-8">{quizResult.feedback}</p>
+
+                      <div className="flex justify-center gap-6 mb-8">
+                        <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700">
+                          <p className="text-slate-400 font-bold mb-2">مجموع النجوم</p>
+                          <p className="text-5xl font-black text-white">{quizResult.score} / {quizResult.total}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-8 rounded-3xl text-slate-950 shadow-xl">
+                          <p className="text-slate-900/80 font-bold mb-2">النسبة الذهبية</p>
+                          <p className="text-5xl font-black">{quizResult.percentage}%</p>
+                        </div>
+                      </div>
+
+                      <button onClick={() => { soundClick.play(); setActiveModule(null); setQuizResult(null); setShowModuleCards(true); }} className="px-12 py-4 bg-white text-slate-950 rounded-2xl font-black text-xl hover:bg-slate-200 shadow-xl cursor-pointer">
+                        العودة للرئيسية 🏠
+                      </button>
+                    </div>
+                  )}
+                  </div>
+                </div>
+              </InteractiveScene>
+            )}
+            </motion.div>
+          </AnimatePresence>
+        )}
+
+        {/* Chat (Full Screen) */}
+        {showChat && (
+          <div className="relative overflow-hidden bg-slate-800/95 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 h-[600px] flex flex-col border border-slate-700 animate-fadeIn">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,72,153,0.16),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.16),_transparent_32%)]" />
+            <div className="relative z-10 flex h-full flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-4">
+                <h2 className="text-3xl font-black text-pink-400">💬 غرفة الأصدقاء والمرح</h2>
+                <button 
+                  onClick={() => {
+                    soundClick.play();
+                    let newChatState = !chatEnabled;
+                    setChatEnabled(newChatState);
+                    if (newChatState === false) {
+                      setChatMessages([]);
+                      setHasNewMessage(false);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                    chatEnabled 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                      : 'bg-slate-700 text-slate-400'
+                  }`}
+                >
+                  {chatEnabled ? '✅ مفعلة' : '⏸️ متوقفة'}
+                </button>
+              </div>
+              <button onClick={() => { 
+                soundClick.play();
+                setShowChat(false); 
+                setShowModuleCards(true);
+                setHasNewMessage(false);
+              }} className="px-6 py-3 bg-red-500/20 text-red-300 rounded-xl font-bold hover:bg-red-500/30 border border-red-500/30 cursor-pointer">
+                إغلاق
+              </button>
+            </div>
+
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto bg-slate-900/90 rounded-3xl p-6 mb-6 space-y-4 border border-slate-700">
+              {!chatEnabled ? (
+                <div className="flex items-center justify-center h-full text-slate-500">
+                  <div className="text-center">
+                    <p className="text-6xl mb-4">⏸️</p>
+                    <p className="font-bold text-xl">الدردشة في استراحة قصيرة</p>
+                  </div>
+                </div>
+              ) : chatMessages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-slate-500">
+                  <div className="text-center">
+                    <p className="text-6xl mb-4">💬</p>
+                    <p className="font-bold text-xl">لا توجد رسائل، كن أول من يرحب بأصدقائه! 👋</p>
+                  </div>
+                </div>
+              ) : (
+                chatMessages.map((msg: any) => (
+                  <div key={msg.id} className={`flex gap-4 ${msg.from === student?.id ? 'justify-end' : ''}`}>
+                    <div className={`max-w-md p-4 rounded-2xl ${msg.from === student?.id ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-100 border border-slate-700 rounded-bl-none'}`}>
+                      <p className="font-bold text-sm mb-1 text-amber-300">{msg.name}</p>
+                      <p className="leading-relaxed">{msg.message}</p>
+                      <p className="text-[10px] mt-2 text-white/60">
+                        {new Date(msg.time).toLocaleTimeString('ar-SA')}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-4">
+              <select 
+                value={chatTarget} 
+                onChange={e => { soundClick.play(); setChatTarget(e.target.value as any); }} 
+                className="p-4 rounded-xl border border-slate-700 bg-slate-900 text-white font-bold outline-none cursor-pointer"
+                disabled={!chatEnabled}
+              >
+                <option value="all">الجميع 🌍</option>
+                {peers.map(p => <option key={p.id} value={p.id}>{p.name} 🎈</option>)}
+              </select>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyPress={e => { if (e.key === 'Enter' && chatEnabled) sendChatMessage(); }}
+                placeholder={chatEnabled ? "اكتب رسالة جميلة لأصدقائك..." : "الدردشة متوقفة حالياً..."}
+                className="flex-1 p-4 bg-slate-900 border border-slate-700 text-white rounded-xl outline-none focus:border-pink-500 text-right font-medium"
+                disabled={!chatEnabled}
+              />
+              <button 
+                onClick={sendChatMessage} 
+                className={`px-8 py-4 rounded-xl font-black shadow-xl transition-all ${
+                  chatEnabled 
+                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 cursor-pointer' 
+                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                }`}
+                disabled={!chatEnabled}
+              >
+                إرسال 🚀
+              </button>
+            </div>
+          </div>
+        </div>
+        )}
+      </div>
+
+      <AnimatedCelebration
+        visible={showRewardPopup}
+        title="إنجاز رائع!"
+        subtitle={rewardInfo.message}
+        emoji={rewardInfo.gems > 0 ? '🏆' : '✨'}
+      />
+    </div>
+  );
+};
+
+export default StudentDashboard;
