@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ManaraBrand from '../../components/ManaraBrand';
 
 interface ParentLoginProps {
   onLogin: (username: string, password: string) => void;
@@ -27,12 +28,7 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
             <span>رجوع لاختيار الحساب</span>
           </button>
         )}
-        <div className="relative mx-auto mb-6">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center shadow-xl animate-wiggle">
-            <span className="text-5xl">👨‍👩‍👧‍👦</span>
-          </div>
-          <div className="absolute -top-2 -right-2 text-2xl animate-float">✨</div>
-        </div>
+        <ManaraBrand variant="login" className="mb-6 text-gray-800" />
         <h1 className="text-4xl font-black mb-2 text-gray-800 animate-popIn">بوابة ولي الأمر</h1>
         <p className="text-rose-500 mb-10 font-bold animate-popIn" style={{ animationDelay: '0.1s' }}>تابع مستوى أبنائك وتقدمهم 👨‍👩‍👧‍👦</p>
 

@@ -9,6 +9,7 @@ import { getParentPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
+import ManaraBrand from '../../components/ManaraBrand';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
@@ -550,7 +551,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       <aside className="w-80 bg-gradient-to-b from-rose-900 to-rose-800 text-white flex flex-col shadow-2xl shrink-0">
         {/* Header */}
         <div className="p-6 border-b border-rose-800">
-          <img src="/logo-badge.png" alt="منارة MANARA SYSTEM" className="w-16 h-16 mx-auto mb-3 rounded-2xl object-cover shadow-lg ring-1 ring-white/20" />
+          <ManaraBrand variant="sidebar" className="justify-center text-white" />
           <h2 className="text-2xl font-black text-center mb-1">بوابة المتابعة</h2>
           <p className="text-rose-300 text-center text-xs font-bold">تابع تقدم أبنائك</p>
           <div className="mt-3 p-3 bg-rose-800 rounded-[16px] text-center border border-rose-700">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
+import ManaraBrand from '../../components/ManaraBrand';
 
 interface StudentLoginProps {
   onLogin: (username: string, password: string) => void;
@@ -173,25 +174,7 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
             {/* Header */}
             <div className="mb-7 text-center">
               {/* Decorative icon cluster */}
-              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[22px] text-5xl"
-                style={{
-                  background: 'linear-gradient(145deg, rgba(249,115,22,0.22), rgba(236,72,153,0.16))',
-                  border: '1px solid rgba(249,115,22,0.3)',
-                  boxShadow: '0 0 28px rgba(249,115,22,0.25), inset 0 1px 0 rgba(255,255,255,0.07)',
-                }}>
-                📚
-              </div>
-              <h1
-                className="text-3xl font-black"
-                style={{
-                  background: 'linear-gradient(135deg, #fed7aa 0%, #fb923c 40%, #f472b6 70%, #c084fc 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                منارة المعرفة
-              </h1>
+              <ManaraBrand variant="login" className="text-white" />
               <p className="mt-1.5 text-sm font-bold text-orange-400/80">✨ بوابة الطالب · ادخل وابدأ رحلتك</p>
             </div>
 

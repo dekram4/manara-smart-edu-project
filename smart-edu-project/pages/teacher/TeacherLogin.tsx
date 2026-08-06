@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
+import ManaraBrand from '../../components/ManaraBrand';
 
 interface TeacherLoginProps {
   onLoginSuccess: (teacher: TeacherInfo) => void;
@@ -159,12 +160,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
           </button>
         )}
         <div className="text-center mb-8">
-          <div className="relative mx-auto mb-4 w-24 h-24">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-xl animate-wiggle">
-              <span className="text-5xl">👨‍🏫</span>
-            </div>
-            <div className="absolute -top-2 -right-2 text-2xl animate-float">✨</div>
-          </div>
+          <ManaraBrand variant="login" className="text-gray-800" />
           <h1 className="text-4xl font-black text-gray-800 mb-2 animate-popIn">تسجيل دخول المعلم</h1>
           <p className="text-amber-600 font-bold animate-popIn" style={{ animationDelay: '0.1s' }}>منصة منارة المعرفة التعليمية 🎓</p>
         </div>

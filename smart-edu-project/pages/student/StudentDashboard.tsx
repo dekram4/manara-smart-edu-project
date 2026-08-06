@@ -1042,6 +1042,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             <p className="text-amber-300 text-xs font-bold">Lv.{level} | ⭐ {xp} | 💎 {gems} {streak > 0 ? `| 🔥 ${streak}` : ''}</p>
           </div>
         </div>
+        <ManaraBrand variant="compact" className="hidden text-white md:flex" />
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}

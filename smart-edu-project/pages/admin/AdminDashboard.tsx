@@ -15,6 +15,7 @@ import Reports from './Reports';
 import SystemSettings from './SystemSettings';
 import PermissionsSettings from './PermissionsSettings';
 import AdminVideoNotifications from './AdminVideoNotifications';
+import ManaraBrand from '../../components/ManaraBrand';
 import VideoNotificationBadge from './VideoNotificationBadge';
 import PrivateChat from '../shared/PrivateChat';
 
@@ -130,13 +131,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       {/* Sidebar */}
       <aside className="w-80 bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl flex flex-col">
         <div className="p-8 border-b">
-          <div className="flex items-center gap-3">
-            <img src="/logo-badge.png" alt="منارة MANARA SYSTEM" className="w-12 h-12 rounded-xl object-cover shadow-md ring-1 ring-white/20 animate-spinSlow" />
-            <div>
-              <h2 className="text-2xl font-black">منصة منارة المعرفة التعليمية</h2>
-              <p className="text-purple-200 text-xs mt-1 uppercase tracking-wider">لوحة إدارة المشرف</p>
-            </div>
-          </div>
+          <ManaraBrand variant="sidebar" className="text-white" />
+          <p className="mt-2 text-center text-purple-200 text-xs font-bold">لوحة إدارة المشرف</p>
         </div>
 
         <nav className="flex-1 p-6 space-y-3 overflow-y-auto">

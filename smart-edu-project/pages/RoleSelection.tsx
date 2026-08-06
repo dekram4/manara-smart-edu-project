@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
+import ManaraBrand from '../components/ManaraBrand';
 
 interface RoleCard {
   id: 'student' | 'teacher' | 'parent' | 'admin';
@@ -340,38 +341,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
         transition={{ duration: 0.7, ease: 'easeOut' }}
         className="relative z-10 mb-10 text-center"
       >
-        {/* logo icon */}
-        <motion.div
-          animate={{ rotate: [0, 6, -6, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-          className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/15 shadow-2xl"
-          style={{
-            background: 'linear-gradient(145deg, rgba(99,102,241,0.3), rgba(139,92,246,0.2))',
-            backdropFilter: 'blur(16px)',
-            boxShadow: '0 0 40px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.1)',
-          }}
-        >
-          <motion.span
-            className="text-4xl"
-            aria-hidden="true"
-            animate={{ y: [0, -4, 0], rotate: [-3, 3, -3], scale: [1, 1.08, 1] }}
-            transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            🏛️
-          </motion.span>
-        </motion.div>
-
-        <h1
-          className="text-4xl font-black md:text-5xl"
-          style={{
-            background: 'linear-gradient(135deg, #c7d2fe 0%, #a78bfa 35%, #f0abfc 65%, #c7d2fe 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
-          منارة المعرفة
-        </h1>
+        <ManaraBrand variant="hero" className="text-white" />
         <p className="mt-2 text-base font-medium text-slate-400">
           اختر بوابتك وابدأ رحلتك التعليمية الذكية ✨
         </p>

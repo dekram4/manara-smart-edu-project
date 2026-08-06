@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ADMIN_USERNAME, ADMIN_PASSWORD, STORAGE_KEYS } from '../../constants';
 import { passwordsMatch } from '../../utils/password';
+import ManaraBrand from '../../components/ManaraBrand';
 
 interface StoredAdminSettings { adminUsername?: string; adminPassword?: string }
 
@@ -51,12 +52,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
             <span>رجوع لاختيار الحساب</span>
           </button>
         )}
-        <div className="relative mx-auto mb-6">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-400 to-violet-500 flex items-center justify-center shadow-xl animate-wiggle">
-            <span className="text-5xl">👑</span>
-          </div>
-          <div className="absolute -top-2 -right-2 text-2xl animate-float">✨</div>
-        </div>
+        <ManaraBrand variant="login" className="mb-6 text-gray-800" />
         <h1 className="text-3xl font-black mb-2 text-gray-800 animate-popIn">بوابة المشرف</h1>
         <p className="text-purple-500 mb-10 font-bold animate-popIn" style={{ animationDelay: '0.1s' }}>إدارة النظام والمحتوى 🔒</p>
 

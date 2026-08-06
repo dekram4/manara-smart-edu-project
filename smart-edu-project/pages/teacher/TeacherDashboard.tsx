@@ -14,6 +14,7 @@ import { getTeacherPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
+import ManaraBrand from '../../components/ManaraBrand';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -266,11 +267,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       {/* Sidebar */}
       <div className="w-80 bg-gradient-to-b from-amber-800 to-amber-900 text-white p-6 flex flex-col shadow-2xl">
         <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
-          <img src="/logo-badge.png" alt="منارة MANARA SYSTEM" className="w-12 h-12 rounded-xl object-cover shadow-md ring-1 ring-white/20 animate-spinSlow" />
-          <div>
-            <h2 className="text-lg font-black">منصة منارة المعرفة التعليمية</h2>
-            <p className="text-blue-200 text-xs uppercase tracking-wider">MANARA SYSTEM</p>
-          </div>
+          <ManaraBrand variant="sidebar" className="text-white" />
         </div>
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
