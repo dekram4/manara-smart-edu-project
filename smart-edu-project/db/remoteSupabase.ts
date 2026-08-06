@@ -1,5 +1,13 @@
 type RemoteResult<T = unknown> = { data: T; error: null } | { data: null; error: Error };
 
+class RemoteUnavailableError extends Error {
+  silent = true;
+
+  constructor() {
+    super('Supabase is unavailable in this environment');
+  }
+}
+
 let remoteState: 'unknown' | 'ready' | 'unavailable' = 'unknown';
 let probePromise: Promise<boolean> | null = null;
 
@@ -24,7 +32,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
   if (!(await isRemoteReady())) {
     // Development preview may not have access to a production-only connector.
     // Keep localStorage as the offline source of truth without noisy errors.
-    return { data: (init?.method ? null : []) as T, error: null };
+    return { data: null, error: new RemoteUnavailableError() };
   }
   try {
     const response = await fetch(url, init);

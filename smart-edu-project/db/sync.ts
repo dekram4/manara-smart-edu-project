@@ -129,6 +129,7 @@ async function withRetry(
   for (let attempt = 0; attempt < 3; attempt++) {
     last = await fn();
     if (!last.error) return last;
+    if (last.error.silent) return last;
     await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
   }
   console.error(`[sync] فشل ${label} بعد عدة محاولات:`, last?.error?.message);
@@ -188,7 +189,7 @@ async function hydrateRowTable(
 
   const { data, error } = await supabase.from(table).select('id,data');
   if (error) {
-    console.error(`[sync] فشل تحميل ${table}:`, error.message);
+    if (!error.silent) console.error(`[sync] فشل تحميل ${table}:`, error.message);
     return; // لا نلمس المحلي عند فشل القراءة
   }
   const remote = (data || []).map((row: any) => row.data);
@@ -214,7 +215,7 @@ async function hydrateRowTable(
 async function hydrateKv(pendingKv: Set<string>): Promise<void> {
   const { data, error } = await supabase.from('app_kv').select('key,value');
   if (error) {
-    console.error('[sync] فشل تحميل app_kv:', error.message);
+    if (!error.silent) console.error('[sync] فشل تحميل app_kv:', error.message);
     return;
   }
   const byKey = new Map((data || []).map((row: any) => [row.key, row.value]));

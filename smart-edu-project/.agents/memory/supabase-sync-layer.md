@@ -21,8 +21,9 @@ SmartEdu has ~13k lines of synchronous localStorage reads/writes across role das
 - **Serialize sync per key** (promise-chain queue) so a slow older write can't land after a newer one and revert Supabase.
 
 ## Constraints / gotchas
-- DDL must be run once by the user in the Supabase SQL Editor (`db/schema.sql`); only the anon key (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) is available — no service-role/DB URL, so the agent cannot run migrations.
-- `viewEnvVars` masks secret values (returns existence flags, not the string) — cannot read the anon key in code to self-test writes.
+- The web app uses a server-side Replit Supabase connector bridge (`server/supabase-bridge.js`) rather than exposing Supabase keys in browser code.
+- DDL must be run once by the user in the Supabase SQL Editor (`db/schema.sql`); REST access cannot create these tables.
+- The connector is production-scoped in this workspace; development preview can remain local/offline until the app is published.
 - RLS uses permissive allow-all for anon+authenticated. **Security caveat (disclosed, out of scope):** anyone with URL+anon key can read/write. Passwords are SHA-256 hashed (see password-hashing.md), no longer plaintext.
 - Session-only keys are intentionally NOT synced: activeStudent, currentTeacher, activeParent, LAST_READ_MESSAGE_*.
 - Literal storage keys (not all via STORAGE_KEYS): public chat uses `'CHAT_MESSAGES'`, certificates use `'smartEdu_certificates'`. Entity records key off `id`.
