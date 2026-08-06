@@ -1,5 +1,6 @@
 import React from 'react';
 import { playSound } from '../../../utils/soundEngine';
+import Interactive3DEmoji from '../../../components/effects/Interactive3DEmoji';
 
 interface GameButtonProps {
   icon: string;       // إيموجي أو مسار أيقونة كبيرة
@@ -17,7 +18,7 @@ export const GameButton: React.FC<GameButtonProps> = ({ icon, title, color = 'bg
       }}
       className={`${color} text-white font-bold p-6 rounded-3xl shadow-2xl flex flex-col items-center justify-center border-b-8 border-black/20 cursor-pointer select-none`}
     >
-      <span className="text-6xl mb-3 filter drop-shadow-md">{icon}</span>
+      <Interactive3DEmoji emoji={icon} accent="#ffffff" size="lg" className="mb-3" />
       <span className="text-xl tracking-wide">{title}</span>
     </button>
   );

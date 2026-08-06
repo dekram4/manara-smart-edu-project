@@ -35,6 +35,7 @@ import { AnimatedCelebration } from '../../components/AnimatedCelebration';
 import { InteractiveScene } from '../../components/InteractiveScene';
 import PremiumBackground from '../../components/PremiumBackground';
 import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
+import Interactive3DEmoji from '../../components/effects/Interactive3DEmoji';
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -224,14 +225,7 @@ const GameModeCard = ({
       )}
 
       {/* Emoji with animated glow on hover */}
-      <motion.div
-        className="relative z-10 mb-4 text-6xl transition-transform duration-300 filter group-hover:scale-110"
-        animate={hovered ? { rotate: [-3, 3, -2, 0] } : { rotate: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ filter: hovered ? `drop-shadow(0 0 14px rgba(255,255,255,0.6))` : 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))' }}
-      >
-        {icon}
-      </motion.div>
+      <Interactive3DEmoji emoji={icon} accent={guessedAccent} size="lg" className="relative z-10 mb-4" />
 
       {/* Text */}
       <div className="relative z-10">
@@ -1026,7 +1020,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       {/* الهيدر العلوي */}
       <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between gap-4 z-10 relative">
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 px-5 border border-white/10 shadow-xl">
-          <span className="text-3xl filter drop-shadow">👨‍🎓</span>
+          <Interactive3DEmoji emoji="👨‍🎓" accent="#38bdf8" size="sm" />
           <div>
             <h1 className="text-lg font-black text-white">أهلاً يا {student?.name}!</h1>
             <p className="text-amber-300 text-xs font-bold">Lv.{level} | ⭐ {xp} | 💎 {gems} {streak > 0 ? `| 🔥 ${streak}` : ''}</p>
@@ -1093,9 +1087,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <motion.div
                 animate={{ y: [0, -10, 0] }}
                 transition={{ repeat: Infinity, duration: 2.5 }}
-                className="text-7xl mb-4 inline-block"
+                className="mb-4 inline-block"
               >
-                🎓
+                <Interactive3DEmoji emoji="🎓" accent="#fbbf24" size="lg" />
               </motion.div>
               <h2 className="text-4xl font-black text-white mb-3">مرحباً يا بطل! ✨</h2>
               <p className="text-lg text-slate-300 mb-2">اختر مسارك السحري وابدأ التحدي والمرح</p>
@@ -1515,7 +1509,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       <iframe className="h-full w-full" src={activeLesson.explanationVideoUrl} title="Lesson Video" allowFullScreen></iframe>
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900 text-slate-400">
-                        <div className="mb-4 text-8xl">📴</div>
+                         <Interactive3DEmoji emoji="📴" accent="#fbbf24" size="xl" className="mb-4" />
                         <p className="text-2xl font-bold">لم يتم رفع فيديو لهذا الدرس بعد</p>
                       </div>
                     )}
@@ -1545,7 +1539,10 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <EducationalCardEffects accent="#c084fc" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(192,132,252,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
-                  <h2 className="text-3xl font-black text-white mb-6">🤖 صديقك المعلم الافتراضي</h2>
+                   <div className="mb-5 flex items-center gap-4">
+                     <Interactive3DEmoji emoji="🤖" accent="#c084fc" size="md" />
+                     <h2 className="text-3xl font-black text-white">صديقك المعلم الافتراضي</h2>
+                   </div>
                   {activeLesson?.avatarInteractionUrl ? (
                     <div className="space-y-6">
                       <div className="rounded-[28px] border border-purple-500/30 bg-purple-950/40 p-6">
@@ -1566,7 +1563,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     </div>
                   ) : (
                     <div className="p-20 text-center text-slate-500">
-                      <div className="mb-4 text-8xl">🤖</div>
+                      <Interactive3DEmoji emoji="🤖" accent="#c084fc" size="xl" className="mb-4" />
                       <p className="text-2xl font-bold">لم يتم إضافة رابط التفاعل بعد</p>
                     </div>
                   )}
@@ -1615,13 +1612,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <EducationalCardEffects accent="#fb7185" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(248,113,113,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.16),_transparent_30%)]" />
                   <div className="relative z-10">
-                    <h2 className="text-3xl font-black text-white mb-6">📞 البث المباشر الممتع</h2>
+                     <div className="mb-5 flex items-center gap-4">
+                       <Interactive3DEmoji emoji="📞" accent="#fb7185" size="md" />
+                       <h2 className="text-3xl font-black text-white">البث المباشر الممتع</h2>
+                     </div>
                     <div className="bg-black rounded-3xl overflow-hidden aspect-video shadow-2xl">
                       {activeLesson?.liveMeetingUrl ? (
                         <iframe src={activeLesson.liveMeetingUrl} className="w-full h-full" allow="camera; microphone; display-capture" allowFullScreen />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-900">
-                          <div className="text-8xl mb-4">📞</div>
+                          <Interactive3DEmoji emoji="📞" accent="#fb7185" size="xl" className="mb-4" />
                           <p className="text-2xl font-bold">لم يتم بدء الحصة المباشرة بعد</p>
                         </div>
                       )}
@@ -1718,7 +1718,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     </div>
                   ) : (
                     <div className="text-center">
-                      <div className="text-9xl mb-6 animate-bounce">{quizResult.percentage >= 90 ? '🏆' : quizResult.percentage >= 60 ? '⭐' : '💪'}</div>
+                       <Interactive3DEmoji
+                         emoji={quizResult.percentage >= 90 ? '🏆' : quizResult.percentage >= 60 ? '⭐' : '💪'}
+                         accent={quizResult.percentage >= 90 ? '#fbbf24' : '#38bdf8'}
+                         size="xl"
+                         className="mb-6"
+                       />
                       <h2 className="text-5xl font-black mb-4 text-white">انتهت المغامرة بنجاح!</h2>
                       <p className="text-2xl text-amber-400 font-bold mb-8">{quizResult.feedback}</p>
 
@@ -1749,12 +1754,15 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         {/* Chat (Full Screen) */}
         {showChat && (
           <div className="relative overflow-hidden bg-slate-800/95 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 h-[600px] flex flex-col border border-slate-700 animate-fadeIn">
-            <EducationalCardEffects accent="#ec4899" />
+             <EducationalCardEffects accent="#ec4899" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,72,153,0.16),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.16),_transparent_32%)]" />
             <div className="relative z-10 flex h-full flex-col">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-4">
-                <h2 className="text-3xl font-black text-pink-400">💬 غرفة الأصدقاء والمرح</h2>
+                 <div className="flex items-center gap-4">
+                   <Interactive3DEmoji emoji="💬" accent="#ec4899" size="md" />
+                   <h2 className="text-3xl font-black text-pink-400">غرفة الأصدقاء والمرح</h2>
+                 </div>
                 <button 
                   onClick={() => {
                     soundClick.play();
@@ -1788,14 +1796,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               {!chatEnabled ? (
                 <div className="flex items-center justify-center h-full text-slate-500">
                   <div className="text-center">
-                    <p className="text-6xl mb-4">⏸️</p>
+                     <Interactive3DEmoji emoji="⏸️" accent="#94a3b8" size="lg" className="mb-4" />
                     <p className="font-bold text-xl">الدردشة في استراحة قصيرة</p>
                   </div>
                 </div>
               ) : chatMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-slate-500">
                   <div className="text-center">
-                    <p className="text-6xl mb-4">💬</p>
+                     <Interactive3DEmoji emoji="💬" accent="#ec4899" size="lg" className="mb-4" />
                     <p className="font-bold text-xl">لا توجد رسائل، كن أول من يرحب بأصدقائه! 👋</p>
                   </div>
                 </div>

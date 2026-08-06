@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
+import Interactive3DEmoji from '../../../components/effects/Interactive3DEmoji';
 
 interface ManaraCardProps {
   emoji: string;
@@ -82,16 +83,7 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
         {/* Content */}
         <div className="relative z-10 flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
           {/* Emoji with glow */}
-          <motion.div
-            className="text-4xl"
-            animate={hovered ? { scale: 1.2, rotate: [-4, 4, -2, 0] } : { scale: 1, rotate: 0 }}
-            transition={{ duration: 0.35 }}
-            style={{
-              filter: hovered ? `drop-shadow(0 0 8px ${color})` : 'none',
-            }}
-          >
-            {emoji}
-          </motion.div>
+          <Interactive3DEmoji emoji={emoji} accent={color} size="sm" />
 
           <h3 className="font-black text-sm leading-tight text-gray-800">{title}</h3>
           <p className="text-[11px] text-gray-600">{subtitle}</p>
