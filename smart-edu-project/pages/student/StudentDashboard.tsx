@@ -707,9 +707,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setActiveLesson(found || null);
   };
 
-  const startQuiz = (type: QuizType) => {
+  const startQuiz = (type: QuizType): boolean => {
     playLamsaSound('pop');
-    if (!student) return;
+    if (!student) return false;
     const allQuestions: QuizQuestion[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_QUESTIONS) || '[]');
     const createdQuizzes: CreatedQuiz[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
@@ -731,15 +731,15 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
     let filtered = [...scopedCreatedQuestions, ...scopedLegacyQuestions];
 
-    if (filtered.length === 0 && activeLesson?.lessonContent) {
+    if (filtered.length === 0) {
       const count = type === QuizType.UNIT ? 5 : type === QuizType.TERM ? 15 : 20;
-      filtered = localGenerateQuestionsFromLesson(activeLesson.lessonContent, count, type);
+      filtered = localGenerateQuestionsFromLesson(activeLesson?.lessonContent || '', count, type);
     }
 
     if (filtered.length === 0) {
       playLamsaSound('error');
       alert('لا توجد أسئلة متوفرة لهذا الاختبار حالياً.');
-      return;
+      return false;
     }
 
     let limit = 5;
@@ -751,6 +751,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setUserAnswers({});
     setQuizResult(null);
     setActiveModule(StudentModuleType.QUIZ);
+    return true;
   };
 
   const submitQuiz = () => {
@@ -849,12 +850,46 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const localGenerateQuestionsFromLesson = (lessonText: string, count: number, type: QuizType) => {
     const sentences = lessonText.split(/\.|\?|!|\n/).map(s => s.trim()).filter(Boolean);
-    const picks = sentences.slice(0, Math.max(count, 1));
+    const topic = [student?.subject || selectedSubject || 'المادة التعليمية', student?.unit || selectedUnit || 'الدرس']
+      .filter(Boolean)
+      .join(' - ');
+    const fallbackPrompts = [
+      `ما الفكرة الأساسية التي نتعلمها في درس ${topic}؟`,
+      `أي عبارة تساعدك على فهم درس ${topic}؟`,
+      `ما أفضل طريقة لمراجعة درس ${topic}؟`,
+      `ماذا نتوقع أن نتعلم من موضوع ${topic}؟`,
+      `أي خيار يمثل تطبيقاً صحيحاً لما تعلمناه في ${topic}؟`,
+      `ما المعلومة التي يجب تذكرها بعد دراسة ${topic}؟`,
+      `كيف نتحقق من فهمنا لموضوع ${topic}؟`,
+      `أي خطوة نبدأ بها عند دراسة ${topic}؟`,
+      `ما الهدف من النشاط التعليمي في ${topic}؟`,
+      `أي وصف يناسب موضوع ${topic}؟`,
+    ];
+    const fallbackAnswers = [
+      'فهم الفكرة الأساسية وتطبيقها',
+      'مراجعة المفهوم ثم حل مثال',
+      'قراءة الدرس والانتباه إلى النقاط المهمة',
+      'التعلم بالتدرج مع ربط المعلومات',
+      'استخدام المعرفة في موقف جديد',
+    ];
+    const picks = sentences.length > 0
+      ? sentences.slice(0, Math.max(count, 1))
+      : Array.from({ length: Math.max(count, 1) }, (_, index) => fallbackPrompts[index % fallbackPrompts.length]);
+
     return picks.map((s, idx) => {
-      const correct = s.length > 80 ? s.substring(0, 80) + '...' : s;
-      const options = [correct, 'خلاصة قصيرة', 'فكرة رئيسية', 'نقطة هامة'].slice(0,4);
+      const correct = sentences.length > 0
+        ? (s.length > 80 ? s.substring(0, 80) + '...' : s)
+        : fallbackAnswers[idx % fallbackAnswers.length];
+      const options = sentences.length > 0
+        ? [correct, 'خلاصة قصيرة', 'فكرة رئيسية', 'نقطة هامة']
+        : [
+            correct,
+            fallbackAnswers[(idx + 1) % fallbackAnswers.length],
+            'تجاهل الفكرة وعدم مراجعتها',
+            'اختيار إجابة بلا قراءة السؤال',
+          ];
       return {
-        id: Date.now().toString() + '_' + idx + Math.random(),
+        id: `local_quiz_${Date.now()}_${idx}_${Math.random()}`,
         grade: student?.grade || '',
         subject: student?.subject || '',
         atram: student?.atram || '',
@@ -865,7 +900,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         correctAnswer: options[0],
         quizType: type,
         lessonId: 'local-fallback',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        source: 'local-random',
+        variation: idx,
       } as QuizQuestion;
     });
   };
@@ -1535,7 +1572,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       </div>
                     )}
                   </div>
-                  {activeLesson?.lessonContent && (
+                  {activeLesson && (
                     <button
                       onClick={completeCurrentLesson}
                       disabled={lessonRewarded}
@@ -1545,7 +1582,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           : 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 hover:scale-[1.01] active:scale-95 cursor-pointer'
                       }`}
                     >
-                      {lessonRewarded ? '✅ تم استلام مكافأة هذا المقطع لهذه الوحدة' : '✅ أنهيت الدرس — احصل على المكافأة 🎉'}
+                      {lessonRewarded ? '✅ تم استلام مكافأة هذا الدرس لهذه الوحدة' : '✅ أنهيت المهمة — احصل على 5 جواهر 🎉'}
                     </button>
                   )}
                   </div>
