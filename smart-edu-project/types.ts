@@ -13,6 +13,7 @@ export enum AdminMenuType {
 export enum StudentModuleType {
   EXPLANATION = 'EXPLANATION',
   AVATAR_INTERACTION = 'AVATAR_INTERACTION',
+  PERSONALITY = 'PERSONALITY',
   PROBLEM_SOLVING = 'PROBLEM_SOLVING',
   QUIZ = 'QUIZ',
   LIVE_MEETING = 'LIVE_MEETING',
@@ -42,6 +43,12 @@ export enum TeacherMenuType {
   MY_ACCOUNT = 'MY_ACCOUNT',
 }
 
+export interface StudentAppearance {
+  shape: string;
+  color: string;
+  outfit: string;
+}
+
 export enum QuizType {
   UNIT = 'unit',
   TERM = 'term',
@@ -53,6 +60,8 @@ export interface StudentInfo {
   name: string;
   /** Student-selected gender, used for the student avatar/emoji. */
   gender?: 'male' | 'female';
+  /** Optional student-created avatar appearance. Legacy students use gender defaults. */
+  appearance?: StudentAppearance;
   username?: string;
   password: string;
   parentPhoneNumber: string;

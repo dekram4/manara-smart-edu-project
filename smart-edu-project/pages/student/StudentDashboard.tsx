@@ -5,6 +5,7 @@ import StudentVideos from './StudentVideos';
 import { STORAGE_KEYS, COLORS, QUIZ_TYPES } from '../../constants';
 import { passwordsMatch } from '../../utils/password';
 import StudentLogin from './StudentLogin';
+import StudentPersonality from './StudentPersonality';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
 import { playWelcomeStudent, playLamsaSound } from '../../utils/sounds';
@@ -38,6 +39,7 @@ import EducationalCardEffects from '../../components/effects/EducationalCardEffe
 import Interactive3DEmoji from '../../components/effects/Interactive3DEmoji';
 import { getStudentEmoji } from '../../utils/studentAppearance';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
+import StudentAvatar from './components/StudentAvatar';
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -997,6 +999,18 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setShowModuleCards(false);
   };
 
+  const saveStudentAppearance = (appearance: StudentInfo['appearance']) => {
+    if (!student || !appearance) return;
+    const updatedStudent: StudentInfo = { ...student, appearance };
+    setStudent(updatedStudent);
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
+    const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    localStorage.setItem(
+      STORAGE_KEYS.STUDENTS,
+      JSON.stringify(allStudents.map(current => current.id === student.id ? updatedStudent : current)),
+    );
+  };
+
   const moduleTheme = getModuleTheme(activeModule);
   const lessonRewarded = activeLesson ? hasCompletedActivity('lesson', getLessonRewardId(activeLesson)) : false;
   const nextLevelXP = (level + 1) * 100;
@@ -1024,7 +1038,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       {/* الهيدر العلوي */}
       <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between gap-4 z-10 relative">
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 px-5 border border-white/10 shadow-xl">
-          <Interactive3DEmoji emoji={getStudentEmoji(student)} accent="#38bdf8" size="sm" />
+          <StudentAvatar student={student} size="sm" />
           <div>
             <h1 className="text-lg font-black text-white">أهلاً يا {student?.name}!</h1>
             <p className="text-amber-300 text-xs font-bold">Lv.{level} | ⭐ {xp} | 💎 {gems} {streak > 0 ? `| 🔥 ${streak}` : ''}</p>
@@ -1370,6 +1384,17 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               />
 
               <GameModeCard
+                title="شخصيتي"
+                subtitle="صمّم إيموجيك واختر لبسك"
+                icon={getStudentEmoji(student)}
+                color="bg-gradient-to-br from-fuchsia-400 to-purple-700 border-purple-900"
+                badge="جديد!"
+                onClick={() => {
+                  openModule(StudentModuleType.PERSONALITY);
+                }}
+              />
+
+              <GameModeCard
                 title="حل المسائل"
                 subtitle="اسأل مساعدك الذكي السحري"
                 icon="💡"
@@ -1529,6 +1554,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   </div>
                 </div>
               </InteractiveScene>
+            )}
+
+            {/* Student Personality */}
+            {activeModule === StudentModuleType.PERSONALITY && student && (
+              <StudentPersonality
+                student={student}
+                onSave={saveStudentAppearance}
+              />
             )}
 
             {/* Avatar Interaction */}
