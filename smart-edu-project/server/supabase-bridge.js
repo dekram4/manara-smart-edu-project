@@ -19,6 +19,18 @@ const MIN_REQUEST_INTERVAL_MS = 140;
 let lastRequestAt = 0;
 let proxyQueue = Promise.resolve();
 
+function hasDirectSupabaseConfig() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
+}
+
+async function directSupabaseFetch(path, options = {}) {
+  const baseUrl = process.env.SUPABASE_URL.replace(/\/+$/, '');
+  const headers = new Headers(options.headers || {});
+  headers.set('apikey', process.env.SUPABASE_ANON_KEY);
+  headers.set('Authorization', `Bearer ${process.env.SUPABASE_ANON_KEY}`);
+  return fetch(`${baseUrl}${path}`, { ...options, headers });
+}
+
 function assertTable(table) {
   if (!TABLES.has(table)) {
     const error = new Error('Unsupported Supabase table');
@@ -32,6 +44,9 @@ async function proxySupabase(path, options = {}) {
     const waitMs = Math.max(0, MIN_REQUEST_INTERVAL_MS - (Date.now() - lastRequestAt));
     if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
     lastRequestAt = Date.now();
+    if (hasDirectSupabaseConfig()) {
+      return directSupabaseFetch(path, options);
+    }
     return connectors.proxy('supabase', path, options);
   });
   proxyQueue = request.catch(() => {});
