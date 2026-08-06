@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { playLamsaSound } from '../utils/sounds';
 
 interface RoleCard {
@@ -185,6 +185,111 @@ const roles: RoleCard[] = [
   },
 ];
 
+interface FloatingLearningObjectProps {
+  icon: string;
+  label: string;
+  color: string;
+  left: string;
+  top: string;
+  delay: number;
+  duration: number;
+  size?: 'sm' | 'md' | 'lg';
+  hiddenOnMobile?: boolean;
+}
+
+const FloatingLearningObject: React.FC<FloatingLearningObjectProps> = ({
+  icon,
+  label,
+  color,
+  left,
+  top,
+  delay,
+  duration,
+  size = 'md',
+  hiddenOnMobile = false,
+}) => {
+  const dimensions = {
+    sm: { shell: 'h-14 w-14', icon: 'text-2xl', orbit: 'inset-[-7px]', label: 'text-[9px]' },
+    md: { shell: 'h-[72px] w-[72px]', icon: 'text-3xl', orbit: 'inset-[-9px]', label: 'text-[10px]' },
+    lg: { shell: 'h-20 w-20', icon: 'text-4xl', orbit: 'inset-[-10px]', label: 'text-[11px]' },
+  }[size];
+
+  return (
+    <motion.div
+      className={`pointer-events-auto absolute z-[2] ${hiddenOnMobile ? 'hidden sm:block' : ''}`}
+      style={{ left, top }}
+      initial={{ opacity: 0, scale: 0.65 }}
+      animate={{
+        opacity: [0.55, 0.9, 0.55],
+        y: [0, -18, 0],
+        x: [0, 7, 0],
+        rotate: [-3, 4, -3],
+        scale: [1, 1.06, 1],
+      }}
+      transition={{
+        duration,
+        delay,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      }}
+      whileHover={{ scale: 1.16, opacity: 1, zIndex: 20 }}
+    >
+      <div className="relative flex flex-col items-center">
+        {/* orbital rings give the emoji a crafted, educational-tech look */}
+        <motion.div
+          className={`pointer-events-none absolute ${dimensions.orbit} rounded-full border border-dashed`}
+          style={{
+            borderColor: `${color}70`,
+            boxShadow: `0 0 18px ${color}35`,
+          }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: duration * 1.8, repeat: Infinity, ease: 'linear' }}
+        />
+        <motion.div
+          className={`pointer-events-none absolute ${dimensions.orbit} rounded-full border`}
+          style={{
+            borderColor: `${color}25`,
+            transform: 'rotate(58deg) scaleX(0.55)',
+          }}
+          animate={{ rotate: [58, 418] }}
+          transition={{ duration: duration * 2.2, repeat: Infinity, ease: 'linear' }}
+        />
+
+        {/* glass emoji badge */}
+        <div
+          className={`${dimensions.shell} flex items-center justify-center rounded-[22px] border backdrop-blur-xl`}
+          style={{
+            background: `linear-gradient(145deg, ${color}32, rgba(15,23,42,0.76))`,
+            borderColor: `${color}65`,
+            boxShadow: `0 10px 28px rgba(0,0,0,0.3), 0 0 30px ${color}25, inset 0 1px 0 rgba(255,255,255,0.18)`,
+          }}
+        >
+          <motion.span
+            aria-hidden="true"
+            className={`${dimensions.icon} select-none drop-shadow-[0_0_10px_rgba(255,255,255,0.45)]`}
+            animate={{ rotate: [-5, 5, -5], scale: [1, 1.1, 1] }}
+            transition={{ duration: duration * 0.7, repeat: Infinity, ease: 'easeInOut', delay: delay + 0.2 }}
+            whileHover={{ rotate: 12, scale: 1.24 }}
+          >
+            {icon}
+          </motion.span>
+        </div>
+
+        {/* small professional label */}
+        <span
+          className={`mt-2 rounded-full border px-2 py-0.5 font-bold tracking-wide text-white/70 backdrop-blur-md ${dimensions.label}`}
+          style={{
+            background: `${color}18`,
+            borderColor: `${color}35`,
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    </motion.div>
+  );
+};
+
 const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -218,28 +323,14 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
         />
         {/* top-centre radial highlight */}
         <div className="absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(129,140,248,0.2),transparent)]" />
-        {/* floating educational emojis */}
-        {[
-          { e: '📚', x: '5%',  y: '15%', d: 0 },
-          { e: '✏️', x: '90%', y: '12%', d: 0.6 },
-          { e: '🔬', x: '8%',  y: '75%', d: 1.2 },
-          { e: '🌍', x: '88%', y: '72%', d: 1.8 },
-          { e: '🎵', x: '48%', y: '6%',  d: 0.9 },
-          { e: '⭐', x: '50%', y: '90%', d: 2.1 },
-        ].map(({ e, x, y, d }, i) => (
-          <span
-            key={i}
-            className="absolute text-3xl opacity-20"
-            style={{
-              left: x, top: y,
-              animation: `floatIcon 5s ease-in-out infinite`,
-              animationDelay: `${d}s`,
-              filter: 'drop-shadow(0 0 8px rgba(129,140,248,0.6))',
-            }}
-          >
-            {e}
-          </span>
-        ))}
+        {/* Floating educational objects: each has its own orbit, glow, motion and label. */}
+        <FloatingLearningObject icon="📚" label="القراءة" color="#818cf8" left="4%" top="17%" delay={0} duration={6.4} size="lg" hiddenOnMobile />
+        <FloatingLearningObject icon="✏️" label="الإبداع" color="#fbbf24" left="89%" top="14%" delay={0.7} duration={5.8} size="md" hiddenOnMobile />
+        <FloatingLearningObject icon="🔬" label="العلوم" color="#2dd4bf" left="7%" top="73%" delay={1.3} duration={6.8} size="md" hiddenOnMobile />
+        <FloatingLearningObject icon="🌍" label="اكتشف العالم" color="#38bdf8" left="87%" top="70%" delay={1.9} duration={7.2} size="lg" hiddenOnMobile />
+        <FloatingLearningObject icon="🧮" label="الرياضيات" color="#f472b6" left="18%" top="5%" delay={0.4} duration={6.1} size="sm" hiddenOnMobile />
+        <FloatingLearningObject icon="🎨" label="الفن" color="#c084fc" left="76%" top="5%" delay={1.1} duration={5.4} size="sm" hiddenOnMobile />
+        <FloatingLearningObject icon="⭐" label="إنجاز" color="#facc15" left="45%" top="88%" delay={2.1} duration={5.9} size="sm" />
       </div>
 
       {/* ─── Header ─── */}
@@ -260,7 +351,14 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
             boxShadow: '0 0 40px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.1)',
           }}
         >
-          <span className="text-4xl">🏛️</span>
+          <motion.span
+            className="text-4xl"
+            aria-hidden="true"
+            animate={{ y: [0, -4, 0], rotate: [-3, 3, -3], scale: [1, 1.08, 1] }}
+            transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            🏛️
+          </motion.span>
         </motion.div>
 
         <h1
@@ -363,7 +461,21 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                     boxShadow: `0 8px 28px ${role.glowColor}, inset 0 1px 0 rgba(255,255,255,0.15)`,
                   }}
                 >
-                  {role.icon}
+                  <motion.span
+                    aria-hidden="true"
+                    animate={
+                      isHovered
+                        ? { y: [0, -5, 0], rotate: [-7, 7, -3, 0], scale: [1, 1.14, 1.05, 1] }
+                        : { y: [0, -2, 0], rotate: [-2, 2, -2] }
+                    }
+                    transition={{
+                      duration: isHovered ? 0.75 : 3.4,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    }}
+                  >
+                    {role.icon}
+                  </motion.span>
                 </div>
 
                 {/* Text block */}
