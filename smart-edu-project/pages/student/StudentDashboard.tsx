@@ -689,30 +689,20 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unit: normalize(s.unit),
     };
 
-    let found = filteredContent.find((l: LessonConfig) => 
-      normalize(l.grade) === studentKey.grade && 
-      normalize(l.atram) === studentKey.atram && 
-      normalize(l.subject) === studentKey.subject && 
-      normalize(l.term) === studentKey.term && 
-      normalize(l.unit) === studentKey.unit
-    );
-
-    if (!found && !studentKey.unit) {
-      found = filteredContent.find((l: LessonConfig) =>
-        normalize(l.grade) === studentKey.grade && 
-        normalize(l.atram) === studentKey.atram && 
-        normalize(l.subject) === studentKey.subject && 
-        normalize(l.term) === studentKey.term
-      );
-    }
-
-    if (!found && !studentKey.term) {
-      found = filteredContent.find((l: LessonConfig) =>
-        normalize(l.grade) === studentKey.grade && 
-        normalize(l.atram) === studentKey.atram && 
-        normalize(l.subject) === studentKey.subject
-      );
-    }
+    // A student may have only grade/subject on older accounts. Empty
+    // academic selections must not be treated as a literal mismatch with a
+    // teacher lesson that has a term, atram, or unit.
+    const matchingContent = filteredContent
+      .filter((lesson: LessonConfig) => matchesAcademicScope(lesson, studentKey))
+      .sort((a: LessonConfig, b: LessonConfig) => {
+        const score = (lesson: LessonConfig) => ['grade', 'atram', 'subject', 'term', 'unit']
+          .reduce((total, field) => {
+            const expected = studentKey[field as keyof typeof studentKey];
+            return total + (expected && normalize(lesson[field as keyof LessonConfig]) === expected ? 1 : 0);
+          }, 0);
+        return score(b) - score(a);
+      });
+    const found = matchingContent[0];
 
     setActiveLesson(found || null);
   };

@@ -152,11 +152,20 @@ const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      migratePasswordsToHash();
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      if (mounted) setBooting(false);
-      if (mounted) setSyncing(false);
-      await initSupabaseSync();
+      try {
+        migratePasswordsToHash();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        // Do not mount role dashboards until the shared data has been loaded.
+        // Otherwise a student can read an empty local content list on a new device.
+        await initSupabaseSync();
+      } catch (error) {
+        console.error('[app] Supabase sync initialization failed:', error);
+      } finally {
+        if (mounted) {
+          setBooting(false);
+          setSyncing(false);
+        }
+      }
     })();
     return () => {
       mounted = false;
