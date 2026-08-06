@@ -328,6 +328,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
         <FloatingLearningObject icon="✏️" label="الإبداع" color="#fbbf24" left="89%" top="14%" delay={0.7} duration={5.8} size="md" hiddenOnMobile />
         <FloatingLearningObject icon="🔬" label="العلوم" color="#2dd4bf" left="7%" top="73%" delay={1.3} duration={6.8} size="md" hiddenOnMobile />
         <FloatingLearningObject icon="🌍" label="اكتشف العالم" color="#38bdf8" left="87%" top="70%" delay={1.9} duration={7.2} size="lg" hiddenOnMobile />
+        <FloatingLearningObject icon="🧮" label="الرياضيات" color="#f472b6" left="18%" top="5%" delay={0.4} duration={6.1} size="sm" hiddenOnMobile />
+        <FloatingLearningObject icon="🎨" label="الفن" color="#c084fc" left="76%" top="5%" delay={1.1} duration={5.4} size="sm" hiddenOnMobile />
+        <FloatingLearningObject icon="⭐" label="إنجاز" color="#facc15" left="45%" top="88%" delay={2.1} duration={5.9} size="sm" />
       </div>
 
       {/* ─── Header ─── */}
@@ -414,7 +417,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
 
               {/* SVG illustration — top-right corner */}
               <div
-                className="pointer-events-none absolute right-0 top-0 h-36 w-52 opacity-60 transition-opacity duration-500 group-hover:opacity-85"
+                className="pointer-events-none absolute right-0 top-0 h-32 w-44 scale-90 origin-top-right opacity-35 transition-opacity duration-500 group-hover:opacity-55"
               >
                 {role.svgIllustration}
               </div>
