@@ -9,7 +9,7 @@ import StudentPersonality from './StudentPersonality';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
 import { playWelcomeStudent, playLamsaSound } from '../../utils/sounds';
-import { speakGreeting, speakQuizStart, speakError } from '../../utils/speech';
+import { speakGreeting } from '../../utils/speech';
 import { triggerCelebration } from '../../App';
 import {
   filterTeacherOwnedRecords,
@@ -755,7 +755,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setUserAnswers({});
     setQuizResult(null);
     setActiveModule(StudentModuleType.QUIZ);
-    speakQuizStart();
   };
 
   const submitQuiz = () => {
@@ -800,7 +799,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setTimeout(() => setShowRewardPopup(false), 3000);
     } else if (!reward.alreadyRewarded) {
       playLamsaSound('magic');
-      speakError();
     }
 
     const createdAt = new Date().toISOString();

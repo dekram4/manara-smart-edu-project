@@ -17,13 +17,19 @@ interface StudentPersonalityProps {
 
 const StudentPersonality: React.FC<StudentPersonalityProps> = ({ student, onSave }) => {
   const [appearance, setAppearance] = useState<StudentAppearance>(() => getStudentAppearance(student));
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(true);
 
   const choose = (next: Partial<StudentAppearance>) => {
     GameAudioEngine.play('uiSelect');
     const updated = { ...appearance, ...next };
     setAppearance(updated);
-    onSave(updated);
+    setSaved(false);
+  };
+
+  const saveAppearance = () => {
+    if (saved) return;
+    GameAudioEngine.play('uiSelect');
+    onSave(appearance);
     setSaved(true);
   };
 
@@ -42,7 +48,7 @@ const StudentPersonality: React.FC<StudentPersonalityProps> = ({ student, onSave
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/10 px-6 py-4 text-center backdrop-blur-md">
           <StudentAvatar appearance={appearance} size="lg" />
-          <p className="mt-2 text-xs font-black text-fuchsia-100">{saved ? 'تم حفظ شخصيتك ✅' : 'شخصيتك الآن'}</p>
+          <p className="mt-2 text-xs font-black text-fuchsia-100">{saved ? 'شخصيتك محفوظة ✅' : 'معاينة قبل الحفظ'}</p>
         </div>
       </div>
 
@@ -111,13 +117,25 @@ const StudentPersonality: React.FC<StudentPersonalityProps> = ({ student, onSave
           </div>
         </section>
 
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-center text-sm font-black text-emerald-100"
-        >
-          {saved ? 'اختياراتك محفوظة تلقائياً في حسابك 🌟' : 'اختر أي شيء لتبدأ تصميم شخصيتك'}
-        </motion.div>
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:justify-between">
+          <p className="text-center text-sm font-black text-slate-200 sm:text-right">
+            {saved ? 'شخصيتك محفوظة في حسابك 🌟' : 'اختياراتك جاهزة! اضغط حفظ لتثبيتها'}
+          </p>
+          <motion.button
+            type="button"
+            whileHover={{ scale: saved ? 1 : 1.03 }}
+            whileTap={{ scale: saved ? 1 : 0.96 }}
+            onClick={saveAppearance}
+            disabled={saved}
+            className={`w-full rounded-2xl px-6 py-3 text-base font-black shadow-lg transition-all sm:w-auto ${
+              saved
+                ? 'cursor-not-allowed bg-emerald-400/20 text-emerald-200'
+                : 'cursor-pointer bg-gradient-to-r from-fuchsia-400 to-purple-500 text-white shadow-fuchsia-500/25 hover:from-fuchsia-300 hover:to-purple-400'
+            }`}
+          >
+            {saved ? '✅ تم الحفظ' : '💾 حفظ شخصيتي'}
+          </motion.button>
+        </div>
       </div>
     </div>
   );

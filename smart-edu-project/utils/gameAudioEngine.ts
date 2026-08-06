@@ -53,7 +53,7 @@ const audioOptions = (src: string[], volume: number) => ({
 
 // أصوات أصلية محلية للواجهة والتعلم والمكافآت — يتم تحميلها مسبقًا حتى تستجيب فورًا.
 export const gameSounds = {
-  uiHover: new Howl(audioOptions(['/audio/manara-hover-clarity.mp3'], 0.68)),
+  uiHover: new Howl(audioOptions(['/audio/manara-soft-hover.mp3'], 0.62)),
   uiSelect: new Howl(audioOptions(['/audio/manara-portal-transition.mp3'], 0.64)),
   portalTransition: new Howl(audioOptions(['/audio/manara-portal-transition.mp3'], 0.6)),
   loginChime: new Howl(audioOptions(['/audio/manara-login-chime.mp3'], 0.72)),
