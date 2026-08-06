@@ -112,6 +112,7 @@ export interface StudentGamification {
   averageScore: number;
   lastQuizAt?: string;
   lastQuizPercentage?: number;
+  xpBonus200GrantedAt?: string;
   updatedAt: string;
 }
 

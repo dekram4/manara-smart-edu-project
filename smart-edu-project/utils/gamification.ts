@@ -94,6 +94,44 @@ function setStorage(key: string, value: any) {
   localStorage.setItem(getScopedKey(key), JSON.stringify(value));
 }
 
+/**
+ * Restore the shared student snapshot into the student's scoped local keys.
+ * This is intentionally additive/defensive so an offline local score is not
+ * replaced by an older remote snapshot.
+ */
+export function hydrateGamificationFromStudent(studentInfo?: StudentInfo | null): void {
+  if (!studentInfo?.gamification) return;
+  const snapshot = studentInfo.gamification;
+  const currentXP = getXP();
+  const currentGems = getGems();
+  const currentLevel = getStorage(GAMIFICATION_KEYS.LEVEL, 0);
+  const currentStreak = getStreak();
+  const currentAchievements = getAchievements();
+
+  if (Number(snapshot.xp || 0) > currentXP) setStorage(GAMIFICATION_KEYS.XP, Number(snapshot.xp));
+  if (Number(snapshot.gems || 0) > currentGems) setStorage(GAMIFICATION_KEYS.GEMS, Number(snapshot.gems));
+  if (Number(snapshot.level || 0) > currentLevel) setStorage(GAMIFICATION_KEYS.LEVEL, Number(snapshot.level));
+  if (Number(snapshot.streak || 0) > currentStreak) setStorage(GAMIFICATION_KEYS.STREAK, Number(snapshot.streak));
+  if (currentAchievements.length < Number(snapshot.achievementsCount || 0)) {
+    setStorage(GAMIFICATION_KEYS.ACHIEVEMENTS, [
+      ...currentAchievements,
+      ...Array.from(
+        { length: Number(snapshot.achievementsCount || 0) - currentAchievements.length },
+        (_, index) => ({ id: `remote-achievement-${index + 1}`, title: 'إنجاز سابق' }),
+      ),
+    ]);
+  }
+  if (Number(snapshot.totalQuizzes || 0) > Number(getStorage(GAMIFICATION_KEYS.TOTAL_QUIZZES, 0))) {
+    setStorage(GAMIFICATION_KEYS.TOTAL_QUIZZES, Number(snapshot.totalQuizzes));
+  }
+  if (Number(snapshot.totalLessons || 0) > Number(getStorage(GAMIFICATION_KEYS.TOTAL_LESSONS, 0))) {
+    setStorage(GAMIFICATION_KEYS.TOTAL_LESSONS, Number(snapshot.totalLessons));
+  }
+  if (Number(snapshot.totalGames || 0) > Number(getStorage(GAMIFICATION_KEYS.TOTAL_GAMES, 0))) {
+    setStorage(GAMIFICATION_KEYS.TOTAL_GAMES, Number(snapshot.totalGames));
+  }
+}
+
 function getCompletedActivities(type: ActivityType): string[] {
   const key = type === 'lesson'
     ? GAMIFICATION_KEYS.COMPLETED_LESSONS
@@ -436,6 +474,7 @@ export function syncGamificationToStudent(studentInfo?: StudentInfo | null): Stu
     averageScore,
     lastQuizAt: lastQuiz?.createdAt,
     lastQuizPercentage: lastQuiz ? Number(lastQuiz.percentage || 0) : undefined,
+    xpBonus200GrantedAt: active.gamification?.xpBonus200GrantedAt,
     updatedAt: new Date().toISOString(),
   };
 

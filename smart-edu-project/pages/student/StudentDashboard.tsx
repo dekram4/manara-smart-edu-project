@@ -27,6 +27,7 @@ import {
   rewardProblemSolved,
   rewardQuizCompleteWithId,
   syncGamificationToStudent,
+  hydrateGamificationFromStudent,
 } from '../../utils/gamification';
 
 // 1. استدعاءات framer-motion والمؤثرات الصوتية من App.tsx
@@ -320,6 +321,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const active = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
     if (active) {
       ensureGamificationResetIfNeeded(active);
+      hydrateGamificationFromStudent(active);
 
       setStudent(active);
       setIsAuthenticated(true);
@@ -902,6 +904,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       }
       localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(activeStudent));
       ensureGamificationResetIfNeeded(activeStudent);
+      hydrateGamificationFromStudent(activeStudent);
       setStudent(activeStudent);
       setIsAuthenticated(true);
       playWelcomeStudent();
