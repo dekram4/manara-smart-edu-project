@@ -4,6 +4,7 @@ import Spline from '@splinetool/react-spline';
 import useSound from 'use-sound';
 import { gsap } from 'gsap';
 import RoleSelection from './pages/RoleSelection';
+import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -50,7 +51,7 @@ export const triggerCelebration = () => {
   playEncouragementSound();
 };
 
-type MainView = 'role' | 'admin' | 'teacher' | 'student' | 'parent';
+type MainView = 'login' | 'role' | 'admin' | 'teacher' | 'student' | 'parent';
 
 const BootLoader: React.FC = () => {
   const loaderRef = useRef<HTMLDivElement | null>(null);
@@ -129,7 +130,7 @@ const ScrollDownButton: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const [mainView, setMainView] = useState<MainView>('role');
+  const [mainView, setMainView] = useState<MainView>('login');
   const [booting, setBooting] = useState(true);
   const [syncing, setSyncing] = useState(true);
 
@@ -166,6 +167,8 @@ const App: React.FC = () => {
 
   const renderView = () => {
     switch (mainView) {
+      case 'login':
+        return <LoginPage onEnter={() => setMainView('role')} />;
       case 'admin':
         return <AdminDashboard onLogout={leaveRole} />;
       case 'teacher':

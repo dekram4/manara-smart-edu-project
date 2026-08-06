@@ -1,0 +1,91 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { InteractiveBackground } from '../effects/InteractiveBackground';
+
+interface LoginPageProps {
+  onEnter: () => void;
+}
+
+export const LoginPage: React.FC<LoginPageProps> = ({ onEnter }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Any non-empty credentials proceed to role selection
+    if (username.trim() && password.trim()) {
+      onEnter();
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen w-full flex items-center justify-center p-4 font-tajawal" dir="rtl">
+      {/* 1. الخلفية التفاعلية */}
+      <InteractiveBackground />
+
+      {/* 2. كارت الدخول المتفاعل Z-Index أعلى */}
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+        className="w-full max-w-md p-8 rounded-3xl bg-slate-900/70 border border-white/10 backdrop-blur-xl shadow-2xl text-white relative z-10"
+      >
+        <div className="text-center mb-8">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
+            className="w-16 h-16 bg-indigo-600/30 border border-indigo-400/50 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg shadow-indigo-500/20"
+          >
+            🎓
+          </motion.div>
+          <h2 className="text-3xl font-extrabold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            منصة التعليم الذكي
+          </h2>
+          <p className="text-slate-400 text-sm mt-2">تسجيل الدخول إلى حسابك</p>
+        </div>
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">اسم المستخدم</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="اسم المستخدم أو البريد"
+              required
+              className="w-full px-4 py-3 rounded-xl bg-slate-800/60 border border-slate-700/80 focus:border-indigo-500 focus:outline-none transition-colors text-white placeholder-slate-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">كلمة المرور</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full px-4 py-3 rounded-xl bg-slate-800/60 border border-slate-700/80 focus:border-indigo-500 focus:outline-none transition-colors text-white placeholder-slate-500"
+            />
+          </div>
+
+          <motion.button
+            type="submit"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-bold text-white shadow-lg shadow-indigo-600/30 transition-all"
+          >
+            دخول المنصة
+          </motion.button>
+        </form>
+
+        <p className="text-center text-slate-500 text-xs mt-6">
+          منصة المنارة التعليمية • جميع الحقوق محفوظة
+        </p>
+      </motion.div>
+    </div>
+  );
+};
+
+export default LoginPage;
