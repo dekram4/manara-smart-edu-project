@@ -7,8 +7,8 @@ import { passwordsMatch } from '../../utils/password';
 import StudentLogin from './StudentLogin';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
-import { playWelcomeStudent, playLamsaSound, playEncouragementSound, playPortalEntranceSound, playSectionSound } from '../../utils/sounds';
-import { speakGreeting, speakQuizStart, speakWin, speakEncouragement, speakError } from '../../utils/speech';
+import { playWelcomeStudent, playLamsaSound } from '../../utils/sounds';
+import { speakGreeting, speakQuizStart, speakError } from '../../utils/speech';
 import { triggerCelebration } from '../../App';
 import {
   filterTeacherOwnedRecords,
@@ -179,7 +179,7 @@ const GameModeCard = ({
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
       onHoverStart={() => setHovered(true)}
       onHoverEnd={() => setHovered(false)}
-      onClick={() => { soundPop.play(); onClick(); }}
+      onClick={() => { GameAudioEngine.play('portalTransition'); onClick(); }}
       className={`${color} text-white rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}
       style={{
         padding: '1.75rem 1.75rem 1.5rem',
@@ -766,13 +766,10 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const percentage = Math.round((score / currentQuiz.length) * 100);
     let feedback = 'حاول مجدداً، أنت بطل ذكي وستتحسن بالتأكيد! 💪';
 
-    GameAudioEngine.play(percentage >= 60 ? 'correctAnswer' : 'wrongAnswer');
-    
     // Gamification rewards
     const rewardId = getQuizRewardId(currentQuiz, activeLesson, currentQuiz[0]?.quizType || QuizType.UNIT);
     const reward = rewardQuizCompleteWithId(score, currentQuiz.length, rewardId);
-    triggerCelebration();
-    speakWin();
+    triggerCelebration(percentage >= 60);
     refreshGamification();
 
     if (reward.alreadyRewarded) {
@@ -783,17 +780,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     }
 
     if (!reward.alreadyRewarded && percentage >= 90) {
-      GameAudioEngine.play('levelUp');
       feedback = 'رائع ومذهل جداً! أنت عبقري ومتميز اليوم! 🏆✨';
-      playEncouragementSound();
-      speakWin();
       setRewardInfo({ xp: reward.xp, gems: reward.gems, message: `عبقري! حصلت على ${percentage}%` });
       setShowRewardPopup(true);
       setTimeout(() => setShowRewardPopup(false), 3000);
     } else if (!reward.alreadyRewarded && percentage >= 60) {
       feedback = 'عمل رائع ودرجة ممتازة! تستحق نجمة لمسة البراقة! ⭐';
-      playEncouragementSound();
-      speakEncouragement();
       setRewardInfo({ xp: reward.xp, gems: reward.gems, message: `ممتاز! حصلت على ${percentage}%` });
       setShowRewardPopup(true);
       setTimeout(() => setShowRewardPopup(false), 3000);
@@ -901,7 +893,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setStudent(activeStudent);
       setIsAuthenticated(true);
       playWelcomeStudent();
-      playPortalEntranceSound();
       checkStreak();
       refreshGamification();
       let fallbackGrade = activeStudent.grade || activeStudent.primaryGrade || '';
@@ -984,7 +975,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       playLamsaSound('click');
       setRewardInfo({ xp: 0, gems: 0, message: 'هذا الدرس مكتمل في سجل إنجازاتك ✅' });
     } else {
-      playEncouragementSound();
+      GameAudioEngine.play('correctAnswer');
       setRewardInfo({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! أنهيت الدرس بنجاح! +5 جواهر' });
     }
     refreshGamification();
@@ -993,7 +984,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const openModule = (module: StudentModuleType) => {
-    playPortalEntranceSound();
+    GameAudioEngine.play('portalTransition');
     setActiveModule(module);
     setShowModuleCards(false);
   };
@@ -1356,7 +1347,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 icon="📺"
                 color="bg-gradient-to-br from-amber-400 to-orange-600 border-orange-700"
                 onClick={() => {
-                  playSectionSound('lessons');
                   openModule(StudentModuleType.EXPLANATION);
                 }}
               />
@@ -1393,19 +1383,19 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </div>
                 <div className="space-y-2">
                   <button
-                    onClick={(e) => { e.stopPropagation(); playSectionSound('quiz'); soundPop.play(); startQuiz(QuizType.UNIT); setShowModuleCards(false); }}
+                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.UNIT); setShowModuleCards(false); }}
                     className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
                   >
                     اختبار الوحدة ⭐
                   </button>
                   <button
-                    onClick={(e) => { e.stopPropagation(); playSectionSound('quiz'); soundPop.play(); startQuiz(QuizType.TERM); setShowModuleCards(false); }}
+                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.TERM); setShowModuleCards(false); }}
                     className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
                   >
                     اختبار الترم 🏆
                   </button>
                   <button
-                    onClick={(e) => { e.stopPropagation(); playSectionSound('quiz'); soundPop.play(); startQuiz(QuizType.FINAL); setShowModuleCards(false); }}
+                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.FINAL); setShowModuleCards(false); }}
                     className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
                   >
                     الاختبار النهائي الكبير 👑
@@ -1442,7 +1432,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 icon="🎮"
                 color="bg-gradient-to-br from-violet-500 to-purple-800 border-purple-950"
                 onClick={() => {
-                  playSectionSound('games');
                   openModule(StudentModuleType.ENTERTAINMENT);
                 }}
               />
@@ -1453,7 +1442,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 icon="🎬"
                 color="bg-gradient-to-br from-cyan-500 to-blue-700 border-blue-900"
                 onClick={() => {
-                  playSectionSound('videos');
                   openModule(StudentModuleType.VIDEOS);
                 }}
               />
@@ -1477,8 +1465,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             <div className="bg-slate-800/80 backdrop-blur-md rounded-2xl p-4 flex justify-between items-center border border-slate-700">
               <button
                 onClick={() => {
-                  playSectionSound('portal');
-                  soundClick.play();
+                  GameAudioEngine.play('portalTransition');
                   setActiveModule(null);
                   setShowModuleCards(true);
                 }}
@@ -1488,8 +1475,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               </button>
               <button
                 onClick={() => {
-                  playSectionSound('portal');
-                  soundClick.play();
+                  GameAudioEngine.play('portalTransition');
                   setActiveModule(null);
                   setShowModuleCards(false);
                   setShowSelectionPanel(true);

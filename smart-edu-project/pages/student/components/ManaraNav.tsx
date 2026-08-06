@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
+import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 
 export type NavTab = 'home' | 'games' | 'lessons' | 'profile';
 
@@ -39,7 +40,10 @@ const ManaraNav: React.FC<ManaraNavProps> = ({ activeTab, onTabChange }) => {
           return (
             <button
               key={tab.id}
-              onClick={() => onTabChange(tab.id)}
+              onClick={() => {
+                GameAudioEngine.play('portalTransition');
+                onTabChange(tab.id);
+              }}
               className="relative flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-full transition-all duration-200"
               style={{
                 WebkitTapHighlightColor: 'transparent',

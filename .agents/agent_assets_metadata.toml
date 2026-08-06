@@ -1,0 +1,23 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "xnE97fe8gVWSh0AOTdvrV"
+uri = "file://attached_assets/generated_audio/sound_effect_manara_soft_hover.mp3"
+type = "audio"
+title = "manara soft hover"
+description = "Generated sound effect: A very soft, premium educational app hover sound: a single gentle glassy sparkle with a warm airy chime, elegant and subtle, no harsh high frequencies, no melody, under one se…"
+
+[[outputs]]
+id = "jkq4tWdGJ-iqhP5Iuow9G"
+uri = "file://attached_assets/generated_audio/sound_effect_manara_portal_transition.mp3"
+type = "audio"
+title = "manara portal transition"
+description = "Generated sound effect: A polished global edtech interface transition sound for opening a menu or card: smooth warm marimba and soft synth chime, confident but calm, premium UX sound design, short as…"
+
+[[outputs]]
+id = "k9jlNHnT87fTjnJHO-K1Y"
+uri = "file://attached_assets/generated_audio/sound_effect_manara_victory_applause.mp3"
+type = "audio"
+title = "manara victory applause"
+description = "Generated sound effect: A joyful child-friendly achievement celebration for a learning app: warm bright success chime followed by gentle enthusiastic applause and a tiny sparkle, uplifting and premiu…"

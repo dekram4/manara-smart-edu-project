@@ -123,8 +123,7 @@ const KaboomCartoonGame: React.FC = () => {
      if (result.alreadyRewarded) {
        playLamsaSound('notification');
      } else {
-       GameAudioEngine.play('collectGem');
-       if (result.xp >= 100) GameAudioEngine.play('levelUp');
+       GameAudioEngine.play(result.xp >= 100 ? 'levelUp' : 'collectGem');
      }
   }, [finished, stars, damage, config.maxScore, difficulty]);
 

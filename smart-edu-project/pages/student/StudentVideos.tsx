@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { STORAGE_KEYS } from '../../constants';
-import { playLamsaSound, playSectionSound } from '../../utils/sounds';
+import { playLamsaSound } from '../../utils/sounds';
 import { filterTeacherOwnedRecords, matchesAcademicScope } from '../../utils/scope';
 import { StudentInfo } from '../../types';
 import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/gamification';
@@ -127,7 +127,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
       return;
     }
 
-    playSectionSound('videos');
+    GameAudioEngine.play('portalTransition');
     setPlayingVideo(video.id);
     const reward = rewardVideoComplete(video.id);
     setWatchedVideos(current => current.includes(video.id) ? current : [...current, video.id]);

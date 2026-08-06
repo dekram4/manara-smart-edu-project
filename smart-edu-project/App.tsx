@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import Spline from '@splinetool/react-spline';
-import useSound from 'use-sound';
 import { gsap } from 'gsap';
 import RoleSelection from './pages/RoleSelection';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -14,7 +13,8 @@ import { migratePasswordsToHash } from './db/migratePasswords';
 import { GameControls } from './components/GameControls';
 
 // ✅ الاستدعاء المباشر والمحلي للمكتبات (Game Engine Infrastructure)
-import { playLamsaSound, playNavigationSound, playEncouragementSound } from './utils/sounds';
+import { playLamsaSound } from './utils/sounds';
+import { GameAudioEngine } from './utils/gameAudioEngine';
 
 // أصوات تفاعلية سريعة
 const readControlState = () => {
@@ -35,30 +35,25 @@ const readControlState = () => {
 export const soundPop = {
   play: () => {
     const { soundEnabled } = readControlState();
-    if (soundEnabled) playNavigationSound();
+    if (soundEnabled) GameAudioEngine.play('uiSelect');
   },
 };
 
 export const soundClick = {
   play: () => {
     const { soundEnabled } = readControlState();
-    if (soundEnabled) playNavigationSound();
+    if (soundEnabled) GameAudioEngine.play('uiHover');
   },
 };
 
-export const triggerCelebration = () => {
-  playEncouragementSound();
+export const triggerCelebration = (won = true) => {
+  GameAudioEngine.play(won ? 'correctAnswer' : 'wrongAnswer');
 };
 
 type MainView = 'role' | 'admin' | 'teacher' | 'student' | 'parent';
 
 const BootLoader: React.FC = () => {
   const loaderRef = useRef<HTMLDivElement | null>(null);
-  const [playIntro] = useSound('/audio/welcome-student.mp3', { volume: 0.06, interrupt: true });
-
-  useEffect(() => {
-    playIntro();
-  }, [playIntro]);
 
   useEffect(() => {
     if (!loaderRef.current) return;

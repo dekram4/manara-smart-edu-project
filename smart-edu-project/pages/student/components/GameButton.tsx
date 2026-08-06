@@ -1,5 +1,5 @@
 import React from 'react';
-import { playSound } from '../../../utils/soundEngine';
+import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 import Interactive3DEmoji from '../../../components/effects/Interactive3DEmoji';
 
 interface GameButtonProps {
@@ -13,7 +13,7 @@ export const GameButton: React.FC<GameButtonProps> = ({ icon, title, color = 'bg
   return (
     <button
       onClick={() => {
-        playSound('pop');
+        GameAudioEngine.play('portalTransition');
         onClick();
       }}
       className={`${color} text-white font-bold p-6 rounded-3xl shadow-2xl flex flex-col items-center justify-center border-b-8 border-black/20 cursor-pointer select-none`}

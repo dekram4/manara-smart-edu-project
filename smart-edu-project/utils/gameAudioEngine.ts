@@ -13,36 +13,41 @@ const isSoundEnabled = () => {
   }
 };
 
-// أصوات الواجهة والتعلم والمكافآت — يتم تحميلها عند التشغيل فقط.
+// أصوات أصلية محلية للواجهة والتعلم والمكافآت — يتم تحميلها عند الحاجة فقط.
 export const gameSounds = {
-  roleHover: new Howl({
-    src: ['https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'],
-    volume: 0.2,
+  uiHover: new Howl({
+    src: ['/audio/manara-soft-hover.mp3'],
+    volume: 0.16,
     preload: false,
   }),
-  roleSelect: new Howl({
-    src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'],
-    volume: 0.4,
+  uiSelect: new Howl({
+    src: ['/audio/manara-portal-transition.mp3'],
+    volume: 0.28,
+    preload: false,
+  }),
+  portalTransition: new Howl({
+    src: ['/audio/manara-portal-transition.mp3'],
+    volume: 0.24,
     preload: false,
   }),
   correctAnswer: new Howl({
-    src: ['https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'],
-    volume: 0.5,
+    src: ['/audio/manara-victory-applause.mp3'],
+    volume: 0.34,
     preload: false,
   }),
   wrongAnswer: new Howl({
-    src: ['https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3'],
-    volume: 0.3,
+    src: ['/audio/manara-soft-hover.mp3'],
+    volume: 0.08,
     preload: false,
   }),
   collectGem: new Howl({
-    src: ['https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'],
-    volume: 0.6,
+    src: ['/audio/manara-victory-applause.mp3'],
+    volume: 0.28,
     preload: false,
   }),
   levelUp: new Howl({
-    src: ['https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'],
-    volume: 0.8,
+    src: ['/audio/manara-victory-applause.mp3'],
+    volume: 0.42,
     preload: false,
   }),
 };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { playSuccessSound, playErrorSound, playLamsaSound } from '../../utils/sounds';
+import { GameAudioEngine } from '../../utils/gameAudioEngine';
 
 interface StudentLoginProps {
   onLogin: (username: string, password: string) => void;
@@ -64,16 +64,13 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBack }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
-      playLamsaSound('error');
-      playErrorSound();
+      GameAudioEngine.play('wrongAnswer');
       setLoginError('يرجى إدخال اسم المستخدم وكلمة المرور');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 520);
       return;
     }
     setLoginError('');
-    playLamsaSound('success');
-    playSuccessSound();
     onLogin(username, password);
   };
 

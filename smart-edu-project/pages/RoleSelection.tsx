@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { playLamsaSound } from '../utils/sounds';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
 
 interface RoleCard {
@@ -391,9 +390,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               transition={{ duration: 0.55, delay: index * 0.12, type: 'spring', stiffness: 200, damping: 22 }}
               whileHover={{ scale: 1.025, y: -6 }}
               whileTap={{ scale: 0.97 }}
-              onMouseEnter={() => { setHoveredId(role.id); GameAudioEngine.play('roleHover'); }}
+              onMouseEnter={() => { setHoveredId(role.id); GameAudioEngine.play('uiHover'); }}
               onMouseLeave={() => setHoveredId(null)}
-              onClick={() => { GameAudioEngine.play('roleSelect'); handlers[role.id](); }}
+              onClick={() => { GameAudioEngine.play('uiSelect'); handlers[role.id](); }}
               className="group relative overflow-hidden text-right"
               style={{
                 borderRadius: '28px',

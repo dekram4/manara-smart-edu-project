@@ -101,7 +101,6 @@ const playToneJsChime = (type: 'welcome' | 'success') => {
 
 export const playWelcomeStudent = () => {
   playAudioWithGain('/audio/welcome-student.mp3', 2.0, 'WelcomeStudent');
-  playToneJsChime('welcome');
 };
 
 export const playWelcomeAdult = () => {

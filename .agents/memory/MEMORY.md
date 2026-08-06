@@ -1,2 +1,3 @@
 - [WebGL fallback](webgl-fallback.md) — 3D backgrounds must degrade gracefully because Replit preview may run without a usable WebGL context.
 - [Student gender compatibility](student-gender.md) — keep gender optional for legacy students and derive student avatars through one shared helper.
+- [Local audio feedback](audio-feedback.md) — use local original clips and one intentional sound per UI, navigation, quiz, or reward event.

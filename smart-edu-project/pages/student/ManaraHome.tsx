@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import ManaraHeader from './components/ManaraHeader';
 import ManaraNav, { NavTab } from './components/ManaraNav';
 import ManaraCard from './components/ManaraCard';
-import { playLamsaSound, playSectionSound } from '../../utils/sounds';
+import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import Immersive3DScene from '../../components/Immersive3DScene';
 import PremiumBackground from '../../components/PremiumBackground';
 
@@ -41,7 +41,7 @@ const ManaraHome: React.FC<ManaraHomeProps> = ({
   name, age, xp, gems, level, levelProgress, activeTab, onTabChange, onNavigate,
 }) => {
   useEffect(() => {
-    playLamsaSound('magic');
+    GameAudioEngine.play('portalTransition');
   }, []);
 
   return (
@@ -68,8 +68,7 @@ const ManaraHome: React.FC<ManaraHomeProps> = ({
             className="text-white px-3 py-1.5 rounded-full text-xs font-bold"
             style={{ background: 'rgba(255,255,255,0.2)', WebkitTapHighlightColor: 'transparent' }}
             onClick={() => {
-              playSectionSound('lessons');
-              playLamsaSound('send');
+              GameAudioEngine.play('portalTransition');
               onNavigate('lessons');
             }}
           >
@@ -100,8 +99,7 @@ const ManaraHome: React.FC<ManaraHomeProps> = ({
           className="text-white px-3 py-1.5 rounded-full text-xs font-bold"
           style={{ background: 'rgba(255,255,255,0.2)', WebkitTapHighlightColor: 'transparent' }}
           onClick={() => {
-            playSectionSound('lessons');
-            playLamsaSound('send');
+              GameAudioEngine.play('portalTransition');
             onNavigate('lessons');
           }}
         >
@@ -148,8 +146,7 @@ const ManaraHome: React.FC<ManaraHomeProps> = ({
             isNew={section.isNew}
             onClick={() => {
               const sectionType = section.screen === 'videos' ? 'videos' : section.screen === 'entertainment' ? 'games' : section.screen === 'quiz' ? 'quiz' : section.screen === 'homework' ? 'homework' : 'portal';
-              playSectionSound(sectionType as 'lessons' | 'games' | 'videos' | 'homework' | 'quiz' | 'portal');
-              playLamsaSound('pop');
+              GameAudioEngine.play('portalTransition');
               onNavigate(section.screen);
             }}
           />
