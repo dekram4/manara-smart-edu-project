@@ -95,6 +95,24 @@ export interface StudentInfo {
   term?: string;
   unit?: string;
   enrollments?: any[];
+  /** Shared progress snapshot shown to teachers and parents. */
+  gamification?: StudentGamification;
+}
+
+export interface StudentGamification {
+  xp: number;
+  gems: number;
+  level: number;
+  levelProgress: number;
+  streak: number;
+  totalQuizzes: number;
+  totalLessons: number;
+  totalGames: number;
+  achievementsCount: number;
+  averageScore: number;
+  lastQuizAt?: string;
+  lastQuizPercentage?: number;
+  updatedAt: string;
 }
 
 export interface GradeConfig {

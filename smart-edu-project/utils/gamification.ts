@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from '../constants';
+import type { StudentGamification, StudentInfo } from '../types';
 
 // 🎮 محرك الإنجاز (Gamification Engine) لمنصة منارة
 // نظام XP, Gems, Streak, Achievements مربوط بالمحتوى الحقيقي
@@ -23,7 +24,6 @@ const GAMIFICATION_KEYS = {
 
 const XP_PER_GEM = 5;
 const XP_PER_LEVEL = 100;
-const TEMP_TEST_XP_BONUS = 800;
 
 type ActivityType = 'lesson' | 'video';
 
@@ -373,7 +373,7 @@ export function rewardProblemSolved() {
 // Get full stats object
 export function getGamificationStats() {
   const storedXP = getXP();
-  const effectiveXP = storedXP + TEMP_TEST_XP_BONUS;
+  const effectiveXP = storedXP;
   const effectiveLevel = Math.floor(effectiveXP / XP_PER_LEVEL);
   const levelBaseXP = effectiveLevel * XP_PER_LEVEL;
   const levelProgress = Math.min(100, Math.max(0, ((effectiveXP - levelBaseXP) / XP_PER_LEVEL) * 100));
@@ -389,6 +389,94 @@ export function getGamificationStats() {
     totalLessons: getStorage(GAMIFICATION_KEYS.TOTAL_LESSONS, 0),
     totalGames: getStorage(GAMIFICATION_KEYS.TOTAL_GAMES, 0),
   };
+}
+
+/**
+ * Copy the active student's scoped gamification values into the shared
+ * student record. This keeps parents and teachers in sync without exposing
+ * the scoped localStorage keys or duplicating the reward engine.
+ */
+export function syncGamificationToStudent(studentInfo?: StudentInfo | null): StudentGamification | null {
+  let active: StudentInfo | null = studentInfo || null;
+  if (!active) {
+    try {
+      active = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
+    } catch {
+      active = null;
+    }
+  }
+  if (!active?.id) return null;
+
+  const stats = getGamificationStats();
+  let quizResults: any[] = [];
+  try {
+    quizResults = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]');
+  } catch {
+    quizResults = [];
+  }
+  const studentQuizResults = quizResults.filter((result) => result?.studentId === active!.id);
+  const fallbackQuizResults = Array.isArray(active.quizResults) ? active.quizResults : [];
+  const effectiveQuizResults = studentQuizResults.length > 0 ? studentQuizResults : fallbackQuizResults;
+  const lastQuiz = [...effectiveQuizResults].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )[0];
+  const averageScore = effectiveQuizResults.length > 0
+    ? Math.round(effectiveQuizResults.reduce((sum, result) => sum + Number(result.percentage || 0), 0) / effectiveQuizResults.length)
+    : 0;
+  const nextSnapshot: StudentGamification = {
+    xp: stats.xp,
+    gems: stats.gems,
+    level: stats.level,
+    levelProgress: stats.levelProgress,
+    streak: stats.streak,
+    totalQuizzes: stats.totalQuizzes,
+    totalLessons: stats.totalLessons,
+    totalGames: stats.totalGames,
+    achievementsCount: stats.achievements.length,
+    averageScore,
+    lastQuizAt: lastQuiz?.createdAt,
+    lastQuizPercentage: lastQuiz ? Number(lastQuiz.percentage || 0) : undefined,
+    updatedAt: new Date().toISOString(),
+  };
+
+  let students: StudentInfo[] = [];
+  try {
+    students = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+  } catch {
+    students = [];
+  }
+  const currentStudent = students.find((student) => student.id === active!.id);
+  const previousSnapshot = currentStudent?.gamification;
+  const progressChanged = !previousSnapshot || (
+    previousSnapshot.xp !== nextSnapshot.xp ||
+    previousSnapshot.gems !== nextSnapshot.gems ||
+    previousSnapshot.level !== nextSnapshot.level ||
+    previousSnapshot.levelProgress !== nextSnapshot.levelProgress ||
+    previousSnapshot.streak !== nextSnapshot.streak ||
+    previousSnapshot.totalQuizzes !== nextSnapshot.totalQuizzes ||
+    previousSnapshot.totalLessons !== nextSnapshot.totalLessons ||
+    previousSnapshot.totalGames !== nextSnapshot.totalGames ||
+    previousSnapshot.achievementsCount !== nextSnapshot.achievementsCount ||
+    previousSnapshot.averageScore !== nextSnapshot.averageScore ||
+    previousSnapshot.lastQuizAt !== nextSnapshot.lastQuizAt ||
+    previousSnapshot.lastQuizPercentage !== nextSnapshot.lastQuizPercentage
+  );
+  const snapshot = progressChanged
+    ? nextSnapshot
+    : { ...nextSnapshot, updatedAt: previousSnapshot.updatedAt };
+
+  const updatedStudents = students.map((student) =>
+    student.id === active!.id
+      ? { ...student, gamification: snapshot, lastActivity: student.lastActivity || snapshot.updatedAt }
+      : student,
+  );
+  if (JSON.stringify(updatedStudents) !== JSON.stringify(students)) {
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+  }
+
+  const updatedActive = { ...active, gamification: snapshot };
+  localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedActive));
+  return snapshot;
 }
 
 // Reset (for testing)

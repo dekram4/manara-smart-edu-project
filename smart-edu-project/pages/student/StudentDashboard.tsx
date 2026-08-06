@@ -26,6 +26,7 @@ import {
   rewardLessonComplete,
   rewardProblemSolved,
   rewardQuizCompleteWithId,
+  syncGamificationToStudent,
 } from '../../utils/gamification';
 
 // 1. استدعاءات framer-motion والمؤثرات الصوتية من App.tsx
@@ -312,6 +313,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setStreak(stats.streak);
     setLevelProgress(stats.levelProgress);
     setAchievements(stats.achievements);
+    syncGamificationToStudent(student);
   };
 
   useEffect(() => {
@@ -324,6 +326,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       speakGreeting();
       checkStreak();
       refreshGamification();
+      syncGamificationToStudent(active);
 
       let primaryGrade = active.primaryGrade || active.grade;
       if (!primaryGrade && active.gradeEnrollments && active.gradeEnrollments.length > 0) {
@@ -846,6 +849,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       STORAGE_KEYS.STUDENTS,
       JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
     );
+    syncGamificationToStudent(updatedStudent);
     localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
     setStudent(updatedStudent);
     setQuizResult(quizResultRecord);

@@ -11,6 +11,7 @@ import { playWelcomeAdult } from '../../utils/sounds';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
+import { getStudentProgressSummary } from '../../utils/studentProgress';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -631,16 +632,20 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 {(() => {
                   const qs = getChildQuizzes(activeChild.id);
                   const subjs = getChildSubjects(activeChild);
+                   const progress = getStudentProgressSummary(activeChild, allQuizzes);
                   const avg = qs.length > 0 ? (qs.reduce((a,b) => a + b.percentage, 0) / qs.length).toFixed(0) : '0';
                   const lastScore = qs.length > 0 ? qs.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0].percentage : null;
-                  const stats = [
+                    const stats = [
                     { label: 'المواد', value: subjs.length, color: 'text-blue-700', bg: 'border-l-4 border-blue-500', icon: '📚' },
                     { label: 'الاختبارات', value: qs.length, color: 'text-purple-700', bg: 'border-l-4 border-purple-500', icon: '📝' },
                     { label: 'المعدل', value: `${avg}%`, color: 'text-green-700', bg: 'border-l-4 border-green-500', icon: '📊' },
                     { label: 'آخر درجة', value: lastScore !== null ? `${lastScore}%` : '—', color: 'text-orange-700', bg: 'border-l-4 border-orange-500', icon: '🎯' },
+                     { label: 'المستوى', value: progress.level, color: 'text-indigo-700', bg: 'border-l-4 border-indigo-500', icon: '🏅' },
+                     { label: 'الجواهر', value: progress.gems, color: 'text-amber-700', bg: 'border-l-4 border-amber-500', icon: '💎' },
+                     { label: 'الخبرة', value: progress.xp, color: 'text-cyan-700', bg: 'border-l-4 border-cyan-500', icon: '⚡' },
                   ];
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
                       {stats.map((s, i) => (
                         <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bg} flex items-center gap-3 hover:shadow-lg transition-shadow`}>
                           <div className="text-2xl shrink-0">{s.icon}</div>
@@ -773,14 +778,17 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   const totalQuizzes = filtered.reduce((sum, c) => sum + getChildQuizzes(c.id).length, 0);
                   const allAvgs = filtered.map(c => parseFloat(getChildAverage(c.id))).filter(v => v > 0);
                   const overallAvg = allAvgs.length > 0 ? (allAvgs.reduce((a, b) => a + b, 0) / allAvgs.length).toFixed(0) : '0';
-                  const stats = [
+                   const totalGems = filtered.reduce((sum, child) => sum + getStudentProgressSummary(child, allQuizzes).gems, 0);
+                   const stats = [
                     { label: 'الأبناء', value: filtered.length, sub: dashFilter.trim() ? 'نتائج البحث' : 'إجمالي', icon: '👨‍👧', color: 'text-blue-700', bar: 'border-l-4 border-blue-500' },
                     { label: 'الاختبارات', value: totalQuizzes, sub: 'منجزة', icon: '📝', color: 'text-purple-700', bar: 'border-l-4 border-purple-500' },
                     { label: 'المعدل', value: `${overallAvg}%`, sub: 'متوسط', icon: '📊', color: 'text-green-700', bar: 'border-l-4 border-green-500' },
+                     { label: 'الجواهر', value: totalGems, sub: 'مجموع الأبناء', icon: '💎', color: 'text-amber-700', bar: 'border-l-4 border-amber-500' },
+                     { label: 'الخبرة', value: filtered.reduce((sum, child) => sum + getStudentProgressSummary(child, allQuizzes).xp, 0), sub: 'مجموع الأبناء', icon: '⚡', color: 'text-cyan-700', bar: 'border-l-4 border-cyan-500' },
                     { label: 'الشهادات', value: filteredCertificates.length, sub: 'مصدرة', icon: '🏆', color: 'text-orange-700', bar: 'border-l-4 border-orange-500' },
                   ];
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                       {stats.map((s, i) => (
                         <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bar} hover:shadow-lg transition-shadow`}>
                           <div className="flex items-center gap-2 mb-1">
@@ -892,6 +900,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       return filtered.map(child => {
                         const qs = getChildQuizzes(child.id);
                         const avg = getChildAverage(child.id);
+                         const progress = getStudentProgressSummary(child, allQuizzes);
                         const subjs = getChildSubjects(child);
                         const lastQuiz = qs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
                         const colors = ['from-rose-400 to-orange-400', 'from-emerald-400 to-teal-400', 'from-sky-400 to-rose-400', 'from-violet-400 to-purple-400', 'from-amber-400 to-yellow-400'];
@@ -905,10 +914,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                 <p className="text-rose-400 text-xs font-bold truncate">{child.primaryGrade || child.grade || 'غير محدد'}</p>
                               </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 mb-3">
+                             <div className="grid grid-cols-5 gap-2 mb-3">
                               <div className="bg-blue-50 p-2 rounded-xl text-center"><p className="text-blue-900 font-black text-sm">{subjs.length}</p><p className="text-blue-500 text-[9px] font-bold">مواد</p></div>
                               <div className="bg-purple-50 p-2 rounded-xl text-center"><p className="text-purple-900 font-black text-sm">{qs.length}</p><p className="text-purple-500 text-[9px] font-bold">اختبارات</p></div>
                               <div className="bg-green-50 p-2 rounded-xl text-center"><p className="text-green-900 font-black text-sm">{avg}%</p><p className="text-green-500 text-[9px] font-bold">معدل</p></div>
+                               <div className="bg-indigo-50 p-2 rounded-xl text-center"><p className="text-indigo-900 font-black text-sm">{progress.level}</p><p className="text-indigo-500 text-[9px] font-bold">مستوى</p></div>
+                               <div className="bg-amber-50 p-2 rounded-xl text-center"><p className="text-amber-900 font-black text-sm">{progress.gems}</p><p className="text-amber-500 text-[9px] font-bold">جواهر</p></div>
+                                <div className="bg-cyan-50 p-2 rounded-xl text-center"><p className="text-cyan-900 font-black text-sm">{progress.xp}</p><p className="text-cyan-500 text-[9px] font-bold">خبرة</p></div>
                             </div>
                             {lastQuiz && <p className="text-rose-400 text-[10px] font-bold mb-3">آخر نشاط: {new Date(lastQuiz.createdAt).toLocaleDateString('ar-SA', {month:'short', day:'numeric'})}</p>}
                             <button onClick={() => { setActiveChild(child); setActiveSubject(null); setMenuType(ParentMenuType.CHILDREN); }} className="w-full bg-rose-500 text-white py-2 rounded-xl font-bold hover:bg-rose-600 transition-all text-xs">عرض التفاصيل</button>

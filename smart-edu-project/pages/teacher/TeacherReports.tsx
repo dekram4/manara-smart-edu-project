@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ParentInfo, StudentInfo, QuizResult } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getTeacherParents, getTeacherStudents } from '../../utils/scope';
+import { getStudentProgressSummary } from '../../utils/studentProgress';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -47,6 +48,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     const quizzes = quizResults.filter(quiz => quiz.studentId === student.id);
     const legacyQuizzes = student.quizResults || [];
     const effectiveQuizzes = quizzes.length > 0 ? quizzes : legacyQuizzes;
+    const progress = getStudentProgressSummary(student, quizResults);
     const totalQuizzes = effectiveQuizzes.length;
     const avgScore = totalQuizzes > 0 
       ? effectiveQuizzes.reduce(
@@ -62,7 +64,11 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     return {
       totalQuizzes,
       avgScore: Math.round(avgScore),
-      lastActivity: student.lastActivity || 'لا يوجد نشاط'
+      lastActivity: student.lastActivity || 'لا يوجد نشاط',
+      gems: progress.gems,
+      xp: progress.xp,
+      level: progress.level,
+      streak: progress.streak,
     };
   };
 
@@ -139,6 +145,18 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
               <div class="stat-value">${stats.avgScore >= 90 ? 'ممتاز' : stats.avgScore >= 70 ? 'جيد جداً' : stats.avgScore >= 50 ? 'جيد' : 'يحتاج تحسين'}</div>
               <div class="stat-label">مستوى الأداء</div>
             </div>
+            <div class="stat-card">
+              <div class="stat-value">${stats.level}</div>
+              <div class="stat-label">المستوى</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${stats.gems} 💎</div>
+              <div class="stat-label">الجواهر</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${stats.xp} ⚡</div>
+              <div class="stat-label">الخبرة</div>
+            </div>
           </div>
           
           <div class="footer">
@@ -207,7 +225,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* إحصائيات عامة */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-2xl text-white shadow-lg">
           <div className="text-5xl mb-2">👨‍👩‍👧‍👦</div>
           <div className="text-3xl font-black">{parents.length}</div>
@@ -226,6 +244,22 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             {students.reduce((sum, student) => sum + calculateStudentStats(student).totalQuizzes, 0)}
           </div>
           <div className="text-purple-100 font-medium">اختبار مكتمل</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-6 rounded-2xl text-white shadow-lg">
+          <div className="text-5xl mb-2">💎</div>
+          <div className="text-3xl font-black">
+            {students.reduce((sum, student) => sum + calculateStudentStats(student).gems, 0)}
+          </div>
+          <div className="text-amber-100 font-medium">إجمالي الجواهر</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-cyan-500 to-sky-600 p-6 rounded-2xl text-white shadow-lg">
+          <div className="text-5xl mb-2">⚡</div>
+          <div className="text-3xl font-black">
+            {students.reduce((sum, student) => sum + calculateStudentStats(student).xp, 0)}
+          </div>
+          <div className="text-cyan-100 font-medium">إجمالي الخبرة</div>
         </div>
       </div>
 
@@ -254,6 +288,9 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                   <th className="p-4 text-right font-black text-gray-700">الصف</th>
                   <th className="p-4 text-center font-black text-gray-700">عدد الاختبارات</th>
                   <th className="p-4 text-center font-black text-gray-700">المعدل</th>
+                   <th className="p-4 text-center font-black text-gray-700">المستوى</th>
+                   <th className="p-4 text-center font-black text-gray-700">الجواهر</th>
+                   <th className="p-4 text-center font-black text-gray-700">الخبرة</th>
                   <th className="p-4 text-right font-black text-gray-700">آخر نشاط</th>
                   <th className="p-4 text-center font-black text-gray-700">الإجراءات</th>
                 </tr>
@@ -281,6 +318,21 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                           }`}
                         >
                           {stats.totalQuizzes > 0 ? `${stats.avgScore}%` : '-'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-bold">
+                          {stats.level}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full font-bold">
+                          💎 {stats.gems}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="bg-cyan-100 text-cyan-800 px-3 py-1 rounded-full font-bold">
+                          ⚡ {stats.xp}
                         </span>
                       </td>
                       <td className="p-4 text-gray-600 text-sm">
