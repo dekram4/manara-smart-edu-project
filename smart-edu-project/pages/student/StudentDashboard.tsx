@@ -40,6 +40,7 @@ import Interactive3DEmoji from '../../components/effects/Interactive3DEmoji';
 import { getStudentEmoji } from '../../utils/studentAppearance';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentAvatar from './components/StudentAvatar';
+import ManaraBrand from '../../components/ManaraBrand';
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
