@@ -773,6 +773,34 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       .filter(quiz => matchesAcademicScope(quiz, academicPath));
     const selectedCreatedQuiz = scopedCreatedQuizzes.find((quiz) => quiz.id === requestedQuizId)
       || scopedCreatedQuizzes[0];
+
+    // Teacher assessments are one-attempt-only. If the student opens the
+    // same card again, show the saved first result instead of opening a new
+    // question set.
+    const quizIdForAttempt = selectedCreatedQuiz?.id || requestedQuizId;
+    if (type === QuizType.TEACHER && quizIdForAttempt) {
+      const allResults: QuizResult[] = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]',
+      );
+      const previousResult = [...allResults, ...(student.quizResults || [])]
+        .filter((result, index, all) =>
+          result.studentId === student.id &&
+          result.quizId === quizIdForAttempt &&
+          all.findIndex((item) => item.id === result.id) === index,
+        )
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+
+      if (previousResult) {
+        setActiveQuizId(quizIdForAttempt);
+        setActiveQuizTitle(selectedCreatedQuiz?.title || previousResult.quizTitle || 'اختبار المعلم');
+        setCurrentQuiz([]);
+        setUserAnswers({});
+        setQuizResult(previousResult);
+        setActiveModule(StudentModuleType.QUIZ);
+        return true;
+      }
+    }
+
     const scopedCreatedQuestions = selectedCreatedQuiz
       ? selectedCreatedQuiz.questions.filter(question => matchesAcademicScope(question, academicPath))
       : [];
@@ -1918,11 +1946,19 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           السابق
                         </button>
                         {qIndex === currentQuiz.length - 1 ? (
-                          <button onClick={submitQuiz} className="px-8 py-3 bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 rounded-xl font-black text-lg shadow-xl cursor-pointer active:scale-95">
+                           <button
+                             onClick={submitQuiz}
+                             disabled={!userAnswers[currentQuiz[qIndex]?.id]}
+                             className="px-8 py-3 bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 rounded-xl font-black text-lg shadow-xl cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                           >
                             تسليم وإنهاء الاختبار 🏆
                           </button>
                         ) : (
-                          <button onClick={() => { soundClick.play(); setQIndex(qIndex + 1); }} className="px-8 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 rounded-xl font-black text-lg shadow-xl cursor-pointer active:scale-95">
+                           <button
+                             onClick={() => { soundClick.play(); setQIndex(qIndex + 1); }}
+                             disabled={!userAnswers[currentQuiz[qIndex]?.id]}
+                             className="px-8 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 rounded-xl font-black text-lg shadow-xl cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                           >
                             التالي
                           </button>
                         )}
