@@ -14,7 +14,10 @@ interface EntertainmentGamesProps {
   lessonContent?: string;
 }
 
-type GameType = 'heroarcade';
+type GameType = 'embedded' | 'heroarcade';
+
+const EMBEDDED_GAME_URL =
+  'https://html5.gamedistribution.com/d4a3629101574bc39bd8f9d1888ca58e/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
@@ -22,14 +25,14 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
   const [rewardMessage, setRewardMessage] = useState('');
   const stats = useMemo(() => getGamificationStats(), [activeGame, refreshKey]);
 
-  const openGame = () => {
-    if (stats.level < 1) {
+  const openGame = (game: GameType, requiredLevel: number) => {
+    if (stats.level < requiredLevel) {
       playLamsaSound('error');
       return;
     }
     GameAudioEngine.play('portalTransition');
     setRewardMessage('');
-    setActiveGame('heroarcade');
+    setActiveGame(game);
   };
 
   const closeGame = () => {
@@ -69,20 +72,77 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-5">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <button
-          onClick={openGame}
-          className="relative overflow-hidden rounded-[30px] border border-white/15 bg-gradient-to-br from-amber-500 to-red-700 p-7 text-right shadow-2xl transition-all hover:-translate-y-1 hover:scale-[1.01]"
+          onClick={() => openGame('embedded', 1)}
+          disabled={stats.level < 1}
+          className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
+            stats.level >= 1
+              ? 'bg-gradient-to-br from-amber-500 to-red-700 hover:-translate-y-1 hover:scale-[1.01]'
+              : 'cursor-not-allowed bg-slate-700/80 opacity-70'
+          }`}
         >
           <EducationalCardEffects accent="#f59e0b" />
-          <div className="text-5xl">🕹️</div>
-          <h3 className="mt-4 text-2xl font-black text-white">أركيد البطل</h3>
-          <p className="mt-2 text-sm font-bold text-white/90">منصات احترافية: حركة، قفز، أعداء، وجواهر.</p>
-          <div className="mt-4 text-xs font-black text-white/95">اضغط لبدء اللعبة</div>
+          <div className="flex items-center justify-between">
+            <div className="text-5xl">🕹️</div>
+            {stats.level < 1 && <span className="text-3xl">🔒</span>}
+          </div>
+          <h3 className="mt-4 text-2xl font-black text-white">اللعبة الأولى</h3>
+          <p className="mt-2 text-sm font-bold text-white/90">لعبة مضمنة داخل منصة منارة.</p>
+          <div className="mt-4 text-xs font-black text-white/95">
+            {stats.level >= 1 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 1'}
+          </div>
+        </button>
+
+        <button
+          onClick={() => openGame('heroarcade', 2)}
+          disabled={stats.level < 2}
+          className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
+            stats.level >= 2
+              ? 'bg-gradient-to-br from-cyan-500 to-blue-700 hover:-translate-y-1 hover:scale-[1.01]'
+              : 'cursor-not-allowed bg-slate-700/80 opacity-70'
+          }`}
+        >
+          <EducationalCardEffects accent="#22d3ee" />
+          <div className="flex items-center justify-between">
+            <div className="text-5xl">🚀</div>
+            {stats.level < 2 && <span className="text-3xl">🔒</span>}
+          </div>
+          <h3 className="mt-4 text-2xl font-black text-white">اللعبة الثانية</h3>
+          <p className="mt-2 text-sm font-bold text-white/90">تحدي أركيد داخل المنصة: حركة، قفز، أعداء وجواهر.</p>
+          <div className="mt-4 text-xs font-black text-white/95">
+            {stats.level >= 2 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 2'}
+          </div>
         </button>
       </div>
 
-      {activeGame === 'heroarcade' && <StudentGameCanvas onGameComplete={handleArcadeComplete} onClose={closeGame} />}
+      {activeGame === 'embedded' && (
+        <div className="overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl">
+          <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+            <h3 className="font-black text-white">اللعبة الأولى</h3>
+            <button
+              onClick={closeGame}
+              className="rounded-xl bg-white/10 px-4 py-2 font-black text-white hover:bg-white/20"
+            >
+              إغلاق اللعبة
+            </button>
+          </div>
+          <div className="aspect-video w-full bg-black">
+            <iframe
+              src={EMBEDDED_GAME_URL}
+              title="اللعبة الأولى"
+              className="h-full w-full border-0"
+              scrolling="no"
+              allow="fullscreen; autoplay; gamepad"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
+
+      {activeGame === 'heroarcade' && (
+        <StudentGameCanvas onGameComplete={handleArcadeComplete} onClose={closeGame} />
+      )}
     </motion.div>
   );
 };

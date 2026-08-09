@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StudentInfo, LessonConfig, StudentModuleType, QuizQuestion, QuizResult, QuizType, CreatedQuiz } from '../../types';
+import EntertainmentGames from './EntertainmentGames';
 import StudentVideos from './StudentVideos';
 import { STORAGE_KEYS, COLORS, QUIZ_TYPES } from '../../constants';
 import { passwordsMatch } from '../../utils/password';
@@ -1683,6 +1684,17 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               />
 
               <GameModeCard
+                title="عالم الترفيه والألعاب"
+                subtitle={`لعبة جديدة في المستوى 1 • لعبة إضافية في المستوى 2`}
+                icon="🎮"
+                color="bg-gradient-to-br from-violet-500 to-purple-800 border-purple-950"
+                badge={level >= 2 ? 'لعبتان مفتوحتان!' : level >= 1 ? 'اللعبة الأولى مفتوحة' : 'تُفتح في المستوى 1'}
+                onClick={() => {
+                  openModule(StudentModuleType.ENTERTAINMENT);
+                }}
+              />
+
+              <GameModeCard
                 title="سينما منارة"
                 subtitle="شاهد الفيديوهات المفضلة"
                 icon="🎬"
@@ -1885,6 +1897,20 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   subject={selectedSubject}
                   term={selectedTerm}
                   unit={selectedUnit}
+                />
+              </div>
+            )}
+
+            {/* Entertainment / Games */}
+            {activeModule === StudentModuleType.ENTERTAINMENT && (
+              <div className="relative overflow-hidden rounded-[40px]">
+                <EducationalCardEffects accent="#a78bfa" />
+                <EntertainmentGames
+                  grade={selectedGrade}
+                  subject={selectedSubject}
+                  term={selectedTerm}
+                  unit={selectedUnit}
+                  lessonContent={activeLesson?.lessonContent}
                 />
               </div>
             )}
