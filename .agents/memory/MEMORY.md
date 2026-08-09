@@ -4,3 +4,4 @@
 - [Progress sync boundary](progress-sync-boundary.md) — shared student progress must be promoted through localStorage writes so the existing Supabase write-through layer persists it.
 - [Content hydration and scope](content-hydration-and-scope.md) — wait for Supabase hydration before mounting dashboards and treat blank legacy academic fields as unspecified.
 - [Assessment modes](assessment-modes.md) — assessment behavior is keyed by stable quiz IDs: periodic attempts are repeatable, teacher assessments are one-time.
+- [Quiz form events](quiz-form-events.md) — keep quiz creation controls out of nested forms so manual question actions cannot submit the parent form.

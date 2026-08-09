@@ -424,9 +424,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   };
 
   // 🤖 توليد اختبار ذكي باحترافية عالية
-  const generateSmartQuiz = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const generateSmartQuiz = async () => {
     if (!lessonContent.trim()) {
       alert('⚠️ لم يتم العثور على محتوى درس! تأكد من إضافة الدرس في إدارة المحتوى.');
       return;
@@ -846,7 +844,7 @@ ${contentSummary}
               </button>
             </div>
 
-          <form onSubmit={creationMode === 'ai' ? generateSmartQuiz : (e) => { e.preventDefault(); saveManualQuiz(); }} className="space-y-6">
+          <div className="space-y-6">
             {/* اختيار المعلم */}
             <div>
               <label className="block font-black text-purple-900 mb-2">👨‍🏫 اختيار المعلم</label>
@@ -1037,7 +1035,8 @@ ${contentSummary}
             {/* زر التوليد الذكي أو واجهة الأسئلة اليدوية */}
             {creationMode === 'ai' ? (
               <button
-                type="submit"
+                type="button"
+                onClick={generateSmartQuiz}
                 disabled={isGenerating || !lessonFound}
                 className={`w-full py-6 rounded-[30px] font-black text-2xl transition-all ${
                   isGenerating || !lessonFound
@@ -1127,7 +1126,8 @@ ${contentSummary}
                 {/* زر حفظ الاختبار اليدوي */}
                 {manualQuestions.length > 0 && (
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={saveManualQuiz}
                     className="w-full py-6 rounded-[30px] font-black text-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-2xl shadow-green-300 transition-all"
                   >
                     💾 حفظ الاختبار ({manualQuestions.length} سؤال)
@@ -1135,7 +1135,7 @@ ${contentSummary}
                 )}
               </div>
             )}
-          </form>
+          </div>
         </div>
       )}
 
