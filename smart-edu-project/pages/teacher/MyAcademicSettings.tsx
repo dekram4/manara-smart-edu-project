@@ -37,9 +37,23 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     setTeacherId(teacher.id || '');
     setTeacherName(teacher.name || '');
     loadSettings(teacher.id);
-  }, [teacherProp?.id, teacherProp?.name]);
+  }, [teacherProp?.id, teacherProp?.name, teacherProp?.permissionPackageId]);
 
-  const canManageAcademicSettings = getTeacherPermissions(teacherProp).canManageAcademicSettings;
+  const resolvedTeacher = (() => {
+    const fallback = teacherProp || JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || '{}',
+    );
+    if (!fallback?.id) return fallback;
+    try {
+      const teachers: TeacherInfo[] = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]',
+      );
+      return teachers.find(item => item.id === fallback.id) || fallback;
+    } catch {
+      return fallback;
+    }
+  })();
+  const canManageAcademicSettings = getTeacherPermissions(resolvedTeacher).canManageAcademicSettings;
 
   if (!canManageAcademicSettings) {
     return (
@@ -53,7 +67,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     );
   }
 
-  const loadSettings = (tId: string) => {
+  function loadSettings(tId: string) {
     if (!tId) return;
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
@@ -71,7 +85,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       (getRecordTeacherId(c) === normalizeScopeValue(tId) && c.createdByAdmin)
     );
     setGeneralConfigs(generalSettings);
-  };
+  }
 
   // ========== MY SETTINGS FUNCTIONS ==========
   

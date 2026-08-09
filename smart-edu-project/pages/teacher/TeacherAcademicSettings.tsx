@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import AcademicSettings from '../admin/AcademicSettings';
 import { STORAGE_KEYS } from '../../constants';
 import { TeacherInfo } from '../../types';
-import { hasTeacherPermission } from '../../permissions';
+import { getTeacherPermissions } from '../../permissions';
 
 interface TeacherAcademicSettingsProps {
   teacherId: string;
@@ -22,7 +22,15 @@ const TeacherAcademicSettings: React.FC<TeacherAcademicSettingsProps> = ({ teach
   }, [teacherId]);
 
   // فحص الصلاحية
-  const canManageAcademicSettings = hasTeacherPermission('canManageAcademicSettings');
+  const teacher = (() => {
+    try {
+      const teachers: TeacherInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
+      return teachers.find(item => item.id === teacherId) || null;
+    } catch {
+      return null;
+    }
+  })();
+  const canManageAcademicSettings = getTeacherPermissions(teacher).canManageAcademicSettings;
 
   if (!canManageAcademicSettings) {
     return (

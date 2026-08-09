@@ -91,6 +91,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     }} onBack={onLogout} />;
   }
 
+  // Always resolve the latest persisted teacher before evaluating permissions.
+  // Admin package assignment updates TEACHERS while this dashboard can remain open.
+  const latestStoredTeacher = (() => {
+    try {
+      const teachers: TeacherInfo[] = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]',
+      );
+      return teachers.find(teacher => teacher.id === currentTeacher.id) || currentTeacher;
+    } catch {
+      return currentTeacher;
+    }
+  })();
+  const effectiveTeacher = latestStoredTeacher;
+
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentTeacher(null);
@@ -256,7 +270,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           </div>
         );
       case TeacherMenuType.ACADEMIC_SETTINGS:
-        return <MyAcademicSettings teacher={currentTeacher} />;
+        return <MyAcademicSettings teacher={effectiveTeacher} />;
       case TeacherMenuType.CONTENT_MANAGEMENT:
          return <TeacherContentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.QUIZ_MANAGEMENT:
@@ -307,7 +321,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         <nav className="flex-1 space-y-2">
           {Object.values(TeacherMenuType).map((menu) => {
             // فحص الصلاحيات
-            const permissions = getTeacherPermissions(currentTeacher);
+            const permissions = getTeacherPermissions(effectiveTeacher);
             
             // إخفاء الخيارات بناءً على الصلاحيات
             if (menu === TeacherMenuType.ACADEMIC_SETTINGS && !permissions.canManageAcademicSettings) {
