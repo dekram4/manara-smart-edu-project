@@ -22,11 +22,10 @@ const EMBEDDED_GAME_2_URL =
 const EMBEDDED_GAME_3_URL =
   'https://html5.gamedistribution.com/rvvASMiM/659090e00bfc4650899550d63f8a130d/index.html';
 
-// Keep the game inside Manara. In particular, do not add allow-popups,
-// allow-top-navigation, or allow-top-navigation-by-user-activation: some
-// provider ads attempt to replace the parent page with an external Play Now URL.
+// Keep the game inside Manara. Do not grant same-origin, popup, or top-navigation
+// privileges: provider ads may otherwise replace the page with an external Play URL.
 const GAME_FRAME_SANDBOX =
-  'allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-orientation-lock allow-modals';
+  'allow-scripts allow-pointer-lock allow-orientation-lock';
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
@@ -172,7 +171,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
+              referrerPolicy="no-referrer"
               loading="eager"
               onLoad={() => setGameLoading(false)}
             />
@@ -207,7 +206,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
+              referrerPolicy="no-referrer"
               loading="eager"
               onLoad={() => setGameLoading(false)}
             />
@@ -242,7 +241,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
+              referrerPolicy="no-referrer"
               loading="eager"
               onLoad={() => setGameLoading(false)}
             />
