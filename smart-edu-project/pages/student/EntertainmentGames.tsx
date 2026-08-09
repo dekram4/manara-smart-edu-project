@@ -13,12 +13,14 @@ interface EntertainmentGamesProps {
   lessonContent?: string;
 }
 
-type GameType = 'embedded' | 'embedded2';
+type GameType = 'embedded' | 'embedded2' | 'embedded3';
 
 const EMBEDDED_GAME_URL =
   'https://html5.gamedistribution.com/d4a3629101574bc39bd8f9d1888ca58e/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
 const EMBEDDED_GAME_2_URL =
   'https://html5.gamedistribution.com/172e0bd0c40442dbae3d4adb42a98433/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
+const EMBEDDED_GAME_3_URL =
+  'https://html5.gamedistribution.com/659090e00bfc4650899550d63f8a130d/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
@@ -92,6 +94,27 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
             {stats.level >= 2 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 2'}
           </div>
         </button>
+
+        <button
+          onClick={() => openGame('embedded3', 3)}
+          disabled={stats.level < 3}
+          className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
+            stats.level >= 3
+              ? 'bg-gradient-to-br from-cyan-500 to-blue-700 hover:-translate-y-1 hover:scale-[1.01]'
+              : 'cursor-not-allowed bg-slate-700/80 opacity-70'
+          }`}
+        >
+          <EducationalCardEffects accent="#22d3ee" />
+          <div className="flex items-center justify-between">
+            <div className="text-5xl">🎲</div>
+            {stats.level < 3 && <span className="text-3xl">🔒</span>}
+          </div>
+          <h3 className="mt-4 text-2xl font-black text-white">اللعبة الثالثة</h3>
+          <p className="mt-2 text-sm font-bold text-white/90">لعبة HTML5 مضمنة داخل منصة منارة.</p>
+          <div className="mt-4 text-xs font-black text-white/95">
+            {stats.level >= 3 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 3'}
+          </div>
+        </button>
       </div>
 
       {activeGame === 'embedded' && (
@@ -133,6 +156,30 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
             <iframe
               src={EMBEDDED_GAME_2_URL}
               title="اللعبة الثانية"
+              className="h-full w-full border-0"
+              scrolling="no"
+              allow="fullscreen; autoplay; gamepad"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
+
+      {activeGame === 'embedded3' && (
+        <div className="overflow-hidden rounded-3xl border border-cyan-300/30 bg-black shadow-2xl">
+          <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+            <h3 className="font-black text-white">اللعبة الثالثة</h3>
+            <button
+              onClick={closeGame}
+              className="rounded-xl bg-white/10 px-4 py-2 font-black text-white hover:bg-white/20"
+            >
+              إغلاق اللعبة
+            </button>
+          </div>
+          <div className="mx-auto aspect-[4/3] w-full max-w-[800px] bg-black">
+            <iframe
+              src={EMBEDDED_GAME_3_URL}
+              title="اللعبة الثالثة"
               className="h-full w-full border-0"
               scrolling="no"
               allow="fullscreen; autoplay; gamepad"
