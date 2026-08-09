@@ -10,6 +10,7 @@ import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
+import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
@@ -584,6 +585,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                ? [{ key: ParentMenuType.ADD_CHILDREN, icon: '➕', label: 'إضافة ابن' }]
                : []),
             { key: ParentMenuType.CERTIFICATES, icon: '🏆', label: 'الشهادات' },
+             ...(permissions.canEditStudents
+               ? [{ key: ParentMenuType.PERMISSION_PACKAGES, icon: '📦', label: 'بكجات الأبناء' }]
+               : []),
             ...(permissions.canChatWithSupport ? [{ key: ParentMenuType.CHAT, icon: '💬', label: 'الدردشة' }] : []),
             { key: ParentMenuType.SETTINGS, icon: '⚙️', label: 'الإعدادات' },
           ].map(item => (
@@ -1225,6 +1229,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               </form>
             </div>
           </div>
+        )}
+
+        {menuType === ParentMenuType.PERMISSION_PACKAGES && parent && (
+          <PermissionPackageManagement
+            managerRole="parent"
+            parent={parent}
+          />
         )}
 
         {/* ---------- CERTIFICATES ---------- */}

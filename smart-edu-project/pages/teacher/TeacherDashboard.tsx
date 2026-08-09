@@ -16,6 +16,7 @@ import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
+import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -252,6 +253,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         return <QuizManagement onUpdate={loadDashboardStats} teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
       case TeacherMenuType.ACCOUNT_MANAGEMENT:
          return <ParentStudentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
+      case TeacherMenuType.PERMISSION_PACKAGES:
+        return (
+          <PermissionPackageManagement
+            managerRole="teacher"
+            teacherId={currentTeacher.id}
+            teacherName={currentTeacher.name}
+            teacherPermissionPackageId={currentTeacher.permissionPackageId}
+          />
+        );
       case TeacherMenuType.REPORTS:
         return <TeacherReports teacherId={currentTeacher.id} />;
       case TeacherMenuType.CERTIFICATES:
@@ -306,6 +316,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
                 !permissions.canCreateParents && !permissions.canCreateStudents) {
               return null;
             }
+            if (menu === TeacherMenuType.PERMISSION_PACKAGES &&
+                !permissions.canManageParentPermissions && !permissions.canEditStudents) {
+              return null;
+            }
             if (menu === TeacherMenuType.REPORTS && !permissions.canViewReports) {
               return null;
             }
@@ -317,6 +331,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.VIDEO_MANAGEMENT]: '🎬',
               [TeacherMenuType.QUIZ_MANAGEMENT]: '📝',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: '👥',
+              [TeacherMenuType.PERMISSION_PACKAGES]: '📦',
               [TeacherMenuType.REPORTS]: '📊',
               [TeacherMenuType.CERTIFICATES]: '🏆',
               [TeacherMenuType.MY_ACCOUNT]: '👤'
@@ -329,6 +344,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.VIDEO_MANAGEMENT]: 'فيديوهاتي',
               [TeacherMenuType.QUIZ_MANAGEMENT]: 'إدارة الاختبارات',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: 'إدارة الحسابات',
+              [TeacherMenuType.PERMISSION_PACKAGES]: 'بكجات وصلاحيات الحسابات',
               [TeacherMenuType.REPORTS]: 'التقارير',
               [TeacherMenuType.CERTIFICATES]: 'الشهادات',
               [TeacherMenuType.MY_ACCOUNT]: 'حسابي'

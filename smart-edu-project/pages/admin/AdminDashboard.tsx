@@ -13,7 +13,6 @@ import ContentManagement from './ContentManagement';
 import QuizManagement from './QuizManagement';
 import Reports from './Reports';
 import SystemSettings from './SystemSettings';
-import PermissionsSettings from './PermissionsSettings';
 import PermissionPackages from './PermissionPackages';
 import AdminVideoNotifications from './AdminVideoNotifications';
 import ManaraBrand from '../../components/ManaraBrand';
@@ -121,7 +120,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       case AdminMenuType.QUIZ_MANAGEMENT: return <QuizManagement onUpdate={refreshStats} />;
       case AdminMenuType.REPORTS: return <Reports />;
       case AdminMenuType.SYSTEM_SETTINGS: return <SystemSettings />;
-      case 'PERMISSIONS' as AdminMenuType: return <PermissionsSettings onUpdate={refreshStats} />;
       case 'PERMISSION_PACKAGES' as AdminMenuType: return <PermissionPackages onUpdate={refreshStats} />;
       case 'VIDEO_NOTIFICATIONS' as AdminMenuType: return <AdminVideoNotifications />;
       default: return <DashboardHome stats={stats} onRefresh={refreshStats} />;
@@ -146,7 +144,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: '📚' },
             { id: AdminMenuType.QUIZ_MANAGEMENT, label: 'إدارة الاختبارات', icon: '📝' },
             { id: AdminMenuType.REPORTS, label: 'التقارير', icon: '📋' },
-            { id: 'PERMISSIONS' as AdminMenuType, label: 'إدارة الصلاحيات', icon: '🔐' },
             { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'بكجات الصلاحيات', icon: '📦' },
             { id: 'VIDEO_NOTIFICATIONS' as AdminMenuType, label: 'إشعارات الفيديو', icon: '📢' },
             { id: AdminMenuType.SYSTEM_SETTINGS, label: 'إعدادات النظام', icon: '⚙️' },
