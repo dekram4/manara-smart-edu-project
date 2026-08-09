@@ -5,7 +5,7 @@ import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ParentLogin from './ParentLogin';
 import ParentAccountSetup from './ParentAccountSetup';
-import { getEffectiveParentPermissions, isLimitReached } from '../../permissions';
+import { getEffectiveParentPermissions, getStudentPermissions, isLimitReached } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
@@ -586,7 +586,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                : []),
             { key: ParentMenuType.CERTIFICATES, icon: '🏆', label: 'الشهادات' },
              ...(permissions.canEditStudents
-               ? [{ key: ParentMenuType.PERMISSION_PACKAGES, icon: '📦', label: 'بكجات الأبناء' }]
+               && permissions.canCreatePermissionPackages
+               ? [{ key: ParentMenuType.PERMISSION_PACKAGES, icon: '🔐', label: 'إدارة صلاحيات الأبناء' }]
                : []),
             ...(permissions.canChatWithSupport ? [{ key: ParentMenuType.CHAT, icon: '💬', label: 'الدردشة' }] : []),
             { key: ParentMenuType.SETTINGS, icon: '⚙️', label: 'الإعدادات' },
@@ -922,6 +923,18 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         const avg = getChildAverage(child.id);
                          const progress = getStudentProgressSummary(child, allQuizzes);
                         const subjs = getChildSubjects(child);
+                        const studentPermissions = getStudentPermissions(child);
+                        const studentPermissionLabels: Record<string, string> = {
+                          canChangeGrade: 'تغيير الصف',
+                          canAccessChat: 'الوصول للدردشة',
+                          canAccessLiveMeeting: 'الوصول للقاءات المباشرة',
+                          canRetakeQuiz: 'إعادة الاختبار',
+                          canViewSolutions: 'عرض الحلول',
+                          canDownloadCertificates: 'تحميل الشهادات',
+                        };
+                        const activeStudentPermissionLabels = Object.entries(studentPermissions)
+                          .filter(([, value]) => value === true)
+                          .map(([key]) => studentPermissionLabels[key] || key);
                         const lastQuiz = qs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
                         const colors = ['from-rose-400 to-orange-400', 'from-emerald-400 to-teal-400', 'from-sky-400 to-rose-400', 'from-violet-400 to-purple-400', 'from-amber-400 to-yellow-400'];
                         const avatarGrad = colors[child.name.length % colors.length];
@@ -943,6 +956,18 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                 <div className="bg-cyan-50 p-2 rounded-xl text-center"><p className="text-cyan-900 font-black text-sm">{progress.xp}</p><p className="text-cyan-500 text-[9px] font-bold">خبرة</p></div>
                             </div>
                             {lastQuiz && <p className="text-rose-400 text-[10px] font-bold mb-3">آخر نشاط: {new Date(lastQuiz.createdAt).toLocaleDateString('ar-SA', {month:'short', day:'numeric'})}</p>}
+                            <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50 p-2.5">
+                              <p className="mb-1 text-[10px] font-black text-indigo-700">🔐 صلاحيات الطالب الفعالة</p>
+                              <div className="flex flex-wrap gap-1">
+                                {activeStudentPermissionLabels.length > 0 ? activeStudentPermissionLabels.map(label => (
+                                  <span key={label} className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-indigo-700">
+                                    ✓ {label}
+                                  </span>
+                                )) : (
+                                  <span className="text-[9px] font-bold text-indigo-400">لا توجد صلاحيات مفعلة</span>
+                                )}
+                              </div>
+                            </div>
                             <button onClick={() => { setActiveChild(child); setActiveSubject(null); setMenuType(ParentMenuType.CHILDREN); }} className="w-full bg-rose-500 text-white py-2 rounded-xl font-bold hover:bg-rose-600 transition-all text-xs">عرض التفاصيل</button>
                           </div>
                         );

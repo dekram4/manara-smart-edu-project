@@ -26,7 +26,7 @@ export const STORAGE_KEYS = {
   ADMIN_SETTINGS: 'smartEdu_adminSettings',
   REPORTS: 'smartEdu_reports',
   PERMISSIONS: 'smartEdu_permissions', // 🔐 نظام الصلاحيات
-  PERMISSION_PACKAGES: 'smartEdu_permissionPackages', // 📦 بكجات الصلاحيات
+  PERMISSION_PACKAGES: 'smartEdu_permissionPackages', // 🔐 إدارة الصلاحيات
   PRIVATE_MESSAGES: 'smartEdu_privateMessages', // 💬 الدردشة الخاصة
   VIDEOS: 'smartEdu_videos', // 🎬 فيديوهات المعلم
   DELETED_VIDEOS: 'smartEdu_deletedVideos', // 🗑️ علامات حذف الفيديوهات حتى لا تعود من المزامنة
@@ -61,6 +61,7 @@ export const DEFAULT_PERMISSIONS = {
     canEditParents: true,
     canDeleteParents: true,
     canManageParentPermissions: true,
+    canCreatePermissionPackages: true,
     canCreateStudents: true,
     canEditStudents: true,
     canDeleteStudents: true,
@@ -80,6 +81,7 @@ export const DEFAULT_PERMISSIONS = {
     canViewReports: true,
     canChangeGrade: false,
     canChatWithSupport: true,
+    canCreatePermissionPackages: true,
     maxStudents: 5,
   },
   student: {

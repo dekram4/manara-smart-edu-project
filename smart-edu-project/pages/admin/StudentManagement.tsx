@@ -526,7 +526,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   </select>
                </div>
                 <div style={styles.formGroup}>
-                   <label style={styles.label}>📦 بكج صلاحيات الطالب</label>
+                    <label style={styles.label}>🔐 إدارة صلاحيات الطالب</label>
                    <select value={studentForm.permissionPackageId} onChange={e => setStudentForm({...studentForm, permissionPackageId: e.target.value})} style={styles.select}>
                      <option value="">الصلاحيات العامة الحالية</option>
                      {studentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
@@ -559,7 +559,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   </select>
                </div>
                 <div style={styles.formGroup}>
-                   <label style={styles.label}>📦 بكج صلاحيات ولي الأمر</label>
+                    <label style={styles.label}>🔐 إدارة صلاحيات ولي الأمر</label>
                    <select value={parentForm.permissionPackageId} onChange={e => setParentForm({...parentForm, permissionPackageId: e.target.value})} style={styles.select}>
                      <option value="">الصلاحيات العامة الحالية</option>
                      {parentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}

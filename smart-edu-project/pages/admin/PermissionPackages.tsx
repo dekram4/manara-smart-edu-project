@@ -26,6 +26,7 @@ const permissionLabels: Record<string, string> = {
   canEditParents: 'تعديل أولياء أمور',
   canDeleteParents: 'حذف أولياء أمور',
   canManageParentPermissions: 'منح صلاحيات مخصصة لولي الأمر',
+  canCreatePermissionPackages: 'إنشاء بكجات صلاحيات',
   canCreateStudents: 'إنشاء طلاب/أبناء',
   canEditStudents: 'تعديل الطلاب/الأبناء',
   canDeleteStudents: 'حذف الطلاب/الأبناء',
@@ -91,7 +92,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
   const handleSave = (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
-      alert('يرجى كتابة اسم البكج');
+      alert('يرجى كتابة اسم إعداد الصلاحيات');
       return;
     }
 
@@ -122,7 +123,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
     setName('');
     setDescription('');
     setDraft(clone((getPermissions()[activeRole] || DEFAULT_PERMISSIONS[activeRole]) as Record<string, boolean | number>));
-    alert(`✅ تم حفظ ${nextPackage.name} بنجاح — إجمالي بكجات ${roleLabels[activeRole]}: ${updated.filter(pkg => pkg.role === activeRole).length}`);
+    alert(`✅ تم حفظ إعداد ${nextPackage.name} بنجاح — إجمالي الإعدادات ${roleLabels[activeRole]}: ${updated.filter(pkg => pkg.role === activeRole).length}`);
     onUpdate?.();
   };
 
@@ -136,10 +137,10 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
       students.some((item: any) => item.permissionPackageId === pkg.id);
 
     if (used) {
-      alert('⚠️ لا يمكن حذف بكج مستخدم حاليًا. غيّر البكج المرتبط بالحسابات أولاً.');
+      alert('⚠️ لا يمكن حذف إعداد مستخدم حاليًا. غيّر الإعداد المرتبط بالحسابات أولاً.');
       return;
     }
-    if (!confirm(`حذف البكج «${pkg.name}»؟`)) return;
+    if (!confirm(`حذف إعداد الصلاحيات «${pkg.name}»؟`)) return;
 
     const updated = packages.filter(item => item.id !== pkg.id);
     localStorage.setItem(STORAGE_KEYS.PERMISSION_PACKAGES, JSON.stringify(updated));
@@ -161,16 +162,16 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
     <div className="space-y-6 animate-fadeIn" dir="rtl">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-purple-900">📦 بكجات الصلاحيات</h1>
+          <h1 className="text-3xl font-black text-purple-900">🔐 إدارة الصلاحيات</h1>
           <p className="mt-1 font-bold text-purple-500">
-            أنشئ بكجات متعددة ومستقلة ثم اربط كل حساب بالبكج المناسب له
+           أنشئ إعدادات متعددة ومستقلة ثم اربط كل حساب بإعداد الصلاحيات المناسب له
           </p>
         </div>
         <button
           onClick={() => startNew(activeRole)}
           className="rounded-2xl bg-gradient-to-r from-purple-600 to-violet-600 px-6 py-3 font-black text-white shadow-lg hover:shadow-xl"
         >
-          ➕ إنشاء بكج جديد
+           ➕ إنشاء إعداد صلاحيات جديد
         </button>
       </div>
 
@@ -187,7 +188,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
           >
             {roleLabels[role]}
             <span className="mt-1 block text-xs font-bold opacity-70">
-              {packages.filter(pkg => pkg.role === role).length} بكجات
+               {packages.filter(pkg => pkg.role === role).length} إعدادات
             </span>
           </button>
         ))}
@@ -195,13 +196,13 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,1.1fr)]">
         <div className="space-y-3">
-          <h2 className="text-xl font-black text-purple-900">البكجات المحفوظة — {roleLabels[activeRole]}</h2>
+          <h2 className="text-xl font-black text-purple-900">إعدادات الصلاحيات المحفوظة — {roleLabels[activeRole]}</h2>
            <p className="text-sm font-bold text-purple-400">
-             المحفوظ: {visiblePackages.length} بكج — حفظ بكج جديد لا يحذف البكجات السابقة
+             المحفوظ: {visiblePackages.length} إعدادات — حفظ إعداد جديد لا يحذف الإعدادات السابقة
            </p>
           {visiblePackages.length === 0 ? (
             <div className="rounded-3xl border-2 border-dashed border-purple-200 bg-white p-12 text-center font-bold text-purple-400">
-              لا توجد بكجات لهذا الدور. أنشئ أول بكج الآن.
+               لا توجد إعدادات لهذا الدور. أنشئ أول إعداد الآن.
             </div>
           ) : visiblePackages.map(pkg => (
             <div key={pkg.id} className="rounded-3xl border border-purple-100 bg-white p-5 shadow-sm">
@@ -224,11 +225,11 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
 
         <form onSubmit={handleSave} className="rounded-3xl border-2 border-purple-100 bg-white p-6 shadow-lg">
           <h2 className="text-xl font-black text-purple-900">
-            {editingPackage ? '✏️ تعديل البكج' : '✨ إنشاء بكج'}
+             {editingPackage ? '✏️ تعديل إعداد الصلاحيات' : '✨ إنشاء إعداد صلاحيات'}
           </h2>
           <div className="mt-5 space-y-4">
-            <input value={name} onChange={event => setName(event.target.value)} placeholder="اسم البكج، مثال: معلم متقدم" className="w-full rounded-xl border-2 border-purple-100 p-3 font-bold outline-none focus:border-purple-400" required />
-            <textarea value={description} onChange={event => setDescription(event.target.value)} placeholder="وصف مختصر للبكج (اختياري)" className="min-h-20 w-full rounded-xl border-2 border-purple-100 p-3 font-bold outline-none focus:border-purple-400" />
+             <input value={name} onChange={event => setName(event.target.value)} placeholder="اسم إعداد الصلاحيات، مثال: معلم متقدم" className="w-full rounded-xl border-2 border-purple-100 p-3 font-bold outline-none focus:border-purple-400" required />
+             <textarea value={description} onChange={event => setDescription(event.target.value)} placeholder="وصف مختصر لإعداد الصلاحيات (اختياري)" className="min-h-20 w-full rounded-xl border-2 border-purple-100 p-3 font-bold outline-none focus:border-purple-400" />
           </div>
 
           <div className="mt-6 space-y-3">
@@ -261,7 +262,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
 
           <div className="mt-6 flex gap-3">
             <button type="submit" className="flex-1 rounded-xl py-3 font-black text-white shadow-md hover:brightness-110" style={{ backgroundColor: COLORS.success }}>
-              💾 حفظ البكج
+               💾 حفظ إعداد الصلاحيات
             </button>
             <button type="button" onClick={() => startNew(activeRole)} className="rounded-xl bg-slate-100 px-5 py-3 font-black text-slate-700 hover:bg-slate-200">
               تفريغ

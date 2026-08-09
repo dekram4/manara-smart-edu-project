@@ -341,7 +341,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               return null;
             }
             if (menu === TeacherMenuType.PERMISSION_PACKAGES &&
-                !permissions.canManageParentPermissions && !permissions.canEditStudents) {
+                !permissions.canCreatePermissionPackages) {
               return null;
             }
             if (menu === TeacherMenuType.REPORTS && !permissions.canViewReports) {
@@ -368,7 +368,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.VIDEO_MANAGEMENT]: 'فيديوهاتي',
               [TeacherMenuType.QUIZ_MANAGEMENT]: 'إدارة الاختبارات',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: 'إدارة الحسابات',
-              [TeacherMenuType.PERMISSION_PACKAGES]: 'بكجات وصلاحيات الحسابات',
+              [TeacherMenuType.PERMISSION_PACKAGES]: 'إدارة الصلاحيات',
               [TeacherMenuType.REPORTS]: 'التقارير',
               [TeacherMenuType.CERTIFICATES]: 'الشهادات',
               [TeacherMenuType.MY_ACCOUNT]: 'حسابي'

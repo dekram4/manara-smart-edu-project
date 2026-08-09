@@ -5,6 +5,7 @@ import {
   getEffectiveParentPermissions,
   getPermissionPackages,
   getPermissions,
+  getStudentPermissions,
   getTeacherPermissions,
 } from '../../permissions';
 import {
@@ -31,9 +32,9 @@ const targetLabels: Record<TargetRole, string> = {
 };
 
 const roleLabels: Record<PermissionPackageRole, string> = {
-  teacher: 'بكج معلم',
-  parent: 'بكج ولي أمر',
-  student: 'بكج طالب',
+  teacher: 'إدارة صلاحيات المعلم',
+  parent: 'إدارة صلاحيات ولي الأمر',
+  student: 'إدارة صلاحيات الطالب',
 };
 
 const permissionLabels: Record<string, string> = {
@@ -45,6 +46,7 @@ const permissionLabels: Record<string, string> = {
   canEditParents: 'تعديل أولياء أمور',
   canDeleteParents: 'حذف أولياء أمور',
   canManageParentPermissions: 'إدارة صلاحيات أولياء الأمور',
+  canCreatePermissionPackages: 'إنشاء بكجات صلاحيات',
   canCreateStudents: 'إنشاء طلاب/أبناء',
   canEditStudents: 'تعديل الطلاب/الأبناء',
   canDeleteStudents: 'حذف الطلاب/الأبناء',
@@ -166,12 +168,19 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
         !pkg.ownerRole
         || pkg.ownerRole === 'admin'
         || packageBelongsToManager(pkg, managerRole, managerId)
+        || (
+          managerRole === 'parent'
+          && activeTargetRole === 'student'
+          && students.some(student => student.permissionPackageId === pkg.id)
+        )
       ),
     ),
-    [packages, activeTargetRole, managerRole, managerId],
+    [packages, activeTargetRole, managerRole, managerId, students],
   );
 
   const canManageTarget = (role: TargetRole) => {
+    if (managerRole === 'teacher' && !teacherPermissions?.canCreatePermissionPackages) return false;
+    if (managerRole === 'parent' && !parentPermissions?.canCreatePermissionPackages) return false;
     if (managerRole === 'teacher') {
       if (role === 'parent') return Boolean(teacherPermissions?.canManageParentPermissions);
       return Boolean(teacherPermissions?.canEditStudents);
@@ -183,7 +192,10 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
     // A manager can create packages only for delegated accounts, never for
     // their own role. Teachers manage parent/student packages; parents manage
     // student packages.
-    return role !== managerRole && role !== 'teacher' && canManageTarget(role);
+    const canCreatePackages = managerRole === 'teacher'
+      ? Boolean(teacherPermissions?.canCreatePermissionPackages)
+      : Boolean(parentPermissions?.canCreatePermissionPackages);
+    return canCreatePackages && role !== managerRole && role !== 'teacher' && canManageTarget(role);
   };
 
   const startNewPackage = (role: PermissionPackageRole = activeTargetRole) => {
@@ -198,11 +210,11 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
 
   const startEditPackage = (pkg: PermissionPackage) => {
     if (!packageBelongsToManager(pkg, managerRole, managerId)) {
-      alert('🔒 هذا البكج مملوك للمشرف أو لحساب آخر ولا يمكن تعديله من هنا');
+      alert('🔒 هذا الإعداد مملوك للمشرف أو لحساب آخر ولا يمكن تعديله من هنا');
       return;
     }
     if (!canCreateOrEditPackage(pkg.role)) {
-      alert('⚠️ لا تملك صلاحية تعديل بكجات هذا الدور');
+      alert('⚠️ لا تملك صلاحية تعديل إعدادات الصلاحيات لهذا الدور');
       return;
     }
     setEditorRole(pkg.role);
@@ -221,15 +233,15 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
   const savePackage = (event: React.FormEvent) => {
     event.preventDefault();
     if (editorRole === managerRole) {
-      alert('⚠️ لا يمكنك إنشاء أو تعديل بكج لدورك الشخصي');
+      alert('⚠️ لا يمكنك إنشاء أو تعديل إعداد صلاحيات لدورك الشخصي');
       return;
     }
     if (!managerId || !canCreateOrEditPackage(editorRole)) {
-      alert('⚠️ لا تملك صلاحية إنشاء أو تعديل بكجات هذا الدور');
+      alert('⚠️ لا تملك صلاحية إنشاء أو تعديل إعدادات الصلاحيات لهذا الدور');
       return;
     }
     if (!packageName.trim()) {
-      alert('يرجى كتابة اسم البكج');
+      alert('يرجى كتابة اسم إعداد الصلاحيات');
       return;
     }
 
@@ -279,10 +291,10 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
 
   const deletePackage = (pkg: PermissionPackage) => {
     if (!packageBelongsToManager(pkg, managerRole, managerId)) {
-      alert('🔒 لا يمكن حذف بكج المشرف أو بكج حساب آخر');
+      alert('🔒 لا يمكن حذف إعداد المشرف أو إعداد حساب آخر');
       return;
     }
-    if (!confirm(`حذف البكج «${pkg.name}»؟`)) return;
+    if (!confirm(`حذف إعداد الصلاحيات «${pkg.name}»؟`)) return;
 
     const teachers: any[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
     const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
@@ -291,7 +303,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
       || allParents.some(item => item.permissionPackageId === pkg.id)
       || allStudents.some(item => item.permissionPackageId === pkg.id);
     if (used) {
-      alert('⚠️ لا يمكن حذف بكج مستخدم حاليًا. غيّر البكج المرتبط بالحسابات أولًا.');
+      alert('⚠️ لا يمكن حذف إعداد مستخدم حاليًا. غيّر الإعداد المرتبط بالحسابات أولًا.');
       return;
     }
 
@@ -302,11 +314,11 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
 
   const assignPackage = (target: ParentInfo | StudentInfo, role: TargetRole, packageId: string) => {
     if (!canManageTarget(role)) {
-      alert('⚠️ لا تملك الصلاحية لإسناد بكج لهذا الدور');
+      alert('⚠️ لا تملك الصلاحية لإسناد إعداد صلاحيات لهذا الدور');
       return;
     }
     if (packageId && !visiblePackages.some(pkg => pkg.id === packageId && pkg.role === role)) {
-      alert('⚠️ البكج المختار غير متاح لهذا الدور');
+      alert('⚠️ إعداد الصلاحيات المختار غير متاح لهذا الدور');
       return;
     }
 
@@ -340,13 +352,13 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
     loadData();
     const selectedPackage = packages.find(pkg => pkg.id === packageId);
     alert(selectedPackage
-      ? `✅ تم إسناد بكج «${selectedPackage.name}» إلى ${getTargetName(target)}`
+      ? `✅ تم إسناد إعداد الصلاحيات «${selectedPackage.name}» إلى ${getTargetName(target)}`
       : `✅ تمت إعادة ${getTargetName(target)} إلى الصلاحيات العامة`);
   };
 
   const managerDescription = managerRole === 'teacher'
-    ? 'أنشئ وعدّل بكجات أولياء الأمور والطلاب التابعين لك، ثم أسندها للحساب المناسب.'
-    : 'أنشئ وعدّل بكجات الطلاب، ثم أسندها لأبنائك فقط.';
+     ? 'أنشئ وعدّل إعدادات صلاحيات أولياء الأمور والطلاب التابعين لك، ثم أسندها للحساب المناسب.'
+     : 'أنشئ وعدّل إعدادات صلاحيات الطلاب، ثم أسندها لأبنائك فقط.';
 
   return (
     <div className="space-y-6 animate-fadeIn" dir="rtl">
@@ -355,10 +367,10 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
           ? 'bg-gradient-to-r from-amber-500 to-orange-500'
           : 'bg-gradient-to-r from-rose-500 to-pink-600'
       }`}>
-        <h1 className="text-2xl font-black">📦 بكجات وصلاحيات الحسابات</h1>
+         <h1 className="text-2xl font-black">🔐 إدارة الصلاحيات</h1>
         <p className="mt-2 font-bold text-white/80">{managerDescription}</p>
         <p className="mt-1 text-sm font-bold text-white/70">
-          سياسة المشرف هي الحد الأعلى، ولا يمكن لأي دور منح صلاحية غير مسموحة بها.
+           سياسة المشرف هي الحد الأعلى، ولا يمكن لأي دور منح صلاحية غير مسموحة بها.
         </p>
       </div>
 
@@ -392,7 +404,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-black text-indigo-900">
-                {editingPackage ? '✏️ تعديل بكجك' : '✨ إنشاء بكج جديد'}
+                {editingPackage ? '✏️ تعديل إعداد الصلاحيات' : '✨ إنشاء إعداد صلاحيات جديد'}
               </h2>
               <p className="mt-1 text-sm font-bold text-slate-500">{roleLabels[editorRole]}</p>
             </div>
@@ -404,14 +416,14 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
             <input
               value={packageName}
               onChange={event => setPackageName(event.target.value)}
-              placeholder="اسم البكج"
+              placeholder="اسم إعداد الصلاحيات"
               className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold outline-none focus:border-indigo-400"
               required
             />
             <input
               value={packageDescription}
               onChange={event => setPackageDescription(event.target.value)}
-              placeholder="وصف البكج (اختياري)"
+              placeholder="وصف إعداد الصلاحيات (اختياري)"
               className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold outline-none focus:border-indigo-400"
             />
           </div>
@@ -445,22 +457,22 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
             </div>
           )}
           <button type="submit" className="mt-5 w-full rounded-xl bg-indigo-600 py-3 font-black text-white hover:bg-indigo-700">
-            💾 حفظ البكج
+            💾 حفظ إعداد الصلاحيات
           </button>
         </form>
       )}
 
       {!canManageTarget(activeTargetRole) && (
         <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 font-bold text-amber-800">
-          🔒 لا توجد لديك صلاحية لإدارة بكجات هذا الدور. اطلب من المشرف تفعيل الصلاحية المناسبة.
+          🔒 لا توجد لديك صلاحية لإدارة الصلاحيات لهذا الدور. اطلب من المشرف تفعيل الصلاحية المناسبة.
         </div>
       )}
 
       <div className="space-y-3">
-        <h2 className="text-xl font-black text-slate-800">البكجات المتاحة — {targetLabels[activeTargetRole]}</h2>
+        <h2 className="text-xl font-black text-slate-800">إعدادات الصلاحيات المتاحة — {targetLabels[activeTargetRole]}</h2>
         {visiblePackages.length === 0 && (
           <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-10 text-center font-bold text-slate-500">
-            لا توجد بكجات لهذا الدور حاليًا.
+            لا توجد إعدادات صلاحيات لهذا الدور حاليًا.
           </div>
         )}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -474,7 +486,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
                     <p className="mt-1 text-sm font-bold text-slate-500">{pkg.description || 'بدون وصف'}</p>
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-black ${isOwner ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {isOwner ? 'بكجي' : 'بكج مشرف'}
+                    {isOwner ? 'إعدادي' : 'إعداد مشرف'}
                   </span>
                 </div>
                 <p className="mt-3 text-xs font-bold text-slate-400">{packagePermissionCount(pkg)} صلاحيات مفعلة</p>
@@ -485,18 +497,37 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
       </div>
 
       <div className="space-y-3">
-        <h2 className="text-xl font-black text-slate-800">إسناد البكجات</h2>
+         <h2 className="text-xl font-black text-slate-800">إسناد إعدادات الصلاحيات</h2>
         {visibleTargets.map(target => {
           const assignedPackageId = target.permissionPackageId || '';
-          const assignedPackage = visiblePackages.find(pkg => pkg.id === assignedPackageId);
+           const assignedPackage = packages.find(pkg => pkg.id === assignedPackageId && pkg.role === activeTargetRole);
+           const effectiveStudentPermissions = activeTargetRole === 'student'
+             ? getStudentPermissions(target as StudentInfo)
+             : null;
+           const activePermissionLabels = effectiveStudentPermissions
+             ? Object.entries(effectiveStudentPermissions)
+               .filter(([, value]) => value === true)
+               .map(([key]) => permissionLabels[key] || key)
+             : [];
           return (
             <div key={target.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-black text-slate-800">{getTargetName(target)}</h3>
                   <p className="mt-1 text-sm font-bold text-slate-500">
-                    {assignedPackage ? `البكج الحالي: ${assignedPackage.name}` : 'يستخدم الصلاحيات العامة'}
+                     {assignedPackage ? `الإعداد الحالي: ${assignedPackage.name}` : 'يستخدم الصلاحيات العامة'}
                   </p>
+                   {effectiveStudentPermissions && (
+                     <div className="mt-2 flex flex-wrap gap-1.5">
+                       {activePermissionLabels.length > 0 ? activePermissionLabels.map(label => (
+                         <span key={label} className="rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-black text-indigo-700">
+                           ✓ {label}
+                         </span>
+                       )) : (
+                         <span className="text-xs font-bold text-slate-400">لا توجد صلاحيات إضافية مفعلة</span>
+                       )}
+                     </div>
+                   )}
                 </div>
                 <select
                   value={assignedPackageId}
@@ -505,7 +536,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
                   className="min-w-64 rounded-xl border-2 border-slate-200 bg-white p-3 font-bold outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-100"
                 >
                   <option value="">الصلاحيات العامة</option>
-                  {visiblePackages.map(pkg => (
+                   {visiblePackages.map(pkg => (
                     <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
                   ))}
                 </select>

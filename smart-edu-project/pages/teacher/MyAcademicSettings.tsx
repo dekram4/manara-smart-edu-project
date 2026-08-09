@@ -60,9 +60,9 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     const denialReason = !permissionDetails.global.canManageAcademicSettings
       ? 'سياسة المشرف العامة لا تسمح بهذه الصلاحية حاليًا.'
       : !permissionDetails.permissionPackage
-        ? 'لا يوجد بكج معلم مرتبط بهذا الحساب، أو أن البكج المرتبط لم يعد موجودًا.'
+        ? 'لا يوجد إعداد إدارة صلاحيات للمعلم مرتبط بهذا الحساب، أو أن الإعداد لم يعد موجودًا.'
         : permissionDetails.permissionPackage.permissions.canManageAcademicSettings === false
-          ? `البكج المرتبط «${permissionDetails.permissionPackage.name}» لا يتضمن هذه الصلاحية.`
+          ? `إعداد الصلاحيات المرتبط «${permissionDetails.permissionPackage.name}» لا يتضمن هذه الصلاحية.`
           : 'تم تعديل الصلاحيات مؤخرًا؛ سجّل الخروج ثم ادخل مرة أخرى لتحديث الحساب.';
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">

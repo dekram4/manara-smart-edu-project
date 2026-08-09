@@ -168,9 +168,11 @@ export const getParentPermissions = () => {
  */
 export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
   const defaults = getPermissions().parent;
-  const packaged = capRolePermissions(
+  const permissionPackage = getPermissionPackage('parent', parent?.permissionPackageId);
+  const packaged = applyPermissionPackage(
     defaults as unknown as Record<string, unknown>,
-    getPermissionPackage('parent', parent?.permissionPackageId)?.permissions as Partial<Record<string, unknown>> | undefined,
+    permissionPackage?.permissions as Partial<Record<string, unknown>> | undefined,
+    !permissionPackage?.ownerRole || permissionPackage.ownerRole === 'admin',
   ) as typeof defaults;
   const custom = parent?.parentPermissions || {};
   const booleanKeys: (keyof Permissions['parent'])[] = [
@@ -181,6 +183,7 @@ export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
     'canViewReports',
     'canChangeGrade',
     'canChatWithSupport',
+    'canCreatePermissionPackages',
   ];
   const effectiveBooleans = booleanKeys.reduce((result, key) => {
     result[key] = custom[key] === undefined
@@ -199,6 +202,9 @@ export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
         : Math.min(packaged.maxStudents, customLimit),
   };
 };
+
+export const getPermissionPackageLabel = (pkg: PermissionPackage | null | undefined) =>
+  pkg ? pkg.name : 'الصلاحيات العامة';
 
 export const isLimitReached = (current: number, limit: number) =>
   limit >= 0 && current >= limit;
@@ -226,8 +232,10 @@ export const getStudentPermissions = (student?: Pick<StudentInfo, 'permissionPac
     }
   })();
   const global = getPermissions().student;
-  return capRolePermissions(
+  const permissionPackage = getPermissionPackage('student', activeStudent?.permissionPackageId);
+  return applyPermissionPackage(
     global as unknown as Record<string, unknown>,
-    getPermissionPackage('student', activeStudent?.permissionPackageId)?.permissions as Partial<Record<string, unknown>> | undefined,
+    permissionPackage?.permissions as Partial<Record<string, unknown>> | undefined,
+    !permissionPackage?.ownerRole || permissionPackage.ownerRole === 'admin',
   ) as typeof global;
 };

@@ -21,3 +21,4 @@
 - [Live teacher permission refresh](live-teacher-permission-refresh.md) — refresh the current teacher record so package changes immediately affect dashboard visibility, especially academic settings.
 - [Delegated package authoring](self-role-package-editing.md) — teachers and parents create packages only for delegated account roles; their own role packages are admin-managed.
 - [Admin package precedence](admin-package-precedence.md) — an admin-owned package explicitly defines the assigned account's effective permissions; legacy global values must not override checked package permissions.
+- [Effective student permissions](effective-student-permissions.md) — parent views must resolve the child's assigned package from the canonical student record, and sensitive student mutations must enforce the effective permission at save time.

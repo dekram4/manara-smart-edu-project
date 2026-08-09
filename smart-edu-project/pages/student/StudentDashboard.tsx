@@ -695,6 +695,15 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const handleSelectContent = () => {
     if (!student) return;
 
+    const currentGrade = student.primaryGrade || student.grade || '';
+    if (!permissions.canChangeGrade && normalizeScopeValue(selectedGrade) !== normalizeScopeValue(currentGrade)) {
+      playLamsaSound('error');
+      alert('❌ ليس لديك صلاحية تغيير الصف');
+      setSelectedGrade(currentGrade);
+      loadAcademicSettings();
+      return;
+    }
+
     if (!selectedAtram || !selectedSubject || !selectedTerm || !selectedUnit) {
       playLamsaSound('error');
       alert('الرجاء اختيار جميع الحقول (الترم، المادة، الفصل، الوحدة)');
@@ -1330,13 +1339,19 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   onChange={e => {
                     soundClick.play();
                     const newGrade = e.target.value;
+                     if (!permissions.canChangeGrade && normalizeScopeValue(newGrade) !== normalizeScopeValue(student?.primaryGrade || student?.grade || '')) {
+                       playLamsaSound('error');
+                       alert('❌ ليس لديك صلاحية تغيير الصف');
+                       return;
+                     }
                     setSelectedGrade(newGrade);
                     setSelectedAtram('');
                     setSelectedSubject('');
                     setSelectedTerm('');
                     setSelectedUnit('');
                   }}
-                  className="w-full p-4 bg-slate-900/90 border-2 border-slate-700 rounded-2xl text-white font-bold text-right outline-none focus:border-amber-400 transition-all"
+                   disabled={!permissions.canChangeGrade}
+                   className="w-full p-4 bg-slate-900/90 border-2 border-slate-700 rounded-2xl text-white font-bold text-right outline-none focus:border-amber-400 transition-all disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option value="">اختر الصف</option>
                   {grades.map((grade, i) => <option key={i} value={grade}>{grade}</option>)}

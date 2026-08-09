@@ -144,7 +144,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: '📚' },
             { id: AdminMenuType.QUIZ_MANAGEMENT, label: 'إدارة الاختبارات', icon: '📝' },
             { id: AdminMenuType.REPORTS, label: 'التقارير', icon: '📋' },
-            { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'بكجات الصلاحيات', icon: '📦' },
+            { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'إدارة الصلاحيات', icon: '🔐' },
             { id: 'VIDEO_NOTIFICATIONS' as AdminMenuType, label: 'إشعارات الفيديو', icon: '📢' },
             { id: AdminMenuType.SYSTEM_SETTINGS, label: 'إعدادات النظام', icon: '⚙️' },
           ].map((item) => (

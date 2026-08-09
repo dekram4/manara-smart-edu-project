@@ -259,7 +259,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
               </div>
 
               <div>
-                <label className="block font-black text-blue-900 mb-2">📦 بكج الصلاحيات</label>
+                <label className="block font-black text-blue-900 mb-2">🔐 إدارة صلاحيات المعلم</label>
                 <select
                   value={formData.permissionPackageId}
                   onChange={e => setFormData({ ...formData, permissionPackageId: e.target.value })}

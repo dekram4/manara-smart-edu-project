@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig, ParentPermissions } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { ensureHashed } from '../../utils/password';
-import { getTeacherPermissions, getParentPermissions, getPermissionPackages, isLimitReached } from '../../permissions';
+import { getTeacherPermissions, getEffectiveParentPermissions, getPermissionPackages, isLimitReached } from '../../permissions';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
@@ -115,6 +115,13 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     }
 
     const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const changingParentPackage = editingParent
+      ? parentForm.permissionPackageId !== (editingParent.permissionPackageId || '')
+      : Boolean(parentForm.permissionPackageId);
+    if (changingParentPackage && !permissions.canCreatePermissionPackages) {
+      alert('⚠️ ليس لديك صلاحية إسناد إدارة الصلاحيات');
+      return;
+    }
 
     if (!editingParent) {
       if (!permissions.canCreateParents) {
@@ -209,6 +216,13 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
     const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
     const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const changingStudentPackage = editingStudent
+      ? studentForm.permissionPackageId !== (editingStudent.permissionPackageId || '')
+      : Boolean(studentForm.permissionPackageId);
+    if (changingStudentPackage && !permissions.canCreatePermissionPackages) {
+      alert('⚠️ ليس لديك صلاحية إسناد إدارة الصلاحيات');
+      return;
+    }
 
     if (!editingStudent) {
       if (!permissions.canCreateStudents) {
@@ -367,7 +381,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       return;
     }
     setPermissionsParent(parent);
-    const globalParentPermissions = getParentPermissions();
+    const globalParentPermissions = getEffectiveParentPermissions(parent);
     setParentPermissionDraft({
       ...globalParentPermissions,
       ...(parent.parentPermissions || {}),
@@ -613,7 +627,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 />
               </div>
                <div>
-                 <label className="block text-sm font-bold text-gray-700 mb-2">📦 بكج صلاحيات ولي الأمر</label>
+                 <label className="block text-sm font-bold text-gray-700 mb-2">🔐 إدارة صلاحيات ولي الأمر</label>
                  <select
                    value={parentForm.permissionPackageId}
                    onChange={(e) => setParentForm({ ...parentForm, permissionPackageId: e.target.value })}
@@ -944,7 +958,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">📦 بكج صلاحيات الطالب</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">🔐 إدارة صلاحيات الطالب</label>
                 <select
                   value={studentForm.permissionPackageId}
                   onChange={(e) => setStudentForm({ ...studentForm, permissionPackageId: e.target.value })}
@@ -993,6 +1007,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 ['canViewReports', 'عرض التقارير'],
                 ['canChangeGrade', 'تغيير الصف'],
                 ['canChatWithSupport', 'الدردشة مع الدعم'],
+                 ['canCreatePermissionPackages', 'إنشاء بكجات صلاحيات'],
               ] as [keyof ParentPermissions, string][]).map(([key, label]) => (
                 <label key={key} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 font-bold text-slate-700">
                   <span>{label}</span>

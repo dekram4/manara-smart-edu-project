@@ -392,6 +392,7 @@ export interface TeacherPermissions {
     canEditParents: boolean; // تعديل أولياء أمور
     canDeleteParents: boolean; // حذف أولياء أمور
     canManageParentPermissions: boolean; // منح صلاحيات مخصصة لولي الأمر
+    canCreatePermissionPackages: boolean; // إنشاء بكجات صلاحيات
     canCreateStudents: boolean; // إنشاء طلاب
     canEditStudents: boolean; // تعديل طلاب
     canDeleteStudents: boolean; // حذف طلاب
@@ -412,6 +413,7 @@ export interface ParentPermissions {
     canViewReports: boolean; // عرض التقارير والإحصائيات
     canChangeGrade: boolean; // تغيير الصف للطالب
     canChatWithSupport: boolean; // التواصل مع الدعم
+    canCreatePermissionPackages: boolean; // إنشاء بكجات صلاحيات
     maxStudents: number; // الحد الأقصى للأبناء، -1 = غير محدود
 }
 
