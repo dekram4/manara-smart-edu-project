@@ -215,11 +215,16 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
           <button onClick={handleReset} style={styles.resetButton}>
             🔄 إعادة تعيين
           </button>
-          {hasChanges && (
-            <button onClick={handleSave} style={styles.saveButton}>
-              💾 حفظ التغييرات
-            </button>
-          )}
+          <button
+            onClick={handleSave}
+            style={{
+              ...styles.saveButton,
+              ...(hasChanges ? {} : styles.saveButtonIdle),
+            }}
+            title={hasChanges ? 'حفظ التعديلات في قاعدة البيانات' : 'لا توجد تعديلات جديدة'}
+          >
+            💾 حفظ التغييرات
+          </button>
         </div>
       </div>
 
@@ -338,6 +343,10 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     transition: 'all 0.3s',
     boxShadow: '0 4px 20px rgba(16, 185, 129, 0.3)',
+  },
+  saveButtonIdle: {
+    backgroundColor: '#94a3b8',
+    boxShadow: 'none',
   },
   infoCard: {
     backgroundColor: '#dbeafe',

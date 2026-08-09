@@ -34,6 +34,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [studentToChangeGrade, setStudentToChangeGrade] = useState<StudentInfo | null>(null);
   const [availableGrades, setAvailableGrades] = useState<string[]>([]);
   const [selectedNewGrade, setSelectedNewGrade] = useState('');
+  const [currentPasswordDraft, setCurrentPasswordDraft] = useState('');
+  const [newPasswordDraft, setNewPasswordDraft] = useState('');
+  const [confirmPasswordDraft, setConfirmPasswordDraft] = useState('');
+  const [passwordSaveError, setPasswordSaveError] = useState('');
 
   const permissions = getEffectiveParentPermissions(parent);
 
@@ -180,6 +184,34 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     localStorage.setItem(STORAGE_KEYS.ACTIVE_PARENT, JSON.stringify(finalParent));
     setNeedsPasswordChange(false);
     loadData();
+  };
+
+  const handleSavePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordSaveError('');
+
+    if (!parent || !passwordsMatch(currentPasswordDraft, parent.password)) {
+      setPasswordSaveError('كلمة المرور الحالية غير صحيحة');
+      return;
+    }
+    if (newPasswordDraft.length < 6) {
+      setPasswordSaveError('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+      return;
+    }
+    if (newPasswordDraft === currentPasswordDraft) {
+      setPasswordSaveError('كلمة المرور الجديدة يجب أن تكون مختلفة عن الحالية');
+      return;
+    }
+    if (newPasswordDraft !== confirmPasswordDraft) {
+      setPasswordSaveError('تأكيد كلمة المرور غير متطابق');
+      return;
+    }
+
+    handleAccountPasswordChange(newPasswordDraft);
+    setCurrentPasswordDraft('');
+    setNewPasswordDraft('');
+    setConfirmPasswordDraft('');
+    alert('✅ تم حفظ تعديلات الحساب بنجاح');
   };
 
   const handleAddChild = (e: React.FormEvent) => {
@@ -1303,14 +1335,41 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <div className="border-b border-rose-100 pb-3"><p className="text-rose-400 text-[10px] font-bold uppercase">الاسم الكامل</p><p className="text-rose-800 font-black text-lg">{parent?.name}</p></div>
               <div className="border-b border-rose-100 pb-3"><p className="text-rose-400 text-[10px] font-bold uppercase">اسم المستخدم</p><p className="text-rose-800 font-black text-lg">{parent?.username}</p></div>
             </div>
-            <button onClick={() => {
-              const p = prompt('كلمة المرور الحالية:');
-              if (passwordsMatch(p || '', parent?.password)) {
-                const np = prompt('كلمة المرور الجديدة:');
-                if (np && np.length >= 6) handleAccountPasswordChange(np);
-                else if (np) alert('كلمة المرور قصيرة جداً');
-              } else if (p) alert('كلمة المرور غير صحيحة');
-            }} className="w-full bg-rose-700 text-white py-3 rounded-xl font-black text-sm hover:bg-black transition-all">🔑 تغيير كلمة المرور</button>
+            <form onSubmit={handleSavePassword} className="space-y-3 text-right border-t border-rose-100 pt-5">
+              <h2 className="text-sm font-black text-rose-800">🔐 تعديل كلمة المرور</h2>
+              <input
+                type="password"
+                value={currentPasswordDraft}
+                onChange={e => setCurrentPasswordDraft(e.target.value)}
+                placeholder="كلمة المرور الحالية"
+                className="w-full p-3 rounded-xl border border-rose-200 bg-rose-50 outline-none focus:border-rose-400 font-bold text-sm"
+                required
+              />
+              <input
+                type="password"
+                value={newPasswordDraft}
+                onChange={e => setNewPasswordDraft(e.target.value)}
+                placeholder="كلمة المرور الجديدة (6 أحرف على الأقل)"
+                className="w-full p-3 rounded-xl border border-rose-200 bg-rose-50 outline-none focus:border-rose-400 font-bold text-sm"
+                required
+              />
+              <input
+                type="password"
+                value={confirmPasswordDraft}
+                onChange={e => setConfirmPasswordDraft(e.target.value)}
+                placeholder="تأكيد كلمة المرور الجديدة"
+                className="w-full p-3 rounded-xl border border-rose-200 bg-rose-50 outline-none focus:border-rose-400 font-bold text-sm"
+                required
+              />
+              {passwordSaveError && (
+                <p className="rounded-xl bg-red-50 p-3 text-center text-xs font-bold text-red-600">
+                  ⚠️ {passwordSaveError}
+                </p>
+              )}
+              <button type="submit" className="w-full bg-rose-700 text-white py-3 rounded-xl font-black text-sm hover:bg-black transition-all">
+                💾 حفظ تعديلات الحساب
+              </button>
+            </form>
           </div>
         )}
       </main>
