@@ -16,11 +16,11 @@ interface EntertainmentGamesProps {
 type GameType = 'embedded' | 'embedded2' | 'embedded3';
 
 const EMBEDDED_GAME_URL =
-  'https://html5.gamedistribution.com/rvvASMiM/d4a3629101574bc39bd8f9d1888ca58e/index.html';
+  '/api/game-embed/d4a3629101574bc39bd8f9d1888ca58e/index.html';
 const EMBEDDED_GAME_2_URL =
-  'https://html5.gamedistribution.com/rvvASMiM/172e0bd0c40442dbae3d4adb42a98433/index.html';
+  '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_3_URL =
-  'https://html5.gamedistribution.com/rvvASMiM/659090e00bfc4650899550d63f8a130d/index.html';
+  '/api/game-embed/659090e00bfc4650899550d63f8a130d/index.html';
 
 // Unity games need same-origin access to load their own assets. Keep popup and
 // top-navigation privileges disabled so provider ads cannot replace Manara.

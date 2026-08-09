@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import { registerSupabaseRoutes } from './supabase-bridge.js';
+import { registerGameEmbedProxy } from './game-embed-proxy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -12,6 +13,7 @@ const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.en
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 registerSupabaseRoutes(app);
+registerGameEmbedProxy(app);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 if (isProduction) {
