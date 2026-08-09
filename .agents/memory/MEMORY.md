@@ -9,3 +9,4 @@
 - [Deleted quiz tombstones](deleted-quiz-tombstones.md) — preserve synced deletion markers so stale devices cannot re-upload removed quizzes.
 - [Deleted video tombstones](deleted-video-tombstones.md) — preserve deleted video IDs across app_kv hydration so old remote videos cannot return.
 - [Permission hierarchy](permission-hierarchy.md) — admin policy is the ceiling; teacher and parent overrides cannot grant more than the role policy.
+- [Permission package propagation](permission-package-propagation.md) — nested teacher screens must receive the active package explicitly so every feature uses the same effective permissions.

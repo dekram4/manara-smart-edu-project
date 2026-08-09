@@ -23,9 +23,10 @@ interface VideoRecord {
 interface VideoManagementProps {
   teacherId: string;
   teacherName: string;
+  permissionPackageId?: string;
 }
 
-const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherName }) => {
+const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherName, permissionPackageId }) => {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [academicConfigs, setAcademicConfigs] = useState<HierarchicalConfig[]>([]);
   const [filters, setFilters] = useState({ grade: '', atram: '', subject: '', term: '', unit: '' });
@@ -134,7 +135,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
     const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
     const all: VideoRecord[] = saved ? JSON.parse(saved) : [];
-    const permissions = getTeacherPermissions();
+    const permissions = getTeacherPermissions({ permissionPackageId });
     const teacherVideos = all.filter(
       video => getRecordTeacherId(video) === normalizeScopeValue(teacherId),
     );
@@ -203,7 +204,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   };
 
   const handleDelete = (id: string) => {
-    if (!getTeacherPermissions().canManageVideos) {
+    if (!getTeacherPermissions({ permissionPackageId }).canManageVideos) {
       alert('⚠️ ليس لديك صلاحية حذف الفيديوهات');
       return;
     }
@@ -257,7 +258,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           <p className="text-amber-500 font-medium mt-1">أضف فيديوهات تعليمية لطلابك</p>
         </div>
         <button
-          disabled={!getTeacherPermissions().canManageVideos}
+          disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos}
           onClick={() => { setShowForm(!showForm); setEditingVideo(null); playLamsaSound('click'); }}
           className="px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -411,8 +412,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                   {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
                 </div>
                 <div className="flex gap-2">
-                   <button disabled={!getTeacherPermissions().canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, grade: video.grade, subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
-                   <button disabled={!getTeacherPermissions().canManageVideos} onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
+                   <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, grade: video.grade, subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
+                   <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
                 </div>
               </div>
             </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig, ParentPermissions } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { ensureHashed } from '../../utils/password';
-import { getTeacherPermissions, getParentPermissions, isLimitReached } from '../../permissions';
+import { getTeacherPermissions, getParentPermissions, getPermissionPackages, isLimitReached } from '../../permissions';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
@@ -10,9 +10,10 @@ import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../ut
 interface ParentStudentManagementProps {
   teacherId: string;
   teacherName: string;
+  permissionPackageId?: string;
 }
 
-const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teacherId, teacherName }) => {
+const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teacherId, teacherName, permissionPackageId }) => {
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [parents, setParents] = useState<ParentInfo[]>([]);
   const [grades, setGrades] = useState<string[]>([]);
@@ -22,6 +23,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const [units, setUnits] = useState<string[]>([]);
   const [hierarchicalConfigs, setHierarchicalConfigs] = useState<HierarchicalConfig[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [parentPackages, setParentPackages] = useState<any[]>([]);
+  const [studentPackages, setStudentPackages] = useState<any[]>([]);
 
   const [showParentForm, setShowParentForm] = useState(false);
   const [showStudentForm, setShowStudentForm] = useState(false);
@@ -31,7 +34,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const [parentPermissionDraft, setParentPermissionDraft] = useState<ParentPermissions | null>(null);
 
   // الحصول على الصلاحيات
-  const permissions = getTeacherPermissions();
+  const permissions = getTeacherPermissions({ permissionPackageId });
   
   const [parentForm, setParentForm] = useState({
     name: '',
@@ -39,6 +42,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     password: DEFAULT_PASSWORD,
     phoneNumber: '',
     nationalId: '',
+    permissionPackageId: '',
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,6 +61,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     primaryGrade: '',
     gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; atram: string; term: string; unit: string }[] }[],
     enrollmentSubject: '',
+    permissionPackageId: '',
   });
 
   useEffect(() => {
@@ -77,6 +82,9 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     
     setParents(teacherParents);
     setStudents(teacherStudents);
+    const packages = getPermissionPackages();
+    setParentPackages(packages.filter(pkg => pkg.role === 'parent'));
+    setStudentPackages(packages.filter(pkg => pkg.role === 'student'));
   };
 
   const loadAcademicSettings = () => {
@@ -164,6 +172,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           phoneNumber: parentForm.phoneNumber,
           nationalId: parentForm.nationalId?.trim() || '',
           password: ensureHashed(parentForm.password || allParents[index].password),
+          permissionPackageId: parentForm.permissionPackageId || allParents[index].permissionPackageId || undefined,
         };
       }
     } else {
@@ -181,6 +190,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         lastLogin: '',
         createdBy: teacherId, // ربط بالمعلم
         createdByName: teacherName,
+        permissionPackageId: parentForm.permissionPackageId || undefined,
       };
       allParents.push(newParent);
     }
@@ -265,6 +275,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           gradeEnrollments: studentForm.gradeEnrollments,
           teacherId,
           createdBy: teacherId,
+          permissionPackageId: studentForm.permissionPackageId || allStudents[index].permissionPackageId || undefined,
         };
         savedStudent = allStudents[index];
       }
@@ -288,6 +299,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         canChangeGrade: false,
         teacherId,
         createdBy: teacherId, // ربط بالمعلم
+        permissionPackageId: studentForm.permissionPackageId || undefined,
       };
       allStudents.push(newStudent);
       savedStudent = newStudent;
@@ -393,6 +405,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       password: DEFAULT_PASSWORD,
       phoneNumber: '',
       nationalId: '',
+      permissionPackageId: '',
     });
     setShowParentForm(false);
     setEditingParent(null);
@@ -411,6 +424,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       primaryGrade: '',
       gradeEnrollments: [],
       enrollmentSubject: '',
+      permissionPackageId: '',
     });
     setShowStudentForm(false);
     setEditingStudent(null);
@@ -598,6 +612,17 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
                 />
               </div>
+               <div>
+                 <label className="block text-sm font-bold text-gray-700 mb-2">📦 بكج صلاحيات ولي الأمر</label>
+                 <select
+                   value={parentForm.permissionPackageId}
+                   onChange={(e) => setParentForm({ ...parentForm, permissionPackageId: e.target.value })}
+                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
+                 >
+                   <option value="">الصلاحيات العامة الحالية</option>
+                   {parentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
+                 </select>
+               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
@@ -657,7 +682,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -715,7 +740,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                     </div>
                     <div className="flex gap-2">
                       {permissions.canEditParents && (
-                        <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '' }); setShowParentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">✏️ تعديل</button>
+                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">✏️ تعديل</button>
                       )}
                       {permissions.canManageParentPermissions && (
                         <button
@@ -768,7 +793,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -917,6 +942,17 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                   placeholder={editingStudent ? 'اتركه فارغاً للإبقاء على الحالية' : 'كلمة المرور الافتراضية'}
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">📦 بكج صلاحيات الطالب</label>
+                <select
+                  value={studentForm.permissionPackageId}
+                  onChange={(e) => setStudentForm({ ...studentForm, permissionPackageId: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
+                >
+                  <option value="">الصلاحيات العامة الحالية</option>
+                  {studentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
+                </select>
               </div>
             </div>
 

@@ -6,6 +6,7 @@ import { ensureHashed } from '../../utils/password';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
+import { getPermissionPackages } from '../../permissions';
 
 interface StudentManagementProps {
   onUpdate: () => void;
@@ -23,6 +24,8 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   const [gradeConfigs, setGradeConfigs] = useState<any[]>([]);
   const [hierarchicalConfigs, setHierarchicalConfigs] = useState<HierarchicalConfig[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [parentPackages, setParentPackages] = useState<any[]>([]);
+  const [studentPackages, setStudentPackages] = useState<any[]>([]);
   
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [showParentForm, setShowParentForm] = useState(false);
@@ -46,6 +49,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     enrollmentTerm: '',
     enrollmentUnit: '',
     canChangeGrade: false,
+    permissionPackageId: '',
   });
 
   const [parentForm, setParentForm] = useState({
@@ -54,6 +58,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     password: DEFAULT_PASSWORD,
     phoneNumber: '',
     teacherId: '',
+    permissionPackageId: '',
   });
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,6 +76,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     setStudents(JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]'));
     setParents(JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]'));
     setTeachers(JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]'));
+    const packages = getPermissionPackages();
+    setParentPackages(packages.filter(pkg => pkg.role === 'parent'));
+    setStudentPackages(packages.filter(pkg => pkg.role === 'student'));
   };
 
   const loadAcademicSettings = () => {
@@ -249,6 +257,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       term: finalGradeEnrollments?.[0]?.enrollments?.[0]?.term || '',
       unit: finalGradeEnrollments?.[0]?.enrollments?.[0]?.unit || '',
       canChangeGrade: studentForm.canChangeGrade,
+      permissionPackageId: studentForm.permissionPackageId || editingStudent?.permissionPackageId || undefined,
       teacherId: studentForm.teacherId || '',
       createdAt: editingStudent?.createdAt || new Date().toISOString(),
       lastActivity: new Date().toISOString(),
@@ -298,6 +307,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       lastLogin: new Date().toISOString(),
       createdBy: parentForm.teacherId || 'admin',
       createdByName: parentForm.teacherId ? teachers.find(t => t.id === parentForm.teacherId)?.name : 'المشرف',
+      permissionPackageId: parentForm.permissionPackageId || editingParent?.permissionPackageId || undefined,
     };
 
     let updatedParents = editingParent ? parents.map(p => p.id === editingParent.id ? parent : p) : [...parents, parent];
@@ -326,13 +336,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       enrollmentTerm: '',
       enrollmentUnit: '',
       canChangeGrade: false 
+      ,permissionPackageId: ''
     });
     setShowStudentForm(false);
     setEditingStudent(null);
   };
 
   const resetParentForm = () => {
-    setParentForm({ name: '', username: '', password: DEFAULT_PASSWORD, phoneNumber: '', teacherId: '' });
+    setParentForm({ name: '', username: '', password: DEFAULT_PASSWORD, phoneNumber: '', teacherId: '', permissionPackageId: '' });
     setShowParentForm(false);
     setEditingParent(null);
   };
@@ -373,7 +384,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   };
 
   const handleEditParent = (p: ParentInfo) => {
-    setParentForm({ name: p.name, username: p.username, password: '', phoneNumber: p.phoneNumber, teacherId: p.createdBy || '' });
+    setParentForm({
+      name: p.name,
+      username: p.username,
+      password: '',
+      phoneNumber: p.phoneNumber,
+      teacherId: p.createdBy || '',
+      permissionPackageId: p.permissionPackageId || '',
+    });
     setEditingParent(p);
     setShowParentForm(true);
     setActiveTab('parents');
@@ -397,6 +415,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       enrollmentTerm: '',
       enrollmentUnit: '',
       canChangeGrade: s.canChangeGrade || false,
+      permissionPackageId: s.permissionPackageId || '',
     });
     setEditingStudent(s);
     setShowStudentForm(true);
@@ -506,6 +525,13 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                     {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
                   </select>
                </div>
+                <div style={styles.formGroup}>
+                   <label style={styles.label}>📦 بكج صلاحيات الطالب</label>
+                   <select value={studentForm.permissionPackageId} onChange={e => setStudentForm({...studentForm, permissionPackageId: e.target.value})} style={styles.select}>
+                     <option value="">الصلاحيات العامة الحالية</option>
+                     {studentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
+                   </select>
+                </div>
             </div>
 
             <div style={styles.formActions}>
@@ -532,6 +558,13 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                     {teachers.map((t) => <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>)}
                   </select>
                </div>
+                <div style={styles.formGroup}>
+                   <label style={styles.label}>📦 بكج صلاحيات ولي الأمر</label>
+                   <select value={parentForm.permissionPackageId} onChange={e => setParentForm({...parentForm, permissionPackageId: e.target.value})} style={styles.select}>
+                     <option value="">الصلاحيات العامة الحالية</option>
+                     {parentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
+                   </select>
+                </div>
              </div>
              <div style={styles.formActions}>
                 <button type="button" onClick={resetParentForm} style={styles.cancelButton}>إلغاء</button>

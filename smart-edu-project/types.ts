@@ -87,6 +87,7 @@ export interface StudentInfo {
   teacherId?: string;
   createdBy?: string;
   createdByName?: string;
+  permissionPackageId?: string;
   quizResults?: QuizResult[]; // نتائج الاختبارات
   // للتوافقية مع الكود القديم
   grade?: string;
@@ -254,6 +255,7 @@ export interface ParentInfo {
   createdBy?: string; // teacher ID who created this parent
   createdByName?: string; // teacher name
   parentPermissions?: Partial<Permissions['parent']>; // صلاحيات مخصصة يمنحها المعلم لولي الأمر
+  permissionPackageId?: string;
 }
 
 export interface ChatMessage {
@@ -368,6 +370,7 @@ export interface TeacherInfo {
   createdBy: string; // المشرف الذي أنشأه
   lastActivity: string;
   mustChangePassword: boolean; // إجبار تغيير كلمة المرور عند أول دخول
+  permissionPackageId?: string;
 }
 
 export interface TeacherStats {
@@ -424,4 +427,16 @@ export interface Permissions {
     canViewSolutions: boolean; // عرض الحلول
     canDownloadCertificates: boolean; // تحميل الشهادات
   };
+}
+
+export type PermissionPackageRole = 'teacher' | 'parent' | 'student';
+
+export interface PermissionPackage {
+  id: string;
+  name: string;
+  description?: string;
+  role: PermissionPackageRole;
+  permissions: TeacherPermissions | ParentPermissions | Permissions['student'];
+  createdAt: string;
+  updatedAt: string;
 }

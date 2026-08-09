@@ -247,17 +247,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       case TeacherMenuType.ACADEMIC_SETTINGS:
         return <MyAcademicSettings />;
       case TeacherMenuType.CONTENT_MANAGEMENT:
-        return <TeacherContentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
+         return <TeacherContentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.QUIZ_MANAGEMENT:
         return <QuizManagement onUpdate={loadDashboardStats} teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
       case TeacherMenuType.ACCOUNT_MANAGEMENT:
-        return <ParentStudentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
+         return <ParentStudentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.REPORTS:
         return <TeacherReports teacherId={currentTeacher.id} />;
       case TeacherMenuType.CERTIFICATES:
         return <TeacherCertificates teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
       case TeacherMenuType.VIDEO_MANAGEMENT:
-        return <VideoManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
+         return <VideoManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.MY_ACCOUNT:
         return <MyAccount teacher={currentTeacher} onUpdate={(updated) => setCurrentTeacher(updated)} />;
       default:
@@ -287,7 +287,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         <nav className="flex-1 space-y-2">
           {Object.values(TeacherMenuType).map((menu) => {
             // فحص الصلاحيات
-            const permissions = getTeacherPermissions();
+            const permissions = getTeacherPermissions(currentTeacher);
             
             // إخفاء الخيارات بناءً على الصلاحيات
             if (menu === TeacherMenuType.ACADEMIC_SETTINGS && !permissions.canManageAcademicSettings) {

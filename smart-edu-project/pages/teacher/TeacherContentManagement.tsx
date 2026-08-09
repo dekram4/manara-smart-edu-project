@@ -1,15 +1,16 @@
 import React from 'react';
 import ContentManagement from '../admin/ContentManagement';
-import { hasTeacherPermission } from '../../permissions';
+import { getTeacherPermissions } from '../../permissions';
 
 interface TeacherContentManagementProps {
   teacherId: string;
   teacherName: string;
+  permissionPackageId?: string;
 }
 
-const TeacherContentManagement: React.FC<TeacherContentManagementProps> = ({ teacherId, teacherName }) => {
+const TeacherContentManagement: React.FC<TeacherContentManagementProps> = ({ teacherId, teacherName, permissionPackageId }) => {
   // فحص الصلاحية
-  const canManageContent = hasTeacherPermission('canManageContent');
+  const canManageContent = getTeacherPermissions({ permissionPackageId }).canManageContent;
 
   if (!canManageContent) {
     return (
@@ -26,7 +27,7 @@ const TeacherContentManagement: React.FC<TeacherContentManagementProps> = ({ tea
   }
 
   // استخدام نفس مكون ContentManagement مع تمرير معلومات المعلم
-  return <ContentManagement onUpdate={() => {}} teacherId={teacherId} teacherName={teacherName} />;
+  return <ContentManagement onUpdate={() => {}} teacherId={teacherId} teacherName={teacherName} permissionPackageId={permissionPackageId} />;
 };
 
 const styles: Record<string, React.CSSProperties> = {

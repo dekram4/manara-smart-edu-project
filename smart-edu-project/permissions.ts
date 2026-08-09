@@ -1,9 +1,49 @@
-import { ParentInfo, Permissions } from './types';
+import { ParentInfo, PermissionPackage, PermissionPackageRole, Permissions, StudentInfo, TeacherInfo } from './types';
 import { STORAGE_KEYS, DEFAULT_PERMISSIONS } from './constants';
 
 const numericLimit = (value: unknown, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(-1, Math.floor(parsed)) : fallback;
+};
+
+export const getPermissionPackages = (): PermissionPackage[] => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.PERMISSION_PACKAGES) || '[]');
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+};
+
+export const getPermissionPackage = (
+  role: PermissionPackageRole,
+  packageId?: string,
+): PermissionPackage | null => {
+  if (!packageId) return null;
+  return getPermissionPackages().find(pkg => pkg.id === packageId && pkg.role === role) || null;
+};
+
+const capRolePermissions = <T extends Record<string, unknown>>(global: T, packagePermissions?: Partial<T>): T => {
+  if (!packagePermissions) return global;
+  const result = { ...global };
+  Object.keys(global).forEach(key => {
+    const globalValue = global[key];
+    const packageValue = packagePermissions[key];
+    if (typeof globalValue === 'boolean') {
+      result[key] = (globalValue && packageValue !== false) as T[Extract<keyof T, string>];
+    } else if (typeof globalValue === 'number') {
+      const globalLimit = numericLimit(globalValue, -1);
+      const packageLimit = numericLimit(packageValue, globalLimit);
+      result[key] = (
+        globalLimit < 0
+          ? packageLimit
+          : packageLimit < 0
+            ? globalLimit
+            : Math.min(globalLimit, packageLimit)
+      ) as T[Extract<keyof T, string>];
+    }
+  });
+  return result;
 };
 
 const mergePermissions = (saved: Partial<Permissions> | null): Permissions => ({
@@ -66,8 +106,19 @@ export const hasStudentPermission = (permission: keyof Permissions['student']): 
 /**
  * الحصول على جميع صلاحيات المعلم
  */
-export const getTeacherPermissions = () => {
-  return getPermissions().teacher;
+export const getTeacherPermissions = (teacher?: Pick<TeacherInfo, 'permissionPackageId'> | null) => {
+  const activeTeacher = teacher || (() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || 'null') as TeacherInfo | null;
+    } catch {
+      return null;
+    }
+  })();
+  const global = getPermissions().teacher;
+  return capRolePermissions(
+    global as unknown as Record<string, unknown>,
+    getPermissionPackage('teacher', activeTeacher?.permissionPackageId)?.permissions as Partial<Record<string, unknown>> | undefined,
+  ) as typeof global;
 };
 
 /**
@@ -82,6 +133,10 @@ export const getParentPermissions = () => {
  */
 export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
   const defaults = getPermissions().parent;
+  const packaged = capRolePermissions(
+    defaults as unknown as Record<string, unknown>,
+    getPermissionPackage('parent', parent?.permissionPackageId)?.permissions as Partial<Record<string, unknown>> | undefined,
+  ) as typeof defaults;
   const custom = parent?.parentPermissions || {};
   const booleanKeys: (keyof Permissions['parent'])[] = [
     'canCreateStudents',
@@ -94,19 +149,19 @@ export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
   ];
   const effectiveBooleans = booleanKeys.reduce((result, key) => {
     result[key] = custom[key] === undefined
-      ? defaults[key]
-      : Boolean(defaults[key]) && Boolean(custom[key]);
+      ? packaged[key]
+      : Boolean(packaged[key]) && Boolean(custom[key]);
     return result;
   }, {} as Pick<Permissions['parent'], typeof booleanKeys[number]>);
-  const customLimit = numericLimit(custom.maxStudents, defaults.maxStudents);
+  const customLimit = numericLimit(custom.maxStudents, packaged.maxStudents);
   return {
-    ...defaults,
+    ...packaged,
     ...effectiveBooleans,
-    maxStudents: defaults.maxStudents < 0
+    maxStudents: packaged.maxStudents < 0
       ? customLimit
       : customLimit < 0
-        ? defaults.maxStudents
-        : Math.min(defaults.maxStudents, customLimit),
+        ? packaged.maxStudents
+        : Math.min(packaged.maxStudents, customLimit),
   };
 };
 
@@ -127,6 +182,17 @@ export const getTeacherVideoUsageMb = (videos: unknown[]) =>
 /**
  * الحصول على جميع صلاحيات الطالب
  */
-export const getStudentPermissions = () => {
-  return getPermissions().student;
+export const getStudentPermissions = (student?: Pick<StudentInfo, 'permissionPackageId'> | null) => {
+  const activeStudent = student || (() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null') as StudentInfo | null;
+    } catch {
+      return null;
+    }
+  })();
+  const global = getPermissions().student;
+  return capRolePermissions(
+    global as unknown as Record<string, unknown>,
+    getPermissionPackage('student', activeStudent?.permissionPackageId)?.permissions as Partial<Record<string, unknown>> | undefined,
+  ) as typeof global;
 };

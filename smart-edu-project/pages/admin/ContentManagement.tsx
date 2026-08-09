@@ -9,9 +9,10 @@ interface ContentManagementProps {
   onUpdate: () => void;
   teacherId?: string;
   teacherName?: string;
+  permissionPackageId?: string;
 }
 
-const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacherId, teacherName }) => {
+const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacherId, teacherName, permissionPackageId }) => {
   const [lessons, setLessons] = useState<LessonConfig[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingLesson, setEditingLesson] = useState<LessonConfig | null>(null);
@@ -122,7 +123,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (teacherId && !getTeacherPermissions().canManageContent) {
+    if (teacherId && !getTeacherPermissions({ permissionPackageId }).canManageContent) {
       alert('⚠️ ليس لديك صلاحية إدارة المحتوى التعليمي');
       return;
     }
@@ -161,7 +162,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]',
     );
     if (teacherId && !editingLesson) {
-      const permissions = getTeacherPermissions();
+      const permissions = getTeacherPermissions({ permissionPackageId });
       const teacherLessonCount = allLessons.filter(
         lesson => getRecordTeacherId(lesson) === normalizeScopeValue(teacherId),
       ).length;

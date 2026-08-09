@@ -4,6 +4,7 @@ import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, ensureHashed } from '../../utils/password';
 import { normalizeScopeValue } from '../../utils/scope';
+import { getPermissionPackages } from '../../permissions';
 
 interface TeacherManagementProps {
   onUpdate: () => void;
@@ -13,12 +14,14 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   const [teachers, setTeachers] = useState<TeacherInfo[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<TeacherInfo | null>(null);
+  const [teacherPackages, setTeacherPackages] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     username: '',
     password: DEFAULT_PASSWORD,
     teacherId: '',
-    subject: ''
+    subject: '',
+    permissionPackageId: ''
   });
 
   useEffect(() => {
@@ -28,6 +31,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   const loadTeachers = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.TEACHERS);
     if (saved) setTeachers(JSON.parse(saved));
+    setTeacherPackages(getPermissionPackages().filter(pkg => pkg.role === 'teacher'));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -86,6 +90,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       createdBy: 'admin',
       lastActivity: new Date().toISOString(),
       mustChangePassword: !editingTeacher // يجب تغيير كلمة المرور عند أول دخول
+      ,permissionPackageId: formData.permissionPackageId || editingTeacher?.permissionPackageId || undefined
     };
 
     let updated;
@@ -111,6 +116,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       password: '',
       teacherId: teacher.teacherId,
       subject: teacher.subject || ''
+      ,permissionPackageId: teacher.permissionPackageId || ''
     });
     setShowForm(true);
   };
@@ -139,6 +145,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       password: DEFAULT_PASSWORD,
       teacherId: '',
       subject: ''
+      ,permissionPackageId: ''
     });
   };
 
@@ -248,6 +255,20 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
                   className="w-full p-4 border-2 border-blue-300 rounded-2xl outline-none focus:border-blue-600 bg-white font-bold text-lg"
                   placeholder="الرياضيات، العلوم، إلخ... (اختياري)"
                 />
+              </div>
+
+              <div>
+                <label className="block font-black text-blue-900 mb-2">📦 بكج الصلاحيات</label>
+                <select
+                  value={formData.permissionPackageId}
+                  onChange={e => setFormData({ ...formData, permissionPackageId: e.target.value })}
+                  className="w-full p-4 border-2 border-blue-300 rounded-2xl outline-none focus:border-blue-600 bg-white font-bold text-lg"
+                >
+                  <option value="">الصلاحيات العامة الحالية</option>
+                  {teacherPackages.map(pkg => (
+                    <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

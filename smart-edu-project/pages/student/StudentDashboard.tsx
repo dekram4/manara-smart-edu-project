@@ -297,7 +297,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [solutionText, setSolutionText] = useState('');
   const [isSolving, setIsSolving] = useState(false);
 
-  const permissions = getStudentPermissions();
+  const permissions = getStudentPermissions(student);
 
   const [grades, setGrades] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);

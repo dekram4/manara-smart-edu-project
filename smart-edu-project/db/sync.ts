@@ -38,6 +38,7 @@ const KV_KEYS = [
   'smartEdu_gradeConfigs',
   'smartEdu_adminSettings',
   'smartEdu_permissions',
+  'smartEdu_permissionPackages',
   'smartEdu_reports',
   // Shared collections that were historically kept only in browser storage.
   'smartEdu_quizQuestions',
