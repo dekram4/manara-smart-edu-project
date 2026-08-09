@@ -22,10 +22,10 @@ const EMBEDDED_GAME_2_URL =
 const EMBEDDED_GAME_3_URL =
   'https://html5.gamedistribution.com/rvvASMiM/659090e00bfc4650899550d63f8a130d/index.html';
 
-// Keep the game inside Manara. Do not grant same-origin, popup, or top-navigation
-// privileges: provider ads may otherwise replace the page with an external Play URL.
+// Unity games need same-origin access to load their own assets. Keep popup and
+// top-navigation privileges disabled so provider ads cannot replace Manara.
 const GAME_FRAME_SANDBOX =
-  'allow-scripts allow-pointer-lock allow-orientation-lock';
+  'allow-scripts allow-same-origin allow-pointer-lock allow-orientation-lock';
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
