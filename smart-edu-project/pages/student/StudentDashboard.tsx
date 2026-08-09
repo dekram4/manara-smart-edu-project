@@ -339,36 +339,37 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       refreshGamification();
       syncGamificationToStudent(active);
 
-      let primaryGrade = active.primaryGrade || active.grade;
+       let primaryGrade = active.grade || active.primaryGrade;
       if (!primaryGrade && active.gradeEnrollments && active.gradeEnrollments.length > 0) {
         primaryGrade = active.gradeEnrollments[0].grade;
       }
       setSelectedGrade(primaryGrade || '');
 
-      let hasCompleteSelection = false;
+       let savedAtram = active.atram || '';
+       let savedSubject = active.subject || '';
+       let savedTerm = active.term || '';
+       let savedUnit = active.unit || '';
 
       if (active.gradeEnrollments && active.gradeEnrollments.length > 0) {
         const primaryGradeEnrollments = active.gradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(primaryGrade));
         const enrollSource = primaryGradeEnrollments || active.gradeEnrollments[0];
         if (enrollSource.enrollments.length > 0) {
           const firstEnroll = enrollSource.enrollments[0];
-          setSelectedSubject(firstEnroll.subject);
-          setSelectedAtram(firstEnroll.atram);
-          setSelectedTerm(firstEnroll.term);
-          setSelectedUnit(firstEnroll.unit);
-          hasCompleteSelection = !!(firstEnroll.atram && firstEnroll.subject && firstEnroll.term && firstEnroll.unit);
+           savedSubject = savedSubject || firstEnroll.subject || '';
+           savedAtram = savedAtram || firstEnroll.atram || '';
+           savedTerm = savedTerm || firstEnroll.term || '';
+           savedUnit = savedUnit || firstEnroll.unit || '';
         }
-      } else {
-        setSelectedSubject(active.subject);
-        setSelectedAtram(active.atram);
-        setSelectedTerm(active.term);
-        setSelectedUnit(active.unit);
-        hasCompleteSelection = !!(active.atram && active.subject && active.term && active.unit);
       }
 
-      setSelectedPath(false);
-      setShowSelectionPanel(true);
-      setShowModuleCards(false);
+       const hasCompleteSelection = !!(savedAtram && savedSubject && savedTerm && savedUnit);
+       setSelectedSubject(savedSubject);
+       setSelectedAtram(savedAtram);
+       setSelectedTerm(savedTerm);
+       setSelectedUnit(savedUnit);
+       setSelectedPath(hasCompleteSelection);
+       setShowSelectionPanel(!hasCompleteSelection);
+       setShowModuleCards(hasCompleteSelection);
       setActiveModule(null);
       matchContent(active);
     }
@@ -565,7 +566,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const gradesList = hierarchicalConfigs.map((c: any) => c.grade).filter(Boolean);
     setGrades(gradesList);
 
-    if (student?.gradeEnrollments && student.gradeEnrollments.length > 0) {
+     if (student?.gradeEnrollments && student.gradeEnrollments.length > 0) {
       const studentGrades = student.gradeEnrollments.map((g: any) => g.grade).filter(Boolean);
       setGrades(studentGrades);
 
@@ -581,16 +582,22 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         const uniqueSubjects = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.subject).filter(Boolean)));
         const uniqueTerms = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.term).filter(Boolean)));
         const uniqueUnits = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.unit).filter(Boolean)));
+         const savedSelectionIsForGrade =
+           normalizeScopeValue(student.grade || student.primaryGrade || '') === normalizeScopeValue(selectedGradeValue);
+         const savedAtram = savedSelectionIsForGrade ? student.atram : '';
+         const savedSubject = savedSelectionIsForGrade ? student.subject : '';
+         const savedTerm = savedSelectionIsForGrade ? student.term : '';
+         const savedUnit = savedSelectionIsForGrade ? student.unit : '';
 
         setAtrams(uniqueAtrams);
         setSubjects(uniqueSubjects);
         setTerms(uniqueTerms);
         setUnits(uniqueUnits);
 
-        setSelectedAtram(firstEnroll?.atram || '');
-        setSelectedSubject(firstEnroll?.subject || '');
-        setSelectedTerm(firstEnroll?.term || '');
-        setSelectedUnit(firstEnroll?.unit || '');
+         setSelectedAtram(uniqueAtrams.includes(savedAtram || '') ? savedAtram : (firstEnroll?.atram || ''));
+         setSelectedSubject(uniqueSubjects.includes(savedSubject || '') ? savedSubject : (firstEnroll?.subject || ''));
+         setSelectedTerm(uniqueTerms.includes(savedTerm || '') ? savedTerm : (firstEnroll?.term || ''));
+         setSelectedUnit(uniqueUnits.includes(savedUnit || '') ? savedUnit : (firstEnroll?.unit || ''));
       }
       return;
     }
