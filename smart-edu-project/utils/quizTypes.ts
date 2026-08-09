@@ -49,6 +49,8 @@ export const normalizeCreatedQuiz = (quiz: CreatedQuiz): CreatedQuiz => ({
   questionsPerAttempt: Number.isFinite(Number(quiz.questionsPerAttempt))
     ? Number(quiz.questionsPerAttempt)
     : quiz.questionCount,
+  deleted: quiz.deleted === true,
+  deletedAt: quiz.deletedAt,
   questions: (quiz.questions || []).map((question) => ({
     ...normalizeQuizQuestion(question),
     quizId: question.quizId || quiz.id,

@@ -247,9 +247,10 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     const saved = localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES);
     if (!saved) return;
     const all = JSON.parse(saved).map(normalizeCreatedQuiz);
-    const visible = teacherId
+    const visible = (teacherId
       ? all.filter((quiz: CreatedQuiz) => getRecordTeacherId(quiz) === normalizeScopeValue(teacherId))
-      : all;
+      : all
+    ).filter((quiz: CreatedQuiz) => !quiz.deleted);
     setCreatedQuizzes(visible);
     if (JSON.stringify(all) !== saved) {
       localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(all));
@@ -434,7 +435,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   const getSavedQuizzes = (): CreatedQuiz[] => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]')
-        .map(normalizeCreatedQuiz);
+        .map(normalizeCreatedQuiz)
+        .filter((quiz: CreatedQuiz) => !quiz.deleted);
     } catch {
       return [];
     }
@@ -840,9 +842,19 @@ ${contentSummary}
     const allSaved: CreatedQuiz[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
     ).map(normalizeCreatedQuiz);
-    const updated = allSaved.filter(q => q.id !== id);
+    // Keep a synced tombstone instead of physically removing the row. A
+    // different device may still have the old quiz locally; the tombstone
+    // prevents hydration from uploading that stale record again.
+    const updated = allSaved.map(q =>
+      q.id === id
+        ? { ...q, deleted: true, deletedAt: new Date().toISOString(), isActive: false }
+        : q,
+    );
     localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(updated));
-    setCreatedQuizzes(updated.filter(q => !teacherId || getRecordTeacherId(q) === normalizeScopeValue(teacherId)));
+    setCreatedQuizzes(updated.filter(q =>
+      !q.deleted &&
+      (!teacherId || getRecordTeacherId(q) === normalizeScopeValue(teacherId)),
+    ));
   };
 
   const toggleActive = (id: string) => {

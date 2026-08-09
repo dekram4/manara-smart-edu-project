@@ -768,7 +768,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unit: selectedUnit,
     };
     const scopedCreatedQuizzes = filterTeacherOwnedRecords(createdQuizzes, student)
-      .filter(quiz => quiz.isActive && normalizeQuizType(quiz.quizType) === type)
+      .filter(quiz => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === type)
       .filter(quiz => !requestedQuizId || quiz.id === requestedQuizId)
       .filter(quiz => matchesAcademicScope(quiz, academicPath));
     const selectedCreatedQuiz = scopedCreatedQuizzes.find((quiz) => quiz.id === requestedQuizId)
@@ -870,7 +870,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           .map(normalizeCreatedQuiz),
         student,
       )
-        .filter((quiz) => quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.PERIODIC)
+        .filter((quiz) => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.PERIODIC)
         .filter((quiz) => matchesAcademicScope(quiz, academicPath))
         .sort((a, b) => (a.periodicNumber || 999) - (b.periodicNumber || 999));
     } catch {
@@ -892,7 +892,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
       ).map(normalizeCreatedQuiz);
       return filterTeacherOwnedRecords(createdQuizzes, student)
-        .filter((quiz) => quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
+        .filter((quiz) => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
         .filter((quiz) => matchesAcademicScope(quiz, academicPath));
     } catch {
       return [];

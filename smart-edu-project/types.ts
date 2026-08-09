@@ -205,6 +205,9 @@ export interface CreatedQuiz {
   periodicNumber?: number;
   /** Number of questions shown to one student from the question bank. */
   questionsPerAttempt?: number;
+  /** Tombstone used to keep a deleted quiz from returning during sync. */
+  deleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   createdBy: string;
   createdByName?: string;
