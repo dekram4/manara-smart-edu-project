@@ -19,8 +19,11 @@ export const getPermissionPackage = (
   role: PermissionPackageRole,
   packageId?: string,
 ): PermissionPackage | null => {
-  if (!packageId) return null;
-  return getPermissionPackages().find(pkg => pkg.id === packageId && pkg.role === role) || null;
+  const normalizedPackageId = String(packageId ?? '').trim();
+  if (!normalizedPackageId) return null;
+  return getPermissionPackages().find(pkg =>
+    String(pkg.id ?? '').trim() === normalizedPackageId && pkg.role === role,
+  ) || null;
 };
 
 const capRolePermissions = <T extends Record<string, unknown>>(global: T, packagePermissions?: Partial<T>): T => {
@@ -41,6 +44,29 @@ const capRolePermissions = <T extends Record<string, unknown>>(global: T, packag
             ? globalLimit
             : Math.min(globalLimit, packageLimit)
       ) as T[Extract<keyof T, string>];
+    }
+  });
+  return result;
+};
+
+/**
+ * Admin-owned packages are the explicit policy chosen by the administrator.
+ * Legacy global permissions still provide values for fields omitted by an old
+ * package, while a checked admin-package permission must not be blocked by a
+ * stale hidden global setting.
+ */
+const applyPermissionPackage = <T extends Record<string, unknown>>(
+  global: T,
+  packageValue: Partial<T> | undefined,
+  isAdminOwned: boolean,
+): T => {
+  if (!packageValue) return global;
+  if (!isAdminOwned) return capRolePermissions(global, packageValue);
+
+  const result = { ...global };
+  Object.keys(global).forEach(key => {
+    if (packageValue[key] !== undefined) {
+      result[key] = packageValue[key] as T[Extract<keyof T, string>];
     }
   });
   return result;
@@ -107,6 +133,12 @@ export const hasStudentPermission = (permission: keyof Permissions['student']): 
  * الحصول على جميع صلاحيات المعلم
  */
 export const getTeacherPermissions = (teacher?: Pick<TeacherInfo, 'permissionPackageId'> | null) => {
+  return getTeacherPermissionDetails(teacher).effective;
+};
+
+export const getTeacherPermissionDetails = (
+  teacher?: Pick<TeacherInfo, 'permissionPackageId'> | null,
+) => {
   const activeTeacher = teacher || (() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || 'null') as TeacherInfo | null;
@@ -115,10 +147,13 @@ export const getTeacherPermissions = (teacher?: Pick<TeacherInfo, 'permissionPac
     }
   })();
   const global = getPermissions().teacher;
-  return capRolePermissions(
+  const permissionPackage = getPermissionPackage('teacher', activeTeacher?.permissionPackageId);
+  const effective = applyPermissionPackage(
     global as unknown as Record<string, unknown>,
-    getPermissionPackage('teacher', activeTeacher?.permissionPackageId)?.permissions as Partial<Record<string, unknown>> | undefined,
+    permissionPackage?.permissions as Partial<Record<string, unknown>> | undefined,
+    !permissionPackage?.ownerRole || permissionPackage.ownerRole === 'admin',
   ) as typeof global;
+  return { global, permissionPackage, effective };
 };
 
 /**

@@ -20,3 +20,4 @@
 - [Role-scoped permission packages](role-scoped-permission-packages.md) — teachers assign existing parent/student packages to owned accounts; parents assign student packages only to their children.
 - [Live teacher permission refresh](live-teacher-permission-refresh.md) — refresh the current teacher record so package changes immediately affect dashboard visibility, especially academic settings.
 - [Delegated package authoring](self-role-package-editing.md) — teachers and parents create packages only for delegated account roles; their own role packages are admin-managed.
+- [Admin package precedence](admin-package-precedence.md) — an admin-owned package explicitly defines the assigned account's effective permissions; legacy global values must not override checked package permissions.

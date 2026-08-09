@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig, TeacherInfo } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
-import { getTeacherPermissions } from '../../permissions';
+import { getTeacherPermissionDetails } from '../../permissions';
 
 interface MyAcademicSettingsProps {
   teacher?: TeacherInfo | null;
@@ -53,15 +53,25 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       return fallback;
     }
   })();
-  const canManageAcademicSettings = getTeacherPermissions(resolvedTeacher).canManageAcademicSettings;
+  const permissionDetails = getTeacherPermissionDetails(resolvedTeacher);
+  const canManageAcademicSettings = permissionDetails.effective.canManageAcademicSettings;
 
   if (!canManageAcademicSettings) {
+    const denialReason = !permissionDetails.global.canManageAcademicSettings
+      ? 'سياسة المشرف العامة لا تسمح بهذه الصلاحية حاليًا.'
+      : !permissionDetails.permissionPackage
+        ? 'لا يوجد بكج معلم مرتبط بهذا الحساب، أو أن البكج المرتبط لم يعد موجودًا.'
+        : permissionDetails.permissionPackage.permissions.canManageAcademicSettings === false
+          ? `البكج المرتبط «${permissionDetails.permissionPackage.name}» لا يتضمن هذه الصلاحية.`
+          : 'تم تعديل الصلاحيات مؤخرًا؛ سجّل الخروج ثم ادخل مرة أخرى لتحديث الحساب.';
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
         <div className="text-7xl opacity-50">🔒</div>
         <h2 className="mt-5 text-3xl font-black text-slate-800">لا توجد صلاحية</h2>
         <p className="mt-3 max-w-xl font-bold leading-8 text-slate-500">
-          لا يملك هذا المعلم صلاحية إدارة الإعدادات الأكاديمية ضمن الصلاحيات العامة أو البكج المرتبط بحسابه.
+          لا يملك هذا المعلم صلاحية إدارة الإعدادات الأكاديمية.
+          <br />
+          {denialReason}
         </p>
       </div>
     );
