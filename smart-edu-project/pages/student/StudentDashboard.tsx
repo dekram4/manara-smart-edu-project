@@ -1685,17 +1685,15 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
               <GameModeCard
                 title="عالم الترفيه والألعاب"
-                subtitle={`اللعبة الأولى في المستوى 1 • الثانية في المستوى 2 • الثالثة في المستوى 3`}
+                subtitle={`اللعبة الأولى في المستوى 1 • اللعبة الثانية في المستوى 2`}
                 icon="🎮"
                 color="bg-gradient-to-br from-violet-500 to-purple-800 border-purple-950"
                 badge={
-                  level >= 3
-                    ? '3 ألعاب مفتوحة!'
-                    : level >= 2
-                      ? 'لعبتان مفتوحتان'
-                      : level >= 1
-                        ? 'اللعبة الأولى مفتوحة'
-                        : 'تُفتح في المستوى 1'
+                  level >= 2
+                    ? 'لعبتان مفتوحتان'
+                    : level >= 1
+                      ? 'اللعبة الأولى مفتوحة'
+                      : 'تُفتح في المستوى 1'
                 }
                 onClick={() => {
                   openModule(StudentModuleType.ENTERTAINMENT);

@@ -31,3 +31,4 @@ write-through sync layer to Supabase. Passwords are hashed with SHA-256
 
 ## User preferences
 - Communicate in Arabic.
+- In the entertainment section, include only games whose embedded iframe links the user has provided; do not add built-in or suggested games.
