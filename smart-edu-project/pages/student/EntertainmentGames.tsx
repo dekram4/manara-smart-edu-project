@@ -22,6 +22,9 @@ const EMBEDDED_GAME_2_URL =
 const EMBEDDED_GAME_3_URL =
   'https://html5.gamedistribution.com/rvvASMiM/659090e00bfc4650899550d63f8a130d/index.html';
 
+const GAME_FRAME_SANDBOX =
+  'allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-orientation-lock allow-modals';
+
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
   const [gameLoading, setGameLoading] = useState(false);
@@ -163,8 +166,10 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               title="اللعبة الأولى"
               className="h-full w-full border-0"
               scrolling="no"
+              sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
               loading="eager"
               onLoad={() => setGameLoading(false)}
             />
@@ -196,8 +201,10 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               title="اللعبة الثانية"
               className="h-full w-full border-0"
               scrolling="no"
+              sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
               loading="eager"
               onLoad={() => setGameLoading(false)}
             />
@@ -229,8 +236,10 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               title="اللعبة الثالثة"
               className="h-full w-full border-0"
               scrolling="no"
+              sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
               loading="eager"
               onLoad={() => setGameLoading(false)}
             />
