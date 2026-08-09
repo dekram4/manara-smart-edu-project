@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, COLORS } from '../../constants';
-import { HierarchicalConfig } from '../../types';
+import { HierarchicalConfig, TeacherInfo } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
+import { getTeacherPermissions } from '../../permissions';
 
-const MyAcademicSettings: React.FC = () => {
+interface MyAcademicSettingsProps {
+  teacher?: TeacherInfo | null;
+}
+
+const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teacherProp }) => {
   const [teacherId, setTeacherId] = useState('');
   const [teacherName, setTeacherName] = useState('');
   const [activeTab, setActiveTab] = useState<'my' | 'general'>('my');
@@ -28,11 +33,25 @@ const MyAcademicSettings: React.FC = () => {
   const [newUnit, setNewUnit] = useState('');
 
   useEffect(() => {
-    const teacher = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || '{}');
+    const teacher = teacherProp || JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || '{}');
     setTeacherId(teacher.id || '');
     setTeacherName(teacher.name || '');
     loadSettings(teacher.id);
-  }, []);
+  }, [teacherProp?.id, teacherProp?.name]);
+
+  const canManageAcademicSettings = getTeacherPermissions(teacherProp).canManageAcademicSettings;
+
+  if (!canManageAcademicSettings) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
+        <div className="text-7xl opacity-50">🔒</div>
+        <h2 className="mt-5 text-3xl font-black text-slate-800">لا توجد صلاحية</h2>
+        <p className="mt-3 max-w-xl font-bold leading-8 text-slate-500">
+          لا يملك هذا المعلم صلاحية إدارة الإعدادات الأكاديمية ضمن الصلاحيات العامة أو البكج المرتبط بحسابه.
+        </p>
+      </div>
+    );
+  }
 
   const loadSettings = (tId: string) => {
     if (!tId) return;

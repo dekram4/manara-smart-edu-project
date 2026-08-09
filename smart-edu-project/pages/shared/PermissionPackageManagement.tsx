@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ParentInfo, PermissionPackage, StudentInfo } from '../../types';
-import { STORAGE_KEYS } from '../../constants';
+import { ParentInfo, PermissionPackage, PermissionPackageRole, StudentInfo } from '../../types';
+import { DEFAULT_PERMISSIONS, STORAGE_KEYS } from '../../constants';
 import {
   getEffectiveParentPermissions,
   getPermissionPackages,
+  getPermissions,
   getTeacherPermissions,
 } from '../../permissions';
 import {
@@ -14,6 +15,7 @@ import {
 
 type ManagerRole = 'teacher' | 'parent';
 type TargetRole = 'parent' | 'student';
+type PackageDraft = Record<string, boolean | number>;
 
 interface PermissionPackageManagementProps {
   managerRole: ManagerRole;
@@ -28,10 +30,68 @@ const targetLabels: Record<TargetRole, string> = {
   student: 'الطلاب',
 };
 
+const roleLabels: Record<PermissionPackageRole, string> = {
+  teacher: 'بكج معلم',
+  parent: 'بكج ولي أمر',
+  student: 'بكج طالب',
+};
+
+const permissionLabels: Record<string, string> = {
+  canManageAcademicSettings: 'إدارة الإعدادات الأكاديمية',
+  canEditGeneralSettings: 'تعديل الإعدادات العامة',
+  canManageContent: 'إدارة المحتوى',
+  canManageVideos: 'إدارة الفيديوهات',
+  canCreateParents: 'إنشاء أولياء أمور',
+  canEditParents: 'تعديل أولياء أمور',
+  canDeleteParents: 'حذف أولياء أمور',
+  canManageParentPermissions: 'إدارة صلاحيات أولياء الأمور',
+  canCreateStudents: 'إنشاء طلاب/أبناء',
+  canEditStudents: 'تعديل الطلاب/الأبناء',
+  canDeleteStudents: 'حذف الطلاب/الأبناء',
+  canViewReports: 'عرض التقارير',
+  canManageQuizzes: 'إدارة الاختبارات',
+  canResetStudentPassword: 'إعادة تعيين كلمة مرور الأبناء',
+  canChangeGrade: 'تغيير الصف',
+  canChatWithSupport: 'الدردشة مع الدعم',
+  canAccessChat: 'الوصول للدردشة',
+  canAccessLiveMeeting: 'الوصول للقاءات المباشرة',
+  canRetakeQuiz: 'إعادة الاختبار',
+  canViewSolutions: 'عرض الحلول',
+  canDownloadCertificates: 'تحميل الشهادات',
+};
+
+const limitLabels: Record<string, string> = {
+  maxParents: 'الحد الأقصى لأولياء الأمور',
+  maxStudents: 'الحد الأقصى للطلاب/الأبناء',
+  maxContent: 'الحد الأقصى للمحتوى',
+  maxVideos: 'الحد الأقصى للفيديوهات',
+  maxStorageMb: 'مساحة الفيديوهات بالميجابايت',
+};
+
+const roleLimitKeys: Record<PermissionPackageRole, string[]> = {
+  teacher: ['maxParents', 'maxStudents', 'maxContent', 'maxVideos', 'maxStorageMb'],
+  parent: ['maxStudents'],
+  student: [],
+};
+
+const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
 const packagePermissionCount = (pkg: PermissionPackage) =>
   Object.values(pkg.permissions as Record<string, unknown>).filter(value => value === true).length;
 
 const getTargetName = (target: ParentInfo | StudentInfo) => target.name;
+
+const getManagerId = (
+  managerRole: ManagerRole,
+  teacherId?: string,
+  parent?: ParentInfo | null,
+) => managerRole === 'teacher' ? teacherId : parent?.id;
+
+const packageBelongsToManager = (
+  pkg: PermissionPackage,
+  managerRole: ManagerRole,
+  managerId?: string,
+) => pkg.ownerRole === managerRole && Boolean(managerId) && pkg.ownerId === managerId;
 
 const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = ({
   managerRole,
@@ -46,7 +106,16 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
   const [activeTargetRole, setActiveTargetRole] = useState<TargetRole>(
     managerRole === 'teacher' ? 'parent' : 'student',
   );
+  const [showEditor, setShowEditor] = useState(false);
+  const [editingPackage, setEditingPackage] = useState<PermissionPackage | null>(null);
+  const [editorRole, setEditorRole] = useState<PermissionPackageRole>(
+    managerRole === 'teacher' ? 'parent' : 'student',
+  );
+  const [packageName, setPackageName] = useState('');
+  const [packageDescription, setPackageDescription] = useState('');
+  const [packageDraft, setPackageDraft] = useState<PackageDraft>({});
 
+  const managerId = getManagerId(managerRole, teacherId, parent);
   const teacherPermissions = managerRole === 'teacher'
     ? getTeacherPermissions({ permissionPackageId: teacherPermissionPackageId })
     : null;
@@ -91,8 +160,27 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
   );
 
   const visiblePackages = useMemo(
-    () => packages.filter(pkg => pkg.role === activeTargetRole),
-    [packages, activeTargetRole],
+    () => packages.filter(pkg =>
+      pkg.role === activeTargetRole
+      && (
+        !pkg.ownerRole
+        || pkg.ownerRole === 'admin'
+        || packageBelongsToManager(pkg, managerRole, managerId)
+      ),
+    ),
+    [packages, activeTargetRole, managerRole, managerId],
+  );
+
+  const ownRolePackages = useMemo(
+    () => packages.filter(pkg =>
+      pkg.role === managerRole
+      && (
+        !pkg.ownerRole
+        || pkg.ownerRole === 'admin'
+        || packageBelongsToManager(pkg, managerRole, managerId)
+      ),
+    ),
+    [packages, managerRole, managerId],
   );
 
   const canManageTarget = (role: TargetRole) => {
@@ -103,55 +191,150 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
     return role === 'student' && Boolean(parentPermissions?.canEditStudents);
   };
 
-  const getAssignedPackageId = (target: ParentInfo | StudentInfo) =>
-    target.permissionPackageId || '';
+  const canCreateOrEditPackage = (role: PermissionPackageRole) => {
+    if (role === managerRole) return true;
+    return role !== 'teacher' && canManageTarget(role);
+  };
+
+  const startNewPackage = (role: PermissionPackageRole = activeTargetRole) => {
+    const globalRolePermissions = (getPermissions()[role] || DEFAULT_PERMISSIONS[role]) as PackageDraft;
+    setEditorRole(role);
+    setEditingPackage(null);
+    setPackageName('');
+    setPackageDescription('');
+    setPackageDraft(clone(globalRolePermissions));
+    setShowEditor(true);
+  };
+
+  const startEditPackage = (pkg: PermissionPackage) => {
+    if (!packageBelongsToManager(pkg, managerRole, managerId)) {
+      alert('🔒 هذا البكج مملوك للمشرف أو لحساب آخر ولا يمكن تعديله من هنا');
+      return;
+    }
+    if (!canCreateOrEditPackage(pkg.role)) {
+      alert('⚠️ لا تملك صلاحية تعديل بكجات هذا الدور');
+      return;
+    }
+    setEditorRole(pkg.role as TargetRole);
+    setEditingPackage(pkg);
+    setPackageName(pkg.name);
+    setPackageDescription(pkg.description || '');
+    setPackageDraft(clone(pkg.permissions as PackageDraft));
+    setShowEditor(true);
+  };
+
+  const closeEditor = () => {
+    setShowEditor(false);
+    setEditingPackage(null);
+  };
+
+  const savePackage = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!managerId || !canCreateOrEditPackage(editorRole)) {
+      alert('⚠️ لا تملك صلاحية إنشاء أو تعديل بكجات هذا الدور');
+      return;
+    }
+    if (!packageName.trim()) {
+      alert('يرجى كتابة اسم البكج');
+      return;
+    }
+
+    const globalRolePermissions = (getPermissions()[editorRole] || DEFAULT_PERMISSIONS[editorRole]) as PackageDraft;
+    const safePermissions: PackageDraft = {};
+    Object.keys(globalRolePermissions).forEach(key => {
+      const globalValue = globalRolePermissions[key];
+      const requestedValue = packageDraft[key];
+      if (typeof globalValue === 'boolean') {
+        safePermissions[key] = globalValue && requestedValue !== false;
+      } else {
+        const globalLimit = Number.isFinite(Number(globalValue)) ? Math.max(-1, Number(globalValue)) : -1;
+        const requestedLimit = Number.isFinite(Number(requestedValue))
+          ? Math.max(-1, Number(requestedValue))
+          : globalLimit;
+        safePermissions[key] = globalLimit < 0
+          ? requestedLimit
+          : requestedLimit < 0
+            ? globalLimit
+            : Math.min(globalLimit, requestedLimit);
+      }
+    });
+
+    const now = new Date().toISOString();
+    const latestPackages = getPermissionPackages();
+    const nextPackage: PermissionPackage = {
+      id: editingPackage?.id || `permission_package_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      name: packageName.trim(),
+      description: packageDescription.trim(),
+      role: editorRole as PermissionPackageRole,
+      permissions: safePermissions as PermissionPackage['permissions'],
+      createdAt: editingPackage?.createdAt || now,
+      updatedAt: now,
+      ownerRole: managerRole,
+      ownerId: managerId,
+      ownerName: managerRole === 'teacher' ? teacherName : parent?.name,
+    };
+    const updated = editingPackage
+      ? latestPackages.map(pkg => pkg.id === editingPackage.id ? nextPackage : pkg)
+      : [...latestPackages, nextPackage];
+
+    localStorage.setItem(STORAGE_KEYS.PERMISSION_PACKAGES, JSON.stringify(updated));
+    setPackages(updated);
+    closeEditor();
+    alert(`✅ تم ${editingPackage ? 'تعديل' : 'إنشاء'} ${nextPackage.name} بنجاح`);
+  };
+
+  const deletePackage = (pkg: PermissionPackage) => {
+    if (!packageBelongsToManager(pkg, managerRole, managerId)) {
+      alert('🔒 لا يمكن حذف بكج المشرف أو بكج حساب آخر');
+      return;
+    }
+    if (!confirm(`حذف البكج «${pkg.name}»؟`)) return;
+
+    const teachers: any[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
+    const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const used = teachers.some(item => item.permissionPackageId === pkg.id)
+      || allParents.some(item => item.permissionPackageId === pkg.id)
+      || allStudents.some(item => item.permissionPackageId === pkg.id);
+    if (used) {
+      alert('⚠️ لا يمكن حذف بكج مستخدم حاليًا. غيّر البكج المرتبط بالحسابات أولًا.');
+      return;
+    }
+
+    const updated = packages.filter(item => item.id !== pkg.id);
+    localStorage.setItem(STORAGE_KEYS.PERMISSION_PACKAGES, JSON.stringify(updated));
+    setPackages(updated);
+  };
 
   const assignPackage = (target: ParentInfo | StudentInfo, role: TargetRole, packageId: string) => {
     if (!canManageTarget(role)) {
       alert('⚠️ لا تملك الصلاحية لإسناد بكج لهذا الدور');
       return;
     }
-
-    if (packageId && !visiblePackages.some(pkg => pkg.id === packageId)) {
+    if (packageId && !visiblePackages.some(pkg => pkg.id === packageId && pkg.role === role)) {
       alert('⚠️ البكج المختار غير متاح لهذا الدور');
       return;
     }
 
     const nextPackageId = packageId || undefined;
-    const allParents: ParentInfo[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]',
-    );
-    const allStudents: StudentInfo[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]',
-    );
+    const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
 
     if (role === 'parent') {
-      const updatedParents = allParents.map(item =>
-        item.id === target.id
-          ? { ...item, permissionPackageId: nextPackageId }
-          : item,
-      );
-      localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
+      localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(allParents.map(item =>
+        item.id === target.id ? { ...item, permissionPackageId: nextPackageId } : item,
+      )));
     } else {
-      const updatedStudents = allStudents.map(item =>
-        item.id === target.id
-          ? { ...item, permissionPackageId: nextPackageId }
-          : item,
-      );
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
-
-      // Keep the embedded child copy in the parent record in sync with the
-      // canonical student record used by dashboards and login hydration.
+      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(allStudents.map(item =>
+        item.id === target.id ? { ...item, permissionPackageId: nextPackageId } : item,
+      )));
       const updatedParents = allParents.map(item => ({
         ...item,
         children: (item.children || []).map(child =>
-          child.id === target.id
-            ? { ...child, permissionPackageId: nextPackageId }
-            : child,
+          child.id === target.id ? { ...child, permissionPackageId: nextPackageId } : child,
         ),
       }));
       localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
-
       if (managerRole === 'parent' && parent) {
         localStorage.setItem(
           STORAGE_KEYS.ACTIVE_PARENT,
@@ -161,17 +344,15 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
     }
 
     loadData();
-    const selectedPackage = visiblePackages.find(pkg => pkg.id === packageId);
-    alert(
-      selectedPackage
-        ? `✅ تم إسناد بكج «${selectedPackage.name}» إلى ${getTargetName(target)}`
-        : `✅ تمت إعادة ${getTargetName(target)} إلى الصلاحيات العامة`,
-    );
+    const selectedPackage = packages.find(pkg => pkg.id === packageId);
+    alert(selectedPackage
+      ? `✅ تم إسناد بكج «${selectedPackage.name}» إلى ${getTargetName(target)}`
+      : `✅ تمت إعادة ${getTargetName(target)} إلى الصلاحيات العامة`);
   };
 
   const managerDescription = managerRole === 'teacher'
-    ? 'اختر بكج ولي الأمر أو الطالب من البكجات التي أنشأها المشرف.'
-    : 'اختر بكج الصلاحيات المناسب لكل ابن من البكجات المخصصة للطلاب.';
+    ? 'أنشئ وعدّل بكجات أولياء الأمور والطلاب التابعين لك، ثم أسندها للحساب المناسب.'
+    : 'أنشئ وعدّل بكجات الطلاب، ثم أسندها لأبنائك فقط.';
 
   return (
     <div className="space-y-6 animate-fadeIn" dir="rtl">
@@ -188,82 +369,211 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
       </div>
 
       <div className="flex flex-wrap gap-3">
+        {canCreateOrEditPackage(managerRole) && (
+          <button
+            onClick={() => startNewPackage(managerRole)}
+            className="rounded-2xl bg-indigo-600 px-5 py-3 font-black text-white shadow-lg hover:bg-indigo-700"
+          >
+            ➕ إنشاء {roleLabels[managerRole]} لدوري
+          </button>
+        )}
         {(managerRole === 'teacher' ? (['parent', 'student'] as TargetRole[]) : (['student'] as TargetRole[])).map(role => (
           <button
             key={role}
             onClick={() => setActiveTargetRole(role)}
             className={`rounded-2xl px-5 py-3 font-black transition-all ${
               activeTargetRole === role
-                ? managerRole === 'teacher'
-                  ? 'bg-amber-600 text-white shadow-lg'
-                  : 'bg-rose-600 text-white shadow-lg'
+                ? managerRole === 'teacher' ? 'bg-amber-600 text-white shadow-lg' : 'bg-rose-600 text-white shadow-lg'
                 : 'bg-white text-slate-600 shadow-sm'
             }`}
           >
             {role === 'parent' ? '👨‍👩‍👧‍👦' : '🎓'} {targetLabels[role]}
-            <span className="mr-2 text-xs opacity-75">
-              ({role === 'parent' ? parents.length : students.length})
-            </span>
+            <span className="mr-2 text-xs opacity-75">({role === 'parent' ? parents.length : students.length})</span>
           </button>
         ))}
+        {canCreateOrEditPackage(activeTargetRole) && (
+          <button
+            onClick={() => startNewPackage(activeTargetRole)}
+            className="rounded-2xl bg-emerald-600 px-5 py-3 font-black text-white shadow-lg hover:bg-emerald-700"
+          >
+            ➕ إنشاء {roleLabels[activeTargetRole]}
+          </button>
+        )}
       </div>
+
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-xl font-black text-slate-800">🧩 بكجات دوري</h2>
+          <p className="mt-1 text-sm font-bold text-slate-500">
+            أنشئ أو عدّل بكجات {managerRole === 'teacher' ? 'المعلمين' : 'أولياء الأمور'} الخاصة بدورك.
+            بكجات المشرف للعرض فقط.
+          </p>
+        </div>
+        {ownRolePackages.length === 0 ? (
+          <div className="rounded-3xl border-2 border-dashed border-indigo-100 bg-white p-8 text-center font-bold text-slate-500">
+            لا توجد بكجات لدورك حاليًا. أنشئ أول بكج من الزر أعلاه.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {ownRolePackages.map(pkg => {
+              const isOwner = packageBelongsToManager(pkg, managerRole, managerId);
+              return (
+                <div key={pkg.id} className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-800">{pkg.name}</h3>
+                      <p className="mt-1 text-sm font-bold text-slate-500">{pkg.description || 'بدون وصف'}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${isOwner ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {isOwner ? 'بكجي' : 'بكج مشرف'}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs font-bold text-slate-400">{packagePermissionCount(pkg)} صلاحيات مفعلة</p>
+                  {isOwner && (
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={() => startEditPackage(pkg)} className="flex-1 rounded-xl bg-blue-50 py-2 font-black text-blue-700 hover:bg-blue-100">✏️ تعديل</button>
+                      <button onClick={() => deletePackage(pkg)} className="rounded-xl bg-red-50 px-4 py-2 font-black text-red-600 hover:bg-red-100">🗑️ حذف</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showEditor && (
+        <form onSubmit={savePackage} className="rounded-3xl border-2 border-indigo-100 bg-white p-6 shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-black text-indigo-900">
+                {editingPackage ? '✏️ تعديل بكجك' : '✨ إنشاء بكج جديد'}
+              </h2>
+              <p className="mt-1 text-sm font-bold text-slate-500">{roleLabels[editorRole]}</p>
+            </div>
+            <button type="button" onClick={closeEditor} className="rounded-xl bg-slate-100 px-4 py-2 font-black text-slate-600">
+              إلغاء
+            </button>
+          </div>
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <input
+              value={packageName}
+              onChange={event => setPackageName(event.target.value)}
+              placeholder="اسم البكج"
+              className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold outline-none focus:border-indigo-400"
+              required
+            />
+            <input
+              value={packageDescription}
+              onChange={event => setPackageDescription(event.target.value)}
+              placeholder="وصف البكج (اختياري)"
+              className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold outline-none focus:border-indigo-400"
+            />
+          </div>
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+            {Object.entries(packageDraft).filter(([, value]) => typeof value === 'boolean').map(([key, value]) => (
+              <label key={key} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 font-bold text-slate-700">
+                <span>{permissionLabels[key] || key}</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(value)}
+                  onChange={() => setPackageDraft(previous => ({ ...previous, [key]: !previous[key] }))}
+                  className="h-5 w-5 accent-indigo-600"
+                />
+              </label>
+            ))}
+          </div>
+          {roleLimitKeys[editorRole].length > 0 && (
+            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+              {roleLimitKeys[editorRole].map(key => (
+                <label key={key} className="text-sm font-black text-slate-700">
+                  {limitLabels[key]} <span className="text-xs text-slate-400">(-1 غير محدود)</span>
+                  <input
+                    type="number"
+                    min="-1"
+                    value={Number(packageDraft[key] ?? -1)}
+                    onChange={event => setPackageDraft(previous => ({ ...previous, [key]: Math.max(-1, Number(event.target.value)) }))}
+                    className="mt-1 w-full rounded-xl border-2 border-slate-200 p-3 font-black outline-none focus:border-indigo-400"
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+          <button type="submit" className="mt-5 w-full rounded-xl bg-indigo-600 py-3 font-black text-white hover:bg-indigo-700">
+            💾 حفظ البكج
+          </button>
+        </form>
+      )}
 
       {!canManageTarget(activeTargetRole) && (
         <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 font-bold text-amber-800">
-          🔒 لا توجد لديك صلاحية لإسناد بكجات لهذا الدور. اطلب من المشرف تفعيل صلاحية الإدارة المناسبة.
+          🔒 لا توجد لديك صلاحية لإدارة بكجات هذا الدور. اطلب من المشرف تفعيل الصلاحية المناسبة.
         </div>
       )}
 
-      {visiblePackages.length === 0 && (
-        <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-10 text-center font-bold text-slate-500">
-          لا توجد بكجات مخصصة لـ {targetLabels[activeTargetRole]} حاليًا. يمكن للمشرف إنشاء بكجات من لوحة المشرف.
+      <div className="space-y-3">
+        <h2 className="text-xl font-black text-slate-800">البكجات المتاحة — {targetLabels[activeTargetRole]}</h2>
+        {visiblePackages.length === 0 && (
+          <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-10 text-center font-bold text-slate-500">
+            لا توجد بكجات لهذا الدور حاليًا.
+          </div>
+        )}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {visiblePackages.map(pkg => {
+            const isOwner = packageBelongsToManager(pkg, managerRole, managerId);
+            return (
+              <div key={pkg.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800">{pkg.name}</h3>
+                    <p className="mt-1 text-sm font-bold text-slate-500">{pkg.description || 'بدون وصف'}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${isOwner ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {isOwner ? 'بكجي' : 'بكج مشرف'}
+                  </span>
+                </div>
+                <p className="mt-3 text-xs font-bold text-slate-400">{packagePermissionCount(pkg)} صلاحيات مفعلة</p>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="space-y-3">
+        <h2 className="text-xl font-black text-slate-800">إسناد البكجات</h2>
         {visibleTargets.map(target => {
-          const assignedPackageId = getAssignedPackageId(target);
+          const assignedPackageId = target.permissionPackageId || '';
           const assignedPackage = visiblePackages.find(pkg => pkg.id === assignedPackageId);
           return (
             <div key={target.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-black text-slate-800">{getTargetName(target)}</h2>
+                  <h3 className="text-lg font-black text-slate-800">{getTargetName(target)}</h3>
                   <p className="mt-1 text-sm font-bold text-slate-500">
                     {assignedPackage ? `البكج الحالي: ${assignedPackage.name}` : 'يستخدم الصلاحيات العامة'}
                   </p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-                  {activeTargetRole === 'parent' ? 'ولي أمر' : 'طالب'}
-                </span>
-              </div>
-
-              <label className="mt-4 block text-sm font-black text-slate-700">
-                اختر البكج
                 <select
                   value={assignedPackageId}
                   disabled={!canManageTarget(activeTargetRole)}
                   onChange={event => assignPackage(target, activeTargetRole, event.target.value)}
-                  className="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white p-3 font-bold outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="min-w-64 rounded-xl border-2 border-slate-200 bg-white p-3 font-bold outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-100"
                 >
                   <option value="">الصلاحيات العامة</option>
                   {visiblePackages.map(pkg => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.name} — {packagePermissionCount(pkg)} صلاحيات
-                    </option>
+                    <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
                   ))}
                 </select>
-              </label>
+              </div>
             </div>
           );
         })}
+        {visibleTargets.length === 0 && (
+          <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-10 text-center font-bold text-slate-500">
+            لا توجد حسابات تابعة لهذا الدور حاليًا.
+          </div>
+        )}
       </div>
-
-      {visibleTargets.length === 0 && visiblePackages.length > 0 && (
-        <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-10 text-center font-bold text-slate-500">
-          لا توجد حسابات تابعة لهذا الدور حاليًا.
-        </div>
-      )}
     </div>
   );
 };

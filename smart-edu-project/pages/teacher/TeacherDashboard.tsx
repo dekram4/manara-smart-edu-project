@@ -37,7 +37,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   useEffect(() => {
     if (isAuthenticated && currentTeacher) {
       loadDashboardStats();
-      const interval = window.setInterval(loadDashboardStats, 2000);
+      const interval = window.setInterval(() => {
+        const storedTeachers: TeacherInfo[] = JSON.parse(
+          localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]',
+        );
+        const latestTeacher = storedTeachers.find(teacher => teacher.id === currentTeacher.id);
+        if (latestTeacher && JSON.stringify(latestTeacher) !== JSON.stringify(currentTeacher)) {
+          setCurrentTeacher(latestTeacher);
+          localStorage.setItem(STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(latestTeacher));
+        }
+        loadDashboardStats();
+      }, 2000);
       return () => window.clearInterval(interval);
     }
   }, [isAuthenticated, currentTeacher]);
@@ -246,7 +256,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           </div>
         );
       case TeacherMenuType.ACADEMIC_SETTINGS:
-        return <MyAcademicSettings />;
+        return <MyAcademicSettings teacher={currentTeacher} />;
       case TeacherMenuType.CONTENT_MANAGEMENT:
          return <TeacherContentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.QUIZ_MANAGEMENT:

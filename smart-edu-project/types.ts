@@ -441,4 +441,8 @@ export interface PermissionPackage {
   permissions: TeacherPermissions | ParentPermissions | Permissions['student'];
   createdAt: string;
   updatedAt: string;
+  /** Missing owner metadata means the package was created by the admin. */
+  ownerRole?: 'admin' | 'teacher' | 'parent';
+  ownerId?: string;
+  ownerName?: string;
 }

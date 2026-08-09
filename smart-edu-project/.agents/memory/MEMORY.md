@@ -18,3 +18,5 @@
 - [Dashboard freshness and scope](dashboard-freshness-and-scope.md) — dashboards poll current local state and derive role-scoped counts instead of caching another account's data.
 - [GameDistribution embeds](gamedistribution-embeds.md) — use the direct rvvASMiM game path; the shared HTML5 URL can be an unavailable-page wrapper that opens externally.
 - [Role-scoped permission packages](role-scoped-permission-packages.md) — teachers assign existing parent/student packages to owned accounts; parents assign student packages only to their children.
+- [Live teacher permission refresh](live-teacher-permission-refresh.md) — refresh the current teacher record so package changes immediately affect dashboard visibility, especially academic settings.
+- [Self-role package editing](self-role-package-editing.md) — teachers and parents can create/edit packages for their own role while admin-owned packages remain read-only.
