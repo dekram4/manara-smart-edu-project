@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { getGamificationStats } from '../../utils/gamification';
 import { playLamsaSound } from '../../utils/sounds';
@@ -16,28 +16,42 @@ interface EntertainmentGamesProps {
 type GameType = 'embedded' | 'embedded2' | 'embedded3';
 
 const EMBEDDED_GAME_URL =
-  'https://html5.gamedistribution.com/d4a3629101574bc39bd8f9d1888ca58e/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
+  'https://html5.gamedistribution.com/rvvASMiM/d4a3629101574bc39bd8f9d1888ca58e/index.html';
 const EMBEDDED_GAME_2_URL =
-  'https://html5.gamedistribution.com/172e0bd0c40442dbae3d4adb42a98433/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
+  'https://html5.gamedistribution.com/rvvASMiM/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_3_URL =
-  'https://html5.gamedistribution.com/659090e00bfc4650899550d63f8a130d/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
+  'https://html5.gamedistribution.com/rvvASMiM/659090e00bfc4650899550d63f8a130d/index.html';
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
+  const [gameLoading, setGameLoading] = useState(false);
+  const [lockedMessage, setLockedMessage] = useState('');
+  const gamePanelRef = useRef<HTMLDivElement>(null);
   const stats = useMemo(() => getGamificationStats(), [activeGame]);
 
   const openGame = (game: GameType, requiredLevel: number) => {
     if (stats.level < requiredLevel) {
       playLamsaSound('error');
+      setLockedMessage(`هذه اللعبة تُفتح عند الوصول إلى المستوى ${requiredLevel}. مستواك الحالي: ${stats.level}`);
       return;
     }
     GameAudioEngine.play('portalTransition');
+    setLockedMessage('');
+    setGameLoading(true);
     setActiveGame(game);
   };
 
   const closeGame = () => {
     setActiveGame(null);
+    setGameLoading(false);
   };
+
+  useEffect(() => {
+    if (!activeGame) return;
+    window.requestAnimationFrame(() => {
+      gamePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [activeGame]);
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -50,16 +64,22 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
           <span className="rounded-xl bg-slate-800 px-3 py-2 text-cyan-300">جواهر: {stats.gems}</span>
           <span className="rounded-xl bg-slate-800 px-3 py-2 text-fuchsia-300">المستوى: {stats.level}</span>
         </div>
+        {lockedMessage && (
+          <div role="status" className="mt-3 rounded-xl border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-200">
+            🔒 {lockedMessage}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         <button
+          type="button"
           onClick={() => openGame('embedded', 1)}
-          disabled={stats.level < 1}
+          aria-disabled={stats.level < 1}
           className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
             stats.level >= 1
               ? 'bg-gradient-to-br from-amber-500 to-red-700 hover:-translate-y-1 hover:scale-[1.01]'
-              : 'cursor-not-allowed bg-slate-700/80 opacity-70'
+              : 'cursor-pointer bg-slate-700/80 opacity-70 hover:opacity-90'
           }`}
         >
           <EducationalCardEffects accent="#f59e0b" />
@@ -75,12 +95,13 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
         </button>
 
         <button
+          type="button"
           onClick={() => openGame('embedded2', 2)}
-          disabled={stats.level < 2}
+          aria-disabled={stats.level < 2}
           className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
             stats.level >= 2
               ? 'bg-gradient-to-br from-fuchsia-500 to-pink-700 hover:-translate-y-1 hover:scale-[1.01]'
-              : 'cursor-not-allowed bg-slate-700/80 opacity-70'
+              : 'cursor-pointer bg-slate-700/80 opacity-70 hover:opacity-90'
           }`}
         >
           <EducationalCardEffects accent="#e879f9" />
@@ -96,12 +117,13 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
         </button>
 
         <button
+          type="button"
           onClick={() => openGame('embedded3', 3)}
-          disabled={stats.level < 3}
+          aria-disabled={stats.level < 3}
           className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
             stats.level >= 3
               ? 'bg-gradient-to-br from-cyan-500 to-blue-700 hover:-translate-y-1 hover:scale-[1.01]'
-              : 'cursor-not-allowed bg-slate-700/80 opacity-70'
+              : 'cursor-pointer bg-slate-700/80 opacity-70 hover:opacity-90'
           }`}
         >
           <EducationalCardEffects accent="#22d3ee" />
@@ -118,7 +140,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       </div>
 
       {activeGame === 'embedded' && (
-        <div className="overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl">
+        <div ref={gamePanelRef} className="scroll-mt-6 overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl">
           <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
             <h3 className="font-black text-white">اللعبة الأولى</h3>
             <button
@@ -128,22 +150,30 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               إغلاق اللعبة
             </button>
           </div>
-          <div className="aspect-video w-full bg-black">
+          <div className="relative aspect-video w-full bg-black">
+            {gameLoading && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
+                <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
+                  جارٍ تشغيل اللعبة داخل الصفحة...
+                </span>
+              </div>
+            )}
             <iframe
               src={EMBEDDED_GAME_URL}
               title="اللعبة الأولى"
               className="h-full w-full border-0"
               scrolling="no"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
+              loading="eager"
+              onLoad={() => setGameLoading(false)}
             />
           </div>
         </div>
       )}
 
       {activeGame === 'embedded2' && (
-        <div className="overflow-hidden rounded-3xl border border-fuchsia-300/30 bg-black shadow-2xl">
+        <div ref={gamePanelRef} className="scroll-mt-6 overflow-hidden rounded-3xl border border-fuchsia-300/30 bg-black shadow-2xl">
           <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
             <h3 className="font-black text-white">اللعبة الثانية</h3>
             <button
@@ -153,22 +183,30 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               إغلاق اللعبة
             </button>
           </div>
-          <div className="mx-auto aspect-[9/16] w-full max-w-[720px] bg-black">
+          <div className="relative mx-auto aspect-[9/16] w-full max-w-[720px] bg-black">
+            {gameLoading && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
+                <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
+                  جارٍ تشغيل اللعبة داخل الصفحة...
+                </span>
+              </div>
+            )}
             <iframe
               src={EMBEDDED_GAME_2_URL}
               title="اللعبة الثانية"
               className="h-full w-full border-0"
               scrolling="no"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
+              loading="eager"
+              onLoad={() => setGameLoading(false)}
             />
           </div>
         </div>
       )}
 
       {activeGame === 'embedded3' && (
-        <div className="overflow-hidden rounded-3xl border border-cyan-300/30 bg-black shadow-2xl">
+        <div ref={gamePanelRef} className="scroll-mt-6 overflow-hidden rounded-3xl border border-cyan-300/30 bg-black shadow-2xl">
           <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
             <h3 className="font-black text-white">اللعبة الثالثة</h3>
             <button
@@ -178,15 +216,23 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               إغلاق اللعبة
             </button>
           </div>
-          <div className="mx-auto aspect-[4/3] w-full max-w-[800px] bg-black">
+          <div className="relative mx-auto aspect-[4/3] w-full max-w-[800px] bg-black">
+            {gameLoading && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
+                <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
+                  جارٍ تشغيل اللعبة داخل الصفحة...
+                </span>
+              </div>
+            )}
             <iframe
               src={EMBEDDED_GAME_3_URL}
               title="اللعبة الثالثة"
               className="h-full w-full border-0"
               scrolling="no"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
+              loading="eager"
+              onLoad={() => setGameLoading(false)}
             />
           </div>
         </div>

@@ -16,3 +16,4 @@
 - [React ownership and rewards](react-ownership-and-rewards.md) — use teacherId→createdBy legacy fallback and scope gamification keys plus completion rewards to the active student.
 - [External font URLs](external-font-urls.md) — verify Google Fonts asset URLs; stale gstatic paths can create browser 404s despite a healthy app.
 - [Dashboard freshness and scope](dashboard-freshness-and-scope.md) — dashboards poll current local state and derive role-scoped counts instead of caching another account's data.
+- [GameDistribution embeds](gamedistribution-embeds.md) — use the direct rvvASMiM game path; the shared HTML5 URL can be an unavailable-page wrapper that opens externally.
