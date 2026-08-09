@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { QuizQuestion, QuizType, LessonConfig, CreatedQuiz } from '../../types';
 import { STORAGE_KEYS, QUIZ_TYPES } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
-import { getQuizTypeLabel, normalizeCreatedQuiz, normalizeQuizType } from '../../utils/quizTypes';
+import { getPeriodicQuizLabel, getQuizTypeLabel, normalizeCreatedQuiz, normalizeQuizType } from '../../utils/quizTypes';
 
 interface QuizManagementProps {
   onUpdate: () => void;
@@ -423,6 +423,43 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     }
   };
 
+  const isSameQuizScope = (quiz: CreatedQuiz, formData = quizFormData) =>
+    getRecordTeacherId(quiz) === normalizeScopeValue(selectedTeacherId) &&
+    normalizeScopeValue(quiz.grade) === normalizeScopeValue(formData.grade) &&
+    normalizeScopeValue(quiz.atram) === normalizeScopeValue(formData.atram) &&
+    normalizeScopeValue(quiz.subject) === normalizeScopeValue(formData.subject) &&
+    normalizeScopeValue(quiz.term) === normalizeScopeValue(formData.term) &&
+    normalizeScopeValue(quiz.unit) === normalizeScopeValue(formData.unit);
+
+  const getSavedQuizzes = (): CreatedQuiz[] => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]')
+        .map(normalizeCreatedQuiz);
+    } catch {
+      return [];
+    }
+  };
+
+  const hasGeneratedPeriodicQuiz = () =>
+    getSavedQuizzes().some((quiz) =>
+      quiz.id !== editingQuiz?.id &&
+      normalizeQuizType(quiz.quizType) === QuizType.PERIODIC &&
+      quiz.creationMode === 'ai' &&
+      isSameQuizScope(quiz),
+    );
+
+  const getNextManualPeriodicNumber = (saved: CreatedQuiz[], quizId?: string) => {
+    const matchingManualQuizzes = saved
+      .filter((quiz) =>
+        quiz.id !== quizId &&
+        normalizeQuizType(quiz.quizType) === QuizType.PERIODIC &&
+        quiz.creationMode === 'manual' &&
+        isSameQuizScope(quiz),
+      );
+    const numbers = matchingManualQuizzes.map((quiz) => Number(quiz.periodicNumber) || 0);
+    return Math.max(matchingManualQuizzes.length, ...numbers) + 1;
+  };
+
   // 🤖 توليد اختبار ذكي باحترافية عالية
   const generateSmartQuiz = async () => {
     if (!lessonContent.trim()) {
@@ -432,6 +469,11 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     
     if (!quizFormData.title.trim()) {
       alert('⚠️ يرجى إدخال عنوان الاختبار');
+      return;
+    }
+
+    if (normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC && hasGeneratedPeriodicQuiz()) {
+      alert('⚠️ تم إنشاء الاختبار الدوري بالذكاء الاصطناعي لهذا المسار مسبقاً. يمكنك تعديله من قائمة الاختبارات.');
       return;
     }
     
@@ -454,7 +496,11 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
         : lessonContent;
       
       // 🎯 Prompt مختصر وفعّال
-      const prompt = `ولّد ${quizFormData.questionCount} أسئلة اختيار من متعدد من هذا المحتوى التعليمي:
+      const bankSize = Math.min(
+        Math.max(quizFormData.questionCount * 2, quizFormData.questionCount + 5),
+        30,
+      );
+      const prompt = `ولّد ${bankSize} سؤال اختيار من متعدد من هذا المحتوى التعليمي. سيختار النظام ${quizFormData.questionCount} أسئلة مختلفة لكل طالب:
 
 ${contentSummary}
 
@@ -540,8 +586,9 @@ ${contentSummary}
           return;
         }
         
-        saveQuiz(generatedQuestions);
-        alert(`✅ تم إنشاء اختبار احترافي بـ ${generatedQuestions.length} سؤال من Gemini AI!`);
+        if (saveQuiz(generatedQuestions)) {
+          alert(`✅ تم إنشاء بنك اختبار احترافي بـ ${generatedQuestions.length} سؤال من Gemini AI!`);
+        }
       } catch (parseError) {
         console.error('❌ خطأ في تحليل JSON:', parseError);
         alert('❌ فشل تحليل الأسئلة. حاول مرة أخرى.');
@@ -558,7 +605,7 @@ ${contentSummary}
 
 
   // 💾 حفظ الاختبار
-  const saveQuiz = (generatedQuestions: any[]) => {
+  const saveQuiz = (generatedQuestions: any[]): boolean => {
     const quizId = editingQuiz?.id || `quiz_${Date.now()}`;
     const quizQuestions: QuizQuestion[] = generatedQuestions.map((q, index) => ({
       id: `q_${Date.now()}_${index}_${Math.random()}`,
@@ -590,6 +637,9 @@ ${contentSummary}
       questionCount: quizQuestions.length,
       isActive: quizFormData.isActive,
       questions: quizQuestions,
+      creationMode: 'ai',
+      periodicNumber: editingQuiz?.periodicNumber,
+      questionsPerAttempt: quizFormData.questionCount,
       createdAt: editingQuiz?.createdAt || new Date().toISOString(),
       createdBy: selectedTeacherId,
       createdByName: selectedTeacherName,
@@ -600,6 +650,13 @@ ${contentSummary}
     const allSaved: CreatedQuiz[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
     ).map(normalizeCreatedQuiz);
+    if (
+      normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC &&
+      hasGeneratedPeriodicQuiz()
+    ) {
+      alert('⚠️ يوجد اختبار دوري مولّد بالذكاء الاصطناعي لهذا المسار بالفعل.');
+      return false;
+    }
     updated = editingQuiz
       ? allSaved.map(q => q.id === editingQuiz.id ? newQuiz : q)
       : [...allSaved, newQuiz];
@@ -609,6 +666,7 @@ ${contentSummary}
     setShowCreateForm(false);
     setEditingQuiz(null);
     resetForm();
+    return true;
   };
 
   const resetForm = () => {
@@ -643,6 +701,13 @@ ${contentSummary}
       quizId,
       quizType: normalizeQuizType(quizFormData.quizType),
     }));
+    const allSaved: CreatedQuiz[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
+    ).map(normalizeCreatedQuiz);
+    const quizType = normalizeQuizType(quizFormData.quizType);
+    const periodicNumber = quizType === QuizType.PERIODIC
+      ? (editingQuiz?.periodicNumber || getNextManualPeriodicNumber(allSaved, editingQuiz?.id))
+      : undefined;
     const newQuiz: CreatedQuiz = {
       id: quizId,
       title: quizFormData.title,
@@ -655,6 +720,9 @@ ${contentSummary}
       questionCount: normalizedQuestions.length,
       isActive: quizFormData.isActive,
       questions: normalizedQuestions,
+      creationMode: 'manual',
+      periodicNumber,
+      questionsPerAttempt: Math.min(quizFormData.questionCount, normalizedQuestions.length),
       createdAt: editingQuiz?.createdAt || new Date().toISOString(),
       createdBy: selectedTeacherId,
       createdByName: selectedTeacherName,
@@ -662,9 +730,6 @@ ${contentSummary}
     };
 
     let updated: CreatedQuiz[];
-    const allSaved: CreatedQuiz[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
-    ).map(normalizeCreatedQuiz);
     updated = editingQuiz
       ? allSaved.map(q => q.id === editingQuiz.id ? newQuiz : q)
       : [...allSaved, newQuiz];
@@ -1178,7 +1243,9 @@ ${contentSummary}
                       <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.term}</span>
                       <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.unit}</span>
                       <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
-                        {getQuizTypeLabel(quiz.quizType)}
+                        {normalizeQuizType(quiz.quizType) === QuizType.PERIODIC
+                          ? getPeriodicQuizLabel(quiz)
+                          : getQuizTypeLabel(quiz.quizType)}
                       </span>
                       {quiz.createdByName && (
                         <span className="bg-purple-900 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">

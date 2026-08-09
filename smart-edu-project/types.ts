@@ -199,6 +199,12 @@ export interface CreatedQuiz {
   questionCount: number;
   isActive: boolean; // مفعل أم لا
   questions: QuizQuestion[];
+  /** How the quiz was created; legacy quizzes infer this from their questions. */
+  creationMode?: 'manual' | 'ai';
+  /** Periodic quiz number within the same owner and academic path. */
+  periodicNumber?: number;
+  /** Number of questions shown to one student from the question bank. */
+  questionsPerAttempt?: number;
   createdAt: string;
   createdBy: string;
   createdByName?: string;

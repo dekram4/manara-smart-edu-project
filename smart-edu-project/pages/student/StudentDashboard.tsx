@@ -43,7 +43,36 @@ import { getStudentEmoji } from '../../utils/studentAppearance';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentAvatar from './components/StudentAvatar';
 import ManaraBrand from '../../components/ManaraBrand';
-import { normalizeCreatedQuiz, normalizeQuizType, getQuizTypeLabel } from '../../utils/quizTypes';
+import {
+  getPeriodicQuizLabel,
+  normalizeCreatedQuiz,
+  normalizeQuizType,
+  getQuizTypeLabel,
+} from '../../utils/quizTypes';
+
+const stableQuestionHash = (value: string): number => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const getStudentQuestionSet = (
+  questions: QuizQuestion[],
+  studentId: string,
+  quizId: string,
+  requestedCount: number,
+): QuizQuestion[] => {
+  const count = Math.min(Math.max(1, requestedCount), questions.length);
+  return [...questions]
+    .sort((a, b) =>
+      stableQuestionHash(`${studentId}:${quizId}:${a.id}`) -
+      stableQuestionHash(`${studentId}:${quizId}:${b.id}`),
+    )
+    .slice(0, count);
+};
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -742,7 +771,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       .filter(quiz => quiz.isActive && normalizeQuizType(quiz.quizType) === type)
       .filter(quiz => !requestedQuizId || quiz.id === requestedQuizId)
       .filter(quiz => matchesAcademicScope(quiz, academicPath));
-    const selectedCreatedQuiz = scopedCreatedQuizzes[0];
+    const selectedCreatedQuiz = scopedCreatedQuizzes.find((quiz) => quiz.id === requestedQuizId)
+      || scopedCreatedQuizzes[0];
     const scopedCreatedQuestions = selectedCreatedQuiz
       ? selectedCreatedQuiz.questions.filter(question => matchesAcademicScope(question, academicPath))
       : [];
@@ -764,15 +794,45 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       return false;
     }
 
-    const limit = selectedCreatedQuiz ? selectedCreatedQuiz.questions.length : 10;
+    const quizId = selectedCreatedQuiz?.id || filtered[0]?.quizId || `${type}:${student.id}`;
+    const limit = selectedCreatedQuiz?.questionsPerAttempt
+      || (selectedCreatedQuiz?.creationMode === 'ai'
+        ? Math.min(10, selectedCreatedQuiz.questions.length)
+        : selectedCreatedQuiz?.questions.length || 10);
+    const studentQuestions = selectedCreatedQuiz
+      ? getStudentQuestionSet(filtered, student.id, quizId, limit)
+      : filtered.slice(0, limit);
     setActiveQuizId(selectedCreatedQuiz?.id || filtered[0]?.quizId || null);
     setActiveQuizTitle(selectedCreatedQuiz?.title || null);
-    setCurrentQuiz(filtered.slice(0, limit));
+    setCurrentQuiz(studentQuestions);
     setQIndex(0);
     setUserAnswers({});
     setQuizResult(null);
     setActiveModule(StudentModuleType.QUIZ);
     return true;
+  };
+
+  const getAvailablePeriodicQuizzes = (): CreatedQuiz[] => {
+    if (!student) return [];
+    const academicPath = {
+      grade: selectedGrade,
+      subject: selectedSubject,
+      atram: selectedAtram,
+      term: selectedTerm,
+      unit: selectedUnit,
+    };
+    try {
+      return filterTeacherOwnedRecords(
+        JSON.parse(localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]')
+          .map(normalizeCreatedQuiz),
+        student,
+      )
+        .filter((quiz) => quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.PERIODIC)
+        .filter((quiz) => matchesAcademicScope(quiz, academicPath))
+        .sort((a, b) => (a.periodicNumber || 999) - (b.periodicNumber || 999));
+    } catch {
+      return [];
+    }
   };
 
   const getAvailableTeacherQuizzes = (): CreatedQuiz[] => {
@@ -1517,12 +1577,24 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <p className="text-indigo-200 text-sm font-medium mb-4">تحدّ معلوماتك واجمع النجوم الذهبية!</p>
                 </div>
                 <div className="space-y-2">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.PERIODIC); setShowModuleCards(false); }}
-                    className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
-                  >
-                    الاختبار الدوري ⭐
-                  </button>
+                   {getAvailablePeriodicQuizzes().length > 0 ? (
+                     getAvailablePeriodicQuizzes().map((quiz) => (
+                       <button
+                         key={quiz.id}
+                         onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.PERIODIC, quiz.id); setShowModuleCards(false); }}
+                         className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
+                       >
+                         {getPeriodicQuizLabel(quiz)} ⭐
+                       </button>
+                     ))
+                   ) : (
+                     <button
+                       onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.PERIODIC); setShowModuleCards(false); }}
+                       className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
+                     >
+                       الاختبار الدوري ⭐
+                     </button>
+                   )}
                   {getAvailableTeacherQuizzes().length > 0 ? (
                     getAvailableTeacherQuizzes().map((quiz) => (
                       <button
@@ -1530,7 +1602,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.TEACHER, quiz.id); setShowModuleCards(false); }}
                         className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
                       >
-                        {quiz.title} 🏆
+                         اختبار المعلم 🏆
                       </button>
                     ))
                   ) : (
