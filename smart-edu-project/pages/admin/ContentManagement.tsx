@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { LessonConfig } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
+import { getTeacherPermissions, isLimitReached } from '../../permissions';
 
 interface ContentManagementProps {
   onUpdate: () => void;
@@ -120,6 +121,11 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (teacherId && !getTeacherPermissions().canManageContent) {
+      alert('⚠️ ليس لديك صلاحية إدارة المحتوى التعليمي');
+      return;
+    }
     
     if (!formData.grade || !formData.subject || !formData.atram || !formData.term || !formData.unit) {
       alert('يرجى اختيار جميع التصنيفات الأكاديمية');
@@ -154,6 +160,18 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     const allLessons: LessonConfig[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]',
     );
+    if (teacherId && !editingLesson) {
+      const permissions = getTeacherPermissions();
+      const teacherLessonCount = allLessons.filter(
+        lesson => getRecordTeacherId(lesson) === normalizeScopeValue(teacherId),
+      ).length;
+      if (!isLimitReached(teacherLessonCount, permissions.maxContent)) {
+        // The limit allows this new lesson.
+      } else {
+        alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxContent}) من المحتوى التعليمي`);
+        return;
+      }
+    }
     let updated: LessonConfig[];
     if (editingLesson) {
       updated = allLessons.map(l => l.id === editingLesson.id ? lesson : l);

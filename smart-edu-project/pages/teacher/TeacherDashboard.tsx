@@ -296,6 +296,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             if (menu === TeacherMenuType.CONTENT_MANAGEMENT && !permissions.canManageContent) {
               return null;
             }
+            if (menu === TeacherMenuType.VIDEO_MANAGEMENT && !permissions.canManageVideos) {
+              return null;
+            }
             if (menu === TeacherMenuType.QUIZ_MANAGEMENT && !permissions.canManageQuizzes) {
               return null;
             }

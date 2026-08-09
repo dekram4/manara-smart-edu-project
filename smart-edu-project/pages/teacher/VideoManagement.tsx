@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from '../../constants';
 import { playLamsaSound } from '../../utils/sounds';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
+import { getTeacherPermissions, getTeacherVideoUsageMb, isLimitReached } from '../../permissions';
 
 interface VideoRecord {
   id: string;
@@ -133,12 +134,28 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
     const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
     const all: VideoRecord[] = saved ? JSON.parse(saved) : [];
+    const permissions = getTeacherPermissions();
+    const teacherVideos = all.filter(
+      video => getRecordTeacherId(video) === normalizeScopeValue(teacherId),
+    );
 
     if (editingVideo) {
+      if (!permissions.canManageVideos) {
+        alert('⚠️ ليس لديك صلاحية إدارة الفيديوهات');
+        return;
+      }
       const updated = all.map(v => v.id === editingVideo.id ? { ...v, ...formData } : v);
       localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(updated));
       setEditingVideo(null);
     } else {
+      if (!permissions.canManageVideos) {
+        alert('⚠️ ليس لديك صلاحية إضافة الفيديوهات');
+        return;
+      }
+      if (isLimitReached(teacherVideos.length, permissions.maxVideos)) {
+        alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxVideos}) من الفيديوهات`);
+        return;
+      }
       const newVideo: VideoRecord = {
         id: Date.now().toString(),
         ...formData,
@@ -146,8 +163,17 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         teacherName,
         createdAt: new Date().toISOString(),
       };
-      all.push(newVideo);
-      localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(all));
+      const nextVideos = [...all, newVideo];
+      if (
+        permissions.maxStorageMb >= 0 &&
+        getTeacherVideoUsageMb(nextVideos.filter(video =>
+          getRecordTeacherId(video) === normalizeScopeValue(teacherId),
+        )) > permissions.maxStorageMb
+      ) {
+        alert(`⚠️ ستتجاوز مساحة الفيديوهات المسموحة (${permissions.maxStorageMb} MB)`);
+        return;
+      }
+      localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(nextVideos));
 
       // 🔔 إشعار للمشرف
       const notifs = JSON.parse(localStorage.getItem(STORAGE_KEYS.VIDEO_NOTIFICATIONS) || '[]');
@@ -177,6 +203,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   };
 
   const handleDelete = (id: string) => {
+    if (!getTeacherPermissions().canManageVideos) {
+      alert('⚠️ ليس لديك صلاحية حذف الفيديوهات');
+      return;
+    }
     if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
     const deletedIds = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.DELETED_VIDEOS) || '[]',
@@ -227,8 +257,9 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           <p className="text-amber-500 font-medium mt-1">أضف فيديوهات تعليمية لطلابك</p>
         </div>
         <button
+          disabled={!getTeacherPermissions().canManageVideos}
           onClick={() => { setShowForm(!showForm); setEditingVideo(null); playLamsaSound('click'); }}
-          className="px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-all active:scale-95"
+          className="px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {showForm ? '❌ إلغاء' : '➕ فيديو جديد'}
         </button>
@@ -380,8 +411,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                   {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, grade: video.grade, subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm">✏️ تعديل</button>
-                  <button onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm">❌ حذف</button>
+                   <button disabled={!getTeacherPermissions().canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, grade: video.grade, subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
+                   <button disabled={!getTeacherPermissions().canManageVideos} onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
                 </div>
               </div>
             </div>

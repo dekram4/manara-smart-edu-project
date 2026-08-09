@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { StudentInfo, ParentInfo, HierarchicalConfig } from '../../types';
+import { StudentInfo, ParentInfo, HierarchicalConfig, ParentPermissions } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { ensureHashed } from '../../utils/password';
-import { getTeacherPermissions } from '../../permissions';
+import { getTeacherPermissions, getParentPermissions, isLimitReached } from '../../permissions';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
@@ -27,6 +27,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [editingParent, setEditingParent] = useState<ParentInfo | null>(null);
   const [editingStudent, setEditingStudent] = useState<StudentInfo | null>(null);
+  const [permissionsParent, setPermissionsParent] = useState<ParentInfo | null>(null);
+  const [parentPermissionDraft, setParentPermissionDraft] = useState<ParentPermissions | null>(null);
 
   // الحصول على الصلاحيات
   const permissions = getTeacherPermissions();
@@ -105,6 +107,21 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     }
 
     const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+
+    if (!editingParent) {
+      if (!permissions.canCreateParents) {
+        alert('⚠️ ليس لديك صلاحية إنشاء أولياء أمور');
+        return;
+      }
+      const teacherParents = getTeacherParents(allParents, teacherId);
+      if (isLimitReached(teacherParents.length, permissions.maxParents)) {
+        alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxParents}) من أولياء الأمور`);
+        return;
+      }
+    } else if (!permissions.canEditParents) {
+      alert('⚠️ ليس لديك صلاحية تعديل أولياء الأمور');
+      return;
+    }
     
     // التحقق من عدم تكرار رقم الهوية عبر جميع المستخدمين
     if (parentForm.nationalId && parentForm.nationalId.trim()) {
@@ -182,6 +199,22 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
     const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
     const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+
+    if (!editingStudent) {
+      if (!permissions.canCreateStudents) {
+        alert('⚠️ ليس لديك صلاحية إنشاء الطلاب');
+        return;
+      }
+      const teacherParents = getTeacherParents(allParents, teacherId);
+      const teacherStudents = getTeacherStudents(allStudents, teacherId, teacherParents);
+      if (isLimitReached(teacherStudents.length, permissions.maxStudents)) {
+        alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxStudents}) من الطلاب`);
+        return;
+      }
+    } else if (!permissions.canEditStudents) {
+      alert('⚠️ ليس لديك صلاحية تعديل الطلاب');
+      return;
+    }
     
     // التحقق من عدم تكرار رقم الهوية
     if (studentForm.nationalId && studentForm.nationalId.trim()) {
@@ -314,6 +347,43 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     if (!confirm(`تأكيد التصفير:\nالطالب: ${student.name}\nالهوية: ${studentIdentity}\n\nهل تريد المتابعة؟`)) return;
     resetGamificationForStudent(student);
     alert(`تم تصفير عداد الطالب ${student.name} (هوية: ${studentIdentity}) بنجاح`);
+  };
+
+  const openParentPermissions = (parent: ParentInfo) => {
+    if (!permissions.canManageParentPermissions) {
+      alert('⚠️ ليس لديك صلاحية إدارة صلاحيات أولياء الأمور');
+      return;
+    }
+    setPermissionsParent(parent);
+    const globalParentPermissions = getParentPermissions();
+    setParentPermissionDraft({
+      ...globalParentPermissions,
+      ...(parent.parentPermissions || {}),
+      canCreateStudents: Boolean(globalParentPermissions.canCreateStudents && parent.parentPermissions?.canCreateStudents !== false),
+      canEditStudents: Boolean(globalParentPermissions.canEditStudents && parent.parentPermissions?.canEditStudents !== false),
+      canDeleteStudents: Boolean(globalParentPermissions.canDeleteStudents && parent.parentPermissions?.canDeleteStudents !== false),
+      canResetStudentPassword: Boolean(globalParentPermissions.canResetStudentPassword && parent.parentPermissions?.canResetStudentPassword !== false),
+      canViewReports: Boolean(globalParentPermissions.canViewReports && parent.parentPermissions?.canViewReports !== false),
+      canChangeGrade: Boolean(globalParentPermissions.canChangeGrade && parent.parentPermissions?.canChangeGrade !== false),
+      canChatWithSupport: Boolean(globalParentPermissions.canChatWithSupport && parent.parentPermissions?.canChatWithSupport !== false),
+    });
+  };
+
+  const saveParentPermissions = () => {
+    if (!permissionsParent || !parentPermissionDraft) return;
+    const allParents: ParentInfo[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]',
+    );
+    const updatedParents = allParents.map(parent =>
+      parent.id === permissionsParent.id
+        ? { ...parent, parentPermissions: parentPermissionDraft }
+        : parent,
+    );
+    localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
+    setPermissionsParent(null);
+    setParentPermissionDraft(null);
+    loadData();
+    alert('✅ تم حفظ صلاحيات ولي الأمر');
   };
 
   const resetParentForm = () => {
@@ -647,6 +717,14 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                       {permissions.canEditParents && (
                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '' }); setShowParentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">✏️ تعديل</button>
                       )}
+                      {permissions.canManageParentPermissions && (
+                        <button
+                          onClick={() => openParentPermissions(parent)}
+                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold"
+                        >
+                          🔐 الصلاحيات
+                        </button>
+                      )}
                       {permissions.canDeleteParents && (
                         <button onClick={() => handleDeleteParent(parent.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold">🗑️ حذف</button>
                       )}
@@ -855,6 +933,56 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               >
                 ❌ إلغاء
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {permissionsParent && parentPermissionDraft && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4" onClick={() => { setPermissionsParent(null); setParentPermissionDraft(null); }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-2xl font-black text-slate-800">🔐 صلاحيات ولي الأمر</h2>
+                <p className="text-slate-500 font-bold mt-1">{permissionsParent.name}</p>
+              </div>
+              <button onClick={() => { setPermissionsParent(null); setParentPermissionDraft(null); }} className="text-2xl text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {([
+                ['canCreateStudents', 'إنشاء أبناء'],
+                ['canEditStudents', 'تعديل بيانات الأبناء'],
+                ['canDeleteStudents', 'حذف الأبناء'],
+                ['canResetStudentPassword', 'إعادة تعيين كلمة مرور الأبناء'],
+                ['canViewReports', 'عرض التقارير'],
+                ['canChangeGrade', 'تغيير الصف'],
+                ['canChatWithSupport', 'الدردشة مع الدعم'],
+              ] as [keyof ParentPermissions, string][]).map(([key, label]) => (
+                <label key={key} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 font-bold text-slate-700">
+                  <span>{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(parentPermissionDraft[key])}
+                    onChange={e => setParentPermissionDraft({ ...parentPermissionDraft, [key]: e.target.checked })}
+                    className="h-5 w-5 accent-indigo-600"
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+              <label className="block font-black text-indigo-900 mb-2">الحد الأقصى لأبناء ولي الأمر</label>
+              <p className="text-xs text-indigo-700 font-bold mb-3">اكتب -1 للسماح بعدد غير محدود.</p>
+              <input
+                type="number"
+                min="-1"
+                value={parentPermissionDraft.maxStudents}
+                onChange={e => setParentPermissionDraft({ ...parentPermissionDraft, maxStudents: Math.max(-1, Number(e.target.value)) })}
+                className="w-full rounded-xl border-2 border-indigo-200 bg-white p-3 font-black outline-none"
+              />
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={saveParentPermissions} className="flex-1 rounded-xl bg-indigo-600 py-3 text-white font-black hover:bg-indigo-700">💾 حفظ الصلاحيات</button>
+              <button onClick={() => { setPermissionsParent(null); setParentPermissionDraft(null); }} className="rounded-xl bg-slate-200 px-6 py-3 font-black text-slate-700">إلغاء</button>
             </div>
           </div>
         </div>

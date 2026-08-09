@@ -253,6 +253,7 @@ export interface ParentInfo {
   lastLogin: string;
   createdBy?: string; // teacher ID who created this parent
   createdByName?: string; // teacher name
+  parentPermissions?: Partial<Permissions['parent']>; // صلاحيات مخصصة يمنحها المعلم لولي الأمر
 }
 
 export interface ChatMessage {
@@ -377,30 +378,43 @@ export interface TeacherStats {
 }
 
 // نظام الصلاحيات
-export interface Permissions {
-  // صلاحيات المعلمين
-  teacher: {
+export interface TeacherPermissions {
     canManageAcademicSettings: boolean; // إضافة/تعديل الإعدادات الأكاديمية
     canEditGeneralSettings: boolean; // تعديل الإعدادات العامة من المشرف
     canManageContent: boolean; // إضافة/تعديل المحتوى
+    canManageVideos: boolean; // إضافة/تعديل الفيديوهات
     canCreateParents: boolean; // إنشاء أولياء أمور
     canEditParents: boolean; // تعديل أولياء أمور
     canDeleteParents: boolean; // حذف أولياء أمور
+    canManageParentPermissions: boolean; // منح صلاحيات مخصصة لولي الأمر
     canCreateStudents: boolean; // إنشاء طلاب
     canEditStudents: boolean; // تعديل طلاب
     canDeleteStudents: boolean; // حذف طلاب
     canViewReports: boolean; // عرض التقارير
     canManageQuizzes: boolean; // إدارة الاختبارات
-  };
-  // صلاحيات أولياء الأمور
-  parent: {
+    maxParents: number; // الحد الأقصى لأولياء الأمور، -1 = غير محدود
+    maxStudents: number; // الحد الأقصى للطلاب، -1 = غير محدود
+    maxContent: number; // الحد الأقصى للدروس، -1 = غير محدود
+    maxVideos: number; // الحد الأقصى للفيديوهات، -1 = غير محدود
+    maxStorageMb: number; // مساحة الفيديوهات بالميجابايت، -1 = غير محدود
+}
+
+export interface ParentPermissions {
     canCreateStudents: boolean; // إنشاء أبناء
     canEditStudents: boolean; // تعديل بيانات الأبناء
     canDeleteStudents: boolean; // حذف أبناء
+    canResetStudentPassword: boolean; // إعادة تعيين كلمة مرور الأبناء
     canViewReports: boolean; // عرض التقارير والإحصائيات
     canChangeGrade: boolean; // تغيير الصف للطالب
     canChatWithSupport: boolean; // التواصل مع الدعم
-  };
+    maxStudents: number; // الحد الأقصى للأبناء، -1 = غير محدود
+}
+
+export interface Permissions {
+  // صلاحيات المعلمين
+  teacher: TeacherPermissions;
+  // صلاحيات أولياء الأمور
+  parent: ParentPermissions;
   // صلاحيات الطلاب
   student: {
     canChangeGrade: boolean; // تغيير الصف

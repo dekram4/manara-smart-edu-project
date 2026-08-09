@@ -5,7 +5,7 @@ import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ParentLogin from './ParentLogin';
 import ParentAccountSetup from './ParentAccountSetup';
-import { getParentPermissions } from '../../permissions';
+import { getEffectiveParentPermissions, isLimitReached } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
@@ -35,7 +35,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [availableGrades, setAvailableGrades] = useState<string[]>([]);
   const [selectedNewGrade, setSelectedNewGrade] = useState('');
 
-  const permissions = getParentPermissions();
+  const permissions = getEffectiveParentPermissions(parent);
 
   /* Dashboard filter */
   const [dashFilter, setDashFilter] = useState('');
@@ -197,6 +197,11 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       return;
     }
     const studentsList = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const currentChildren = parent ? getParentChildren(studentsList, parent) : [];
+    if (isLimitReached(currentChildren.length, permissions.maxStudents)) {
+      alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxStudents}) من الأبناء`);
+      return;
+    }
     if (studentsList.some((s: any) => s.studentIdNumber === newChild.studentIdNumber)) {
       alert('رقم الهوية موجود بالفعل');
       return;
@@ -262,6 +267,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const handleResetStudentPassword = (child: StudentInfo) => {
+    if (!permissions.canResetStudentPassword) {
+      alert('⚠️ ليس لديك صلاحية إعادة تعيين كلمة مرور الأبناء');
+      return;
+    }
     const newPass = prompt(`أدخل كلمة مرور جديدة لـ ${child.name}:`, DEFAULT_PASSWORD);
     if (newPass) {
       if (newPass.length < 6) { alert('كلمة المرور قصيرة جداً'); return; }
@@ -539,7 +548,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           {[
             { key: ParentMenuType.DASHBOARD, icon: '🏠', label: 'الرئيسية' },
             { key: ParentMenuType.CHILDREN, icon: '👨‍👧', label: 'الأبناء' },
-            { key: ParentMenuType.ADD_CHILDREN, icon: '➕', label: 'إضافة ابن' },
+             ...(permissions.canCreateStudents && !isLimitReached(children.length, permissions.maxStudents)
+               ? [{ key: ParentMenuType.ADD_CHILDREN, icon: '➕', label: 'إضافة ابن' }]
+               : []),
             { key: ParentMenuType.CERTIFICATES, icon: '🏆', label: 'الشهادات' },
             ...(permissions.canChatWithSupport ? [{ key: ParentMenuType.CHAT, icon: '💬', label: 'الدردشة' }] : []),
             { key: ParentMenuType.SETTINGS, icon: '⚙️', label: 'الإعدادات' },
@@ -983,9 +994,11 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                             </div>
                           </div>
                         </div>
-                        <button onClick={() => handleResetStudentPassword(activeChild)} className="bg-white text-rose-500 px-4 py-2 rounded-xl font-black hover:bg-rose-100 shadow-lg transition-all text-xs shrink-0">
-                          🔑 تغيير المرور
-                        </button>
+                         {permissions.canResetStudentPassword && (
+                           <button onClick={() => handleResetStudentPassword(activeChild)} className="bg-white text-rose-500 px-4 py-2 rounded-xl font-black hover:bg-rose-100 shadow-lg transition-all text-xs shrink-0">
+                             🔑 تغيير المرور
+                           </button>
+                         )}
                       </div>
                     </div>
 
