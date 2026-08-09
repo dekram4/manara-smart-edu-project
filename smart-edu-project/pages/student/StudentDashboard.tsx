@@ -318,6 +318,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [qIndex, setQIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
+  const [quizEmptyMessage, setQuizEmptyMessage] = useState<string | null>(null);
 
   const [chatMessages, setChatMessages] = useState<Array<{id: string; name: string; message: string; time: string}>>([]);
   const [chatInput, setChatInput] = useState('');
@@ -795,6 +796,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         setActiveQuizTitle(selectedCreatedQuiz?.title || previousResult.quizTitle || 'اختبار المعلم');
         setCurrentQuiz([]);
         setUserAnswers({});
+        setQuizEmptyMessage(null);
         setQuizResult(previousResult);
         setActiveModule(StudentModuleType.QUIZ);
         return true;
@@ -818,8 +820,21 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
     if (filtered.length === 0) {
       playLamsaSound('error');
-      alert('لا توجد أسئلة متوفرة لهذا الاختبار حالياً.');
-      return false;
+      setActiveQuizId(selectedCreatedQuiz?.id || requestedQuizId || null);
+      setActiveQuizTitle(
+        selectedCreatedQuiz?.title ||
+        (type === QuizType.TEACHER ? 'اختبار المعلم' : 'الاختبار الدوري'),
+      );
+      setCurrentQuiz([]);
+      setUserAnswers({});
+      setQuizResult(null);
+      setQuizEmptyMessage(
+        type === QuizType.TEACHER
+          ? 'لا يوجد اختبار مضاف من المعلم حالياً.'
+          : 'لا توجد أسئلة متوفرة لهذا الاختبار حالياً.',
+      );
+      setActiveModule(StudentModuleType.QUIZ);
+      return true;
     }
 
     const quizId = selectedCreatedQuiz?.id || filtered[0]?.quizId || `${type}:${student.id}`;
@@ -835,6 +850,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setCurrentQuiz(studentQuestions);
     setQIndex(0);
     setUserAnswers({});
+    setQuizEmptyMessage(null);
     setQuizResult(null);
     setActiveModule(StudentModuleType.QUIZ);
     return true;
@@ -1906,6 +1922,32 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(250,204,21,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(244,114,182,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
                   {!quizResult ? (
+                    quizEmptyMessage ? (
+                      <div className="text-center py-16">
+                        <Interactive3DEmoji
+                          emoji="📝"
+                          accent="#facc15"
+                          size="xl"
+                          className="mb-6"
+                        />
+                        <h2 className="text-4xl font-black mb-4 text-white">لا يوجد اختبار متاح</h2>
+                        <p className="text-xl text-amber-400 font-bold mb-8">{quizEmptyMessage}</p>
+                        <button
+                          onClick={() => {
+                            soundClick.play();
+                            setActiveModule(null);
+                            setQuizResult(null);
+                            setQuizEmptyMessage(null);
+                            setCurrentQuiz([]);
+                            setUserAnswers({});
+                            setShowModuleCards(true);
+                          }}
+                          className="px-12 py-4 bg-white text-slate-950 rounded-2xl font-black text-xl hover:bg-slate-200 shadow-xl cursor-pointer"
+                        >
+                          العودة إلى الصفحة الرئيسية 🏠
+                        </button>
+                      </div>
+                    ) : (
                     <div>
                       <div className="flex justify-between items-center mb-8">
                         <div className="bg-slate-900 px-6 py-3 rounded-full font-black text-amber-400 text-lg border border-slate-700">
@@ -1964,6 +2006,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         )}
                       </div>
                     </div>
+                    )
                   ) : (
                     <div className="text-center">
                        <Interactive3DEmoji
