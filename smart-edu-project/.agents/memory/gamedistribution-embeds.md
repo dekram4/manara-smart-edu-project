@@ -7,4 +7,4 @@ GameDistribution links in the common `html5.gamedistribution.com/<id>/?gd_sdk_re
 
 **Why:** The wrapper page can intentionally refuse embedded playback even though the underlying game URL is available and embeddable.
 
-**How to apply:** When a user supplies a GameDistribution iframe and asks for same-page playback, preserve the supplied game ID but resolve it to the direct `rvvASMiM/<id>/index.html` path for the iframe source. Do not add a restrictive `sandbox` to these frames: some Unity/HTML5 builds need browser APIs that make the provider fall back to its unavailable-page wrapper.
+**How to apply:** When a user supplies a GameDistribution iframe and asks for same-page playback, preserve the supplied game ID and resolve it to the direct `rvvASMiM/<id>/index.html` path. Use a targeted iframe sandbox that allows scripts, same-origin, forms, pointer/orientation lock, and modals, but never allows popups or top navigation; this blocks provider ad redirects while preserving the direct game runtime.
