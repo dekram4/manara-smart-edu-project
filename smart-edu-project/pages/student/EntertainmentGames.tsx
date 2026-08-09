@@ -134,6 +134,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               title="اللعبة الأولى"
               className="h-full w-full border-0"
               scrolling="no"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
             />
@@ -158,6 +159,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               title="اللعبة الثانية"
               className="h-full w-full border-0"
               scrolling="no"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
             />
@@ -182,6 +184,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               title="اللعبة الثالثة"
               className="h-full w-full border-0"
               scrolling="no"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
             />
