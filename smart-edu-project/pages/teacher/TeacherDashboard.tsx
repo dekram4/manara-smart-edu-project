@@ -10,6 +10,7 @@ import VideoManagement from './VideoManagement';
 import ParentStudentManagement from './ParentStudentManagement';
 import TeacherReports from './TeacherReports';
 import TeacherCertificates from './TeacherCertificates';
+import QuizManagement from '../admin/QuizManagement';
 import { getTeacherPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
@@ -247,6 +248,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         return <MyAcademicSettings />;
       case TeacherMenuType.CONTENT_MANAGEMENT:
         return <TeacherContentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
+      case TeacherMenuType.QUIZ_MANAGEMENT:
+        return <QuizManagement onUpdate={loadDashboardStats} teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
       case TeacherMenuType.ACCOUNT_MANAGEMENT:
         return <ParentStudentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
       case TeacherMenuType.REPORTS:
@@ -293,6 +296,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             if (menu === TeacherMenuType.CONTENT_MANAGEMENT && !permissions.canManageContent) {
               return null;
             }
+            if (menu === TeacherMenuType.QUIZ_MANAGEMENT && !permissions.canManageQuizzes) {
+              return null;
+            }
             if (menu === TeacherMenuType.ACCOUNT_MANAGEMENT && 
                 !permissions.canCreateParents && !permissions.canCreateStudents) {
               return null;
@@ -306,6 +312,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.ACADEMIC_SETTINGS]: '⚙️',
               [TeacherMenuType.CONTENT_MANAGEMENT]: '📚',
               [TeacherMenuType.VIDEO_MANAGEMENT]: '🎬',
+              [TeacherMenuType.QUIZ_MANAGEMENT]: '📝',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: '👥',
               [TeacherMenuType.REPORTS]: '📊',
               [TeacherMenuType.CERTIFICATES]: '🏆',
@@ -317,6 +324,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.ACADEMIC_SETTINGS]: 'الإعدادات الأكاديمية',
               [TeacherMenuType.CONTENT_MANAGEMENT]: 'إدارة المحتوى',
               [TeacherMenuType.VIDEO_MANAGEMENT]: 'فيديوهاتي',
+              [TeacherMenuType.QUIZ_MANAGEMENT]: 'إدارة الاختبارات',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: 'إدارة الحسابات',
               [TeacherMenuType.REPORTS]: 'التقارير',
               [TeacherMenuType.CERTIFICATES]: 'الشهادات',

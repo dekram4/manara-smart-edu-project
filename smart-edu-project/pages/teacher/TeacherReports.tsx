@@ -3,6 +3,8 @@ import { ParentInfo, StudentInfo, QuizResult } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getTeacherParents, getTeacherStudents } from '../../utils/scope';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
+import { normalizeQuizType } from '../../utils/quizTypes';
+import { QuizType } from '../../types';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -77,8 +79,13 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     return parent?.name || 'غير معروف';
   };
 
+  const getTeacherResults = (studentId: string) => quizResults
+    .filter(quiz => quiz.studentId === studentId && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   const printStudentReport = (student: StudentInfo) => {
     const stats = calculateStudentStats(student);
+    const teacherResults = getTeacherResults(student.id);
     const parentName = getParentName(student.parentId);
     const date = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
     
@@ -289,6 +296,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                   <th className="p-4 text-center font-black text-gray-700">عدد الاختبارات</th>
                   <th className="p-4 text-center font-black text-gray-700">المعدل</th>
                    <th className="p-4 text-center font-black text-gray-700">المستوى</th>
+                   <th className="p-4 text-center font-black text-gray-700">اختبار المعلم</th>
                    <th className="p-4 text-center font-black text-gray-700">الجواهر</th>
                    <th className="p-4 text-center font-black text-gray-700">الخبرة</th>
                   <th className="p-4 text-right font-black text-gray-700">آخر نشاط</th>
@@ -298,6 +306,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
               <tbody>
                 {filteredStudents.map((student) => {
                   const stats = calculateStudentStats(student);
+                  const teacherResults = getTeacherResults(student.id);
                   return (
                     <tr key={student.id} className="border-b hover:bg-gray-50 transition-colors">
                       <td className="p-4 font-bold text-gray-800">{student.name}</td>
@@ -320,11 +329,24 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                           {stats.totalQuizzes > 0 ? `${stats.avgScore}%` : '-'}
                         </span>
                       </td>
-                      <td className="p-4 text-center">
+                       <td className="p-4 text-center">
                         <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-bold">
                           {stats.level}
                         </span>
                       </td>
+                       <td className="p-4 text-center">
+                         {teacherResults.length > 0 ? (
+                           <div className="space-y-1">
+                             {teacherResults.map((result) => (
+                               <div key={result.id} className="bg-rose-100 text-rose-800 px-3 py-1 rounded-full font-bold text-xs">
+                                 {result.quizTitle || 'اختبار المعلم'}: {result.percentage}%
+                               </div>
+                             ))}
+                           </div>
+                         ) : (
+                           <span className="text-gray-400 font-bold">لم يُنجز</span>
+                         )}
+                       </td>
                       <td className="p-4 text-center">
                         <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full font-bold">
                           💎 {stats.gems}

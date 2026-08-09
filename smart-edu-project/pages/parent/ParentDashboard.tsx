@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParentInfo, StudentInfo, QuizResult, ParentMenuType, CertificateRecord, HierarchicalConfig } from '../../types';
+import { ParentInfo, StudentInfo, QuizResult, ParentMenuType, CertificateRecord, HierarchicalConfig, QuizType } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ParentLogin from './ParentLogin';
@@ -12,6 +12,7 @@ import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTe
 import ManaraBrand from '../../components/ManaraBrand';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
+import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -303,34 +304,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Helpers ===== */
   const getChildQuizzes = (childId: string) => allQuizzes.filter(q => q.studentId === childId);
-  const normalizeQuizType = (quizType: string | undefined): 'unit' | 'term' | 'final' | 'other' => {
-    const value = (quizType || '').trim().toLowerCase();
-    if (
-      value === 'unit' ||
-      value.includes('unit') ||
-      value.includes('وحدة')
-    ) return 'unit';
-    if (
-      value === 'term' ||
-      value.includes('term') ||
-      value.includes('ترم') ||
-      value.includes('فصل')
-    ) return 'term';
-    if (
-      value === 'final' ||
-      value.includes('final') ||
-      value.includes('نهائي') ||
-      value.includes('الصف')
-    ) return 'final';
-    return 'other';
-  };
+  const normalizeQuizType = (quizType: string | undefined) => normalizeAssessmentType(quizType);
   const getQuizTypeLabel = (quizType: string | undefined) => {
-    switch (normalizeQuizType(quizType)) {
-      case 'unit': return 'اختبار وحدة';
-      case 'term': return 'اختبار ترم';
-      case 'final': return 'اختبار نهائي';
-      default: return quizType || 'اختبار';
-    }
+    return formatQuizTypeLabel(quizType);
   };
   const getChildAverage = (childId: string) => {
     const qs = getChildQuizzes(childId);
@@ -485,12 +461,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const printSubjectReport = (child: StudentInfo, subject: string) => {
     const childQuizzes = allQuizzes.filter(q => q.studentId === child.id && q.subject === subject);
     const avg = childQuizzes.length > 0 ? (childQuizzes.reduce((acc, q) => acc + q.percentage, 0) / childQuizzes.length).toFixed(1) : '0';
-    const unitQuizzes = childQuizzes.filter(q => normalizeQuizType(q.quizType) === 'unit');
-    const termQuizzes = childQuizzes.filter(q => normalizeQuizType(q.quizType) === 'term');
-    const gradeQuizzes = childQuizzes.filter(q => normalizeQuizType(q.quizType) === 'final');
-    const unitAvg = unitQuizzes.length > 0 ? (unitQuizzes.reduce((acc, q) => acc + q.percentage, 0) / unitQuizzes.length).toFixed(1) : '0';
-    const termAvg = termQuizzes.length > 0 ? (termQuizzes.reduce((acc, q) => acc + q.percentage, 0) / termQuizzes.length).toFixed(1) : '0';
-    const gradeAvg = gradeQuizzes.length > 0 ? (gradeQuizzes.reduce((acc, q) => acc + q.percentage, 0) / gradeQuizzes.length).toFixed(1) : '0';
+    const periodicQuizzes = childQuizzes.filter(q => normalizeQuizType(q.quizType) === QuizType.PERIODIC);
+    const teacherQuizzes = childQuizzes.filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER);
+    const periodicAvg = periodicQuizzes.length > 0 ? (periodicQuizzes.reduce((acc, q) => acc + q.percentage, 0) / periodicQuizzes.length).toFixed(1) : '0';
+    const teacherAvg = teacherQuizzes.length > 0 ? (teacherQuizzes.reduce((acc, q) => acc + q.percentage, 0) / teacherQuizzes.length).toFixed(1) : '0';
     const certificates = JSON.parse(localStorage.getItem(CERT_KEY) || '[]');
     const studentCertificates = certificates.filter((c: any) => c.studentId === child.id && c.subject === subject);
     const printWindow = window.open('', '_blank');
@@ -520,14 +494,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       <div class="info"><div><strong style="color:#64748b;">الاسم:</strong> <span style="font-size:18px;font-weight:bold;">${child.name}</span></div><div><strong style="color:#64748b;">الصف:</strong> <span style="font-size:18px;font-weight:bold;">${child.grade}</span></div><div><strong style="color:#64748b;">الترم:</strong> <span style="font-size:18px;font-weight:bold;">${child.atram}</span></div><div><strong style="color:#64748b;">التاريخ:</strong> <span style="font-size:18px;font-weight:bold;">${new Date().toLocaleDateString('ar-SA')}</span></div></div>
       <div class="section-title">📈 ملخص الأداء حسب نوع الاختبار</div>
       <div class="stats-grid">
-        <div class="stat-card unit"><h3>📘 اختبارات الوحدة</h3><div class="value">${unitAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد الاختبارات: ${unitQuizzes.length}</p></div>
-        <div class="stat-card term"><h3>📗 اختبارات الترم</h3><div class="value">${termAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد الاختبارات: ${termQuizzes.length}</p></div>
-        <div class="stat-card grade"><h3>📕 اختبارات الصف</h3><div class="value">${gradeAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد الاختبارات: ${gradeQuizzes.length}</p></div>
+         <div class="stat-card unit"><h3>📘 الاختبار الدوري</h3><div class="value">${periodicAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد المحاولات: ${periodicQuizzes.length}</p></div>
+         <div class="stat-card grade"><h3>📕 اختبار المعلم</h3><div class="value">${teacherAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد الاختبارات: ${teacherQuizzes.length}</p></div>
       </div>
       ${studentCertificates.length > 0 ? `<div class="certificates"><h2>🏆 الشهادات الممنوحة</h2><div style="text-align:center;">${studentCertificates.map((cert: any) => `<div class="cert-item ${cert.type}"><div style="font-size:40px;margin-bottom:10px;">${cert.type === 'excellence' ? '🏆' : cert.type === 'appreciation' ? '⭐' : '🌟'}</div><strong style="font-size:16px;">${cert.type === 'excellence' ? 'شهادة تميز' : cert.type === 'appreciation' ? 'شهادة تقدير' : 'شهادة مشاركة'}</strong><p style="margin:10px 0 5px 0;font-size:14px;">المعلم: ${cert.teacherName || 'غير محدد'}</p><p style="margin:0;font-size:12px;color:#64748b;">${new Date(cert.date).toLocaleDateString('ar-SA')}</p></div>`).join('')}</div></div>` : ''}
        <div class="section-title">📋 تفاصيل جميع الاختبارات</div>
        <table><thead><tr><th>نوع الاختبار</th><th>الوحدة</th><th>الصف</th><th>النتيجة</th><th>المستوى</th><th>التاريخ</th></tr></thead><tbody>${childQuizzes.map(q => `<tr><td style="font-weight:bold;">${getQuizTypeLabel(q.quizType)}</td><td>${q.unit || '-'}</td><td>${q.grade}</td><td style="font-weight:bold;font-size:18px;color:${q.percentage >= 80 ? '#10b981' : q.percentage >= 60 ? '#f59e0b' : '#ef4444'};">${q.percentage}%</td><td style="font-weight:bold;color:${q.percentage >= 60 ? '#10b981' : '#ef4444'};">${q.level}</td><td style="font-size:12px;color:#64748b;">${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td></tr>`).join('')}</tbody></table>
-      <div class="summary"><div style="color:#64748b;font-size:16px;margin-bottom:10px;">📊 المعدل العام للمادة</div><div style="font-size:48px;color:${parseFloat(avg) >= 80 ? '#10b981' : parseFloat(avg) >= 60 ? '#f59e0b' : '#ef4444'};">${avg}%</div><div style="margin-top:15px;font-size:14px;color:#64748b;">إجمالي الاختبارات: ${childQuizzes.length} | أعلى درجة: ${childQuizzes.length > 0 ? Math.max(...childQuizzes.map(q => q.percentage)) : 0}% | أقل درجة: ${childQuizzes.length > 0 ? Math.min(...childQuizzes.map(q => q.percentage)) : 0}%</div></div>
+       <div class="summary"><div style="color:#64748b;font-size:16px;margin-bottom:10px;">📊 المعدل العام للمادة</div><div style="font-size:48px;color:${parseFloat(avg) >= 80 ? '#10b981' : parseFloat(avg) >= 60 ? '#f59e0b' : '#ef4444'};">${avg}%</div><div style="margin-top:15px;font-size:14px;color:#64748b;">إجمالي النتائج: ${childQuizzes.length} | أعلى درجة: ${childQuizzes.length > 0 ? Math.max(...childQuizzes.map(q => q.percentage)) : 0}% | أقل درجة: ${childQuizzes.length > 0 ? Math.min(...childQuizzes.map(q => q.percentage)) : 0}%</div></div>
       <div style="text-align:center;margin-top:40px;padding:20px;background:#f8fafc;border-radius:15px;color:#64748b;font-size:12px;"><p style="margin:0;">تم إنشاء هذا التقرير بواسطة منصة SmartEdu التعليمية</p><p style="margin:5px 0 0 0;">${new Date().toLocaleString('ar-SA')}</p></div>
       </body></html>
     `);

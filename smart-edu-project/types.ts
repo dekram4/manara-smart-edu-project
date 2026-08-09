@@ -37,6 +37,7 @@ export enum TeacherMenuType {
   ACADEMIC_SETTINGS = 'ACADEMIC_SETTINGS',
   CONTENT_MANAGEMENT = 'CONTENT_MANAGEMENT',
   VIDEO_MANAGEMENT = 'VIDEO_MANAGEMENT',
+  QUIZ_MANAGEMENT = 'QUIZ_MANAGEMENT',
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
   REPORTS = 'REPORTS',
   CERTIFICATES = 'CERTIFICATES',
@@ -50,9 +51,8 @@ export interface StudentAppearance {
 }
 
 export enum QuizType {
-  UNIT = 'unit',
-  TERM = 'term',
-  FINAL = 'final',
+  PERIODIC = 'periodic',
+  TEACHER = 'teacher',
 }
 
 export interface StudentInfo {
@@ -179,6 +179,8 @@ export interface QuizQuestion {
   term: string;
   unit: string;
   quizType: QuizType;
+  /** Present for questions belonging to a created quiz; legacy questions may omit it. */
+  quizId?: string;
   createdAt: string;
   source?: string;
   variation?: number;
@@ -193,7 +195,7 @@ export interface CreatedQuiz {
   atram: string;
   term: string;
   unit: string;
-  quizType: QuizType; // unit, term, final
+  quizType: QuizType;
   questionCount: number;
   isActive: boolean; // مفعل أم لا
   questions: QuizQuestion[];
@@ -224,6 +226,9 @@ export interface QuizResult {
     isCorrect: boolean;
   }[];
   createdAt: string;
+  quizTitle?: string;
+  attemptNumber?: number;
+  isRetake?: boolean;
 }
 
 export interface ParentInfo {

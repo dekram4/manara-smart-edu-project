@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { StudentInfo, QuizResult, ParentInfo, ReportData, LessonConfig } from '../../types';
 import { getParentChildren, getTeacherParents, getTeacherStudents } from '../../utils/scope';
+import { getQuizTypeLabel as formatQuizTypeLabel } from '../../utils/quizTypes';
 
 const Reports: React.FC = () => {
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -13,27 +14,7 @@ const Reports: React.FC = () => {
   const [reportType, setReportType] = useState<string>('all'); // 'all' | 'byTeacher' | 'byParent'
 
   const getQuizTypeLabel = (quizType?: string) => {
-    const value = (quizType || '').trim().toLowerCase();
-    if (value === 'unit' || value.includes('unit') || value.includes('وحدة')) {
-      return 'اختبار وحدة';
-    }
-    if (
-      value === 'term' ||
-      value.includes('term') ||
-      value.includes('ترم') ||
-      value.includes('فصل')
-    ) {
-      return 'اختبار ترم';
-    }
-    if (
-      value === 'final' ||
-      value.includes('final') ||
-      value.includes('نهائي') ||
-      value.includes('الصف')
-    ) {
-      return 'اختبار نهائي';
-    }
-    return quizType || 'اختبار';
+    return formatQuizTypeLabel(quizType);
   };
 
   useEffect(() => {

@@ -44,9 +44,8 @@ export const COLORS = {
 };
 
 export const QUIZ_TYPES = [
-  { value: 'unit', label: 'اختبار وحدة (5 أسئلة)' },
-  { value: 'term', label: 'اختبار الترم (15 سؤال)' },
-  { value: 'final', label: 'اختبار نهاية سنة (20 سؤال)' },
+  { value: 'periodic', label: 'الاختبار الدوري' },
+  { value: 'teacher', label: 'اختبار المعلم' },
 ];
 
 // الصلاحيات الافتراضية

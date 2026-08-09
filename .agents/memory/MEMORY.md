@@ -3,3 +3,4 @@
 - [Local audio feedback](audio-feedback.md) — use local original clips and one intentional sound per UI, navigation, quiz, or reward event.
 - [Progress sync boundary](progress-sync-boundary.md) — shared student progress must be promoted through localStorage writes so the existing Supabase write-through layer persists it.
 - [Content hydration and scope](content-hydration-and-scope.md) — wait for Supabase hydration before mounting dashboards and treat blank legacy academic fields as unspecified.
+- [Assessment modes](assessment-modes.md) — assessment behavior is keyed by stable quiz IDs: periodic attempts are repeatable, teacher assessments are one-time.

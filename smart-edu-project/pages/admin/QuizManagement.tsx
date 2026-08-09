@@ -3,9 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { QuizQuestion, QuizType, LessonConfig, CreatedQuiz } from '../../types';
 import { STORAGE_KEYS, QUIZ_TYPES } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
+import { getQuizTypeLabel, normalizeCreatedQuiz, normalizeQuizType } from '../../utils/quizTypes';
 
 interface QuizManagementProps {
   onUpdate: () => void;
+  teacherId?: string;
+  teacherName?: string;
 }
 
 // 📝 نموذج إضافة سؤال يدوي
@@ -195,7 +198,7 @@ const EditQuestionForm: React.FC<{
   );
 };
 
-const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate }) => {
+const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, teacherName }) => {
   const [createdQuizzes, setCreatedQuizzes] = useState<CreatedQuiz[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -207,8 +210,10 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate }) => {
 
   // 👨‍🏫 اختيار المعلم
   const [teachers, setTeachers] = useState<any[]>([]);
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('admin');
-  const [selectedTeacherName, setSelectedTeacherName] = useState<string>('المشرف - محتوى عام');
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(teacherId || 'admin');
+  const [selectedTeacherName, setSelectedTeacherName] = useState<string>(
+    teacherName || 'المشرف - محتوى عام',
+  );
 
   // 🔗 الإعدادات الأكاديمية الهرمية
   const [availableGrades, setAvailableGrades] = useState<string[]>([]);
@@ -228,7 +233,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate }) => {
     subject: '',
     term: '',
     unit: '',
-    quizType: 'unit' as QuizType,
+    quizType: QuizType.PERIODIC,
     questionCount: 10,
     isActive: true
   });
@@ -236,11 +241,19 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate }) => {
   useEffect(() => {
     loadQuizzes();
     loadAcademicHierarchy();
-  }, [selectedTeacherId]);
+  }, [selectedTeacherId, teacherId]);
 
   const loadQuizzes = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES);
-    if (saved) setCreatedQuizzes(JSON.parse(saved));
+    if (!saved) return;
+    const all = JSON.parse(saved).map(normalizeCreatedQuiz);
+    const visible = teacherId
+      ? all.filter((quiz: CreatedQuiz) => getRecordTeacherId(quiz) === normalizeScopeValue(teacherId))
+      : all;
+    setCreatedQuizzes(visible);
+    if (JSON.stringify(all) !== saved) {
+      localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(all));
+    }
   };
 
   // 📚 تحميل الهيكل الأكاديمي
@@ -274,7 +287,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate }) => {
       subject: '',
       term: '',
       unit: '',
-      quizType: 'unit' as QuizType,
+       quizType: QuizType.PERIODIC,
       questionCount: 10,
       isActive: true
     });
@@ -548,6 +561,7 @@ ${contentSummary}
 
   // 💾 حفظ الاختبار
   const saveQuiz = (generatedQuestions: any[]) => {
+    const quizId = editingQuiz?.id || `quiz_${Date.now()}`;
     const quizQuestions: QuizQuestion[] = generatedQuestions.map((q, index) => ({
       id: `q_${Date.now()}_${index}_${Math.random()}`,
       question: q.question,
@@ -559,21 +573,22 @@ ${contentSummary}
       atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
-      quizType: quizFormData.quizType,
+      quizType: normalizeQuizType(quizFormData.quizType),
+      quizId,
       createdAt: new Date().toISOString(),
       source: 'ai-generated',
       variation: Math.floor(Math.random() * 100000)
     }));
 
     const newQuiz: CreatedQuiz = {
-      id: editingQuiz?.id || `quiz_${Date.now()}`,
+      id: quizId,
       title: quizFormData.title,
       grade: quizFormData.grade,
       subject: quizFormData.subject,
       atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
-      quizType: quizFormData.quizType,
+      quizType: normalizeQuizType(quizFormData.quizType),
       questionCount: quizQuestions.length,
       isActive: quizFormData.isActive,
       questions: quizQuestions,
@@ -584,14 +599,15 @@ ${contentSummary}
     };
 
     let updated: CreatedQuiz[];
-    if (editingQuiz) {
-      updated = createdQuizzes.map(q => q.id === editingQuiz.id ? newQuiz : q);
-    } else {
-      updated = [...createdQuizzes, newQuiz];
-    }
+    const allSaved: CreatedQuiz[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
+    ).map(normalizeCreatedQuiz);
+    updated = editingQuiz
+      ? allSaved.map(q => q.id === editingQuiz.id ? newQuiz : q)
+      : [...allSaved, newQuiz];
 
     localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(updated));
-    setCreatedQuizzes(updated);
+    setCreatedQuizzes(updated.filter(q => !teacherId || getRecordTeacherId(q) === normalizeScopeValue(teacherId)));
     setShowCreateForm(false);
     setEditingQuiz(null);
     resetForm();
@@ -605,7 +621,7 @@ ${contentSummary}
       subject: '',
       term: '',
       unit: '',
-      quizType: 'unit' as QuizType,
+      quizType: QuizType.PERIODIC,
       questionCount: 10,
       isActive: true
     });
@@ -623,18 +639,24 @@ ${contentSummary}
       return;
     }
 
+    const quizId = editingQuiz?.id || `quiz_${Date.now()}`;
+    const normalizedQuestions = manualQuestions.map(question => ({
+      ...question,
+      quizId,
+      quizType: normalizeQuizType(quizFormData.quizType),
+    }));
     const newQuiz: CreatedQuiz = {
-      id: editingQuiz?.id || `quiz_${Date.now()}`,
+      id: quizId,
       title: quizFormData.title,
       grade: quizFormData.grade,
       subject: quizFormData.subject,
       atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
-      quizType: quizFormData.quizType,
-      questionCount: manualQuestions.length,
+      quizType: normalizeQuizType(quizFormData.quizType),
+      questionCount: normalizedQuestions.length,
       isActive: quizFormData.isActive,
-      questions: manualQuestions,
+      questions: normalizedQuestions,
       createdAt: editingQuiz?.createdAt || new Date().toISOString(),
       createdBy: selectedTeacherId,
       createdByName: selectedTeacherName,
@@ -642,14 +664,15 @@ ${contentSummary}
     };
 
     let updated: CreatedQuiz[];
-    if (editingQuiz) {
-      updated = createdQuizzes.map(q => q.id === editingQuiz.id ? newQuiz : q);
-    } else {
-      updated = [...createdQuizzes, newQuiz];
-    }
+    const allSaved: CreatedQuiz[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
+    ).map(normalizeCreatedQuiz);
+    updated = editingQuiz
+      ? allSaved.map(q => q.id === editingQuiz.id ? newQuiz : q)
+      : [...allSaved, newQuiz];
 
     localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(updated));
-    setCreatedQuizzes(updated);
+    setCreatedQuizzes(updated.filter(q => !teacherId || getRecordTeacherId(q) === normalizeScopeValue(teacherId)));
     setShowCreateForm(false);
     setEditingQuiz(null);
     resetForm();
@@ -669,7 +692,7 @@ ${contentSummary}
       atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
-      quizType: quizFormData.quizType,
+      quizType: normalizeQuizType(quizFormData.quizType),
       createdAt: new Date().toISOString(),
       source: 'manual',
       variation: Math.floor(Math.random() * 100000)
@@ -751,17 +774,23 @@ ${contentSummary}
 
   const handleDelete = (id: string) => {
     if (!confirm('🗑️ حذف الاختبار نهائياً؟ سيتم حذف جميع الأسئلة المرتبطة به.')) return;
-    const updated = createdQuizzes.filter(q => q.id !== id);
+    const allSaved: CreatedQuiz[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
+    ).map(normalizeCreatedQuiz);
+    const updated = allSaved.filter(q => q.id !== id);
     localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(updated));
-    setCreatedQuizzes(updated);
+    setCreatedQuizzes(updated.filter(q => !teacherId || getRecordTeacherId(q) === normalizeScopeValue(teacherId)));
   };
 
   const toggleActive = (id: string) => {
-    const updated = createdQuizzes.map(q => 
+    const allSaved: CreatedQuiz[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
+    ).map(normalizeCreatedQuiz);
+    const updated = allSaved.map(q =>
       q.id === id ? { ...q, isActive: !q.isActive } : q
     );
     localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(updated));
-    setCreatedQuizzes(updated);
+    setCreatedQuizzes(updated.filter(q => !teacherId || getRecordTeacherId(q) === normalizeScopeValue(teacherId)));
   };
 
   return (
@@ -821,17 +850,23 @@ ${contentSummary}
             {/* اختيار المعلم */}
             <div>
               <label className="block font-black text-purple-900 mb-2">👨‍🏫 اختيار المعلم</label>
-              <select
-                value={selectedTeacherId}
-                onChange={e => handleTeacherChange(e.target.value)}
-                className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold text-lg"
-                required
-              >
-                <option value="admin">📚 محتوى عام (المشرف)</option>
-                {teachers.map((t: any) => (
-                  <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>
-                ))}
-              </select>
+              {teacherId ? (
+                <div className="w-full p-4 border-2 border-purple-200 rounded-2xl bg-purple-50 font-bold text-lg text-purple-800">
+                  👨‍🏫 {teacherName || selectedTeacherName}
+                </div>
+              ) : (
+                <select
+                  value={selectedTeacherId}
+                  onChange={e => handleTeacherChange(e.target.value)}
+                  className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold text-lg"
+                  required
+                >
+                  <option value="admin">📚 محتوى عام (المشرف)</option>
+                  {teachers.map((t: any) => (
+                    <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>
+                  ))}
+                </select>
+              )}
               {selectedTeacherId !== 'admin' && (
                 <p className="text-sm text-purple-700 mt-2 font-bold">
                   ✅ الإعدادات الأكاديمية المتاحة للمعلم: {selectedTeacherName}
@@ -946,9 +981,8 @@ ${contentSummary}
                   onChange={e => setQuizFormData({ ...quizFormData, quizType: e.target.value as QuizType })}
                   className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
                 >
-                  <option value="unit">اختبار وحدة</option>
-                  <option value="term">اختبار ترم</option>
-                  <option value="final">اختبار نهائي</option>
+                  <option value={QuizType.PERIODIC}>الاختبار الدوري</option>
+                  <option value={QuizType.TEACHER}>اختبار المعلم</option>
                 </select>
               </div>
 
@@ -1144,7 +1178,7 @@ ${contentSummary}
                       <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.term}</span>
                       <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.unit}</span>
                       <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
-                        {quiz.quizType === 'unit' ? 'اختبار وحدة' : quiz.quizType === 'term' ? 'اختبار ترم' : 'اختبار نهائي'}
+                        {getQuizTypeLabel(quiz.quizType)}
                       </span>
                       {quiz.createdByName && (
                         <span className="bg-purple-900 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">

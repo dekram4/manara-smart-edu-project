@@ -43,6 +43,7 @@ import { getStudentEmoji } from '../../utils/studentAppearance';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentAvatar from './components/StudentAvatar';
 import ManaraBrand from '../../components/ManaraBrand';
+import { normalizeCreatedQuiz, normalizeQuizType, getQuizTypeLabel } from '../../utils/quizTypes';
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -124,7 +125,13 @@ const getLessonRewardId = (lesson: LessonConfig) => {
   return `lesson_reward:${lesson.id}:${unitKey}:${videoKey}`;
 };
 
-const getQuizRewardId = (questions: QuizQuestion[], lesson: LessonConfig | null, quizType: QuizType) => {
+const getQuizRewardId = (
+  questions: QuizQuestion[],
+  lesson: LessonConfig | null,
+  quizType: QuizType,
+  quizId?: string,
+) => {
+  if (quizId) return `quiz_reward:${normalizeScopeValue(quizType)}:${quizId}`;
   const first = questions[0];
   const scopeKey = [first?.grade, first?.atram, first?.subject, first?.term, first?.unit]
     .map((value) => normalizeScopeValue(value || ''))
@@ -277,6 +284,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [showSelectionPanel, setShowSelectionPanel] = useState(false);
 
   const [currentQuiz, setCurrentQuiz] = useState<QuizQuestion[]>([]);
+  const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
+  const [activeQuizTitle, setActiveQuizTitle] = useState<string | null>(null);
   const [qIndex, setQIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
@@ -707,13 +716,13 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setActiveLesson(found || null);
   };
 
-  const startQuiz = (type: QuizType): boolean => {
+  const startQuiz = (type: QuizType, requestedQuizId?: string): boolean => {
     playLamsaSound('pop');
     if (!student) return false;
     const allQuestions: QuizQuestion[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_QUESTIONS) || '[]');
     const createdQuizzes: CreatedQuiz[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
-    );
+    ).map(normalizeCreatedQuiz);
 
     const academicPath = {
       grade: selectedGrade,
@@ -722,17 +731,23 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       term: selectedTerm,
       unit: selectedUnit,
     };
-    const scopedCreatedQuestions = filterTeacherOwnedRecords(createdQuizzes, student)
-      .filter(quiz => quiz.isActive && quiz.quizType === type)
-      .flatMap(quiz => quiz.questions || [])
-      .filter(question => matchesAcademicScope(question, academicPath));
+    const scopedCreatedQuizzes = filterTeacherOwnedRecords(createdQuizzes, student)
+      .filter(quiz => quiz.isActive && normalizeQuizType(quiz.quizType) === type)
+      .filter(quiz => !requestedQuizId || quiz.id === requestedQuizId)
+      .filter(quiz => matchesAcademicScope(quiz, academicPath));
+    const selectedCreatedQuiz = scopedCreatedQuizzes[0];
+    const scopedCreatedQuestions = selectedCreatedQuiz
+      ? selectedCreatedQuiz.questions.filter(question => matchesAcademicScope(question, academicPath))
+      : [];
     const scopedLegacyQuestions = filterTeacherOwnedRecords(allQuestions, student)
-      .filter(question => question.quizType === type && matchesAcademicScope(question, academicPath));
+      .filter(question => normalizeQuizType(question.quizType) === type && matchesAcademicScope(question, academicPath));
 
-    let filtered = [...scopedCreatedQuestions, ...scopedLegacyQuestions];
+    let filtered = selectedCreatedQuiz
+      ? scopedCreatedQuestions
+      : [...scopedCreatedQuestions, ...scopedLegacyQuestions];
 
-    if (filtered.length === 0) {
-      const count = type === QuizType.UNIT ? 5 : type === QuizType.TERM ? 15 : 20;
+    if (filtered.length === 0 && type === QuizType.PERIODIC) {
+      const count = 10;
       filtered = localGenerateQuestionsFromLesson(activeLesson?.lessonContent || '', count, type);
     }
 
@@ -742,16 +757,36 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       return false;
     }
 
-    let limit = 5;
-    if (type === QuizType.TERM) limit = 15;
-    if (type === QuizType.FINAL) limit = 20;
-
+    const limit = selectedCreatedQuiz ? selectedCreatedQuiz.questions.length : 10;
+    setActiveQuizId(selectedCreatedQuiz?.id || filtered[0]?.quizId || null);
+    setActiveQuizTitle(selectedCreatedQuiz?.title || null);
     setCurrentQuiz(filtered.slice(0, limit));
     setQIndex(0);
     setUserAnswers({});
     setQuizResult(null);
     setActiveModule(StudentModuleType.QUIZ);
     return true;
+  };
+
+  const getAvailableTeacherQuizzes = (): CreatedQuiz[] => {
+    if (!student) return [];
+    const academicPath = {
+      grade: selectedGrade,
+      subject: selectedSubject,
+      atram: selectedAtram,
+      term: selectedTerm,
+      unit: selectedUnit,
+    };
+    try {
+      const createdQuizzes: CreatedQuiz[] = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
+      ).map(normalizeCreatedQuiz);
+      return filterTeacherOwnedRecords(createdQuizzes, student)
+        .filter((quiz) => quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
+        .filter((quiz) => matchesAcademicScope(quiz, academicPath));
+    } catch {
+      return [];
+    }
   };
 
   const submitQuiz = () => {
@@ -765,10 +800,36 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     });
 
     const percentage = Math.round((score / currentQuiz.length) * 100);
+    const quizType = normalizeQuizType(currentQuiz[0]?.quizType);
+    const firstQuestion = currentQuiz[0];
+    const fallbackQuizId = [
+      'periodic',
+      firstQuestion?.grade || selectedGrade,
+      firstQuestion?.subject || selectedSubject,
+      firstQuestion?.term || selectedTerm,
+      firstQuestion?.unit || selectedUnit,
+    ].map(normalizeScopeValue).join(':');
+    const quizId = activeQuizId || firstQuestion?.quizId || fallbackQuizId;
+    const allResults: QuizResult[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]',
+    );
+    const previousResults = [...allResults, ...(student.quizResults || [])]
+      .filter((result, index, all) =>
+        result.studentId === student.id &&
+        result.quizId === quizId &&
+        all.findIndex(item => item.id === result.id) === index,
+      );
+
+    if (quizType === QuizType.TEACHER && previousResults.length > 0) {
+      playLamsaSound('error');
+      alert('هذا اختبار معلم محفوظ مسبقاً ولا يمكن إعادته.');
+      return;
+    }
+
     let feedback = 'حاول مجدداً، أنت بطل ذكي وستتحسن بالتأكيد! 💪';
 
     // Gamification rewards
-    const rewardId = getQuizRewardId(currentQuiz, activeLesson, currentQuiz[0]?.quizType || QuizType.UNIT);
+    const rewardId = getQuizRewardId(currentQuiz, activeLesson, quizType, quizId);
     const reward = rewardQuizCompleteWithId(score, currentQuiz.length, rewardId);
     if (percentage >= 60) {
       GameAudioEngine.playRewardSequence({ celebrate: true, gems: reward.gems });
@@ -803,8 +864,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       id: `result_${student.id}_${Date.now()}`,
       studentId: student.id,
       studentName: student.name,
-      quizId: currentQuiz[0]?.lessonId || `quiz_${createdAt}`,
-      quizType: currentQuiz[0]?.quizType || QuizType.UNIT,
+      quizId,
+      quizType,
       subject: currentQuiz[0]?.subject || student.subject || selectedSubject || '',
       unit: currentQuiz[0]?.unit || student.unit || selectedUnit || '',
       grade: currentQuiz[0]?.grade || student.grade || student.primaryGrade || selectedGrade || '',
@@ -820,11 +881,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         isCorrect: userAnswers[question.id] === question.correctAnswer,
       })),
       createdAt,
+      quizTitle: activeQuizTitle || getQuizTypeLabel(quizType),
+      attemptNumber: previousResults.length + 1,
+      isRetake: previousResults.length > 0,
     };
 
-    const allResults: QuizResult[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]',
-    );
     localStorage.setItem(
       STORAGE_KEYS.QUIZ_RESULTS,
       JSON.stringify([...allResults, quizResultRecord]),
@@ -1450,23 +1511,29 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </div>
                 <div className="space-y-2">
                   <button
-                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.UNIT); setShowModuleCards(false); }}
+                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.PERIODIC); setShowModuleCards(false); }}
                     className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
                   >
-                    اختبار الوحدة ⭐
+                    الاختبار الدوري ⭐
                   </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.TERM); setShowModuleCards(false); }}
-                    className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
-                  >
-                    اختبار الترم 🏆
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.FINAL); setShowModuleCards(false); }}
-                    className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
-                  >
-                    الاختبار النهائي الكبير 👑
-                  </button>
+                  {getAvailableTeacherQuizzes().length > 0 ? (
+                    getAvailableTeacherQuizzes().map((quiz) => (
+                      <button
+                        key={quiz.id}
+                        onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.TEACHER, quiz.id); setShowModuleCards(false); }}
+                        className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
+                      >
+                        {quiz.title} 🏆
+                      </button>
+                    ))
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.TEACHER); setShowModuleCards(false); }}
+                      className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
+                    >
+                      اختبار المعلم 🏆
+                    </button>
+                  )}
                 </div>
               </div>
 
