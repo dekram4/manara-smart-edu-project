@@ -65,12 +65,6 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
   const [description, setDescription] = useState('');
   const [draft, setDraft] = useState<Record<string, boolean | number>>({});
 
-  const loadPackages = () => setPackages(getPermissionPackages());
-
-  useEffect(() => {
-    loadPackages();
-  }, []);
-
   const startNew = (role = activeRole) => {
     setActiveRole(role);
     setEditingPackage(null);
@@ -78,6 +72,13 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
     setDescription('');
     setDraft(clone((getPermissions()[role] || DEFAULT_PERMISSIONS[role]) as Record<string, boolean | number>));
   };
+
+  const loadPackages = () => setPackages(getPermissionPackages());
+
+  useEffect(() => {
+    loadPackages();
+    startNew('teacher');
+  }, []);
 
   const handleEdit = (pkg: PermissionPackage) => {
     setActiveRole(pkg.role);
@@ -95,23 +96,33 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
     }
 
     const now = new Date().toISOString();
+    // Read the latest local value before writing so a second save can never
+    // overwrite a package that was saved moments earlier.
+    const latestPackages = getPermissionPackages();
     const nextPackage: PermissionPackage = {
-      id: editingPackage?.id || `permission_package_${Date.now()}`,
+      id: editingPackage?.id || `permission_package_${Date.now()}_${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`,
       name: name.trim(),
       description: description.trim(),
       role: activeRole,
-      permissions: draft as PermissionPackage['permissions'],
+      permissions: clone(
+        (Object.keys(draft).length > 0
+          ? draft
+          : getPermissions()[activeRole] || DEFAULT_PERMISSIONS[activeRole]) as PermissionPackage['permissions'],
+      ),
       createdAt: editingPackage?.createdAt || now,
       updatedAt: now,
     };
     const updated = editingPackage
-      ? packages.map(pkg => pkg.id === editingPackage.id ? nextPackage : pkg)
-      : [...packages, nextPackage];
+      ? latestPackages.map(pkg => pkg.id === editingPackage.id ? nextPackage : pkg)
+      : [...latestPackages, nextPackage];
 
     localStorage.setItem(STORAGE_KEYS.PERMISSION_PACKAGES, JSON.stringify(updated));
     setPackages(updated);
-    startNew(activeRole);
-    alert(`✅ تم حفظ ${nextPackage.name} بنجاح`);
+    setEditingPackage(null);
+    setName('');
+    setDescription('');
+    setDraft(clone((getPermissions()[activeRole] || DEFAULT_PERMISSIONS[activeRole]) as Record<string, boolean | number>));
+    alert(`✅ تم حفظ ${nextPackage.name} بنجاح — إجمالي بكجات ${roleLabels[activeRole]}: ${updated.filter(pkg => pkg.role === activeRole).length}`);
     onUpdate?.();
   };
 
@@ -152,7 +163,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
         <div>
           <h1 className="text-3xl font-black text-purple-900">📦 بكجات الصلاحيات</h1>
           <p className="mt-1 font-bold text-purple-500">
-            أنشئ بكجات مختلفة ثم اربط كل حساب بالبكج المناسب له
+            أنشئ بكجات متعددة ومستقلة ثم اربط كل حساب بالبكج المناسب له
           </p>
         </div>
         <button
@@ -185,6 +196,9 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,1.1fr)]">
         <div className="space-y-3">
           <h2 className="text-xl font-black text-purple-900">البكجات المحفوظة — {roleLabels[activeRole]}</h2>
+           <p className="text-sm font-bold text-purple-400">
+             المحفوظ: {visiblePackages.length} بكج — حفظ بكج جديد لا يحذف البكجات السابقة
+           </p>
           {visiblePackages.length === 0 ? (
             <div className="rounded-3xl border-2 border-dashed border-purple-200 bg-white p-12 text-center font-bold text-purple-400">
               لا توجد بكجات لهذا الدور. أنشئ أول بكج الآن.

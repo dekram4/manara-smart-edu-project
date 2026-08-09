@@ -174,6 +174,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
             setShowForm(!showForm);
             setEditingTeacher(null);
             resetForm();
+            setTeacherPackages(getPermissionPackages().filter(pkg => pkg.role === 'teacher'));
           }}
           className="bg-gradient-to-r from-purple-500 to-violet-500 text-white px-8 py-4 rounded-[25px] font-black text-lg hover:shadow-2xl transition-all"
         >
