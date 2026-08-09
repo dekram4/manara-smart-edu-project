@@ -28,6 +28,7 @@ export const STORAGE_KEYS = {
   PERMISSIONS: 'smartEdu_permissions', // 🔐 نظام الصلاحيات
   PRIVATE_MESSAGES: 'smartEdu_privateMessages', // 💬 الدردشة الخاصة
   VIDEOS: 'smartEdu_videos', // 🎬 فيديوهات المعلم
+  DELETED_VIDEOS: 'smartEdu_deletedVideos', // 🗑️ علامات حذف الفيديوهات حتى لا تعود من المزامنة
   VIDEO_NOTIFICATIONS: 'smartEdu_videoNotifications', // 🔔 إشعارات الفيديوهات للمشرف
 };
 

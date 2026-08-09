@@ -178,6 +178,15 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
   const handleDelete = (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
+    const deletedIds = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.DELETED_VIDEOS) || '[]',
+    );
+    const nextDeletedIds = Array.from(
+      new Set([...deletedIds.filter((value: unknown) => value != null).map(String), String(id)]),
+    );
+    // Save the tombstone before removing the record so a later Supabase hydrate
+    // cannot merge this deliberately deleted video back into the local list.
+    localStorage.setItem(STORAGE_KEYS.DELETED_VIDEOS, JSON.stringify(nextDeletedIds));
     const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
     if (saved) {
       const all = JSON.parse(saved).filter((v: VideoRecord) => v.id !== id);

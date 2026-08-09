@@ -7,3 +7,4 @@
 - [Quiz form events](quiz-form-events.md) — keep quiz creation controls out of nested forms so manual question actions cannot submit the parent form.
 - [Student academic path](student-academic-path.md) — restore the student's saved grade, term, subject, and unit before falling back to the first enrollment.
 - [Deleted quiz tombstones](deleted-quiz-tombstones.md) — preserve synced deletion markers so stale devices cannot re-upload removed quizzes.
+- [Deleted video tombstones](deleted-video-tombstones.md) — preserve deleted video IDs across app_kv hydration so old remote videos cannot return.

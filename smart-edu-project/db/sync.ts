@@ -42,6 +42,7 @@ const KV_KEYS = [
   // Shared collections that were historically kept only in browser storage.
   'smartEdu_quizQuestions',
   'smartEdu_videos',
+  'smartEdu_deletedVideos',
   'smartEdu_videoNotifications',
 ];
 
@@ -94,6 +95,20 @@ function mergeSharedValue(remoteValue: any, localValue: any): any {
     return mergeArrayRecords(remoteValue, localValue);
   }
   return remoteValue ?? localValue;
+}
+
+function stringIdArray(value: any): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item != null && (typeof item === 'string' || typeof item === 'number'))
+    .map((item) => String(item));
+}
+
+function removeDeletedVideos(value: any, deletedVideoIds: Set<string>): any[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (video) => video?.id == null || !deletedVideoIds.has(String(video.id)),
+  );
 }
 
 function mergeLegacyPublicMessages(): string | null {
@@ -250,18 +265,36 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
   }
   const byKey = new Map((data || []).map((row: any) => [row.key, row.value]));
   const toUpload: { key: string; value: any }[] = [];
+  const deletedVideoIds = new Set([
+    ...stringIdArray(byKey.get('smartEdu_deletedVideos')),
+    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedVideos'))),
+  ]);
 
   for (const key of KV_KEYS) {
     if (pendingKv.has(key)) continue; // تغييرات محلية معلّقة، لا تطمسها
     const localVal = safeParse(nativeGetItem(key));
     if (byKey.has(key)) {
-      const merged = mergeSharedValue(byKey.get(key), localVal);
+      const merged =
+        key === 'smartEdu_deletedVideos'
+          ? Array.from(deletedVideoIds)
+          : key === 'smartEdu_videos'
+            ? removeDeletedVideos(mergeSharedValue(byKey.get(key), localVal), deletedVideoIds)
+            : mergeSharedValue(byKey.get(key), localVal);
       nativeSetItem(key, JSON.stringify(merged));
       if (JSON.stringify(merged) !== JSON.stringify(byKey.get(key))) {
         toUpload.push({ key, value: merged });
       }
     } else {
-      if (localVal !== null) toUpload.push({ key, value: localVal });
+      if (localVal !== null) {
+        const value =
+          key === 'smartEdu_videos'
+            ? removeDeletedVideos(localVal, deletedVideoIds)
+            : key === 'smartEdu_deletedVideos'
+              ? Array.from(deletedVideoIds)
+              : localVal;
+        nativeSetItem(key, JSON.stringify(value));
+        toUpload.push({ key, value });
+      }
     }
   }
 
