@@ -4,12 +4,14 @@ import { playLamsaSound } from '../../utils/sounds';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissions, getTeacherVideoUsageMb, isLimitReached } from '../../permissions';
+import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, uploadMp4Video, VideoSourceType } from '../../utils/video';
 
 interface VideoRecord {
   id: string;
   title: string;
   description: string;
   url: string;
+  sourceType?: VideoSourceType;
   grade: string;
   atram: string;
   subject: string;
@@ -32,7 +34,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   const [filters, setFilters] = useState({ grade: '', atram: '', subject: '', term: '', unit: '' });
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    title: '', description: '', url: '', grade: '', subject: '', term: '', unit: ''
+    title: '', description: '', url: '', sourceType: 'embed' as VideoSourceType, file: null as File | null,
+    grade: '', subject: '', term: '', unit: ''
   });
   const [editingVideo, setEditingVideo] = useState<VideoRecord | null>(null);
 
@@ -118,11 +121,18 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     setFormData(next);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.sourceType === 'embed' && !formData.url.trim()) {
+      alert('يرجى إدخال رابط الفيديو المضمن');
+      return;
+    }
+    if (formData.sourceType === 'mp4' && !formData.file && !isMp4VideoUrl(editingVideo?.url)) {
+      alert('يرجى اختيار ملف MP4');
+      return;
+    }
     if (
       !formData.title.trim() ||
-      !formData.url.trim() ||
       !formData.grade ||
       !formData.atram ||
       !formData.subject ||
@@ -133,6 +143,18 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       return;
     }
 
+    let videoUrl = formData.url.trim();
+    if (formData.sourceType === 'mp4' && formData.file) {
+      try {
+        const uploaded = await uploadMp4Video(formData.file);
+        videoUrl = uploaded.url;
+      } catch (error) {
+        alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+        return;
+      }
+    } else if (formData.sourceType === 'mp4' && isMp4VideoUrl(editingVideo?.url)) {
+      videoUrl = editingVideo.url;
+    }
     const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
     const all: VideoRecord[] = saved ? JSON.parse(saved) : [];
     const permissions = getTeacherPermissions({ permissionPackageId });
@@ -145,8 +167,19 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         alert('⚠️ ليس لديك صلاحية إدارة الفيديوهات');
         return;
       }
-      const updated = all.map(v => v.id === editingVideo.id ? { ...v, ...formData } : v);
+      const updated = all.map(v => v.id === editingVideo.id ? {
+        ...v,
+        title: formData.title,
+        description: formData.description,
+        url: videoUrl,
+        sourceType: formData.sourceType,
+        grade: formData.grade,
+        subject: formData.subject,
+        term: formData.term,
+        unit: formData.unit,
+      } : v);
       localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(updated));
+      if (editingVideo.url && editingVideo.url !== videoUrl) void deleteUploadedVideo(editingVideo.url);
       setEditingVideo(null);
     } else {
       if (!permissions.canManageVideos) {
@@ -159,7 +192,14 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       }
       const newVideo: VideoRecord = {
         id: Date.now().toString(),
-        ...formData,
+        title: formData.title,
+        description: formData.description,
+        url: videoUrl,
+        sourceType: formData.sourceType,
+        grade: formData.grade,
+        subject: formData.subject,
+        term: formData.term,
+        unit: formData.unit,
         createdBy: teacherId,
         teacherName,
         createdAt: new Date().toISOString(),
@@ -197,7 +237,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       localStorage.setItem(STORAGE_KEYS.VIDEO_NOTIFICATIONS, JSON.stringify(notifs));
     }
 
-    setFormData({ title: '', description: '', url: '', grade: '', subject: '', term: '', unit: '' });
+    setFormData({ title: '', description: '', url: '', sourceType: 'embed', file: null, grade: '', subject: '', term: '', unit: '' });
     setShowForm(false);
     loadVideos();
     playLamsaSound('success');
@@ -222,6 +262,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     if (saved) {
       const all = JSON.parse(saved).filter((v: VideoRecord) => v.id !== id);
       localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(all));
+      const deletedVideo = videos.find(video => video.id === id);
+      if (deletedVideo?.url) void deleteUploadedVideo(deletedVideo.url);
       loadVideos();
       playLamsaSound('pop');
     }
@@ -310,13 +352,20 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               className="p-4 bg-amber-50 border-[3px] border-amber-200 rounded-2xl font-bold focus:border-amber-400 focus:ring-4 focus:ring-amber-100 outline-none"
               required
             />
-            <input
-              type="url" placeholder="رابط يوتيوب"
-              value={formData.url}
-              onChange={e => setFormData({ ...formData, url: e.target.value })}
-              className="p-4 bg-amber-50 border-[3px] border-amber-200 rounded-2xl font-bold focus:border-amber-400 focus:ring-4 focus:ring-amber-100 outline-none"
-              required
-            />
+          <div className="space-y-2">
+            <div className="flex gap-2 rounded-2xl bg-amber-50 p-2">
+              <button type="button" onClick={() => setFormData({ ...formData, sourceType: 'embed', url: formData.sourceType === 'mp4' && isMp4VideoUrl(formData.url) ? '' : formData.url, file: null })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.sourceType === 'embed' ? 'bg-amber-500 text-white' : 'text-amber-700'}`}>🔗 رابط مضمن</button>
+              <button type="button" onClick={() => setFormData({ ...formData, sourceType: 'mp4' })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.sourceType === 'mp4' ? 'bg-amber-500 text-white' : 'text-amber-700'}`}>📁 رفع MP4</button>
+            </div>
+            {formData.sourceType === 'embed' ? (
+              <input type="url" placeholder="رابط يوتيوب أو الرابط المضمن" value={formData.url} onChange={e => setFormData({ ...formData, url: e.target.value })} className="w-full p-4 bg-amber-50 border-[3px] border-amber-200 rounded-2xl font-bold focus:border-amber-400 focus:ring-4 focus:ring-amber-100 outline-none" />
+            ) : (
+              <label className="block cursor-pointer rounded-2xl border-[3px] border-dashed border-amber-300 bg-amber-50 p-4 text-center font-bold text-amber-700">
+                <span>{formData.file?.name || (editingVideo?.url ? 'استبدال ملف MP4 (اختياري)' : 'اختر ملف MP4 بحد أقصى 500MB')}</span>
+                <input type="file" accept="video/mp4,.mp4" className="hidden" onChange={e => setFormData({ ...formData, file: e.target.files?.[0] || null })} />
+              </label>
+            )}
+          </div>
           </div>
           <textarea
             placeholder="وصف الفيديو (u062eu062au064au0627رu064a)"
@@ -385,6 +434,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredVideos.map((video) => {
           const vid = extractVideoId(video.url);
+          const isMp4 = getVideoSourceType(video.sourceType, video.url) === 'mp4' || isMp4VideoUrl(video.url);
           return (
             <div key={video.id} className="bg-white rounded-[30px] shadow-xl border-2 border-amber-100 overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all group">
               {vid ? (
@@ -395,6 +445,11 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                       <span className="text-3xl">▶️</span>
                     </div>
                   </div>
+                </div>
+              ) : isMp4 ? (
+                <div className="relative aspect-video bg-black">
+                  <video src={video.url} className="h-full w-full object-cover" muted preload="metadata" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30"><span className="text-5xl">▶️</span></div>
                 </div>
               ) : (
                 <div className="aspect-video bg-amber-50 flex items-center justify-center">
@@ -412,7 +467,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                   {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
                 </div>
                 <div className="flex gap-2">
-                   <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, grade: video.grade, subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
+                    <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, sourceType: getVideoSourceType(video.sourceType, video.url), file: null, grade: video.grade, subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
                    <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
                 </div>
               </div>

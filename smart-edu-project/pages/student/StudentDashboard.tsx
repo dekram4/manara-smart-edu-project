@@ -8,6 +8,7 @@ import StudentLogin from './StudentLogin';
 import StudentPersonality from './StudentPersonality';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
+import { getVideoSourceType } from '../../utils/video';
 import { playWelcomeStudent, playLamsaSound } from '../../utils/sounds';
 import { speakGreeting } from '../../utils/speech';
 import { triggerCelebration } from '../../App';
@@ -1778,7 +1779,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <h2 className="text-3xl font-black text-white mb-6">📺 سينما الشرح الممتع</h2>
                   <div className="overflow-hidden rounded-[28px] bg-black shadow-2xl aspect-video">
                     {activeLesson?.explanationVideoUrl ? (
-                      <iframe className="h-full w-full" src={activeLesson.explanationVideoUrl} title="Lesson Video" allowFullScreen></iframe>
+                      getVideoSourceType(activeLesson.explanationVideoType, activeLesson.explanationVideoUrl) === 'mp4' ? (
+                        <video className="h-full w-full" src={activeLesson.explanationVideoUrl} title="Lesson Video" controls playsInline />
+                      ) : (
+                        <iframe className="h-full w-full" src={activeLesson.explanationVideoUrl} title="Lesson Video" allowFullScreen></iframe>
+                      )
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900 text-slate-400">
                          <Interactive3DEmoji emoji="📴" accent="#fbbf24" size="xl" className="mb-4" />

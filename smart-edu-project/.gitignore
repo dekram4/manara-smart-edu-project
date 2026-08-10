@@ -23,3 +23,4 @@ dist-ssr
 *.sln
 *.sw?
 storage/app/google-auth.json
+uploads/

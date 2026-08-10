@@ -6,6 +6,7 @@ import { filterTeacherOwnedRecords, matchesAcademicScope } from '../../utils/sco
 import { StudentInfo } from '../../types';
 import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/gamification';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
+import { getVideoSourceType, isMp4VideoUrl } from '../../utils/video';
 import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 
 const GEMS_PER_VIDEO = 2;
@@ -15,6 +16,7 @@ interface VideoRecord {
   title: string;
   description: string;
   url: string;
+  sourceType?: 'embed' | 'mp4';
   grade: string;
   subject: string;
   term: string;
@@ -194,6 +196,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
             <div className="grid gap-4 md:grid-cols-3">
               {visibleVideos.map((video, index) => {
                 const vid = extractVideoId(video.url);
+                const isMp4 = getVideoSourceType(video.sourceType, video.url) === 'mp4' || isMp4VideoUrl(video.url);
                 const isCenter = index === 1;
                 const videoIndex = videos.findIndex(item => item.id === video.id);
                 const isUnlocked = videoIndex > -1 && videoIndex < unlockedVideoCount;
@@ -231,6 +234,25 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
                         </div>
                         <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/40 bg-black/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-white">
                           {isUnlocked ? 'Preview' : 'Locked'}
+                        </div>
+                        {!isUnlocked && (
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55">
+                            <div className="rounded-full border border-white/25 bg-black/55 px-4 py-2 text-xs font-black tracking-wide text-white">
+                              🔒 يحتاج {GEMS_PER_VIDEO} جواهر لكل فيديو
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : isMp4 ? (
+                      <div className={`relative aspect-video bg-black ${isUnlocked ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={() => handleVideoSelect(video)}>
+                        <video src={video.url} className="h-full w-full object-cover" muted preload="metadata" />
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35">
+                          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 shadow-2xl">
+                            <span className="text-3xl">▶️</span>
+                          </div>
+                        </div>
+                        <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/40 bg-black/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-white">
+                          {isUnlocked ? 'MP4' : 'Locked'}
                         </div>
                         {!isUnlocked && (
                           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55">
@@ -297,7 +319,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
       )}
 
       <AnimatePresence>
-        {activeVideo && extractVideoId(activeVideo.url) && (
+        {activeVideo && (extractVideoId(activeVideo.url) || isMp4VideoUrl(activeVideo.url)) && (
           <motion.div
             key="cinema-video-modal"
             initial={{ opacity: 0 }}
@@ -319,13 +341,17 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
               className="relative w-full max-w-5xl overflow-hidden rounded-[28px] border border-white/20 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
             >
               <div className="aspect-video w-full">
-                <iframe
-                  className="h-full w-full"
-                  src={`https://www.youtube.com/embed/${extractVideoId(activeVideo.url)}?autoplay=1&rel=0`}
-                  title={activeVideo.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
+                {getVideoSourceType(activeVideo.sourceType, activeVideo.url) === 'mp4' || isMp4VideoUrl(activeVideo.url) ? (
+                  <video className="h-full w-full" src={activeVideo.url} title={activeVideo.title} controls autoPlay playsInline />
+                ) : (
+                  <iframe
+                    className="h-full w-full"
+                    src={`https://www.youtube.com/embed/${extractVideoId(activeVideo.url)}?autoplay=1&rel=0`}
+                    title={activeVideo.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                )}
               </div>
               <div className="flex items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white md:px-6">
                 <p className="truncate text-sm font-black md:text-base">{activeVideo.title}</p>

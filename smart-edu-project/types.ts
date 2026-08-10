@@ -161,6 +161,7 @@ export interface LessonConfig {
   term: string;
   unit: string;
   explanationVideoUrl?: string;
+  explanationVideoType?: 'embed' | 'mp4';
   avatarInteractionUrl?: string;
   liveMeetingUrl?: string;
   lessonContent: string;
