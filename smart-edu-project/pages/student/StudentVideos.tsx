@@ -27,12 +27,13 @@ interface VideoRecord {
 
 interface StudentVideosProps {
   grade: string;
+  atram: string;
   subject: string;
   term: string;
   unit: string;
 }
 
-const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, unit }) => {
+const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, term, unit }) => {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
   const [watchedVideos, setWatchedVideos] = useState<string[]>([]);
@@ -45,7 +46,9 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
 
   useEffect(() => {
     loadVideos();
-  }, [grade, subject, term, unit]);
+    const refreshTimer = window.setInterval(loadVideos, 1500);
+    return () => window.clearInterval(refreshTimer);
+  }, [grade, atram, subject, term, unit]);
 
   useEffect(() => {
     setCurrentGems(getGems());
@@ -77,9 +80,10 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, subject, term, uni
 
     const scoped = filterTeacherOwnedRecords(all, student);
     const filtered = scoped.filter(video =>
-      matchesAcademicScope(video, { grade, subject, term, unit }),
+      matchesAcademicScope(video, { grade, atram, subject, term, unit }),
     );
 
+    setActiveIndex(current => Math.min(current, Math.max(filtered.length - 1, 0)));
     setVideos(filtered);
     setWatchedVideos(filtered.filter(video => hasCompletedActivity('video', video.id)).map(video => video.id));
   };

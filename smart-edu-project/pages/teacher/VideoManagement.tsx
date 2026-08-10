@@ -35,7 +35,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     title: '', description: '', url: '', sourceType: 'embed' as VideoSourceType, file: null as File | null,
-    grade: '', subject: '', term: '', unit: ''
+    grade: '', atram: '', subject: '', term: '', unit: ''
   });
   const [editingVideo, setEditingVideo] = useState<VideoRecord | null>(null);
 
@@ -174,6 +174,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         url: videoUrl,
         sourceType: formData.sourceType,
         grade: formData.grade,
+         atram: formData.atram,
         subject: formData.subject,
         term: formData.term,
         unit: formData.unit,
@@ -191,12 +192,15 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         return;
       }
       const newVideo: VideoRecord = {
-        id: Date.now().toString(),
+        id: typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         title: formData.title,
         description: formData.description,
         url: videoUrl,
         sourceType: formData.sourceType,
         grade: formData.grade,
+        atram: formData.atram,
         subject: formData.subject,
         term: formData.term,
         unit: formData.unit,
@@ -237,7 +241,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       localStorage.setItem(STORAGE_KEYS.VIDEO_NOTIFICATIONS, JSON.stringify(notifs));
     }
 
-    setFormData({ title: '', description: '', url: '', sourceType: 'embed', file: null, grade: '', subject: '', term: '', unit: '' });
+    setFormData({ title: '', description: '', url: '', sourceType: 'embed', file: null, grade: '', atram: '', subject: '', term: '', unit: '' });
     setShowForm(false);
     loadVideos();
     playLamsaSound('success');
@@ -467,7 +471,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                   {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
                 </div>
                 <div className="flex gap-2">
-                    <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, sourceType: getVideoSourceType(video.sourceType, video.url), file: null, grade: video.grade, subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
+                    <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, sourceType: getVideoSourceType(video.sourceType, video.url), file: null, grade: video.grade, atram: video.atram || '', subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
                    <button disabled={!getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
                 </div>
               </div>

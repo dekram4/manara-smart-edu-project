@@ -1922,6 +1922,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 <EducationalCardEffects accent="#38bdf8" />
                 <StudentVideos
                   grade={selectedGrade}
+                  atram={selectedAtram}
                   subject={selectedSubject}
                   term={selectedTerm}
                   unit={selectedUnit}
