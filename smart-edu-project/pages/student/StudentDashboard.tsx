@@ -1837,46 +1837,65 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       </div>
                     )}
                   </div>
-                  {explanationVideos.length > 1 && (
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setExplanationVideoIndex(current =>
-                            current > 0 ? current - 1 : explanationVideos.length - 1,
-                          )}
-                          className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-black text-white hover:bg-slate-600"
-                        >
-                          السابق
-                        </button>
-                        <span className="text-sm font-black text-amber-200">
-                          فيديو الشرح {explanationVideoIndex + 1} من {explanationVideos.length}
+                  {explanationVideos.length > 0 && (
+                    <div className="mt-5 rounded-[28px] border border-amber-300/20 bg-slate-950/60 p-4 shadow-inner">
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-lg font-black text-white">🎞️ اختر شرح الدرس</p>
+                          <p className="mt-1 text-xs font-bold text-slate-400">
+                            اضغط على أي بطاقة لتشغيل الفيديو
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-black text-amber-200">
+                          {explanationVideoIndex + 1} / {explanationVideos.length}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setExplanationVideoIndex(current =>
-                            current + 1 < explanationVideos.length ? current + 1 : 0,
-                          )}
-                          className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-black text-white hover:bg-slate-600"
-                        >
-                          التالي
-                        </button>
                       </div>
-                      <div className="flex flex-wrap justify-center gap-2">
-                        {explanationVideos.map((video, index) => (
-                          <button
-                            key={video.id}
-                            type="button"
-                            onClick={() => setExplanationVideoIndex(index)}
-                            className={`rounded-full px-3 py-1 text-xs font-black transition ${
-                              index === explanationVideoIndex
-                                ? 'bg-amber-400 text-slate-950'
-                                : 'bg-white/10 text-slate-200 hover:bg-white/20'
-                            }`}
-                          >
-                            {index + 1}. {video.sourceType === 'mp4' ? 'MP4' : 'رابط'}
-                          </button>
-                        ))}
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {explanationVideos.map((video, index) => {
+                          const isSelected = index === explanationVideoIndex;
+                          const isMp4 = video.sourceType === 'mp4';
+                          return (
+                            <button
+                              key={video.id}
+                              type="button"
+                              onClick={() => setExplanationVideoIndex(index)}
+                              aria-label={`تشغيل ${video.title || `فيديو الشرح ${index + 1}`}`}
+                              className={`group relative min-h-[168px] overflow-hidden rounded-[24px] border-2 p-4 text-right transition-all duration-300 ${
+                                isSelected
+                                  ? 'scale-[1.02] border-amber-300 bg-gradient-to-br from-amber-400/25 via-orange-400/15 to-sky-400/20 shadow-[0_0_28px_rgba(251,191,36,0.28)]'
+                                  : 'border-white/10 bg-white/[0.06] hover:-translate-y-1 hover:border-amber-200/60 hover:bg-white/[0.11]'
+                              }`}
+                            >
+                              <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-amber-300/10 blur-2xl transition group-hover:bg-amber-300/20" />
+                              <div className="relative flex h-full flex-col justify-between gap-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <span className={`flex h-16 w-16 items-center justify-center rounded-2xl text-4xl shadow-lg ${
+                                    isMp4
+                                      ? 'bg-gradient-to-br from-rose-400 to-orange-500'
+                                      : 'bg-gradient-to-br from-sky-400 to-indigo-600'
+                                  }`}>
+                                    {isMp4 ? '🎬' : '🔗'}
+                                  </span>
+                                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                                    isSelected
+                                      ? 'bg-amber-300 text-slate-950'
+                                      : 'bg-white/10 text-slate-300'
+                                  }`}>
+                                    {isSelected ? '▶ يعمل الآن' : `فيديو ${index + 1}`}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="truncate text-base font-black text-white">
+                                    {video.title || `فيديو الشرح ${index + 1}`}
+                                  </p>
+                                  <p className="mt-1 text-xs font-bold text-slate-400">
+                                    {isMp4 ? 'ملف فيديو MP4' : 'رابط شرح مضمن'}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
