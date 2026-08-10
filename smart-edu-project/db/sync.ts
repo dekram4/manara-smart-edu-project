@@ -44,6 +44,7 @@ const KV_KEYS = [
   'smartEdu_quizQuestions',
   'smartEdu_videos',
   'smartEdu_deletedVideos',
+  'smartEdu_deletedLessons',
   'smartEdu_videoNotifications',
 ];
 
@@ -109,6 +110,13 @@ function removeDeletedVideos(value: any, deletedVideoIds: Set<string>): any[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
     (video) => video?.id == null || !deletedVideoIds.has(String(video.id)),
+  );
+}
+
+function removeDeletedLessons(value: any, deletedLessonIds: Set<string>): any[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (lesson) => lesson?.id == null || !deletedLessonIds.has(String(lesson.id)),
   );
 }
 
@@ -242,8 +250,17 @@ async function hydrateRowTable(
   const remote = (data || []).map((row: any) => row.data);
   const local = safeParse(nativeGetItem(storageKey));
   const localArr = Array.isArray(local) ? local : [];
-  const merged = mergeArrayRecords(remote, localArr);
-  const remoteIds = new Set(remote.map((item: any) => String(item?.id)));
+  const deletedLessonIds = new Set(
+    stringIdArray(safeParse(nativeGetItem('smartEdu_deletedLessons'))),
+  );
+  const filteredRemote = storageKey === 'smartEdu_lessonConfigs'
+    ? removeDeletedLessons(remote, deletedLessonIds)
+    : remote;
+  const filteredLocal = storageKey === 'smartEdu_lessonConfigs'
+    ? removeDeletedLessons(localArr, deletedLessonIds)
+    : localArr;
+  const merged = mergeArrayRecords(filteredRemote, filteredLocal);
+  const remoteIds = new Set(filteredRemote.map((item: any) => String(item?.id)));
   const localOnly = merged
     .filter((item: any) => item?.id != null && !remoteIds.has(String(item.id)))
     .map((item: any) => ({ id: String(item.id), data: item }));
@@ -253,6 +270,18 @@ async function hydrateRowTable(
       supabase.from(table).upsert(localOnly, { onConflict: 'id' }),
     );
     if (res.error) appendPending({ type: 'row_upsert', table, rows: localOnly });
+  }
+
+  if (storageKey === 'smartEdu_lessonConfigs' && deletedLessonIds.size) {
+    const staleRemoteIds = remote
+      .filter((item: any) => item?.id != null && deletedLessonIds.has(String(item.id)))
+      .map((item: any) => String(item.id));
+    if (staleRemoteIds.length) {
+      const res = await withRetry('حذف المحتوى المحذوف من lesson_configs', () =>
+        supabase.from(table).delete().in('id', staleRemoteIds),
+      );
+      if (res.error) appendPending({ type: 'row_delete', table, ids: staleRemoteIds });
+    }
   }
 
   nativeSetItem(storageKey, JSON.stringify(merged));
@@ -270,6 +299,10 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
     ...stringIdArray(byKey.get('smartEdu_deletedVideos')),
     ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedVideos'))),
   ]);
+  const deletedLessonIds = new Set([
+    ...stringIdArray(byKey.get('smartEdu_deletedLessons')),
+    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedLessons'))),
+  ]);
 
   for (const key of KV_KEYS) {
     if (pendingKv.has(key)) continue; // تغييرات محلية معلّقة، لا تطمسها
@@ -278,8 +311,12 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
       const merged =
         key === 'smartEdu_deletedVideos'
           ? Array.from(deletedVideoIds)
+          : key === 'smartEdu_deletedLessons'
+            ? Array.from(deletedLessonIds)
           : key === 'smartEdu_videos'
             ? removeDeletedVideos(mergeSharedValue(byKey.get(key), localVal), deletedVideoIds)
+            : key === 'smartEdu_lessonConfigs'
+              ? removeDeletedLessons(mergeSharedValue(byKey.get(key), localVal), deletedLessonIds)
             : mergeSharedValue(byKey.get(key), localVal);
       nativeSetItem(key, JSON.stringify(merged));
       if (JSON.stringify(merged) !== JSON.stringify(byKey.get(key))) {
@@ -292,6 +329,8 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
             ? removeDeletedVideos(localVal, deletedVideoIds)
             : key === 'smartEdu_deletedVideos'
               ? Array.from(deletedVideoIds)
+              : key === 'smartEdu_deletedLessons'
+                ? Array.from(deletedLessonIds)
               : localVal;
         nativeSetItem(key, JSON.stringify(value));
         toUpload.push({ key, value });
@@ -314,14 +353,14 @@ export async function hydrateFromSupabase(
   pendingTables: Set<string> = new Set(),
   pendingKv: Set<string> = new Set()
 ): Promise<void> {
+  await hydrateKv(pendingKv).catch((e) =>
+    console.error('[sync] خطأ أثناء تحميل app_kv:', e?.message || e)
+  );
   await Promise.all([
     ...Object.entries(ROW_TABLES).map(([storageKey, table]) =>
       hydrateRowTable(storageKey, table, pendingTables).catch((e) =>
         console.error(`[sync] خطأ أثناء تحميل ${table}:`, e?.message || e)
       )
-    ),
-    hydrateKv(pendingKv).catch((e) =>
-      console.error('[sync] خطأ أثناء تحميل app_kv:', e?.message || e)
     ),
   ]);
 }

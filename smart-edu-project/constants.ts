@@ -30,6 +30,7 @@ export const STORAGE_KEYS = {
   PRIVATE_MESSAGES: 'smartEdu_privateMessages', // 💬 الدردشة الخاصة
   VIDEOS: 'smartEdu_videos', // 🎬 فيديوهات المعلم
   DELETED_VIDEOS: 'smartEdu_deletedVideos', // 🗑️ علامات حذف الفيديوهات حتى لا تعود من المزامنة
+  DELETED_LESSONS: 'smartEdu_deletedLessons', // 🗑️ علامات حذف المحتوى حتى لا يعود من المزامنة
   VIDEO_NOTIFICATIONS: 'smartEdu_videoNotifications', // 🔔 إشعارات الفيديوهات للمشرف
 };
 

@@ -379,8 +379,30 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       const allLessons: LessonConfig[] = JSON.parse(
         localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]',
       );
+      const deletedLesson = allLessons.find(lesson => lesson.id === id);
+      const deletedIds = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.DELETED_LESSONS) || '[]',
+      );
+      const nextDeletedIds = Array.from(
+        new Set([
+          ...deletedIds
+            .filter((value: unknown) => value != null)
+            .map(String),
+          String(id),
+        ]),
+      );
+      // احفظ علامة الحذف قبل إزالة السجل حتى لا تعيده hydrate من Supabase.
+      localStorage.setItem(
+        STORAGE_KEYS.DELETED_LESSONS,
+        JSON.stringify(nextDeletedIds),
+      );
       const updated = allLessons.filter(l => l.id !== id);
       localStorage.setItem(STORAGE_KEYS.LESSON_CONFIGS, JSON.stringify(updated));
+      if (deletedLesson) {
+        getLessonExplanationVideos(deletedLesson)
+          .filter(video => isMp4VideoUrl(video.url))
+          .forEach(video => void deleteUploadedVideo(video.url));
+      }
       loadData();
       onUpdate();
     }
