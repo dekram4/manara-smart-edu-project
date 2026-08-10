@@ -78,7 +78,14 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
       return;
     }
 
-    const scoped = filterTeacherOwnedRecords(all, student);
+    const teacherVideos = filterTeacherOwnedRecords(all, student);
+    const generalVideos = all.filter(video => {
+      const owner = (video.createdBy || video.teacherId || '').toString().trim().toLowerCase();
+      return !owner || owner === 'admin';
+    });
+    const scoped = Array.from(
+      new Map([...teacherVideos, ...generalVideos].map(video => [video.id, video])).values(),
+    );
     const filtered = scoped.filter(video =>
       matchesAcademicScope(video, { grade, atram, subject, term, unit }),
     );

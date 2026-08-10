@@ -4,7 +4,14 @@ import { LessonConfig } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissions, isLimitReached } from '../../permissions';
-import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, uploadMp4Video, VideoSourceType } from '../../utils/video';
+import {
+  deleteUploadedVideo,
+  getLessonExplanationVideos,
+  isMp4VideoUrl,
+  uploadMp4Video,
+  VideoSourceType,
+  LessonVideoEntry,
+} from '../../utils/video';
 
 interface ContentManagementProps {
   onUpdate: () => void;
@@ -26,6 +33,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const [formData, setFormData] = useState({
     grade: '', atram: '', subject: '', term: '', unit: '',
     explanationVideoUrl: '', explanationVideoType: 'embed' as VideoSourceType, explanationVideoFile: null as File | null,
+    explanationVideos: [] as LessonVideoEntry[],
     avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: ''
   });
 
@@ -122,6 +130,71 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     });
   };
 
+  const addExplanationVideo = async () => {
+    if (formData.explanationVideoType === 'embed') {
+      const url = formData.explanationVideoUrl.trim();
+      if (!url) {
+        alert('يرجى إدخال الرابط المضمن أولاً');
+        return;
+      }
+      setFormData(current => ({
+        ...current,
+        explanationVideos: [
+          ...current.explanationVideos,
+          {
+            id: `lesson-video-${crypto.randomUUID()}`,
+            url,
+            sourceType: 'embed',
+            title: `فيديو الشرح ${current.explanationVideos.length + 1}`,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        explanationVideoUrl: '',
+      }));
+      return;
+    }
+
+    if (!formData.explanationVideoFile) {
+      alert('يرجى اختيار ملف MP4 أولاً');
+      return;
+    }
+
+    try {
+      const file = formData.explanationVideoFile;
+      const uploaded = await uploadMp4Video(file);
+      setFormData(current => ({
+        ...current,
+        explanationVideos: [
+          ...current.explanationVideos,
+          {
+            id: `lesson-video-${crypto.randomUUID()}`,
+            url: uploaded.url,
+            sourceType: 'mp4',
+            title: file.name,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        explanationVideoFile: null,
+      }));
+    } catch (error) {
+      alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+    }
+  };
+
+  const removeExplanationVideo = (video: LessonVideoEntry) => {
+    setFormData(current => ({
+      ...current,
+      explanationVideos: current.explanationVideos.filter(item => item.id !== video.id),
+    }));
+    // لا نحذف ملفًا محفوظًا قبل الضغط على «حفظ»؛ حتى يبقى الإلغاء آمنًا.
+    const persistedVideo = editingLesson
+      ? getLessonExplanationVideos(editingLesson).some(item => item.url === video.url)
+      : false;
+    if (video.sourceType === 'mp4' && !persistedVideo) {
+      void deleteUploadedVideo(video.url);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -135,26 +208,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       return;
     }
 
-    let explanationVideoUrl = formData.explanationVideoUrl.trim();
-    if (formData.explanationVideoType === 'mp4') {
-      if (formData.explanationVideoFile) {
-        try {
-          const uploaded = await uploadMp4Video(formData.explanationVideoFile);
-          explanationVideoUrl = uploaded.url;
-        } catch (error) {
-          alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
-          return;
-        }
-      } else if (isMp4VideoUrl(editingLesson?.explanationVideoUrl)) {
-        explanationVideoUrl = editingLesson.explanationVideoUrl || '';
-      } else if (!isMp4VideoUrl(editingLesson?.explanationVideoUrl)) {
-        alert('يرجى اختيار ملف MP4');
-        return;
-      }
-    } else if (!explanationVideoUrl && editingLesson?.explanationVideoUrl && isMp4VideoUrl(editingLesson.explanationVideoUrl)) {
-      void deleteUploadedVideo(editingLesson.explanationVideoUrl);
-    }
-
     const ownerId = editingLesson?.createdBy ||
       teacherId ||
       (selectedTeacherId === 'admin' ? 'admin' : selectedTeacherId) ||
@@ -164,27 +217,22 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       (selectedTeacherId === 'admin' ? 'المشرف - محتوى عام' : selectedTeacherName) ||
       'المشرف';
 
-    const lesson: LessonConfig = {
-      id: editingLesson?.id || Date.now().toString(),
-      grade: formData.grade.trim(),
-      subject: formData.subject.trim(),
-      atram: formData.atram.trim(),
-      term: formData.term.trim(),
-      unit: formData.unit.trim(),
-      explanationVideoUrl,
-      explanationVideoType: formData.explanationVideoType,
-      avatarInteractionUrl: formData.avatarInteractionUrl ? formData.avatarInteractionUrl.trim() : '',
-      liveMeetingUrl: formData.liveMeetingUrl ? formData.liveMeetingUrl.trim() : '',
-      lessonContent: formData.lessonContent.trim(),
-      createdAt: editingLesson?.createdAt || new Date().toISOString(),
-      createdBy: ownerId,
-      createdByName: ownerName
-    };
-
     const allLessons: LessonConfig[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]',
     );
-    if (teacherId && !editingLesson) {
+    const scopeMatches = (lesson: LessonConfig) =>
+      ['grade', 'atram', 'subject', 'term', 'unit'].every(field =>
+        normalizeScopeValue(lesson[field as keyof LessonConfig])
+        === normalizeScopeValue(formData[field as keyof typeof formData] as string),
+      );
+    const matchingLesson = !editingLesson
+      ? allLessons.find(lesson =>
+        (getRecordTeacherId(lesson) || 'admin') === normalizeScopeValue(ownerId)
+        && scopeMatches(lesson),
+      )
+      : null;
+
+    if (teacherId && !editingLesson && !matchingLesson) {
       const permissions = getTeacherPermissions({ permissionPackageId });
       const teacherLessonCount = allLessons.filter(
         lesson => getRecordTeacherId(lesson) === normalizeScopeValue(teacherId),
@@ -196,25 +244,90 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         return;
       }
     }
+
+    let currentVideos = [...formData.explanationVideos];
+    if (formData.explanationVideoType === 'embed' && formData.explanationVideoUrl.trim()) {
+      currentVideos = [
+        ...currentVideos,
+        {
+          id: `lesson-video-${crypto.randomUUID()}`,
+          url: formData.explanationVideoUrl.trim(),
+          sourceType: 'embed',
+          title: `فيديو الشرح ${currentVideos.length + 1}`,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    } else if (formData.explanationVideoType === 'mp4' && formData.explanationVideoFile) {
+      try {
+        const file = formData.explanationVideoFile;
+        const uploaded = await uploadMp4Video(file);
+        currentVideos = [
+          ...currentVideos,
+          {
+            id: `lesson-video-${crypto.randomUUID()}`,
+            url: uploaded.url,
+            sourceType: 'mp4',
+            title: file.name,
+            createdAt: new Date().toISOString(),
+          },
+        ];
+      } catch (error) {
+        alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+        return;
+      }
+    }
+
+    const previousVideos = editingLesson
+      ? getLessonExplanationVideos(editingLesson)
+      : matchingLesson
+        ? getLessonExplanationVideos(matchingLesson)
+        : [];
+    const videosToSave = editingLesson
+      ? currentVideos
+      : [...previousVideos, ...currentVideos];
+    const nextVideos = videosToSave.filter((video, index, all) =>
+      all.findIndex(item => item.url === video.url) === index,
+    );
+    const primaryVideo = nextVideos[0];
+    const preservedLesson = matchingLesson || editingLesson;
+    const lesson: LessonConfig = {
+      id: editingLesson?.id || matchingLesson?.id || Date.now().toString(),
+      grade: formData.grade.trim(),
+      subject: formData.subject.trim(),
+      atram: formData.atram.trim(),
+      term: formData.term.trim(),
+      unit: formData.unit.trim(),
+      explanationVideoUrl: primaryVideo?.url || '',
+      explanationVideoType: primaryVideo?.sourceType || 'embed',
+      explanationVideos: nextVideos,
+      avatarInteractionUrl: formData.avatarInteractionUrl.trim() || preservedLesson?.avatarInteractionUrl || '',
+      liveMeetingUrl: formData.liveMeetingUrl.trim() || preservedLesson?.liveMeetingUrl || '',
+      lessonContent: formData.lessonContent.trim() || preservedLesson?.lessonContent || '',
+      createdAt: preservedLesson?.createdAt || new Date().toISOString(),
+      createdBy: ownerId,
+      createdByName: ownerName
+    };
+
     let updated: LessonConfig[];
     if (editingLesson) {
       updated = allLessons.map(l => l.id === editingLesson.id ? lesson : l);
+    } else if (matchingLesson) {
+      updated = allLessons.map(l => l.id === matchingLesson.id ? lesson : l);
     } else {
       updated = [...allLessons, lesson];
     }
 
     localStorage.setItem(STORAGE_KEYS.LESSON_CONFIGS, JSON.stringify(updated));
-    if (
-      editingLesson?.explanationVideoUrl
-      && editingLesson.explanationVideoUrl !== explanationVideoUrl
-      && isMp4VideoUrl(editingLesson.explanationVideoUrl)
-    ) {
-      void deleteUploadedVideo(editingLesson.explanationVideoUrl);
-    }
+    const removedVideos = previousVideos.filter(video =>
+      !nextVideos.some(next => next.url === video.url),
+    );
+    removedVideos.forEach(video => {
+      if (isMp4VideoUrl(video.url)) void deleteUploadedVideo(video.url);
+    });
     
     setShowForm(false);
     setEditingLesson(null);
-    setFormData({ grade: '', atram: '', subject: '', term: '', unit: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
+    setFormData({ grade: '', atram: '', subject: '', term: '', unit: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, explanationVideos: [], avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
     loadData();
     onUpdate();
   };
@@ -227,9 +340,10 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       subject: lesson.subject,
       term: lesson.term,
       unit: lesson.unit,
-      explanationVideoUrl: lesson.explanationVideoUrl || '',
-      explanationVideoType: getVideoSourceType(lesson.explanationVideoType, lesson.explanationVideoUrl),
+      explanationVideoUrl: '',
+      explanationVideoType: 'embed',
       explanationVideoFile: null,
+      explanationVideos: getLessonExplanationVideos(lesson),
       avatarInteractionUrl: lesson.avatarInteractionUrl || '',
       liveMeetingUrl: lesson.liveMeetingUrl || '',
       lessonContent: lesson.lessonContent
@@ -507,6 +621,37 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                     <span>{formData.explanationVideoFile?.name || (editingLesson?.explanationVideoUrl ? 'استبدال ملف MP4 (اختياري)' : 'اختر ملف MP4 بحد أقصى 500MB')}</span>
                     <input type="file" accept="video/mp4,.mp4" className="hidden" onChange={e => setFormData({ ...formData, explanationVideoFile: e.target.files?.[0] || null })} />
                   </label>
+                )}
+                <button
+                  type="button"
+                  onClick={addExplanationVideo}
+                  className="mt-2 w-full rounded-xl bg-purple-100 px-4 py-3 font-black text-purple-700 transition hover:bg-purple-200"
+                >
+                  ➕ إضافة هذا الفيديو إلى شرح الدرس
+                </button>
+                {formData.explanationVideos.length > 0 && (
+                  <div className="mt-3 space-y-2 rounded-2xl border border-purple-200 bg-white p-3">
+                    <p className="text-xs font-black text-purple-700">
+                      🎬 فيديوهات هذا الدرس ({formData.explanationVideos.length})
+                    </p>
+                    {formData.explanationVideos.map((video, index) => (
+                      <div key={video.id} className="flex items-center gap-2 rounded-xl bg-purple-50 px-3 py-2">
+                        <span className="flex-1 truncate text-xs font-bold text-purple-800">
+                          {index + 1}. {video.title || video.url}
+                        </span>
+                        <span className="text-[10px] font-black text-purple-500">
+                          {video.sourceType === 'mp4' ? 'MP4' : 'رابط'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeExplanationVideo(video)}
+                          className="rounded-lg px-2 py-1 text-xs font-black text-red-600 hover:bg-red-100"
+                        >
+                          حذف
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
               <div>

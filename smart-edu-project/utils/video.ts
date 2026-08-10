@@ -1,5 +1,13 @@
 export type VideoSourceType = 'embed' | 'mp4';
 
+export interface LessonVideoEntry {
+  id: string;
+  url: string;
+  sourceType: VideoSourceType;
+  title?: string;
+  createdAt?: string;
+}
+
 export const isMp4VideoUrl = (value?: string | null): boolean => {
   const url = (value || '').trim().toLowerCase();
   return url.startsWith('/uploads/videos/') || url.includes('.mp4');
@@ -9,6 +17,35 @@ export const getVideoSourceType = (
   sourceType?: VideoSourceType,
   url?: string | null,
 ): VideoSourceType => sourceType || (isMp4VideoUrl(url) ? 'mp4' : 'embed');
+
+export const getLessonExplanationVideos = (lesson: {
+  explanationVideos?: LessonVideoEntry[];
+  explanationVideoUrl?: string;
+  explanationVideoType?: VideoSourceType;
+} | null | undefined): LessonVideoEntry[] => {
+  if (!lesson) return [];
+
+  const videos = Array.isArray(lesson.explanationVideos)
+    ? lesson.explanationVideos.filter(video => video?.url?.trim())
+    : [];
+  const legacyUrl = lesson.explanationVideoUrl?.trim();
+
+  if (legacyUrl && !videos.some(video => video.url === legacyUrl)) {
+    videos.unshift({
+      id: `legacy-${encodeURIComponent(legacyUrl)}`,
+      url: legacyUrl,
+      sourceType: getVideoSourceType(lesson.explanationVideoType, legacyUrl),
+      title: 'فيديو الشرح',
+    });
+  }
+
+  return videos.map((video, index) => ({
+    ...video,
+    id: video.id || `lesson-video-${index}-${encodeURIComponent(video.url)}`,
+    sourceType: getVideoSourceType(video.sourceType, video.url),
+    title: video.title || `فيديو الشرح ${index + 1}`,
+  }));
+};
 
 export const uploadMp4Video = async (file: File): Promise<{ url: string; fileName: string; size: number }> => {
   const response = await fetch('/api/media/upload', {

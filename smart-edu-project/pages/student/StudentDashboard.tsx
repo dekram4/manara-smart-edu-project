@@ -8,7 +8,7 @@ import StudentLogin from './StudentLogin';
 import StudentPersonality from './StudentPersonality';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
-import { getVideoSourceType } from '../../utils/video';
+import { getLessonExplanationVideos, getVideoSourceType } from '../../utils/video';
 import { playWelcomeStudent, playLamsaSound } from '../../utils/sounds';
 import { speakGreeting } from '../../utils/speech';
 import { triggerCelebration } from '../../App';
@@ -312,6 +312,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [selectedTerm, setSelectedTerm] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('');
   const [showSelectionPanel, setShowSelectionPanel] = useState(false);
+  const [explanationVideoIndex, setExplanationVideoIndex] = useState(0);
+  const explanationVideoSignatureRef = useRef('');
 
   const [currentQuiz, setCurrentQuiz] = useState<QuizQuestion[]>([]);
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
@@ -734,7 +736,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const matchContent = (s: StudentInfo) => {
     const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]');
-    const filteredContent = filterTeacherOwnedRecords(all, s);
+    const teacherContent = filterTeacherOwnedRecords(all, s);
+    const generalContent = all.filter((lesson: LessonConfig) => {
+      const owner = normalizeScopeValue(getRecordTeacherId(lesson));
+      return !owner || owner === 'admin';
+    });
+    const filteredContent = Array.from(
+      new Map([...teacherContent, ...generalContent].map((lesson: LessonConfig) => [lesson.id, lesson])).values(),
+    );
     const normalize = (v: any) => (v || '').toString().trim().toLowerCase();
 
     const studentKey = {
@@ -759,8 +768,28 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         return score(b) - score(a);
       });
     const found = matchingContent[0];
+    if (!found) {
+      setActiveLesson(null);
+      explanationVideoSignatureRef.current = '';
+      return;
+    }
 
-    setActiveLesson(found || null);
+    const mergedVideos = matchingContent
+      .flatMap((lesson: LessonConfig) => getLessonExplanationVideos(lesson))
+      .filter((video, index, all) =>
+        all.findIndex(item => item.url === video.url) === index,
+      );
+    const videoSignature = mergedVideos.map(video => `${video.id}:${video.url}`).join('|');
+    if (explanationVideoSignatureRef.current !== videoSignature) {
+      explanationVideoSignatureRef.current = videoSignature;
+      setExplanationVideoIndex(0);
+    }
+    setActiveLesson({
+      ...found,
+      explanationVideoUrl: mergedVideos[0]?.url || found.explanationVideoUrl || '',
+      explanationVideoType: mergedVideos[0]?.sourceType || found.explanationVideoType,
+      explanationVideos: mergedVideos,
+    });
   };
 
   const startQuiz = (type: QuizType, requestedQuizId?: string): boolean => {
@@ -1228,6 +1257,10 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const moduleTheme = getModuleTheme(activeModule);
   const lessonRewarded = activeLesson ? hasCompletedActivity('lesson', getLessonRewardId(activeLesson)) : false;
+  const explanationVideos = getLessonExplanationVideos(activeLesson);
+  const activeExplanationVideo = explanationVideos[
+    Math.min(explanationVideoIndex, Math.max(explanationVideos.length - 1, 0))
+  ];
   const nextLevelXP = (level + 1) * 100;
   const xpRemainingToNextLevel = Math.max(0, nextLevelXP - xp);
 
@@ -1778,11 +1811,24 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <div className="relative z-10">
                   <h2 className="text-3xl font-black text-white mb-6">📺 سينما الشرح الممتع</h2>
                   <div className="overflow-hidden rounded-[28px] bg-black shadow-2xl aspect-video">
-                    {activeLesson?.explanationVideoUrl ? (
-                      getVideoSourceType(activeLesson.explanationVideoType, activeLesson.explanationVideoUrl) === 'mp4' ? (
-                        <video className="h-full w-full" src={activeLesson.explanationVideoUrl} title="Lesson Video" controls playsInline />
+                    {activeExplanationVideo ? (
+                      activeExplanationVideo.sourceType === 'mp4' ? (
+                        <video
+                          key={activeExplanationVideo.id}
+                          className="h-full w-full"
+                          src={activeExplanationVideo.url}
+                          title={activeExplanationVideo.title || 'Lesson Video'}
+                          controls
+                          playsInline
+                        />
                       ) : (
-                        <iframe className="h-full w-full" src={activeLesson.explanationVideoUrl} title="Lesson Video" allowFullScreen></iframe>
+                        <iframe
+                          key={activeExplanationVideo.id}
+                          className="h-full w-full"
+                          src={activeExplanationVideo.url}
+                          title={activeExplanationVideo.title || 'Lesson Video'}
+                          allowFullScreen
+                        />
                       )
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900 text-slate-400">
@@ -1791,6 +1837,49 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       </div>
                     )}
                   </div>
+                  {explanationVideos.length > 1 && (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setExplanationVideoIndex(current =>
+                            current > 0 ? current - 1 : explanationVideos.length - 1,
+                          )}
+                          className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-black text-white hover:bg-slate-600"
+                        >
+                          السابق
+                        </button>
+                        <span className="text-sm font-black text-amber-200">
+                          فيديو الشرح {explanationVideoIndex + 1} من {explanationVideos.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setExplanationVideoIndex(current =>
+                            current + 1 < explanationVideos.length ? current + 1 : 0,
+                          )}
+                          className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-black text-white hover:bg-slate-600"
+                        >
+                          التالي
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {explanationVideos.map((video, index) => (
+                          <button
+                            key={video.id}
+                            type="button"
+                            onClick={() => setExplanationVideoIndex(index)}
+                            className={`rounded-full px-3 py-1 text-xs font-black transition ${
+                              index === explanationVideoIndex
+                                ? 'bg-amber-400 text-slate-950'
+                                : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                            }`}
+                          >
+                            {index + 1}. {video.sourceType === 'mp4' ? 'MP4' : 'رابط'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {activeLesson && (
                     <button
                       onClick={completeCurrentLesson}

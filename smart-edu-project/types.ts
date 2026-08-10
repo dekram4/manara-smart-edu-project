@@ -162,6 +162,7 @@ export interface LessonConfig {
   unit: string;
   explanationVideoUrl?: string;
   explanationVideoType?: 'embed' | 'mp4';
+  explanationVideos?: LessonVideo[];
   avatarInteractionUrl?: string;
   liveMeetingUrl?: string;
   lessonContent: string;
@@ -169,6 +170,14 @@ export interface LessonConfig {
   createdBy: string;
   createdByName?: string; // اسم المعلم
   hierarchicalConfigId?: string; // معرف الإعداد الأكاديمي المرتبط
+}
+
+export interface LessonVideo {
+  id: string;
+  url: string;
+  sourceType: 'embed' | 'mp4';
+  title?: string;
+  createdAt?: string;
 }
 
 export interface QuizQuestion {
