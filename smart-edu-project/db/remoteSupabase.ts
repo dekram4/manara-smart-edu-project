@@ -10,12 +10,26 @@ class RemoteUnavailableError extends Error {
 
 let remoteState: 'unknown' | 'ready' | 'unavailable' = 'unknown';
 let probePromise: Promise<boolean> | null = null;
+const REQUEST_TIMEOUT_MS = 10000;
+
+async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: init?.signal ?? controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 async function isRemoteReady(): Promise<boolean> {
   if (remoteState === 'ready') return true;
   if (remoteState === 'unavailable') return false;
   if (!probePromise) {
-    probePromise = fetch('/api/supabase/health')
+    probePromise = fetchWithTimeout('/api/supabase/health')
       .then((response) => {
         remoteState = response.ok ? 'ready' : 'unavailable';
         return response.ok;
@@ -35,7 +49,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
     return { data: null, error: new RemoteUnavailableError() };
   }
   try {
-    const response = await fetch(url, init);
+      const response = await fetchWithTimeout(url, init);
     const text = await response.text();
     let body: any = null;
     if (text) {

@@ -27,6 +27,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   const [currentTeacher, setCurrentTeacher] = useState<TeacherInfo | null>(null);
   const [activeMenu, setActiveMenu] = useState(TeacherMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dashboardStats, setDashboardStats] = useState({
     parentsCount: 0,
     studentsCount: 0,
@@ -118,18 +119,18 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         return (
           <div className="space-y-8">
             {/* Header */}
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-8 rounded-[40px] shadow-2xl text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-4xl font-black mb-2">👋 مرحباً {currentTeacher.name}</h1>
-                  <p className="text-amber-100 text-lg font-medium">مرحباً بك في منصة التعليم الذكي. استخدم القائمة الجانبية للوصول إلى جميع الأدوات.</p>
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 sm:p-6 lg:p-8 rounded-[28px] sm:rounded-[40px] shadow-2xl text-white">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <h1 className="text-2xl sm:text-4xl font-black mb-2 break-words">👋 مرحباً {currentTeacher.name}</h1>
+                  <p className="text-amber-100 text-sm sm:text-lg font-medium break-words">مرحباً بك في منصة التعليم الذكي. استخدم القائمة الجانبية للوصول إلى جميع الأدوات.</p>
                 </div>
-                <div className="text-6xl opacity-20">🏠</div>
+                <div className="hidden sm:block text-4xl sm:text-6xl opacity-20">🏠</div>
               </div>
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
               {/* Parents Card */}
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-[30px] shadow-lg border-2 border-purple-200 hover:shadow-xl transition-all hover:scale-105 cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
@@ -184,12 +185,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white p-8 rounded-[40px] shadow-lg border-2 border-amber-200">
+            <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-[28px] sm:rounded-[40px] shadow-lg border-2 border-amber-200">
               <h2 className="text-2xl font-black text-amber-900 mb-6 flex items-center gap-3">
                 <span className="text-3xl">⚡</span>
                 إجراءات سريعة
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}
                   className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white p-6 rounded-[25px] font-bold text-lg transition-all shadow-md hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1 flex items-center gap-4 active:scale-95"
@@ -300,9 +301,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 flex animate-fadeIn">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 flex animate-fadeIn overflow-x-hidden">
       {/* Sidebar */}
-      <div className="w-80 bg-gradient-to-b from-amber-800 to-amber-900 text-white p-6 flex flex-col shadow-2xl">
+      {mobileNavOpen && (
+        <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
+      )}
+      <div className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col overflow-y-auto bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 sm:p-6 shadow-2xl transition-transform duration-300 md:static md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 self-start rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
         <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
           <ManaraBrand variant="sidebar" className="text-white" />
         </div>
@@ -377,7 +382,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             return (
               <button
                 key={menu}
-                onClick={() => setActiveMenu(menu)}
+                 onClick={() => { setActiveMenu(menu); setMobileNavOpen(false); }}
                 className={`w-full text-right p-4 rounded-[20px] font-bold text-lg transition-all hover:translate-x-[-2px] active:scale-95 ${
                   activeMenu === menu
                     ? 'bg-white text-amber-800 shadow-lg'
@@ -392,7 +397,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           
           {/* زر الدردشة */}
           <button
-            onClick={() => setShowChat(true)}
+            onClick={() => { setShowChat(true); setMobileNavOpen(false); }}
             className="w-full text-right p-4 rounded-[20px] font-bold text-lg transition-all hover:bg-white/10 hover:translate-x-[-2px] active:scale-95"
           >
             <span className="mr-3">💬</span>
@@ -409,7 +414,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto">
+       <div className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto safe-area-x safe-area-bottom">
+         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-amber-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         {renderContent()}
       </div>
 

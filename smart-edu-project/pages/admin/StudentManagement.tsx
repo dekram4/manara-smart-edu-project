@@ -641,8 +641,8 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border overflow-hidden shadow-sm">
-         <table className="w-full text-right">
+      <div className="bg-white rounded-3xl border shadow-sm overflow-x-auto">
+         <table className="w-full min-w-[900px] text-right">
            <thead className="bg-purple-50 border-b">
               <tr>
                 <th className="p-4">الاسم</th>

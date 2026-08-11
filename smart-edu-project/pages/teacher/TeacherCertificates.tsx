@@ -516,7 +516,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
       {/* Issue Modal */}
       {issueModalOpen && issueStudent && issueType && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-fadeIn" onClick={() => setIssueModalOpen(false)}>
-          <div className="bg-white p-8 rounded-[40px] shadow-2xl max-w-lg w-full animate-slideUp" onClick={e => e.stopPropagation()}>
+          <div className="mobile-modal-panel bg-white p-5 sm:p-8 rounded-[28px] sm:rounded-[40px] shadow-2xl max-w-lg w-full animate-slideUp" onClick={e => e.stopPropagation()}>
             <h3 className="text-2xl font-black text-amber-900 mb-2">
               {issueType === 'excellence' ? '🏆 إصدار شهادة تفوق' : issueType === 'appreciation' ? '⭐ إصدار شهادة شكر' : '🌟 إصدار شهادة مشاركة'}
             </h3>
@@ -560,7 +560,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
               </div>
             </div>
 
-            <div className="flex gap-3 mt-8">
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
               <button
                 onClick={confirmIssue}
                 className="flex-1 bg-amber-500 text-white py-4 rounded-[20px] font-black text-lg hover:bg-amber-600 shadow-lg transition-all hover:scale-[1.02] active:scale-95"
@@ -581,7 +581,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
       {/* Edit Modal */}
       {editCert && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-fadeIn" onClick={() => setEditCert(null)}>
-          <div className="bg-white p-8 rounded-[40px] shadow-2xl max-w-md w-full animate-slideUp" onClick={e => e.stopPropagation()}>
+          <div className="mobile-modal-panel bg-white p-5 sm:p-8 rounded-[28px] sm:rounded-[40px] shadow-2xl max-w-md w-full animate-slideUp" onClick={e => e.stopPropagation()}>
             <h3 className="text-2xl font-black text-amber-900 mb-2">✏️ تعديل الشهادة</h3>
             <p className="text-amber-500 text-sm mb-6">{editCert.studentName} — {editCert.grade} · {editCert.subject}</p>
 
@@ -610,7 +610,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
               </div>
             </div>
 
-            <div className="flex gap-3 mt-8">
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
               <button
                 onClick={saveEdit}
                 className="flex-1 bg-amber-500 text-white py-4 rounded-[20px] font-black text-lg hover:bg-amber-600 shadow-lg transition-all hover:scale-[1.02] active:scale-95"

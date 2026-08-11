@@ -336,7 +336,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md md:p-8"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-3 sm:p-4 backdrop-blur-md md:p-8 safe-area-x safe-area-top safe-area-bottom"
             role="dialog"
             aria-modal="true"
             aria-label={`تشغيل فيديو ${activeVideo.title}`}
@@ -349,7 +349,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 24, scale: 0.94 }}
               transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-              className="relative w-full max-w-5xl overflow-hidden rounded-[28px] border border-white/20 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+              className="mobile-modal-panel relative w-full max-w-5xl overflow-hidden rounded-[22px] sm:rounded-[28px] border border-white/20 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
             >
               <div className="aspect-video w-full">
                 {getVideoSourceType(activeVideo.sourceType, activeVideo.url) === 'mp4' || isMp4VideoUrl(activeVideo.url) ? (

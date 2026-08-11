@@ -18,7 +18,7 @@ const ManaraHeader: React.FC<ManaraHeaderProps> = ({ name, age, xp, gems, level,
       <div className="absolute top-8 left-4 text-yellow-200 text-sm animate-float-slow" style={{ animationDelay: '1.2s', WebkitAnimationDelay: '1.2s' }}>⭐</div>
       <div className="absolute top-1 left-1/3 text-pink-300 text-xs animate-float-slow" style={{ animationDelay: '0.8s', WebkitAnimationDelay: '0.8s' }}>💫</div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         {/* Avatar with crown */}
         <motion.div
           className="relative"
@@ -27,7 +27,7 @@ const ManaraHeader: React.FC<ManaraHeaderProps> = ({ name, age, xp, gems, level,
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           <div 
-            className="w-14 h-14 rounded-full p-[2px] shadow-lg"
+            className="h-11 w-11 sm:h-14 sm:w-14 rounded-full p-[2px] shadow-lg"
             style={{
               background: 'linear-gradient(135deg, #FFD700, #FF6B35)',
               WebkitBoxShadow: '0 4px 16px rgba(255,107,53,0.3)',
@@ -48,7 +48,7 @@ const ManaraHeader: React.FC<ManaraHeaderProps> = ({ name, age, xp, gems, level,
         </motion.div>
 
         {/* Name & Level */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-white font-bold text-base leading-tight truncate">{name}</h2>
           <p className="text-purple-200 text-xs">{age} سنوات</p>
           {/* Level Progress Bar */}
@@ -73,7 +73,7 @@ const ManaraHeader: React.FC<ManaraHeaderProps> = ({ name, age, xp, gems, level,
 
         {/* Coins */}
         <div
-          className="flex flex-col items-center gap-0.5"
+          className="shrink-0 flex flex-col items-center gap-0.5"
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           <div 

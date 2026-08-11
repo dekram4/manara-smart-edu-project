@@ -57,8 +57,8 @@ export const AnimatedCelebration: React.FC<AnimatedCelebrationProps> = ({
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm">
-      <div className="relative overflow-hidden rounded-[32px] border border-white/20 bg-white/90 px-8 py-8 text-center shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-3 sm:p-4 backdrop-blur-sm safe-area-x safe-area-top safe-area-bottom">
+      <div className="mobile-modal-panel relative w-full max-w-lg overflow-hidden rounded-[32px] border border-white/20 bg-white/90 px-5 py-6 sm:px-8 sm:py-8 text-center shadow-2xl">
         <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(251,191,36,0.25),_transparent_60%)]" />
         <div className="relative">
           <div ref={containerRef} className="mx-auto mb-3 h-28 w-28" />

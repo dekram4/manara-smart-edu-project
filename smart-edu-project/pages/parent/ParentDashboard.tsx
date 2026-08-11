@@ -28,6 +28,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [activeChild, setActiveChild] = useState<StudentInfo | null>(null);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
   const [menuType, setMenuType] = useState<ParentMenuType>(ParentMenuType.DASHBOARD);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [children, setChildren] = useState<StudentInfo[]>([]);
   const [allQuizzes, setAllQuizzes] = useState<QuizResult[]>([]);
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
@@ -662,11 +663,15 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Render ===== */
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
+    <div className="flex min-h-screen bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn overflow-x-hidden">
       {/* ===== SIDEBAR ===== */}
-      <aside className="w-80 bg-gradient-to-b from-rose-900 to-rose-800 text-white flex flex-col shadow-2xl shrink-0">
+      {mobileNavOpen && (
+        <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
+      )}
+      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 text-white shadow-2xl transition-transform duration-300 md:static md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
-        <div className="p-6 border-b border-rose-800">
+        <div className="p-4 sm:p-6 border-b border-rose-800">
+          <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="justify-center text-white" />
           <h2 className="text-2xl font-black text-center mb-1">بوابة المتابعة</h2>
           <p className="text-rose-300 text-center text-xs font-bold">تابع تقدم أبنائك</p>
@@ -695,9 +700,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             <button
               key={item.key}
               onClick={() => {
-                if (item.key === ParentMenuType.CHAT) setShowChat(true);
+                if (item.key === ParentMenuType.CHAT) { setShowChat(true); setMobileNavOpen(false); }
                 else {
-                  setMenuType(item.key as ParentMenuType);
+                   setMenuType(item.key as ParentMenuType);
+                   setMobileNavOpen(false);
                   if (item.key === ParentMenuType.DASHBOARD) {
                     setActiveChild(null);
                     setActiveSubject(null);
@@ -722,7 +728,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       </aside>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+      <main className="min-w-0 flex-1 p-4 sm:p-6 md:p-10 overflow-y-auto safe-area-x safe-area-bottom">
+        <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-rose-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
 
         {/* ---------- DASHBOARD ---------- */}
         {menuType === ParentMenuType.DASHBOARD && (
@@ -1227,7 +1234,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                 <p className="text-rose-400 text-xs font-bold truncate">{child.primaryGrade || child.grade || 'غير محدد'}</p>
                               </div>
                             </div>
-                             <div className="grid grid-cols-5 gap-2 mb-3">
+                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
                               <div className="bg-blue-50 p-2 rounded-xl text-center"><p className="text-blue-900 font-black text-sm">{subjs.length}</p><p className="text-blue-500 text-[9px] font-bold">مواد</p></div>
                               <div className="bg-purple-50 p-2 rounded-xl text-center"><p className="text-purple-900 font-black text-sm">{qs.length}</p><p className="text-purple-500 text-[9px] font-bold">اختبارات</p></div>
                               <div className="bg-green-50 p-2 rounded-xl text-center"><p className="text-green-900 font-black text-sm">{avg}%</p><p className="text-green-500 text-[9px] font-bold">معدل</p></div>
@@ -1262,9 +1269,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- CHILDREN (dropdown + detail) ---------- */}
         {menuType === ParentMenuType.CHILDREN && (
-          <div className="flex gap-5 animate-fadeIn h-[calc(100vh-80px)]">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Left sidebar — dropdown selector */}
-            <div className="w-72 bg-white rounded-2xl shadow-md border border-rose-100 p-4 flex flex-col shrink-0 overflow-hidden">
+            <div className="w-full lg:w-72 bg-white rounded-2xl shadow-md border border-rose-100 p-4 flex flex-col shrink-0 overflow-hidden">
               <h3 className="text-xs font-black text-rose-700 mb-3 border-b border-rose-100 pb-2 flex items-center gap-2">
                 <span className="text-base">👨‍👧</span> اختيار الابن
               </h3>
@@ -1318,8 +1325,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
 
             {/* Main detail area */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto pr-1">
+            <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto pr-1 min-h-0">
                 {activeChild ? (
                   <div className="space-y-5 pb-4">
                     {/* Profile Card — compact */}
@@ -1545,9 +1552,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- CERTIFICATES ---------- */}
         {menuType === ParentMenuType.CERTIFICATES && (
-          <div className="flex gap-4 animate-fadeIn h-[calc(100vh-80px)]">
+          <div className="flex flex-col lg:flex-row gap-4 animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Inner sidebar — children list */}
-            <div className="w-56 bg-white rounded-2xl shadow-md border border-rose-100 p-3 flex flex-col shrink-0 overflow-hidden">
+            <div className="w-full lg:w-56 bg-white rounded-2xl shadow-md border border-rose-100 p-3 flex flex-col shrink-0 overflow-hidden">
               <h3 className="text-xs font-black text-rose-700 mb-2 border-b border-rose-100 pb-2">👨‍👧 الأبناء</h3>
               <div className="flex-1 overflow-y-auto space-y-2">
                 <button
@@ -1571,7 +1578,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
 
             {/* Main certificates area */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
               {/* Filter bar */}
               <div className="bg-white p-3 rounded-2xl shadow-md border border-rose-100 mb-3 shrink-0">
                 <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-center">

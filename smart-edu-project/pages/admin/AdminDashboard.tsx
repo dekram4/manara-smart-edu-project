@@ -27,6 +27,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeMenu, setActiveMenu] = useState<AdminMenuType>(AdminMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [stats, setStats] = useState<SystemStats>({
     totalStudents: 0,
     totalParents: 0,
@@ -127,10 +128,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn">
+    <div className="flex min-h-screen md:h-screen bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn overflow-x-hidden">
       {/* Sidebar */}
-      <aside className="w-80 bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl flex flex-col">
-        <div className="p-8 border-b">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="إغلاق القائمة"
+          onClick={() => setMobileNavOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/60 md:hidden"
+        />
+      )}
+      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 md:static md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-4 sm:p-8 border-b">
+          <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="text-white" />
           <p className="mt-2 text-center text-purple-200 text-xs font-bold">لوحة إدارة المشرف</p>
         </div>
@@ -150,7 +160,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           ].map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveMenu(item.id)}
+              onClick={() => { setActiveMenu(item.id); setMobileNavOpen(false); }}
               className={`w-full text-right p-4 rounded-2xl transition-all flex items-center gap-3 hover:translate-x-[-2px] active:scale-95 ${
                 activeMenu === item.id
                 ? 'bg-white/10 text-white shadow-lg font-bold'
@@ -164,7 +174,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           
           {/* زر الدردشة */}
           <button
-            onClick={() => setShowChat(true)}
+            onClick={() => { setShowChat(true); setMobileNavOpen(false); }}
             className="w-full p-4 rounded-2xl text-purple-100 hover:bg-white/5 font-bold transition-colors flex items-center justify-start gap-3"
           >
             <span className="text-xl">💬</span>
@@ -184,15 +194,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       </aside>
 
       {/* Main Area */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b px-10 py-4 flex justify-between items-center shrink-0">
+      <main className="min-w-0 flex-1 flex flex-col overflow-hidden">
+        <header className="bg-white border-b px-4 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-wrap justify-between items-center gap-3 shrink-0 safe-area-top">
           <div className="flex items-center gap-6">
+             <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-xl bg-purple-100 px-3 py-2 text-purple-800 font-black md:hidden" aria-label="فتح القائمة">☰</button>
              <div className="bg-purple-50 px-4 py-2 rounded-full border border-purple-100 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 <span className="text-xs font-bold text-purple-700">النظام نشط</span>
              </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4 min-w-0">
             {/* 🔔 Video Notifications Bell */}
             <VideoNotificationBadge onClick={() => setActiveMenu('VIDEO_NOTIFICATIONS' as AdminMenuType)} />
             <div className="text-left">
@@ -202,7 +213,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <button
               type="button"
               onClick={() => alert('تتم إدارة كلمة مرور المشرف من Replit Secrets عبر ADMIN_PASSWORD.')}
-              className="px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200"
+              className="px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200 whitespace-normal text-xs sm:text-sm"
             >
               🔐 إدارة كلمة المرور
             </button>
@@ -210,7 +221,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10">
+        <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 safe-area-x safe-area-bottom">
           <div className="max-w-7xl mx-auto">
             {renderContent()}
           </div>

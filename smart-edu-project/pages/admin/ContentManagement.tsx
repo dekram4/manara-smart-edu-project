@@ -743,8 +743,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
 
-      <div className="bg-white rounded-[40px] border border-purple-100 overflow-hidden shadow-sm">
-        <table className="w-full text-right">
+      <div className="bg-white rounded-[40px] border border-purple-100 shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[900px] text-right">
           <thead className="bg-purple-50 border-b">
             <tr>
               <th className="px-6 py-5">الصف</th>

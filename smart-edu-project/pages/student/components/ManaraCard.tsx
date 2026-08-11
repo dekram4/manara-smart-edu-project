@@ -22,11 +22,11 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
 
   return (
     <motion.div
-      className="relative cursor-pointer"
+      className="relative min-w-0 cursor-pointer"
       initial={{ opacity: 0, y: 30, scale: 0.88 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.42, delay, type: 'spring', stiffness: 220, damping: 20 }}
-      whileHover={{ scale: 1.07, y: -10 }}
+      whileHover={{ scale: 1.03, y: -4 }}
       whileTap={{ scale: 0.94 }}
        onHoverStart={() => {
          setHovered(true);
@@ -47,7 +47,7 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
 
       {/* Card shell */}
       <div
-        className="relative h-32 overflow-hidden rounded-2xl border"
+        className="relative min-h-32 h-auto overflow-hidden rounded-2xl border"
         style={{
           background: bgColor,
           borderColor: `${color}30`,
@@ -85,7 +85,7 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
         />
 
         {/* Content */}
-        <div className="relative z-10 flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
+        <div className="relative z-10 flex min-h-32 h-full flex-col items-center justify-center gap-1 px-2 py-3 text-center">
           {/* Emoji with glow */}
           <Interactive3DEmoji emoji={emoji} accent={color} size="sm" />
 

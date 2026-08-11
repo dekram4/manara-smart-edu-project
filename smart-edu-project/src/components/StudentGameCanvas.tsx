@@ -252,8 +252,8 @@ const StudentGameCanvas: React.FC<StudentGameCanvasProps> = ({ onGameComplete, o
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-5xl rounded-3xl border-4 border-amber-400/50 bg-slate-900 p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 p-3 sm:p-4 backdrop-blur-md safe-area-x safe-area-top safe-area-bottom">
+      <div className="mobile-modal-panel relative w-full max-w-5xl rounded-3xl border-4 border-amber-400/50 bg-slate-900 p-4 sm:p-6 shadow-2xl">
         <button
           onClick={onClose}
           className="absolute left-4 top-4 rounded-xl bg-red-500 px-4 py-2 text-sm font-black text-white transition-all hover:bg-red-600"

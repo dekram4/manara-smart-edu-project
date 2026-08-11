@@ -60,7 +60,7 @@ export const GameControls: React.FC<GameControlsProps> = ({ className = '' }) =>
   };
 
   return (
-    <div className={`fixed top-4 right-4 z-50 flex gap-2 ${className}`}>
+    <div className={`fixed right-3 z-50 flex gap-2 sm:right-4 ${className}`} style={{ top: 'calc(0.75rem + env(safe-area-inset-top))' }}>
       <button
         onClick={toggleSound}
         className={`rounded-full border px-3 py-2 text-sm font-black shadow-lg backdrop-blur ${soundEnabled ? 'border-amber-300 bg-white/90 text-slate-900' : 'border-slate-600 bg-slate-900/90 text-slate-100'}`}

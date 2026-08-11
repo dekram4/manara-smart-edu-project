@@ -382,7 +382,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1100px]">
               <thead>
                 <tr className="bg-gray-100">
                   <th className="p-4 text-right font-black text-gray-700">اسم الطالب</th>
@@ -558,7 +558,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                 </button>
               )}
               {filteredResultStudents.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0">
                   {filteredResultStudents.map(({ student, results }) => {
                     const average = Math.round(
                       results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length,

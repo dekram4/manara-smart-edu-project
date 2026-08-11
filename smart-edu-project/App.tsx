@@ -152,14 +152,32 @@ const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      try {
+      const syncTask = (async () => {
         migratePasswordsToHash();
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         // Do not mount role dashboards until the shared data has been loaded.
         // Otherwise a student can read an empty local content list on a new device.
         await initSupabaseSync();
-      } catch (error) {
-        console.error('[app] Supabase sync initialization failed:', error);
+      })();
+
+      try {
+        // A remote connector must never keep the whole app on the boot screen.
+        // If it is slow, initSupabaseSync continues in the background and the
+        // existing localStorage data remains available to the user.
+        const bootFallback = new Promise<'timeout'>((resolve) => {
+          window.setTimeout(() => resolve('timeout'), 2500);
+        });
+        const result = await Promise.race([
+          syncTask.then(() => 'ready' as const, (error) => {
+            console.error('[app] Supabase sync initialization failed:', error);
+            return 'failed' as const;
+          }),
+          bootFallback,
+        ]);
+        if (mounted && result === 'timeout') {
+          setBooting(false);
+          setSyncing(false);
+        }
       } finally {
         if (mounted) {
           setBooting(false);

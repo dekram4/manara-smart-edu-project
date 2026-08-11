@@ -1294,10 +1294,10 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,_#020617,_#111827,_#312e81)] text-white p-6 font-tajawal relative overflow-hidden">
+    <div className="min-h-screen bg-[linear-gradient(135deg,_#020617,_#111827,_#312e81)] text-white p-3 sm:p-4 lg:p-6 font-tajawal relative overflow-hidden safe-area-x safe-area-bottom">
       <PremiumBackground accent="#8b5cf6" />
-      <div className="absolute left-6 top-6 z-10 flex items-center gap-3 rounded-[28px] border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-lg">
-        <img src={getStickerAsset('spark')} alt="spark" className="h-12 w-12 rounded-2xl border border-white/20 bg-white/80 p-2 shadow" />
+      <div className="absolute left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-10 hidden items-center gap-3 rounded-[28px] border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-lg sm:flex">
+        <img src={getStickerAsset('spark')} alt="spark" className="h-10 w-10 rounded-2xl border border-white/20 bg-white/80 p-2 shadow" />
         <div>
           <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-200">مكافآت اليوم</p>
           <p className="text-sm font-bold text-white">{gems} جِمّات • {xp} XP</p>
@@ -1309,8 +1309,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* الهيدر العلوي */}
-      <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between gap-4 z-10 relative">
-        <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 px-5 border border-white/10 shadow-xl">
+      <div className="max-w-7xl mx-auto mb-4 sm:mb-6 flex flex-wrap items-center justify-between gap-3 z-10 relative">
+        <div className="min-w-0 flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 px-4 border border-white/10 shadow-xl">
           <StudentAvatar student={student} size="sm" />
           <div>
             <h1 className="text-lg font-black text-white">أهلاً يا {student?.name}!</h1>
@@ -1318,7 +1318,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           </div>
         </div>
         <ManaraBrand variant="compact" className="hidden text-white md:flex" />
-        <motion.button
+          <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
@@ -1326,14 +1326,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             localStorage.removeItem(STORAGE_KEYS.ACTIVE_STUDENT);
             onLogout();
           }}
-          className="px-5 py-3 bg-red-500/20 text-red-200 border border-red-500/40 rounded-xl font-bold hover:bg-red-500/30 transition-all cursor-pointer"
+           className="min-h-11 px-4 py-3 bg-red-500/20 text-red-200 border border-red-500/40 rounded-xl font-bold hover:bg-red-500/30 transition-all cursor-pointer"
         >
           🚪 خروج
         </motion.button>
       </div>
 
       <div className="max-w-7xl mx-auto z-10 relative">
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4 }} className="rounded-[32px] border border-white/10 bg-white/10 backdrop-blur-xl p-5 md:p-6 mb-6 shadow-2xl">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4 }} className="rounded-[28px] sm:rounded-[32px] border border-white/10 bg-white/10 backdrop-blur-xl p-4 sm:p-5 md:p-6 mb-4 sm:mb-6 shadow-2xl">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200 text-sm font-semibold mb-3">
@@ -1390,7 +1390,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
               <div>
                 <label className="block font-bold text-slate-300 mb-3 text-right">🎒 الصف *</label>
                 <select
@@ -2198,15 +2198,15 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* Chat (Full Screen) */}
         {showChat && (
-          <div className="relative overflow-hidden bg-slate-800/95 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 h-[600px] flex flex-col border border-slate-700 animate-fadeIn">
+          <div className="relative min-h-[min(600px,calc(100dvh-8rem))] overflow-hidden bg-slate-800/95 backdrop-blur-xl rounded-[28px] sm:rounded-[40px] shadow-2xl p-4 sm:p-8 flex flex-col border border-slate-700 animate-fadeIn safe-area-bottom">
              <EducationalCardEffects accent="#ec4899" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,72,153,0.16),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.16),_transparent_32%)]" />
-            <div className="relative z-10 flex h-full flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-4">
-                 <div className="flex items-center gap-4">
+            <div className="relative z-10 flex min-h-0 h-full flex-col">
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-4 sm:mb-6">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                 <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                    <Interactive3DEmoji emoji="💬" accent="#ec4899" size="md" />
-                   <h2 className="text-3xl font-black text-pink-400">غرفة الأصدقاء والمرح</h2>
+                    <h2 className="text-xl sm:text-3xl font-black text-pink-400">غرفة الأصدقاء والمرح</h2>
                  </div>
                 <button 
                   onClick={() => {
@@ -2218,7 +2218,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       setHasNewMessage(false);
                     }
                   }}
-                  className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                  className={`min-h-11 px-4 py-2 rounded-xl font-bold transition-all ${
                     chatEnabled 
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
                       : 'bg-slate-700 text-slate-400'
@@ -2232,12 +2232,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 setShowChat(false); 
                 setShowModuleCards(true);
                 setHasNewMessage(false);
-              }} className="px-6 py-3 bg-red-500/20 text-red-300 rounded-xl font-bold hover:bg-red-500/30 border border-red-500/30 cursor-pointer">
+               }} className="min-h-11 self-start px-5 py-3 bg-red-500/20 text-red-300 rounded-xl font-bold hover:bg-red-500/30 border border-red-500/30 cursor-pointer">
                 إغلاق
               </button>
             </div>
 
-            <div ref={chatContainerRef} className="flex-1 overflow-y-auto bg-slate-900/90 rounded-3xl p-6 mb-6 space-y-4 border border-slate-700">
+            <div ref={chatContainerRef} className="min-h-0 flex-1 overflow-y-auto bg-slate-900/90 rounded-2xl sm:rounded-3xl p-3 sm:p-6 mb-4 sm:mb-6 space-y-4 border border-slate-700">
               {!chatEnabled ? (
                 <div className="flex items-center justify-center h-full text-slate-500">
                   <div className="text-center">

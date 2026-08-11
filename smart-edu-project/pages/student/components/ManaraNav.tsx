@@ -20,7 +20,7 @@ const tabs: { id: NavTab; label: string; emoji: string }[] = [
 const ManaraNav: React.FC<ManaraNavProps> = ({ activeTab, onTabChange }) => {
   return (
     <div 
-      className="sticky bottom-0 z-50 px-3 py-2"
+      className="sticky bottom-0 z-50 px-3 py-2 safe-area-bottom"
       style={{
         background: 'linear-gradient(to top, rgba(74,20,140,0.95), rgba(74,20,140,0.8), transparent)',
         WebkitBackdropFilter: 'blur(12px)',
@@ -44,7 +44,7 @@ const ManaraNav: React.FC<ManaraNavProps> = ({ activeTab, onTabChange }) => {
                 GameAudioEngine.play('portalTransition');
                 onTabChange(tab.id);
               }}
-              className="relative flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-full transition-all duration-200"
+               className="relative flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-full transition-all duration-200"
               style={{
                 WebkitTapHighlightColor: 'transparent',
                 background: isActive ? 'linear-gradient(135deg, #FFD700, #FF8C00)' : 'transparent',
