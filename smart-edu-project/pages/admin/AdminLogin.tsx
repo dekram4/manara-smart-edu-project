@@ -1,9 +1,5 @@
 import React, { useState } from 'react';
-import { ADMIN_USERNAME, ADMIN_PASSWORD, STORAGE_KEYS } from '../../constants';
-import { passwordsMatch } from '../../utils/password';
-import ManaraBrand from '../../components/ManaraBrand';
-
-interface StoredAdminSettings { adminUsername?: string; adminPassword?: string }
+import ManaraBrand from '../../src/components/ManaraBrand';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
@@ -14,24 +10,26 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_SETTINGS);
-    let adminUser = ADMIN_USERNAME;
-    let adminPass = ADMIN_PASSWORD;
-    if (saved) {
-      try {
-        const parsed: StoredAdminSettings = JSON.parse(saved);
-        if (parsed.adminUsername) adminUser = parsed.adminUsername;
-        if (parsed.adminPassword) adminPass = parsed.adminPassword;
-      } catch (e) { /* ignore */ }
-    }
-
-    if (username === adminUser && passwordsMatch(password, adminPass)) {
+    try {
+      const response = await fetch('/api/auth/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      if (response.ok) {
       onLoginSuccess();
-    } else {
-      alert('خطأ في اسم المستخدم أو كلمة المرور');
+        return;
+      }
+      if (response.status === 503) {
+        alert('⚠️ لم يتم إعداد بيانات دخول المشرف في Secrets بعد');
+        return;
+      }
+    } catch {
+      // Keep the same generic message for network and credential failures.
     }
+    alert('خطأ في اسم المستخدم أو كلمة المرور');
   };
 
   return (

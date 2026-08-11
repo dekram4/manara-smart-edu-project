@@ -482,14 +482,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setIsGenerating(true);
     
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      
-      if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-        alert('❌ يرجى إضافة Gemini API Key في ملف .env\n\nاسم المتغير: VITE_GEMINI_API_KEY');
-        setIsGenerating(false);
-        return;
-      }
-      
       console.log('🤖 بدء توليد اختبار من Gemini AI...');
       
       // تقصير المحتوى إذا كان طويلاً جداً (حد أقصى 2000 حرف)
@@ -515,24 +507,13 @@ ${contentSummary}
 أجب بصيغة JSON فقط:
 [{"question":"السؤال","options":["خيار1","خيار2","خيار3","خيار4"],"correctAnswer":"A"}]`;
 
-      // استخدام الصيغة الصحيحة المدعومة حالياً
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-      
-      console.log('🔗 API URL:', apiUrl.substring(0, 80) + '...');
-      
-      const response = await fetch(apiUrl, {
+      const response = await fetch('/api/gemini/generate-quiz', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 3000,
-          }
+          prompt,
+          temperature: 0.7,
+          maxOutputTokens: 3000,
         })
       });
 

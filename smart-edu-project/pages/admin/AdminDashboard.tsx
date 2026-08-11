@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { AdminMenuType, SystemStats } from '../../types';
 import { COLORS, STORAGE_KEYS } from '../../constants';
-import { hashPassword } from '../../utils/password';
 import AdminLogin from './AdminLogin';
 import { playWelcomeAdult } from '../../utils/sounds';
 import DashboardHome from './DashboardHome';
@@ -15,7 +14,7 @@ import Reports from './Reports';
 import SystemSettings from './SystemSettings';
 import PermissionPackages from './PermissionPackages';
 import AdminVideoNotifications from './AdminVideoNotifications';
-import ManaraBrand from '../../components/ManaraBrand';
+import ManaraBrand from '../../src/components/ManaraBrand';
 import VideoNotificationBadge from './VideoNotificationBadge';
 import PrivateChat from '../shared/PrivateChat';
 
@@ -199,17 +198,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-sm font-bold text-purple-800">مشرف النظام</p>
               <p className="text-[10px] text-purple-400">آخر دخول: منذ دقائق</p>
             </div>
-            <button onClick={() => {
-              const newPass = prompt('أدخل كلمة المرور الجديدة للمشرف (6 أحرف على الأقل):');
-              if (!newPass) return;
-              if (newPass.length < 6) { alert('كلمة المرور قصيرة جداً'); return; }
-              try {
-                const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMIN_SETTINGS) || '{}');
-                s.adminPassword = hashPassword(newPass);
-                localStorage.setItem(STORAGE_KEYS.ADMIN_SETTINGS, JSON.stringify(s));
-                alert('تم تحديث كلمة مرور المشرف بنجاح');
-              } catch (e) { alert('حدث خطأ أثناء حفظ الإعدادات'); }
-            }} className="px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200">🔐 تغيير كلمة المرور</button>
+            <button
+              type="button"
+              onClick={() => alert('تتم إدارة كلمة مرور المشرف من Replit Secrets عبر ADMIN_PASSWORD.')}
+              className="px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200"
+            >
+              🔐 إدارة كلمة المرور
+            </button>
             <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-xl">👤</div>
           </div>
         </header>

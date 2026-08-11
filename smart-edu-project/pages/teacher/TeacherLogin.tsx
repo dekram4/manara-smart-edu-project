@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
-import ManaraBrand from '../../components/ManaraBrand';
+import ManaraBrand from '../../src/components/ManaraBrand';
 
 interface TeacherLoginProps {
   onLoginSuccess: (teacher: TeacherInfo) => void;

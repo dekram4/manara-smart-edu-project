@@ -1,6 +1,4 @@
 
-export const ADMIN_USERNAME = 'dekram';
-export const ADMIN_PASSWORD = '123';
 export const DEFAULT_PASSWORD = '123456';
 
 export const STORAGE_KEYS = {

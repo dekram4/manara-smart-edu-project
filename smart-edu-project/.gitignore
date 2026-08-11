@@ -7,8 +7,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
+node_modules/
+dist/
+vendor/
+artifacts/
+attached_assets/
+flutter_app/
+manara-app/
 dist-ssr
 *.local
 
@@ -24,3 +29,12 @@ dist-ssr
 *.sw?
 storage/app/google-auth.json
 uploads/
+
+# Secrets, local environment files, archives, and generated native outputs
+.env
+.env.*
+!.env.example
+server/.env
+*.apk
+*.tar.gz
+*.bak

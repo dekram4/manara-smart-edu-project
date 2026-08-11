@@ -35,15 +35,15 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { soundPop, soundClick } from '../../App';
 import { getStickerAsset } from '../../utils/contentAssets';
-import { AnimatedCelebration } from '../../components/AnimatedCelebration';
-import { InteractiveScene } from '../../components/InteractiveScene';
-import PremiumBackground from '../../components/PremiumBackground';
-import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
-import Interactive3DEmoji from '../../components/effects/Interactive3DEmoji';
+import { AnimatedCelebration } from '../../src/components/AnimatedCelebration';
+import { InteractiveScene } from '../../src/components/InteractiveScene';
+import PremiumBackground from '../../src/components/PremiumBackground';
+import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
+import Interactive3DEmoji from '../../src/components/effects/Interactive3DEmoji';
 import { getStudentEmoji } from '../../utils/studentAppearance';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentAvatar from './components/StudentAvatar';
-import ManaraBrand from '../../components/ManaraBrand';
+import ManaraBrand from '../../src/components/ManaraBrand';
 import {
   getPeriodicQuizLabel,
   normalizeCreatedQuiz,
@@ -1183,7 +1183,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setSolutionText('');
     playLamsaSound('send');
     try {
-      const response = await fetch('http://localhost:4000/api/gemini/answer', {
+      const response = await fetch('/api/gemini/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

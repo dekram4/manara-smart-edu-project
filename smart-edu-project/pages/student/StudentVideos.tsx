@@ -7,7 +7,7 @@ import { StudentInfo } from '../../types';
 import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/gamification';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import { getVideoSourceType, isMp4VideoUrl } from '../../utils/video';
-import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
+import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
 
 const GEMS_PER_VIDEO = 2;
 

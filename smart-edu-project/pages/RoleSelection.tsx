@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
-import ManaraBrand from '../components/ManaraBrand';
+import ManaraBrand from '../src/components/ManaraBrand';
 
 interface RoleCard {
   id: 'student' | 'teacher' | 'parent' | 'admin';

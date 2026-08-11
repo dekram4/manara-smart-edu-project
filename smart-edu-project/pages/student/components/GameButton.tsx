@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameAudioEngine } from '../../../utils/gameAudioEngine';
-import Interactive3DEmoji from '../../../components/effects/Interactive3DEmoji';
+import Interactive3DEmoji from '../../../src/components/effects/Interactive3DEmoji';
 
 interface GameButtonProps {
   icon: string;       // إيموجي أو مسار أيقونة كبيرة

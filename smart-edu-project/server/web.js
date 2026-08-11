@@ -17,10 +17,88 @@ fs.mkdirSync(uploadDirectory, { recursive: true });
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
+
+app.post('/api/auth/admin', (req, res) => {
+  const configuredUsername = process.env.ADMIN_USERNAME;
+  const configuredPassword = process.env.ADMIN_PASSWORD;
+  if (!configuredUsername || !configuredPassword) {
+    return res.status(503).json({ error: 'Admin credentials are not configured' });
+  }
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!username || !password || username !== configuredUsername || password !== configuredPassword) {
+    return res.status(401).json({ error: 'Invalid administrator credentials' });
+  }
+  return res.json({ ok: true });
+});
 app.use('/uploads', express.static(path.join(root, 'uploads'), {
   immutable: false,
   maxAge: '1h',
 }));
+
+async function callGemini(prompt, { temperature = 0.2, maxOutputTokens = 2048 } = {}) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    const error = new Error('GEMINI_API_KEY is not configured');
+    error.statusCode = 503;
+    throw error;
+  }
+  const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature, maxOutputTokens },
+      }),
+    },
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || 'Gemini request failed');
+    error.statusCode = response.status >= 500 ? 502 : response.status;
+    throw error;
+  }
+  return data;
+}
+
+app.post('/api/gemini/answer', async (req, res) => {
+  const lesson = typeof req.body?.lesson === 'string' ? req.body.lesson.trim() : '';
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  if (!lesson || !question || lesson.length > 12000 || question.length > 2000) {
+    return res.status(400).json({ error: 'محتوى الدرس أو السؤال غير صالح' });
+  }
+  const prompt = `أنت مساعد تعليمي ذكي. اقرأ النص التالي:\n\n${lesson}\n\nالسؤال: ${question}\n\nأجب إجابة مباشرة، ذكية، مفصلة، وبدون مقدمات أو تكرار للسؤال. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة. فقط أعطِ الجواب النهائي للطالب.\n`;
+  try {
+    const data = await callGemini(prompt);
+    return res.json({
+      answer: data?.candidates?.[0]?.content?.parts?.[0]?.text || null,
+    });
+  } catch (error) {
+    console.error('[gemini] answer failed:', error.message);
+    return res.status(error.statusCode || 500).json({ error: 'تعذر الاتصال بخدمة الذكاء الاصطناعي' });
+  }
+});
+
+app.post('/api/gemini/generate-quiz', async (req, res) => {
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+  const temperature = Number.isFinite(req.body?.temperature) ? req.body.temperature : 0.7;
+  const maxOutputTokens = Number.isFinite(req.body?.maxOutputTokens)
+    ? Math.min(Math.max(req.body.maxOutputTokens, 256), 4000)
+    : 3000;
+  if (!prompt || prompt.length > 14000) {
+    return res.status(400).json({ error: 'طلب توليد الاختبار غير صالح' });
+  }
+  try {
+    const data = await callGemini(prompt, { temperature, maxOutputTokens });
+    return res.json(data);
+  } catch (error) {
+    console.error('[gemini] quiz generation failed:', error.message);
+    return res.status(error.statusCode || 500).json({ error: 'تعذر توليد الاختبار بالذكاء الاصطناعي' });
+  }
+});
 
 app.post(
   '/api/media/upload',

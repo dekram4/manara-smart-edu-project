@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { getGamificationStats } from '../../utils/gamification';
 import { playLamsaSound } from '../../utils/sounds';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
-import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
+import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
 
 interface EntertainmentGamesProps {
   grade: string;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ManaraBrand from '../../components/ManaraBrand';
+import ManaraBrand from '../../src/components/ManaraBrand';
 
 interface ParentLoginProps {
   onLogin: (username: string, password: string) => void;

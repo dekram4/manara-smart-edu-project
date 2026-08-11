@@ -9,7 +9,7 @@ import { getEffectiveParentPermissions, getStudentPermissions, isLimitReached } 
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
-import ManaraBrand from '../../components/ManaraBrand';
+import ManaraBrand from '../../src/components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getStudentProgressSummary } from '../../utils/studentProgress';

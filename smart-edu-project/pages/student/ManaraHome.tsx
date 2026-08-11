@@ -4,8 +4,8 @@ import ManaraHeader from './components/ManaraHeader';
 import ManaraNav, { NavTab } from './components/ManaraNav';
 import ManaraCard from './components/ManaraCard';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
-import Immersive3DScene from '../../components/Immersive3DScene';
-import PremiumBackground from '../../components/PremiumBackground';
+import Immersive3DScene from '../../src/components/Immersive3DScene';
+import PremiumBackground from '../../src/components/PremiumBackground';
 
 interface ManaraHomeProps {
   name: string;

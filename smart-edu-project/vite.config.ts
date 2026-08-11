@@ -34,17 +34,13 @@ export default defineConfig(({ mode, command }) => {
         // remain the reliable refresh path for this app.
         hmr: false,
         watch: {
-          ignored: ['**/sdk/**', '**/node_modules/**', '**/manara-app/**', '**/artifacts/**']
+          ignored: ['**/sdk/**', '**/node_modules/**', '**/artifacts/**']
         }
       },
       plugins: [
         react(),
         ...(command === 'serve' ? [previewStabilizer()] : []),
       ],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY)
-      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
+import EducationalCardEffects from '../../../src/components/effects/EducationalCardEffects';
 import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 
 export type NavTab = 'home' | 'games' | 'lessons' | 'profile';

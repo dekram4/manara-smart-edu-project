@@ -10,7 +10,7 @@ import ParentDashboard from './pages/parent/ParentDashboard';
 import { STORAGE_KEYS } from './constants';
 import { initSupabaseSync } from './db/sync';
 import { migratePasswordsToHash } from './db/migratePasswords';
-import { GameControls } from './components/GameControls';
+import { GameControls } from './src/components/GameControls';
 
 // ✅ الاستدعاء المباشر والمحلي للمكتبات (Game Engine Infrastructure)
 import { playLamsaSound } from './utils/sounds';

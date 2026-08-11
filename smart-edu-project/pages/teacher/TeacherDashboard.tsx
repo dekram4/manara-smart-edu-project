@@ -15,7 +15,7 @@ import { getTeacherPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
-import ManaraBrand from '../../components/ManaraBrand';
+import ManaraBrand from '../../src/components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 
 interface TeacherDashboardProps {

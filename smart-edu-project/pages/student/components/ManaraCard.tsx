@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import EducationalCardEffects from '../../../components/effects/EducationalCardEffects';
-import Interactive3DEmoji from '../../../components/effects/Interactive3DEmoji';
+import EducationalCardEffects from '../../../src/components/effects/EducationalCardEffects';
+import Interactive3DEmoji from '../../../src/components/effects/Interactive3DEmoji';
 import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 
 interface ManaraCardProps {
