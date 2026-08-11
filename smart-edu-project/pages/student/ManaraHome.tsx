@@ -105,7 +105,7 @@ const ManaraHome: React.FC<ManaraHomeProps> = ({
         >
           ابدأ ←
         </button>
-      </div>
+      </motion.div>
 
       {/* Quick Achievements */}
       <div className="px-3 mb-3">

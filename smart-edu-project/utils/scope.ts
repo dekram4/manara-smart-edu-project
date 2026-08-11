@@ -18,8 +18,8 @@ const hasOwn = (value: object, key: string) =>
 export const normalizeScopeValue = (value: unknown) =>
   (value ?? '').toString().trim().toLowerCase();
 
-export const getRecordTeacherId = (record: OwnedRecord) =>
-  normalizeScopeValue(record.teacherId ?? record.createdBy);
+export const getRecordTeacherId = (record: OwnedRecord | null | undefined) =>
+  normalizeScopeValue(record?.teacherId ?? record?.createdBy);
 
 export const getParentTeacherId = (
   parent: ParentInfo,
@@ -28,16 +28,19 @@ export const getParentTeacherId = (
   const direct = normalizeScopeValue(parent.createdBy);
   if (direct) return direct;
 
-  const linked = students.find(student => {
-    const studentParentId = normalizeScopeValue(student.parentId);
-    const studentParentPhone = normalizeScopeValue(student.parentPhoneNumber);
-    const parentId = normalizeScopeValue(parent.id);
-    const parentPhone = normalizeScopeValue(parent.phoneNumber);
-    return (studentParentId && studentParentId === parentId) || (studentParentPhone && studentParentPhone === parentPhone);
-  });
+  const linked = students
+    .filter((student): student is StudentInfo => Boolean(student && typeof student === 'object'))
+    .find(student => {
+      const studentParentId = normalizeScopeValue(student.parentId);
+      const studentParentPhone = normalizeScopeValue(student.parentPhoneNumber);
+      const parentId = normalizeScopeValue(parent.id);
+      const parentPhone = normalizeScopeValue(parent.phoneNumber);
+      return (studentParentId && studentParentId === parentId) || (studentParentPhone && studentParentPhone === parentPhone);
+    });
   if (linked) return getStudentTeacherScope(linked).teacherId;
 
-  const embedded = (parent.children || []).find(Boolean);
+  const embedded = (Array.isArray(parent.children) ? parent.children : [])
+    .find((child): child is StudentInfo => Boolean(child && typeof child === 'object'));
   return embedded ? getStudentTeacherScope(embedded).teacherId : '';
 };
 
@@ -47,7 +50,8 @@ export const getParentTeacherId = (
  * legacy teacher assignment.
  */
 function loadParentsFromStorage(): ParentInfo[] {
-  return readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
+  return readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS)
+    .filter((parent): parent is ParentInfo => Boolean(parent && typeof parent === 'object'));
 }
 
 export const getStudentTeacherScope = (
@@ -64,12 +68,15 @@ export const getStudentTeacherScope = (
   }
 
   if (!teacherId && parents.length > 0) {
-    const parent = parents.find(p => {
-      if (student.parentId && student.parentId.trim()) {
-        return p.id === student.parentId;
-      }
-      return p.phoneNumber === student.parentPhoneNumber;
-    });
+    const parent = parents
+      .filter((candidate): candidate is ParentInfo => Boolean(candidate && typeof candidate === 'object'))
+      .find(p => {
+        const studentParentId = normalizeScopeValue(student.parentId);
+        if (studentParentId) {
+          return normalizeScopeValue(p.id) === studentParentId;
+        }
+        return normalizeScopeValue(p.phoneNumber) === normalizeScopeValue(student.parentPhoneNumber);
+      });
     if (parent) {
       teacherId = getParentTeacherId(parent, students);
     }
@@ -92,7 +99,9 @@ export const studentBelongsToTeacher = (
 
   // Legacy students created through a teacher-owned parent may not have
   // createdBy on the student record.
-  const parent = parents.find(parentRecord => parentRecord.id === student.parentId);
+  const parent = parents
+    .filter((parentRecord): parentRecord is ParentInfo => Boolean(parentRecord && typeof parentRecord === 'object'))
+    .find(parentRecord => normalizeScopeValue(parentRecord.id) === normalizeScopeValue(student.parentId));
   return normalizeScopeValue(parent?.createdBy) === requestedTeacher;
 };
 
@@ -124,24 +133,28 @@ export const filterTeacherOwnedRecords = <T extends OwnedRecord>(
   students: StudentInfo[] = [],
 ) => {
   const scope = getStudentTeacherScope(student, parents, students);
+  const validRecords = records.filter(
+    (record): record is T => Boolean(record && typeof record === 'object'),
+  );
 
   if (scope.explicit) {
     return scope.teacherId
-      ? records.filter(record => getRecordTeacherId(record) === scope.teacherId)
+      ? validRecords.filter(record => getRecordTeacherId(record) === scope.teacherId)
       : [];
   }
 
   if (scope.teacherId) {
-    return records.filter(record => getRecordTeacherId(record) === scope.teacherId);
+    return validRecords.filter(record => getRecordTeacherId(record) === scope.teacherId);
   }
 
-  return records;
+  return validRecords;
 };
 
 export const matchesAcademicScope = (
-  record: OwnedRecord,
+  record: OwnedRecord | null | undefined,
   path: Pick<OwnedRecord, 'grade' | 'subject' | 'atram' | 'term' | 'unit'>,
 ) => {
+  if (!record) return false;
   const fields: (keyof typeof path)[] = ['grade', 'subject', 'atram', 'term', 'unit'];
   return fields.every(field => {
     const expected = normalizeScopeValue(path[field]);

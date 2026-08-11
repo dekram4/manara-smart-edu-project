@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Component, ErrorInfo, ReactNode, useState, useEffect, useRef } from 'react';
 import { StudentInfo, LessonConfig, StudentModuleType, QuizQuestion, QuizResult, QuizType, CreatedQuiz } from '../../types';
 import EntertainmentGames from './EntertainmentGames';
 import StudentVideos from './StudentVideos';
@@ -77,6 +77,42 @@ const getStudentQuestionSet = (
     )
     .slice(0, count);
 };
+
+type SafeGradeEnrollment = {
+  grade?: string;
+  enrollments?: Array<{
+    subject?: string;
+    atram?: string;
+    term?: string;
+    unit?: string;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+};
+
+const getSafeGradeEnrollments = (
+  candidate: StudentInfo | null | undefined,
+): SafeGradeEnrollment[] => (
+  Array.isArray(candidate?.gradeEnrollments)
+    ? candidate.gradeEnrollments.filter(
+      (entry): entry is SafeGradeEnrollment => Boolean(entry && typeof entry === 'object'),
+    )
+    : []
+);
+
+const getSafeEnrollments = (entry: SafeGradeEnrollment | null | undefined) => (
+  Array.isArray(entry?.enrollments)
+    ? entry.enrollments.filter((enrollment) => Boolean(enrollment && typeof enrollment === 'object'))
+    : []
+);
+
+const getSafeLegacyEnrollments = (candidate: StudentInfo | null | undefined) => (
+  Array.isArray(candidate?.enrollments)
+    ? candidate.enrollments.filter((enrollment): enrollment is Record<string, any> => (
+      Boolean(enrollment && typeof enrollment === 'object')
+    ))
+    : []
+);
 
 const moduleThemes: Record<string, { shellClass: string; glowClass: string; borderClass: string; portalClass: string }> = {
   explanation: {
@@ -291,6 +327,72 @@ const GameModeCard = ({
   );
 };
 
+class StudentPortalErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[student] learning portal render error:', error, errorInfo);
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
+
+const StudentPortalFallback: React.FC<{
+  subject: string;
+  atram: string;
+  term: string;
+  unit: string;
+  onChangeSelection: () => void;
+  onOpenModule: (module: StudentModuleType) => void;
+}> = ({ subject, atram, term, unit, onChangeSelection, onOpenModule }) => (
+  <div className="rounded-[28px] border border-cyan-300/20 bg-slate-900/90 p-5 shadow-2xl sm:p-8" dir="rtl">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-bold text-cyan-300">تم حفظ مسارك الدراسي بنجاح</p>
+        <h2 className="mt-1 text-2xl font-black text-white">اختر مغامرتك اليوم 🌟</h2>
+        <p className="mt-2 text-sm font-bold text-amber-300">
+          {subject} • {atram} • {term} • {unit}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onChangeSelection}
+        className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-slate-200"
+      >
+        ⚙️ تغيير المسار
+      </button>
+    </div>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {[
+        [StudentModuleType.EXPLANATION, '📺 شرح الدرس'],
+        [StudentModuleType.AVATAR_INTERACTION, '🤖 المعلم الافتراضي'],
+        [StudentModuleType.PERSONALITY, '🧑‍🎓 شخصيتي'],
+        [StudentModuleType.PROBLEM_SOLVING, '💡 حل المسائل'],
+        [StudentModuleType.VIDEOS, '🎬 سينما منارة'],
+        [StudentModuleType.ENTERTAINMENT, '🎮 عالم الترفيه'],
+      ].map(([module, label]) => (
+        <button
+          key={module}
+          type="button"
+          onClick={() => onOpenModule(module as StudentModuleType)}
+          className="rounded-2xl border border-cyan-300/20 bg-gradient-to-r from-indigo-500/80 to-cyan-600/70 px-5 py-4 text-right font-black text-white transition hover:from-indigo-400 hover:to-cyan-500"
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 // 3. المكون الرئيسي
 const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -380,8 +482,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       syncGamificationToStudent(active);
 
        let primaryGrade = active.grade || active.primaryGrade;
-      if (!primaryGrade && active.gradeEnrollments && active.gradeEnrollments.length > 0) {
-        primaryGrade = active.gradeEnrollments[0].grade;
+       const activeGradeEnrollments = getSafeGradeEnrollments(active);
+       if (!primaryGrade && activeGradeEnrollments.length > 0) {
+         primaryGrade = activeGradeEnrollments[0].grade || '';
       }
       setSelectedGrade(primaryGrade || '');
 
@@ -390,11 +493,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
        let savedTerm = active.term || '';
        let savedUnit = active.unit || '';
 
-      if (active.gradeEnrollments && active.gradeEnrollments.length > 0) {
-        const primaryGradeEnrollments = active.gradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(primaryGrade));
-        const enrollSource = primaryGradeEnrollments || active.gradeEnrollments[0];
-        if (enrollSource.enrollments.length > 0) {
-          const firstEnroll = enrollSource.enrollments[0];
+      if (activeGradeEnrollments.length > 0) {
+        const primaryGradeEnrollments = activeGradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(primaryGrade));
+        const enrollSource = primaryGradeEnrollments || activeGradeEnrollments[0];
+        const enrollments = getSafeEnrollments(enrollSource);
+        if (enrollments.length > 0) {
+          const firstEnroll = enrollments[0];
            savedSubject = savedSubject || firstEnroll.subject || '';
            savedAtram = savedAtram || firstEnroll.atram || '';
            savedTerm = savedTerm || firstEnroll.term || '';
@@ -444,8 +548,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           }
           setStudent(current);
           let fallbackGrade = current.primaryGrade || current.grade || '';
-          if (!fallbackGrade && current.gradeEnrollments && current.gradeEnrollments.length > 0) {
-            fallbackGrade = current.gradeEnrollments[0].grade;
+          const currentGradeEnrollments = getSafeGradeEnrollments(current);
+          if (!fallbackGrade && currentGradeEnrollments.length > 0) {
+            fallbackGrade = currentGradeEnrollments[0].grade || '';
           }
           setSelectedGrade(fallbackGrade);
           setSelectedSubject(current.subject || '');
@@ -579,7 +684,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const getFilteredHierarchicalConfigs = () => {
     const allConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS)
       .filter((config): config is Record<string, any> => Boolean(config && typeof config === 'object'));
-    const allParents = readStorageArray(STORAGE_KEYS.PARENTS);
+    const allParents = readStorageArray<import('../../types').ParentInfo>(STORAGE_KEYS.PARENTS);
     const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     if (!student) return [];
 
@@ -607,8 +712,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const gradesList = hierarchicalConfigs.map((c: any) => c.grade).filter(Boolean);
     setGrades(gradesList);
 
-     if (student?.gradeEnrollments && student.gradeEnrollments.length > 0) {
-      const studentGrades = student.gradeEnrollments.map((g: any) => g.grade).filter(Boolean);
+    const studentGradeEnrollments = getSafeGradeEnrollments(student);
+    if (studentGradeEnrollments.length > 0) {
+      const studentGrades = studentGradeEnrollments.map((g: any) => g.grade).filter(Boolean);
       setGrades(studentGrades);
 
       const selectedGradeValue = selectedGrade || student.primaryGrade || studentGrades[0] || '';
@@ -616,13 +722,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         setSelectedGrade(selectedGradeValue);
       }
 
-      const gradeEntry = student.gradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(selectedGradeValue)) || student.gradeEnrollments[0];
-      if (Array.isArray(gradeEntry?.enrollments) && gradeEntry.enrollments.length > 0) {
-        const firstEnroll = gradeEntry.enrollments[0];
-        const uniqueAtrams = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.atram).filter(Boolean)));
-        const uniqueSubjects = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.subject).filter(Boolean)));
-        const uniqueTerms = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.term).filter(Boolean)));
-        const uniqueUnits = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.unit).filter(Boolean)));
+      const gradeEntry = studentGradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(selectedGradeValue)) || studentGradeEnrollments[0];
+      const enrollments = getSafeEnrollments(gradeEntry);
+      if (enrollments.length > 0) {
+        const firstEnroll = enrollments[0];
+        const uniqueAtrams = Array.from(new Set(enrollments.map((e: any) => e.atram).filter(Boolean)));
+        const uniqueSubjects = Array.from(new Set(enrollments.map((e: any) => e.subject).filter(Boolean)));
+        const uniqueTerms = Array.from(new Set(enrollments.map((e: any) => e.term).filter(Boolean)));
+        const uniqueUnits = Array.from(new Set(enrollments.map((e: any) => e.unit).filter(Boolean)));
          const savedSelectionIsForGrade =
            normalizeScopeValue(student.grade || student.primaryGrade || '') === normalizeScopeValue(selectedGradeValue);
          const savedAtram = savedSelectionIsForGrade ? student.atram : '';
@@ -745,15 +852,30 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       ...student,
       ...selection,
     };
-    setStudent(updatedStudent);
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
+    try {
+      setStudent(updatedStudent);
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
 
-    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
-    localStorage.setItem(
-      STORAGE_KEYS.STUDENTS,
-      JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
-    );
-    matchContent(updatedStudent);
+      const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS)
+        .filter((item): item is StudentInfo => Boolean(item && typeof item === 'object'));
+      localStorage.setItem(
+        STORAGE_KEYS.STUDENTS,
+        JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
+      );
+    } catch (error) {
+      // A malformed legacy collection must not block the student from entering
+      // the learning portal. The active session remains in component state.
+      console.error('[student] academic selection persistence failed:', error);
+    }
+
+    try {
+      matchContent(updatedStudent);
+    } catch (error) {
+      // Lesson content is optional. A content-sync problem must never turn a
+      // valid academic selection into a dashboard error screen.
+      console.error('[student] lesson matching failed after academic selection:', error);
+      setActiveLesson(null);
+    }
     return updatedStudent;
   };
 
@@ -1166,11 +1288,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       (s.username === username || s.studentIdNumber === username) && passwordsMatch(password, s.password)
     );
     if (found) {
-      const firstEnroll = (found.enrollments && found.enrollments.length > 0) ? found.enrollments[0] : null;
+      const firstEnroll = getSafeLegacyEnrollments(found)[0] || null;
       const activeStudent = { ...found } as StudentInfo;
-      const modernEnrollment = activeStudent.gradeEnrollments?.[0]?.enrollments?.[0];
+      const activeGradeEnrollments = getSafeGradeEnrollments(activeStudent);
+      const modernEnrollment = getSafeEnrollments(activeGradeEnrollments[0])[0];
       if (modernEnrollment) {
-        activeStudent.grade = activeStudent.gradeEnrollments[0].grade;
+        activeStudent.grade = activeGradeEnrollments[0].grade || '';
         activeStudent.subject = modernEnrollment.subject;
         activeStudent.atram = modernEnrollment.atram;
         activeStudent.term = modernEnrollment.term;
@@ -1191,8 +1314,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       checkStreak();
       refreshGamification();
       let fallbackGrade = activeStudent.grade || activeStudent.primaryGrade || '';
-      if (!fallbackGrade && activeStudent.gradeEnrollments && activeStudent.gradeEnrollments.length > 0) {
-        fallbackGrade = activeStudent.gradeEnrollments[0].grade;
+      if (!fallbackGrade && activeGradeEnrollments.length > 0) {
+        fallbackGrade = activeGradeEnrollments[0].grade || '';
       }
       setSelectedGrade(fallbackGrade);
       setSelectedSubject(activeStudent.subject || '');
@@ -1596,8 +1719,23 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* Step 2: Module Cards (Game Engine UI) */}
         {selectedPath && showModuleCards && !activeModule && !showSelectionPanel && (
-          <InteractiveScene className="p-6 md:p-8" intensity={1.08}>
-            <div className="space-y-6 animate-fadeIn">
+          <StudentPortalErrorBoundary
+            fallback={
+              <StudentPortalFallback
+                subject={selectedSubject}
+                atram={selectedAtram}
+                term={selectedTerm}
+                unit={selectedUnit}
+                onChangeSelection={() => {
+                  setShowSelectionPanel(true);
+                  setShowModuleCards(false);
+                }}
+                onOpenModule={openModule}
+              />
+            }
+          >
+            <InteractiveScene className="p-6 md:p-8" intensity={1.08}>
+              <div className="space-y-6 animate-fadeIn">
               <div className="bg-slate-800/80 backdrop-blur-md rounded-3xl p-6 flex flex-wrap justify-between items-center border border-slate-700 gap-4">
               <div>
                 <h2 className="text-3xl font-black text-white">اختر مغامرتك اليوم يا بطل! 🌟</h2>
@@ -1826,8 +1964,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 />
               </motion.div>
             </TouchCarousel>
-            </div>
-          </InteractiveScene>
+              </div>
+            </InteractiveScene>
+          </StudentPortalErrorBoundary>
         )}
 
         {/* Step 3: Active Module Content */}
