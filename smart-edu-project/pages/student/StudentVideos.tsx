@@ -8,6 +8,7 @@ import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import { getVideoSourceType, isMp4VideoUrl } from '../../utils/video';
 import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
+import TouchCarousel from '../../src/components/TouchCarousel';
 
 const GEMS_PER_VIDEO = 2;
 
@@ -39,7 +40,6 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
   const [watchedVideos, setWatchedVideos] = useState<string[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [previewVideoId, setPreviewVideoId] = useState<string | null>(null);
   const [currentGems, setCurrentGems] = useState(0);
   const [lockMessage, setLockMessage] = useState('');
@@ -101,7 +101,6 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
-  const visibleVideos = videos.length > 0 ? videos.slice(activeIndex, activeIndex + 3) : [];
   const unlockedVideoCount = Math.floor(currentGems / GEMS_PER_VIDEO);
 
   useEffect(() => {
@@ -135,21 +134,6 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [playingVideo]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartX(e.touches[0].clientX);
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX === null) return;
-    const delta = e.changedTouches[0].clientX - touchStartX;
-    if (delta > 60) {
-      setActiveIndex(prev => (prev > 0 ? prev - 1 : Math.max(videos.length - 3, 0)));
-    } else if (delta < -60) {
-      setActiveIndex(prev => (prev + 1 < videos.length ? prev + 1 : 0));
-    }
-    setTouchStartX(null);
-  };
 
   const handleVideoSelect = (video: VideoRecord) => {
     const videoIndex = videos.findIndex(item => item.id === video.id);
@@ -201,14 +185,20 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
             className="overflow-hidden rounded-[32px] bg-slate-950/95 p-3 md:p-4"
             onMouseEnter={() => setIsAutoPlaying(false)}
             onMouseLeave={() => setIsAutoPlaying(true)}
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
           >
-            <div className="grid gap-4 md:grid-cols-3">
-              {visibleVideos.map((video, index) => {
+            <TouchCarousel
+              label="فيديوهات سينما منارة"
+              activeIndex={activeIndex}
+              onActiveIndexChange={(index) => {
+                setIsAutoPlaying(false);
+                setActiveIndex(index);
+              }}
+              trackClassName="md:grid md:grid-cols-3 md:gap-4"
+            >
+              {videos.map((video, index) => {
                 const vid = extractVideoId(video.url);
                 const isMp4 = getVideoSourceType(video.sourceType, video.url) === 'mp4' || isMp4VideoUrl(video.url);
-                const isCenter = index === 1;
+                const isCenter = index === activeIndex;
                 const videoIndex = videos.findIndex(item => item.id === video.id);
                 const isUnlocked = videoIndex > -1 && videoIndex < unlockedVideoCount;
 
@@ -299,14 +289,14 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
                   </motion.div>
                 );
               })}
-            </div>
+            </TouchCarousel>
           </div>
 
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={() => {
                 setIsAutoPlaying(false);
-                setActiveIndex(prev => (prev > 0 ? prev - 1 : Math.max(videos.length - 3, 0)));
+                setActiveIndex(prev => (prev > 0 ? prev - 1 : videos.length - 1));
               }}
               className="rounded-full border border-rose-300 bg-white px-4 py-2 text-sm font-black text-rose-700 shadow-md"
             >
@@ -314,7 +304,10 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
             </button>
             <div className="text-sm font-bold text-rose-600">المعروض {Math.min(activeIndex + 1, videos.length)} / {videos.length}</div>
             <button
-              onClick={() => setActiveIndex(prev => (prev + 1 < videos.length ? prev + 1 : 0))}
+              onClick={() => {
+                setIsAutoPlaying(false);
+                setActiveIndex(prev => (prev + 1 < videos.length ? prev + 1 : 0));
+              }}
               className="rounded-full border border-rose-300 bg-white px-4 py-2 text-sm font-black text-rose-700 shadow-md"
             >
               التالي ➡

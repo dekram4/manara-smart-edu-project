@@ -44,6 +44,7 @@ import { getStudentEmoji } from '../../utils/studentAppearance';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentAvatar from './components/StudentAvatar';
 import ManaraBrand from '../../src/components/ManaraBrand';
+import TouchCarousel from '../../src/components/TouchCarousel';
 import {
   getPeriodicQuizLabel,
   normalizeCreatedQuiz,
@@ -1616,14 +1617,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
 
             {/* شبكة الأبطال التفاعلية بروح محرك الألعاب */}
-            <motion.div
-              initial={{ opacity: 0, y: 22 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            <TouchCarousel
+              label="بطاقات مغامرات الطالب"
+              trackClassName="md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6"
             >
-              
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                <GameModeCard
                 title="شرح الدرس"
                 subtitle="شاهد سينما الشرح الممتع"
                 icon="📺"
@@ -1631,9 +1630,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 onClick={() => {
                   openModule(StudentModuleType.EXPLANATION);
                 }}
-              />
+                />
+              </motion.div>
 
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.34, delay: 0.02 }}>
+                <GameModeCard
                 title="المعلم الافتراضي"
                 subtitle="تفاعل وتحدث مع الشخصية الذكية"
                 icon="🤖"
@@ -1641,9 +1642,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 onClick={() => {
                   openModule(StudentModuleType.AVATAR_INTERACTION);
                 }}
-              />
+                />
+              </motion.div>
 
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, delay: 0.04 }}>
+                <GameModeCard
                 title="شخصيتي"
                 subtitle="صمّم إيموجيك واختر لبسك"
                 icon={getStudentEmoji(student)}
@@ -1652,9 +1655,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 onClick={() => {
                   openModule(StudentModuleType.PERSONALITY);
                 }}
-              />
+                />
+              </motion.div>
 
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, delay: 0.06 }}>
+                <GameModeCard
                 title="حل المسائل"
                 subtitle="اسأل مساعدك الذكي السحري"
                 icon="💡"
@@ -1664,10 +1669,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   setSolutionText('');
                   setProblemText('');
                 }}
-              />
+                />
+              </motion.div>
 
               {/* بطاقة الاختبارات */}
-               <div className="relative overflow-hidden bg-gradient-to-br from-indigo-500 to-indigo-700 p-8 rounded-[36px] shadow-2xl border-b-8 border-indigo-900 select-none flex flex-col justify-between">
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.46, delay: 0.08 }} className="h-full">
+                <div className="relative h-full overflow-hidden bg-gradient-to-br from-indigo-500 to-indigo-700 p-8 rounded-[36px] shadow-2xl border-b-8 border-indigo-900 select-none flex flex-col justify-between">
                  <EducationalCardEffects accent="#fbbf24" />
                 <div>
                   <div className="text-6xl mb-3">📝</div>
@@ -1712,9 +1719,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     </button>
                   )}
                 </div>
-              </div>
+                </div>
+              </motion.div>
 
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+                <GameModeCard
                 title="الدردشة التفاعلية"
                 subtitle="تواصل وامرح مع أصدقائك"
                 icon="💬"
@@ -1725,9 +1734,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   setShowModuleCards(false);
                   setHasNewMessage(false);
                 }}
-              />
+                />
+              </motion.div>
 
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.54, delay: 0.12 }}>
+                <GameModeCard
                 title="اجتماع مباشر"
                 subtitle="انضم للحصة المباشرة فوراً"
                 icon="📞"
@@ -1735,9 +1746,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 onClick={() => {
                   openModule(StudentModuleType.LIVE_MEETING);
                 }}
-              />
+                />
+              </motion.div>
 
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.58, delay: 0.14 }}>
+                <GameModeCard
                 title="عالم الترفيه والألعاب"
                 subtitle={`اللعبة الأولى في المستوى 1 • الثانية في المستوى 2 • الثالثة في المستوى 3`}
                 icon="🎮"
@@ -1754,9 +1767,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 onClick={() => {
                   openModule(StudentModuleType.ENTERTAINMENT);
                 }}
-              />
+                />
+              </motion.div>
 
-              <GameModeCard
+              <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.62, delay: 0.16 }}>
+                <GameModeCard
                 title="سينما منارة"
                 subtitle="شاهد الفيديوهات المفضلة"
                 icon="🎬"
@@ -1764,9 +1779,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 onClick={() => {
                   openModule(StudentModuleType.VIDEOS);
                 }}
-              />
-
-            </motion.div>
+                />
+              </motion.div>
+            </TouchCarousel>
             </div>
           </InteractiveScene>
         )}
@@ -1855,7 +1870,13 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           {explanationVideoIndex + 1} / {explanationVideos.length}
                         </span>
                       </div>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <TouchCarousel
+                        label="فيديوهات شرح الدرس"
+                        activeIndex={explanationVideoIndex}
+                        onActiveIndexChange={setExplanationVideoIndex}
+                        itemCount={explanationVideos.length}
+                        trackClassName="sm:grid sm:grid-cols-2 lg:grid-cols-3"
+                      >
                         {explanationVideos.map((video, index) => {
                           const isSelected = index === explanationVideoIndex;
                           const isMp4 = video.sourceType === 'mp4';
@@ -1901,7 +1922,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                             </button>
                           );
                         })}
-                      </div>
+                      </TouchCarousel>
                     </div>
                   )}
                   {activeLesson && (
