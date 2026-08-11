@@ -356,7 +356,10 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setStreak(stats.streak);
     setLevelProgress(stats.levelProgress);
     setAchievements(stats.achievements);
-    syncGamificationToStudent(student);
+    // Read the latest active student from storage. Passing the render's
+    // previous `student` snapshot here could overwrite a newly selected
+    // subject/unit during the periodic gamification refresh.
+    syncGamificationToStudent();
   };
 
   useEffect(() => {
@@ -713,25 +716,39 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       return;
     }
 
-    const updatedStudent = {
-      ...student,
+    const updatedStudent = persistAcademicSelection({
       grade: selectedGrade || student.primaryGrade || student.grade,
       subject: selectedSubject,
       atram: selectedAtram,
       term: selectedTerm,
       unit: selectedUnit,
+    });
+    if (!updatedStudent) return;
+
+    setShowSelectionPanel(false);
+    setShowModuleCards(true);
+    setSelectedPath(true);
+  };
+
+  const persistAcademicSelection = (selection: Partial<StudentInfo>): StudentInfo | null => {
+    if (!student) return null;
+
+    const updatedStudent: StudentInfo = {
+      ...student,
+      ...selection,
     };
     setStudent(updatedStudent);
     localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
 
-    const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-    const updated = allStudents.map((s: StudentInfo) => s.id === student.id ? updatedStudent : s);
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
-
+    const allStudents: StudentInfo[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]',
+    );
+    localStorage.setItem(
+      STORAGE_KEYS.STUDENTS,
+      JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
+    );
     matchContent(updatedStudent);
-    setShowSelectionPanel(false);
-    setShowModuleCards(true);
-    setSelectedPath(true);
+    return updatedStudent;
   };
 
   const matchContent = (s: StudentInfo) => {
@@ -1570,16 +1587,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   onChange={e => {
                     soundClick.play();
                     const newUnit = e.target.value;
-                    setSelectedUnit(newUnit);
-                    if (student) {
-                      const updatedStudent = { ...student, unit: newUnit };
-                      setStudent(updatedStudent);
-                      localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
-                      const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-                      const updated = allStudents.map((s) => s.id === student.id ? updatedStudent : s);
-                      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
-                      matchContent(updatedStudent);
-                    }
+                    persistAcademicSelection({ unit: newUnit });
                   }}
                   className="px-5 py-3 bg-slate-900 text-amber-300 rounded-2xl font-bold border border-slate-700 outline-none cursor-pointer"
                 >
