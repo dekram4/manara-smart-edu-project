@@ -184,34 +184,26 @@ table {
   display: none;
 }
 
-.student-swiper-mobile .swiper {
-  overflow: visible;
-  padding: 0.25rem 0 2.25rem;
+.student-swiper-mobile {
+  display: flex;
+  gap: 0.875rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0.25rem max(0.5rem, calc((100% - 86vw) / 2)) 2.25rem;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-.student-swiper-mobile .swiper-slide {
+.student-swiper-mobile::-webkit-scrollbar {
+  display: none;
+}
+
+.student-swiper-mobile-item {
+  flex: 0 0 86vw;
   min-width: 0;
   height: auto;
-}
-
-.student-swiper-mobile .swiper-pagination {
-  bottom: 0;
-}
-
-.student-swiper-mobile .swiper-pagination-bullet {
-  width: 0.65rem;
-  height: 0.65rem;
-  margin: 0 0.22rem !important;
-  background: currentColor;
-  opacity: 0.35;
-  transition: width 180ms ease, opacity 180ms ease, border-radius 180ms ease;
-}
-
-.student-swiper-mobile .swiper-pagination-bullet-active {
-  width: 1.65rem;
-  border-radius: 999px;
-  opacity: 1;
-  color: #fbbf24;
 }
 
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
@@ -222,6 +214,12 @@ table {
   .student-swiper-desktop {
     display: grid;
     align-items: stretch;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .student-swiper-mobile-item {
+    flex-basis: 62vw;
   }
 }
 

@@ -83,10 +83,10 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       >
         <button
           type="button"
-          onClick={() => openGame('embedded', 1)}
-          aria-disabled={stats.level < 1}
+          onClick={() => openGame('embedded', 0)}
+          aria-disabled={false}
           className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
-            stats.level >= 1
+            stats.level >= 0
               ? 'bg-gradient-to-br from-amber-500 to-red-700 hover:-translate-y-1 hover:scale-[1.01]'
               : 'cursor-pointer bg-slate-700/80 opacity-70 hover:opacity-90'
           }`}
@@ -94,12 +94,12 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
           <EducationalCardEffects accent="#f59e0b" />
           <div className="flex items-center justify-between">
             <div className="text-5xl">🕹️</div>
-            {stats.level < 1 && <span className="text-3xl">🔒</span>}
+            {stats.level < 0 && <span className="text-3xl">🔒</span>}
           </div>
           <h3 className="mt-4 text-2xl font-black text-white">اللعبة الأولى</h3>
           <p className="mt-2 text-sm font-bold text-white/90">لعبة مضمنة داخل منصة منارة.</p>
           <div className="mt-4 text-xs font-black text-white/95">
-            {stats.level >= 1 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 1'}
+            اضغط لبدء اللعبة
           </div>
         </button>
 

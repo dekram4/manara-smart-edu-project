@@ -264,32 +264,17 @@ const GameModeCard = ({
        }}
       onHoverEnd={() => setHovered(false)}
       onClick={() => { GameAudioEngine.play('portalTransition'); onClick(); }}
-       className={`${color} min-h-[330px] text-white rounded-[36px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none border-2 border-white/10 sm:min-h-[350px]`}
+       className={`${color} min-h-[300px] text-white rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}
       style={{
-          padding: '2rem 2rem 1.75rem',
+         padding: '2rem 2rem 1.75rem',
         boxShadow: hovered
-          ? `0 30px 72px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.16), 0 0 34px ${guessedAccent}55, inset 0 2px 0 rgba(255,255,255,0.24), inset 0 -18px 28px rgba(0,0,0,0.16)`
-          : `0 14px 38px rgba(0,0,0,0.38), inset 0 2px 0 rgba(255,255,255,0.16), inset 0 -14px 24px rgba(0,0,0,0.12)`,
-        transition: 'box-shadow 0.3s, border-color 0.3s',
-        borderColor: hovered ? `${guessedAccent}aa` : 'rgba(255,255,255,0.14)',
+          ? `0 28px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.18)`
+          : `0 10px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.12)`,
+        transition: 'box-shadow 0.3s',
       }}
     >
       {/* Rich layered effects */}
       <EducationalCardEffects accent={guessedAccent} compact />
-
-      {/* Inner glass frame and game HUD corners */}
-      <div
-        className="pointer-events-none absolute inset-2 rounded-[30px] border border-white/15"
-        style={{ boxShadow: `inset 0 0 30px ${guessedAccent}18` }}
-      />
-      <div
-        className="pointer-events-none absolute right-5 top-5 h-6 w-6 border-r-2 border-t-2 opacity-70"
-        style={{ borderColor: `${guessedAccent}cc` }}
-      />
-      <div
-        className="pointer-events-none absolute bottom-5 left-5 h-6 w-6 border-b-2 border-l-2 opacity-45"
-        style={{ borderColor: `${guessedAccent}cc` }}
-      />
 
       {/* Top shimmer line */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.55),transparent)]" />
@@ -326,21 +311,10 @@ const GameModeCard = ({
       )}
 
       {/* Emoji with animated glow on hover */}
-      <div className="relative z-10 flex min-h-[154px] items-center justify-center">
-        <Interactive3DEmoji emoji={icon} accent={guessedAccent} size="xl" />
-      </div>
+       <Interactive3DEmoji emoji={icon} accent={guessedAccent} size="xl" className="relative z-10 mb-5" />
 
       {/* Text */}
-      <div className="relative z-10 rounded-[22px] border border-white/10 bg-black/10 p-3 backdrop-blur-[2px]">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <span
-            className="rounded-full border px-2.5 py-1 text-[10px] font-black tracking-widest text-white/85"
-            style={{ background: `${guessedAccent}28`, borderColor: `${guessedAccent}58` }}
-          >
-            مغامرة تعليمية
-          </span>
-          <span className="text-xs font-black text-white/60 transition-colors group-hover:text-white">ابدأ ←</span>
-        </div>
+      <div className="relative z-10">
         <h3 className="mb-1 text-3xl font-black leading-tight drop-shadow-sm sm:text-4xl">{title}</h3>
         {subtitle && (
           <p className="text-sm font-medium text-white/85 leading-relaxed">{subtitle}</p>
@@ -1916,25 +1890,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
               {/* بطاقة الاختبارات */}
                <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.46, delay: 0.08 }} className="h-full">
-                 <div className="group relative flex min-h-[330px] h-full flex-col justify-between overflow-hidden rounded-[36px] border-2 border-white/10 bg-gradient-to-br from-indigo-500 via-indigo-600 to-blue-800 p-7 shadow-[0_14px_38px_rgba(0,0,0,0.38),inset_0_2px_0_rgba(255,255,255,0.16)] select-none sm:min-h-[350px] sm:p-8">
-                  <EducationalCardEffects accent="#fbbf24" />
-                  <div className="pointer-events-none absolute inset-2 rounded-[30px] border border-white/15" style={{ boxShadow: 'inset 0 0 30px rgba(251,191,36,0.14)' }} />
-                  <div className="pointer-events-none absolute right-5 top-5 h-6 w-6 border-r-2 border-t-2 border-amber-300/80" />
-                  <div className="pointer-events-none absolute bottom-5 left-5 h-6 w-6 border-b-2 border-l-2 border-amber-300/50" />
+                <div className="relative h-full overflow-hidden bg-gradient-to-br from-indigo-500 to-indigo-700 p-8 rounded-[36px] shadow-2xl border-b-8 border-indigo-900 select-none flex flex-col justify-between">
+                 <EducationalCardEffects accent="#fbbf24" />
                 <div>
-                   <div className="relative z-10 flex min-h-[154px] items-center justify-center">
-                     <Interactive3DEmoji emoji="📝" accent="#fbbf24" size="xl" />
-                   </div>
-                   <div className="relative z-10 rounded-[22px] border border-white/10 bg-black/10 p-3 backdrop-blur-[2px]">
-                     <div className="mb-2 flex items-center justify-between gap-3">
-                       <span className="rounded-full border border-amber-200/40 bg-amber-300/20 px-2.5 py-1 text-[10px] font-black tracking-widest text-amber-100">تحدي النجوم</span>
-                       <span className="text-xs font-black text-white/65">ابدأ ←</span>
-                     </div>
-                     <h3 className="mb-1 text-3xl font-black sm:text-4xl">مركز الاختبارات</h3>
-                     <p className="text-sm font-medium leading-relaxed text-indigo-100">تحدّ معلوماتك واجمع النجوم الذهبية!</p>
-                   </div>
+                   <div className="text-6xl mb-3">📝</div>
+                   <h3 className="text-3xl font-black mb-1">مركز الاختبارات</h3>
+                   <p className="text-indigo-200 text-sm font-medium mb-4">تحدّ معلوماتك واجمع النجوم الذهبية!</p>
                 </div>
-                 <div className="relative z-10 mt-4 space-y-2">
+                 <div className="space-y-2">
                    {getAvailablePeriodicQuizzes().length > 0 ? (
                      getAvailablePeriodicQuizzes().map((quiz) => (
                        <button
@@ -2005,17 +1968,15 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.58, delay: 0.14 }}>
                 <GameModeCard
                 title="عالم الترفيه والألعاب"
-                subtitle={`اللعبة الأولى في المستوى 1 • الثانية في المستوى 2 • الثالثة في المستوى 3`}
+                 subtitle={`اللعبة الأولى متاحة من البداية • الثانية في المستوى 2 • الثالثة في المستوى 3`}
                 icon="🎮"
                 color="bg-gradient-to-br from-violet-500 to-purple-800 border-purple-950"
                 badge={
-                  level >= 2
+                   level >= 2
                     ? level >= 3
                       ? '3 ألعاب مفتوحة'
                       : 'لعبتان مفتوحتان'
-                    : level >= 1
-                      ? 'اللعبة الأولى مفتوحة'
-                      : 'تُفتح في المستوى 1'
+                     : 'اللعبة الأولى مفتوحة'
                 }
                 onClick={() => {
                   openModule(StudentModuleType.ENTERTAINMENT);

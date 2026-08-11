@@ -1,9 +1,4 @@
 import React, { ReactNode, useEffect, useRef } from 'react';
-import { A11y, Pagination } from 'swiper/modules';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import type { Swiper as SwiperInstance } from 'swiper';
-import 'swiper/css';
-import 'swiper/css/pagination';
 
 interface TouchCarouselProps {
   children: ReactNode;
@@ -16,9 +11,11 @@ interface TouchCarouselProps {
 }
 
 /**
- * The student carousels intentionally use Swiper instead of hand-rolled touch
- * handlers. Swiper handles momentum, direction locking, nested touch areas,
- * iOS rubber-banding, and slide measurement when the dashboard changes size.
+ * Keep the mobile carousel CSS-native. The previous Swiper wrapper could load
+ * a second React dispatcher in the Replit preview and crash the whole student
+ * portal with "Invalid hook call". Native overflow scrolling gives us the
+ * same touch behavior without making the dashboard depend on a third-party
+ * renderer.
  */
 const TouchCarousel: React.FC<TouchCarouselProps> = ({
   children,
@@ -28,73 +25,49 @@ const TouchCarousel: React.FC<TouchCarouselProps> = ({
   className = '',
   trackClassName = '',
 }) => {
-  const swiperRef = useRef<SwiperInstance | null>(null);
+  const mobileTrackRef = useRef<HTMLDivElement | null>(null);
   const items = React.Children.toArray(children);
   const count = items.length || 1;
 
   useEffect(() => {
-    const swiper = swiperRef.current;
-    if (!swiper || activeIndex === undefined || activeIndex < 0 || activeIndex >= count) return;
-    if (swiper.activeIndex !== activeIndex) {
-      swiper.slideTo(activeIndex);
-    }
+    const track = mobileTrackRef.current;
+    if (!track || activeIndex === undefined || activeIndex < 0 || activeIndex >= count) return;
+    const item = track.children[activeIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }, [activeIndex, count]);
+
+  const handleMobileScroll = () => {
+    if (!onActiveIndexChange || !mobileTrackRef.current || count < 2) return;
+    const track = mobileTrackRef.current;
+    const center = track.scrollLeft + track.clientWidth / 2;
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    Array.from(track.children).forEach((child, index) => {
+      const element = child as HTMLElement;
+      const childCenter = element.offsetLeft + element.offsetWidth / 2;
+      const distance = Math.abs(childCenter - center);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    onActiveIndexChange(nearestIndex);
+  };
 
   return (
     <div className={`student-swiper relative min-w-0 ${className}`} dir="rtl">
-      <div className="student-swiper-mobile">
-        <Swiper
-          modules={[A11y, Pagination]}
-          onSwiper={(swiper) => {
-            swiperRef.current = swiper;
-            if (activeIndex !== undefined && activeIndex > 0) {
-              swiper.slideTo(activeIndex, 0);
-            }
-          }}
-          onSlideChange={(swiper) => onActiveIndexChange?.(swiper.activeIndex)}
-          slidesPerView={1.08}
-          spaceBetween={14}
-          centeredSlides
-          loop={false}
-          resistance
-          resistanceRatio={0.72}
-          threshold={8}
-          touchRatio={1}
-          touchAngle={35}
-          nested
-          observer
-          observeParents
-          watchOverflow
-          grabCursor
-          noSwiping
-          noSwipingClass="swiper-no-swiping"
-          noSwipingSelector="input, textarea, select, iframe, video, [data-swiper-no-swiping]"
-          a11y={{ containerMessage: label }}
-          pagination={count > 1 ? { clickable: true, dynamicBullets: count > 7 } : false}
-          breakpoints={{
-            480: {
-              slidesPerView: 1.16,
-              spaceBetween: 16,
-            },
-            640: {
-              slidesPerView: 1.55,
-              spaceBetween: 18,
-            },
-            768: {
-              slidesPerView: 1.85,
-              spaceBetween: 20,
-            },
-          }}
-          className="!overflow-visible"
-        >
-          {items.map((item, index) => (
-            <SwiperSlide key={index} className="!h-auto">
-              <div className="h-full min-w-0" dir="rtl">
-                {item}
-              </div>
-            </SwiperSlide>
-          ))}
-        </Swiper>
+      <div
+        ref={mobileTrackRef}
+        className="student-swiper-mobile"
+        role="region"
+        aria-label={label}
+        onScroll={handleMobileScroll}
+      >
+        {items.map((item, index) => (
+          <div key={index} className="student-swiper-mobile-item h-full min-w-0 snap-center" dir="rtl">
+            {item}
+          </div>
+        ))}
       </div>
 
       <div className={`student-swiper-desktop ${trackClassName}`}>
