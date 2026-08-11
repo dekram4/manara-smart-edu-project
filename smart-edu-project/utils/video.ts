@@ -26,15 +26,36 @@ export const getLessonExplanationVideos = (lesson: {
   if (!lesson) return [];
 
   const videos = Array.isArray(lesson.explanationVideos)
-    ? lesson.explanationVideos.filter(video => video?.url?.trim())
+    ? lesson.explanationVideos
+      .filter((video): video is LessonVideoEntry => Boolean(video && typeof video === 'object'))
+      .map((video, index) => ({
+        ...video,
+        id: typeof video.id === 'string' && video.id.trim()
+          ? video.id
+          : `lesson-video-${index}`,
+        url: typeof video.url === 'string' ? video.url.trim() : '',
+        sourceType: getVideoSourceType(
+          video.sourceType === 'mp4' || video.sourceType === 'embed' ? video.sourceType : undefined,
+          typeof video.url === 'string' ? video.url : '',
+        ),
+        title: typeof video.title === 'string' ? video.title.trim() : '',
+      }))
+      .filter(video => video.url)
     : [];
-  const legacyUrl = lesson.explanationVideoUrl?.trim();
+  const legacyUrl = typeof lesson.explanationVideoUrl === 'string'
+    ? lesson.explanationVideoUrl.trim()
+    : '';
 
   if (legacyUrl && !videos.some(video => video.url === legacyUrl)) {
     videos.unshift({
       id: `legacy-${encodeURIComponent(legacyUrl)}`,
       url: legacyUrl,
-      sourceType: getVideoSourceType(lesson.explanationVideoType, legacyUrl),
+      sourceType: getVideoSourceType(
+        lesson.explanationVideoType === 'mp4' || lesson.explanationVideoType === 'embed'
+          ? lesson.explanationVideoType
+          : undefined,
+        legacyUrl,
+      ),
       title: 'فيديو الشرح',
     });
   }

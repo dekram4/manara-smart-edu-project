@@ -177,23 +177,28 @@ table {
 
 .student-swiper {
   touch-action: pan-y;
+  overflow-x: hidden;
 }
 
-.student-swiper .swiper {
+.student-swiper-desktop {
+  display: none;
+}
+
+.student-swiper-mobile .swiper {
   overflow: visible;
   padding: 0.25rem 0 2.25rem;
 }
 
-.student-swiper .swiper-slide {
+.student-swiper-mobile .swiper-slide {
   min-width: 0;
   height: auto;
 }
 
-.student-swiper .swiper-pagination {
+.student-swiper-mobile .swiper-pagination {
   bottom: 0;
 }
 
-.student-swiper .swiper-pagination-bullet {
+.student-swiper-mobile .swiper-pagination-bullet {
   width: 0.65rem;
   height: 0.65rem;
   margin: 0 0.22rem !important;
@@ -202,20 +207,21 @@ table {
   transition: width 180ms ease, opacity 180ms ease, border-radius 180ms ease;
 }
 
-.student-swiper .swiper-pagination-bullet-active {
+.student-swiper-mobile .swiper-pagination-bullet-active {
   width: 1.65rem;
   border-radius: 999px;
   opacity: 1;
   color: #fbbf24;
 }
 
-@media (min-width: 768px) {
-  .student-swiper .swiper {
-    padding-bottom: 0;
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .student-swiper-mobile {
+    display: none;
   }
 
-  .student-swiper .swiper-pagination {
-    display: none;
+  .student-swiper-desktop {
+    display: grid;
+    align-items: stretch;
   }
 }
 

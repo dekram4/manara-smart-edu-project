@@ -4,6 +4,7 @@ import { getGamificationStats } from '../../utils/gamification';
 import { playLamsaSound } from '../../utils/sounds';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
+import TouchCarousel from '../../src/components/TouchCarousel';
 
 interface EntertainmentGamesProps {
   grade: string;
@@ -76,7 +77,10 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <TouchCarousel
+        label="ألعاب عالم الترفيه"
+        trackClassName="grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+      >
         <button
           type="button"
           onClick={() => openGame('embedded', 1)}
@@ -142,7 +146,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
             {stats.level >= 3 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 3'}
           </div>
         </button>
-      </div>
+      </TouchCarousel>
 
       {activeGame === 'embedded' && (
         <div ref={gamePanelRef} className="scroll-mt-6 overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl">

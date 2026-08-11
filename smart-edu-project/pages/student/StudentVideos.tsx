@@ -195,6 +195,8 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
               activeIndex={activeIndex}
               onActiveIndexChange={(index) => {
                 setIsAutoPlaying(false);
+                setPlayingVideo(null);
+                setPreviewVideoId(null);
                 setActiveIndex(index);
               }}
               trackClassName="md:grid md:grid-cols-3 md:gap-4"

@@ -264,9 +264,9 @@ const GameModeCard = ({
        }}
       onHoverEnd={() => setHovered(false)}
       onClick={() => { GameAudioEngine.play('portalTransition'); onClick(); }}
-      className={`${color} text-white rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}
+       className={`${color} min-h-[300px] text-white rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}
       style={{
-        padding: '1.75rem 1.75rem 1.5rem',
+         padding: '2rem 2rem 1.75rem',
         boxShadow: hovered
           ? `0 28px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.18)`
           : `0 10px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.12)`,
@@ -311,11 +311,11 @@ const GameModeCard = ({
       )}
 
       {/* Emoji with animated glow on hover */}
-      <Interactive3DEmoji emoji={icon} accent={guessedAccent} size="lg" className="relative z-10 mb-4" />
+       <Interactive3DEmoji emoji={icon} accent={guessedAccent} size="xl" className="relative z-10 mb-5" />
 
       {/* Text */}
       <div className="relative z-10">
-        <h3 className="mb-1 text-3xl font-black leading-tight drop-shadow-sm">{title}</h3>
+        <h3 className="mb-1 text-3xl font-black leading-tight drop-shadow-sm sm:text-4xl">{title}</h3>
         {subtitle && (
           <p className="text-sm font-medium text-white/85 leading-relaxed">{subtitle}</p>
         )}
@@ -345,6 +345,23 @@ class StudentPortalErrorBoundary extends Component<
     return this.state.hasError ? this.props.fallback : this.props.children;
   }
 }
+
+const StudentExplanationFallback: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+  <div className="rounded-[32px] border border-amber-300/25 bg-slate-900/90 p-6 text-center shadow-2xl sm:p-10" dir="rtl">
+    <Interactive3DEmoji emoji="📺" accent="#fbbf24" size="xl" className="mb-5" />
+    <h2 className="mb-3 text-2xl font-black text-white">شرح الدرس غير متاح مؤقتًا</h2>
+    <p className="mx-auto mb-6 max-w-xl text-sm font-bold leading-7 text-slate-300">
+      يوجد رابط فيديو غير صالح أو بيانات قديمة لهذا الدرس. يمكنك العودة إلى البوابة واختيار مغامرة أخرى، ولن يتم تسجيل خروجك.
+    </p>
+    <button
+      type="button"
+      onClick={onBack}
+      className="rounded-2xl bg-amber-400 px-6 py-3 font-black text-slate-950 transition hover:bg-amber-300"
+    >
+      العودة إلى بوابة المغامرات
+    </button>
+  </div>
+);
 
 const StudentPortalFallback: React.FC<{
   subject: string;
@@ -418,6 +435,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [selectedUnit, setSelectedUnit] = useState('');
   const [showSelectionPanel, setShowSelectionPanel] = useState(false);
   const [explanationVideoIndex, setExplanationVideoIndex] = useState(0);
+  const explanationVideoRef = useRef<HTMLVideoElement | null>(null);
   const explanationVideoSignatureRef = useRef('');
   const matchedContentSignatureRef = useRef('');
 
@@ -1426,6 +1444,22 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const activeExplanationVideo = explanationVideos[
     Math.min(explanationVideoIndex, Math.max(explanationVideos.length - 1, 0))
   ];
+
+  useEffect(() => {
+    const video = explanationVideoRef.current;
+    if (!video || activeModule !== StudentModuleType.EXPLANATION || !activeExplanationVideo) return;
+
+    video.pause();
+    video.currentTime = 0;
+    void video.play().catch(() => {
+      // Browsers may block autoplay with sound; the visible controls remain
+      // available and the student can start the current video manually.
+    });
+
+    return () => {
+      video.pause();
+    };
+  }, [activeExplanationVideo?.id, activeModule]);
   const nextLevelXP = (level + 1) * 100;
   const xpRemainingToNextLevel = Math.max(0, nextLevelXP - xp);
 
@@ -2007,6 +2041,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
             {/* Video Explanation */}
             {activeModule === StudentModuleType.EXPLANATION && (
+              <StudentPortalErrorBoundary
+                fallback={
+                  <StudentExplanationFallback
+                    onBack={() => {
+                      setActiveModule(null);
+                      setShowModuleCards(true);
+                    }}
+                  />
+                }
+              >
               <InteractiveScene className="p-8" intensity={1.2} accent={moduleTheme.portalClass}>
                 <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
                   <EducationalCardEffects accent="#fbbf24" />
@@ -2018,10 +2062,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       activeExplanationVideo.sourceType === 'mp4' ? (
                         <video
                           key={activeExplanationVideo.id}
+                          ref={explanationVideoRef}
                           className="h-full w-full"
                           src={activeExplanationVideo.url}
                           title={activeExplanationVideo.title || 'Lesson Video'}
                           controls
+                          autoPlay
                           playsInline
                         />
                       ) : (
@@ -2124,6 +2170,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   </div>
                 </div>
               </InteractiveScene>
+              </StudentPortalErrorBoundary>
             )}
 
             {/* Student Personality */}

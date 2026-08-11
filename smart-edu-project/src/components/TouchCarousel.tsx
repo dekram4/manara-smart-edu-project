@@ -26,6 +26,7 @@ const TouchCarousel: React.FC<TouchCarouselProps> = ({
   activeIndex,
   onActiveIndexChange,
   className = '',
+  trackClassName = '',
 }) => {
   const swiperRef = useRef<SwiperInstance | null>(null);
   const items = React.Children.toArray(children);
@@ -41,57 +42,68 @@ const TouchCarousel: React.FC<TouchCarouselProps> = ({
 
   return (
     <div className={`student-swiper relative min-w-0 ${className}`} dir="rtl">
-      <Swiper
-        modules={[A11y, Pagination]}
-        onSwiper={(swiper) => {
-          swiperRef.current = swiper;
-          if (activeIndex !== undefined && activeIndex > 0) {
-            swiper.slideTo(activeIndex, 0);
-          }
-        }}
-        onSlideChange={(swiper) => onActiveIndexChange?.(swiper.activeIndex)}
-        slidesPerView={1.08}
-        spaceBetween={12}
-        centeredSlides
-        loop={false}
-        resistance
-        resistanceRatio={0.72}
-        threshold={8}
-        touchRatio={1}
-        touchAngle={35}
-        nested
-        observer
-        observeParents
-        watchOverflow
-        grabCursor
-        a11y={{ containerMessage: label }}
-        pagination={count > 1 ? { clickable: true, dynamicBullets: count > 7 } : false}
-        breakpoints={{
-          640: {
-            slidesPerView: 1.5,
-            spaceBetween: 16,
-          },
-          768: {
-            slidesPerView: 2,
-            spaceBetween: 20,
-            centeredSlides: false,
-          },
-          1024: {
-            slidesPerView: 3,
-            spaceBetween: 24,
-            centeredSlides: false,
-          },
-        }}
-        className="!overflow-visible"
-      >
+      <div className="student-swiper-mobile">
+        <Swiper
+          modules={[A11y, Pagination]}
+          onSwiper={(swiper) => {
+            swiperRef.current = swiper;
+            if (activeIndex !== undefined && activeIndex > 0) {
+              swiper.slideTo(activeIndex, 0);
+            }
+          }}
+          onSlideChange={(swiper) => onActiveIndexChange?.(swiper.activeIndex)}
+          slidesPerView={1.08}
+          spaceBetween={14}
+          centeredSlides
+          loop={false}
+          resistance
+          resistanceRatio={0.72}
+          threshold={8}
+          touchRatio={1}
+          touchAngle={35}
+          nested
+          observer
+          observeParents
+          watchOverflow
+          grabCursor
+          noSwiping
+          noSwipingClass="swiper-no-swiping"
+          noSwipingSelector="input, textarea, select, iframe, video, [data-swiper-no-swiping]"
+          a11y={{ containerMessage: label }}
+          pagination={count > 1 ? { clickable: true, dynamicBullets: count > 7 } : false}
+          breakpoints={{
+            480: {
+              slidesPerView: 1.16,
+              spaceBetween: 16,
+            },
+            640: {
+              slidesPerView: 1.55,
+              spaceBetween: 18,
+            },
+            768: {
+              slidesPerView: 1.85,
+              spaceBetween: 20,
+            },
+          }}
+          className="!overflow-visible"
+        >
+          {items.map((item, index) => (
+            <SwiperSlide key={index} className="!h-auto">
+              <div className="h-full min-w-0" dir="rtl">
+                {item}
+              </div>
+            </SwiperSlide>
+          ))}
+        </Swiper>
+      </div>
+
+      <div className={`student-swiper-desktop ${trackClassName}`}>
         {items.map((item, index) => (
-          <SwiperSlide key={index} className="!h-auto">
-            <div className="h-full min-w-0" dir="rtl">
-              {item}
-            </div>
-          </SwiperSlide>
+          <div key={index} className="min-w-0 h-full" dir="rtl">
+            {item}
+          </div>
         ))}
-      </Swiper>
+      </div>
     </div>
   );
 };
