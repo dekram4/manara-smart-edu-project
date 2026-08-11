@@ -30,6 +30,7 @@ const persistState = (next: { soundEnabled: boolean; hapticsEnabled: boolean }) 
 export const GameControls: React.FC<GameControlsProps> = ({ className = '' }) => {
   const [soundEnabled, setSoundEnabled] = useState(readState().soundEnabled);
   const [hapticsEnabled, setHapticsEnabled] = useState(readState().hapticsEnabled);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const state = { soundEnabled, hapticsEnabled };
@@ -60,21 +61,64 @@ export const GameControls: React.FC<GameControlsProps> = ({ className = '' }) =>
   };
 
   return (
-    <div className={`fixed right-3 z-50 flex gap-2 sm:right-4 ${className}`} style={{ top: 'calc(0.75rem + env(safe-area-inset-top))' }}>
-      <button
-        onClick={toggleSound}
-        className={`rounded-full border px-3 py-2 text-sm font-black shadow-lg backdrop-blur ${soundEnabled ? 'border-amber-300 bg-white/90 text-slate-900' : 'border-slate-600 bg-slate-900/90 text-slate-100'}`}
-        aria-label={soundEnabled ? 'إيقاف الصوت' : 'تشغيل الصوت'}
+    <div className={className}>
+      {/* Mobile: keep the controls away from the right-side drawers and bottom navigation. */}
+      <div
+        className="fixed left-3 z-[70] flex flex-col-reverse items-start gap-2 md:hidden"
+        style={{ bottom: 'calc(1rem + 4.5rem + env(safe-area-inset-bottom))' }}
       >
-        {soundEnabled ? '🔊' : '🔈'}
-      </button>
-      <button
-        onClick={toggleHaptics}
-        className={`rounded-full border px-3 py-2 text-sm font-black shadow-lg backdrop-blur ${hapticsEnabled ? 'border-cyan-300 bg-white/90 text-slate-900' : 'border-slate-600 bg-slate-900/90 text-slate-100'}`}
-        aria-label={hapticsEnabled ? 'إيقاف الاهتزاز' : 'تشغيل الاهتزاز'}
+        {mobileOpen && (
+          <div
+            className="flex flex-col gap-2 rounded-2xl border border-white/30 bg-slate-950/90 p-2 shadow-2xl backdrop-blur-xl"
+            role="group"
+            aria-label="إعدادات الصوت والاهتزاز"
+          >
+            <button
+              onClick={toggleSound}
+              className={`min-h-11 min-w-11 rounded-xl border px-3 py-2 text-sm font-black shadow-lg ${soundEnabled ? 'border-amber-300 bg-white/95 text-slate-900' : 'border-slate-600 bg-slate-900 text-slate-100'}`}
+              aria-label={soundEnabled ? 'إيقاف الصوت' : 'تشغيل الصوت'}
+            >
+              {soundEnabled ? '🔊' : '🔈'}
+            </button>
+            <button
+              onClick={toggleHaptics}
+              className={`min-h-11 min-w-11 rounded-xl border px-3 py-2 text-sm font-black shadow-lg ${hapticsEnabled ? 'border-cyan-300 bg-white/95 text-slate-900' : 'border-slate-600 bg-slate-900 text-slate-100'}`}
+              aria-label={hapticsEnabled ? 'إيقاف الاهتزاز' : 'تشغيل الاهتزاز'}
+            >
+              {hapticsEnabled ? '📳' : '📴'}
+            </button>
+          </div>
+        )}
+        <button
+          onClick={() => setMobileOpen((value) => !value)}
+          className="min-h-11 min-w-11 rounded-full border border-white/30 bg-slate-950/90 px-3 py-2 text-base font-black text-white shadow-2xl backdrop-blur-xl"
+          aria-expanded={mobileOpen}
+          aria-label={mobileOpen ? 'إغلاق إعدادات الصوت والاهتزاز' : 'فتح إعدادات الصوت والاهتزاز'}
+        >
+          {mobileOpen ? '✕' : soundEnabled && hapticsEnabled ? '🎛️' : '🔕'}
+        </button>
+      </div>
+
+      {/* Desktop: preserve the existing top-right controls. */}
+      <div
+        className="fixed right-3 z-[70] hidden gap-2 sm:right-4 md:flex"
+        style={{ top: 'calc(0.75rem + env(safe-area-inset-top))' }}
       >
-        {hapticsEnabled ? '📳' : '📴'}
-      </button>
+        <button
+          onClick={toggleSound}
+          className={`rounded-full border px-3 py-2 text-sm font-black shadow-lg backdrop-blur ${soundEnabled ? 'border-amber-300 bg-white/90 text-slate-900' : 'border-slate-600 bg-slate-900/90 text-slate-100'}`}
+          aria-label={soundEnabled ? 'إيقاف الصوت' : 'تشغيل الصوت'}
+        >
+          {soundEnabled ? '🔊' : '🔈'}
+        </button>
+        <button
+          onClick={toggleHaptics}
+          className={`rounded-full border px-3 py-2 text-sm font-black shadow-lg backdrop-blur ${hapticsEnabled ? 'border-cyan-300 bg-white/90 text-slate-900' : 'border-slate-600 bg-slate-900/90 text-slate-100'}`}
+          aria-label={hapticsEnabled ? 'إيقاف الاهتزاز' : 'تشغيل الاهتزاز'}
+        >
+          {hapticsEnabled ? '📳' : '📴'}
+        </button>
+      </div>
     </div>
   );
 };
