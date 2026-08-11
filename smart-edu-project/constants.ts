@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
   QUIZ_RESULTS: 'smartEdu_quizResults',
   QUIZ_QUESTIONS: 'smartEdu_quizQuestions',
   CREATED_QUIZZES: 'smartEdu_createdQuizzes', // 🎯 اختبارات منشأة من المشرف
+  DELETED_QUIZZES: 'smartEdu_deletedQuizzes', // 🗑️ علامات حذف الاختبارات حتى لا تعود من المزامنة
   CHAT_MESSAGES: 'smartEdu_chatMessages',
   INTERACTIONS: 'smartEdu_interactions',
   ADMIN_SETTINGS: 'smartEdu_adminSettings',

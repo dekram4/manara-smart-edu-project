@@ -45,6 +45,7 @@ const KV_KEYS = [
   'smartEdu_videos',
   'smartEdu_deletedVideos',
   'smartEdu_deletedLessons',
+  'smartEdu_deletedQuizzes',
   'smartEdu_videoNotifications',
 ];
 
@@ -118,6 +119,26 @@ function removeDeletedLessons(value: any, deletedLessonIds: Set<string>): any[] 
   return value.filter(
     (lesson) => lesson?.id == null || !deletedLessonIds.has(String(lesson.id)),
   );
+}
+
+function removeDeletedQuizzes(value: any, deletedQuizIds: Set<string>): any[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (quiz) => quiz?.id == null || !deletedQuizIds.has(String(quiz.id)),
+  );
+}
+
+function prepareDeletedQuizTombstones(): void {
+  const existingIds = new Set(
+    stringIdArray(safeParse(nativeGetItem('smartEdu_deletedQuizzes'))),
+  );
+  const localQuizzes = safeParse(nativeGetItem('smartEdu_createdQuizzes'));
+  if (Array.isArray(localQuizzes)) {
+    localQuizzes
+      .filter((quiz) => quiz?.deleted && quiz.id != null)
+      .forEach((quiz) => existingIds.add(String(quiz.id)));
+  }
+  nativeSetItem('smartEdu_deletedQuizzes', JSON.stringify(Array.from(existingIds)));
 }
 
 function mergeLegacyPublicMessages(): string | null {
@@ -253,12 +274,43 @@ async function hydrateRowTable(
   const deletedLessonIds = new Set(
     stringIdArray(safeParse(nativeGetItem('smartEdu_deletedLessons'))),
   );
+  const deletedQuizIds = new Set(
+    stringIdArray(safeParse(nativeGetItem('smartEdu_deletedQuizzes'))),
+  );
+  if (storageKey === 'smartEdu_createdQuizzes') {
+    const previousDeletedQuizCount = deletedQuizIds.size;
+    remote
+      .filter((quiz: any) => quiz?.deleted && quiz.id != null)
+      .forEach((quiz: any) => deletedQuizIds.add(String(quiz.id)));
+    if (deletedQuizIds.size !== previousDeletedQuizCount) {
+      const tombstoneValue = Array.from(deletedQuizIds);
+      nativeSetItem('smartEdu_deletedQuizzes', JSON.stringify(tombstoneValue));
+      const tombstoneResult = await withRetry('حفظ علامات حذف الاختبارات', () =>
+        supabase.from('app_kv').upsert(
+          { key: 'smartEdu_deletedQuizzes', value: tombstoneValue },
+          { onConflict: 'key' },
+        ),
+      );
+      if (tombstoneResult.error) {
+        appendPending({
+          type: 'kv',
+          key: 'smartEdu_deletedQuizzes',
+          value: tombstoneValue,
+        });
+      }
+    }
+  }
+  const deletedIds = storageKey === 'smartEdu_createdQuizzes' ? deletedQuizIds : deletedLessonIds;
   const filteredRemote = storageKey === 'smartEdu_lessonConfigs'
     ? removeDeletedLessons(remote, deletedLessonIds)
-    : remote;
+    : storageKey === 'smartEdu_createdQuizzes'
+      ? removeDeletedQuizzes(remote, deletedQuizIds)
+      : remote;
   const filteredLocal = storageKey === 'smartEdu_lessonConfigs'
     ? removeDeletedLessons(localArr, deletedLessonIds)
-    : localArr;
+    : storageKey === 'smartEdu_createdQuizzes'
+      ? removeDeletedQuizzes(localArr, deletedQuizIds)
+      : localArr;
   const merged = mergeArrayRecords(filteredRemote, filteredLocal);
   const remoteIds = new Set(filteredRemote.map((item: any) => String(item?.id)));
   const localOnly = merged
@@ -272,12 +324,19 @@ async function hydrateRowTable(
     if (res.error) appendPending({ type: 'row_upsert', table, rows: localOnly });
   }
 
-  if (storageKey === 'smartEdu_lessonConfigs' && deletedLessonIds.size) {
+  if (
+    (storageKey === 'smartEdu_lessonConfigs' && deletedLessonIds.size) ||
+    (storageKey === 'smartEdu_createdQuizzes' && deletedQuizIds.size)
+  ) {
     const staleRemoteIds = remote
-      .filter((item: any) => item?.id != null && deletedLessonIds.has(String(item.id)))
+      .filter((item: any) => item?.id != null && deletedIds.has(String(item.id)))
       .map((item: any) => String(item.id));
     if (staleRemoteIds.length) {
-      const res = await withRetry('حذف المحتوى المحذوف من lesson_configs', () =>
+      const res = await withRetry(
+        storageKey === 'smartEdu_createdQuizzes'
+          ? 'حذف الاختبارات المحذوفة من created_quizzes'
+          : 'حذف المحتوى المحذوف من lesson_configs',
+        () =>
         supabase.from(table).delete().in('id', staleRemoteIds),
       );
       if (res.error) appendPending({ type: 'row_delete', table, ids: staleRemoteIds });
@@ -303,6 +362,10 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
     ...stringIdArray(byKey.get('smartEdu_deletedLessons')),
     ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedLessons'))),
   ]);
+  const deletedQuizIds = new Set([
+    ...stringIdArray(byKey.get('smartEdu_deletedQuizzes')),
+    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedQuizzes'))),
+  ]);
 
   for (const key of KV_KEYS) {
     if (pendingKv.has(key)) continue; // تغييرات محلية معلّقة، لا تطمسها
@@ -313,6 +376,8 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
           ? Array.from(deletedVideoIds)
           : key === 'smartEdu_deletedLessons'
             ? Array.from(deletedLessonIds)
+            : key === 'smartEdu_deletedQuizzes'
+              ? Array.from(deletedQuizIds)
           : key === 'smartEdu_videos'
             ? removeDeletedVideos(mergeSharedValue(byKey.get(key), localVal), deletedVideoIds)
             : key === 'smartEdu_lessonConfigs'
@@ -331,6 +396,8 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
               ? Array.from(deletedVideoIds)
               : key === 'smartEdu_deletedLessons'
                 ? Array.from(deletedLessonIds)
+                : key === 'smartEdu_deletedQuizzes'
+                  ? Array.from(deletedQuizIds)
               : localVal;
         nativeSetItem(key, JSON.stringify(value));
         toUpload.push({ key, value });
@@ -437,6 +504,9 @@ export function installWriteThrough(): void {
 // تهيئة كاملة: أرسل المعلّق ← حمّل (دون طمس المعلّق) ← فعّل الاعتراض
 export async function initSupabaseSync(): Promise<void> {
   const { pendingTables, pendingKv } = await flushPending();
+  // Convert older deleted quiz records into shared tombstones before hydration.
+  // This prevents stale rows from being merged back from Supabase.
+  prepareDeletedQuizTombstones();
   await hydrateFromSupabase(pendingTables, pendingKv);
   installWriteThrough();
 

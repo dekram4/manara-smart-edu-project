@@ -490,11 +490,9 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
         : lessonContent;
       
       // 🎯 Prompt مختصر وفعّال
-      const bankSize = Math.min(
-        Math.max(quizFormData.questionCount * 2, quizFormData.questionCount + 5),
-        30,
-      );
-      const prompt = `ولّد ${bankSize} سؤال اختيار من متعدد من هذا المحتوى التعليمي. سيختار النظام ${quizFormData.questionCount} أسئلة مختلفة لكل طالب:
+      const requestedQuestionCount = Math.max(1, Math.min(quizFormData.questionCount, 30));
+      const bankSize = requestedQuestionCount;
+      const prompt = `ولّد بالضبط ${bankSize} أسئلة اختيار من متعدد من هذا المحتوى التعليمي. لا تنشئ أي أسئلة إضافية:
 
 ${contentSummary}
 
@@ -566,7 +564,10 @@ ${contentSummary}
       }
 
       try {
-        const generatedQuestions = JSON.parse(jsonMatch[0]);
+         const parsedQuestions = JSON.parse(jsonMatch[0]);
+         const generatedQuestions = Array.isArray(parsedQuestions)
+           ? parsedQuestions.slice(0, requestedQuestionCount)
+           : [];
         if (!generatedQuestions || generatedQuestions.length === 0) {
           alert('❌ لم يتم توليد أي أسئلة. حاول مرة أخرى.');
           setIsGenerating(false);
@@ -594,7 +595,10 @@ ${contentSummary}
   // 💾 حفظ الاختبار
   const saveQuiz = (generatedQuestions: any[]): boolean => {
     const quizId = editingQuiz?.id || `quiz_${Date.now()}`;
-    const quizQuestions: QuizQuestion[] = generatedQuestions.map((q, index) => ({
+    const requestedQuestionCount = Math.max(1, Math.min(quizFormData.questionCount, 30));
+    const quizQuestions: QuizQuestion[] = generatedQuestions
+      .slice(0, requestedQuestionCount)
+      .map((q, index) => ({
       id: `q_${Date.now()}_${index}_${Math.random()}`,
       question: q.question,
       options: q.options,
@@ -610,7 +614,7 @@ ${contentSummary}
       createdAt: new Date().toISOString(),
       source: 'ai-generated',
       variation: Math.floor(Math.random() * 100000)
-    }));
+      }));
 
     const newQuiz: CreatedQuiz = {
       id: quizId,
@@ -830,11 +834,17 @@ ${contentSummary}
     // Keep a synced tombstone instead of physically removing the row. A
     // different device may still have the old quiz locally; the tombstone
     // prevents hydration from uploading that stale record again.
-    const updated = allSaved.map(q =>
-      q.id === id
-        ? { ...q, deleted: true, deletedAt: new Date().toISOString(), isActive: false }
-        : q,
+    const deletedQuizIds = new Set<string>(
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_QUIZZES) || '[]')
+        .filter((value: unknown) => typeof value === 'string')
+        .map((value: string) => value),
     );
+    deletedQuizIds.add(String(id));
+    localStorage.setItem(
+      STORAGE_KEYS.DELETED_QUIZZES,
+      JSON.stringify(Array.from(deletedQuizIds)),
+    );
+    const updated = allSaved.filter(q => q.id !== id);
     localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(updated));
     setCreatedQuizzes(updated.filter(q =>
       !q.deleted &&
