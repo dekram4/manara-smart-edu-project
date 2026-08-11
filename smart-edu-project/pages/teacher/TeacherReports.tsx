@@ -17,7 +17,10 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [teacherResultsSearchQuery, setTeacherResultsSearchQuery] = useState('');
+  const [teacherResultStudentFilter, setTeacherResultStudentFilter] = useState('all');
+  const [teacherResultQuizFilter, setTeacherResultQuizFilter] = useState('all');
+  const [teacherResultParentFilter, setTeacherResultParentFilter] = useState('all');
+  const [teacherResultSubjectFilter, setTeacherResultSubjectFilter] = useState('all');
 
   useEffect(() => {
     loadData();
@@ -480,90 +483,126 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             <p className="text-sm text-gray-500 font-bold mt-1">ابحث باسم الطالب أو الاختبار أو ولي الأمر، ثم اطبع النتائج التفصيلية</p>
           </div>
         </div>
-        <div className="relative mb-5">
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-400">🔍</span>
-          <input
-            type="text"
-            value={teacherResultsSearchQuery}
-            onChange={(e) => setTeacherResultsSearchQuery(e.target.value)}
-            placeholder="ابحث بالطالب أو الاختبار أو ولي الأمر..."
-            className="w-full p-3 pr-11 rounded-xl border-2 border-purple-100 focus:border-purple-400 focus:ring-4 focus:ring-purple-50 outline-none font-bold text-sm"
-          />
-          {teacherResultsSearchQuery && (
-            <button
-              onClick={() => setTeacherResultsSearchQuery('')}
-              className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-purple-50 text-purple-600 font-bold text-xs"
-            >
-              مسح
-            </button>
-          )}
-        </div>
         {(() => {
-          const search = teacherResultsSearchQuery.trim().toLocaleLowerCase();
-          const resultsStudents = filteredStudents.filter((student) => {
-            const results = getTeacherResults(student.id);
-            if (!search) return results.length > 0;
-            const studentText = [
-              student.name,
-              getParentName(student.parentId),
-              student.primaryGrade || student.grade || '',
-              ...results.flatMap((result) => [
-                result.quizTitle || '',
-                result.subject || '',
-                result.unit || '',
-              ]),
-            ].join(' ').toLocaleLowerCase();
-            return results.length > 0 && studentText.includes(search);
-          });
-          return resultsStudents.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {resultsStudents
-              .map((student) => {
-                const results = getTeacherResults(student.id);
-                const average = Math.round(
-                  results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length,
-                );
-                return (
-                  <div key={student.id} className="border border-purple-100 rounded-2xl p-4 bg-gradient-to-br from-purple-50 to-pink-50">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <div>
-                        <h3 className="font-black text-purple-900">{student.name}</h3>
-                        <p className="text-xs text-purple-500 font-bold">{student.primaryGrade || student.grade || '—'} • {results.length} اختبار</p>
-                      </div>
-                      <button
-                        onClick={() => printTeacherResultsReport(student)}
-                        className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl font-black text-xs"
-                      >
-                        🖨️ طباعة
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 mb-3 text-center">
-                      <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">المعدل</p><p className="text-lg text-purple-700 font-black">{average}%</p></div>
-                      <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">أعلى</p><p className="text-lg text-purple-700 font-black">{Math.max(...results.map(getQuizResultPercentage))}%</p></div>
-                      <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">التقدير</p><p className="text-sm text-purple-700 font-black">{average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين'}</p></div>
-                    </div>
-                    <div className="space-y-2">
-                      {results.map((result) => (
-                        <div key={result.id} className="bg-white rounded-xl p-3 border border-purple-100 flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-black text-sm text-purple-900 truncate">{result.quizTitle || 'اختبار المعلم'}</p>
-                            <p className="text-[10px] text-purple-500 font-bold">{result.subject || '—'} • {result.unit || '—'} • {new Date(result.createdAt).toLocaleDateString('ar-SA')}</p>
+          const teacherResultStudents = filteredStudents
+            .map(student => ({ student, results: getTeacherResults(student.id) }))
+            .filter(({ results }) => results.length > 0);
+          const quizOptions = Array.from(new Set(
+            teacherResultStudents.flatMap(({ results }) => results.map(result => result.quizTitle || 'اختبار المعلم')),
+          ));
+          const subjectOptions = Array.from(new Set(
+            teacherResultStudents.flatMap(({ results }) => results.map(result => result.subject || 'غير محدد')),
+          ));
+          const parentOptions = parents.filter(parent =>
+            teacherResultStudents.some(({ student }) => student.parentId === parent.id),
+          );
+          const filteredResultStudents = teacherResultStudents
+            .map(({ student, results }) => ({
+              student,
+              results: results.filter(result =>
+                (teacherResultQuizFilter === 'all' || (result.quizTitle || 'اختبار المعلم') === teacherResultQuizFilter) &&
+                (teacherResultSubjectFilter === 'all' || (result.subject || 'غير محدد') === teacherResultSubjectFilter),
+              ),
+            }))
+            .filter(({ student, results }) =>
+              results.length > 0 &&
+              (teacherResultStudentFilter === 'all' || student.id === teacherResultStudentFilter) &&
+              (teacherResultParentFilter === 'all' || student.parentId === teacherResultParentFilter),
+            );
+          const hasActiveFilter = [teacherResultStudentFilter, teacherResultQuizFilter, teacherResultParentFilter, teacherResultSubjectFilter]
+            .some(filter => filter !== 'all');
+
+          return (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                <label className="text-xs font-black text-purple-700">
+                  الطالب
+                  <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-purple-100 bg-white text-sm font-bold text-gray-700 focus:border-purple-400 outline-none">
+                    <option value="all">كل الطلاب</option>
+                    {teacherResultStudents.map(({ student }) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs font-black text-purple-700">
+                  الاختبار
+                  <select value={teacherResultQuizFilter} onChange={e => setTeacherResultQuizFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-purple-100 bg-white text-sm font-bold text-gray-700 focus:border-purple-400 outline-none">
+                    <option value="all">كل الاختبارات</option>
+                    {quizOptions.map(quiz => <option key={quiz} value={quiz}>{quiz}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs font-black text-purple-700">
+                  ولي الأمر
+                  <select value={teacherResultParentFilter} onChange={e => setTeacherResultParentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-purple-100 bg-white text-sm font-bold text-gray-700 focus:border-purple-400 outline-none">
+                    <option value="all">كل أولياء الأمور</option>
+                    {parentOptions.map(parent => <option key={parent.id} value={parent.id}>{parent.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs font-black text-purple-700">
+                  المادة
+                  <select value={teacherResultSubjectFilter} onChange={e => setTeacherResultSubjectFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-purple-100 bg-white text-sm font-bold text-gray-700 focus:border-purple-400 outline-none">
+                    <option value="all">كل المواد</option>
+                    {subjectOptions.map(subject => <option key={subject} value={subject}>{subject}</option>)}
+                  </select>
+                </label>
+              </div>
+              {hasActiveFilter && (
+                <button
+                  onClick={() => {
+                    setTeacherResultStudentFilter('all');
+                    setTeacherResultQuizFilter('all');
+                    setTeacherResultParentFilter('all');
+                    setTeacherResultSubjectFilter('all');
+                  }}
+                  className="mb-5 px-3 py-2 rounded-xl bg-purple-50 text-purple-600 font-bold text-xs hover:bg-purple-100"
+                >
+                  مسح الفلاتر
+                </button>
+              )}
+              {filteredResultStudents.length > 0 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {filteredResultStudents.map(({ student, results }) => {
+                    const average = Math.round(
+                      results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length,
+                    );
+                    return (
+                      <div key={student.id} className="border border-purple-100 rounded-2xl p-4 bg-gradient-to-br from-purple-50 to-pink-50">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div>
+                            <h3 className="font-black text-purple-900">{student.name}</h3>
+                            <p className="text-xs text-purple-500 font-bold">{student.primaryGrade || student.grade || '—'} • {results.length} اختبار</p>
                           </div>
-                          <div className="text-left shrink-0">
-                            <p className="font-black text-purple-700">{getQuizResultScore(result)} / {result.total || 0}</p>
-                            <p className="text-xs font-black text-purple-500">{getQuizResultPercentage(result)}% • {result.level || '—'}</p>
-                          </div>
+                          <button onClick={() => printTeacherResultsReport(student)} className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl font-black text-xs">
+                            🖨️ طباعة
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-          ) : (
-            <div className="p-8 text-center bg-purple-50 rounded-xl border-2 border-dashed border-purple-200 text-purple-500 font-bold">
-              {teacherResultsSearchQuery ? 'لا توجد نتائج مطابقة للبحث' : 'لا توجد نتائج اختبارات معلم حتى الآن'}
-            </div>
+                        <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                          <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">المعدل</p><p className="text-lg text-purple-700 font-black">{average}%</p></div>
+                          <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">أعلى</p><p className="text-lg text-purple-700 font-black">{Math.max(...results.map(getQuizResultPercentage))}%</p></div>
+                          <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">التقدير</p><p className="text-sm text-purple-700 font-black">{average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين'}</p></div>
+                        </div>
+                        <div className="space-y-2">
+                          {results.map((result) => (
+                            <div key={result.id} className="bg-white rounded-xl p-3 border border-purple-100 flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-black text-sm text-purple-900 truncate">{result.quizTitle || 'اختبار المعلم'}</p>
+                                <p className="text-[10px] text-purple-500 font-bold">{result.subject || '—'} • {result.unit || '—'} • {new Date(result.createdAt).toLocaleDateString('ar-SA')}</p>
+                              </div>
+                              <div className="text-left shrink-0">
+                                <p className="font-black text-purple-700">{getQuizResultScore(result)} / {result.total || 0}</p>
+                                <p className="text-xs font-black text-purple-500">{getQuizResultPercentage(result)}% • {result.level || '—'}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 text-center bg-purple-50 rounded-xl border-2 border-dashed border-purple-200 text-purple-500 font-bold">
+                  {hasActiveFilter ? 'لا توجد نتائج مطابقة للفلاتر المحددة' : 'لا توجد نتائج اختبارات معلم حتى الآن'}
+                </div>
+              )}
+            </>
           );
         })()}
       </div>

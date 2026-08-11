@@ -45,7 +45,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* Dashboard filter */
   const [dashFilter, setDashFilter] = useState('');
-  const [teacherResultsSearchQuery, setTeacherResultsSearchQuery] = useState('');
+  const [teacherResultStudentFilter, setTeacherResultStudentFilter] = useState('all');
+  const [teacherResultQuizFilter, setTeacherResultQuizFilter] = useState('all');
+  const [teacherResultParentFilter, setTeacherResultParentFilter] = useState('all');
+  const [teacherResultSubjectFilter, setTeacherResultSubjectFilter] = useState('all');
 
   /* Certificates state */
   const [certSearch, setCertSearch] = useState('');
@@ -1050,53 +1053,89 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <h3 className="text-base font-black text-rose-800">📝 نتائج اختبارات الطلاب</h3>
-                      <p className="text-xs text-rose-500 font-bold mt-1">ابحث بالطالب أو الاختبار أو ولي الأمر</p>
+                      <p className="text-xs text-rose-500 font-bold mt-1">فلترة النتائج حسب الطالب أو الاختبار أو ولي الأمر أو المادة</p>
                     </div>
                     <span className="text-2xl">📋</span>
                   </div>
-                  <div className="relative mb-4">
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-rose-400">🔍</span>
-                    <input
-                      type="text"
-                      value={teacherResultsSearchQuery}
-                      onChange={(e) => setTeacherResultsSearchQuery(e.target.value)}
-                      placeholder="ابحث بالطالب أو الاختبار أو ولي الأمر..."
-                      className="w-full p-3 pr-11 rounded-xl border-2 border-rose-100 focus:border-rose-400 focus:ring-4 focus:ring-rose-50 outline-none font-bold text-sm"
-                    />
-                    {teacherResultsSearchQuery && (
-                      <button
-                        onClick={() => setTeacherResultsSearchQuery('')}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold text-xs"
-                      >
-                        مسح
-                      </button>
-                    )}
-                  </div>
                   {(() => {
-                    const search = teacherResultsSearchQuery.trim().toLocaleLowerCase();
-                    const resultStudents = children.filter((child) => {
-                      const results = getChildQuizzes(child.id)
-                        .filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER);
-                      if (results.length === 0) return false;
-                      if (!search) return true;
-                      const searchableText = [
-                        child.name,
-                        parent?.name || '',
-                        child.primaryGrade || child.grade || '',
-                        ...results.flatMap((result) => [
-                          result.quizTitle || '',
-                          result.subject || '',
-                          result.unit || '',
-                        ]),
-                      ].join(' ').toLocaleLowerCase();
-                      return searchableText.includes(search);
-                    });
-                    return resultStudents.length > 0 ? (
+                    const teacherResultStudents = children
+                      .map(child => ({
+                        child,
+                        results: getChildQuizzes(child.id)
+                          .filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER),
+                      }))
+                      .filter(({ results }) => results.length > 0);
+                    const quizOptions = Array.from(new Set(
+                      teacherResultStudents.flatMap(({ results }) => results.map(result => result.quizTitle || 'اختبار المعلم')),
+                    ));
+                    const subjectOptions = Array.from(new Set(
+                      teacherResultStudents.flatMap(({ results }) => results.map(result => result.subject || 'غير محدد')),
+                    ));
+                    const filteredResultStudents = teacherResultStudents
+                      .map(({ child, results }) => ({
+                        child,
+                        results: results
+                          .filter(result =>
+                            (teacherResultQuizFilter === 'all' || (result.quizTitle || 'اختبار المعلم') === teacherResultQuizFilter) &&
+                            (teacherResultSubjectFilter === 'all' || (result.subject || 'غير محدد') === teacherResultSubjectFilter),
+                          )
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+                      }))
+                      .filter(({ child, results }) =>
+                        results.length > 0 &&
+                        (teacherResultStudentFilter === 'all' || child.id === teacherResultStudentFilter) &&
+                        (teacherResultParentFilter === 'all' || (parent?.id || '') === teacherResultParentFilter),
+                      );
+                    const hasActiveFilter = [teacherResultStudentFilter, teacherResultQuizFilter, teacherResultParentFilter, teacherResultSubjectFilter]
+                      .some(filter => filter !== 'all');
+                    return (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                          <label className="text-xs font-black text-rose-700">
+                            الطالب
+                            <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">
+                              <option value="all">كل الطلاب</option>
+                              {teacherResultStudents.map(({ child }) => <option key={child.id} value={child.id}>{child.name}</option>)}
+                            </select>
+                          </label>
+                          <label className="text-xs font-black text-rose-700">
+                            الاختبار
+                            <select value={teacherResultQuizFilter} onChange={e => setTeacherResultQuizFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">
+                              <option value="all">كل الاختبارات</option>
+                              {quizOptions.map(quiz => <option key={quiz} value={quiz}>{quiz}</option>)}
+                            </select>
+                          </label>
+                          <label className="text-xs font-black text-rose-700">
+                            ولي الأمر
+                            <select value={teacherResultParentFilter} onChange={e => setTeacherResultParentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">
+                              <option value="all">ولي الأمر الحالي</option>
+                              {parent && <option value={parent.id}>{parent.name}</option>}
+                            </select>
+                          </label>
+                          <label className="text-xs font-black text-rose-700">
+                            المادة
+                            <select value={teacherResultSubjectFilter} onChange={e => setTeacherResultSubjectFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">
+                              <option value="all">كل المواد</option>
+                              {subjectOptions.map(subject => <option key={subject} value={subject}>{subject}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                        {hasActiveFilter && (
+                          <button
+                            onClick={() => {
+                              setTeacherResultStudentFilter('all');
+                              setTeacherResultQuizFilter('all');
+                              setTeacherResultParentFilter('all');
+                              setTeacherResultSubjectFilter('all');
+                            }}
+                            className="mb-4 px-3 py-2 rounded-xl bg-rose-50 text-rose-600 font-bold text-xs hover:bg-rose-100"
+                          >
+                            مسح الفلاتر
+                          </button>
+                        )}
+                    {filteredResultStudents.length > 0 ? (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        {resultStudents.map((child) => {
-                          const results = getChildQuizzes(child.id)
-                            .filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER)
-                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                        {filteredResultStudents.map(({ child, results }) => {
                           const average = Math.round(results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length);
                           return (
                             <div key={child.id} className="border border-rose-100 rounded-xl p-3 bg-rose-50/60">
@@ -1131,8 +1170,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       </div>
                     ) : (
                       <div className="p-6 text-center bg-rose-50 rounded-xl border-2 border-dashed border-rose-200 text-rose-500 font-bold text-sm">
-                        {teacherResultsSearchQuery ? 'لا توجد نتائج مطابقة للبحث' : 'لا توجد نتائج اختبارات معلم حتى الآن'}
+                         {hasActiveFilter ? 'لا توجد نتائج مطابقة للفلاتر المحددة' : 'لا توجد نتائج اختبارات معلم حتى الآن'}
                       </div>
+                    )}
+                        </>
                     );
                   })()}
                 </div>
