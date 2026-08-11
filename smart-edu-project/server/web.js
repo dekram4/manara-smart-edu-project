@@ -43,25 +43,110 @@ async function callGemini(prompt, { temperature = 0.2, maxOutputTokens = 2048 } 
     error.statusCode = 503;
     throw error;
   }
-  const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature, maxOutputTokens },
-      }),
-    },
-  );
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(data?.error?.message || 'Gemini request failed');
+  const models = await getGeminiModels(apiKey);
+  let lastUnavailableMessage = '';
+
+  for (const model of models) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature, maxOutputTokens },
+        }),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      console.log(`[gemini] generated with ${model.replace(/^models\//, '')}`);
+      return data;
+    }
+
+    const message = data?.error?.message || 'Gemini request failed';
+    const modelUnavailable =
+      response.status === 404 ||
+      /not found|not available|not supported|new users/i.test(message);
+    if (modelUnavailable) {
+      lastUnavailableMessage = message;
+      console.warn(`[gemini] skipping unavailable model ${model}: ${message}`);
+      continue;
+    }
+
+    const error = new Error(message);
     error.statusCode = response.status >= 500 ? 502 : response.status;
     throw error;
   }
-  return data;
+
+  const error = new Error(lastUnavailableMessage || 'No available Gemini model');
+  error.statusCode = 503;
+  throw error;
+}
+
+let geminiModelsPromise;
+
+async function getGeminiModels(apiKey) {
+  if (!geminiModelsPromise) {
+    geminiModelsPromise = (async () => {
+      const configuredModel = String(process.env.GEMINI_MODEL || '').trim().replace(/^models\//, '');
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error('Gemini model discovery failed');
+        error.statusCode = response.status >= 500 ? 502 : response.status;
+        throw error;
+      }
+
+      const availableModels = Array.isArray(data.models)
+        ? data.models
+            .filter((item) => item?.name && item.supportedGenerationMethods?.includes('generateContent'))
+            .map((item) => String(item.name).replace(/^models\//, ''))
+        : [];
+
+      const preferredModels = [
+        configuredModel,
+        'gemini-flash-latest',
+        'gemini-flash-lite-latest',
+        'gemini-3.5-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-2.5-flash-lite',
+        'gemini-2.5-flash',
+      ].filter(Boolean);
+
+      const models = [
+        ...preferredModels.filter((candidate) => availableModels.includes(candidate)),
+        ...availableModels.filter(
+          (candidate) =>
+            !preferredModels.includes(candidate) &&
+            /flash/i.test(candidate) &&
+            !/(tts|image|audio)/i.test(candidate),
+        ),
+        ...availableModels.filter((candidate) => !preferredModels.includes(candidate)),
+      ];
+
+      if (models.length === 0) {
+        const error = new Error('No Gemini model supports generateContent');
+        error.statusCode = 503;
+        throw error;
+      }
+      console.log(`[gemini] discovered ${models.length} candidate model(s)`);
+      return models.map((model) => `models/${model}`);
+    })().catch((error) => {
+      geminiModelsPromise = undefined;
+      throw error;
+    });
+  }
+  return geminiModelsPromise;
+}
+
+function getGeminiText(data) {
+  return data?.candidates?.[0]?.content?.parts
+    ?.map((part) => (typeof part?.text === 'string' ? part.text : ''))
+    .join('')
+    .trim() || null;
 }
 
 app.post('/api/gemini/answer', async (req, res) => {
@@ -74,7 +159,7 @@ app.post('/api/gemini/answer', async (req, res) => {
   try {
     const data = await callGemini(prompt);
     return res.json({
-      answer: data?.candidates?.[0]?.content?.parts?.[0]?.text || null,
+      answer: getGeminiText(data),
     });
   } catch (error) {
     console.error('[gemini] answer failed:', error.message);

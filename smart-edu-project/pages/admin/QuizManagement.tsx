@@ -530,8 +530,10 @@ ${contentSummary}
           errorMessage += '🔒 مفتاح API غير صالح أو منتهي الصلاحية.\n\nاحصل على مفتاح جديد من:\nhttps://aistudio.google.com/apikey';
         } else if (response.status === 429) {
           errorMessage += '⏳ تجاوزت حد الاستخدام. انتظر قليلاً وحاول مرة أخرى.';
-        } else if (response.status === 500) {
+        } else if (response.status === 500 || response.status === 502) {
           errorMessage += '🔧 خطأ في خادم Google. حاول مرة أخرى بعد قليل.';
+        } else if (response.status === 503) {
+          errorMessage += '⚠️ لا يوجد نموذج Gemini متاح حاليًا لهذا المفتاح. حاول مرة أخرى لاحقًا أو حدّد GEMINI_MODEL في Secrets.';
         } else {
           errorMessage += `رمز الخطأ: ${response.status}\n\nتحقق من:\n1️⃣ صلاحية API Key\n2️⃣ الاتصال بالإنترنت\n3️⃣ حدود الاستخدام`;
         }
@@ -542,7 +544,9 @@ ${contentSummary}
       }
 
       const data = await response.json();
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const aiResponse = data.text || data.candidates?.[0]?.content?.parts
+        ?.map((part: { text?: string }) => part?.text || '')
+        .join('');
       
       if (!aiResponse) {
         alert('❌ لم يتم الحصول على رد من الذكاء الاصطناعي. حاول مرة أخرى.');
