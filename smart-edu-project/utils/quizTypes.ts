@@ -51,7 +51,7 @@ export const normalizeCreatedQuiz = (quiz: CreatedQuiz): CreatedQuiz => ({
     : quiz.questionCount,
   deleted: quiz.deleted === true,
   deletedAt: quiz.deletedAt,
-  questions: (quiz.questions || []).map((question) => ({
+  questions: (Array.isArray(quiz.questions) ? quiz.questions : []).filter(Boolean).map((question) => ({
     ...normalizeQuizQuestion(question),
     quizId: question.quizId || quiz.id,
   })),

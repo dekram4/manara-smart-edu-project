@@ -577,7 +577,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const getFilteredHierarchicalConfigs = () => {
-    const allConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
+    const allConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS)
+      .filter((config): config is Record<string, any> => Boolean(config && typeof config === 'object'));
     const allParents = readStorageArray(STORAGE_KEYS.PARENTS);
     const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     if (!student) return [];
@@ -616,7 +617,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       }
 
       const gradeEntry = student.gradeEnrollments.find((g: any) => normalizeScopeValue(g.grade) === normalizeScopeValue(selectedGradeValue)) || student.gradeEnrollments[0];
-      if (gradeEntry?.enrollments?.length) {
+      if (Array.isArray(gradeEntry?.enrollments) && gradeEntry.enrollments.length > 0) {
         const firstEnroll = gradeEntry.enrollments[0];
         const uniqueAtrams = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.atram).filter(Boolean)));
         const uniqueSubjects = Array.from(new Set(gradeEntry.enrollments.map((e: any) => e.subject).filter(Boolean)));
@@ -650,26 +651,29 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         setSelectedGrade(gradeConfig.grade);
       }
 
-      const atrams = (gradeConfig.atrams || []).map((a: any) => a.atram).filter(Boolean);
+      const gradeAtrams = Array.isArray(gradeConfig.atrams) ? gradeConfig.atrams : [];
+      const atrams = gradeAtrams.map((a: any) => a?.atram).filter(Boolean);
       setAtrams(atrams);
 
       const normalizedAtram = normalizeScopeValue(selectedAtram || '');
-      const atramConfig = (gradeConfig.atrams || []).find((a: any) => normalizeScopeValue(a.atram) === normalizedAtram) || gradeConfig.atrams?.[0];
+      const atramConfig = gradeAtrams.find((a: any) => normalizeScopeValue(a?.atram) === normalizedAtram) || gradeAtrams[0];
 
       if (atramConfig) {
-        setSubjects((atramConfig.subjects || []).map((s: any) => s.subject).filter(Boolean));
+        const atramSubjects = Array.isArray(atramConfig.subjects) ? atramConfig.subjects : [];
+        setSubjects(atramSubjects.map((s: any) => s?.subject).filter(Boolean));
 
         const normalizedSubject = normalizeScopeValue(selectedSubject || '');
-        const subjectConfig = (atramConfig.subjects || []).find((s: any) => normalizeScopeValue(s.subject) === normalizedSubject) || atramConfig.subjects?.[0];
+        const subjectConfig = atramSubjects.find((s: any) => normalizeScopeValue(s?.subject) === normalizedSubject) || atramSubjects[0];
 
         if (subjectConfig) {
-          setTerms((subjectConfig.terms || []).map((t: any) => t.term).filter(Boolean));
+          const subjectTerms = Array.isArray(subjectConfig.terms) ? subjectConfig.terms : [];
+          setTerms(subjectTerms.map((t: any) => t?.term).filter(Boolean));
 
           const normalizedTerm = normalizeScopeValue(selectedTerm || '');
-          const termConfig = (subjectConfig.terms || []).find((t: any) => normalizeScopeValue(t.term) === normalizedTerm) || subjectConfig.terms?.[0];
+          const termConfig = subjectTerms.find((t: any) => normalizeScopeValue(t?.term) === normalizedTerm) || subjectTerms[0];
 
           if (termConfig) {
-            const units = (termConfig.units || []).filter(Boolean);
+            const units = Array.isArray(termConfig.units) ? termConfig.units.filter(Boolean) : [];
             setUnits(units);
             if (!units.find((unit: any) => normalizeScopeValue(unit) === normalizeScopeValue(selectedUnit || ''))) {
               setSelectedUnit(units[0] || '');
@@ -754,7 +758,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const matchContent = (s: StudentInfo) => {
-    const all = readStorageArray<LessonConfig>(STORAGE_KEYS.LESSON_CONFIGS);
+    const all = readStorageArray<LessonConfig>(STORAGE_KEYS.LESSON_CONFIGS)
+      .filter((lesson): lesson is LessonConfig => Boolean(lesson && typeof lesson === 'object'));
     const teacherContent = filterTeacherOwnedRecords(all, s);
     const generalContent = all.filter((lesson: LessonConfig) => {
       const owner = normalizeScopeValue(getRecordTeacherId(lesson));
@@ -831,7 +836,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     playLamsaSound('pop');
     if (!student) return false;
     const allQuestions = readStorageArray<QuizQuestion>(STORAGE_KEYS.QUIZ_QUESTIONS);
-    const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES).map(normalizeCreatedQuiz);
+    const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)
+      .filter((quiz): quiz is CreatedQuiz => Boolean(quiz && typeof quiz === 'object'))
+      .map(normalizeCreatedQuiz);
 
     const academicPath = {
       grade: selectedGrade,
@@ -938,6 +945,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     try {
       return filterTeacherOwnedRecords(
         readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)
+          .filter((quiz): quiz is CreatedQuiz => Boolean(quiz && typeof quiz === 'object'))
           .map(normalizeCreatedQuiz),
         student,
       )
@@ -959,7 +967,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unit: selectedUnit,
     };
     try {
-      const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES).map(normalizeCreatedQuiz);
+      const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)
+        .filter((quiz): quiz is CreatedQuiz => Boolean(quiz && typeof quiz === 'object'))
+        .map(normalizeCreatedQuiz);
       return filterTeacherOwnedRecords(createdQuizzes, student)
         .filter((quiz) => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
         .filter((quiz) => matchesAcademicScope(quiz, academicPath));
@@ -1439,9 +1449,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     const hierarchicalConfigs = getFilteredHierarchicalConfigs();
                     const gradeConfig = hierarchicalConfigs.find((c: any) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
                     if (gradeConfig) {
-                      const atramConfig = gradeConfig.atrams.find((a: any) => normalizeScopeValue(a.atram) === normalizeScopeValue(newAtram));
+                      const gradeAtrams = Array.isArray(gradeConfig.atrams) ? gradeConfig.atrams : [];
+                      const atramConfig = gradeAtrams.find((a: any) => normalizeScopeValue(a?.atram) === normalizeScopeValue(newAtram));
                       if (atramConfig) {
-                        setSubjects(atramConfig.subjects.map((s: any) => s.subject));
+                        setSubjects(
+                          (Array.isArray(atramConfig.subjects) ? atramConfig.subjects : [])
+                            .map((s: any) => s?.subject)
+                            .filter(Boolean),
+                        );
                       }
                     }
                   }}
@@ -1467,11 +1482,17 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     const hierarchicalConfigs = getFilteredHierarchicalConfigs();
                     const gradeConfig = hierarchicalConfigs.find((c: any) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
                     if (gradeConfig) {
-                      const atramConfig = gradeConfig.atrams.find((a: any) => normalizeScopeValue(a.atram) === normalizeScopeValue(selectedAtram));
+                      const gradeAtrams = Array.isArray(gradeConfig.atrams) ? gradeConfig.atrams : [];
+                      const atramConfig = gradeAtrams.find((a: any) => normalizeScopeValue(a?.atram) === normalizeScopeValue(selectedAtram));
                       if (atramConfig) {
-                        const subjectConfig = atramConfig.subjects.find((s: any) => normalizeScopeValue(s.subject) === normalizeScopeValue(newSubject));
+                        const atramSubjects = Array.isArray(atramConfig.subjects) ? atramConfig.subjects : [];
+                        const subjectConfig = atramSubjects.find((s: any) => normalizeScopeValue(s?.subject) === normalizeScopeValue(newSubject));
                         if (subjectConfig) {
-                          setTerms(subjectConfig.terms.map((t: any) => t.term));
+                          setTerms(
+                            (Array.isArray(subjectConfig.terms) ? subjectConfig.terms : [])
+                              .map((t: any) => t?.term)
+                              .filter(Boolean),
+                          );
                         }
                       }
                     }
@@ -1497,13 +1518,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     const hierarchicalConfigs = getFilteredHierarchicalConfigs();
                     const gradeConfig = hierarchicalConfigs.find((c: any) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
                     if (gradeConfig) {
-                      const atramConfig = gradeConfig.atrams.find((a: any) => normalizeScopeValue(a.atram) === normalizeScopeValue(selectedAtram));
+                      const gradeAtrams = Array.isArray(gradeConfig.atrams) ? gradeConfig.atrams : [];
+                      const atramConfig = gradeAtrams.find((a: any) => normalizeScopeValue(a?.atram) === normalizeScopeValue(selectedAtram));
                       if (atramConfig) {
-                        const subjectConfig = atramConfig.subjects.find((s: any) => normalizeScopeValue(s.subject) === normalizeScopeValue(selectedSubject));
+                        const atramSubjects = Array.isArray(atramConfig.subjects) ? atramConfig.subjects : [];
+                        const subjectConfig = atramSubjects.find((s: any) => normalizeScopeValue(s?.subject) === normalizeScopeValue(selectedSubject));
                         if (subjectConfig) {
-                          const termConfig = subjectConfig.terms.find((t: any) => normalizeScopeValue(t.term) === normalizeScopeValue(newTerm));
+                          const subjectTerms = Array.isArray(subjectConfig.terms) ? subjectConfig.terms : [];
+                          const termConfig = subjectTerms.find((t: any) => normalizeScopeValue(t?.term) === normalizeScopeValue(newTerm));
                           if (termConfig) {
-                            setUnits(termConfig.units);
+                            setUnits(Array.isArray(termConfig.units) ? termConfig.units.filter(Boolean) : []);
                           }
                         }
                       }
@@ -1611,13 +1635,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     const gradeConfig = hierarchicalConfigs.find((c) => normalizeScopeValue(c.grade) === normalizeScopeValue(selectedGrade));
                     let availableUnits: string[] = [];
                     if (gradeConfig) {
-                      const atramConfig = gradeConfig.atrams.find((a) => normalizeScopeValue(a.atram) === normalizeScopeValue(selectedAtram));
+                      const gradeAtrams = Array.isArray(gradeConfig.atrams) ? gradeConfig.atrams : [];
+                      const atramConfig = gradeAtrams.find((a) => normalizeScopeValue(a?.atram) === normalizeScopeValue(selectedAtram));
                       if (atramConfig) {
-                        const subjectConfig = atramConfig.subjects.find((s) => normalizeScopeValue(s.subject) === normalizeScopeValue(selectedSubject));
+                        const atramSubjects = Array.isArray(atramConfig.subjects) ? atramConfig.subjects : [];
+                        const subjectConfig = atramSubjects.find((s) => normalizeScopeValue(s?.subject) === normalizeScopeValue(selectedSubject));
                         if (subjectConfig) {
-                          const termConfig = subjectConfig.terms.find((t) => normalizeScopeValue(t.term) === normalizeScopeValue(selectedTerm));
+                          const subjectTerms = Array.isArray(subjectConfig.terms) ? subjectConfig.terms : [];
+                          const termConfig = subjectTerms.find((t) => normalizeScopeValue(t?.term) === normalizeScopeValue(selectedTerm));
                           if (termConfig && termConfig.units) {
-                            availableUnits = termConfig.units;
+                            availableUnits = Array.isArray(termConfig.units) ? termConfig.units.filter(Boolean) : [];
                           }
                         }
                       }
