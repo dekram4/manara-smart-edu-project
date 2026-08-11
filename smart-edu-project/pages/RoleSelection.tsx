@@ -339,7 +339,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
         initial={{ opacity: 0, y: -28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, ease: 'easeOut' }}
-        className="relative z-10 mb-10 text-center"
+        className="relative z-10 mb-8 text-center sm:mb-10"
       >
         <ManaraBrand variant="hero" className="text-white" />
         <p className="mt-2 text-base font-medium text-slate-400">
@@ -348,7 +348,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
       </motion.div>
 
       {/* ─── Role cards grid ─── */}
-      <div className="relative z-10 grid w-full max-w-5xl grid-cols-1 gap-5 sm:grid-cols-2">
+      <div className="relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
         {roles.map((role, index) => {
           const isHovered = hoveredId === role.id;
           return (
@@ -363,14 +363,14 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               onMouseEnter={() => { setHoveredId(role.id); GameAudioEngine.play('uiHover'); }}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => { GameAudioEngine.play('uiSelect'); handlers[role.id](); }}
-              className="group relative overflow-hidden text-right"
+               className="group relative min-h-[190px] overflow-hidden text-right sm:min-h-[214px]"
               style={{
-                borderRadius: '28px',
-                border: `1px solid rgba(255,255,255,${isHovered ? 0.18 : 0.09})`,
-                transition: 'border-color 0.3s, box-shadow 0.3s',
+                 borderRadius: '30px',
+                 border: `1px solid rgba(255,255,255,${isHovered ? 0.24 : 0.11})`,
+                 transition: 'border-color 0.3s, box-shadow 0.3s, transform 0.3s',
                 boxShadow: isHovered
-                  ? `0 0 0 1px ${role.glowColor}, 0 24px 64px ${role.glowColor}, 0 8px 24px rgba(0,0,0,0.4)`
-                  : '0 8px 32px rgba(0,0,0,0.35)',
+                   ? `0 0 0 1px ${role.glowColor}, 0 24px 72px ${role.glowColor}, 0 12px 30px rgba(0,0,0,0.52), inset 0 1px 0 rgba(255,255,255,0.2)`
+                   : '0 14px 38px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.1)',
               }}
             >
               {/* Card background */}
@@ -385,12 +385,30 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 }}
               />
 
-              {/* SVG illustration — top-right corner */}
+               {/* Deep color wash for the game-like card surface */}
+               <div
+                 className="pointer-events-none absolute inset-0 opacity-70"
+                 style={{
+                   background: `radial-gradient(circle at 85% 35%, ${role.palette.via}38, transparent 42%), radial-gradient(circle at 15% 100%, ${role.palette.to}20, transparent 48%)`,
+                 }}
+               />
+
+               {/* SVG illustration — large atmospheric art behind the role icon */}
               <div
-                className="pointer-events-none absolute right-0 top-0 h-32 w-44 scale-90 origin-top-right opacity-35 transition-opacity duration-500 group-hover:opacity-55"
+                 className="pointer-events-none absolute -right-2 top-1/2 h-[172px] w-[220px] -translate-y-1/2 scale-125 origin-center opacity-25 transition-all duration-500 group-hover:scale-[1.38] group-hover:opacity-55 sm:h-[190px] sm:w-[250px]"
               >
                 {role.svgIllustration}
               </div>
+
+               {/* Decorative game HUD corner brackets */}
+               <div
+                 className="pointer-events-none absolute right-4 top-4 h-5 w-5 border-r-2 border-t-2 opacity-50"
+                 style={{ borderColor: role.accentLight }}
+               />
+               <div
+                 className="pointer-events-none absolute bottom-4 left-4 h-5 w-5 border-b-2 border-l-2 opacity-35"
+                 style={{ borderColor: role.accentLight }}
+               />
 
               {/* Shimmer sweep on hover */}
               <div
@@ -420,19 +438,28 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 }}
               />
 
-              {/* Card content */}
-              <div className="relative z-10 flex items-center gap-5 p-6">
-                {/* Role icon badge */}
+               {/* Card content: large focal icon + readable mission copy */}
+               <div className="relative z-10 flex h-full items-center gap-4 p-5 sm:gap-6 sm:p-6">
+                 {/* Role icon badge */}
                 <div
-                  className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[20px] text-4xl shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg]"
+                   className="relative flex h-[112px] w-[112px] shrink-0 items-center justify-center rounded-[30px] text-[4.7rem] shadow-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg] sm:h-[132px] sm:w-[132px] sm:text-[5.5rem]"
                   style={{
-                    background: `linear-gradient(145deg, ${role.palette.from}, ${role.palette.to})`,
-                    border: `1px solid ${role.accentLight}40`,
-                    boxShadow: `0 8px 28px ${role.glowColor}, inset 0 1px 0 rgba(255,255,255,0.15)`,
+                     background: `linear-gradient(145deg, ${role.palette.from}f2, ${role.palette.via}e8 52%, ${role.palette.to}f5)`,
+                     border: `2px solid ${role.accentLight}55`,
+                     boxShadow: `0 14px 34px ${role.glowColor}, 0 0 0 7px ${role.palette.via}12, inset 0 2px 0 rgba(255,255,255,0.28), inset 0 -12px 24px rgba(0,0,0,0.2)`,
                   }}
                 >
+                   <div
+                     className="pointer-events-none absolute inset-2 rounded-[24px] border border-white/20"
+                     style={{ boxShadow: `inset 0 0 22px ${role.accentLight}20` }}
+                   />
+                   <div
+                     className="pointer-events-none absolute -inset-3 rounded-[36px] opacity-60 blur-xl transition-opacity duration-300 group-hover:opacity-100"
+                     style={{ background: role.glowColor }}
+                   />
                   <motion.span
                     aria-hidden="true"
+                     className="relative z-10 select-none drop-shadow-[0_8px_8px_rgba(0,0,0,0.42)]"
                     animate={
                       isHovered
                         ? { y: [0, -5, 0], rotate: [-7, 7, -3, 0], scale: [1, 1.14, 1.05, 1] }
@@ -452,25 +479,26 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 <div className="min-w-0 flex-1">
                   {/* Tag pill */}
                   <span
-                    className="mb-1.5 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-widest"
+                     className="mb-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-widest shadow-lg"
                     style={{
-                      background: `${role.palette.via}25`,
+                       background: `${role.palette.via}38`,
                       color: role.accentLight,
-                      border: `1px solid ${role.accentLight}30`,
+                       border: `1px solid ${role.accentLight}45`,
                     }}
                   >
+                     <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" />
                     {role.tag}
                   </span>
-                  <h3 className="text-[1.35rem] font-black text-white leading-tight transition-colors group-hover:text-white">
+                   <h3 className="text-[1.45rem] font-black leading-tight text-white drop-shadow-md transition-colors sm:text-[1.65rem] group-hover:text-white">
                     {role.title}
                   </h3>
                   <p
-                    className="mt-0.5 text-xs font-bold tracking-wide"
+                     className="mt-1 text-xs font-black tracking-wide sm:text-sm"
                     style={{ color: role.accentLight }}
                   >
                     {role.subtitle}
                   </p>
-                  <p className="mt-1 text-[13px] leading-relaxed text-slate-400 group-hover:text-slate-300 transition-colors">
+                   <p className="mt-2 max-w-[260px] text-[13px] font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200 sm:text-sm">
                     {role.description}
                   </p>
                 </div>
@@ -479,7 +507,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 <motion.div
                   animate={isHovered ? { x: -4, scale: 1.15 } : { x: 0, scale: 1 }}
                   transition={{ duration: 0.25 }}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-black transition-all duration-300"
+                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl font-black transition-all duration-300"
                   style={{
                     background: isHovered ? role.palette.via : 'rgba(255,255,255,0.06)',
                     color: isHovered ? '#fff' : 'rgba(255,255,255,0.4)',
