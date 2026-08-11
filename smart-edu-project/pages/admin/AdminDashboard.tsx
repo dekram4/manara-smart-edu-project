@@ -17,6 +17,7 @@ import AdminVideoNotifications from './AdminVideoNotifications';
 import ManaraBrand from '../../src/components/ManaraBrand';
 import VideoNotificationBadge from './VideoNotificationBadge';
 import PrivateChat from '../shared/PrivateChat';
+import { getQuizResultPercentage } from '../../utils/quizScoring';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -93,7 +94,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       activeStudents,
       totalQuizzesTaken: quizzes.length,
       averageQuizScore: quizzes.length
-        ? quizzes.reduce((total: number, quiz: any) => total + (Number(quiz.percentage) || 0), 0) / quizzes.length
+        ? quizzes.reduce((total: number, quiz: any) => total + getQuizResultPercentage(quiz), 0) / quizzes.length
         : 0,
       recentActivities,
       lessonsCount: lessons.length,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StudentInfo, QuizResult, ParentInfo, HierarchicalConfig, CertificateRecord } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, getTeacherParents, getTeacherStudents, normalizeScopeValue } from '../../utils/scope';
+import { getQuizResultPercentage } from '../../utils/quizScoring';
 
 interface TeacherCertificatesProps {
   teacherId: string;
@@ -46,7 +47,10 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
 
     setParents(teacherParents);
     setStudents(teacherStudents);
-    setAllQuizzes(JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]'));
+    setAllQuizzes(
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]')
+        .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })),
+    );
     const allCertificates: CertificateRecord[] = JSON.parse(
       localStorage.getItem(CERT_KEY) || '[]',
     );
@@ -65,7 +69,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   const getStudentAverage = (studentId: string) => {
     const studentQuizzes = allQuizzes.filter(q => q.studentId === studentId);
     if (studentQuizzes.length === 0) return 0;
-    return Math.round(studentQuizzes.reduce((acc, q) => acc + q.percentage, 0) / studentQuizzes.length);
+    return Math.round(studentQuizzes.reduce((acc, q) => acc + getQuizResultPercentage(q), 0) / studentQuizzes.length);
   };
 
   const hasDuplicate = (studentId: string, type: CertificateRecord['type'], grade: string, subject: string, term: string) => {

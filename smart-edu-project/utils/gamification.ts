@@ -1,5 +1,6 @@
 import { STORAGE_KEYS } from '../constants';
 import type { StudentGamification, StudentInfo } from '../types';
+import { getQuizResultPercentage } from './quizScoring';
 
 // 🎮 محرك الإنجاز (Gamification Engine) لمنصة منارة
 // نظام XP, Gems, Streak, Achievements مربوط بالمحتوى الحقيقي
@@ -459,7 +460,7 @@ export function syncGamificationToStudent(studentInfo?: StudentInfo | null): Stu
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   )[0];
   const averageScore = effectiveQuizResults.length > 0
-    ? Math.round(effectiveQuizResults.reduce((sum, result) => sum + Number(result.percentage || 0), 0) / effectiveQuizResults.length)
+    ? Math.round(effectiveQuizResults.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / effectiveQuizResults.length)
     : 0;
   const nextSnapshot: StudentGamification = {
     xp: stats.xp,
@@ -473,7 +474,7 @@ export function syncGamificationToStudent(studentInfo?: StudentInfo | null): Stu
     achievementsCount: stats.achievements.length,
     averageScore,
     lastQuizAt: lastQuiz?.createdAt,
-    lastQuizPercentage: lastQuiz ? Number(lastQuiz.percentage || 0) : undefined,
+    lastQuizPercentage: lastQuiz ? getQuizResultPercentage(lastQuiz) : undefined,
     xpBonus200GrantedAt: active.gamification?.xpBonus200GrantedAt,
     updatedAt: new Date().toISOString(),
   };
@@ -506,7 +507,14 @@ export function syncGamificationToStudent(studentInfo?: StudentInfo | null): Stu
 
   const updatedStudents = students.map((student) =>
     student.id === active!.id
-      ? { ...student, gamification: snapshot, lastActivity: student.lastActivity || snapshot.updatedAt }
+      ? {
+        // Preserve the newest quiz result and academic path from ACTIVE_STUDENT
+        // while adding the shared gamification snapshot to the canonical record.
+        ...student,
+        ...active,
+        gamification: snapshot,
+        lastActivity: active!.lastActivity || student.lastActivity || snapshot.updatedAt,
+      }
       : student,
   );
   if (JSON.stringify(updatedStudents) !== JSON.stringify(students)) {

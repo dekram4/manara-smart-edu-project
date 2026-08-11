@@ -50,6 +50,7 @@ import {
   normalizeQuizType,
   getQuizTypeLabel,
 } from '../../utils/quizTypes';
+import { getCorrectAnswerText, isQuizAnswerCorrect } from '../../utils/quizScoring';
 
 const stableQuestionHash = (value: string): number => {
   let hash = 2166136261;
@@ -961,7 +962,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
     let score = 0;
     currentQuiz.forEach((q) => {
-      if (userAnswers[q.id] === q.correctAnswer) {
+      if (isQuizAnswerCorrect(q, userAnswers[q.id])) {
         score++;
       }
     });
@@ -1044,8 +1045,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       details: currentQuiz.map((question) => ({
         question: question.question,
         userAnswer: userAnswers[question.id] || '',
-        correctAnswer: question.correctAnswer,
-        isCorrect: userAnswers[question.id] === question.correctAnswer,
+        correctAnswer: getCorrectAnswerText(question),
+        isCorrect: isQuizAnswerCorrect(question, userAnswers[question.id]),
       })),
       createdAt,
       quizTitle: activeQuizTitle || getQuizTypeLabel(quizType),
@@ -1070,9 +1071,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       STORAGE_KEYS.STUDENTS,
       JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
     );
-    syncGamificationToStudent(updatedStudent);
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
-    setStudent(updatedStudent);
+    const gamificationSnapshot = syncGamificationToStudent(updatedStudent);
+    const finalStudent: StudentInfo = {
+      ...updatedStudent,
+      ...(gamificationSnapshot ? { gamification: gamificationSnapshot } : {}),
+    };
+    // syncGamificationToStudent writes the same final snapshot to both
+    // STUDENTS and ACTIVE_STUDENT. Do not overwrite it with the pre-sync
+    // student object, otherwise the new quiz result and level can diverge.
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(finalStudent));
+    setStudent(finalStudent);
     setQuizResult(quizResultRecord);
   };
 

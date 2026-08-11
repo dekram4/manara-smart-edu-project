@@ -1,6 +1,7 @@
 import type { QuizResult, StudentInfo, StudentGamification } from '../types';
 import { QuizType } from '../types';
 import { normalizeQuizType } from './quizTypes';
+import { getQuizResultPercentage } from './quizScoring';
 
 export interface StudentProgressSummary {
   gems: number;
@@ -39,7 +40,7 @@ export function getStudentProgressSummary(
   });
   const progressResults = Array.from(latestByQuiz.values());
   const averageScore = progressResults.length
-    ? Math.round(progressResults.reduce((sum, result) => sum + Number(result.percentage || 0), 0) / progressResults.length)
+    ? Math.round(progressResults.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / progressResults.length)
     : 0;
   const lastQuiz = [...progressResults].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),

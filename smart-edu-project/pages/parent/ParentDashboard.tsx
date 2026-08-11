@@ -14,6 +14,7 @@ import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
+import { getQuizResultPercentage } from '../../utils/quizScoring';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -95,7 +96,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setChildren(myChildren);
       const childIds = new Set(myChildren.map(child => child.id));
       const allQuizzes = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]');
-      setAllQuizzes(allQuizzes.filter((quiz: QuizResult) => childIds.has(quiz.studentId)));
+       setAllQuizzes(allQuizzes
+         .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
+         .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })));
       setActiveChild(current =>
         current ? myChildren.find(child => child.id === current.id) || null : null,
       );
@@ -154,7 +157,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setChildren(myChildren);
       const childIds = new Set(myChildren.map(child => child.id));
       const allQuizzes = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]');
-      setAllQuizzes(allQuizzes.filter((quiz: QuizResult) => childIds.has(quiz.studentId)));
+       setAllQuizzes(allQuizzes
+         .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
+         .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })));
       setActiveChild(null);
     }
   };

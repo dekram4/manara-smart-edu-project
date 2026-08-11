@@ -5,6 +5,7 @@ import { getTeacherParents, getTeacherStudents } from '../../utils/scope';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { normalizeQuizType } from '../../utils/quizTypes';
 import { QuizType } from '../../types';
+import { getQuizResultPercentage } from '../../utils/quizScoring';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -34,7 +35,10 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       const teacherStudents = getTeacherStudents(allStudents, teacherId, teacherParents);
       const allQuizResults: QuizResult[] = JSON.parse(
         localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]',
-      );
+      ).map((quiz: QuizResult) => ({
+        ...quiz,
+        percentage: getQuizResultPercentage(quiz),
+      }));
 
       setParents(teacherParents);
       setStudents(teacherStudents);
@@ -55,9 +59,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     const avgScore = totalQuizzes > 0 
       ? effectiveQuizzes.reduce(
         (sum, quiz) => sum + (
-          'percentage' in quiz
-            ? quiz.percentage
-            : quiz.total > 0 ? (quiz.score / quiz.total) * 100 : quiz.score
+           getQuizResultPercentage(quiz)
         ),
         0,
       ) / totalQuizzes

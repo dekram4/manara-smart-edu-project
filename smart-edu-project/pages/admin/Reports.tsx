@@ -4,6 +4,7 @@ import { STORAGE_KEYS, COLORS } from '../../constants';
 import { StudentInfo, QuizResult, ParentInfo, ReportData, LessonConfig } from '../../types';
 import { getParentChildren, getTeacherParents, getTeacherStudents } from '../../utils/scope';
 import { getQuizTypeLabel as formatQuizTypeLabel } from '../../utils/quizTypes';
+import { getQuizResultPercentage } from '../../utils/quizScoring';
 
 const Reports: React.FC = () => {
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -24,7 +25,8 @@ const Reports: React.FC = () => {
   const loadData = () => {
     setData({
       students: JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]'),
-      quizzes: JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]'),
+       quizzes: JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]')
+         .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })),
       parents: JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]'),
       lessons: JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]'),
       teachers: JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]'),
