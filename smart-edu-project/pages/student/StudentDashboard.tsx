@@ -317,6 +317,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [showSelectionPanel, setShowSelectionPanel] = useState(false);
   const [explanationVideoIndex, setExplanationVideoIndex] = useState(0);
   const explanationVideoSignatureRef = useRef('');
+  const matchedContentSignatureRef = useRef('');
 
   const [currentQuiz, setCurrentQuiz] = useState<QuizQuestion[]>([]);
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
@@ -455,20 +456,20 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           refreshGamification();
         }
         matchContent(current);
-      } else if (isAuthenticated) {
-        setStudent(null);
-        setIsAuthenticated(false);
-        setActiveLesson(null);
-        setActiveModule(null);
+      } else {
+        // A transient localStorage read must never look like a logout. The
+        // explicit logout button is the only place allowed to clear the
+        // student session from this dashboard.
+        console.warn('[student] session read was temporarily unavailable; preserving current session');
       }
-    }, 2000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [student, isAuthenticated]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (isAuthenticated) refreshGamification();
-    }, 2000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
@@ -787,6 +788,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       });
     const found = matchingContent[0];
     if (!found) {
+      if (matchedContentSignatureRef.current === 'empty') return;
+      matchedContentSignatureRef.current = 'empty';
       setActiveLesson(null);
       explanationVideoSignatureRef.current = '';
       return;
@@ -802,6 +805,20 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       explanationVideoSignatureRef.current = videoSignature;
       setExplanationVideoIndex(0);
     }
+
+    // The session monitor runs periodically. Avoid replacing the lesson
+    // object when its content did not change; replacing it remounts the
+    // video/Swiper surfaces while a student is touching the screen.
+    const contentSignature = JSON.stringify({
+      id: found.id,
+      title: found.title,
+      description: found.description,
+      updatedAt: found.updatedAt,
+      videoSignature,
+    });
+    if (matchedContentSignatureRef.current === contentSignature) return;
+    matchedContentSignatureRef.current = contentSignature;
+
     setActiveLesson({
       ...found,
       explanationVideoUrl: mergedVideos[0]?.url || found.explanationVideoUrl || '',

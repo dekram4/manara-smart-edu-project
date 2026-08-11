@@ -9,6 +9,7 @@ import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import { getVideoSourceType, isMp4VideoUrl } from '../../utils/video';
 import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
 import TouchCarousel from '../../src/components/TouchCarousel';
+import { readActiveSession, readStorageArray } from '../../utils/storage';
 
 const GEMS_PER_VIDEO = 2;
 
@@ -46,13 +47,13 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
 
   useEffect(() => {
     loadVideos();
-    const refreshTimer = window.setInterval(loadVideos, 1500);
+    const refreshTimer = window.setInterval(loadVideos, 5000);
     return () => window.clearInterval(refreshTimer);
   }, [grade, atram, subject, term, unit]);
 
   useEffect(() => {
     setCurrentGems(getGems());
-    const timer = window.setInterval(() => setCurrentGems(getGems()), 1500);
+    const timer = window.setInterval(() => setCurrentGems(getGems()), 5000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -67,32 +68,35 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
   }, [isAutoPlaying, videos.length]);
 
   const loadVideos = () => {
-    const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
-    if (!saved) return;
-    const all: VideoRecord[] = JSON.parse(saved);
-    const student = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null',
-    ) as StudentInfo | null;
-    if (!student) {
+    try {
+      const all = readStorageArray<VideoRecord>(STORAGE_KEYS.VIDEOS);
+      const student = readActiveSession<StudentInfo>(STORAGE_KEYS.ACTIVE_STUDENT);
+      if (!student) {
+        setVideos([]);
+        setActiveIndex(0);
+        return;
+      }
+
+      const teacherVideos = filterTeacherOwnedRecords(all, student);
+      const generalVideos = all.filter(video => {
+        const owner = (video.createdBy || video.teacherId || '').toString().trim().toLowerCase();
+        return !owner || owner === 'admin';
+      });
+      const scoped = Array.from(
+        new Map([...teacherVideos, ...generalVideos].map(video => [video.id, video])).values(),
+      );
+      const filtered = scoped.filter(video =>
+        matchesAcademicScope(video, { grade, atram, subject, term, unit }),
+      );
+
+      setActiveIndex(current => Math.min(current, Math.max(filtered.length - 1, 0)));
+      setVideos(filtered);
+      setWatchedVideos(filtered.filter(video => hasCompletedActivity('video', video.id)).map(video => video.id));
+    } catch (error) {
+      console.warn('[student-videos] temporary storage read failure', error);
       setVideos([]);
-      return;
+      setActiveIndex(0);
     }
-
-    const teacherVideos = filterTeacherOwnedRecords(all, student);
-    const generalVideos = all.filter(video => {
-      const owner = (video.createdBy || video.teacherId || '').toString().trim().toLowerCase();
-      return !owner || owner === 'admin';
-    });
-    const scoped = Array.from(
-      new Map([...teacherVideos, ...generalVideos].map(video => [video.id, video])).values(),
-    );
-    const filtered = scoped.filter(video =>
-      matchesAcademicScope(video, { grade, atram, subject, term, unit }),
-    );
-
-    setActiveIndex(current => Math.min(current, Math.max(filtered.length - 1, 0)));
-    setVideos(filtered);
-    setWatchedVideos(filtered.filter(video => hasCompletedActivity('video', video.id)).map(video => video.id));
   };
 
   const extractVideoId = (url: string) => {

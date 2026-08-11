@@ -1,6 +1,7 @@
 import { STORAGE_KEYS } from '../constants';
 import type { StudentGamification, StudentInfo } from '../types';
 import { getQuizResultPercentage } from './quizScoring';
+import { readActiveSession, readStorageArray } from './storage';
 
 // 🎮 محرك الإنجاز (Gamification Engine) لمنصة منارة
 // نظام XP, Gems, Streak, Achievements مربوط بالمحتوى الحقيقي
@@ -40,14 +41,11 @@ function getStudentSuffix(studentInfo: StudentIdentity) {
 }
 
 function getScopedKey(key: string) {
-  let suffix = 'anonymous';
-  try {
-    const active = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
-    const identity = active?.id || active?.studentIdNumber || active?.username;
-    if (identity) suffix = String(identity).replace(/[^a-zA-Z0-9_-]/g, '_');
-  } catch {
-    // Use the anonymous namespace when no active student can be read.
-  }
+  const active = readActiveSession<StudentIdentity>(STORAGE_KEYS.ACTIVE_STUDENT);
+  const identity = active?.id || active?.studentIdNumber || active?.username;
+  const suffix = identity
+    ? String(identity).replace(/[^a-zA-Z0-9_-]/g, '_')
+    : 'anonymous';
   return `${key}_${suffix}`;
 }
 
@@ -436,23 +434,11 @@ export function getGamificationStats() {
  * the scoped localStorage keys or duplicating the reward engine.
  */
 export function syncGamificationToStudent(studentInfo?: StudentInfo | null): StudentGamification | null {
-  let active: StudentInfo | null = studentInfo || null;
-  if (!active) {
-    try {
-      active = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
-    } catch {
-      active = null;
-    }
-  }
+  const active = studentInfo || readActiveSession<StudentInfo>(STORAGE_KEYS.ACTIVE_STUDENT);
   if (!active?.id) return null;
 
   const stats = getGamificationStats();
-  let quizResults: any[] = [];
-  try {
-    quizResults = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]');
-  } catch {
-    quizResults = [];
-  }
+  const quizResults = readStorageArray<any>(STORAGE_KEYS.QUIZ_RESULTS);
   const studentQuizResults = quizResults.filter((result) => result?.studentId === active!.id);
   const fallbackQuizResults = Array.isArray(active.quizResults) ? active.quizResults : [];
   const effectiveQuizResults = studentQuizResults.length > 0 ? studentQuizResults : fallbackQuizResults;
@@ -479,12 +465,7 @@ export function syncGamificationToStudent(studentInfo?: StudentInfo | null): Stu
     updatedAt: new Date().toISOString(),
   };
 
-  let students: StudentInfo[] = [];
-  try {
-    students = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-  } catch {
-    students = [];
-  }
+  const students = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
   const currentStudent = students.find((student) => student.id === active!.id);
   const previousSnapshot = currentStudent?.gamification;
   const progressChanged = !previousSnapshot || (

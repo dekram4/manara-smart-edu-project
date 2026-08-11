@@ -1,5 +1,6 @@
 import { ParentInfo, StudentInfo } from '../types';
 import { STORAGE_KEYS } from '../constants';
+import { readStorageArray } from './storage';
 
 type OwnedRecord = {
   createdBy?: string;
@@ -46,11 +47,7 @@ export const getParentTeacherId = (
  * legacy teacher assignment.
  */
 function loadParentsFromStorage(): ParentInfo[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
-  } catch {
-    return [];
-  }
+  return readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
 }
 
 export const getStudentTeacherScope = (
