@@ -51,6 +51,7 @@ import {
   getQuizTypeLabel,
 } from '../../utils/quizTypes';
 import { getCorrectAnswerText, isQuizAnswerCorrect } from '../../utils/quizScoring';
+import { readActiveSession, readStorageArray } from '../../utils/storage';
 
 const stableQuestionHash = (value: string): number => {
   let hash = 2166136261;
@@ -364,7 +365,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   useEffect(() => {
-    const active = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
+    const active = readActiveSession<StudentInfo>(STORAGE_KEYS.ACTIVE_STUDENT);
     if (active) {
       ensureGamificationResetIfNeeded(active);
       hydrateGamificationFromStudent(active);
@@ -426,7 +427,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null');
+      const current = readActiveSession<StudentInfo>(STORAGE_KEYS.ACTIVE_STUDENT);
       if (current) {
         const accountChanged = current.id !== student?.id;
         const sessionDataChanged = current.lastActivity !== student?.lastActivity ||
@@ -494,7 +495,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   useEffect(() => {
     if (!student?.grade) return;
-    const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     const studentScope = getStudentTeacherScope(student);
     const same = allStudents.filter((s: any) => {
       const sameGrade = (s.grade || '').toString().trim().toLowerCase() === (student.grade || '').toString().trim().toLowerCase();
@@ -510,7 +511,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const loadChatMessages = () => {
     if (!student?.grade || !chatEnabled) return;
 
-    const allMessages = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_MESSAGES) || '[]');
+    const allMessages = readStorageArray(STORAGE_KEYS.CHAT_MESSAGES);
     const studentScope = getStudentTeacherScope(student);
 
     const gradeMessages = allMessages
@@ -565,7 +566,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       time: new Date().toISOString(),
       teacherId: getStudentTeacherScope(student).teacherId
     };
-    const allMessages = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_MESSAGES) || '[]');
+    const allMessages = readStorageArray(STORAGE_KEYS.CHAT_MESSAGES);
     allMessages.push(newMessage);
     localStorage.setItem(STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(allMessages));
     loadChatMessages();
@@ -574,9 +575,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const getFilteredHierarchicalConfigs = () => {
-    const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
-    const allParents = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
-    const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const allConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
+    const allParents = readStorageArray(STORAGE_KEYS.PARENTS);
+    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     if (!student) return [];
 
     const filtered = filterTeacherOwnedRecords(allConfigs, student, allParents, allStudents);
@@ -741,9 +742,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setStudent(updatedStudent);
     localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
 
-    const allStudents: StudentInfo[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]',
-    );
+    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     localStorage.setItem(
       STORAGE_KEYS.STUDENTS,
       JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
@@ -753,7 +752,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const matchContent = (s: StudentInfo) => {
-    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]');
+    const all = readStorageArray<LessonConfig>(STORAGE_KEYS.LESSON_CONFIGS);
     const teacherContent = filterTeacherOwnedRecords(all, s);
     const generalContent = all.filter((lesson: LessonConfig) => {
       const owner = normalizeScopeValue(getRecordTeacherId(lesson));
@@ -813,10 +812,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const startQuiz = (type: QuizType, requestedQuizId?: string): boolean => {
     playLamsaSound('pop');
     if (!student) return false;
-    const allQuestions: QuizQuestion[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_QUESTIONS) || '[]');
-    const createdQuizzes: CreatedQuiz[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
-    ).map(normalizeCreatedQuiz);
+    const allQuestions = readStorageArray<QuizQuestion>(STORAGE_KEYS.QUIZ_QUESTIONS);
+    const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES).map(normalizeCreatedQuiz);
 
     const academicPath = {
       grade: selectedGrade,
@@ -837,9 +834,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     // question set.
     const quizIdForAttempt = selectedCreatedQuiz?.id || requestedQuizId;
     if (type === QuizType.TEACHER && quizIdForAttempt) {
-      const allResults: QuizResult[] = JSON.parse(
-        localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]',
-      );
+      const allResults = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
       const previousResult = [...allResults, ...(student.quizResults || [])]
         .filter((result, index, all) =>
           result.studentId === student.id &&
@@ -924,7 +919,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     };
     try {
       return filterTeacherOwnedRecords(
-        JSON.parse(localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]')
+        readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)
           .map(normalizeCreatedQuiz),
         student,
       )
@@ -946,9 +941,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unit: selectedUnit,
     };
     try {
-      const createdQuizzes: CreatedQuiz[] = JSON.parse(
-        localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
-      ).map(normalizeCreatedQuiz);
+      const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES).map(normalizeCreatedQuiz);
       return filterTeacherOwnedRecords(createdQuizzes, student)
         .filter((quiz) => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
         .filter((quiz) => matchesAcademicScope(quiz, academicPath));
@@ -978,9 +971,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       firstQuestion?.unit || selectedUnit,
     ].map(normalizeScopeValue).join(':');
     const quizId = activeQuizId || firstQuestion?.quizId || fallbackQuizId;
-    const allResults: QuizResult[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]',
-    );
+    const allResults = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
     const previousResults = [...allResults, ...(student.quizResults || [])]
       .filter((result, index, all) =>
         result.studentId === student.id &&
@@ -1064,9 +1055,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       lastActivity: createdAt,
       quizResults: [...(student.quizResults || []), quizResultRecord],
     };
-    const allStudents: StudentInfo[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]',
-    );
+    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     localStorage.setItem(
       STORAGE_KEYS.STUDENTS,
       JSON.stringify(allStudents.map((item) => item.id === student.id ? updatedStudent : item)),
@@ -1144,7 +1133,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const handleLogin = (username: string, password: string) => {
-    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const all = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     const found = all.find((s: StudentInfo) => 
       (s.username === username || s.studentIdNumber === username) && passwordsMatch(password, s.password)
     );
@@ -1273,7 +1262,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const updatedStudent: StudentInfo = { ...student, appearance };
     setStudent(updatedStudent);
     localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
-    const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     localStorage.setItem(
       STORAGE_KEYS.STUDENTS,
       JSON.stringify(allStudents.map(current => current.id === student.id ? updatedStudent : current)),

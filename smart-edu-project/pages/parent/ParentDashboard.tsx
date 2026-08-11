@@ -15,6 +15,7 @@ import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../ut
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
+import { readActiveSession, readStorageArray } from '../../utils/storage';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -94,13 +95,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   }, [isAuthenticated, activeChild]);
 
   const loadChildrenOnly = () => {
-    const activeUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_PARENT) || 'null');
+    const activeUser = readActiveSession<ParentInfo>(STORAGE_KEYS.ACTIVE_PARENT);
     if (activeUser) {
-      const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+      const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
       const myChildren = getParentChildren(allStudents, activeUser);
       setChildren(myChildren);
       const childIds = new Set(myChildren.map(child => child.id));
-      const allQuizzes = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]');
+      const allQuizzes = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
        setAllQuizzes(allQuizzes
          .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
          .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })));
@@ -111,13 +112,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const loadAcademicSettings = () => {
-    setGrades(JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]'));
-    setSubjects(JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]'));
-    setAtrams(JSON.parse(localStorage.getItem(STORAGE_KEYS.ATRAMS) || '[]'));
-    setTerms(JSON.parse(localStorage.getItem(STORAGE_KEYS.TERMS) || '[]'));
-    setUnits(JSON.parse(localStorage.getItem(STORAGE_KEYS.UNITS) || '[]'));
-    setGradeConfigs(JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADE_CONFIGS) || '[]'));
-    setHierarchicalConfigs(JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]'));
+    setGrades(readStorageArray<string>(STORAGE_KEYS.GRADES));
+    setSubjects(readStorageArray<string>(STORAGE_KEYS.SUBJECTS));
+    setAtrams(readStorageArray<string>(STORAGE_KEYS.ATRAMS));
+    setTerms(readStorageArray<string>(STORAGE_KEYS.TERMS));
+    setUnits(readStorageArray<string>(STORAGE_KEYS.UNITS));
+    setGradeConfigs(readStorageArray(STORAGE_KEYS.GRADE_CONFIGS));
+    setHierarchicalConfigs(readStorageArray<HierarchicalConfig>(STORAGE_KEYS.HIERARCHICAL_CONFIGS));
   };
 
   const flattenGradeConfig = (cfg: any) => {
@@ -153,15 +154,15 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const loadData = () => {
-      const activeUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_PARENT) || 'null');
+      const activeUser = readActiveSession<ParentInfo>(STORAGE_KEYS.ACTIVE_PARENT);
     if (activeUser) {
       setParent(activeUser);
       setIsAuthenticated(true);
-      const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+      const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
        const myChildren = getParentChildren(allStudents, activeUser);
       setChildren(myChildren);
       const childIds = new Set(myChildren.map(child => child.id));
-      const allQuizzes = JSON.parse(localStorage.getItem(STORAGE_KEYS.QUIZ_RESULTS) || '[]');
+      const allQuizzes = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
        setAllQuizzes(allQuizzes
          .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
          .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })));
@@ -170,7 +171,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const handleLogin = (username: string, pass: string) => {
-    const parents = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const parents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
     const found = parents.find((p: ParentInfo) => p.username === username && passwordsMatch(pass, p.password));
     if (found) {
       if (found.mustChangePassword === true) {
@@ -188,7 +189,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const handleAccountPasswordChange = (newPass: string) => {
     if (!parent) return;
-    const parents = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const parents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
     const updated = parents.map((p: ParentInfo) => p.id === parent.id ? { ...p, password: hashPassword(newPass), mustChangePassword: false } : p);
     localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updated));
     const finalParent = updated.find((p: any) => p.id === parent.id);
@@ -239,7 +240,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
       return;
     }
-    const studentsList = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const studentsList = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     const currentChildren = parent ? getParentChildren(studentsList, parent) : [];
     if (isLimitReached(currentChildren.length, permissions.maxStudents)) {
       alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxStudents}) من الأبناء`);
@@ -260,7 +261,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     let gradeEnrollments = newChild.gradeEnrollments.length > 0 ? newChild.gradeEnrollments : [];
     if (gradeEnrollments.length === 0) {
       try {
-        const configs = JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADE_CONFIGS) || '[]');
+        const configs = readStorageArray(STORAGE_KEYS.GRADE_CONFIGS);
         const found = configs.find((c: any) => c.grade === newChild.primaryGrade);
         const flattened = flattenGradeConfig(found);
         if (flattened.length > 0) gradeEnrollments = [{ grade: newChild.primaryGrade, enrollments: flattened }];
@@ -297,7 +298,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
     const updatedStudents = [...studentsList, child];
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
-    const parentsList = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const parentsList = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
     const updatedParents = parentsList.map((p: ParentInfo) => p.id === parent?.id ? { ...p, children: [...(p.children || []), child] } : p);
     localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
     const refreshedParent = updatedParents.find((p: ParentInfo) => p.id === parent?.id);
@@ -317,7 +318,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const newPass = prompt(`أدخل كلمة مرور جديدة لـ ${child.name}:`, DEFAULT_PASSWORD);
     if (newPass) {
       if (newPass.length < 6) { alert('كلمة المرور قصيرة جداً'); return; }
-      const students = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+      const students = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
       const updated = students.map((s: StudentInfo) => s.id === child.id ? { ...s, password: hashPassword(newPass) } : s);
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
       alert('تم تغيير كلمة المرور بنجاح');
@@ -329,7 +330,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     if (!permissions.canChangeGrade) { alert('❌ ليس لديك صلاحية تغيير الصف'); return; }
     const teacherId = parent ? getParentTeacherId(parent, students) : '';
     if (!teacherId) { alert('⚠️ لم يتم العثور على معلم مرتبط بحسابك'); return; }
-    const hierarchicalConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const hierarchicalConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
      const teacherConfigs = hierarchicalConfigs.filter((config: any) => getRecordTeacherId(config) === teacherId);
     const gradesSet = new Set<string>();
     teacherConfigs.forEach((config: any) => { if (config.grade) gradesSet.add(config.grade); });
@@ -343,7 +344,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const handleConfirmGradeChange = () => {
     if (!studentToChangeGrade || !selectedNewGrade) return;
-    const students = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const students = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     const updated = students.map((s: StudentInfo) => s.id === studentToChangeGrade.id ? { ...s, primaryGrade: selectedNewGrade, grade: selectedNewGrade } : s);
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
     alert('✅ تم تغيير الصف بنجاح');
@@ -367,7 +368,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const getChildSubjects = (child: StudentInfo) => {
     const set = new Set<string>();
     try {
-      const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+      const allConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
       const studentScope = getStudentTeacherScope(child);
       const teacherId = studentScope.teacherId || (
         studentScope.explicit
@@ -517,7 +518,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const teacherQuizzes = childQuizzes.filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER);
     const periodicAvg = periodicQuizzes.length > 0 ? (periodicQuizzes.reduce((acc, q) => acc + q.percentage, 0) / periodicQuizzes.length).toFixed(1) : '0';
     const teacherAvg = teacherQuizzes.length > 0 ? (teacherQuizzes.reduce((acc, q) => acc + q.percentage, 0) / teacherQuizzes.length).toFixed(1) : '0';
-    const certificates = JSON.parse(localStorage.getItem(CERT_KEY) || '[]');
+      const certificates = readStorageArray<CertificateRecord>(CERT_KEY);
     const studentCertificates = certificates.filter((c: any) => c.studentId === child.id && c.subject === subject);
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -1747,13 +1748,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       {parent && (
         <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-40">
           {(() => {
-            const parents = JSON.parse(localStorage.getItem('smartEdu_parents') || '[]');
+            const parents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
             const myParent = parents.find((p: any) => p.id === parent.id);
             const parentTeacherId = myParent
               ? getParentTeacherId(myParent, children)
               : '';
             if (parentTeacherId) {
-              const teachers = JSON.parse(localStorage.getItem('smartEdu_teachers') || '[]');
+            const teachers = readStorageArray(STORAGE_KEYS.TEACHERS);
               const teacher = teachers.find((t: any) =>
                 getRecordTeacherId({ teacherId: t.id }) === parentTeacherId,
               );

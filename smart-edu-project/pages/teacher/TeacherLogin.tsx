@@ -3,6 +3,7 @@ import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ManaraBrand from '../../src/components/ManaraBrand';
+import { readStorageArray } from '../../utils/storage';
 
 interface TeacherLoginProps {
   onLoginSuccess: (teacher: TeacherInfo) => void;
@@ -22,7 +23,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
     e.preventDefault();
     setError('');
 
-    const teachers: TeacherInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
+    const teachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
     const teacher = teachers.find(t => t.username === username && passwordsMatch(password, t.password));
 
     if (!teacher) {
@@ -65,7 +66,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
     if (!currentTeacher) return;
 
     const hashedPassword = hashPassword(newPassword);
-    const teachers: TeacherInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
+    const teachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
     const updated = teachers.map(t =>
       t.id === currentTeacher.id
         ? { ...t, password: hashedPassword, mustChangePassword: false }

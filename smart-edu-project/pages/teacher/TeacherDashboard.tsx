@@ -17,6 +17,7 @@ import { playWelcomeAdult } from '../../utils/sounds';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import ManaraBrand from '../../src/components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
+import { readActiveSession, readStorageArray } from '../../utils/storage';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -39,9 +40,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     if (isAuthenticated && currentTeacher) {
       loadDashboardStats();
       const interval = window.setInterval(() => {
-        const storedTeachers: TeacherInfo[] = JSON.parse(
-          localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]',
-        );
+        const storedTeachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
         const latestTeacher = storedTeachers.find(teacher => teacher.id === currentTeacher.id);
         if (latestTeacher && JSON.stringify(latestTeacher) !== JSON.stringify(currentTeacher)) {
           setCurrentTeacher(latestTeacher);
@@ -57,21 +56,21 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     if (!currentTeacher) return;
 
     // Load parents
-    const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
+    const allParents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
      const teacherParents = getTeacherParents(allParents, currentTeacher.id);
 
     // Load students
-    const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
      const teacherStudents = getTeacherStudents(allStudents, currentTeacher.id, teacherParents);
 
     // Load lessons
-    const allLessons: LessonConfig[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]');
+    const allLessons = readStorageArray<LessonConfig>(STORAGE_KEYS.LESSON_CONFIGS);
     const teacherLessons = allLessons.filter(l =>
       getRecordTeacherId(l) === normalizeScopeValue(currentTeacher.id)
     );
 
     // Load academic settings
-    const hierarchicalConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const hierarchicalConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     const teacherConfigs = hierarchicalConfigs.filter((c: any) =>
       getRecordTeacherId(c) === normalizeScopeValue(currentTeacher.id)
     );
@@ -96,9 +95,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   // Admin package assignment updates TEACHERS while this dashboard can remain open.
   const latestStoredTeacher = (() => {
     try {
-      const teachers: TeacherInfo[] = JSON.parse(
-        localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]',
-      );
+      const teachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
       return teachers.find(teacher => teacher.id === currentTeacher.id) || currentTeacher;
     } catch {
       return currentTeacher;

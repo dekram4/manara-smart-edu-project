@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { Component, ErrorInfo, ReactNode, useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import Spline from '@splinetool/react-spline';
 import { gsap } from 'gsap';
@@ -55,6 +55,52 @@ export const triggerCelebration = (won = true) => {
 };
 
 type MainView = 'role' | 'admin' | 'teacher' | 'student' | 'parent';
+
+class DashboardErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; errorMessage: string }
+> {
+  state = { hasError: false, errorMessage: '' };
+
+  static getDerivedStateFromError(error: unknown) {
+    return {
+      hasError: true,
+      errorMessage: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
+    };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[app] dashboard render error:', error, errorInfo);
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, errorMessage: '' });
+  };
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div dir="rtl" className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-8 font-tajawal text-white">
+        <div className="w-full max-w-md rounded-3xl border border-amber-300/30 bg-white/10 p-6 text-center shadow-2xl backdrop-blur-xl sm:p-8">
+          <div className="mb-4 text-5xl">🛟</div>
+          <h1 className="mb-2 text-2xl font-black">حدثت مشكلة مؤقتة</h1>
+          <p className="mb-6 text-sm font-bold leading-7 text-slate-300">
+            لم يتم تسجيل خروجك. أعد المحاولة لاستكمال الشاشة، وستبقى بياناتك وجلسة الدخول محفوظة.
+          </p>
+          <button
+            type="button"
+            onClick={this.handleRetry}
+            className="min-h-11 w-full rounded-2xl bg-cyan-500 px-5 py-3 font-black text-slate-950 transition hover:bg-cyan-300"
+          >
+            إعادة المحاولة
+          </button>
+          <p className="mt-4 break-words text-[11px] text-slate-500">{this.state.errorMessage}</p>
+        </div>
+      </div>
+    );
+  }
+}
 
 const BootLoader: React.FC = () => {
   const loaderRef = useRef<HTMLDivElement | null>(null);
@@ -225,7 +271,7 @@ const App: React.FC = () => {
     <div className="min-h-screen font-tajawal">
       <ScrollDownButton />
       <GameControls />
-      {renderView()}
+      <DashboardErrorBoundary key={mainView}>{renderView()}</DashboardErrorBoundary>
       {syncing && (
         <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] max-w-[calc(100vw-2rem)] bg-white/90 border border-gray-300 rounded-3xl shadow-xl px-4 py-3 backdrop-blur-md flex items-center gap-3">
           <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
