@@ -14,7 +14,7 @@ import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
-import { getQuizResultPercentage } from '../../utils/quizScoring';
+import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -555,6 +555,97 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     printWindow.print();
   };
 
+  const printTeacherResultsReport = (child: StudentInfo) => {
+    const teacherQuizzes = allQuizzes
+      .filter(q => q.studentId === child.id && normalizeQuizType(q.quizType) === QuizType.TEACHER)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (teacherQuizzes.length === 0) return;
+
+    const average = Math.round(
+      teacherQuizzes.reduce((sum, quiz) => sum + getQuizResultPercentage(quiz), 0) / teacherQuizzes.length,
+    );
+    const level = average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين';
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+        <head>
+          <meta charset="UTF-8">
+          <title>نتائج اختبارات المعلم - ${child.name}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 32px; color: #172033; background: #f8fafc; }
+            .header { text-align: center; background: linear-gradient(135deg, #be123c, #f97316); color: white; padding: 28px; border-radius: 18px; margin-bottom: 20px; }
+            .header h1 { margin: 0 0 8px; font-size: 30px; }
+            .info, .summary, .result { background: white; border-radius: 16px; padding: 18px; margin-bottom: 18px; box-shadow: 0 2px 8px rgba(15,23,42,.08); }
+            .info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+            .info strong, .summary strong { display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }
+            .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; text-align: center; }
+            .summary .value { font-size: 25px; font-weight: 900; color: #be123c; }
+            .result h2 { margin: 0 0 12px; color: #9f1239; font-size: 20px; }
+            .result-meta { display: flex; flex-wrap: wrap; gap: 14px; color: #475569; font-size: 13px; margin-bottom: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { border: 1px solid #e2e8f0; padding: 9px; text-align: right; font-size: 12px; }
+            th { background: #be123c; color: white; }
+            .score { font-size: 24px; font-weight: 900; color: #be123c; }
+            .correct { color: #047857; font-weight: 800; }
+            .wrong { color: #b91c1c; font-weight: 800; }
+            .footer { text-align: center; color: #64748b; font-size: 11px; margin-top: 24px; }
+            @media print { body { background: white; padding: 12px; } .result { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>📝 نتائج اختبارات المعلم</h1>
+            <p>تقرير مستقل لأداء الطالب في تقييمات المعلم</p>
+          </div>
+          <div class="info">
+            <div><strong>اسم الطالب</strong>${child.name}</div>
+            <div><strong>الصف</strong>${child.primaryGrade || child.grade || '—'}</div>
+            <div><strong>ولي الأمر</strong>${parent?.name || '—'}</div>
+            <div><strong>تاريخ التقرير</strong>${new Date().toLocaleDateString('ar-SA')}</div>
+          </div>
+          <div class="summary">
+            <div><strong>عدد اختبارات المعلم</strong><div class="value">${teacherQuizzes.length}</div></div>
+            <div><strong>المعدل</strong><div class="value">${average}%</div></div>
+            <div><strong>أعلى نتيجة</strong><div class="value">${Math.max(...teacherQuizzes.map(getQuizResultPercentage))}%</div></div>
+            <div><strong>التقدير العام</strong><div class="value">${level}</div></div>
+          </div>
+          ${teacherQuizzes.map((quiz) => `
+            <section class="result">
+              <h2>${quiz.quizTitle || 'اختبار المعلم'}</h2>
+              <div class="result-meta">
+                <span><b>المادة:</b> ${quiz.subject || '—'}</span>
+                <span><b>الوحدة:</b> ${quiz.unit || '—'}</span>
+                <span><b>الصف:</b> ${quiz.grade || '—'}</span>
+                <span><b>التاريخ:</b> ${new Date(quiz.createdAt).toLocaleString('ar-SA')}</span>
+              </div>
+              <div class="score">النتيجة: ${getQuizResultScore(quiz)} / ${quiz.total || 0} — ${getQuizResultPercentage(quiz)}% — ${quiz.level || '—'}</div>
+              ${Array.isArray(quiz.details) && quiz.details.length > 0 ? `
+                <table>
+                  <thead><tr><th>#</th><th>السؤال</th><th>إجابة الطالب</th><th>الإجابة الصحيحة</th><th>الحالة</th></tr></thead>
+                  <tbody>${quiz.details.map((detail, index) => `
+                    <tr>
+                      <td>${index + 1}</td>
+                      <td>${detail.question}</td>
+                      <td>${detail.userAnswer || '—'}</td>
+                      <td>${detail.correctAnswer || '—'}</td>
+                      <td class="${detail.isCorrect ? 'correct' : 'wrong'}">${detail.isCorrect ? 'صحيحة' : 'خاطئة'}</td>
+                    </tr>
+                  `).join('')}</tbody>
+                </table>
+              ` : ''}
+            </section>
+          `).join('')}
+          <div class="footer">تم إنشاء التقرير بواسطة منصة التعليم الذكي — ${new Date().toLocaleString('ar-SA')}</div>
+          <script>window.onload = function() { setTimeout(() => window.print(), 400); };</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   if (!isAuthenticated) {
     return needsPasswordChange ?
       <ParentAccountSetup parent={parent!} onPasswordChange={handleAccountPasswordChange} /> :
@@ -743,6 +834,56 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </div>
 
                 {/* Subject Cards — compact grid */}
+                    {(() => {
+                      const teacherQuizzes = myChildQuizzes
+                        .filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER)
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                      const average = teacherQuizzes.length > 0
+                        ? Math.round(teacherQuizzes.reduce((sum, quiz) => sum + getQuizResultPercentage(quiz), 0) / teacherQuizzes.length)
+                        : 0;
+                      return (
+                        <div className="bg-gradient-to-br from-rose-50 to-orange-50 p-4 rounded-2xl border-2 border-rose-200 shadow-sm">
+                          <div className="flex items-center justify-between gap-3 mb-3">
+                            <div>
+                              <h3 className="text-base font-black text-rose-800">📝 نتائج اختبارات المعلم</h3>
+                              <p className="text-xs text-rose-500 font-bold mt-1">نتائج منفصلة عن الاختبارات الدورية</p>
+                            </div>
+                            {teacherQuizzes.length > 0 && (
+                              <button onClick={() => printTeacherResultsReport(activeChild)} className="bg-rose-500 text-white px-4 py-2 rounded-xl font-black text-xs hover:bg-rose-600 transition-all">
+                                🖨️ طباعة النتائج
+                              </button>
+                            )}
+                          </div>
+                          {teacherQuizzes.length > 0 ? (
+                            <>
+                              <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                                <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-rose-400 font-bold">الاختبارات</p><p className="text-xl text-rose-700 font-black">{teacherQuizzes.length}</p></div>
+                                <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-rose-400 font-bold">المعدل</p><p className="text-xl text-rose-700 font-black">{average}%</p></div>
+                                <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-rose-400 font-bold">التقدير</p><p className="text-base text-rose-700 font-black">{average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين'}</p></div>
+                              </div>
+                              <div className="space-y-2">
+                                {teacherQuizzes.map((quiz) => (
+                                  <div key={quiz.id} className="bg-white p-3 rounded-xl border border-rose-100 flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="font-black text-sm text-rose-800 truncate">{quiz.quizTitle || 'اختبار المعلم'}</p>
+                                      <p className="text-[10px] text-rose-400 font-bold">{quiz.subject || '—'} • {quiz.unit || '—'} • {new Date(quiz.createdAt).toLocaleDateString('ar-SA')}</p>
+                                    </div>
+                                    <div className="text-left shrink-0">
+                                      <p className="font-black text-rose-700">{getQuizResultScore(quiz)} / {quiz.total || 0}</p>
+                                      <p className="text-xs font-black text-rose-500">{getQuizResultPercentage(quiz)}% • {quiz.level || '—'}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <p className="bg-white/70 rounded-xl p-4 text-center text-rose-400 font-bold text-sm">لم ينجز الطالب اختبار معلم بعد</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Subject Cards — compact grid */}
                 <div>
                   <h3 className="text-lg font-black mb-4 text-rose-800 flex items-center gap-2">
                     <span className="w-1.5 h-5 bg-rose-500 rounded-full"></span> 📚 المواد والتحصيل

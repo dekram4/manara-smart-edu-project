@@ -5,7 +5,7 @@ import { getTeacherParents, getTeacherStudents } from '../../utils/scope';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { normalizeQuizType } from '../../utils/quizTypes';
 import { QuizType } from '../../types';
-import { getQuizResultPercentage } from '../../utils/quizScoring';
+import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -184,6 +184,95 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </html>
     `);
     
+    printWindow.document.close();
+  };
+
+  const printTeacherResultsReport = (student: StudentInfo) => {
+    const teacherResults = getTeacherResults(student.id);
+    if (teacherResults.length === 0) return;
+
+    const average = Math.round(
+      teacherResults.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / teacherResults.length,
+    );
+    const level = average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين';
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+        <head>
+          <meta charset="UTF-8">
+          <title>نتائج اختبارات المعلم - ${student.name}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 32px; color: #172033; background: #f8fafc; }
+            .header { text-align: center; background: linear-gradient(135deg, #7c3aed, #db2777); color: white; padding: 28px; border-radius: 18px; margin-bottom: 20px; }
+            .header h1 { margin: 0 0 8px; font-size: 30px; }
+            .info, .summary, .result { background: white; border-radius: 16px; padding: 18px; margin-bottom: 18px; box-shadow: 0 2px 8px rgba(15,23,42,.08); }
+            .info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+            .info strong, .summary strong { display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }
+            .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; text-align: center; }
+            .summary .value { font-size: 25px; font-weight: 900; color: #7c3aed; }
+            .result h2 { margin: 0 0 12px; color: #6d28d9; font-size: 20px; }
+            .result-meta { display: flex; flex-wrap: wrap; gap: 14px; color: #475569; font-size: 13px; margin-bottom: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { border: 1px solid #e2e8f0; padding: 9px; text-align: right; font-size: 12px; }
+            th { background: #7c3aed; color: white; }
+            .score { font-size: 24px; font-weight: 900; color: #7c3aed; }
+            .correct { color: #047857; font-weight: 800; }
+            .wrong { color: #b91c1c; font-weight: 800; }
+            .footer { text-align: center; color: #64748b; font-size: 11px; margin-top: 24px; }
+            @media print { body { background: white; padding: 12px; } .result { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>📝 نتائج اختبارات المعلم</h1>
+            <p>تقرير مستقل لأداء الطالب في تقييمات المعلم</p>
+          </div>
+          <div class="info">
+            <div><strong>اسم الطالب</strong>${student.name}</div>
+            <div><strong>الصف</strong>${student.primaryGrade || student.grade || '—'}</div>
+            <div><strong>ولي الأمر</strong>${getParentName(student.parentId)}</div>
+            <div><strong>تاريخ التقرير</strong>${new Date().toLocaleDateString('ar-SA')}</div>
+          </div>
+          <div class="summary">
+            <div><strong>عدد اختبارات المعلم</strong><div class="value">${teacherResults.length}</div></div>
+            <div><strong>المعدل</strong><div class="value">${average}%</div></div>
+            <div><strong>أعلى نتيجة</strong><div class="value">${Math.max(...teacherResults.map(getQuizResultPercentage))}%</div></div>
+            <div><strong>التقدير العام</strong><div class="value">${level}</div></div>
+          </div>
+          ${teacherResults.map((result) => `
+            <section class="result">
+              <h2>${result.quizTitle || 'اختبار المعلم'}</h2>
+              <div class="result-meta">
+                <span><b>المادة:</b> ${result.subject || '—'}</span>
+                <span><b>الوحدة:</b> ${result.unit || '—'}</span>
+                <span><b>الصف:</b> ${result.grade || '—'}</span>
+                <span><b>التاريخ:</b> ${new Date(result.createdAt).toLocaleString('ar-SA')}</span>
+              </div>
+              <div class="score">النتيجة: ${getQuizResultScore(result)} / ${result.total || 0} — ${getQuizResultPercentage(result)}% — ${result.level || '—'}</div>
+              ${Array.isArray(result.details) && result.details.length > 0 ? `
+                <table>
+                  <thead><tr><th>#</th><th>السؤال</th><th>إجابة الطالب</th><th>الإجابة الصحيحة</th><th>الحالة</th></tr></thead>
+                  <tbody>${result.details.map((detail, index) => `
+                    <tr>
+                      <td>${index + 1}</td>
+                      <td>${detail.question}</td>
+                      <td>${detail.userAnswer || '—'}</td>
+                      <td>${detail.correctAnswer || '—'}</td>
+                      <td class="${detail.isCorrect ? 'correct' : 'wrong'}">${detail.isCorrect ? 'صحيحة' : 'خاطئة'}</td>
+                    </tr>
+                  `).join('')}</tbody>
+                </table>
+              ` : ''}
+            </section>
+          `).join('')}
+          <div class="footer">تم إنشاء التقرير بواسطة منصة التعليم الذكي — ${new Date().toLocaleString('ar-SA')}</div>
+          <script>window.onload = function() { setTimeout(() => window.print(), 400); };</script>
+        </body>
+      </html>
+    `);
     printWindow.document.close();
   };
 
@@ -378,6 +467,67 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* تفاصيل أولياء الأمور */}
+      <div className="bg-white p-6 rounded-2xl shadow-lg">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-2xl font-black text-gray-800">📝 نتائج اختبارات المعلم</h2>
+            <p className="text-sm text-gray-500 font-bold mt-1">نتائج منفصلة عن الاختبارات الدورية مع طباعة تفصيلية</p>
+          </div>
+        </div>
+        {filteredStudents.some((student) => getTeacherResults(student.id).length > 0) ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {filteredStudents
+              .filter((student) => getTeacherResults(student.id).length > 0)
+              .map((student) => {
+                const results = getTeacherResults(student.id);
+                const average = Math.round(
+                  results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length,
+                );
+                return (
+                  <div key={student.id} className="border border-purple-100 rounded-2xl p-4 bg-gradient-to-br from-purple-50 to-pink-50">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="font-black text-purple-900">{student.name}</h3>
+                        <p className="text-xs text-purple-500 font-bold">{student.primaryGrade || student.grade || '—'} • {results.length} اختبار</p>
+                      </div>
+                      <button
+                        onClick={() => printTeacherResultsReport(student)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl font-black text-xs"
+                      >
+                        🖨️ طباعة
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                      <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">المعدل</p><p className="text-lg text-purple-700 font-black">{average}%</p></div>
+                      <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">أعلى</p><p className="text-lg text-purple-700 font-black">{Math.max(...results.map(getQuizResultPercentage))}%</p></div>
+                      <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-purple-400 font-bold">التقدير</p><p className="text-sm text-purple-700 font-black">{average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين'}</p></div>
+                    </div>
+                    <div className="space-y-2">
+                      {results.map((result) => (
+                        <div key={result.id} className="bg-white rounded-xl p-3 border border-purple-100 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-black text-sm text-purple-900 truncate">{result.quizTitle || 'اختبار المعلم'}</p>
+                            <p className="text-[10px] text-purple-500 font-bold">{result.subject || '—'} • {result.unit || '—'} • {new Date(result.createdAt).toLocaleDateString('ar-SA')}</p>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <p className="font-black text-purple-700">{getQuizResultScore(result)} / {result.total || 0}</p>
+                            <p className="text-xs font-black text-purple-500">{getQuizResultPercentage(result)}% • {result.level || '—'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-purple-50 rounded-xl border-2 border-dashed border-purple-200 text-purple-500 font-bold">
+            لا توجد نتائج اختبارات معلم حتى الآن
           </div>
         )}
       </div>
