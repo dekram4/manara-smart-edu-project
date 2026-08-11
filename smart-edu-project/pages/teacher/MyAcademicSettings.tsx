@@ -3,6 +3,7 @@ import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig, TeacherInfo } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissionDetails } from '../../permissions';
+import { dedupeHierarchicalConfigs } from '../../utils/academic';
 
 interface MyAcademicSettingsProps {
   teacher?: TeacherInfo | null;
@@ -80,14 +81,20 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   function loadSettings(tId: string) {
     if (!tId) return;
     
-    const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const rawConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const allConfigs = dedupeHierarchicalConfigs(rawConfigs);
+    if (JSON.stringify(allConfigs) !== JSON.stringify(rawConfigs)) {
+      localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
+    }
     
     // My Settings: فقط إعدادات المعلم الخاصة
     const mySettings = allConfigs.filter((c: HierarchicalConfig) =>
       getRecordTeacherId(c) === normalizeScopeValue(tId)
     );
     setMyConfigs(mySettings);
-    setMyGrades(mySettings.map((c: HierarchicalConfig) => c.grade));
+    setMyGrades(Array.from(new Map(
+      mySettings.map((c: HierarchicalConfig) => [normalizeScopeValue(c.grade), c.grade]),
+    ).values()));
     
     // General Settings: الإعدادات العامة أو الإعدادات الخاصة بهذا المعلم من المشرف
     const generalSettings = allConfigs.filter((c: HierarchicalConfig) =>
@@ -105,7 +112,9 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     
     // التحقق من عدم التكرار
-    if (myConfigs.some(c => c.grade === newGrade.trim())) {
+    if (myConfigs.some(c =>
+      normalizeScopeValue(c.grade) === normalizeScopeValue(newGrade),
+    )) {
       alert('هذا الصف موجود بالفعل!');
       return;
     }

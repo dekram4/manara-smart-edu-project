@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
+import { dedupeHierarchicalConfigs } from '../../utils/academic';
 
 interface AcademicSettingsProps {
   onUpdate: () => void;
@@ -72,7 +73,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const loadSettings = () => {
     try {
       console.log('Loading settings...');
-      const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+      const rawConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+      const allConfigs = dedupeHierarchicalConfigs(rawConfigs);
+      if (JSON.stringify(allConfigs) !== JSON.stringify(rawConfigs)) {
+        localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
+      }
       console.log('Loaded configs:', allConfigs);
       
       // إذا كان معلم: إظهار إعداداته الخاصة + الإعدادات العامة (admin)
@@ -108,7 +113,9 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       setHierarchicalConfigs(configs);
       
       // استخراج قائمة الصفوف من الكونفيج
-      const gradesList = configs.map((c: HierarchicalConfig) => c.grade);
+      const gradesList = Array.from(new Map(
+        configs.map((c: HierarchicalConfig) => [normalizeScopeValue(c.grade), c.grade]),
+      ).values());
       setGrades(gradesList);
       
       // حفظ الصفوف في localStorage للتوافقية
@@ -200,7 +207,9 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // تحميل جميع الإعدادات للتحقق من التكرار
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
-    const exists = allConfigs.some((c: HierarchicalConfig) => c.grade === newGrade.trim());
+    const exists = allConfigs.some((c: HierarchicalConfig) =>
+      normalizeScopeValue(c.grade) === normalizeScopeValue(newGrade),
+    );
     if (exists) {
       alert('هذا الصف موجود مسبقاً');
       return;

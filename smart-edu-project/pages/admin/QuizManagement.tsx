@@ -491,8 +491,11 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       
       // 🎯 Prompt مختصر وفعّال
       const requestedQuestionCount = Math.max(1, Math.min(quizFormData.questionCount, 30));
-      const bankSize = requestedQuestionCount;
-      const prompt = `ولّد بالضبط ${bankSize} أسئلة اختيار من متعدد من هذا المحتوى التعليمي. لا تنشئ أي أسئلة إضافية:
+      // The selected number is the number shown to each student. Generate a
+      // larger bank so student-specific selection can produce different sets.
+      const bankSize = Math.min(Math.max(requestedQuestionCount * 3, requestedQuestionCount + 10), 60);
+      const prompt = `ولّد بالضبط ${bankSize} سؤال اختيار من متعدد من هذا المحتوى التعليمي.
+هذا بنك أسئلة مشترك سيختار منه النظام ${requestedQuestionCount} أسئلة مختلفة وثابتة لكل طالب. لا تنشئ أقل من العدد المطلوب ولا تضف أي نص خارج JSON:
 
 ${contentSummary}
 
@@ -511,7 +514,7 @@ ${contentSummary}
         body: JSON.stringify({
           prompt,
           temperature: 0.7,
-          maxOutputTokens: 3000,
+          maxOutputTokens: 6000,
         })
       });
 
@@ -566,7 +569,7 @@ ${contentSummary}
       try {
          const parsedQuestions = JSON.parse(jsonMatch[0]);
          const generatedQuestions = Array.isArray(parsedQuestions)
-           ? parsedQuestions.slice(0, requestedQuestionCount)
+           ? parsedQuestions.slice(0, bankSize)
            : [];
         if (!generatedQuestions || generatedQuestions.length === 0) {
           alert('❌ لم يتم توليد أي أسئلة. حاول مرة أخرى.');
@@ -575,7 +578,7 @@ ${contentSummary}
         }
         
         if (saveQuiz(generatedQuestions)) {
-          alert(`✅ تم إنشاء بنك اختبار احترافي بـ ${generatedQuestions.length} سؤال من Gemini AI!`);
+          alert(`✅ تم إنشاء بنك احترافي بـ ${generatedQuestions.length} سؤالًا، وسيظهر لكل طالب ${requestedQuestionCount} أسئلة مختلفة.`);
         }
       } catch (parseError) {
         console.error('❌ خطأ في تحليل JSON:', parseError);
@@ -596,9 +599,7 @@ ${contentSummary}
   const saveQuiz = (generatedQuestions: any[]): boolean => {
     const quizId = editingQuiz?.id || `quiz_${Date.now()}`;
     const requestedQuestionCount = Math.max(1, Math.min(quizFormData.questionCount, 30));
-    const quizQuestions: QuizQuestion[] = generatedQuestions
-      .slice(0, requestedQuestionCount)
-      .map((q, index) => ({
+    const quizQuestions: QuizQuestion[] = generatedQuestions.map((q, index) => ({
       id: `q_${Date.now()}_${index}_${Math.random()}`,
       question: q.question,
       options: q.options,
@@ -614,7 +615,7 @@ ${contentSummary}
       createdAt: new Date().toISOString(),
       source: 'ai-generated',
       variation: Math.floor(Math.random() * 100000)
-      }));
+    }));
 
     const newQuiz: CreatedQuiz = {
       id: quizId,
@@ -630,7 +631,7 @@ ${contentSummary}
       questions: quizQuestions,
       creationMode: 'ai',
       periodicNumber: editingQuiz?.periodicNumber,
-      questionsPerAttempt: quizFormData.questionCount,
+      questionsPerAttempt: Math.min(requestedQuestionCount, quizQuestions.length),
       createdAt: editingQuiz?.createdAt || new Date().toISOString(),
       createdBy: selectedTeacherId,
       createdByName: selectedTeacherName,
@@ -1058,7 +1059,7 @@ ${contentSummary}
 
               {/* عدد الأسئلة */}
               <div>
-                <label className="block font-black text-purple-900 mb-2">📊 عدد الأسئلة</label>
+                <label className="block font-black text-purple-900 mb-2">📊 عدد الأسئلة لكل طالب</label>
                 <select
                   value={quizFormData.questionCount}
                   onChange={e => setQuizFormData({ ...quizFormData, questionCount: parseInt(e.target.value) })}
@@ -1097,6 +1098,7 @@ ${contentSummary}
                     <li>✅ أسئلة متنوعة (تعريف، فهم، تطبيق، تحليل، تقييم)</li>
                     <li>✅ مستويات صعوبة متدرجة (سهل، متوسط، صعب)</li>
                     <li>✅ خيارات ذكية ومقنعة لجميع الاحتمالات</li>
+                    <li>✅ بنك أكبر مع مجموعة مختلفة وثابتة لكل طالب</li>
                     <li>✅ تغطية شاملة لمحتوى الدرس</li>
                     <li>✅ صياغة احترافية بدون أخطاء</li>
                   </ul>
