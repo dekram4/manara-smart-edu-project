@@ -52,7 +52,7 @@ import {
   getQuizTypeLabel,
 } from '../../utils/quizTypes';
 import { getCorrectAnswerText, isQuizAnswerCorrect } from '../../utils/quizScoring';
-import { readActiveSession, readStorageArray } from '../../utils/storage';
+import { readActiveSession, readStorageArray, writeActiveSession, removeActiveSession } from '../../utils/storage';
 
 const stableQuestionHash = (value: string): number => {
   let hash = 2166136261;
@@ -872,7 +872,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     };
     try {
       setStudent(updatedStudent);
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
+      writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, updatedStudent);
 
       const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS)
         .filter((item): item is StudentInfo => Boolean(item && typeof item === 'object'));
@@ -1236,7 +1236,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     // syncGamificationToStudent writes the same final snapshot to both
     // STUDENTS and ACTIVE_STUDENT. Do not overwrite it with the pre-sync
     // student object, otherwise the new quiz result and level can diverge.
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(finalStudent));
+    writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, finalStudent);
     setStudent(finalStudent);
     setQuizResult(quizResultRecord);
   };
@@ -1323,7 +1323,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         activeStudent.term = firstEnroll.term;
         activeStudent.unit = firstEnroll.unit;
       }
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(activeStudent));
+      writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, activeStudent);
       ensureGamificationResetIfNeeded(activeStudent);
       hydrateGamificationFromStudent(activeStudent);
       setStudent(activeStudent);
@@ -1430,7 +1430,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     if (!student || !appearance) return;
     const updatedStudent: StudentInfo = { ...student, appearance };
     setStudent(updatedStudent);
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedStudent));
+    writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, updatedStudent);
     const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     localStorage.setItem(
       STORAGE_KEYS.STUDENTS,
@@ -1497,7 +1497,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           whileTap={{ scale: 0.95 }}
           onClick={() => {
             soundClick.play();
-            localStorage.removeItem(STORAGE_KEYS.ACTIVE_STUDENT);
+            removeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT);
             onLogout();
           }}
            className="min-h-11 px-4 py-3 bg-red-500/20 text-red-200 border border-red-500/40 rounded-xl font-bold hover:bg-red-500/30 transition-all cursor-pointer"

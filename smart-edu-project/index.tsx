@@ -28,10 +28,6 @@ if ('serviceWorker' in navigator) {
           await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
         }
 
-        if (navigator.serviceWorker.controller && !sessionStorage.getItem('manara-sw-cleaned')) {
-          sessionStorage.setItem('manara-sw-cleaned', '1');
-          window.location.reload();
-        }
       })().catch((error) => {
         console.warn('Service Worker cleanup failed:', error);
       });

@@ -17,7 +17,7 @@ import { playWelcomeAdult } from '../../utils/sounds';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import ManaraBrand from '../../src/components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
-import { readActiveSession, readStorageArray } from '../../utils/storage';
+import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -37,6 +37,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   });
 
   useEffect(() => {
+    const savedTeacher = readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
+    if (savedTeacher) {
+      setCurrentTeacher(savedTeacher);
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated && currentTeacher) {
       loadDashboardStats();
       const interval = window.setInterval(() => {
@@ -44,7 +52,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         const latestTeacher = storedTeachers.find(teacher => teacher.id === currentTeacher.id);
         if (latestTeacher && JSON.stringify(latestTeacher) !== JSON.stringify(currentTeacher)) {
           setCurrentTeacher(latestTeacher);
-          localStorage.setItem(STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(latestTeacher));
+          writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, latestTeacher);
         }
         loadDashboardStats();
       }, 2000);
@@ -106,7 +114,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentTeacher(null);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_TEACHER);
+    removeActiveSession(STORAGE_KEYS.CURRENT_TEACHER);
     onLogout();
   };
 

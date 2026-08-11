@@ -31,6 +31,7 @@ export const STORAGE_KEYS = {
   DELETED_VIDEOS: 'smartEdu_deletedVideos', // 🗑️ علامات حذف الفيديوهات حتى لا تعود من المزامنة
   DELETED_LESSONS: 'smartEdu_deletedLessons', // 🗑️ علامات حذف المحتوى حتى لا يعود من المزامنة
   VIDEO_NOTIFICATIONS: 'smartEdu_videoNotifications', // 🔔 إشعارات الفيديوهات للمشرف
+  ACTIVE_ROLE: 'smartEdu_activeRole',
 };
 
 export const COLORS = {

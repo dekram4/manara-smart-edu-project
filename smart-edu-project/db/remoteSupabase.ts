@@ -10,7 +10,9 @@ class RemoteUnavailableError extends Error {
 
 let remoteState: 'unknown' | 'ready' | 'unavailable' = 'unknown';
 let probePromise: Promise<boolean> | null = null;
+let remoteUnavailableUntil = 0;
 const REQUEST_TIMEOUT_MS = 10000;
+const REQUEST_RETRY_DELAY_MS = 300;
 
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController();
@@ -27,49 +29,80 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
 
 async function isRemoteReady(): Promise<boolean> {
   if (remoteState === 'ready') return true;
-  if (remoteState === 'unavailable') return false;
+  if (remoteState === 'unavailable' && Date.now() < remoteUnavailableUntil) return false;
+  if (remoteState === 'unavailable') {
+    remoteState = 'unknown';
+  }
   if (!probePromise) {
     probePromise = fetchWithTimeout('/api/supabase/health')
       .then((response) => {
         remoteState = response.ok ? 'ready' : 'unavailable';
+        remoteUnavailableUntil = response.ok ? 0 : Date.now() + 5000;
         return response.ok;
       })
       .catch(() => {
         remoteState = 'unavailable';
+        remoteUnavailableUntil = Date.now() + 5000;
         return false;
+      })
+      .finally(() => {
+        probePromise = null;
       });
   }
   return probePromise;
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult<T>> {
-  if (!(await isRemoteReady())) {
-    // Development preview may not have access to a production-only connector.
-    // Keep localStorage as the offline source of truth without noisy errors.
-    return { data: null, error: new RemoteUnavailableError() };
-  }
-  try {
-      const response = await fetchWithTimeout(url, init);
-    const text = await response.text();
-    let body: any = null;
-    if (text) {
+  let lastError: Error = new RemoteUnavailableError();
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!(await isRemoteReady())) {
+      lastError = new RemoteUnavailableError();
+      // Allow the next retry to probe again instead of waiting for the
+      // backoff window. This matters when Safari briefly suspends a request.
+      remoteState = 'unknown';
+      remoteUnavailableUntil = 0;
+    } else {
       try {
-        body = JSON.parse(text);
-      } catch {
-        body = text;
+        const response = await fetchWithTimeout(url, init);
+        const text = await response.text();
+        let body: any = null;
+        if (text) {
+          try {
+            body = JSON.parse(text);
+          } catch {
+            body = text;
+          }
+        }
+        if (response.ok) {
+          remoteState = 'ready';
+          remoteUnavailableUntil = 0;
+          return { data: body as T, error: null };
+        }
+
+        const message = typeof body === 'string'
+          ? body
+          : body?.error || `Supabase request failed (${response.status})`;
+        lastError = new Error(message);
+
+        // Do not clear a user's local session because an upstream request
+        // briefly returned JWT/network/connector errors. Let the next attempt
+        // re-probe the bridge instead of permanently pinning it unavailable.
+        remoteState = 'unknown';
+        remoteUnavailableUntil = 0;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Supabase request failed');
+        remoteState = 'unknown';
+        remoteUnavailableUntil = 0;
       }
     }
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403 || response.status === 404) {
-        remoteState = 'unavailable';
-      }
-      const message = typeof body === 'string' ? body : body?.error || `Supabase request failed (${response.status})`;
-      return { data: null, error: new Error(message) };
+
+    if (attempt < 2) {
+      await new Promise((resolve) => window.setTimeout(resolve, REQUEST_RETRY_DELAY_MS * (attempt + 1)));
     }
-    return { data: body as T, error: null };
-  } catch (error) {
-    return { data: null, error: error instanceof Error ? error : new Error('Supabase request failed') };
   }
+
+  return { data: null, error: lastError };
 }
 
 export const supabase = {

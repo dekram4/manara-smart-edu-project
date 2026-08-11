@@ -14,6 +14,59 @@ const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.en
 const uploadDirectory = path.join(root, 'uploads', 'videos');
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
+const ADMIN_SESSION_COOKIE = 'manara_admin_session';
+const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
+
+function sessionSecret() {
+  return process.env.SESSION_SECRET || 'manara-development-session-secret';
+}
+
+function signAdminSession(payload) {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', sessionSecret())
+    .update(encoded)
+    .digest('base64url');
+  return `${encoded}.${signature}`;
+}
+
+function verifyAdminSession(value) {
+  if (!value) return false;
+  const [encoded, signature] = String(value).split('.');
+  if (!encoded || !signature) return false;
+  const expected = crypto
+    .createHmac('sha256', sessionSecret())
+    .update(encoded)
+    .digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected),
+  )) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    return payload?.role === 'admin' && Number(payload?.expiresAt) > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function readCookie(req, name) {
+  const cookies = String(req.headers.cookie || '')
+    .split(';')
+    .map((part) => part.trim().split('='))
+    .filter(([key]) => key);
+  const match = cookies.find(([key]) => key === name);
+  return match ? decodeURIComponent(match.slice(1).join('=')) : '';
+}
+
+function adminCookieOptions(maxAge = ADMIN_SESSION_TTL_SECONDS) {
+  const forwardedProto = String(process.env.NODE_ENV === 'production' ? 'https' : '');
+  const secure = forwardedProto === 'https' || process.env.REPLIT_DEPLOYMENT
+    ? '; Secure'
+    : '';
+  return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
@@ -29,6 +82,20 @@ app.post('/api/auth/admin', (req, res) => {
   if (!username || !password || username !== configuredUsername || password !== configuredPassword) {
     return res.status(401).json({ error: 'Invalid administrator credentials' });
   }
+  res.setHeader(
+    'Set-Cookie',
+    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(signAdminSession({
+      role: 'admin',
+      expiresAt: Date.now() + ADMIN_SESSION_TTL_SECONDS * 1000,
+    }))}; ${adminCookieOptions()}`,
+  );
+  return res.json({ ok: true });
+});
+app.get('/api/auth/admin/session', (req, res) => {
+  return res.json({ authenticated: verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE)) });
+});
+app.post('/api/auth/admin/logout', (_req, res) => {
+  res.setHeader('Set-Cookie', `${ADMIN_SESSION_COOKIE}=; ${adminCookieOptions(0)}`);
   return res.json({ ok: true });
 });
 app.use('/uploads', express.static(path.join(root, 'uploads'), {

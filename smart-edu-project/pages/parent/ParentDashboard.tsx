@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParentInfo, StudentInfo, QuizResult, ParentMenuType, CertificateRecord, HierarchicalConfig, QuizType } from '../../types';
+import { ParentInfo, StudentInfo, TeacherInfo, QuizResult, ParentMenuType, CertificateRecord, HierarchicalConfig, QuizType } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ParentLogin from './ParentLogin';
@@ -15,7 +15,7 @@ import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../ut
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
-import { readActiveSession, readStorageArray } from '../../utils/storage';
+import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -85,6 +85,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   useEffect(() => {
     loadAcademicSettings();
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -178,7 +179,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         setParent(found);
         setNeedsPasswordChange(true);
       } else {
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_PARENT, JSON.stringify(found));
+        writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, found);
         loadData();
         playWelcomeAdult();
       }
@@ -193,7 +194,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const updated = parents.map((p: ParentInfo) => p.id === parent.id ? { ...p, password: hashPassword(newPass), mustChangePassword: false } : p);
     localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updated));
     const finalParent = updated.find((p: any) => p.id === parent.id);
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_PARENT, JSON.stringify(finalParent));
+    writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, finalParent);
     setNeedsPasswordChange(false);
     loadData();
   };
@@ -302,7 +303,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const updatedParents = parentsList.map((p: ParentInfo) => p.id === parent?.id ? { ...p, children: [...(p.children || []), child] } : p);
     localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
     const refreshedParent = updatedParents.find((p: ParentInfo) => p.id === parent?.id);
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_PARENT, JSON.stringify(refreshedParent));
+    writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, refreshedParent);
     setParent(refreshedParent);
      if (parent) setChildren(getParentChildren(updatedStudents, parent));
     setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' });
@@ -328,6 +329,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const handleChangeStudentGrade = (child: StudentInfo) => {
     if (!permissions.canChangeGrade) { alert('❌ ليس لديك صلاحية تغيير الصف'); return; }
+    const students = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     const teacherId = parent ? getParentTeacherId(parent, students) : '';
     if (!teacherId) { alert('⚠️ لم يتم العثور على معلم مرتبط بحسابك'); return; }
     const hierarchicalConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
@@ -720,7 +722,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </button>
           ))}
           <button
-            onClick={() => { localStorage.removeItem(STORAGE_KEYS.ACTIVE_PARENT); onLogout(); }}
+            onClick={() => { removeActiveSession(STORAGE_KEYS.ACTIVE_PARENT); onLogout(); }}
             className="w-full text-right p-3 rounded-xl text-red-400 hover:bg-red-950 font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
           >
             🚪 تسجيل الخروج
@@ -1754,8 +1756,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               ? getParentTeacherId(myParent, children)
               : '';
             if (parentTeacherId) {
-            const teachers = readStorageArray(STORAGE_KEYS.TEACHERS);
-              const teacher = teachers.find((t: any) =>
+              const teachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
+              const teacher = teachers.find((t: TeacherInfo) =>
                 getRecordTeacherId({ teacherId: t.id }) === parentTeacherId,
               );
               if (teacher) return <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-[12px] shadow-lg border border-rose-100 text-xs font-bold text-rose-700">👨‍🏫 المعلم: <span className="text-rose-800">{teacher.name}</span></div>;

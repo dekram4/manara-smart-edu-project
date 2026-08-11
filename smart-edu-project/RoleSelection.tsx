@@ -6,6 +6,11 @@ export default function RoleSelection({ userId, onRoleSelected }: { userId: stri
 
   const setRole = async (role: string) => {
     setLoading(true);
+    if (!supabase) {
+      alert('لم يتم إعداد اتصال Supabase Auth لهذا الإصدار من التطبيق');
+      setLoading(false);
+      return;
+    }
     // حفظ الدور في جدول profiles
     const { error } = await supabase
       .from('profiles')

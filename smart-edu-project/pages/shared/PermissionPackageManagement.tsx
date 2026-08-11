@@ -13,6 +13,7 @@ import {
   getTeacherParents,
   getTeacherStudents,
 } from '../../utils/scope';
+import { writeActiveSession } from '../../utils/storage';
 
 type ManagerRole = 'teacher' | 'parent';
 type TargetRole = 'parent' | 'student';
@@ -342,9 +343,9 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
       }));
       localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
       if (managerRole === 'parent' && parent) {
-        localStorage.setItem(
+        writeActiveSession(
           STORAGE_KEYS.ACTIVE_PARENT,
-          JSON.stringify(updatedParents.find(item => item.id === parent.id) || parent),
+          updatedParents.find(item => item.id === parent.id) || parent,
         );
       }
     }

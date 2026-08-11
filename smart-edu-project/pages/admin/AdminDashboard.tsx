@@ -18,6 +18,12 @@ import ManaraBrand from '../../src/components/ManaraBrand';
 import VideoNotificationBadge from './VideoNotificationBadge';
 import PrivateChat from '../shared/PrivateChat';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
+import {
+  readSessionValue,
+  removeSessionValue,
+  writeSessionValue,
+  SESSION_KEYS,
+} from '../../utils/sessionPersistence';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -25,6 +31,7 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState<AdminMenuType>(AdminMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -39,6 +46,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     subjectsCount: 0,
     gradesCount: 0,
   });
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/auth/admin/session', { credentials: 'same-origin' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Admin session check failed (${response.status})`);
+        return response.json();
+      })
+      .then((result) => {
+        if (!mounted) return;
+        if (result.authenticated) {
+          setIsAuthenticated(true);
+        } else {
+          // A definitive server response wins over an old local marker.
+          removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
+          setIsAuthenticated(false);
+        }
+        setAuthLoading(false);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        // A temporary network failure is not a logout.
+        setIsAuthenticated(readSessionValue(SESSION_KEYS.ADMIN_SESSION) === '1');
+        setAuthLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -104,8 +140,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
   };
 
+  if (authLoading) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-50 font-tajawal text-slate-700">جارٍ استعادة جلسة المشرف…</div>;
+  }
+
   if (!isAuthenticated) {
     return <AdminLogin onLoginSuccess={() => {
+      writeSessionValue(SESSION_KEYS.ADMIN_SESSION, '1');
       setIsAuthenticated(true);
       playWelcomeAdult();
     }} onBack={onLogout} />;

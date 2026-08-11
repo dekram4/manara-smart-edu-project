@@ -2,6 +2,7 @@ import { STORAGE_KEYS } from '../constants';
 import type { StudentGamification, StudentInfo } from '../types';
 import { getQuizResultPercentage } from './quizScoring';
 import { readActiveSession, readStorageArray } from './storage';
+import { writeActiveSession } from './storage';
 
 // 🎮 محرك الإنجاز (Gamification Engine) لمنصة منارة
 // نظام XP, Gems, Streak, Achievements مربوط بالمحتوى الحقيقي
@@ -503,7 +504,7 @@ export function syncGamificationToStudent(studentInfo?: StudentInfo | null): Stu
   }
 
   const updatedActive = { ...active, gamification: snapshot };
-  localStorage.setItem(STORAGE_KEYS.ACTIVE_STUDENT, JSON.stringify(updatedActive));
+  writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, updatedActive);
   return snapshot;
 }
 

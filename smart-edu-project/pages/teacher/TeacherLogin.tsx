@@ -3,7 +3,7 @@ import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ManaraBrand from '../../src/components/ManaraBrand';
-import { readStorageArray } from '../../utils/storage';
+import { readStorageArray, writeActiveSession } from '../../utils/storage';
 
 interface TeacherLoginProps {
   onLoginSuccess: (teacher: TeacherInfo) => void;
@@ -39,7 +39,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
       setCurrentTeacher(teacher);
       setShowChangePassword(true);
     } else {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(teacher));
+      writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, teacher);
       onLoginSuccess(teacher);
     }
   };
@@ -76,7 +76,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
     localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
 
     const updatedTeacher = { ...currentTeacher, password: hashedPassword, mustChangePassword: false };
-    localStorage.setItem(STORAGE_KEYS.CURRENT_TEACHER, JSON.stringify(updatedTeacher));
+    writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, updatedTeacher);
     onLoginSuccess(updatedTeacher);
   };
 

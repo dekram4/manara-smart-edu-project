@@ -11,6 +11,12 @@ import { STORAGE_KEYS } from './constants';
 import { initSupabaseSync } from './db/sync';
 import { migratePasswordsToHash } from './db/migratePasswords';
 import { GameControls } from './src/components/GameControls';
+import {
+  readSessionValue,
+  removeSessionValue,
+  SESSION_KEYS,
+  writeSessionValue,
+} from './utils/sessionPersistence';
 
 // ✅ الاستدعاء المباشر والمحلي للمكتبات (Game Engine Infrastructure)
 import { playLamsaSound } from './utils/sounds';
@@ -109,7 +115,9 @@ const BootLoader: React.FC = () => {
     if (!loaderRef.current) return;
     const tl = gsap.timeline({ repeat: -1, yoyo: true });
     tl.to(loaderRef.current, { scale: 1.04, duration: 1.2, ease: 'power2.inOut' });
-    return () => tl.kill();
+    return () => {
+      tl.kill();
+    };
   }, []);
 
   const splineScene = (import.meta as ImportMeta & { env?: { VITE_SPLINE_SCENE_URL?: string } }).env?.VITE_SPLINE_SCENE_URL;
@@ -176,27 +184,51 @@ const ScrollDownButton: React.FC = () => {
 const App: React.FC = () => {
   const [mainView, setMainView] = useState<MainView>('role');
   const [booting, setBooting] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
   const [syncing, setSyncing] = useState(true);
 
   const clearActiveSessions = () => {
-    localStorage.removeItem(STORAGE_KEYS.ACTIVE_STUDENT);
-    localStorage.removeItem(STORAGE_KEYS.ACTIVE_PARENT);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_TEACHER);
+    removeSessionValue(STORAGE_KEYS.ACTIVE_STUDENT);
+    removeSessionValue(STORAGE_KEYS.ACTIVE_PARENT);
+    removeSessionValue(STORAGE_KEYS.CURRENT_TEACHER);
   };
 
   const enterRole = (role: MainView) => {
     clearActiveSessions();
+    writeSessionValue(SESSION_KEYS.ACTIVE_ROLE, role);
     setMainView(role);
   };
 
   const leaveRole = () => {
     clearActiveSessions();
+    removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
+    removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
+    void fetch('/api/auth/admin/logout', { method: 'POST' }).catch(() => {});
     setMainView('role');
   };
 
   // عند الإقلاع: نحمّل البيانات من Supabase
   useEffect(() => {
     let mounted = true;
+    const savedRole = readSessionValue(SESSION_KEYS.ACTIVE_ROLE);
+    const validRoles: MainView[] = ['admin', 'teacher', 'student', 'parent'];
+    const legacyRole =
+      readSessionValue(STORAGE_KEYS.ACTIVE_STUDENT) ? 'student' :
+      readSessionValue(STORAGE_KEYS.CURRENT_TEACHER) ? 'teacher' :
+      readSessionValue(STORAGE_KEYS.ACTIVE_PARENT) ? 'parent' :
+      readSessionValue(SESSION_KEYS.ADMIN_SESSION) === '1' ? 'admin' :
+      null;
+    const restoredRole = savedRole && validRoles.includes(savedRole as MainView)
+      ? savedRole as MainView
+      : legacyRole;
+    if (restoredRole) {
+      setMainView(restoredRole);
+      if (restoredRole !== savedRole) {
+        writeSessionValue(SESSION_KEYS.ACTIVE_ROLE, restoredRole);
+      }
+    }
+    setSessionReady(true);
+
     (async () => {
       const syncTask = (async () => {
         migratePasswordsToHash();
@@ -258,7 +290,7 @@ const App: React.FC = () => {
     }
   };
 
-  if (booting) {
+  if (booting || !sessionReady) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 font-tajawal">
         <BootLoader />

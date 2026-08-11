@@ -1,5 +1,6 @@
 import { ParentInfo, PermissionPackage, PermissionPackageRole, Permissions, StudentInfo, TeacherInfo } from './types';
 import { STORAGE_KEYS, DEFAULT_PERMISSIONS } from './constants';
+import { readActiveSession } from './utils/storage';
 
 const numericLimit = (value: unknown, fallback: number) => {
   const parsed = Number(value);
@@ -141,7 +142,7 @@ export const getTeacherPermissionDetails = (
 ) => {
   const activeTeacher = teacher || (() => {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || 'null') as TeacherInfo | null;
+      return readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
     } catch {
       return null;
     }
@@ -226,7 +227,7 @@ export const getTeacherVideoUsageMb = (videos: unknown[]) =>
 export const getStudentPermissions = (student?: Pick<StudentInfo, 'permissionPackageId'> | null) => {
   const activeStudent = student || (() => {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVE_STUDENT) || 'null') as StudentInfo | null;
+      return readActiveSession<StudentInfo>(STORAGE_KEYS.ACTIVE_STUDENT);
     } catch {
       return null;
     }

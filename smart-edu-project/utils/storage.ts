@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from '../constants';
+import { readSessionJson, removeSessionValue, writeSessionJson } from './sessionPersistence';
 
 /**
  * Read browser storage defensively.
@@ -24,8 +25,16 @@ export function readStorageArray<T>(key: string): T[] {
 }
 
 export function readActiveSession<T>(key: string): T | null {
-  const value = readStorageJson<unknown>(key, null);
+  const value = readSessionJson<unknown>(key, null);
   return value && typeof value === 'object' ? value as T : null;
+}
+
+export function writeActiveSession<T>(key: string, value: T): boolean {
+  return writeSessionJson(key, value);
+}
+
+export function removeActiveSession(key: string): void {
+  removeSessionValue(key);
 }
 
 export function readStoredCollections(): {

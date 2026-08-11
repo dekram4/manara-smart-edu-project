@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, COLORS } from '../../constants';
-import { HierarchicalConfig, TeacherInfo } from '../../types';
+import { HierarchicalConfig, TeacherInfo, TeacherPermissions } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissionDetails } from '../../permissions';
 import { dedupeHierarchicalConfigs } from '../../utils/academic';
+import { readActiveSession } from '../../utils/storage';
 
 interface MyAcademicSettingsProps {
   teacher?: TeacherInfo | null;
@@ -34,16 +35,14 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   const [newUnit, setNewUnit] = useState('');
 
   useEffect(() => {
-    const teacher = teacherProp || JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || '{}');
-    setTeacherId(teacher.id || '');
-    setTeacherName(teacher.name || '');
-    loadSettings(teacher.id);
+    const teacher = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
+    setTeacherId(teacher?.id || '');
+    setTeacherName(teacher?.name || '');
+    loadSettings(teacher?.id);
   }, [teacherProp?.id, teacherProp?.name, teacherProp?.permissionPackageId]);
 
-  const resolvedTeacher = (() => {
-    const fallback = teacherProp || JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.CURRENT_TEACHER) || '{}',
-    );
+  const resolvedTeacher: TeacherInfo | null = (() => {
+    const fallback = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
     if (!fallback?.id) return fallback;
     try {
       const teachers: TeacherInfo[] = JSON.parse(
@@ -55,14 +54,15 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     }
   })();
   const permissionDetails = getTeacherPermissionDetails(resolvedTeacher);
-  const canManageAcademicSettings = permissionDetails.effective.canManageAcademicSettings;
+  const effectiveTeacherPermissions = permissionDetails.effective as TeacherPermissions;
+  const canManageAcademicSettings = effectiveTeacherPermissions.canManageAcademicSettings;
 
   if (!canManageAcademicSettings) {
     const denialReason = !permissionDetails.global.canManageAcademicSettings
       ? 'سياسة المشرف العامة لا تسمح بهذه الصلاحية حاليًا.'
       : !permissionDetails.permissionPackage
         ? 'لا يوجد إعداد إدارة صلاحيات للمعلم مرتبط بهذا الحساب، أو أن الإعداد لم يعد موجودًا.'
-        : permissionDetails.permissionPackage.permissions.canManageAcademicSettings === false
+        : (permissionDetails.permissionPackage.permissions as TeacherPermissions).canManageAcademicSettings === false
           ? `إعداد الصلاحيات المرتبط «${permissionDetails.permissionPackage.name}» لا يتضمن هذه الصلاحية.`
           : 'تم تعديل الصلاحيات مؤخرًا؛ سجّل الخروج ثم ادخل مرة أخرى لتحديث الحساب.';
     return (
