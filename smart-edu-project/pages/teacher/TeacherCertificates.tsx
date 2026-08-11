@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StudentInfo, QuizResult, ParentInfo, HierarchicalConfig, CertificateRecord } from '../../types';
+import { StudentInfo, QuizResult, ParentInfo, HierarchicalConfig, CertificateRecord, QuizType } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, getTeacherParents, getTeacherStudents, normalizeScopeValue } from '../../utils/scope';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
+import { normalizeQuizType } from '../../utils/quizTypes';
 
 interface TeacherCertificatesProps {
   teacherId: string;
@@ -67,9 +68,26 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   };
 
   const getStudentAverage = (studentId: string) => {
-    const studentQuizzes = allQuizzes.filter(q => q.studentId === studentId);
+    const studentQuizzes = allQuizzes.filter(q =>
+      q.studentId === studentId && normalizeQuizType(q.quizType) === QuizType.TEACHER,
+    );
     if (studentQuizzes.length === 0) return 0;
     return Math.round(studentQuizzes.reduce((acc, q) => acc + getQuizResultPercentage(q), 0) / studentQuizzes.length);
+  };
+
+  const getTeacherSubjectAverage = (studentId: string, subject: string, grade?: string) => {
+    const normalizedSubject = normalizeScopeValue(subject);
+    const normalizedGrade = normalizeScopeValue(grade);
+    const studentQuizzes = allQuizzes.filter(q =>
+      q.studentId === studentId &&
+      normalizeQuizType(q.quizType) === QuizType.TEACHER &&
+      normalizeScopeValue(q.subject) === normalizedSubject &&
+      (!normalizedGrade || !q.grade || normalizeScopeValue(q.grade) === normalizedGrade),
+    );
+    if (studentQuizzes.length === 0) return 0;
+    return Math.round(
+      studentQuizzes.reduce((sum, quiz) => sum + getQuizResultPercentage(quiz), 0) / studentQuizzes.length,
+    );
   };
 
   const hasDuplicate = (studentId: string, type: CertificateRecord['type'], grade: string, subject: string, term: string) => {
@@ -173,7 +191,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     subject: string,
     term: string
   ) => {
-    const average = getStudentAverage(student.id);
+    const average = getTeacherSubjectAverage(student.id, subject, grade);
     const date = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
 
     const saved: CertificateRecord[] = JSON.parse(localStorage.getItem(CERT_KEY) || '[]');
@@ -205,21 +223,21 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
         emoji: '🏆',
         color: '#FFD700',
         gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، حيث حقق/ت معدلاً عاماً قدره <strong>${average}%</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.`,
+        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.`,
       },
       appreciation: {
         title: 'شهادة شكر وتقدير',
         emoji: '⭐',
         color: '#4169E1',
         gradient: 'linear-gradient(135deg, #4169E1 0%, #1E90FF 100%)',
-        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${student.name}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، ولالتزامه/ها المتواصل في أداء واجباته/ها الدراسية. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.`,
+        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${student.name}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.`,
       },
       participation: {
         title: 'شهادة مشاركة فعالة',
         emoji: '🌟',
         color: '#32CD32',
         gradient: 'linear-gradient(135deg, #32CD32 0%, #228B22 100%)',
-        message: `نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.`,
+        message: `نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، وحقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.`,
       },
     };
 
@@ -290,6 +308,10 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
 
             <div class="content">
               <p>${cert.message}</p>
+              <div class="academic-info">
+                <p>المادة: <strong>${subject}</strong> · الصف: <strong>${grade}</strong> · الترم: <strong>${atram}</strong></p>
+                <p>نسبة نتائج اختبارات المعلم للمادة: <strong style="font-size:22px;color:${cert.color};">${average}%</strong></p>
+              </div>
             </div>
 
             <div class="footer">

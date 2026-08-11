@@ -45,6 +45,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* Dashboard filter */
   const [dashFilter, setDashFilter] = useState('');
+  const [teacherResultsSearchQuery, setTeacherResultsSearchQuery] = useState('');
 
   /* Certificates state */
   const [certSearch, setCertSearch] = useState('');
@@ -556,7 +557,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const printTeacherResultsReport = (child: StudentInfo) => {
-    const teacherQuizzes = allQuizzes
+      const teacherQuizzes = allQuizzes
       .filter(q => q.studentId === child.id && normalizeQuizType(q.quizType) === QuizType.TEACHER)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     if (teacherQuizzes.length === 0) return;
@@ -845,7 +846,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         <div className="bg-gradient-to-br from-rose-50 to-orange-50 p-4 rounded-2xl border-2 border-rose-200 shadow-sm">
                           <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
-                              <h3 className="text-base font-black text-rose-800">📝 نتائج اختبارات المعلم</h3>
+                              <h3 className="text-base font-black text-rose-800">📝 تفاصيل نتائج اختبارات الطالب</h3>
                               <p className="text-xs text-rose-500 font-bold mt-1">نتائج منفصلة عن الاختبارات الدورية</p>
                             </div>
                             {teacherQuizzes.length > 0 && (
@@ -1039,6 +1040,98 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                             </div>
                           ))}
                         </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Filter + Children grid */}
+                <div className="bg-white p-5 rounded-2xl shadow-md border border-rose-100">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="text-base font-black text-rose-800">📝 نتائج اختبارات الطلاب</h3>
+                      <p className="text-xs text-rose-500 font-bold mt-1">ابحث بالطالب أو الاختبار أو ولي الأمر</p>
+                    </div>
+                    <span className="text-2xl">📋</span>
+                  </div>
+                  <div className="relative mb-4">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-rose-400">🔍</span>
+                    <input
+                      type="text"
+                      value={teacherResultsSearchQuery}
+                      onChange={(e) => setTeacherResultsSearchQuery(e.target.value)}
+                      placeholder="ابحث بالطالب أو الاختبار أو ولي الأمر..."
+                      className="w-full p-3 pr-11 rounded-xl border-2 border-rose-100 focus:border-rose-400 focus:ring-4 focus:ring-rose-50 outline-none font-bold text-sm"
+                    />
+                    {teacherResultsSearchQuery && (
+                      <button
+                        onClick={() => setTeacherResultsSearchQuery('')}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold text-xs"
+                      >
+                        مسح
+                      </button>
+                    )}
+                  </div>
+                  {(() => {
+                    const search = teacherResultsSearchQuery.trim().toLocaleLowerCase();
+                    const resultStudents = children.filter((child) => {
+                      const results = getChildQuizzes(child.id)
+                        .filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER);
+                      if (results.length === 0) return false;
+                      if (!search) return true;
+                      const searchableText = [
+                        child.name,
+                        parent?.name || '',
+                        child.primaryGrade || child.grade || '',
+                        ...results.flatMap((result) => [
+                          result.quizTitle || '',
+                          result.subject || '',
+                          result.unit || '',
+                        ]),
+                      ].join(' ').toLocaleLowerCase();
+                      return searchableText.includes(search);
+                    });
+                    return resultStudents.length > 0 ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {resultStudents.map((child) => {
+                          const results = getChildQuizzes(child.id)
+                            .filter(q => normalizeQuizType(q.quizType) === QuizType.TEACHER)
+                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                          const average = Math.round(results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length);
+                          return (
+                            <div key={child.id} className="border border-rose-100 rounded-xl p-3 bg-rose-50/60">
+                              <div className="flex items-center justify-between gap-3 mb-2">
+                                <div className="min-w-0">
+                                  <p className="font-black text-sm text-rose-800 truncate">{child.name}</p>
+                                  <p className="text-[10px] text-rose-500 font-bold">{parent?.name || 'ولي الأمر'} • {results.length} اختبار</p>
+                                </div>
+                                <button
+                                  onClick={() => printTeacherResultsReport(child)}
+                                  className="shrink-0 bg-rose-500 text-white px-3 py-1.5 rounded-lg font-black text-xs hover:bg-rose-600"
+                                >
+                                  🖨️ طباعة
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 mb-2 text-center">
+                                <div className="bg-white rounded-lg p-2"><p className="text-[9px] text-rose-400 font-bold">المعدل</p><p className="text-base text-rose-700 font-black">{average}%</p></div>
+                                <div className="bg-white rounded-lg p-2"><p className="text-[9px] text-rose-400 font-bold">أعلى</p><p className="text-base text-rose-700 font-black">{Math.max(...results.map(getQuizResultPercentage))}%</p></div>
+                                <div className="bg-white rounded-lg p-2"><p className="text-[9px] text-rose-400 font-bold">التقدير</p><p className="text-[11px] text-rose-700 font-black">{average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين'}</p></div>
+                              </div>
+                              <div className="space-y-1.5">
+                                {results.map((result) => (
+                                  <div key={result.id} className="bg-white rounded-lg px-2.5 py-2 flex items-center justify-between gap-2">
+                                    <p className="text-xs font-black text-rose-800 truncate">{result.quizTitle || 'اختبار المعلم'} <span className="text-[10px] text-rose-400">• {result.subject || '—'}</span></p>
+                                    <span className="shrink-0 text-xs font-black text-rose-600">{getQuizResultPercentage(result)}%</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center bg-rose-50 rounded-xl border-2 border-dashed border-rose-200 text-rose-500 font-bold text-sm">
+                        {teacherResultsSearchQuery ? 'لا توجد نتائج مطابقة للبحث' : 'لا توجد نتائج اختبارات معلم حتى الآن'}
                       </div>
                     );
                   })()}

@@ -17,6 +17,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [teacherResultsSearchQuery, setTeacherResultsSearchQuery] = useState('');
 
   useEffect(() => {
     loadData();
@@ -475,14 +476,48 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       <div className="bg-white p-6 rounded-2xl shadow-lg">
         <div className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-2xl font-black text-gray-800">📝 نتائج اختبارات المعلم</h2>
-            <p className="text-sm text-gray-500 font-bold mt-1">نتائج منفصلة عن الاختبارات الدورية مع طباعة تفصيلية</p>
+            <h2 className="text-2xl font-black text-gray-800">📝 نتائج اختبارات الطلاب</h2>
+            <p className="text-sm text-gray-500 font-bold mt-1">ابحث باسم الطالب أو الاختبار أو ولي الأمر، ثم اطبع النتائج التفصيلية</p>
           </div>
         </div>
-        {filteredStudents.some((student) => getTeacherResults(student.id).length > 0) ? (
+        <div className="relative mb-5">
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-400">🔍</span>
+          <input
+            type="text"
+            value={teacherResultsSearchQuery}
+            onChange={(e) => setTeacherResultsSearchQuery(e.target.value)}
+            placeholder="ابحث بالطالب أو الاختبار أو ولي الأمر..."
+            className="w-full p-3 pr-11 rounded-xl border-2 border-purple-100 focus:border-purple-400 focus:ring-4 focus:ring-purple-50 outline-none font-bold text-sm"
+          />
+          {teacherResultsSearchQuery && (
+            <button
+              onClick={() => setTeacherResultsSearchQuery('')}
+              className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-purple-50 text-purple-600 font-bold text-xs"
+            >
+              مسح
+            </button>
+          )}
+        </div>
+        {(() => {
+          const search = teacherResultsSearchQuery.trim().toLocaleLowerCase();
+          const resultsStudents = filteredStudents.filter((student) => {
+            const results = getTeacherResults(student.id);
+            if (!search) return results.length > 0;
+            const studentText = [
+              student.name,
+              getParentName(student.parentId),
+              student.primaryGrade || student.grade || '',
+              ...results.flatMap((result) => [
+                result.quizTitle || '',
+                result.subject || '',
+                result.unit || '',
+              ]),
+            ].join(' ').toLocaleLowerCase();
+            return results.length > 0 && studentText.includes(search);
+          });
+          return resultsStudents.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredStudents
-              .filter((student) => getTeacherResults(student.id).length > 0)
+            {resultsStudents
               .map((student) => {
                 const results = getTeacherResults(student.id);
                 const average = Math.round(
@@ -525,11 +560,12 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                 );
               })}
           </div>
-        ) : (
-          <div className="p-8 text-center bg-purple-50 rounded-xl border-2 border-dashed border-purple-200 text-purple-500 font-bold">
-            لا توجد نتائج اختبارات معلم حتى الآن
-          </div>
-        )}
+          ) : (
+            <div className="p-8 text-center bg-purple-50 rounded-xl border-2 border-dashed border-purple-200 text-purple-500 font-bold">
+              {teacherResultsSearchQuery ? 'لا توجد نتائج مطابقة للبحث' : 'لا توجد نتائج اختبارات معلم حتى الآن'}
+            </div>
+          );
+        })()}
       </div>
 
       {/* تفاصيل أولياء الأمور */}
