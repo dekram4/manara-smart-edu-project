@@ -23,15 +23,15 @@ const SystemSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-10 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn sm:space-y-10">
       <div>
         <h1 className="text-3xl font-bold">إعدادات النظام</h1>
         <p className="text-purple-500">تحكم في الخصائص العامة للمنصة</p>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border p-10 max-w-2xl space-y-8 text-right">
-        <div className="flex items-center justify-between">
-           <div>
+       <div className="w-full max-w-2xl space-y-6 rounded-3xl border bg-white p-4 text-right shadow-sm sm:space-y-8 sm:p-8">
+         <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <h3 className="font-bold text-lg">تفعيل الدردشة الجماعية</h3>
               <p className="text-sm text-purple-400">السماح للطلاب بالتواصل في غرف الدردشة</p>
            </div>
@@ -43,8 +43,8 @@ const SystemSettings: React.FC = () => {
            />
         </div>
 
-        <div className="flex items-center justify-between">
-           <div>
+         <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <h3 className="font-bold text-lg">السماح بتغيير الصف</h3>
               <p className="text-sm text-purple-400">تمكين الطلاب من تغيير صفهم الدراسي بأنفسهم</p>
            </div>

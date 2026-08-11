@@ -201,7 +201,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
              المحفوظ: {visiblePackages.length} إعدادات — حفظ إعداد جديد لا يحذف الإعدادات السابقة
            </p>
           {visiblePackages.length === 0 ? (
-            <div className="rounded-3xl border-2 border-dashed border-purple-200 bg-white p-12 text-center font-bold text-purple-400">
+             <div className="rounded-3xl border-2 border-dashed border-purple-200 bg-white p-5 text-center font-bold text-purple-400 sm:p-12">
                لا توجد إعدادات لهذا الدور. أنشئ أول إعداد الآن.
             </div>
           ) : visiblePackages.map(pkg => (

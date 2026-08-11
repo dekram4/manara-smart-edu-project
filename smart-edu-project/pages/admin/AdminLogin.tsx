@@ -33,13 +33,13 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-purple-50 via-violet-50 to-orange-50 animate-fadeIn relative overflow-hidden">
+    <div className="flex min-h-screen items-center justify-center overflow-y-auto p-3 sm:p-4 bg-gradient-to-br from-purple-50 via-violet-50 to-orange-50 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom">
       {/* floating decorations */}
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>⚙️</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '8%', top: '70%', animationDelay: '1s' }}>🔒</div>
 
-      <div className="relative z-10 bg-white/90 backdrop-blur-xl p-12 rounded-[2.5rem] shadow-2xl max-w-md w-full text-center border-[3px] border-purple-200 animate-bounce-in">
+      <div className="mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-purple-200 bg-white/90 p-5 text-center shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
         {onBack && (
           <button
             type="button"
@@ -51,8 +51,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
           </button>
         )}
         <ManaraBrand variant="login" className="mb-6 text-gray-800" />
-        <h1 className="text-3xl font-black mb-2 text-gray-800 animate-popIn">بوابة المشرف</h1>
-        <p className="text-purple-500 mb-10 font-bold animate-popIn" style={{ animationDelay: '0.1s' }}>إدارة النظام والمحتوى 🔒</p>
+        <h1 className="text-2xl font-black mb-2 text-gray-800 animate-popIn sm:text-3xl">بوابة المشرف</h1>
+        <p className="text-purple-500 mb-6 font-bold animate-popIn sm:mb-10" style={{ animationDelay: '0.1s' }}>إدارة النظام والمحتوى 🔒</p>
 
         <form onSubmit={handleLogin} className="space-y-6 text-right">
           <div>

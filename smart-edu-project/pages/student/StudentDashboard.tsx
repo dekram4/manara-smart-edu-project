@@ -1373,8 +1373,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* Step 1: Selection Form */}
         {(!selectedPath || showSelectionPanel) && !activeModule && (
-          <InteractiveScene className="p-8 md:p-12" intensity={1.15}>
-            <div className="bg-slate-800/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-8 md:p-12 border border-slate-700 relative overflow-hidden">
+          <InteractiveScene className="p-4 sm:p-6 md:p-12" intensity={1.15}>
+            <div className="bg-slate-800/80 backdrop-blur-xl rounded-[2rem] shadow-2xl p-4 sm:p-6 md:p-12 border border-slate-700 relative overflow-hidden">
               <div className="text-center mb-10">
               <motion.div
                 animate={{ y: [0, -10, 0] }}
@@ -1383,14 +1383,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               >
                 <Interactive3DEmoji emoji="🎓" accent="#fbbf24" size="lg" />
               </motion.div>
-              <h2 className="text-4xl font-black text-white mb-3">مرحباً يا بطل! ✨</h2>
-              <p className="text-lg text-slate-300 mb-2">اختر مسارك السحري وابدأ التحدي والمرح</p>
-              <p className="text-xl text-amber-400 font-bold">
+              <h2 className="text-2xl font-black text-white mb-3 sm:text-4xl">مرحباً يا بطل! ✨</h2>
+              <p className="text-base text-slate-300 mb-2 sm:text-lg">اختر مسارك السحري وابدأ التحدي والمرح</p>
+              <p className="text-lg text-amber-400 font-bold sm:text-xl">
                 {student?.createdByName ? `مع معلمك ${student.createdByName}` : 'اختر تفاصيل درسك اليوم 🚀'}
               </p>
             </div>
 
-             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
+             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5 xl:gap-6 mb-6 sm:mb-8">
               <div>
                 <label className="block font-bold text-slate-300 mb-3 text-right">🎒 الصف *</label>
                 <select

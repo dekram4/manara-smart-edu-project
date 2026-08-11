@@ -81,18 +81,18 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
 
   if (showChangePassword && currentTeacher) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-3 sm:p-4 relative safe-area-x safe-area-top safe-area-bottom">
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>🔐</div>
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
 
-        <div className="relative z-10 bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-12 w-full max-w-md border-[3px] border-amber-200 animate-bounce-in">
+        <div className="mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
           <div className="text-center mb-8">
             <div className="relative mx-auto mb-4 w-20 h-20">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-xl animate-wiggle">
                 <span className="text-4xl">🔐</span>
               </div>
             </div>
-            <h1 className="text-3xl font-black text-gray-800 mb-2">تغيير كلمة المرور</h1>
+            <h1 className="text-2xl font-black text-gray-800 mb-2 sm:text-3xl">تغيير كلمة المرور</h1>
             <p className="text-gray-600 font-medium">
               مرحباً {currentTeacher.name}، يجب عليك تغيير كلمة المرور قبل المتابعة
             </p>
@@ -142,13 +142,13 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center p-4 animate-fadeIn relative overflow-hidden">
+    <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-3 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom sm:p-4">
       {/* floating decorations */}
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>🏫</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '8%', top: '70%', animationDelay: '1s' }}>📚</div>
 
-      <div className="relative z-10 bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-12 w-full max-w-md border-[3px] border-amber-200 animate-bounce-in">
+      <div className="mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
         {onBack && (
           <button
             type="button"
@@ -161,7 +161,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
         )}
         <div className="text-center mb-8">
           <ManaraBrand variant="login" className="text-gray-800" />
-          <h1 className="text-4xl font-black text-gray-800 mb-2 animate-popIn">تسجيل دخول المعلم</h1>
+          <h1 className="text-2xl font-black text-gray-800 mb-2 animate-popIn sm:text-4xl">تسجيل دخول المعلم</h1>
           <p className="text-amber-600 font-bold animate-popIn" style={{ animationDelay: '0.1s' }}>منصة منارة المعرفة التعليمية 🎓</p>
         </div>
 

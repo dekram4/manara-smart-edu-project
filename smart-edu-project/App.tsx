@@ -120,7 +120,7 @@ const ScrollDownButton: React.FC = () => {
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
       onClick={handleClick}
-      className="fixed bottom-5 left-5 z-50 rounded-full border border-cyan-300/40 bg-slate-900/85 px-4 py-3 text-sm font-black text-cyan-100 shadow-2xl backdrop-blur-md"
+      className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 rounded-full border border-cyan-300/40 bg-slate-900/85 px-4 py-3 text-sm font-black text-cyan-100 shadow-2xl backdrop-blur-md"
     >
       ↓ للأسفل
     </motion.button>
@@ -227,7 +227,7 @@ const App: React.FC = () => {
       <GameControls />
       {renderView()}
       {syncing && (
-        <div className="fixed bottom-4 right-4 bg-white/90 border border-gray-300 rounded-3xl shadow-xl px-5 py-3 backdrop-blur-md flex items-center gap-3">
+        <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] max-w-[calc(100vw-2rem)] bg-white/90 border border-gray-300 rounded-3xl shadow-xl px-4 py-3 backdrop-blur-md flex items-center gap-3">
           <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
           <div>
             <p className="text-sm font-bold text-gray-700">جارٍ المزامنة مع الخادم...</p>

@@ -176,15 +176,15 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
     <motion.div
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-[40px] border border-rose-200/70 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-6 md:p-10 shadow-[0_30px_90px_-20px_rgba(244,63,94,0.35)]"
+      className="rounded-[28px] border border-rose-200/70 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-4 shadow-[0_30px_90px_-20px_rgba(244,63,94,0.35)] sm:rounded-[40px] sm:p-6 md:p-10"
     >
       <EducationalCardEffects accent="#f43f5e" compact />
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-3xl md:text-4xl font-black text-rose-800">🎬 سينما منارة</h2>
+          <h2 className="text-2xl font-black text-rose-800 sm:text-3xl md:text-4xl">🎬 سينما منارة</h2>
           <p className="text-rose-500 font-medium mt-2">استعرض الفيديوهات كـ كروت تفاعلية ثلاثية الأبعاد</p>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-4 py-2 text-sm font-black text-white shadow-lg">
+         <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-rose-600 px-3 py-2 text-xs font-black text-white shadow-lg sm:px-4 sm:text-sm">
           <span>💎</span> الجواهر: {currentGems} | المفتوح: {unlockedVideoCount}
         </div>
       </div>

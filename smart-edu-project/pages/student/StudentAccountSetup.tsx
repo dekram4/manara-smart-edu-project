@@ -48,15 +48,15 @@ const StudentAccountSetup: React.FC<StudentAccountSetupProps> = ({ student, onPa
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="flex items-center justify-center min-h-screen p-4 bg-orange-50 font-tajawal">
-      <div className="bg-white p-12 rounded-[60px] shadow-2xl max-w-xl w-full text-center border-t-[12px] border-orange-500 relative overflow-hidden">
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="flex min-h-screen items-center justify-center overflow-y-auto bg-orange-50 p-3 font-tajawal safe-area-x safe-area-top safe-area-bottom sm:p-4">
+      <div className="mobile-modal-panel relative w-full max-w-xl overflow-hidden rounded-[36px] border-t-8 border-orange-500 bg-white p-5 text-center shadow-2xl sm:rounded-[60px] sm:border-t-[12px] sm:p-10">
         <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
         
         <div className="w-24 h-24 bg-orange-500 text-white rounded-[35px] flex items-center justify-center text-5xl mx-auto mb-8 shadow-xl shadow-orange-100 animate-bounce">🎓</div>
-        <h1 className="text-4xl font-black mb-2 text-orange-800">مرحباً بك يا {student.name}!</h1>
-        <p className="text-orange-500 mb-8 font-bold text-lg">من أجل حماية حسابك ودروسك، يرجى تعيين كلمة مرور جديدة من اختيارك.</p>
+        <h1 className="text-2xl font-black mb-2 text-orange-800 sm:text-4xl">مرحباً بك يا {student.name}!</h1>
+        <p className="text-orange-500 mb-6 font-bold sm:mb-8 sm:text-lg">من أجل حماية حسابك ودروسك، يرجى تعيين كلمة مرور جديدة من اختيارك.</p>
         
-        <div className="bg-orange-50 p-6 rounded-[30px] mb-10 text-right space-y-2 border border-orange-100">
+         <div className="bg-orange-50 p-4 rounded-[24px] mb-6 text-right space-y-2 border border-orange-100 sm:mb-10 sm:rounded-[30px] sm:p-6">
            <div className="flex justify-between text-sm font-bold text-orange-400"><span>الصف الدراسي:</span> <span className="text-orange-500">{student.grade}</span></div>
            <div className="flex justify-between text-sm font-bold text-orange-400"><span>رقم الهوية:</span> <span className="text-orange-500 tracking-widest">{student.studentIdNumber}</span></div>
         </div>

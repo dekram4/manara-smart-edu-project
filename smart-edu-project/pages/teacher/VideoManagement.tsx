@@ -313,11 +313,11 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       </div>
 
       <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/80 p-4">
-        <div className="mb-3 flex items-center justify-between">
+         <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-black text-amber-800">🔎 فلترة الفيديوهات</h3>
           <button
             onClick={() => setFilters({ grade: '', atram: '', subject: '', term: '', unit: '' })}
-            className="rounded-lg bg-white px-3 py-1 text-xs font-bold text-amber-700 hover:bg-amber-100"
+             className="min-h-11 rounded-lg bg-white px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100 sm:min-h-0 sm:py-1"
           >
             مسح الفلاتر
           </button>

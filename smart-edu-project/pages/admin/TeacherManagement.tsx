@@ -164,9 +164,9 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   return (
     <div className="space-y-6">
       {/* 📊 Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-black text-purple-900">👨‍🏫 إدارة المعلمين</h1>
+      <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black text-purple-900 sm:text-3xl">👨‍🏫 إدارة المعلمين</h1>
           <p className="text-purple-500 font-medium">إضافة وإدارة حسابات المعلمين</p>
         </div>
         <button
@@ -176,7 +176,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
             resetForm();
             setTeacherPackages(getPermissionPackages().filter(pkg => pkg.role === 'teacher'));
           }}
-          className="bg-gradient-to-r from-purple-500 to-violet-500 text-white px-8 py-4 rounded-[25px] font-black text-lg hover:shadow-2xl transition-all"
+          className="min-h-11 bg-gradient-to-r from-purple-500 to-violet-500 text-white px-5 py-3 rounded-[20px] font-black text-base hover:shadow-2xl transition-all sm:px-8 sm:py-4 sm:rounded-[25px] sm:text-lg"
         >
           {showForm ? '❌ إلغاء' : '➕ إضافة معلم جديد'}
         </button>
@@ -184,7 +184,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
 
       {/* 📝 نموذج الإضافة/التعديل */}
       {showForm && (
-        <div className="bg-gradient-to-br from-blue-50 to-violet-50 p-10 rounded-[40px] border-2 border-blue-300 shadow-2xl">
+        <div className="mobile-modal-panel bg-gradient-to-br from-blue-50 to-violet-50 p-4 rounded-[28px] border-2 border-blue-300 shadow-2xl sm:p-8 sm:rounded-[40px]">
           <h2 className="text-2xl font-black text-blue-900 mb-8">
             {editingTeacher ? '✏️ تعديل بيانات المعلم' : '✨ إضافة معلم جديد'}
           </h2>

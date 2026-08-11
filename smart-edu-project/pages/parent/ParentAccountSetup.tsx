@@ -41,11 +41,11 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-rose-50 font-tajawal">
-      <div className="bg-white p-12 rounded-[50px] shadow-2xl max-w-lg w-full text-center border-t-8 border-emerald-500">
+    <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-rose-50 p-3 font-tajawal safe-area-x safe-area-top safe-area-bottom sm:p-4">
+      <div className="mobile-modal-panel w-full max-w-lg rounded-[34px] border-t-8 border-emerald-500 bg-white p-5 text-center shadow-2xl sm:rounded-[50px] sm:p-10">
         <div className="w-24 h-24 bg-rose-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-8 shadow-inner">👤</div>
-        <h1 className="text-3xl font-black mb-2 text-rose-800">أهلاً بك {parent.name}!</h1>
-        <p className="text-rose-500 mb-10 font-bold">هذه أول مرة تقوم بتسجيل الدخول. يرجى تغيير كلمة المرور الافتراضية لحماية حسابك.</p>
+        <h1 className="text-2xl font-black mb-2 text-rose-800 sm:text-3xl">أهلاً بك {parent.name}!</h1>
+        <p className="text-rose-500 mb-6 font-bold sm:mb-10">هذه أول مرة تقوم بتسجيل الدخول. يرجى تغيير كلمة المرور الافتراضية لحماية حسابك.</p>
         
         <form onSubmit={handleSubmit} className="space-y-6 text-right">
           <div className="space-y-2">

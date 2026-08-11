@@ -668,7 +668,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       {mobileNavOpen && (
         <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
       )}
-      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 text-white shadow-2xl transition-transform duration-300 md:static md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:static md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-rose-800">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
@@ -902,7 +902,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   {(() => {
                     const qs = getChildQuizzes(activeChild.id);
                     if (subjectsOfChild.length === 0) return (
-                      <div className="p-12 bg-rose-50 rounded-2xl border-2 border-dashed border-rose-200 text-center">
+                       <div className="rounded-2xl border-2 border-dashed border-rose-200 bg-rose-50 p-5 text-center sm:p-12">
                         <p className="text-4xl mb-2">📚</p>
                         <p className="text-rose-500 font-bold text-sm">لم يتم رصد نتائج اختبارات بعد</p>
                       </div>
@@ -1200,7 +1200,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         ? children.filter(c => c.name.toLowerCase().includes(dashFilter.toLowerCase()) || (c.primaryGrade || c.grade || '').includes(dashFilter))
                         : children;
                       if (filtered.length === 0) return (
-                        <div className="col-span-full p-10 bg-rose-50 rounded-2xl border-2 border-dashed border-rose-200 text-center">
+                        <div className="col-span-full rounded-2xl border-2 border-dashed border-rose-200 bg-rose-50 p-5 text-center sm:p-10">
                           <p className="text-3xl mb-2">🔍</p>
                           <p className="text-rose-500 font-bold text-sm">لا توجد نتائج مطابقة</p>
                         </div>
@@ -1403,7 +1403,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                             </div>
                           );
                         }) : (
-                          <div className="col-span-full p-10 bg-rose-50 rounded-2xl border-2 border-dashed border-rose-200 text-center">
+                          <div className="col-span-full rounded-2xl border-2 border-dashed border-rose-200 bg-rose-50 p-5 text-center sm:p-10">
                             <p className="text-3xl mb-2">📚</p>
                             <p className="text-rose-500 font-bold text-sm">لم يتم رصد نتائج بعد</p>
                           </div>
@@ -1699,8 +1699,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
       {/* ===== Preview Modal ===== */}
       {previewCert && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setPreviewCert(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 animate-slideUp" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 safe-area-x safe-area-top safe-area-bottom" onClick={() => setPreviewCert(null)}>
+          <div className="mobile-modal-panel w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl animate-slideUp" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-4">
               <div className="text-5xl mb-2">{previewCert.type === 'excellence' ? '🏆' : previewCert.type === 'appreciation' ? '⭐' : '🌟'}</div>
               <h3 className="text-xl font-black text-rose-800">{previewCert.type === 'excellence' ? 'شهادة تفوق' : previewCert.type === 'appreciation' ? 'شهادة شكر' : 'شهادة مشاركة'}</h3>
@@ -1726,8 +1726,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
       {/* ===== Change Grade Modal ===== */}
       {showChangeGradeModal && studentToChangeGrade && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 safe-area-x safe-area-top safe-area-bottom">
+          <div className="mobile-modal-panel w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
             <div className="text-center mb-4"><div className="text-4xl mb-2">📚</div><h2 className="text-lg font-black text-rose-900 mb-1">تغيير الصف</h2><p className="text-rose-400 font-bold text-xs">{studentToChangeGrade.name}</p></div>
             <div className="mb-4 space-y-2">
               <label className="block text-xs font-bold text-rose-600">الصف الحالي: <span className="text-rose-500">{studentToChangeGrade.primaryGrade || studentToChangeGrade.grade}</span></label>
@@ -1745,7 +1745,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
       {/* ===== Teacher Info ===== */}
       {parent && (
-        <div className="fixed bottom-4 left-4 z-40">
+        <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-40">
           {(() => {
             const parents = JSON.parse(localStorage.getItem('smartEdu_parents') || '[]');
             const myParent = parents.find((p: any) => p.id === parent.id);

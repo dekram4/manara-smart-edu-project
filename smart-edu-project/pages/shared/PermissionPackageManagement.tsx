@@ -471,7 +471,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
       <div className="space-y-3">
         <h2 className="text-xl font-black text-slate-800">إعدادات الصلاحيات المتاحة — {targetLabels[activeTargetRole]}</h2>
         {visiblePackages.length === 0 && (
-          <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-10 text-center font-bold text-slate-500">
+           <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-5 text-center font-bold text-slate-500 sm:p-10">
             لا توجد إعدادات صلاحيات لهذا الدور حاليًا.
           </div>
         )}
@@ -533,7 +533,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
                   value={assignedPackageId}
                   disabled={!canManageTarget(activeTargetRole)}
                   onChange={event => assignPackage(target, activeTargetRole, event.target.value)}
-                  className="min-w-64 rounded-xl border-2 border-slate-200 bg-white p-3 font-bold outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-100"
+                   className="w-full min-w-0 rounded-xl border-2 border-slate-200 bg-white p-3 font-bold outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-100 sm:w-auto sm:min-w-64"
                 >
                   <option value="">الصلاحيات العامة</option>
                    {visiblePackages.map(pkg => (
@@ -545,7 +545,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
           );
         })}
         {visibleTargets.length === 0 && (
-          <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-10 text-center font-bold text-slate-500">
+           <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-5 text-center font-bold text-slate-500 sm:p-10">
             لا توجد حسابات تابعة لهذا الدور حاليًا.
           </div>
         )}

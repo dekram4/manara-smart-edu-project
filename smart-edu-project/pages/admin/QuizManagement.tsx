@@ -892,9 +892,9 @@ ${contentSummary}
   return (
     <div className="space-y-6">
       {/* 📊 Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-black text-purple-900">🎯 إدارة الاختبارات</h1>
+      <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black text-purple-900 sm:text-3xl">🎯 إدارة الاختبارات</h1>
           <p className="text-purple-500 font-medium">إنشاء وإدارة الاختبارات للطلاب</p>
         </div>
         <button
@@ -903,7 +903,7 @@ ${contentSummary}
             setEditingQuiz(null);
             resetForm();
           }}
-          className="bg-gradient-to-r from-purple-500 to-violet-500 text-white px-8 py-4 rounded-[25px] font-black text-lg hover:shadow-2xl transition-all"
+          className="min-h-11 bg-gradient-to-r from-purple-500 to-violet-500 text-white px-5 py-3 rounded-[20px] font-black text-base hover:shadow-2xl transition-all sm:px-8 sm:py-4 sm:rounded-[25px] sm:text-lg"
         >
           {showCreateForm ? '❌ إلغاء' : '➕ إنشاء اختبار جديد'}
         </button>
@@ -911,13 +911,13 @@ ${contentSummary}
 
       {/* 📝 نموذج إنشاء/تعديل اختبار */}
       {showCreateForm && (
-        <div className="bg-gradient-to-br from-purple-50 to-violet-50 p-10 rounded-[40px] border-2 border-purple-300 shadow-2xl animate-fadeIn">
+        <div className="mobile-modal-panel bg-gradient-to-br from-purple-50 to-violet-50 p-4 rounded-[28px] border-2 border-purple-300 shadow-2xl animate-fadeIn sm:p-8 sm:rounded-[40px]">
           <h2 className="text-2xl font-black text-purple-900 mb-8">
             {editingQuiz ? '📝 تعديل اختبار' : '✨ إنشاء اختبار جديد'}
           </h2>
 
           {/* اختيار نوع الإنشاء */}
-          <div className="mb-6 flex gap-4">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
               <button
                 type="button"
                 onClick={() => setCreationMode('ai')}
@@ -984,7 +984,7 @@ ${contentSummary}
             </div>
 
             {/* الاختيارات الأكاديمية */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5">
               {/* الصف */}
               <select
                 value={quizFormData.grade}
