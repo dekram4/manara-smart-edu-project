@@ -36,7 +36,7 @@ app.use('/uploads', express.static(path.join(root, 'uploads'), {
   maxAge: '1h',
 }));
 
-async function callGemini(prompt, { temperature = 0.2, maxOutputTokens = 2048 } = {}) {
+async function callGemini(prompt, { temperature = 0.2, maxOutputTokens = 2048, json = false } = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     const error = new Error('GEMINI_API_KEY is not configured');
@@ -54,7 +54,11 @@ async function callGemini(prompt, { temperature = 0.2, maxOutputTokens = 2048 } 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature, maxOutputTokens },
+          generationConfig: {
+            temperature,
+            maxOutputTokens,
+            ...(json ? { responseMimeType: 'application/json' } : {}),
+          },
         }),
       },
     );
@@ -171,13 +175,13 @@ app.post('/api/gemini/generate-quiz', async (req, res) => {
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
   const temperature = Number.isFinite(req.body?.temperature) ? req.body.temperature : 0.7;
   const maxOutputTokens = Number.isFinite(req.body?.maxOutputTokens)
-    ? Math.min(Math.max(req.body.maxOutputTokens, 256), 4000)
+    ? Math.min(Math.max(req.body.maxOutputTokens, 256), 9000)
     : 3000;
   if (!prompt || prompt.length > 14000) {
     return res.status(400).json({ error: 'طلب توليد الاختبار غير صالح' });
   }
   try {
-    const data = await callGemini(prompt, { temperature, maxOutputTokens });
+    const data = await callGemini(prompt, { temperature, maxOutputTokens, json: true });
     return res.json(data);
   } catch (error) {
     console.error('[gemini] quiz generation failed:', error.message);

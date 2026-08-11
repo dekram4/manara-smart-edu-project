@@ -514,7 +514,7 @@ ${contentSummary}
         body: JSON.stringify({
           prompt,
           temperature: 0.7,
-          maxOutputTokens: 6000,
+          maxOutputTokens: 9000,
         })
       });
 
@@ -547,7 +547,8 @@ ${contentSummary}
       const data = await response.json();
       const aiResponse = data.text || data.candidates?.[0]?.content?.parts
         ?.map((part: { text?: string }) => part?.text || '')
-        .join('');
+        .join('')
+        .trim();
       
       if (!aiResponse) {
         alert('❌ لم يتم الحصول على رد من الذكاء الاصطناعي. حاول مرة أخرى.');
@@ -557,22 +558,37 @@ ${contentSummary}
 
       console.log('✅ تم استلام رد من Gemini AI');
       
-      // استخراج JSON من الرد
-      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        console.error('❌ فشل استخراج JSON من الرد:', aiResponse);
-        alert('❌ فشل تحليل الأسئلة من AI. حاول مرة أخرى.');
-        setIsGenerating(false);
-        return;
-      }
-
       try {
-         const parsedQuestions = JSON.parse(jsonMatch[0]);
-         const generatedQuestions = Array.isArray(parsedQuestions)
-           ? parsedQuestions.slice(0, bankSize)
-           : [];
+        // Gemini may wrap JSON in a markdown fence even when JSON mode is
+        // requested. Remove the fence and parse the complete array safely.
+        const cleanedResponse = aiResponse
+          .replace(/^```(?:json)?\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+        const arrayStart = cleanedResponse.indexOf('[');
+        const arrayEnd = cleanedResponse.lastIndexOf(']');
+        const jsonText = arrayStart >= 0 && arrayEnd > arrayStart
+          ? cleanedResponse.slice(arrayStart, arrayEnd + 1)
+          : cleanedResponse;
+        const parsedQuestions = JSON.parse(jsonText);
+        const generatedQuestions = Array.isArray(parsedQuestions)
+          ? parsedQuestions
+              .filter((question: any) =>
+                question &&
+                typeof question.question === 'string' &&
+                Array.isArray(question.options) &&
+                question.options.length >= 4 &&
+                typeof question.correctAnswer === 'string',
+              )
+              .slice(0, bankSize)
+          : [];
         if (!generatedQuestions || generatedQuestions.length === 0) {
-          alert('❌ لم يتم توليد أي أسئلة. حاول مرة أخرى.');
+          console.error('❌ لم يتم العثور على أسئلة صالحة في رد AI:', {
+            finishReason: data.candidates?.[0]?.finishReason,
+            responseLength: aiResponse.length,
+            responsePreview: aiResponse.slice(0, 500),
+          });
+          alert('❌ لم يتم توليد أسئلة صالحة. حاول مرة أخرى.');
           setIsGenerating(false);
           return;
         }
@@ -581,8 +597,17 @@ ${contentSummary}
           alert(`✅ تم إنشاء بنك احترافي بـ ${generatedQuestions.length} سؤالًا، وسيظهر لكل طالب ${requestedQuestionCount} أسئلة مختلفة.`);
         }
       } catch (parseError) {
-        console.error('❌ خطأ في تحليل JSON:', parseError);
-        alert('❌ فشل تحليل الأسئلة. حاول مرة أخرى.');
+        console.error('❌ خطأ في تحليل JSON:', {
+          error: parseError,
+          finishReason: data.candidates?.[0]?.finishReason,
+          responseLength: aiResponse.length,
+          responsePreview: aiResponse.slice(-500),
+        });
+        alert(
+          data.candidates?.[0]?.finishReason === 'MAX_TOKENS'
+            ? '❌ الرد كان طويلًا ولم يكتمل. قلّل عدد الأسئلة أو حاول مرة أخرى.'
+            : '❌ فشل تحليل الأسئلة. حاول مرة أخرى.',
+        );
       }
       
     } catch (error) {
