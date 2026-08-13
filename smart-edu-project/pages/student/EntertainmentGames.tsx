@@ -21,14 +21,12 @@ const EMBEDDED_GAME_URL =
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_3_URL =
-  'https://html5.gamedistribution.com/be797a3996324c03b20bad496a82819f/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
+  '/api/game-embed/be797a3996324c03b20bad496a82819f/index.html';
 
 // Local Unity games need same-origin access to load their own assets. Keep
 // provider popup and top-navigation privileges disabled for those games.
 const GAME_FRAME_SANDBOX =
   'allow-scripts allow-same-origin allow-pointer-lock allow-orientation-lock';
-const GAME_PROVIDER_FRAME_SANDBOX =
-  `${GAME_FRAME_SANDBOX} allow-forms allow-modals`;
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
@@ -289,7 +287,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               title="اللعبة الثالثة"
               className="h-full w-full border-0"
               scrolling="no"
-              sandbox={GAME_PROVIDER_FRAME_SANDBOX}
+              sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
               referrerPolicy="no-referrer"
