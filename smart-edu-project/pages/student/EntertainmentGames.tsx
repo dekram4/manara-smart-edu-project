@@ -31,6 +31,7 @@ const GAME_FRAME_SANDBOX =
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
   const [gameLoading, setGameLoading] = useState(false);
+  const [embeddedGameEscaped, setEmbeddedGameEscaped] = useState(false);
   const [lockedMessage, setLockedMessage] = useState('');
   const gamePanelRef = useRef<HTMLDivElement>(null);
   const embeddedGameFrameRef = useRef<HTMLIFrameElement>(null);
@@ -46,6 +47,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     GameAudioEngine.play('portalTransition');
     setLockedMessage('');
     setGameLoading(true);
+    setEmbeddedGameEscaped(false);
     setActiveGame(game);
   };
 
@@ -56,6 +58,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     setActiveGame(null);
     setGameLoading(false);
     setIsFullscreen(false);
+    setEmbeddedGameEscaped(false);
   };
 
   const handleEmbeddedGameLoad = (event: React.SyntheticEvent<HTMLIFrameElement>) => {
@@ -73,11 +76,21 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
         bodyText.includes('click here to play');
 
       if (escapedToProvider) {
-        frame.src = EMBEDDED_GAME_3_URL;
+        setEmbeddedGameEscaped(true);
+        frame.src = 'about:blank';
       }
     } catch {
-      // A cross-origin navigation is not readable; restore the local game.
-      frame.src = EMBEDDED_GAME_3_URL;
+      // A cross-origin navigation is not readable; hide it instead of looping.
+      setEmbeddedGameEscaped(true);
+      frame.src = 'about:blank';
+    }
+  };
+
+  const restartEmbeddedGame = () => {
+    setEmbeddedGameEscaped(false);
+    setGameLoading(true);
+    if (embeddedGameFrameRef.current) {
+      embeddedGameFrameRef.current.src = EMBEDDED_GAME_3_URL;
     }
   };
 
@@ -306,19 +319,34 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 </span>
               </div>
             )}
-            <iframe
-              src={EMBEDDED_GAME_3_URL}
-              title="اللعبة الثالثة"
-              ref={embeddedGameFrameRef}
-              className="h-full w-full border-0"
-              scrolling="no"
-              sandbox={GAME_FRAME_SANDBOX}
-              allow="fullscreen; autoplay; gamepad; pointer-lock"
-              allowFullScreen
-              referrerPolicy="no-referrer"
-              loading="eager"
-              onLoad={handleEmbeddedGameLoad}
-            />
+            {embeddedGameEscaped ? (
+              <div className="flex h-full min-h-80 flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center">
+                <p className="text-sm font-black text-white">
+                  انتهت اللعبة بدون فتح صفحة خارجية.
+                </p>
+                <button
+                  type="button"
+                  onClick={restartEmbeddedGame}
+                  className="rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-400"
+                >
+                  إعادة تشغيل اللعبة
+                </button>
+              </div>
+            ) : (
+              <iframe
+                src={EMBEDDED_GAME_3_URL}
+                title="اللعبة الثالثة"
+                ref={embeddedGameFrameRef}
+                className="h-full w-full border-0"
+                scrolling="no"
+                sandbox={GAME_FRAME_SANDBOX}
+                allow="fullscreen; autoplay; gamepad; pointer-lock"
+                allowFullScreen
+                referrerPolicy="no-referrer"
+                loading="eager"
+                onLoad={handleEmbeddedGameLoad}
+              />
+            )}
           </div>
         </div>
       )}
