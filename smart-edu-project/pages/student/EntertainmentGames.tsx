@@ -20,11 +20,34 @@ const EMBEDDED_GAME_URL =
   '/api/game-embed/d4a3629101574bc39bd8f9d1888ca58e/index.html';
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
-// GameDistribution's registered HTML5 Game Player embed. The same-origin
-// proxy keeps the player URL direct while neutralizing the provider ad SDK.
+/**
+ * Remove provider tracking/query placeholders before an iframe is mounted.
+ * GameDistribution accepts the explicit 32-character player id path; the
+ * generated SDK referrer query is not part of the game URL and can trigger
+ * a reload loop when it contains an unresolved `{game-path}` token.
+ */
+export function sanitizeGameIframeUrl(value: string): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  try {
+    const url = new URL(raw, 'https://manara-game.local');
+    if (url.hostname.toLowerCase() !== 'html5.gamedistribution.com') {
+      return raw;
+    }
+
+    const gameId = decodeURIComponent(url.pathname).match(/\/([a-f0-9]{32})(?:\/|$)/i)?.[1];
+    if (!gameId) return raw;
+    return `https://html5.gamedistribution.com/${gameId}/`;
+  } catch {
+    return raw;
+  }
+}
+
 const GAME_DISTRIBUTION_GAME_3_ID = '72d861a52f3c4e788ae0421649633be3';
-const EMBEDDED_GAME_3_URL =
-  `/api/game-embed/${GAME_DISTRIBUTION_GAME_3_ID}/index.html`;
+const GAME_DISTRIBUTION_GAME_3_URL_WITH_TRACKING =
+  `https://html5.gamedistribution.com/${GAME_DISTRIBUTION_GAME_3_ID}/?gd_sdk_referrer_url=https%3A%2F%2Fmanara.local%2Fgames&game-path={game-path}`;
+const EMBEDDED_GAME_3_URL = sanitizeGameIframeUrl(GAME_DISTRIBUTION_GAME_3_URL_WITH_TRACKING);
 
 const GAME_CARDS: Array<{
   type: GameType;
@@ -64,25 +87,28 @@ const GAME_CARDS: Array<{
   },
 ];
 
-// GameDistribution and other HTML5 players need these permissions for their
-// ad SDK, pointer lock, forms, popups, downloads, and modal game prompts.
+// GameDistribution needs these permissions for its HTML5 player and ads.
 const GAME_FRAME_SANDBOX =
-  'allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-downloads allow-modals';
+  'allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock';
 const GAME_FRAME_ALLOW =
-  'autoplay; fullscreen; microphone; camera; geolocation; accelerometer; gyroscope';
+  'autoplay; fullscreen; geolocation; microphone; camera';
 
-type GameIframeProps = React.IframeHTMLAttributes<HTMLIFrameElement> & {
+type GameIframeProps = Omit<React.IframeHTMLAttributes<HTMLIFrameElement>, 'src'> & {
+  src: string;
   frameKey: string;
 };
 
 const GameIframe = React.forwardRef<HTMLIFrameElement, GameIframeProps>(
-  ({ frameKey, ...props }, ref) => (
+  ({ frameKey, src, ...props }, ref) => (
     <iframe
       {...props}
+      src={sanitizeGameIframeUrl(src)}
       key={frameKey}
       ref={ref}
       sandbox={GAME_FRAME_SANDBOX}
       allow={GAME_FRAME_ALLOW}
+      width="100%"
+      height="100%"
       loading="lazy"
     />
   ),
@@ -125,29 +151,8 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     setEmbeddedGameEscaped(false);
   };
 
-  const handleEmbeddedGameLoad = (event: React.SyntheticEvent<HTMLIFrameElement>) => {
+  const handleEmbeddedGameLoad = () => {
     setGameLoading(false);
-    const frame = event.currentTarget;
-    const expectedPath = new URL(EMBEDDED_GAME_3_URL, window.location.href).pathname;
-
-    try {
-      const currentUrl = new URL(frame.contentWindow?.location.href || '', window.location.href);
-      const bodyText = frame.contentDocument?.body?.innerText?.toLowerCase() || '';
-      const escapedToProvider =
-        currentUrl.origin !== window.location.origin ||
-        currentUrl.pathname !== expectedPath ||
-        bodyText.includes('not available here') ||
-        bodyText.includes('click here to play');
-
-      if (escapedToProvider) {
-        setEmbeddedGameEscaped(true);
-        frame.src = 'about:blank';
-      }
-    } catch {
-      // A cross-origin navigation is not readable; hide it instead of looping.
-      setEmbeddedGameEscaped(true);
-      frame.src = 'about:blank';
-    }
   };
 
   const restartEmbeddedGame = () => {
@@ -155,9 +160,6 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     setEmbeddedGameEscaped(false);
     setGameLoading(true);
     setEmbeddedGameFrameKey((previous) => `${previous}-manual-retry`);
-    if (embeddedGameFrameRef.current) {
-      embeddedGameFrameRef.current.src = EMBEDDED_GAME_3_URL;
-    }
   };
 
   const handleEmbeddedGameError = () => {
@@ -379,7 +381,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
             {embeddedGameEscaped ? (
               <div className="flex h-full min-h-80 flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center">
                 <p className="text-sm font-black text-white">
-                  انتهت اللعبة بدون فتح صفحة خارجية.
+                  تعذر تحميل اللعبة أو خدمة الإعلانات، ولم تتم إعادة تحميلها تلقائيًا.
                 </p>
                 <button
                   type="button"
