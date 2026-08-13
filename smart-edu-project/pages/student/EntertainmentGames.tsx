@@ -22,12 +22,10 @@ const EMBEDDED_GAME_URL =
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_4_URL =
-  'https://html5.gamedistribution.com/rvvASMiM/71cbc5e6851846f9b9b4319a070a61ae/index.html';
+  'https://html5.gamedistribution.com/rvvASMiM/2618b45729854f8cbdf0616f8f175702/index.html';
 /**
- * Remove provider tracking/query placeholders before an iframe is mounted.
- * GameDistribution accepts the explicit 32-character player id path; the
- * generated SDK referrer query is not part of the game URL and can trigger
- * a reload loop when it contains an unresolved `{game-path}` token.
+ * Keep the official GameDistribution referrer query when it is valid. The
+ * provider uses it to initialize the SDK and serve the embedded game.
  */
 export function sanitizeGameIframeUrl(value: string): string {
   const raw = String(value || '').trim();
@@ -43,6 +41,11 @@ export function sanitizeGameIframeUrl(value: string): string {
     const directGamePath = pathname.match(/\/(rvv[^/]+)\/([a-f0-9]{32})\/index\.html$/i);
     if (directGamePath) {
       return `https://html5.gamedistribution.com/${directGamePath[1]}/${directGamePath[2]}/index.html`;
+    }
+
+    const officialReferrer = url.searchParams.get('gd_sdk_referrer_url');
+    if (officialReferrer && !officialReferrer.includes('{game-path}')) {
+      return raw;
     }
 
     const gameId = pathname.match(/\/([a-f0-9]{32})(?:\/|$)/i)?.[1];
@@ -87,21 +90,22 @@ const GAME_CARDS: Array<{
     icon: '🎯',
     accent: '#34d399',
     gradient: 'from-emerald-400 via-teal-500 to-cyan-700',
-    requiredLevel: 3,
+    requiredLevel: 0,
   },
   {
     type: 'embedded4',
-    title: 'Battalion Commander 1917',
-    subtitle: 'مغامرة HTML5 جديدة داخل منصة منارة',
-    icon: '🪖',
-    accent: '#fb923c',
-    gradient: 'from-orange-400 via-amber-500 to-red-700',
+    title: 'Cute Animal World',
+    subtitle: 'ابنِ عالمًا لطيفًا للحيوانات بالنقر والسحب',
+    icon: '🐾',
+    accent: '#f59e0b',
+    gradient: 'from-lime-400 via-emerald-500 to-teal-700',
     requiredLevel: 0,
   },
 ];
 
-// Keep the player inside the current card. In particular, do not grant popup
-// privileges: GameDistribution must not navigate the student to a new tab.
+// Keep ordinary embedded games inside the current card. The GameDistribution
+// title gets a narrowly scoped permission set because its runtime uses those
+// browser capabilities while starting the game.
 const GAME_FRAME_SANDBOX =
   'allow-scripts allow-same-origin allow-forms allow-pointer-lock';
 const GAME_4_SANDBOX =
@@ -116,7 +120,7 @@ type GameIframeProps = Omit<React.IframeHTMLAttributes<HTMLIFrameElement>, 'src'
 };
 
 const GameIframe = React.forwardRef<HTMLIFrameElement, GameIframeProps>(
-  ({ frameKey, src, sandbox = GAME_FRAME_SANDBOX, ...props }, ref) => (
+  ({ frameKey, src, sandbox = GAME_FRAME_SANDBOX, referrerPolicy = 'no-referrer', ...props }, ref) => (
     <iframe
       {...props}
       src={sanitizeGameIframeUrl(src)}
@@ -124,7 +128,7 @@ const GameIframe = React.forwardRef<HTMLIFrameElement, GameIframeProps>(
       ref={ref}
       sandbox={sandbox}
       allow={GAME_FRAME_ALLOW}
-      referrerPolicy="no-referrer"
+      referrerPolicy={referrerPolicy}
       width="100%"
       height="100%"
       loading="lazy"
@@ -366,7 +370,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       {activeGame === 'embedded4' && (
         <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-orange-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
           <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
-            <h3 className="font-black text-white">Battalion Commander 1917</h3>
+            <h3 className="font-black text-white">Cute Animal World</h3>
             <div className="flex items-center gap-2">
               <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
@@ -376,7 +380,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               </button>
             </div>
           </div>
-          <div className="game-frame-surface relative mx-auto aspect-[654/872] w-full max-w-[654px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+          <div className="game-frame-surface relative mx-auto aspect-[5/9] w-full max-w-[640px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
@@ -386,13 +390,14 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
             )}
             <GameIframe
               src={EMBEDDED_GAME_4_URL}
-              title="Battalion Commander 1917"
+              title="Cute Animal World"
               frameKey="game-4"
               sandbox={GAME_4_SANDBOX}
               className="h-full w-full border-0"
               scrolling="no"
               allowFullScreen
               loading="eager"
+              referrerPolicy="strict-origin-when-cross-origin"
               onLoad={() => setGameLoading(false)}
               onError={() => setGameLoading(false)}
             />
