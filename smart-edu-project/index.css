@@ -109,6 +109,8 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 body {
@@ -125,7 +127,7 @@ html, body {
   height: 100%;
   height: 100dvh;
   height: -webkit-fill-available;
-  overflow-x: clip;
+  overflow-x: hidden;
   overflow-y: auto;
   scroll-behavior: smooth;
 }
@@ -134,7 +136,23 @@ html, body {
   min-height: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: clip;
+  overflow-x: hidden;
+}
+
+/* Every dashboard page must be able to shrink when a phone rotates.
+   Without this, a single fixed-width child can make the browser create a
+   second layout viewport and Safari may reload the page during rotation. */
+*,
+*::before,
+*::after {
+  min-width: 0;
+}
+
+iframe,
+object,
+embed {
+  display: block;
+  max-width: 100%;
 }
 
 /* Shared responsive foundations. These rules only improve layout and touch
@@ -348,6 +366,45 @@ table {
     max-height: calc(100dvh - 1.5rem);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 1024px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .student-dashboard-shell {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+  }
+
+  .student-dashboard-shell .max-w-7xl {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .student-dashboard-shell .student-swiper-mobile-item {
+    flex-basis: min(78vw, 560px);
+    max-width: min(78vw, 560px);
+  }
+
+  .student-dashboard-shell .student-swiper-mobile {
+    max-width: 100%;
+  }
+
+  .student-dashboard-shell iframe,
+  .student-dashboard-shell video,
+  .student-dashboard-shell canvas {
+    max-width: 100%;
   }
 }
 

@@ -207,15 +207,15 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
   }, [activeGame]);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="rounded-3xl border border-white/15 bg-slate-900/60 p-5 backdrop-blur-lg">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="entertainment-page-shell min-w-0 space-y-4 sm:space-y-6">
+      <div className="min-w-0 rounded-3xl border border-white/15 bg-slate-900/60 p-3 backdrop-blur-lg sm:p-5">
         <EducationalCardEffects accent="#a78bfa" compact />
-        <h2 className="text-3xl font-black text-white">🎮 قائمة الترفيه والألعاب</h2>
-        <p className="mt-1 text-sm font-bold text-cyan-200">{subject} • {grade} • {term} • {unit}</p>
-        <div className="mt-3 flex flex-wrap gap-3 text-sm font-black">
-          <span className="rounded-xl bg-slate-800 px-3 py-2 text-yellow-300">XP: {stats.xp}</span>
-          <span className="rounded-xl bg-slate-800 px-3 py-2 text-cyan-300">جواهر: {stats.gems}</span>
-          <span className="rounded-xl bg-slate-800 px-3 py-2 text-fuchsia-300">المستوى: {stats.level}</span>
+        <h2 className="break-words text-2xl font-black text-white sm:text-3xl">🎮 قائمة الترفيه والألعاب</h2>
+        <p className="mt-1 break-words text-xs font-bold leading-6 text-cyan-200 sm:text-sm">{subject} • {grade} • {term} • {unit}</p>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-black sm:flex sm:flex-wrap sm:gap-3 sm:text-sm">
+          <span className="rounded-xl bg-slate-800 px-2 py-2 text-yellow-300 sm:px-3">XP: {stats.xp}</span>
+          <span className="rounded-xl bg-slate-800 px-2 py-2 text-cyan-300 sm:px-3">جواهر: {stats.gems}</span>
+          <span className="rounded-xl bg-slate-800 px-2 py-2 text-fuchsia-300 sm:px-3">المستوى: {stats.level}</span>
         </div>
         {lockedMessage && (
           <div role="status" className="mt-3 rounded-xl border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-200">
@@ -237,13 +237,13 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               type="button"
               onClick={() => openGame(game.type, game.requiredLevel)}
               aria-disabled={!unlocked}
-              className={`group relative min-h-[260px] overflow-hidden rounded-[26px] border-2 p-3 text-right shadow-2xl transition-all duration-300 ${
+               className={`group relative min-h-[220px] min-w-0 overflow-hidden rounded-[26px] border-2 p-2.5 text-right shadow-2xl transition-all duration-300 sm:min-h-[250px] sm:p-3 ${
                 unlocked
                   ? 'border-white/20 bg-slate-950/90 hover:-translate-y-1 hover:border-white/50'
                   : 'cursor-pointer border-white/10 bg-slate-900/85 opacity-80 hover:opacity-95'
               }`}
             >
-              <div className={`relative aspect-[1.55] overflow-hidden rounded-[20px] bg-gradient-to-br ${game.gradient} p-4`}>
+               <div className={`relative aspect-[1.45] overflow-hidden rounded-[20px] bg-gradient-to-br ${game.gradient} p-3 sm:aspect-[1.55] sm:p-4`}>
                 <EducationalCardEffects accent={game.accent} compact />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.35),transparent_28%),linear-gradient(135deg,transparent,rgba(15,23,42,0.22))]" />
                 <div className="relative z-10 flex items-start justify-between">
@@ -254,23 +254,23 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                     {game.icon}
                   </span>
                 </div>
-                <div className="relative z-10 mt-7 flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-950 shadow-lg">▶</span>
+                 <div className="relative z-10 mt-5 flex items-center gap-2 sm:mt-7">
+                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/90 text-sm text-slate-950 shadow-lg sm:h-9 sm:w-9">▶</span>
                   <span className="text-xs font-black text-white/90">{unlocked ? 'جاهزة للعب' : 'تفتح مع تقدمك'}</span>
                 </div>
               </div>
               <div className="px-2 pb-1 pt-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-xl font-black text-white">{game.title}</h3>
-                    <p className="mt-1 text-xs font-bold leading-5 text-slate-400">{game.subtitle}</p>
+                     <h3 className="break-words text-lg font-black text-white sm:text-xl">{game.title}</h3>
+                     <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-400">{game.subtitle}</p>
                   </div>
                    <span className="mt-1 text-xs font-black text-slate-500">{index + 1}/{GAME_CARDS.length}</span>
                 </div>
                 <span className={`mt-4 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-black ${
                   unlocked ? 'bg-white/10 text-white group-hover:bg-white/20' : 'bg-white/5 text-slate-400'
                 }`}>
-                  {unlocked ? '▶ العب الآن' : `🔒 تُفتح في المستوى ${game.requiredLevel}`}
+                   {unlocked ? '▶ العب الآن' : `🔒 تُفتح في المستوى ${game.requiredLevel}`}
                 </span>
               </div>
             </button>
@@ -279,19 +279,19 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       </TouchCarousel>
 
       {activeGame === 'embedded' && (
-        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 min-w-0 overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-col gap-2 bg-slate-900 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4 sm:py-3">
             <h3 className="font-black text-white">اللعبة الأولى</h3>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <button type="button" onClick={toggleFullscreen} className="min-w-0 rounded-xl bg-white/10 px-2 py-2 text-xs font-black text-white hover:bg-white/20 sm:px-3 sm:text-sm">
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
               </button>
-              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+              <button type="button" onClick={closeGame} className="min-w-0 rounded-xl bg-rose-500/80 px-2 py-2 text-xs font-black text-white hover:bg-rose-500 sm:px-3 sm:text-sm">
                 ✕ إغلاق اللعبة والعودة للألعاب
               </button>
             </div>
           </div>
-          <div className="game-frame-surface relative aspect-video w-full bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+          <div className="game-frame-surface relative aspect-[4/3] w-full bg-black sm:aspect-video" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
@@ -314,19 +314,19 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       )}
 
       {activeGame === 'embedded2' && (
-        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-fuchsia-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 min-w-0 overflow-hidden rounded-3xl border border-fuchsia-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-col gap-2 bg-slate-900 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4 sm:py-3">
             <h3 className="font-black text-white">اللعبة الثانية</h3>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <button type="button" onClick={toggleFullscreen} className="min-w-0 rounded-xl bg-white/10 px-2 py-2 text-xs font-black text-white hover:bg-white/20 sm:px-3 sm:text-sm">
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
               </button>
-              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+              <button type="button" onClick={closeGame} className="min-w-0 rounded-xl bg-rose-500/80 px-2 py-2 text-xs font-black text-white hover:bg-rose-500 sm:px-3 sm:text-sm">
                 ✕ إغلاق اللعبة والعودة للألعاب
               </button>
             </div>
           </div>
-          <div className="game-frame-surface relative mx-auto aspect-[9/16] w-full max-w-[720px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+          <div className="game-frame-surface relative mx-auto aspect-[4/5] w-full max-w-[720px] bg-black sm:aspect-[9/16]" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
@@ -349,38 +349,38 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       )}
 
       {activeGame === 'embedded3' && (
-        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-emerald-300/30 bg-slate-950 shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 min-w-0 overflow-hidden rounded-3xl border border-emerald-300/30 bg-slate-950 shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-col gap-2 bg-slate-900 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4 sm:py-3">
             <h3 className="font-black text-white">صيد الأهداف</h3>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <button type="button" onClick={toggleFullscreen} className="min-w-0 rounded-xl bg-white/10 px-2 py-2 text-xs font-black text-white hover:bg-white/20 sm:px-3 sm:text-sm">
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
               </button>
-              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+              <button type="button" onClick={closeGame} className="min-w-0 rounded-xl bg-rose-500/80 px-2 py-2 text-xs font-black text-white hover:bg-rose-500 sm:px-3 sm:text-sm">
                 ✕ إغلاق اللعبة والعودة للألعاب
               </button>
             </div>
           </div>
-          <div className="game-frame-surface mx-auto w-full max-w-[820px] p-4 sm:p-6" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+          <div className="game-frame-surface mx-auto w-full max-w-[820px] p-3 sm:p-6" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             <PixiArcadeGame />
           </div>
         </div>
       )}
 
       {activeGame === 'embedded4' && (
-        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-orange-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 min-w-0 overflow-hidden rounded-3xl border border-orange-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-col gap-2 bg-slate-900 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4 sm:py-3">
             <h3 className="font-black text-white">Cute Animal World</h3>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <button type="button" onClick={toggleFullscreen} className="min-w-0 rounded-xl bg-white/10 px-2 py-2 text-xs font-black text-white hover:bg-white/20 sm:px-3 sm:text-sm">
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
               </button>
-              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+              <button type="button" onClick={closeGame} className="min-w-0 rounded-xl bg-rose-500/80 px-2 py-2 text-xs font-black text-white hover:bg-rose-500 sm:px-3 sm:text-sm">
                 ✕ إغلاق اللعبة والعودة للألعاب
               </button>
             </div>
           </div>
-          <div className="game-frame-surface relative mx-auto aspect-[5/9] w-full max-w-[640px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+          <div className="game-frame-surface relative mx-auto aspect-[4/5] w-full max-w-[640px] bg-black sm:aspect-[5/9]" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">

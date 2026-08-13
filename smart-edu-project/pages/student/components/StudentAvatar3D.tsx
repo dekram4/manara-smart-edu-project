@@ -1,7 +1,6 @@
 import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import '@three-ws/avatar/viewer';
 import { StudentAppearance } from '../../../types';
 import { getStudentAppearance } from '../../../utils/studentAppearance';
 import StudentAvatar from './StudentAvatar';

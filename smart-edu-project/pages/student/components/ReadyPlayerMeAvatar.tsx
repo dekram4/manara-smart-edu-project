@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react';
 import {
   StudentAppearance,
 } from '../../../types';
@@ -158,6 +159,7 @@ const createLocalAvatarImageUrl = (appearance: StudentAppearance) => {
 
 const LocalAvatarBuilder: React.FC<LocalAvatarBuilderProps> = ({ initialAppearance, onSave }) => {
   const [draft, setDraft] = useState<StudentAppearance>(initialAppearance);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const update = (patch: Partial<StudentAppearance>) => setDraft(current => ({ ...current, ...patch }));
 
   const save = () => {
@@ -188,6 +190,39 @@ const LocalAvatarBuilder: React.FC<LocalAvatarBuilderProps> = ({ initialAppearan
       </div>
 
       <LocalAvatarPreview appearance={draft} />
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-black text-cyan-100">شارة الشخصية</p>
+            <p className="mt-1 text-[11px] font-bold text-slate-400">ابحث واختر شارة من مكتبة الإيموجي الحديثة.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(current => !current)}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/20"
+            aria-expanded={showEmojiPicker}
+          >
+            <span className="text-xl" aria-hidden="true">{draft.shape || '★'}</span>
+            {showEmojiPicker ? 'إغلاق المكتبة' : 'فتح مكتبة الإيموجي'}
+          </button>
+        </div>
+        {showEmojiPicker && (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
+            <EmojiPicker
+              theme={Theme.DARK}
+              width="100%"
+              height={340}
+              lazyLoadEmojis
+              previewConfig={{ showPreview: false }}
+              onEmojiClick={(emojiData: EmojiClickData) => {
+                update({ shape: emojiData.emoji });
+                setShowEmojiPicker(false);
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="text-xs font-black text-cyan-100">

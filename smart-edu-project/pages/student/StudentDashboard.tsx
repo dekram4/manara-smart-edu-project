@@ -247,9 +247,8 @@ const ResponsiveAvatarEmbed: React.FC<{ rawUrl: string }> = ({ rawUrl }) => {
       </div>
       <div className="flex flex-col gap-2 rounded-2xl border border-purple-300/15 bg-purple-950/45 p-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs font-bold leading-5 text-purple-100">
-          إذا ظهر المعلم قريبًا داخل الموقع الخارجي، افتحه بالحجم الكامل لعرض الشخصية كاملة.
+          تم ضبط إطار المعلم ليتكيف تلقائيًا مع الجوال والتابلت والآيباد.
         </p>
-        <OpenExternalButton url={url.toString()} label="فتح المعلم بالحجم الكامل" />
       </div>
     </div>
   );
@@ -281,20 +280,23 @@ const LiveMeetingEmbed: React.FC<{ rawUrl?: string }> = ({ rawUrl }) => {
   }
 
   return (
-    <div className="relative h-full min-h-[260px] w-full">
-      <iframe
-        src={url.toString()}
-        title="الاجتماع المباشر"
-        className="h-full min-h-[260px] w-full border-0"
-        allow="camera; microphone; display-capture; autoplay; fullscreen; speaker-selection"
-        allowFullScreen
-        loading="eager"
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
-      <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex justify-end">
-        <span className="pointer-events-auto rounded-xl bg-slate-950/80 px-3 py-2 text-[10px] font-black text-white backdrop-blur">
-          <OpenExternalButton url={url.toString()} label="فتح في صفحة كاملة" />
-        </span>
+    <div className="flex min-h-[260px] w-full flex-col bg-black">
+      <div className="min-h-[220px] flex-1">
+        <iframe
+          src={url.toString()}
+          title="الاجتماع المباشر"
+          className="h-full min-h-[220px] w-full border-0"
+          allow="camera; microphone; display-capture; autoplay; fullscreen; speaker-selection"
+          allowFullScreen
+          loading="eager"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      <div className="flex shrink-0 flex-col gap-2 border-t border-white/10 bg-slate-950 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-center text-xs font-bold text-slate-300 sm:text-right">
+          استخدم زر الاتصال إذا لم يعمل الاجتماع داخل الصفحة.
+        </p>
+        <OpenExternalButton url={url.toString()} label="اتصال بالاجتماع" />
       </div>
     </div>
   );
@@ -370,7 +372,7 @@ const GameModeCard = ({
       initial={{ opacity: 0, y: 24, scale: 0.93 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       whileHover={{ scale: 1.055, y: -10 }}
-      whileTap={{ scale: 0.95 }}
+       whileTap={{ scale: 1.035, y: -3 }}
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
        onHoverStart={() => {
          setHovered(true);
@@ -1628,7 +1630,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   }
 
   return (
-    <div className="min-h-screen w-full max-w-full bg-[linear-gradient(135deg,_#020617,_#111827,_#312e81)] text-white p-3 sm:p-4 lg:p-6 font-tajawal relative overflow-x-clip safe-area-x safe-area-bottom">
+    <div className="student-dashboard-shell min-h-screen w-full min-w-0 max-w-full bg-[linear-gradient(135deg,_#020617,_#111827,_#312e81)] text-white p-3 sm:p-4 lg:p-6 font-tajawal relative overflow-x-hidden safe-area-x safe-area-bottom">
       <PremiumBackground accent="#8b5cf6" />
       <div className="absolute left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-10 hidden items-center gap-3 rounded-[28px] border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-lg sm:flex">
         <img src={getStickerAsset('spark')} alt="spark" className="h-10 w-10 rounded-2xl border border-white/20 bg-white/80 p-2 shadow" />
