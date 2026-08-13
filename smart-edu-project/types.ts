@@ -50,6 +50,13 @@ export interface StudentAppearance {
   shape: string;
   color: string;
   outfit: string;
+  /** Full-body customizer slots. Legacy records only have shape/color/outfit. */
+  top?: string;
+  bottom?: string;
+  shoes?: string;
+  hair?: string;
+  skinTone?: string;
+  accessory?: string;
 }
 
 export enum QuizType {

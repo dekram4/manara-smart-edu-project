@@ -24,6 +24,66 @@ export const STUDENT_SHAPE_OPTIONS = [
   { value: '🧚', label: 'جنية النجوم' },
 ] as const;
 
+export const STUDENT_TOP_OPTIONS = [
+  { value: '👕', label: 'قميص مرح' },
+  { value: '🧥', label: 'معطف دافئ' },
+  { value: '🦺', label: 'سترة مستكشف' },
+  { value: '🥋', label: 'زي البطل' },
+  { value: '🧑‍🚀', label: 'بدلة الفضاء' },
+  { value: '👔', label: 'زي رسمي' },
+  { value: '🥼', label: 'معطف المختبر' },
+  { value: '🎓', label: 'زي التخرج' },
+] as const;
+
+export const STUDENT_BOTTOM_OPTIONS = [
+  { value: '👖', label: 'بنطال أزرق' },
+  { value: '🩳', label: 'شورت رياضي' },
+  { value: '🥋', label: 'بنطال الكاراتيه' },
+  { value: '🩲', label: 'بنطال مريح' },
+  { value: '🦿', label: 'ساق آلية' },
+  { value: '🧵', label: 'زي المخترع' },
+] as const;
+
+export const STUDENT_SHOES_OPTIONS = [
+  { value: '👟', label: 'حذاء رياضي' },
+  { value: '🥾', label: 'حذاء المغامر' },
+  { value: '🥿', label: 'حذاء أنيق' },
+  { value: '🛼', label: 'حذاء التزلج' },
+  { value: '⛸️', label: 'حذاء الجليد' },
+  { value: '🩴', label: 'صندل خفيف' },
+] as const;
+
+export const STUDENT_HAIR_OPTIONS = [
+  { value: '🦱', label: 'شعر مجعد' },
+  { value: '🦰', label: 'شعر أحمر' },
+  { value: '🦳', label: 'شعر فضي' },
+  { value: '🦲', label: 'ستايل عصري' },
+  { value: '🧢', label: 'قبعة رياضية' },
+  { value: '🎩', label: 'قبعة أنيقة' },
+  { value: '👒', label: 'قبعة صيفية' },
+  { value: '🎓', label: 'قبعة التخرج' },
+] as const;
+
+export const STUDENT_SKIN_OPTIONS = [
+  { value: '#f8d7c0', label: 'قمحي فاتح', swatch: '#f8d7c0' },
+  { value: '#edb891', label: 'ذهبي دافئ', swatch: '#edb891' },
+  { value: '#c9825b', label: 'برونزي', swatch: '#c9825b' },
+  { value: '#9b5d3f', label: 'بني دافئ', swatch: '#9b5d3f' },
+  { value: '#633d2c', label: 'بني عميق', swatch: '#633d2c' },
+] as const;
+
+export const STUDENT_ACCESSORY_OPTIONS = [
+  { value: '👓', label: 'نظارة ذكية' },
+  { value: '🕶️', label: 'نظارة شمسية' },
+  { value: '🎧', label: 'سماعات' },
+  { value: '🎒', label: 'حقيبة مغامر' },
+  { value: '🛡️', label: 'درع الحماية' },
+  { value: '🪄', label: 'عصا سحرية' },
+  { value: '🏹', label: 'قوس المستكشف' },
+  { value: '📚', label: 'كتب المعرفة' },
+  { value: '✨', label: 'لمعة النجوم' },
+] as const;
+
 export const STUDENT_COLOR_OPTIONS = [
   { value: '#38bdf8', label: 'أزرق سماوي', swatch: 'linear-gradient(135deg, #38bdf8, #2563eb)' },
   { value: '#f472b6', label: 'وردي مرح', swatch: 'linear-gradient(135deg, #f472b6, #db2777)' },
@@ -67,10 +127,19 @@ export const getStudentAppearance = (
 ): StudentAppearance => {
   const saved = student?.appearance;
   const genderShape = student?.gender === 'female' ? '👩‍🎓' : '👨‍🎓';
+  const legacyOutfit = isOptionValue(saved?.outfit, STUDENT_TOP_OPTIONS)
+    ? saved!.outfit
+    : '🎓';
   return {
     shape: isOptionValue(saved?.shape, STUDENT_SHAPE_OPTIONS) ? saved!.shape : genderShape,
     color: isOptionValue(saved?.color, STUDENT_COLOR_OPTIONS) ? saved!.color : '#38bdf8',
-    outfit: isOptionValue(saved?.outfit, STUDENT_OUTFIT_OPTIONS) ? saved!.outfit : '🎓',
+    outfit: isOptionValue(saved?.outfit, STUDENT_OUTFIT_OPTIONS) ? saved!.outfit : legacyOutfit,
+    top: isOptionValue(saved?.top, STUDENT_TOP_OPTIONS) ? saved!.top : legacyOutfit,
+    bottom: isOptionValue(saved?.bottom, STUDENT_BOTTOM_OPTIONS) ? saved!.bottom : '👖',
+    shoes: isOptionValue(saved?.shoes, STUDENT_SHOES_OPTIONS) ? saved!.shoes : '👟',
+    hair: isOptionValue(saved?.hair, STUDENT_HAIR_OPTIONS) ? saved!.hair : '🦱',
+    skinTone: isOptionValue(saved?.skinTone, STUDENT_SKIN_OPTIONS) ? saved!.skinTone : '#edb891',
+    accessory: isOptionValue(saved?.accessory, STUDENT_ACCESSORY_OPTIONS) ? saved!.accessory : '✨',
   };
 };
 

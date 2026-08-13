@@ -29,6 +29,12 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
 }) => {
   const appearance = providedAppearance || getStudentAppearance(student);
   const dimensions = sizeMap[size];
+  const top = appearance.top || appearance.outfit || '👕';
+  const bottom = appearance.bottom || '👖';
+  const shoes = appearance.shoes || '👟';
+  const hair = appearance.hair || '🦱';
+  const skinTone = appearance.skinTone || '#edb891';
+  const accessory = appearance.accessory || '✨';
 
   return (
     <CardErrorBoundary label="الصورة الشخصية">
@@ -47,21 +53,32 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
           boxShadow: `0 0 26px ${appearance.color}70, 0 16px 30px rgba(0,0,0,0.3), inset 5px 5px 12px rgba(255,255,255,0.22)`,
         }}
       />
-      <div className={`absolute bottom-[8%] left-1/2 z-10 -translate-x-1/2 rounded-[42%_42%_22%_22%] border-2 border-white/35 shadow-[0_8px_10px_rgba(0,0,0,0.24)] ${dimensions.body}`} style={{
+      <div className={`absolute bottom-[25%] left-1/2 z-10 -translate-x-1/2 rounded-[42%_42%_22%_22%] border-2 border-white/35 shadow-[0_8px_10px_rgba(0,0,0,0.24)] ${dimensions.body}`} style={{
         background: `linear-gradient(160deg, ${appearance.color}f5, ${appearance.color}88)`,
       }}>
         <span className={`absolute inset-0 flex items-center justify-center select-none leading-none drop-shadow-[0_4px_3px_rgba(0,0,0,0.38)] ${dimensions.outfit}`}>
-          {appearance.outfit}
+          {top}
         </span>
         <span className="pointer-events-none absolute inset-x-[16%] bottom-[10%] h-1 rounded-full bg-white/30" />
       </div>
-      <div className={`absolute bottom-[3%] left-[37%] z-20 rounded-b-full bg-slate-950/55 ${dimensions.leg}`} />
-      <div className={`absolute bottom-[3%] right-[37%] z-20 rounded-b-full bg-slate-950/55 ${dimensions.leg}`} />
-      <div className={`absolute left-1/2 top-[7%] z-30 flex -translate-x-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-white/65 bg-white/35 shadow-[0_7px_12px_rgba(0,0,0,0.25)] ${dimensions.head}`}>
+      <div className={`absolute bottom-[13%] left-1/2 z-10 flex -translate-x-1/2 items-center justify-center rounded-[20%_20%_28%_28%] border border-white/30 bg-slate-950/25 ${dimensions.body}`}>
+        <span className="select-none text-xl leading-none drop-shadow-md sm:text-2xl">{bottom}</span>
+      </div>
+      <div className={`absolute bottom-[4%] left-[32%] z-20 flex items-end justify-center rounded-b-full bg-slate-950/55 ${dimensions.leg}`}>
+        <span className="absolute -bottom-1 select-none text-[10px] leading-none">{shoes}</span>
+      </div>
+      <div className={`absolute bottom-[4%] right-[32%] z-20 flex items-end justify-center rounded-b-full bg-slate-950/55 ${dimensions.leg}`}>
+        <span className="absolute -bottom-1 select-none text-[10px] leading-none">{shoes}</span>
+      </div>
+      <div className="absolute bottom-[29%] left-[25%] z-20 h-[18%] w-[6%] rotate-[18deg] rounded-full" style={{ background: skinTone }} />
+      <div className="absolute bottom-[29%] right-[25%] z-20 h-[18%] w-[6%] -rotate-[18deg] rounded-full" style={{ background: skinTone }} />
+      <div className={`absolute left-1/2 top-[7%] z-30 flex -translate-x-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-white/65 shadow-[0_7px_12px_rgba(0,0,0,0.25)] ${dimensions.head}`} style={{ background: skinTone }}>
         <span className={`select-none leading-none drop-shadow-[0_5px_3px_rgba(0,0,0,0.35)] ${dimensions.face}`}>
           {appearance.shape}
         </span>
+        <span className="pointer-events-none absolute -top-[12%] select-none text-xl leading-none drop-shadow-md sm:text-2xl">{hair}</span>
       </div>
+      <span className="absolute right-[17%] top-[40%] z-40 select-none text-lg leading-none drop-shadow-md sm:text-2xl">{accessory}</span>
       <span
         className="absolute bottom-[12%] left-[12%] z-40 h-2 w-2 rounded-full bg-white/80"
         style={{ boxShadow: `0 0 12px ${appearance.color}` }}

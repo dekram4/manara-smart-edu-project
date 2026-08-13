@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { StudentAppearance, StudentInfo } from '../../types';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import {
   getStudentAppearance,
-  STUDENT_COLOR_OPTIONS,
-  STUDENT_OUTFIT_OPTIONS,
+  STUDENT_ACCESSORY_OPTIONS,
+  STUDENT_BOTTOM_OPTIONS,
+  STUDENT_HAIR_OPTIONS,
   STUDENT_SHAPE_OPTIONS,
+  STUDENT_SHOES_OPTIONS,
+  STUDENT_SKIN_OPTIONS,
+  STUDENT_TOP_OPTIONS,
 } from '../../utils/studentAppearance';
 import StudentAvatar from './components/StudentAvatar';
 
@@ -15,164 +19,320 @@ interface StudentPersonalityProps {
   onSave: (appearance: StudentAppearance) => void;
 }
 
+type CustomizationTab = 'shape' | 'top' | 'bottom' | 'shoes' | 'hair' | 'skin' | 'accessory';
+type ChoiceOption = {
+  readonly value: string;
+  readonly label: string;
+  readonly swatch?: string;
+};
+
+const CUSTOMIZATION_TABS: Array<{
+  id: CustomizationTab;
+  label: string;
+  icon: string;
+  hint: string;
+  accent: string;
+}> = [
+  { id: 'shape', label: 'الشخصية', icon: '🙂', hint: 'الملامح والشكل', accent: '#fb7185' },
+  { id: 'top', label: 'العلوي', icon: '👕', hint: 'القميص والزي', accent: '#a78bfa' },
+  { id: 'bottom', label: 'السفلي', icon: '👖', hint: 'البنطال', accent: '#38bdf8' },
+  { id: 'shoes', label: 'الأحذية', icon: '👟', hint: 'خطوات بطلك', accent: '#34d399' },
+  { id: 'hair', label: 'الشعر', icon: '🦱', hint: 'تسريحة الرأس', accent: '#fbbf24' },
+  { id: 'skin', label: 'البشرة', icon: '🎨', hint: 'لون البشرة والهالة', accent: '#fb923c' },
+  { id: 'accessory', label: 'الإكسسوارات', icon: '✨', hint: 'اللمسة الأخيرة', accent: '#e879f9' },
+];
+
+const ChoiceCarousel: React.FC<{
+  options: readonly ChoiceOption[];
+  selected: string | undefined;
+  accent: string;
+  onSelect: (value: string) => void;
+}> = ({ options, selected, accent, onSelect }) => (
+  <div
+    className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    role="listbox"
+    aria-label="خيارات التخصيص"
+  >
+    {options.map(option => {
+      const isSelected = selected === option.value;
+      return (
+        <button
+          key={option.value}
+          type="button"
+          role="option"
+          aria-selected={isSelected}
+          aria-label={option.label}
+          onClick={() => onSelect(option.value)}
+          className={`group flex min-w-[96px] snap-start flex-col items-center rounded-2xl border-2 bg-white p-2.5 text-center transition-all duration-200 sm:min-w-[112px] ${
+            isSelected
+              ? 'scale-[1.03] border-transparent shadow-lg'
+              : 'border-slate-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-md'
+          }`}
+          style={isSelected ? {
+            borderColor: accent,
+            boxShadow: `0 10px 24px ${accent}33`,
+          } : undefined}
+        >
+          <span
+            className="flex h-14 w-14 items-center justify-center rounded-2xl text-4xl leading-none transition-transform group-hover:scale-110"
+            style={{
+              background: option.swatch
+                ? option.swatch
+                : `linear-gradient(145deg, ${accent}20, ${accent}08)`,
+            }}
+          >
+            {option.value}
+          </span>
+          <span className="mt-2 line-clamp-2 min-h-8 text-[11px] font-black leading-4 text-slate-600">
+            {option.label}
+          </span>
+          {isSelected && (
+            <span className="mt-1 text-[10px] font-black" style={{ color: accent }}>
+              ✓ مختار
+            </span>
+          )}
+        </button>
+      );
+    })}
+  </div>
+);
+
+const findLabel = (options: readonly ChoiceOption[], value: string | undefined, fallback: string) =>
+  options.find(option => option.value === value)?.label || fallback;
+
 const StudentPersonality: React.FC<StudentPersonalityProps> = ({ student, onSave }) => {
   const [appearance, setAppearance] = useState<StudentAppearance>(() => getStudentAppearance(student));
+  const [activeTab, setActiveTab] = useState<CustomizationTab>('shape');
   const [saved, setSaved] = useState(true);
 
   const choose = (next: Partial<StudentAppearance>) => {
     GameAudioEngine.play('uiSelect');
-    const updated = { ...appearance, ...next };
-    setAppearance(updated);
+    setAppearance(current => ({ ...current, ...next }));
     setSaved(false);
   };
 
   const saveAppearance = () => {
     if (saved) return;
     GameAudioEngine.play('uiSelect');
-    onSave(appearance);
+    // Keep outfit populated for old screens while storing every full-body slot.
+    onSave({ ...appearance, outfit: appearance.top || appearance.outfit });
     setSaved(true);
   };
 
-  const selectedShape = STUDENT_SHAPE_OPTIONS.find(option => option.value === appearance.shape);
-  const selectedColor = STUDENT_COLOR_OPTIONS.find(option => option.value === appearance.color);
-  const selectedOutfit = STUDENT_OUTFIT_OPTIONS.find(option => option.value === appearance.outfit);
+  const selectedTab = CUSTOMIZATION_TABS.find(tab => tab.id === activeTab) || CUSTOMIZATION_TABS[0];
+  const tabContent = useMemo(() => {
+    switch (activeTab) {
+      case 'shape':
+        return {
+          title: 'اختَر ملامح بطلك',
+          description: 'شخصيات متنوعة تظهر مباشرة في المعاينة الكاملة.',
+          options: STUDENT_SHAPE_OPTIONS,
+          selected: appearance.shape,
+          onSelect: (value: string) => choose({ shape: value }),
+        };
+      case 'top':
+        return {
+          title: 'الملابس العلوية',
+          description: 'غيّر القميص أو الزي ليأخذ بطلك أسلوبًا جديدًا.',
+          options: STUDENT_TOP_OPTIONS,
+          selected: appearance.top || appearance.outfit,
+          onSelect: (value: string) => choose({ top: value, outfit: value }),
+        };
+      case 'bottom':
+        return {
+          title: 'الملابس السفلية',
+          description: 'اختر البنطال الذي يناسب مغامرة اليوم.',
+          options: STUDENT_BOTTOM_OPTIONS,
+          selected: appearance.bottom,
+          onSelect: (value: string) => choose({ bottom: value }),
+        };
+      case 'shoes':
+        return {
+          title: 'الأحذية',
+          description: 'خطوات رياضية أو مغامرة أو أنيقة.',
+          options: STUDENT_SHOES_OPTIONS,
+          selected: appearance.shoes,
+          onSelect: (value: string) => choose({ shoes: value }),
+        };
+      case 'hair':
+        return {
+          title: 'شعر الرأس',
+          description: 'أضف تسريحة أو قبعة مميزة لشخصيتك.',
+          options: STUDENT_HAIR_OPTIONS,
+          selected: appearance.hair,
+          onSelect: (value: string) => choose({ hair: value }),
+        };
+      case 'skin':
+        return {
+          title: 'لون البشرة والهالة',
+          description: 'اختر لون البشرة، ثم لون الطاقة من الدوائر السريعة.',
+          options: STUDENT_SKIN_OPTIONS,
+          selected: appearance.skinTone,
+          onSelect: (value: string) => choose({ skinTone: value }),
+        };
+      case 'accessory':
+        return {
+          title: 'الإكسسوارات',
+          description: 'أضف لمسة ذكية أو سحرية أو مغامرة.',
+          options: STUDENT_ACCESSORY_OPTIONS,
+          selected: appearance.accessory,
+          onSelect: (value: string) => choose({ accessory: value }),
+        };
+      default:
+        return null;
+    }
+  }, [activeTab, appearance]);
+
+  const selectedShapeLabel = findLabel(STUDENT_SHAPE_OPTIONS, appearance.shape, 'شخصية مميزة');
+  const selectedTopLabel = findLabel(STUDENT_TOP_OPTIONS, appearance.top || appearance.outfit, 'زي خاص');
+  const selectedBottomLabel = findLabel(STUDENT_BOTTOM_OPTIONS, appearance.bottom, 'بنطال');
+  const selectedShoesLabel = findLabel(STUDENT_SHOES_OPTIONS, appearance.shoes, 'حذاء');
 
   return (
-    <div className="relative overflow-hidden rounded-[38px] border border-rose-200 bg-[#fff8fb] p-3 shadow-[0_30px_90px_-28px_rgba(15,23,42,0.75)] sm:p-5 md:p-7">
+    <div className="relative min-w-0 overflow-hidden rounded-[38px] border border-rose-200 bg-[#fff8fb] p-2.5 shadow-[0_30px_90px_-28px_rgba(15,23,42,0.75)] sm:p-5 md:p-7">
       <div className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-rose-200/60 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-28 -left-24 h-72 w-72 rounded-full bg-cyan-200/60 blur-3xl" />
 
-      <div className="relative z-10 overflow-hidden rounded-[30px] bg-gradient-to-l from-[#172554] via-[#1e1b4b] to-[#312e81] p-5 text-white shadow-2xl sm:p-7">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
-          <div>
+      <div className="relative z-10 overflow-hidden rounded-[30px] bg-gradient-to-l from-[#172554] via-[#1e1b4b] to-[#312e81] p-4 text-white shadow-2xl sm:p-7">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-rose-100 backdrop-blur">
-              <span>✦</span> استوديو الشخصية
+              <span>✦</span> استوديو الشخصية الكامل
             </div>
-            <h2 className="text-3xl font-black tracking-tight sm:text-4xl">اصنع بطلك بأسلوب احترافي</h2>
+            <h2 className="text-2xl font-black tracking-tight sm:text-4xl">اصنع بطلك من الرأس إلى القدمين</h2>
             <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-indigo-100">
-              اختر شخصية تعبّر عنك، لونًا مميزًا، وملابس تمنح بطلك هوية خاصة في رحلة منارة.
+              بدّل الملامح والملابس والبنطال والأحذية والشعر والإكسسوارات، وشاهد النتيجة فورًا.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-cyan-100 md:self-auto">
-            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-300" />
+          <div className="flex shrink-0 items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-cyan-100 md:self-auto">
+            <span className={`h-2.5 w-2.5 rounded-full ${saved ? 'bg-emerald-300' : 'animate-pulse bg-amber-300'}`} />
             {saved ? 'محفوظة في حسابك' : 'تعديلات غير محفوظة'}
           </div>
         </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(250px,0.75fr)_minmax(0,1.55fr)]">
-          <div className="relative overflow-hidden rounded-[28px] border border-white/15 bg-slate-950/55 p-5 shadow-inner lg:sticky lg:top-5 lg:self-start">
-            <div className="pointer-events-none absolute inset-0 opacity-60" style={{
-              backgroundImage: 'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }} />
+        <div className="mt-5 grid min-w-0 gap-5 lg:grid-cols-[minmax(260px,0.72fr)_minmax(0,1.45fr)]">
+          <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-white/15 bg-slate-950/55 p-4 shadow-inner lg:sticky lg:top-5 lg:self-start">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-60"
+              style={{
+                backgroundImage: 'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
+                backgroundSize: '28px 28px',
+              }}
+            />
             <div className="relative z-10 flex items-center justify-between">
-              <span className="text-xs font-black text-indigo-200">بطاقة الشخصية</span>
-              <span className="rounded-full bg-rose-400/20 px-2.5 py-1 text-[10px] font-black text-rose-100">LIVE PROFILE</span>
+              <span className="text-xs font-black text-indigo-200">المعاينة المباشرة</span>
+              <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[10px] font-black text-emerald-200">FULL BODY</span>
             </div>
-            <div className="relative z-10 my-7 flex min-h-52 items-center justify-center">
-              <div className="absolute h-44 w-44 rounded-full bg-cyan-400/20 blur-3xl" />
+            <div className="relative z-10 my-5 flex min-h-[230px] items-center justify-center sm:min-h-[280px]">
+              <div className="absolute h-52 w-52 rounded-full bg-cyan-400/20 blur-3xl" />
               <StudentAvatar appearance={appearance} size="xl" />
             </div>
-            <div className="relative z-10 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-              <p className="text-lg font-black">{student.name || 'بطلي'}</p>
-              <p className="mt-1 text-xs font-bold text-indigo-200">{selectedShape?.label || 'شخصية مميزة'}</p>
+            <div className="relative z-10 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur">
+              <p className="truncate text-lg font-black">{student.name || 'بطلي'}</p>
+              <p className="mt-1 truncate text-xs font-bold text-indigo-200">{selectedShapeLabel}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-cyan-100">{selectedColor?.label || 'لون مميز'}</span>
-                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-rose-100">{selectedOutfit?.label || 'زي خاص'}</span>
+                {[selectedTopLabel, selectedBottomLabel, selectedShoesLabel].map(label => (
+                  <span key={label} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-cyan-100">
+                    {label}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <section className="rounded-[26px] border border-white/10 bg-white/10 p-4 backdrop-blur sm:p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="min-w-0 space-y-4">
+            <div className="rounded-[26px] border border-white/10 bg-white/10 p-3 backdrop-blur sm:p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black text-rose-300">01 / الشخصية</p>
-                  <h3 className="mt-1 text-lg font-black">اختر بطلك أو بطلتك</h3>
+                  <p className="text-xs font-black text-cyan-200">مراحل التخصيص</p>
+                  <h3 className="mt-1 text-base font-black text-white">اسحب التبويبات واختر ما يناسبك</h3>
                 </div>
-                <span className="rounded-xl bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700">{STUDENT_SHAPE_OPTIONS.length} شخصية</span>
+                <span className="shrink-0 rounded-xl bg-white/10 px-2.5 py-1 text-[10px] font-black text-indigo-100">
+                  {CUSTOMIZATION_TABS.findIndex(tab => tab.id === activeTab) + 1}/{CUSTOMIZATION_TABS.length}
+                </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
-                {STUDENT_SHAPE_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => choose({ shape: option.value })}
-                    className={`group rounded-2xl border p-2.5 transition-all hover:-translate-y-1 ${
-                      appearance.shape === option.value
-                        ? 'border-rose-400 bg-rose-100 shadow-lg shadow-rose-200'
-                        : 'border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50'
-                    }`}
-                    aria-label={option.label}
-                    aria-pressed={appearance.shape === option.value}
-                  >
-                    <span className="block text-3xl transition-transform group-hover:scale-110">{option.value}</span>
-                    <span className="mt-1 block truncate text-[10px] font-black text-slate-600">{option.label}</span>
-                  </button>
-                ))}
+              <div className="flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="أقسام تخصيص الشخصية">
+                {CUSTOMIZATION_TABS.map(tab => {
+                  const active = tab.id === activeTab;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => {
+                        GameAudioEngine.play('uiSelect');
+                        setActiveTab(tab.id);
+                      }}
+                      className={`flex min-w-[105px] snap-start items-center gap-2 rounded-2xl border px-3 py-2 text-right transition-all sm:min-w-[120px] ${
+                        active ? 'bg-white text-slate-900 shadow-lg' : 'border-white/10 bg-slate-950/35 text-indigo-100 hover:bg-white/15'
+                      }`}
+                      style={active ? { borderColor: tab.accent } : undefined}
+                    >
+                      <span className="text-2xl leading-none">{tab.icon}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-black">{tab.label}</span>
+                        <span className={`mt-0.5 block truncate text-[9px] font-bold ${active ? 'text-slate-500' : 'text-indigo-300'}`}>{tab.hint}</span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            </section>
+            </div>
 
-            <section className="rounded-[26px] border border-white/10 bg-white/10 p-4 backdrop-blur sm:p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black text-cyan-600">02 / الهوية البصرية</p>
-                  <h3 className="mt-1 text-lg font-black text-slate-900">اختر لون الطاقة</h3>
+            {tabContent && (
+              <section className="min-w-0 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="customization-panel-title">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black" style={{ color: selectedTab.accent }}>اختيار مباشر</p>
+                    <h3 id="customization-panel-title" className="mt-1 text-xl font-black text-slate-900">{tabContent.title}</h3>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{tabContent.description}</p>
+                  </div>
+                  <span className="shrink-0 rounded-xl px-2.5 py-1 text-[10px] font-black" style={{ color: selectedTab.accent, backgroundColor: `${selectedTab.accent}18` }}>
+                    {tabContent.options.length} خيارات
+                  </span>
                 </div>
-                <span className="rounded-xl bg-cyan-100 px-2.5 py-1 text-xs font-black text-cyan-700">{STUDENT_COLOR_OPTIONS.length} ألوان</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {STUDENT_COLOR_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => choose({ color: option.value })}
-                    className={`flex items-center gap-2 rounded-2xl border p-2 text-right transition-all hover:-translate-y-1 ${
-                      appearance.color === option.value ? 'border-cyan-500 bg-cyan-50 shadow-lg shadow-cyan-100' : 'border-slate-200 bg-white hover:border-cyan-300'
-                    }`}
-                    aria-label={option.label}
-                    aria-pressed={appearance.color === option.value}
-                  >
-                    <span className="h-9 w-9 shrink-0 rounded-xl border-2 border-white shadow-md" style={{ background: option.swatch }} />
-                    <span className="truncate text-[10px] font-black text-slate-600">{option.label}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
+                <ChoiceCarousel
+                  options={tabContent.options}
+                  selected={tabContent.selected}
+                  accent={selectedTab.accent}
+                  onSelect={tabContent.onSelect}
+                />
+              </section>
+            )}
 
-            <section className="rounded-[26px] border border-white/10 bg-white/10 p-4 backdrop-blur sm:p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black text-violet-600">03 / الستايل</p>
-                  <h3 className="mt-1 text-lg font-black text-slate-900">أضف الملابس والإكسسوار</h3>
+            {activeTab === 'skin' && (
+              <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black text-cyan-600">لون الهوية</p>
+                    <h3 className="mt-1 text-base font-black text-slate-900">اختر لون طاقة الشخصية</h3>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400">يظهر في الإضاءة والبطاقات</span>
                 </div>
-                <span className="rounded-xl bg-violet-100 px-2.5 py-1 text-xs font-black text-violet-700">{STUDENT_OUTFIT_OPTIONS.length} خيارات</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {STUDENT_OUTFIT_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => choose({ outfit: option.value })}
-                    className={`group rounded-2xl border p-3 transition-all hover:-translate-y-1 ${
-                      appearance.outfit === option.value
-                        ? 'border-violet-400 bg-violet-100 shadow-lg shadow-violet-200'
-                        : 'border-slate-200 bg-white hover:border-violet-300 hover:bg-violet-50'
-                    }`}
-                    aria-label={option.label}
-                    aria-pressed={appearance.outfit === option.value}
-                  >
-                    <span className="block text-3xl transition-transform group-hover:scale-110">{option.value}</span>
-                    <span className="mt-1 block truncate text-[10px] font-black text-slate-600">{option.label}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
+                <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {['#38bdf8', '#f472b6', '#a78bfa', '#34d399', '#fbbf24', '#fb7185', '#22d3ee', '#818cf8'].map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`لون الطاقة ${color}`}
+                      aria-pressed={appearance.color === color}
+                      onClick={() => choose({ color })}
+                      className={`h-10 w-10 shrink-0 rounded-xl border-2 transition-transform hover:scale-110 ${appearance.color === color ? 'scale-110 border-slate-900 shadow-lg' : 'border-white shadow'}`}
+                      style={{ background: `linear-gradient(135deg, ${color}, ${color}99)` }}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
             <div className="flex flex-col gap-3 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-center text-sm font-black text-slate-700 sm:text-right">
-                {saved ? 'شخصيتك محفوظة في حسابك 🌟' : 'التغييرات جاهزة — احفظ بطلك الجديد'}
-              </p>
+              <div className="text-center sm:text-right">
+                <p className="text-sm font-black text-slate-700">
+                  {saved ? 'شخصيتك محفوظة في حسابك 🌟' : 'التغييرات جاهزة — احفظ بطلك الجديد'}
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">يتم حفظ القطع داخل ملف الطالب ومزامنتها مع Supabase.</p>
+              </div>
               <motion.button
                 type="button"
                 whileHover={{ scale: saved ? 1 : 1.03 }}
