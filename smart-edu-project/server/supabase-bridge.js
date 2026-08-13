@@ -13,7 +13,18 @@ const TABLES = new Set([
   'certificates',
   'app_kv',
 ]);
-export const SUPABASE_STORAGE_BUCKET = 'manara-videos';
+// New uploads prefer the public `cinema` bucket. Existing installations may
+// already have `videos` or the legacy `manara-videos` bucket, so discovery
+// below reuses those instead of trying to create a second bucket.
+export const SUPABASE_STORAGE_BUCKET =
+  String(process.env.SUPABASE_STORAGE_BUCKET || 'cinema').trim() || 'cinema';
+const STORAGE_BUCKET_CANDIDATES = Array.from(new Set([
+  SUPABASE_STORAGE_BUCKET,
+  'cinema',
+  'videos',
+  'manara-videos',
+]));
+let activeStorageBucket = SUPABASE_STORAGE_BUCKET;
 
 const connectors = new ReplitConnectors();
 const MIN_REQUEST_INTERVAL_MS = 140;
@@ -55,35 +66,130 @@ export async function proxySupabase(path, options = {}) {
   return request;
 }
 
+let storageInitializationPromise;
+
 async function ensureStorageBucket() {
-  const existing = await proxySupabase(`/storage/v1/bucket/${SUPABASE_STORAGE_BUCKET}`);
-  const existingBody = await existing.clone().text().catch(() => '');
-  const bucketMissing = existing.status === 404
-    || existingBody.includes('NoSuchBucket')
-    || existingBody.includes('Bucket not found');
-  if (existing.ok || bucketMissing) {
-    if (existing.ok) return true;
+  if (storageInitializationPromise) return storageInitializationPromise;
+  storageInitializationPromise = (async () => {
+    for (const bucketName of STORAGE_BUCKET_CANDIDATES) {
+      const existing = await proxySupabase(`/storage/v1/bucket/${bucketName}`);
+      const existingBody = await existing.clone().text().catch(() => '');
+      const bucketMissing = existing.status === 404
+        || existingBody.includes('NoSuchBucket')
+        || existingBody.includes('Bucket not found')
+        || /resource was not found/i.test(existingBody);
+      if (!existing.ok && !bucketMissing) {
+        console.warn(
+          `[supabase] could not inspect bucket ${bucketName}: ${existing.status} ${existingBody.slice(0, 180)}`,
+        );
+        continue;
+      }
+      if (!existing.ok) continue;
+
+      activeStorageBucket = bucketName;
+      // Keep the bucket public for browser previews and direct public access.
+      // Upload authorization is supplied by the service-role/connector
+      // connection; the SQL policy file documents the anon/authenticated rule.
+      let bucket = {};
+      try {
+        bucket = JSON.parse(existingBody || '{}');
+      } catch {
+        bucket = {};
+      }
+      if (bucket.public !== true) {
+        const updated = await proxySupabase(
+          `/storage/v1/bucket/${bucketName}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              public: true,
+              allowed_mime_types: ['video/mp4'],
+            }),
+          },
+        );
+        if (!updated.ok && updated.status === 413) {
+          await proxySupabase(
+            `/storage/v1/bucket/${bucketName}`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ public: true }),
+            },
+          );
+        } else if (!updated.ok) {
+          console.warn(
+            `[supabase] bucket ${bucketName} exists but could not be made public (${updated.status})`,
+          );
+        }
+      }
+      return true;
+    }
+
     const created = await proxySupabase('/storage/v1/bucket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: SUPABASE_STORAGE_BUCKET,
         name: SUPABASE_STORAGE_BUCKET,
-        public: false,
+        public: true,
         allowed_mime_types: ['video/mp4'],
       }),
     });
-    return created.ok || created.status === 409;
+    if (created.ok || created.status === 409) return true;
+    if (created.status === 413) {
+      const retry = await proxySupabase('/storage/v1/bucket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: SUPABASE_STORAGE_BUCKET,
+          name: SUPABASE_STORAGE_BUCKET,
+          public: true,
+        }),
+      });
+      if (retry.ok || retry.status === 409) {
+        activeStorageBucket = SUPABASE_STORAGE_BUCKET;
+        return true;
+      }
+    }
+
+    const createBody = await created.text().catch(() => '');
+    console.warn(
+      `[supabase] could not create bucket ${SUPABASE_STORAGE_BUCKET}: ${created.status} ${createBody.slice(0, 220)}`,
+    );
+    return false;
+  })().finally(() => {
+    storageInitializationPromise = undefined;
+  });
+  return storageInitializationPromise;
+}
+
+export async function initializeSupabaseStorage() {
+  if (!hasDirectSupabaseConfig() && !process.env.REPLIT_CONNECTORS_HOSTNAME) {
+    console.warn('[supabase] storage initialization skipped: Supabase is not configured');
+    return false;
   }
-  return false;
+  try {
+    const ready = await ensureStorageBucket();
+    if (ready) {
+      console.log(`[supabase] storage bucket ready: ${activeStorageBucket}`);
+    }
+    return ready;
+  } catch (error) {
+    console.warn('[supabase] storage initialization deferred:', error?.message || error);
+    return false;
+  }
 }
 
 export async function uploadSupabaseVideo(fileName, body) {
   if (!(await ensureStorageBucket())) {
-    throw new Error('تعذر تجهيز مساحة فيديوهات Supabase Storage');
+    throw new Error(
+      `تعذر تجهيز حاوية Supabase Storage (${SUPABASE_STORAGE_BUCKET}). `
+      + 'تحقق من صلاحيات Storage أو طبّق server/supabase-storage.sql مرة واحدة.',
+    );
   }
   const upstream = await proxySupabase(
-    `/storage/v1/object/${SUPABASE_STORAGE_BUCKET}/${encodeURIComponent(fileName)}`,
+    `/storage/v1/object/${activeStorageBucket}/${encodeURIComponent(fileName)}`,
     {
       method: 'POST',
       headers: {
@@ -102,13 +208,27 @@ export async function uploadSupabaseVideo(fileName, body) {
 }
 
 export async function deleteSupabaseVideo(fileName) {
-  const upstream = await proxySupabase(
-    `/storage/v1/object/${SUPABASE_STORAGE_BUCKET}/${encodeURIComponent(fileName)}`,
-    { method: 'DELETE' },
-  );
-  if (!upstream.ok && upstream.status !== 404) {
+  const buckets = Array.from(new Set([
+    activeStorageBucket,
+    ...STORAGE_BUCKET_CANDIDATES,
+  ]));
+  for (const bucket of buckets) {
+    const upstream = await proxySupabase(
+      `/storage/v1/object/${bucket}/${encodeURIComponent(fileName)}`,
+      { method: 'DELETE' },
+    );
+    if (upstream.ok || upstream.status === 404) {
+      if (upstream.ok) return;
+      continue;
+    }
     throw new Error('تعذر حذف الفيديو من Supabase Storage');
   }
+}
+
+async function fetchVideoFromBucket(bucket, fileName) {
+  return proxySupabase(
+    `/storage/v1/object/${bucket}/${encodeURIComponent(fileName)}`,
+  );
 }
 
 async function sendProxyResponse(res, upstream) {
@@ -220,9 +340,15 @@ export function registerSupabaseRoutes(app) {
       return res.status(400).json({ error: 'اسم ملف فيديو غير صالح' });
     }
     try {
-      const upstream = await proxySupabase(
-        `/storage/v1/object/${SUPABASE_STORAGE_BUCKET}/${encodeURIComponent(fileName)}`,
-      );
+      const buckets = Array.from(new Set([
+        activeStorageBucket,
+        ...STORAGE_BUCKET_CANDIDATES,
+      ]));
+      let upstream;
+      for (const bucket of buckets) {
+        upstream = await fetchVideoFromBucket(bucket, fileName);
+        if (upstream.ok || upstream.status !== 404) break;
+      }
       res.status(upstream.status);
       const contentType = upstream.headers.get('content-type');
       const contentLength = upstream.headers.get('content-length');

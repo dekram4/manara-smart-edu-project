@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import {
   deleteSupabaseVideo,
+  initializeSupabaseStorage,
   registerSupabaseRoutes,
   uploadSupabaseVideo,
 } from './supabase-bridge.js';
@@ -317,6 +318,7 @@ app.post('/api/media/delete', async (req, res) => {
 registerSupabaseRoutes(app);
 registerGameEmbedProxy(app);
 app.get('/health', (_req, res) => res.json({ ok: true }));
+void initializeSupabaseStorage();
 
 if (isProduction) {
   const dist = path.join(root, 'dist');

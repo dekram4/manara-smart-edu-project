@@ -19,6 +19,8 @@ interface VideoRecord {
   term: string;
   unit: string;
   createdBy: string;
+  teacher_id?: string;
+  teacherId?: string;
   teacherName: string;
   createdAt: string;
 }
@@ -42,6 +44,9 @@ interface VideoManagementProps {
 const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherName, permissionPackageId, isAdmin = false }) => {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [academicConfigs, setAcademicConfigs] = useState<HierarchicalConfig[]>([]);
+  const [teachers, setTeachers] = useState<Array<{ id: string; name: string; subject?: string }>>([]);
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [selectedTeacherName, setSelectedTeacherName] = useState('');
   const [filters, setFilters] = useState({ grade: '', atram: '', subject: '', term: '', unit: '' });
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -54,7 +59,45 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   useEffect(() => {
     loadVideos();
     loadAcademicConfigs();
-  }, [teacherId, isAdmin]);
+    if (isAdmin) {
+      try {
+        const savedTeachers = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
+        setTeachers(Array.isArray(savedTeachers) ? savedTeachers : []);
+      } catch {
+        setTeachers([]);
+      }
+    }
+  }, [teacherId, isAdmin, selectedTeacherId]);
+
+  const handleTeacherChange = (value: string) => {
+    setSelectedTeacherId(value);
+    const teacher = teachers.find(item => item.id === value);
+    setSelectedTeacherName(teacher?.name || '');
+  };
+
+  const beginEditingVideo = (video: VideoRecord) => {
+    const ownerId = String(video.teacher_id ?? video.teacherId ?? video.createdBy ?? '').trim();
+    if (isAdmin) {
+      setSelectedTeacherId(ownerId);
+      setSelectedTeacherName(video.teacherName || teachers.find(item => item.id === ownerId)?.name || '');
+    }
+    setEditingVideo(video);
+    setFormData({
+      title: video.title,
+      description: video.description,
+      url: video.url,
+      sourceType: getVideoSourceType(video.sourceType, video.url),
+      file: null,
+      pendingVideos: [],
+      grade: video.grade,
+      atram: video.atram || '',
+      subject: video.subject,
+      term: video.term,
+      unit: video.unit,
+    });
+    setShowForm(true);
+    playLamsaSound('click');
+  };
 
   const loadVideos = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
@@ -70,9 +113,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     const allConfigs: HierarchicalConfig[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
     );
-    setAcademicConfigs(isAdmin
+    const academicOwnerId = isAdmin ? selectedTeacherId : teacherId;
+    setAcademicConfigs(isAdmin && !academicOwnerId
       ? allConfigs
-      : allConfigs.filter(config => getRecordTeacherId(config) === normalizeScopeValue(teacherId)));
+      : allConfigs.filter(config => getRecordTeacherId(config) === normalizeScopeValue(academicOwnerId)));
   };
 
   const selectedGradeConfig = academicConfigs.find(
@@ -212,10 +256,18 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     const all: VideoRecord[] = saved ? JSON.parse(saved) : [];
     const permissions = getTeacherPermissions({ permissionPackageId });
     const canManageVideos = isAdmin || permissions.canManageVideos;
-    const ownerId = teacherId || 'admin';
-    const ownerName = teacherName || 'المشرف - سينما منارة';
+    if (isAdmin && !editingVideo && !selectedTeacherId) {
+      alert('يرجى اختيار المعلم قبل إضافة فيديوهات السينما');
+      return;
+    }
+    const ownerId = isAdmin
+      ? selectedTeacherId || editingVideo?.teacher_id || editingVideo?.teacherId || editingVideo?.createdBy || 'admin'
+      : teacherId || '';
+    const ownerName = isAdmin
+      ? selectedTeacherName || editingVideo?.teacherName || 'المشرف - سينما منارة'
+      : teacherName || 'المعلم';
     const teacherVideos = all.filter(
-      video => isAdmin || getRecordTeacherId(video) === normalizeScopeValue(ownerId),
+      video => getRecordTeacherId(video) === normalizeScopeValue(ownerId),
     );
 
     if (!canManageVideos) {
@@ -257,6 +309,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         subject: formData.subject,
         term: formData.term,
         unit: formData.unit,
+        createdBy: ownerId,
+        teacherId: ownerId,
+        teacher_id: ownerId,
+        teacherName: ownerName,
       } : video);
       localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(updated));
       if (editingVideo.url && editingVideo.url !== videoUrl) void deleteUploadedVideo(editingVideo.url);
@@ -320,6 +376,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         term: formData.term,
         unit: formData.unit,
         createdBy: ownerId,
+        teacherId: ownerId,
+        teacher_id: ownerId,
         teacherName: ownerName,
       }));
       const nextVideos = [...all, ...newVideos];
@@ -432,6 +490,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
              setShowForm(!showForm);
              setEditingVideo(null);
              if (!showForm) {
+               if (isAdmin) {
+                 setSelectedTeacherId('');
+                 setSelectedTeacherName('');
+               }
                setFormData({
                  title: '',
                  description: '',
@@ -507,6 +569,37 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           </div>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {isAdmin && (
+              <div className="md:col-span-2">
+                <label htmlFor="cinema-teacher" className="mb-2 block text-sm font-black text-amber-900">
+                  👨‍🏫 المعلم المسؤول عن الفيديو
+                </label>
+                <select
+                  id="cinema-teacher"
+                  value={selectedTeacherId}
+                  onChange={e => handleTeacherChange(e.target.value)}
+                  required={!editingVideo}
+                  className="w-full rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 text-lg font-black text-amber-900 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                >
+                  <option value="">اختر المعلم</option>
+                  {teachers.map(teacher => (
+                    <option key={teacher.id} value={teacher.id}>
+                      👨‍🏫 {teacher.name}{teacher.subject ? ` - ${teacher.subject}` : ''}
+                    </option>
+                  ))}
+                </select>
+                {!editingVideo && teachers.length === 0 && (
+                  <p className="mt-2 text-sm font-bold text-red-600">
+                    لا يوجد معلمون مسجلون بعد لإسناد فيديو السينما.
+                  </p>
+                )}
+                {selectedTeacherName && (
+                  <p className="mt-2 text-xs font-bold text-amber-700">
+                    سيتم ربط الفيديوهات بالمعلم: {selectedTeacherName}
+                  </p>
+                )}
+              </div>
+            )}
             <input
               type="text"
               placeholder="عنوان الفيديو (اختياري لملفات MP4)"
@@ -681,7 +774,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                   {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
                 </div>
                 <div className="flex gap-2">
-                     <button disabled={!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => { setEditingVideo(video); setFormData({ title: video.title, description: video.description, url: video.url, sourceType: getVideoSourceType(video.sourceType, video.url), file: null, pendingVideos: [], grade: video.grade, atram: video.atram || '', subject: video.subject, term: video.term, unit: video.unit }); setShowForm(true); playLamsaSound('click'); }} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
+                     <button disabled={!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => beginEditingVideo(video)} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
                     <button disabled={!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
                 </div>
               </div>

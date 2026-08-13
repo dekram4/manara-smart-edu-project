@@ -5,6 +5,7 @@ import { readStorageArray } from './storage';
 type OwnedRecord = {
   createdBy?: string;
   teacherId?: string;
+  teacher_id?: string;
   grade?: string;
   subject?: string;
   atram?: string;
@@ -19,7 +20,7 @@ export const normalizeScopeValue = (value: unknown) =>
   (value ?? '').toString().trim().toLowerCase();
 
 export const getRecordTeacherId = (record: OwnedRecord | null | undefined) =>
-  normalizeScopeValue(record?.teacherId ?? record?.createdBy);
+  normalizeScopeValue(record?.teacher_id ?? record?.teacherId ?? record?.createdBy);
 
 export const getParentTeacherId = (
   parent: ParentInfo,
