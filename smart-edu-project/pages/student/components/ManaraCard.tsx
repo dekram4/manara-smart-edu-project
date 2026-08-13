@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import EducationalCardEffects from '../../../src/components/effects/EducationalCardEffects';
 import Interactive3DEmoji from '../../../src/components/effects/Interactive3DEmoji';
+import CardErrorBoundary from '../../../src/components/CardErrorBoundary';
 import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 
 interface ManaraCardProps {
@@ -21,21 +22,22 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
   const [hovered, setHovered] = useState(false);
 
   return (
-    <motion.div
-      className="relative min-w-0 cursor-pointer"
-      initial={{ opacity: 0, y: 30, scale: 0.88 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.42, delay, type: 'spring', stiffness: 220, damping: 20 }}
-      whileHover={{ scale: 1.03, y: -4 }}
-      whileTap={{ scale: 0.94 }}
-       onHoverStart={() => {
-         setHovered(true);
-         GameAudioEngine.play('uiHover');
-       }}
-      onHoverEnd={() => setHovered(false)}
-      onClick={onClick}
-      style={{ WebkitTapHighlightColor: 'transparent' }}
-    >
+    <CardErrorBoundary label={`بطاقة ${title}`}>
+      <motion.div
+        className="relative min-w-0 cursor-pointer"
+        initial={{ opacity: 0, y: 30, scale: 0.88 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.42, delay, type: 'spring', stiffness: 220, damping: 20 }}
+        whileHover={{ scale: 1.03, y: -4 }}
+        whileTap={{ scale: 0.94 }}
+         onHoverStart={() => {
+           setHovered(true);
+           GameAudioEngine.play('uiHover');
+         }}
+        onHoverEnd={() => setHovered(false)}
+        onClick={onClick}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
       {/* NEW badge */}
       {isNew && (
         <div className="absolute -right-1 -top-1.5 z-20">
@@ -93,7 +95,8 @@ const ManaraCard: React.FC<ManaraCardProps> = ({
           <p className="text-[11px] text-gray-600">{subtitle}</p>
         </div>
       </div>
-    </motion.div>
+      </motion.div>
+    </CardErrorBoundary>
   );
 };
 

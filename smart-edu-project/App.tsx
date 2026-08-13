@@ -69,7 +69,7 @@ export const triggerCelebration = (won = true) => {
 type MainView = 'role' | 'admin' | 'teacher' | 'student' | 'parent';
 
 class DashboardErrorBoundary extends Component<
-  { children: ReactNode; onReturnToRoles?: () => void },
+  { children: ReactNode },
   { hasError: boolean; errorMessage: string }
 > {
   state = { hasError: false, errorMessage: '' };
@@ -83,9 +83,8 @@ class DashboardErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[app] dashboard render error:', error, errorInfo);
-    // A broken dashboard must never leave the whole shell blank. Return to
-    // role selection without clearing the persisted user session.
-    this.props.onReturnToRoles?.();
+    // Keep the current role/session mounted. A transient card/render failure
+    // must not redirect an iOS/Safari user back to role selection.
   }
 
   handleRetry = () => {
@@ -209,13 +208,6 @@ const App: React.FC = () => {
     setMainView(role);
   };
 
-  const returnToRoles = () => {
-    // Preserve role-specific sessions so the user can re-enter after a
-    // transient render failure. Only an explicit logout clears them.
-    removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
-    setMainView('role');
-  };
-
   const leaveRole = () => {
     clearActiveSessions();
     clearAuthSessions();
@@ -330,7 +322,7 @@ const App: React.FC = () => {
     <div className="min-h-screen font-tajawal">
       <ScrollDownButton />
       <GameControls />
-      <DashboardErrorBoundary key={mainView} onReturnToRoles={returnToRoles}>
+      <DashboardErrorBoundary key={mainView}>
         {renderView()}
       </DashboardErrorBoundary>
       {syncing && (

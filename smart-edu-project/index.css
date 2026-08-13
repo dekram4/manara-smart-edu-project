@@ -181,6 +181,8 @@ table {
   width: 100%;
   max-width: 100%;
   overflow-x: clip;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .student-swiper-desktop {
@@ -191,10 +193,11 @@ table {
   display: flex;
   gap: 0.875rem;
   overflow-x: auto;
-  overscroll-behavior-x: contain;
+  overscroll-behavior-x: auto;
   padding: 0.25rem max(0.5rem, calc((100% - 86vw) / 2)) 2.25rem;
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
+  scroll-snap-stop: always;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;

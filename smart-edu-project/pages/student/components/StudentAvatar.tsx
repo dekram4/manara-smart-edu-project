@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { GameAudioEngine } from '../../../utils/gameAudioEngine';
 import { getStudentAppearance } from '../../../utils/studentAppearance';
 import { StudentInfo, StudentAppearance } from '../../../types';
+import CardErrorBoundary from '../../../src/components/CardErrorBoundary';
 
 interface StudentAvatarProps {
   student?: Pick<StudentInfo, 'gender' | 'appearance'> | null;
@@ -30,14 +31,15 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
   const dimensions = sizeMap[size];
 
   return (
-    <motion.div
-      className={`relative inline-flex items-center justify-center ${dimensions.shell} ${className}`}
-      whileHover={interactive ? { y: -5, scale: 1.06, rotate: 2 } : undefined}
-      whileTap={interactive ? { scale: 0.95 } : undefined}
-      onPointerEnter={interactive ? () => GameAudioEngine.play('uiHover') : undefined}
-      style={{ perspective: '700px' }}
-      aria-label="شخصية الطالب"
-    >
+    <CardErrorBoundary label="الصورة الشخصية">
+      <motion.div
+        className={`relative inline-flex items-center justify-center ${dimensions.shell} ${className}`}
+        whileHover={interactive ? { y: -5, scale: 1.06, rotate: 2 } : undefined}
+        whileTap={interactive ? { scale: 0.95 } : undefined}
+        onPointerEnter={interactive ? () => GameAudioEngine.play('uiHover') : undefined}
+        style={{ perspective: '700px' }}
+        aria-label="شخصية الطالب"
+      >
       <div
         className="absolute inset-0 overflow-hidden rounded-[32%] border-2 border-white/50 shadow-[0_16px_30px_rgba(0,0,0,0.3),inset_5px_5px_12px_rgba(255,255,255,0.28)]"
         style={{
@@ -55,7 +57,8 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
         className="absolute bottom-[10%] left-[12%] z-20 h-2 w-2 rounded-full bg-white/80"
         style={{ boxShadow: `0 0 12px ${appearance.color}` }}
       />
-    </motion.div>
+      </motion.div>
+    </CardErrorBoundary>
   );
 };
 
