@@ -21,7 +21,7 @@ const EMBEDDED_GAME_URL =
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_3_URL =
-  '/api/game-embed/659090e00bfc4650899550d63f8a130d/index.html';
+  'https://html5.gamedistribution.com/ea3977490e1946809874593467f6157e/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
 
 // Unity games need same-origin access to load their own assets. Keep popup and
 // top-navigation privileges disabled so provider ads cannot replace Manara.
