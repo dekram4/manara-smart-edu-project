@@ -9,6 +9,13 @@ import {
   VideoSourceType,
 } from '../../utils/video';
 
+const getVideoThumbnailUrl = (value: string): string | null => {
+  const match = value.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([^?&#/]+)/i,
+  );
+  return match?.[1] ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+};
+
 export interface CarouselVideo {
   id: string;
   url: string;
@@ -160,15 +167,35 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({
                         : 'border-rose-100 bg-rose-50 hover:-translate-y-1 hover:border-rose-300'
                   } ${videoLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
-                      videoLocked ? 'bg-slate-900/70 text-slate-300' : isSelected ? palette.panel + ' text-white' : 'bg-white/10 text-slate-500'
+                  <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-[20px] border border-white/15 bg-slate-950 shadow-lg">
+                    {getVideoThumbnailUrl(video.url) ? (
+                      <img
+                        src={getVideoThumbnailUrl(video.url) || undefined}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className={`flex h-full w-full items-center justify-center text-6xl ${
+                        getVideoSourceType(video.sourceType, video.url) === 'mp4'
+                          ? 'bg-gradient-to-br from-rose-400 via-orange-500 to-amber-500'
+                          : 'bg-gradient-to-br from-sky-400 via-indigo-500 to-violet-700'
+                      }`}>
+                        {getVideoSourceType(video.sourceType, video.url) === 'mp4' ? '🎬' : '🔗'}
+                      </div>
+                    )}
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/20">
+                      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/95 text-2xl text-slate-950 shadow-2xl transition group-hover:scale-110">
+                        ▶
+                      </span>
+                    </span>
+                    <span className={`absolute right-3 top-3 rounded-full px-3 py-1.5 text-[11px] font-black shadow ${
+                      videoLocked ? 'bg-slate-950/80 text-slate-200' : isSelected ? palette.panel + ' text-white' : 'bg-white/90 text-slate-800'
                     }`}>
                       {videoLocked ? '🔒 مقفول' : isSelected ? '▶ يعمل الآن' : `فيديو ${index + 1}`}
                     </span>
-                    <span className="text-2xl">{getVideoSourceType(video.sourceType, video.url) === 'mp4' ? '🎬' : '🔗'}</span>
                   </div>
-                  <p className={`mt-5 truncate text-sm font-black ${accent === 'amber' ? 'text-white' : 'text-rose-900'}`}>
+                  <p className={`truncate text-base font-black sm:text-lg ${accent === 'amber' ? 'text-white' : 'text-rose-900'}`}>
                     {video.title || `فيديو ${index + 1}`}
                   </p>
                   {watchedIds.includes(video.id) && <p className="mt-1 text-[11px] font-black text-emerald-500">✅ تمت المشاهدة</p>}
@@ -200,12 +227,19 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({
             }}
           >
             <motion.div initial={{ opacity: 0, y: 24, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="relative w-full max-w-5xl overflow-hidden rounded-[26px] border border-white/20 bg-black shadow-2xl">
+              <button
+                type="button"
+                onClick={() => setPlayingVideo(null)}
+                aria-label="إغلاق الفيديو"
+                className="absolute right-3 top-3 z-20 flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/70 bg-slate-950/85 text-3xl font-black leading-none text-white shadow-2xl transition hover:scale-105 hover:bg-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-300"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
               <div className="aspect-video w-full">
                 <VideoMedia video={playingVideo} autoPlay />
               </div>
-              <div className="flex items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white">
+              <div className="bg-slate-950 px-4 py-3 text-white">
                 <p className="truncate text-sm font-black">{playingVideo.title || 'فيديو'}</p>
-                <button type="button" onClick={() => setPlayingVideo(null)} className="shrink-0 rounded-xl bg-white/15 px-4 py-2 text-sm font-black hover:bg-rose-500">✕ إغلاق الفيديو</button>
               </div>
             </motion.div>
           </motion.div>

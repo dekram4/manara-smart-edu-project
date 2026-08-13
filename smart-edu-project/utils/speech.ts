@@ -18,13 +18,6 @@ const ENCOURAGEMENT_MESSAGES = [
   'أنت نجم! اعتز بنفسك!',
 ];
 
-const GREETING_MESSAGES = [
-  'مرحبا! هل أنت جاهز للتعلم؟',
-  'يا هلا! أهلا وسهلا في منصتنا!',
-  'مرحبا! لنتعلم ونستمتع!',
-  'أهلا! اليوم رائع للتعلم!',
-];
-
 const QUIZ_START_MESSAGES = [
   'حاول مختبرتك! أنت قدر!',
   'الاختبار يبدأ! كن بطلا!',
@@ -66,10 +59,6 @@ export function speakRandom(arr: string[]) {
 }
 
 export function speakEncouragement() { speakRandom(ENCOURAGEMENT_MESSAGES); }
-export function speakGreeting() { speakRandom(GREETING_MESSAGES); }
 export function speakQuizStart() { speakRandom(QUIZ_START_MESSAGES); }
 export function speakWin() { speakRandom(WIN_MESSAGES); }
 export function speakError() { speak('لا تتراج! جرب مرة أخرى ✗', 0.9, 0.8); }
-export function speakWelcomeStudent() {
-  speak('مرحبا يا بطل! هل أنت جاهز لمغامرة اليوم؟');
-}

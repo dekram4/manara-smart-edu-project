@@ -57,7 +57,6 @@ export const gameSounds = {
   uiSelect: new Howl(audioOptions(['/audio/manara-portal-transition.mp3'], 0.64)),
   portalTransition: new Howl(audioOptions(['/audio/manara-portal-transition.mp3'], 0.6)),
   loginChime: new Howl(audioOptions(['/audio/manara-login-chime.mp3'], 0.72)),
-  studentWelcome: new Howl(audioOptions(['/audio/manara-arabic-student-welcome.mp3'], 1)),
   correctAnswer: new Howl(audioOptions(['/audio/manara-applause-clarity.mp3'], 0.82)),
   wrongAnswer: new Howl(audioOptions(['/audio/manara-hover-clarity.mp3'], 0.24)),
   collectGem: new Howl(audioOptions(['/audio/manara-gem-clarity.mp3'], 0.95)),

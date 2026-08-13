@@ -100,12 +100,9 @@ const playToneJsChime = (type: 'welcome' | 'success') => {
   }
 };
 
-export const playWelcomeStudent = () => {
-  GameAudioEngine.play('studentWelcome');
-};
-
 let pendingStudentRefreshWelcome = false;
 let studentRefreshWelcomeAudio: HTMLAudioElement | null = null;
+let studentRefreshWelcomeAttempted = false;
 
 const retryStudentRefreshWelcome = () => {
   if (!pendingStudentRefreshWelcome || !studentRefreshWelcomeAudio) return;
@@ -118,7 +115,12 @@ const retryStudentRefreshWelcome = () => {
 };
 
 export const playWelcomeStudentOnRefresh = () => {
-  if (!readSoundPreference() || typeof window === 'undefined') return;
+  if (
+    studentRefreshWelcomeAttempted
+    || !readSoundPreference()
+    || typeof window === 'undefined'
+  ) return;
+  studentRefreshWelcomeAttempted = true;
   const audio = new Audio('/audio/manara-arabic-student-welcome.mp3');
   audio.preload = 'auto';
   audio.volume = 1;

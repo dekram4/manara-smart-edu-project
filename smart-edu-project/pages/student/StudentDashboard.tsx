@@ -9,8 +9,7 @@ import StudentPersonality from './StudentPersonality';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
 import { getLessonExplanationVideos, isSafeVideoUrl } from '../../utils/video';
-import { playWelcomeStudent, playWelcomeStudentOnRefresh, playLamsaSound } from '../../utils/sounds';
-import { speakGreeting } from '../../utils/speech';
+import { playWelcomeStudentOnRefresh, playLamsaSound } from '../../utils/sounds';
 import { triggerCelebration } from '../../App';
 import {
   filterTeacherOwnedRecords,
@@ -523,7 +522,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setStudent(active);
       setIsAuthenticated(true);
        playWelcomeStudentOnRefresh();
-       speakGreeting();
       checkStreak();
       refreshGamification();
       syncGamificationToStudent(active);
@@ -1389,7 +1387,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       hydrateGamificationFromStudent(activeStudent);
       setStudent(activeStudent);
       setIsAuthenticated(true);
-      playWelcomeStudent();
       checkStreak();
       refreshGamification();
       let fallbackGrade = activeStudent.grade || activeStudent.primaryGrade || '';
@@ -2099,7 +2096,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     onActiveIndexChange={setExplanationVideoIndex}
                     title="🎞️ اختر شرح الدرس"
                     subtitle="اختر أي بطاقة لتشغيل الفيديو وتكبيره"
-                    accent="amber"
+                    accent="rose"
                     emptyMessage="لم يتم رفع فيديو لهذا الدرس بعد"
                   />
                   {activeLesson && (
