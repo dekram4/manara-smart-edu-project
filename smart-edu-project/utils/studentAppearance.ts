@@ -64,6 +64,16 @@ export const STUDENT_HAIR_OPTIONS = [
   { value: '🎓', label: 'قبعة التخرج' },
 ] as const;
 
+export const STUDENT_HAIR_COLOR_OPTIONS = [
+  { value: '#3f2b24', label: 'بني كلاسيكي', swatch: '#3f2b24' },
+  { value: '#1f2937', label: 'أسود ليلي', swatch: '#1f2937' },
+  { value: '#8b5e3c', label: 'بني عسلي', swatch: '#8b5e3c' },
+  { value: '#d97706', label: 'ذهبي مشمس', swatch: '#d97706' },
+  { value: '#e5e7eb', label: 'فضي لامع', swatch: '#e5e7eb' },
+  { value: '#ec4899', label: 'وردي مرح', swatch: '#ec4899' },
+  { value: '#7c3aed', label: 'بنفسجي خيالي', swatch: '#7c3aed' },
+] as const;
+
 export const STUDENT_SKIN_OPTIONS = [
   { value: '#f8d7c0', label: 'قمحي فاتح', swatch: '#f8d7c0' },
   { value: '#edb891', label: 'ذهبي دافئ', swatch: '#edb891' },
@@ -138,6 +148,7 @@ export const getStudentAppearance = (
     bottom: isOptionValue(saved?.bottom, STUDENT_BOTTOM_OPTIONS) ? saved!.bottom : '👖',
     shoes: isOptionValue(saved?.shoes, STUDENT_SHOES_OPTIONS) ? saved!.shoes : '👟',
     hair: isOptionValue(saved?.hair, STUDENT_HAIR_OPTIONS) ? saved!.hair : '🦱',
+    hairColor: isOptionValue(saved?.hairColor, STUDENT_HAIR_COLOR_OPTIONS) ? saved!.hairColor : '#3f2b24',
     skinTone: isOptionValue(saved?.skinTone, STUDENT_SKIN_OPTIONS) ? saved!.skinTone : '#edb891',
     accessory: isOptionValue(saved?.accessory, STUDENT_ACCESSORY_OPTIONS) ? saved!.accessory : '✨',
   };

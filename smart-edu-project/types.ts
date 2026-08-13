@@ -55,6 +55,8 @@ export interface StudentAppearance {
   bottom?: string;
   shoes?: string;
   hair?: string;
+  /** Optional hair colour for the 3D avatar customizer. */
+  hairColor?: string;
   skinTone?: string;
   accessory?: string;
 }

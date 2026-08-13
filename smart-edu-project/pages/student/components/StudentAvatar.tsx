@@ -33,6 +33,7 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
   const bottom = appearance.bottom || '👖';
   const shoes = appearance.shoes || '👟';
   const hair = appearance.hair || '🦱';
+  const hairColor = appearance.hairColor || '#3f2b24';
   const skinTone = appearance.skinTone || '#edb891';
   const accessory = appearance.accessory || '✨';
 
@@ -73,6 +74,10 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
       <div className="absolute bottom-[29%] left-[25%] z-20 h-[18%] w-[6%] rotate-[18deg] rounded-full" style={{ background: skinTone }} />
       <div className="absolute bottom-[29%] right-[25%] z-20 h-[18%] w-[6%] -rotate-[18deg] rounded-full" style={{ background: skinTone }} />
       <div className={`absolute left-1/2 top-[7%] z-30 flex -translate-x-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-white/65 shadow-[0_7px_12px_rgba(0,0,0,0.25)] ${dimensions.head}`} style={{ background: skinTone }}>
+        <span
+          className="pointer-events-none absolute -top-[3%] h-[28%] w-[64%] rounded-t-full opacity-90"
+          style={{ background: hairColor }}
+        />
         <span className={`select-none leading-none drop-shadow-[0_5px_3px_rgba(0,0,0,0.35)] ${dimensions.face}`}>
           {appearance.shape}
         </span>

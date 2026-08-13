@@ -7,6 +7,7 @@ import {
   STUDENT_ACCESSORY_OPTIONS,
   STUDENT_BOTTOM_OPTIONS,
   STUDENT_HAIR_OPTIONS,
+  STUDENT_HAIR_COLOR_OPTIONS,
   STUDENT_SHAPE_OPTIONS,
   STUDENT_SHOES_OPTIONS,
   STUDENT_SKIN_OPTIONS,
@@ -14,12 +15,14 @@ import {
 } from '../../utils/studentAppearance';
 import StudentAvatar from './components/StudentAvatar';
 
+const StudentAvatar3D = React.lazy(() => import('./components/StudentAvatar3D'));
+
 interface StudentPersonalityProps {
   student: StudentInfo;
   onSave: (appearance: StudentAppearance) => void;
 }
 
-type CustomizationTab = 'shape' | 'top' | 'bottom' | 'shoes' | 'hair' | 'skin' | 'accessory';
+type CustomizationTab = 'shape' | 'top' | 'bottom' | 'shoes' | 'hair' | 'hairColor' | 'skin' | 'accessory';
 type ChoiceOption = {
   readonly value: string;
   readonly label: string;
@@ -38,6 +41,7 @@ const CUSTOMIZATION_TABS: Array<{
   { id: 'bottom', label: 'السفلي', icon: '👖', hint: 'البنطال', accent: '#38bdf8' },
   { id: 'shoes', label: 'الأحذية', icon: '👟', hint: 'خطوات بطلك', accent: '#34d399' },
   { id: 'hair', label: 'الشعر', icon: '🦱', hint: 'تسريحة الرأس', accent: '#fbbf24' },
+  { id: 'hairColor', label: 'لون الشعر', icon: '🎨', hint: 'لون التسريحة', accent: '#fb7185' },
   { id: 'skin', label: 'البشرة', icon: '🎨', hint: 'لون البشرة والهالة', accent: '#fb923c' },
   { id: 'accessory', label: 'الإكسسوارات', icon: '✨', hint: 'اللمسة الأخيرة', accent: '#e879f9' },
 ];
@@ -162,6 +166,14 @@ const StudentPersonality: React.FC<StudentPersonalityProps> = ({ student, onSave
           selected: appearance.hair,
           onSelect: (value: string) => choose({ hair: value }),
         };
+      case 'hairColor':
+        return {
+          title: 'لون الشعر',
+          description: 'غيّر لون التسريحة وشاهد النتيجة فورًا في المجسم ثلاثي الأبعاد.',
+          options: STUDENT_HAIR_COLOR_OPTIONS,
+          selected: appearance.hairColor,
+          onSelect: (value: string) => choose({ hairColor: value }),
+        };
       case 'skin':
         return {
           title: 'لون البشرة والهالة',
@@ -225,7 +237,15 @@ const StudentPersonality: React.FC<StudentPersonalityProps> = ({ student, onSave
             </div>
             <div className="relative z-10 my-5 flex min-h-[230px] items-center justify-center sm:min-h-[280px]">
               <div className="absolute h-52 w-52 rounded-full bg-cyan-400/20 blur-3xl" />
-              <StudentAvatar appearance={appearance} size="xl" />
+              <React.Suspense
+                fallback={
+                  <div className="flex min-h-[340px] w-full items-center justify-center rounded-[26px] bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-950">
+                    <StudentAvatar appearance={appearance} size="xl" />
+                  </div>
+                }
+              >
+                <StudentAvatar3D appearance={appearance} studentName={student.name || 'بطلك'} className="w-full" />
+              </React.Suspense>
             </div>
             <div className="relative z-10 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur">
               <p className="truncate text-lg font-black">{student.name || 'بطلي'}</p>
