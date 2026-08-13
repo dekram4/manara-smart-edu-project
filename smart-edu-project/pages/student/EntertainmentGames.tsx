@@ -23,6 +23,44 @@ const EMBEDDED_GAME_2_URL =
 const EMBEDDED_GAME_3_URL =
   '/api/game-embed/72d861a52f3c4e788ae0421649633be3/index.html?v=1';
 
+const GAME_CARDS: Array<{
+  type: GameType;
+  title: string;
+  subtitle: string;
+  icon: string;
+  accent: string;
+  gradient: string;
+  requiredLevel: number;
+}> = [
+  {
+    type: 'embedded',
+    title: 'المغامرة الأولى',
+    subtitle: 'لعبة مضمنة داخل منصة منارة',
+    icon: '🕹️',
+    accent: '#f59e0b',
+    gradient: 'from-amber-400 via-orange-500 to-red-600',
+    requiredLevel: 0,
+  },
+  {
+    type: 'embedded2',
+    title: 'التحدي الثاني',
+    subtitle: 'لعبة HTML5 مليئة بالمفاجآت',
+    icon: '🎯',
+    accent: '#e879f9',
+    gradient: 'from-fuchsia-500 via-pink-500 to-rose-700',
+    requiredLevel: 2,
+  },
+  {
+    type: 'embedded3',
+    title: 'المستوى الثالث',
+    subtitle: 'اختبر مهارتك في تجربة تفاعلية',
+    icon: '🎲',
+    accent: '#22d3ee',
+    gradient: 'from-cyan-400 via-sky-500 to-blue-700',
+    requiredLevel: 3,
+  },
+];
+
 // Local Unity games need same-origin access to load their own assets. Keep
 // provider popup and top-navigation privileges disabled for those games.
 const GAME_FRAME_SANDBOX =
@@ -154,74 +192,56 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
 
       <TouchCarousel
         label="ألعاب عالم الترفيه"
-        trackClassName="grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+        trackClassName="sm:grid sm:grid-cols-2 lg:grid-cols-3"
         nested
       >
-        <button
-          type="button"
-          onClick={() => openGame('embedded', 0)}
-          aria-disabled={false}
-          className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
-            stats.level >= 0
-              ? 'bg-gradient-to-br from-amber-500 to-red-700 hover:-translate-y-1 hover:scale-[1.01]'
-              : 'cursor-pointer bg-slate-700/80 opacity-70 hover:opacity-90'
-          }`}
-        >
-          <EducationalCardEffects accent="#f59e0b" />
-          <div className="flex items-center justify-between">
-            <div className="text-5xl">🕹️</div>
-            {stats.level < 0 && <span className="text-3xl">🔒</span>}
-          </div>
-          <h3 className="mt-4 text-2xl font-black text-white">اللعبة الأولى</h3>
-          <p className="mt-2 text-sm font-bold text-white/90">لعبة مضمنة داخل منصة منارة.</p>
-          <span className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white">
-            ▶ العب الآن
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => openGame('embedded2', 2)}
-          aria-disabled={stats.level < 2}
-          className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
-            stats.level >= 2
-              ? 'bg-gradient-to-br from-fuchsia-500 to-pink-700 hover:-translate-y-1 hover:scale-[1.01]'
-              : 'cursor-pointer bg-slate-700/80 opacity-70 hover:opacity-90'
-          }`}
-        >
-          <EducationalCardEffects accent="#e879f9" />
-          <div className="flex items-center justify-between">
-            <div className="text-5xl">🎯</div>
-            {stats.level < 2 && <span className="text-3xl">🔒</span>}
-          </div>
-          <h3 className="mt-4 text-2xl font-black text-white">اللعبة الثانية</h3>
-          <p className="mt-2 text-sm font-bold text-white/90">لعبة HTML5 مضمنة داخل منصة منارة.</p>
-          <span className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white">
-            {stats.level >= 2 ? '▶ العب الآن' : '🔒 تُفتح في المستوى 2'}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => openGame('embedded3', 3)}
-          aria-disabled={stats.level < 3}
-          className={`relative overflow-hidden rounded-[30px] border border-white/15 p-7 text-right shadow-2xl transition-all ${
-            stats.level >= 3
-              ? 'bg-gradient-to-br from-cyan-500 to-blue-700 hover:-translate-y-1 hover:scale-[1.01]'
-              : 'cursor-pointer bg-slate-700/80 opacity-70 hover:opacity-90'
-          }`}
-        >
-          <EducationalCardEffects accent="#22d3ee" />
-          <div className="flex items-center justify-between">
-            <div className="text-5xl">🎲</div>
-            {stats.level < 3 && <span className="text-3xl">🔒</span>}
-          </div>
-          <h3 className="mt-4 text-2xl font-black text-white">اللعبة الثالثة</h3>
-          <p className="mt-2 text-sm font-bold text-white/90">لعبة HTML5 مضمنة داخل منصة منارة.</p>
-          <span className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white">
-            {stats.level >= 3 ? '▶ العب الآن' : '🔒 تُفتح في المستوى 3'}
-          </span>
-        </button>
+        {GAME_CARDS.map((game, index) => {
+          const unlocked = stats.level >= game.requiredLevel;
+          return (
+            <button
+              key={game.type}
+              type="button"
+              onClick={() => openGame(game.type, game.requiredLevel)}
+              aria-disabled={!unlocked}
+              className={`group relative min-h-[260px] overflow-hidden rounded-[26px] border-2 p-3 text-right shadow-2xl transition-all duration-300 ${
+                unlocked
+                  ? 'border-white/20 bg-slate-950/90 hover:-translate-y-1 hover:border-white/50'
+                  : 'cursor-pointer border-white/10 bg-slate-900/85 opacity-80 hover:opacity-95'
+              }`}
+            >
+              <div className={`relative aspect-[1.55] overflow-hidden rounded-[20px] bg-gradient-to-br ${game.gradient} p-4`}>
+                <EducationalCardEffects accent={game.accent} compact />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.35),transparent_28%),linear-gradient(135deg,transparent,rgba(15,23,42,0.22))]" />
+                <div className="relative z-10 flex items-start justify-between">
+                  <span className="rounded-full bg-slate-950/45 px-2.5 py-1 text-[10px] font-black text-white">
+                    {unlocked ? `المستوى ${game.requiredLevel || 'الأول'}` : `🔒 المستوى ${game.requiredLevel}`}
+                  </span>
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/30 bg-white/20 text-4xl shadow-xl backdrop-blur transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                    {game.icon}
+                  </span>
+                </div>
+                <div className="relative z-10 mt-7 flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-950 shadow-lg">▶</span>
+                  <span className="text-xs font-black text-white/90">{unlocked ? 'جاهزة للعب' : 'تفتح مع تقدمك'}</span>
+                </div>
+              </div>
+              <div className="px-2 pb-1 pt-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-black text-white">{game.title}</h3>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-400">{game.subtitle}</p>
+                  </div>
+                  <span className="mt-1 text-xs font-black text-slate-500">{index + 1}/3</span>
+                </div>
+                <span className={`mt-4 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-black ${
+                  unlocked ? 'bg-white/10 text-white group-hover:bg-white/20' : 'bg-white/5 text-slate-400'
+                }`}>
+                  {unlocked ? '▶ العب الآن' : `🔒 تُفتح في المستوى ${game.requiredLevel}`}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </TouchCarousel>
 
       {activeGame === 'embedded' && (

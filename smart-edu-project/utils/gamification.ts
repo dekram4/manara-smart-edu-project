@@ -27,6 +27,7 @@ const GAMIFICATION_KEYS = {
 
 const XP_PER_GEM = 5;
 const XP_PER_LEVEL = 100;
+export const STREAK_MILESTONE_DAYS = 5;
 
 type ActivityType = 'lesson' | 'video';
 
@@ -58,7 +59,7 @@ export const REWARDS = {
   LESSON_COMPLETE: { xp: 25, gems: 5 },
   GAME_WIN: { xp: 15, gems: 3 },
   GAME_PERFECT: { xp: 25, gems: 5 },
-  STREAK_BONUS: { xp: 0, gems: 0 },
+  STREAK_BONUS: { xp: 100, gems: 0 },
   DAILY_LOGIN: { xp: 0, gems: 0 },
   CHAT_MESSAGE: { xp: 0, gems: 0 },
   PROBLEM_SOLVED: { xp: 5, gems: 1 },
@@ -77,6 +78,7 @@ const ACHIEVEMENTS_LIST = [
   { id: 'memory_master', title: 'سيد الذاكرة', desc: 'انتصر في لعبة الذاكرة', icon: '🧠', threshold: 1, type: 'memory' },
   { id: 'speed_demon', title: 'سريع كالبرق', desc: 'فوز في الاختبار السريع', icon: '⚡', threshold: 1, type: 'speed' },
   { id: 'streak_3', title: '3 أيام متواصل', desc: 'تعلم 3 أيام متتالية', icon: '🔥', threshold: 3, type: 'streak' },
+  { id: 'streak_5', title: '5 أيام متواصل', desc: 'تعلم 5 أيام متتالية واحصل على مكافأة', icon: '🏅', threshold: 5, type: 'streak' },
   { id: 'streak_7', title: 'أسبوع متواصل', desc: 'تعلم 7 أيام متتالية', icon: '🔥', threshold: 7, type: 'streak' },
   { id: 'level_5', title: 'المستوى 5', desc: 'اوصل إلى المستوى 5', icon: '💪', threshold: 5, type: 'level' },
   { id: 'gem_collector', title: 'جامع الجواهر', desc: 'اجمع 50 جوهرة', icon: '💎', threshold: 50, type: 'gems' },
@@ -199,7 +201,7 @@ function checkLevelUp() {
 
 // Streak
 export function getStreak(): number { return getStorage(GAMIFICATION_KEYS.STREAK, 0); }
-export function checkStreak(): { streak: number; continued: boolean; bonus: boolean } {
+export function checkStreak(): { streak: number; continued: boolean; bonus: boolean; bonusXp: number } {
   const today = new Date().toDateString();
   const lastLogin = getStorage(GAMIFICATION_KEYS.LAST_LOGIN, '');
   const yesterday = new Date(Date.now() - 86400000).toDateString();
@@ -209,14 +211,15 @@ export function checkStreak(): { streak: number; continued: boolean; bonus: bool
 
   if (lastLogin === today) {
     // Already logged in today
-    return { streak, continued: false, bonus: false };
+    return { streak, continued: false, bonus: false, bonusXp: 0 };
   }
 
   if (lastLogin === yesterday) {
     streak += 1;
     continued = true;
-    // Streak bonus every 3 days
-    if (streak % 3 === 0) {
+    // Give the milestone reward once, on the login that reaches each
+    // multiple of five consecutive days.
+    if (streak % STREAK_MILESTONE_DAYS === 0) {
       addXP(REWARDS.STREAK_BONUS.xp);
       addGems(REWARDS.STREAK_BONUS.gems);
       bonus = true;
@@ -230,13 +233,14 @@ export function checkStreak(): { streak: number; continued: boolean; bonus: bool
 
   // Streak achievements
   if (streak >= 3) unlockAchievement('streak_3');
+  if (streak >= STREAK_MILESTONE_DAYS) unlockAchievement('streak_5');
   if (streak >= 7) unlockAchievement('streak_7');
 
   // Daily login bonus
   addXP(REWARDS.DAILY_LOGIN.xp);
   addGems(REWARDS.DAILY_LOGIN.gems);
 
-  return { streak, continued, bonus };
+  return { streak, continued, bonus, bonusXp: bonus ? REWARDS.STREAK_BONUS.xp : 0 };
 }
 
 // Achievements

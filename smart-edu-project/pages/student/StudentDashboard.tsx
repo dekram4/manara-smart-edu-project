@@ -485,6 +485,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [achievements, setAchievements] = useState<any[]>([]);
   const [showRewardPopup, setShowRewardPopup] = useState(false);
   const [rewardInfo, setRewardInfo] = useState({ xp: 0, gems: 0, message: '' });
+  const [pendingStreakBonus, setPendingStreakBonus] = useState(0);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messageSignatureRef = useRef('');
@@ -522,7 +523,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setStudent(active);
       setIsAuthenticated(true);
        playWelcomeStudentOnRefresh();
-      checkStreak();
+      const streakCheck = checkStreak();
+      if (streakCheck.bonusXp > 0) setPendingStreakBonus(streakCheck.bonusXp);
       refreshGamification();
       syncGamificationToStudent(active);
 
@@ -731,6 +733,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     }, delay);
     rewardTimersRef.current.push(timer);
   };
+
+  useEffect(() => {
+    if (pendingStreakBonus <= 0) return;
+    showRewardPopupFor({
+      xp: pendingStreakBonus,
+      gems: 0,
+      message: `ممتاز! أكملت ${5} أيام استمرار متتالية 🎉`,
+    }, 5000);
+    setPendingStreakBonus(0);
+  }, [pendingStreakBonus]);
 
   const sendChatMessage = () => {
     if (!chatInput.trim() || !student) return;
@@ -1387,7 +1399,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       hydrateGamificationFromStudent(activeStudent);
       setStudent(activeStudent);
       setIsAuthenticated(true);
-      checkStreak();
+      const streakCheck = checkStreak();
+      if (streakCheck.bonusXp > 0) setPendingStreakBonus(streakCheck.bonusXp);
       refreshGamification();
       let fallbackGrade = activeStudent.grade || activeStudent.primaryGrade || '';
       if (!fallbackGrade && activeGradeEnrollments.length > 0) {
