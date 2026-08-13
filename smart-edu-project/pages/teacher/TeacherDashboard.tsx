@@ -18,6 +18,7 @@ import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeSco
 import ManaraBrand from '../../src/components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
+import { writeAuthSession } from '../../utils/authSession';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -93,6 +94,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
   if (!isAuthenticated || !currentTeacher) {
     return <TeacherLogin onLoginSuccess={(teacher) => {
+      writeAuthSession('teacher', teacher.id);
       setCurrentTeacher(teacher);
       setIsAuthenticated(true);
       playWelcomeAdult();

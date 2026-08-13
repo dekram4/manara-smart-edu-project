@@ -6,7 +6,7 @@ import { filterTeacherOwnedRecords, matchesAcademicScope } from '../../utils/sco
 import { StudentInfo } from '../../types';
 import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/gamification';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
-import { getVideoSourceType, isMp4VideoUrl } from '../../utils/video';
+import { getVideoSourceType, isMp4VideoUrl, isSafeVideoUrl } from '../../utils/video';
 import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
 import TouchCarousel from '../../src/components/TouchCarousel';
 import { readActiveSession, readStorageArray } from '../../utils/storage';
@@ -25,6 +25,9 @@ interface VideoRecord {
   unit: string;
   teacherName: string;
   createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
+  teacherId?: string;
 }
 
 interface StudentVideosProps {
@@ -86,13 +89,19 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
       const scoped = Array.from(
         new Map([...teacherVideos, ...generalVideos].map(video => [video.id, video])).values(),
       );
-      const filtered = scoped.filter(video =>
-        matchesAcademicScope(video, { grade, atram, subject, term, unit }),
-      );
-
-      setActiveIndex(current => Math.min(current, Math.max(filtered.length - 1, 0)));
-      setVideos(filtered);
-      setWatchedVideos(filtered.filter(video => hasCompletedActivity('video', video.id)).map(video => video.id));
+       const filtered = scoped.filter(video =>
+         isSafeVideoUrl(video.url) && matchesAcademicScope(video, { grade, atram, subject, term, unit }),
+       );
+       const nextWatched = filtered
+         .filter(video => hasCompletedActivity('video', video.id))
+         .map(video => video.id);
+       const nextSignature = filtered.map(video => `${video.id}:${video.url}:${video.updatedAt || video.createdAt}`).join('|');
+       setActiveIndex(current => Math.min(current, Math.max(filtered.length - 1, 0)));
+       setVideos(current => {
+         const currentSignature = current.map(video => `${video.id}:${video.url}:${video.updatedAt || video.createdAt}`).join('|');
+         return currentSignature === nextSignature ? current : filtered;
+       });
+       setWatchedVideos(current => JSON.stringify(current) === JSON.stringify(nextWatched) ? current : nextWatched);
     } catch (error) {
       console.warn('[student-videos] temporary storage read failure', error);
       setVideos([]);

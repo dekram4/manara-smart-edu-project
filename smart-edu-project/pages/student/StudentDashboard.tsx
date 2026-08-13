@@ -8,7 +8,7 @@ import StudentLogin from './StudentLogin';
 import StudentPersonality from './StudentPersonality';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
-import { getLessonExplanationVideos, getVideoSourceType } from '../../utils/video';
+import { getLessonExplanationVideos, getVideoSourceType, isSafeVideoUrl } from '../../utils/video';
 import { playWelcomeStudent, playLamsaSound } from '../../utils/sounds';
 import { speakGreeting } from '../../utils/speech';
 import { triggerCelebration } from '../../App';
@@ -53,6 +53,7 @@ import {
 } from '../../utils/quizTypes';
 import { getCorrectAnswerText, isQuizAnswerCorrect } from '../../utils/quizScoring';
 import { readActiveSession, readStorageArray, writeActiveSession, removeActiveSession } from '../../utils/storage';
+import { writeAuthSession } from '../../utils/authSession';
 
 const stableQuestionHash = (value: string): number => {
   let hash = 2166136261;
@@ -362,6 +363,28 @@ const StudentExplanationFallback: React.FC<{ onBack: () => void }> = ({ onBack }
     </button>
   </div>
 );
+
+const StudentCardErrorFallback: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+  <div dir="rtl" className="rounded-[32px] border border-rose-300/25 bg-slate-950/90 p-8 text-center shadow-2xl">
+    <div className="mb-3 text-5xl">🛟</div>
+    <h2 className="mb-2 text-2xl font-black text-white">تعذر فتح هذا المحتوى</h2>
+    <p className="mx-auto mb-5 max-w-xl text-sm font-bold leading-7 text-slate-300">
+      حدثت مشكلة في بطاقة المحتوى فقط. لم يتم تسجيل خروجك ويمكنك العودة للبطاقات وتجربة محتوى آخر.
+    </p>
+    <button
+      type="button"
+      onClick={onBack}
+      className="rounded-2xl bg-cyan-400 px-6 py-3 font-black text-slate-950 transition hover:bg-cyan-300"
+    >
+      العودة إلى البطاقات
+    </button>
+  </div>
+);
+
+const getVideoThumbnail = (url: string) => {
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^?&#/]+)/i);
+  return match?.[1] ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null;
+};
 
 const StudentPortalFallback: React.FC<{
   subject: string;
@@ -1365,6 +1388,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         activeStudent.unit = firstEnroll.unit;
       }
       writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, activeStudent);
+      writeAuthSession('student', activeStudent.id);
       ensureGamificationResetIfNeeded(activeStudent);
       hydrateGamificationFromStudent(activeStudent);
       setStudent(activeStudent);
@@ -2160,13 +2184,27 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                               <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-amber-300/10 blur-2xl transition group-hover:bg-amber-300/20" />
                               <div className="relative flex h-full flex-col justify-between gap-4">
                                 <div className="flex items-start justify-between gap-3">
-                                  <span className={`flex h-16 w-16 items-center justify-center rounded-2xl text-4xl shadow-lg ${
-                                    isMp4
-                                      ? 'bg-gradient-to-br from-rose-400 to-orange-500'
-                                      : 'bg-gradient-to-br from-sky-400 to-indigo-600'
-                                  }`}>
-                                    {isMp4 ? '🎬' : '🔗'}
-                                  </span>
+                                  <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-2xl border border-white/15 bg-slate-900 shadow-lg">
+                                    {getVideoThumbnail(video.url) ? (
+                                      <img
+                                        src={getVideoThumbnail(video.url) || undefined}
+                                        alt=""
+                                        loading="lazy"
+                                        className="h-full w-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className={`flex h-full w-full items-center justify-center text-4xl ${
+                                        isMp4
+                                          ? 'bg-gradient-to-br from-rose-400 to-orange-500'
+                                          : 'bg-gradient-to-br from-sky-400 to-indigo-600'
+                                      }`}>
+                                        {isMp4 ? '🎬' : '🔗'}
+                                      </div>
+                                    )}
+                                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/15 text-xl">
+                                      ▶
+                                    </span>
+                                  </div>
                                   <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
                                     isSelected
                                       ? 'bg-amber-300 text-slate-950'
@@ -2320,13 +2358,24 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             {activeModule === StudentModuleType.VIDEOS && (
               <div className="relative overflow-hidden rounded-[40px]">
                 <EducationalCardEffects accent="#38bdf8" />
-                <StudentVideos
-                  grade={selectedGrade}
-                  atram={selectedAtram}
-                  subject={selectedSubject}
-                  term={selectedTerm}
-                  unit={selectedUnit}
-                />
+                <StudentPortalErrorBoundary
+                  fallback={
+                    <StudentCardErrorFallback
+                      onBack={() => {
+                        setActiveModule(null);
+                        setShowModuleCards(true);
+                      }}
+                    />
+                  }
+                >
+                  <StudentVideos
+                    grade={selectedGrade}
+                    atram={selectedAtram}
+                    subject={selectedSubject}
+                    term={selectedTerm}
+                    unit={selectedUnit}
+                  />
+                </StudentPortalErrorBoundary>
               </div>
             )}
 
@@ -2334,13 +2383,24 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             {activeModule === StudentModuleType.ENTERTAINMENT && (
               <div className="relative overflow-hidden rounded-[40px]">
                 <EducationalCardEffects accent="#a78bfa" />
-                <EntertainmentGames
-                  grade={selectedGrade}
-                  subject={selectedSubject}
-                  term={selectedTerm}
-                  unit={selectedUnit}
-                  lessonContent={activeLesson?.lessonContent}
-                />
+                <StudentPortalErrorBoundary
+                  fallback={
+                    <StudentCardErrorFallback
+                      onBack={() => {
+                        setActiveModule(null);
+                        setShowModuleCards(true);
+                      }}
+                    />
+                  }
+                >
+                  <EntertainmentGames
+                    grade={selectedGrade}
+                    subject={selectedSubject}
+                    term={selectedTerm}
+                    unit={selectedUnit}
+                    lessonContent={activeLesson?.lessonContent}
+                  />
+                </StudentPortalErrorBoundary>
               </div>
             )}
 

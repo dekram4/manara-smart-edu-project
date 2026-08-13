@@ -16,6 +16,7 @@ import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
+import { writeAuthSession } from '../../utils/authSession';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -180,6 +181,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         setNeedsPasswordChange(true);
       } else {
         writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, found);
+        writeAuthSession('parent', found.id);
         loadData();
         playWelcomeAdult();
       }

@@ -13,6 +13,20 @@ export const isMp4VideoUrl = (value?: string | null): boolean => {
   return url.startsWith('/uploads/videos/') || url.includes('.mp4');
 };
 
+export const isSafeVideoUrl = (value?: string | null): boolean => {
+  const raw = (value || '').trim();
+  if (!raw || raw.startsWith('javascript:') || raw.startsWith('data:') || raw.startsWith('blob:')) {
+    return false;
+  }
+  if (raw.startsWith('/uploads/videos/')) return true;
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    return parsed.protocol === 'https:' || (parsed.protocol === 'http:' && parsed.origin === window.location.origin);
+  } catch {
+    return false;
+  }
+};
+
 export const getVideoSourceType = (
   sourceType?: VideoSourceType,
   url?: string | null,
@@ -40,13 +54,13 @@ export const getLessonExplanationVideos = (lesson: {
         ),
         title: typeof video.title === 'string' ? video.title.trim() : '',
       }))
-      .filter(video => video.url)
+      .filter(video => video.url && isSafeVideoUrl(video.url))
     : [];
   const legacyUrl = typeof lesson.explanationVideoUrl === 'string'
     ? lesson.explanationVideoUrl.trim()
     : '';
 
-  if (legacyUrl && !videos.some(video => video.url === legacyUrl)) {
+  if (legacyUrl && isSafeVideoUrl(legacyUrl) && !videos.some(video => video.url === legacyUrl)) {
     videos.unshift({
       id: `legacy-${encodeURIComponent(legacyUrl)}`,
       url: legacyUrl,

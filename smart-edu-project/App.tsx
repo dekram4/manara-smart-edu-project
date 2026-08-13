@@ -17,6 +17,12 @@ import {
   SESSION_KEYS,
   writeSessionValue,
 } from './utils/sessionPersistence';
+import {
+  clearAuthSessions,
+  ensureRoleSession,
+  hasValidRoleSession,
+} from './utils/authSession';
+import type { AuthRole } from './utils/authSession';
 
 // ✅ الاستدعاء المباشر والمحلي للمكتبات (Game Engine Infrastructure)
 import { playLamsaSound } from './utils/sounds';
@@ -212,6 +218,7 @@ const App: React.FC = () => {
 
   const leaveRole = () => {
     clearActiveSessions();
+    clearAuthSessions();
     removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
     void fetch('/api/auth/admin/logout', { method: 'POST' }).catch(() => {});
@@ -229,14 +236,22 @@ const App: React.FC = () => {
       readSessionValue(STORAGE_KEYS.ACTIVE_PARENT) ? 'parent' :
       readSessionValue(SESSION_KEYS.ADMIN_SESSION) === '1' ? 'admin' :
       null;
-    const restoredRole = savedRole && validRoles.includes(savedRole as MainView)
+    const candidateRole = savedRole && validRoles.includes(savedRole as MainView)
       ? savedRole as MainView
       : legacyRole;
+    const isDashboardRole = (role: MainView): role is AuthRole => role !== 'role';
+    const restoredRole = candidateRole && isDashboardRole(candidateRole) && hasValidRoleSession(candidateRole)
+      ? candidateRole
+      : null;
     if (restoredRole) {
+      ensureRoleSession(restoredRole);
       setMainView(restoredRole);
       if (restoredRole !== savedRole) {
         writeSessionValue(SESSION_KEYS.ACTIVE_ROLE, restoredRole);
       }
+    } else if (savedRole) {
+      // A stale role marker must never mount a dashboard by itself.
+      removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     }
     setSessionReady(true);
 

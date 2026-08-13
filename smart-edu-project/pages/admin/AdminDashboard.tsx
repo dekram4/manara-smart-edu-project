@@ -24,6 +24,7 @@ import {
   writeSessionValue,
   SESSION_KEYS,
 } from '../../utils/sessionPersistence';
+import { writeAuthSession } from '../../utils/authSession';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -147,6 +148,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   if (!isAuthenticated) {
     return <AdminLogin onLoginSuccess={() => {
       writeSessionValue(SESSION_KEYS.ADMIN_SESSION, '1');
+      writeAuthSession('admin', 'admin');
       setIsAuthenticated(true);
       playWelcomeAdult();
     }} onBack={onLogout} />;
