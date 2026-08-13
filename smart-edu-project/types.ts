@@ -59,6 +59,10 @@ export interface StudentAppearance {
   hairColor?: string;
   skinTone?: string;
   accessory?: string;
+  /** Ready Player Me avatar exported from the student's full-body creator. */
+  readyPlayerMeAvatarUrl?: string;
+  readyPlayerMeAvatarId?: string;
+  readyPlayerMeAvatarImageUrl?: string;
 }
 
 export enum QuizType {

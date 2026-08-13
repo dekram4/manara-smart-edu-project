@@ -37,6 +37,28 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
   const skinTone = appearance.skinTone || '#edb891';
   const accessory = appearance.accessory || '✨';
 
+  if (appearance.readyPlayerMeAvatarImageUrl) {
+    return (
+      <CardErrorBoundary label="صورة الأفاتار">
+        <motion.div
+          className={`relative inline-flex items-center justify-center overflow-hidden rounded-[34%] ${dimensions.shell} ${className}`}
+          whileHover={interactive ? { y: -5, scale: 1.06, rotate: 2 } : undefined}
+          whileTap={interactive ? { scale: 0.95 } : undefined}
+          onPointerEnter={interactive ? () => GameAudioEngine.play('uiHover') : undefined}
+          aria-label="أفاتار الطالب من Ready Player Me"
+        >
+          <div className="absolute inset-0 rounded-[32%] border-2 border-white/60 bg-slate-950 shadow-[0_16px_30px_rgba(0,0,0,0.3)]" />
+          <img
+            src={appearance.readyPlayerMeAvatarImageUrl}
+            alt="أفاتار الطالب"
+            className="relative z-10 h-full w-full object-contain"
+            loading="lazy"
+          />
+        </motion.div>
+      </CardErrorBoundary>
+    );
+  }
+
   return (
     <CardErrorBoundary label="الصورة الشخصية">
       <motion.div

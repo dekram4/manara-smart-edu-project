@@ -39,7 +39,6 @@ import { InteractiveScene } from '../../src/components/InteractiveScene';
 import PremiumBackground from '../../src/components/PremiumBackground';
 import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
 import Interactive3DEmoji from '../../src/components/effects/Interactive3DEmoji';
-import { getStudentEmoji } from '../../utils/studentAppearance';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentAvatar from './components/StudentAvatar';
 import ManaraBrand from '../../src/components/ManaraBrand';
@@ -1911,8 +1910,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, delay: 0.04 }}>
                 <GameModeCard
                 title="شخصيتي"
-                subtitle="صمّم إيموجيك واختر لبسك"
-                icon={getStudentEmoji(student)}
+                subtitle="صمّم أفاتارك ثلاثي الأبعاد"
+                icon="3D"
                 color="bg-gradient-to-br from-fuchsia-400 to-purple-700 border-purple-900"
                 badge="جديد!"
                 onClick={() => {
