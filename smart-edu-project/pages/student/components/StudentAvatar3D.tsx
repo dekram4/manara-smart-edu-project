@@ -496,7 +496,7 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
         ) : (
           <Canvas
             key={`custom-avatar-scene-${customSceneKey}`}
-            camera={{ position: [0, -0.58, 7.8], fov: 34 }}
+            camera={{ position: [0, -0.58, 10.5], fov: 40 }}
             dpr={[1, 1.35]}
             gl={{ antialias: true, powerPreference: 'low-power' }}
           >
