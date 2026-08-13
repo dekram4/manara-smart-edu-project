@@ -265,9 +265,8 @@ const GameModeCard = ({
        }}
       onHoverEnd={() => setHovered(false)}
       onClick={() => { GameAudioEngine.play('portalTransition'); onClick(); }}
-       className={`${color} min-h-[300px] text-white rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}
+       className={`${color} min-h-[220px] sm:min-h-[260px] md:min-h-[300px] p-4 sm:p-6 md:p-8 text-white rounded-3xl sm:rounded-[32px] cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none`}
       style={{
-         padding: '2rem 2rem 1.75rem',
         boxShadow: hovered
           ? `0 28px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.18)`
           : `0 10px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.12)`,
@@ -312,11 +311,11 @@ const GameModeCard = ({
       )}
 
       {/* Emoji with animated glow on hover */}
-       <Interactive3DEmoji emoji={icon} accent={guessedAccent} size="xl" className="relative z-10 mb-5" />
+        <Interactive3DEmoji emoji={icon} accent={guessedAccent} size="lg" className="relative z-10 mb-3 sm:mb-5" />
 
       {/* Text */}
       <div className="relative z-10">
-        <h3 className="mb-1 text-3xl font-black leading-tight drop-shadow-sm sm:text-4xl">{title}</h3>
+         <h3 className="mb-1 text-2xl font-black leading-tight drop-shadow-sm sm:text-3xl md:text-4xl">{title}</h3>
         {subtitle && (
           <p className="text-sm font-medium text-white/85 leading-relaxed">{subtitle}</p>
         )}
@@ -2141,28 +2140,28 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
             {/* Avatar Interaction */}
             {activeModule === StudentModuleType.AVATAR_INTERACTION && (
-              <InteractiveScene className="p-8" intensity={1.1}>
-                <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+              <InteractiveScene className="p-3 sm:p-4 md:p-8" intensity={1.1}>
+                <div className="relative overflow-hidden rounded-2xl sm:rounded-[32px] border border-white/10 bg-white/5 p-3 sm:p-5 md:p-6 backdrop-blur-md">
                   <EducationalCardEffects accent="#c084fc" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(192,132,252,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
-                   <div className="mb-5 flex items-center gap-4">
+                    <div className="mb-4 flex flex-col items-start gap-3 sm:mb-5 sm:flex-row sm:items-center sm:gap-4">
                      <Interactive3DEmoji emoji="🤖" accent="#c084fc" size="md" />
-                     <h2 className="text-3xl font-black text-white">صديقك المعلم الافتراضي</h2>
+                      <h2 className="text-xl font-black leading-tight text-white sm:text-2xl md:text-3xl">صديقك المعلم الافتراضي</h2>
                    </div>
                   {activeLesson?.avatarInteractionUrl ? (
                     <div className="space-y-6">
-                      <div className="rounded-[28px] border border-purple-500/30 bg-purple-950/40 p-6">
-                        <p className="mb-4 text-xl font-bold text-purple-200">صديقك الذكي مستعد للعب والكلام!</p>
+                       <div className="rounded-2xl sm:rounded-[28px] border border-purple-500/30 bg-purple-950/40 p-3 sm:p-5 md:p-6">
+                         <p className="mb-3 text-base font-bold leading-6 text-purple-200 sm:mb-4 sm:text-xl">صديقك الذكي مستعد للعب والكلام!</p>
                         <div className="flex w-full flex-col items-center">
-                          <div className="mb-6 aspect-video w-full max-w-4xl overflow-hidden rounded-2xl border-4 border-purple-500/40 shadow-2xl">
+                           <div className="mb-4 h-[clamp(220px,56vw,520px)] w-full max-w-4xl overflow-hidden rounded-xl border-2 border-purple-500/40 shadow-2xl sm:mb-6 sm:rounded-2xl sm:border-4">
                             <iframe
                               src={activeLesson.avatarInteractionUrl}
                               title="المعلم الافتراضي"
                               allow="camera; microphone; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                               allowFullScreen
                               className="h-full w-full"
-                              style={{ minHeight: 400, background: '#000' }}
+                               style={{ background: '#000' }}
                             />
                           </div>
                         </div>
@@ -2214,22 +2213,22 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
             {/* Live Meeting */}
             {activeModule === StudentModuleType.LIVE_MEETING && (
-              <InteractiveScene className="p-8" intensity={1.1}>
-                <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-[40px] shadow-2xl p-8 border border-slate-700">
+              <InteractiveScene className="p-3 sm:p-4 md:p-8" intensity={1.1}>
+                <div className="relative overflow-hidden bg-slate-800/90 backdrop-blur-xl rounded-2xl sm:rounded-[40px] shadow-2xl p-3 sm:p-5 md:p-8 border border-slate-700">
                   <EducationalCardEffects accent="#fb7185" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(248,113,113,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.16),_transparent_30%)]" />
                   <div className="relative z-10">
-                     <div className="mb-5 flex items-center gap-4">
+                     <div className="mb-4 flex flex-col items-start gap-3 sm:mb-5 sm:flex-row sm:items-center sm:gap-4">
                        <Interactive3DEmoji emoji="📞" accent="#fb7185" size="md" />
-                       <h2 className="text-3xl font-black text-white">البث المباشر الممتع</h2>
+                       <h2 className="text-xl font-black leading-tight text-white sm:text-2xl md:text-3xl">البث المباشر الممتع</h2>
                      </div>
-                    <div className="bg-black rounded-3xl overflow-hidden aspect-video shadow-2xl">
+                    <div className="min-h-[220px] w-full overflow-hidden rounded-2xl bg-black shadow-2xl aspect-video sm:min-h-[300px] md:min-h-[420px]">
                       {activeLesson?.liveMeetingUrl ? (
-                        <iframe src={activeLesson.liveMeetingUrl} className="w-full h-full" allow="camera; microphone; display-capture" allowFullScreen />
+                         <iframe src={activeLesson.liveMeetingUrl} title="الاجتماع المباشر" className="h-full min-h-0 w-full" allow="camera; microphone; display-capture; fullscreen" allowFullScreen />
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-900">
-                          <Interactive3DEmoji emoji="📞" accent="#fb7185" size="xl" className="mb-4" />
-                          <p className="text-2xl font-bold">لم يتم بدء الحصة المباشرة بعد</p>
+                         <div className="flex h-full min-h-[220px] w-full flex-col items-center justify-center bg-slate-900 px-4 text-center text-slate-400">
+                           <Interactive3DEmoji emoji="📞" accent="#fb7185" size="lg" className="mb-4" />
+                           <p className="text-lg font-bold sm:text-2xl">لم يتم بدء الحصة المباشرة بعد</p>
                         </div>
                       )}
                     </div>
