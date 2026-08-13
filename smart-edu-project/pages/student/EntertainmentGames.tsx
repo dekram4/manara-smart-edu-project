@@ -87,9 +87,10 @@ const GAME_CARDS: Array<{
   },
 ];
 
-// GameDistribution needs these permissions for its HTML5 player and ads.
+// Keep the player inside the current card. In particular, do not grant popup
+// privileges: GameDistribution must not navigate the student to a new tab.
 const GAME_FRAME_SANDBOX =
-  'allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock';
+  'allow-scripts allow-same-origin allow-forms allow-pointer-lock';
 const GAME_FRAME_ALLOW =
   'autoplay; fullscreen; geolocation; microphone; camera';
 
@@ -294,7 +295,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
               </button>
               <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
-                ✕ خروج
+                ✕ إغلاق اللعبة والعودة للألعاب
               </button>
             </div>
           </div>
@@ -330,7 +331,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
               </button>
               <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
-                ✕ خروج
+                ✕ إغلاق اللعبة والعودة للألعاب
               </button>
             </div>
           </div>
@@ -366,7 +367,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
               </button>
               <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
-                ✕ خروج
+                ✕ إغلاق اللعبة والعودة للألعاب
               </button>
             </div>
           </div>
