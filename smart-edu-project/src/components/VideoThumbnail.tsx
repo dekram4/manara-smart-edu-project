@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getVideoSourceType, getVideoThumbnailUrl, isMp4VideoUrl } from '../../utils/video';
+import { getVideoEmbedUrl, getVideoSourceType, getVideoThumbnailUrl, isMp4VideoUrl } from '../../utils/video';
 import { VideoSourceType } from '../../utils/video';
 
 interface VideoThumbnailProps {
@@ -46,9 +46,13 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({
     if (!isMp4 && !previewEmbedUrl) return;
     if (touchPreviewTimerRef.current !== null) {
       window.clearTimeout(touchPreviewTimerRef.current);
-      touchPreviewTimerRef.current = null;
     }
     setIsPreviewing(true);
+    touchPreviewTimerRef.current = window.setTimeout(() => {
+      setIsPreviewing(false);
+      touchPreviewTimerRef.current = null;
+      videoRef.current?.pause();
+    }, 2800);
   };
 
   const stopPreview = () => {
@@ -62,10 +66,6 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({
 
   const handleTouchPreview = () => {
     startPreview();
-    touchPreviewTimerRef.current = window.setTimeout(() => {
-      setIsPreviewing(false);
-      touchPreviewTimerRef.current = null;
-    }, 2800);
   };
 
   useEffect(() => {
@@ -160,17 +160,8 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({
       onMouseLeave={stopPreview}
       onTouchStart={handleTouchPreview}
       onTouchCancel={stopPreview}
-      onTouchEnd={() => {
-        if (isMp4) return;
-        touchPreviewTimerRef.current = window.setTimeout(stopPreview, 600);
-      }}
     >
       {media}
-      {isPreviewing && (
-        <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-slate-950/75 px-2 py-1 text-[10px] font-black text-white">
-          ▶ معاينة
-        </span>
-      )}
     </div>
   );
 };

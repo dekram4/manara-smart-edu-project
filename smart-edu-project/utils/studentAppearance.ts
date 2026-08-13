@@ -12,6 +12,16 @@ export const STUDENT_SHAPE_OPTIONS = [
   { value: '🧙', label: 'الساحر الذكي' },
   { value: '🦸', label: 'البطل الخارق' },
   { value: '🧑‍🔬', label: 'العالِم الصغير' },
+  { value: '👨‍🚀', label: 'قائد الفضاء' },
+  { value: '👩‍🚀', label: 'قائدة الفضاء' },
+  { value: '🧑‍💻', label: 'المبرمج المبدع' },
+  { value: '👩‍💻', label: 'المبرمجة المبدعة' },
+  { value: '🧑‍🎨', label: 'الفنان المبتكر' },
+  { value: '👩‍🔬', label: 'العالِمة الصغيرة' },
+  { value: '🧑‍🏫', label: 'المرشد الذكي' },
+  { value: '🦸‍♀️', label: 'البطلة الخارقة' },
+  { value: '🧝', label: 'حارس الخيال' },
+  { value: '🧚', label: 'جنية النجوم' },
 ] as const;
 
 export const STUDENT_COLOR_OPTIONS = [
@@ -21,6 +31,10 @@ export const STUDENT_COLOR_OPTIONS = [
   { value: '#34d399', label: 'أخضر مغامر', swatch: 'linear-gradient(135deg, #34d399, #059669)' },
   { value: '#fbbf24', label: 'ذهبي لامع', swatch: 'linear-gradient(135deg, #fbbf24, #f97316)' },
   { value: '#fb7185', label: 'أحمر شجاع', swatch: 'linear-gradient(135deg, #fb7185, #e11d48)' },
+  { value: '#22d3ee', label: 'فيروزي نيون', swatch: 'linear-gradient(135deg, #67e8f9, #0891b2)' },
+  { value: '#818cf8', label: 'نيلي ملكي', swatch: 'linear-gradient(135deg, #a5b4fc, #4f46e5)' },
+  { value: '#c084fc', label: 'أرجواني نجمي', swatch: 'linear-gradient(135deg, #e9d5ff, #9333ea)' },
+  { value: '#84cc16', label: 'ليموني حيوي', swatch: 'linear-gradient(135deg, #bef264, #65a30d)' },
 ] as const;
 
 export const STUDENT_OUTFIT_OPTIONS = [
@@ -30,6 +44,14 @@ export const STUDENT_OUTFIT_OPTIONS = [
   { value: '🦺', label: 'سترة المستكشف' },
   { value: '🥋', label: 'زي البطل' },
   { value: '🧑‍🚀', label: 'بدلة الفضاء' },
+  { value: '👔', label: 'الزي الرسمي' },
+  { value: '🥼', label: 'معطف المختبر' },
+  { value: '🎒', label: 'حقيبة المغامر' },
+  { value: '🛡️', label: 'درع الحماية' },
+  { value: '👑', label: 'تاج القائد' },
+  { value: '🪄', label: 'عصا الساحر' },
+  { value: '🧣', label: 'وشاح الأبطال' },
+  { value: '🏹', label: 'قوس المستكشف' },
 ] as const;
 
 export const STUDENT_GENDER_OPTIONS: Array<{ value: StudentGender; label: string; emoji: string }> = [
