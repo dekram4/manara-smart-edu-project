@@ -33,6 +33,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
   const [gameLoading, setGameLoading] = useState(false);
   const [lockedMessage, setLockedMessage] = useState('');
   const gamePanelRef = useRef<HTMLDivElement>(null);
+  const embeddedGameFrameRef = useRef<HTMLIFrameElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const stats = useMemo(() => getGamificationStats(), [activeGame]);
 
@@ -55,6 +56,29 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     setActiveGame(null);
     setGameLoading(false);
     setIsFullscreen(false);
+  };
+
+  const handleEmbeddedGameLoad = (event: React.SyntheticEvent<HTMLIFrameElement>) => {
+    setGameLoading(false);
+    const frame = event.currentTarget;
+    const expectedPath = new URL(EMBEDDED_GAME_3_URL, window.location.href).pathname;
+
+    try {
+      const currentUrl = new URL(frame.contentWindow?.location.href || '', window.location.href);
+      const bodyText = frame.contentDocument?.body?.innerText?.toLowerCase() || '';
+      const escapedToProvider =
+        currentUrl.origin !== window.location.origin ||
+        currentUrl.pathname !== expectedPath ||
+        bodyText.includes('not available here') ||
+        bodyText.includes('click here to play');
+
+      if (escapedToProvider) {
+        frame.src = EMBEDDED_GAME_3_URL;
+      }
+    } catch {
+      // A cross-origin navigation is not readable; restore the local game.
+      frame.src = EMBEDDED_GAME_3_URL;
+    }
   };
 
   useEffect(() => {
@@ -285,6 +309,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
             <iframe
               src={EMBEDDED_GAME_3_URL}
               title="اللعبة الثالثة"
+              ref={embeddedGameFrameRef}
               className="h-full w-full border-0"
               scrolling="no"
               sandbox={GAME_FRAME_SANDBOX}
@@ -292,7 +317,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               allowFullScreen
               referrerPolicy="no-referrer"
               loading="eager"
-              onLoad={() => setGameLoading(false)}
+              onLoad={handleEmbeddedGameLoad}
             />
           </div>
         </div>
