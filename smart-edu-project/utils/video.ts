@@ -32,6 +32,36 @@ export const getVideoSourceType = (
   url?: string | null,
 ): VideoSourceType => sourceType || (isMp4VideoUrl(url) ? 'mp4' : 'embed');
 
+export const getVideoEmbedUrl = (value?: string | null): string => {
+  const raw = (value || '').trim();
+  if (!raw || !isSafeVideoUrl(raw)) return '';
+
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+
+    if (host === 'youtu.be') {
+      const id = parsed.pathname.split('/').filter(Boolean)[0];
+      return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0` : raw;
+    }
+    if (host.endsWith('youtube.com')) {
+      const id = parsed.searchParams.get('v')
+        || parsed.pathname.match(/\/(?:embed|shorts|live)\/([^/?]+)/)?.[1];
+      return id
+        ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`
+        : raw;
+    }
+    if (host === 'vimeo.com' || host.endsWith('.vimeo.com')) {
+      const id = parsed.pathname.match(/\/(?:video\/)?(\d+)/)?.[1];
+      return id ? `https://player.vimeo.com/video/${id}?autoplay=1` : raw;
+    }
+  } catch {
+    return '';
+  }
+
+  return raw;
+};
+
 export const getLessonExplanationVideos = (lesson: {
   explanationVideos?: LessonVideoEntry[];
   explanationVideoUrl?: string;

@@ -8,8 +8,8 @@ import StudentLogin from './StudentLogin';
 import StudentPersonality from './StudentPersonality';
 import * as math from 'mathjs';
 import { getStudentPermissions } from '../../permissions';
-import { getLessonExplanationVideos, getVideoSourceType, isSafeVideoUrl } from '../../utils/video';
-import { playWelcomeStudent, playLamsaSound } from '../../utils/sounds';
+import { getLessonExplanationVideos, isSafeVideoUrl } from '../../utils/video';
+import { playWelcomeStudent, playWelcomeStudentOnRefresh, playLamsaSound } from '../../utils/sounds';
 import { speakGreeting } from '../../utils/speech';
 import { triggerCelebration } from '../../App';
 import {
@@ -45,6 +45,7 @@ import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import StudentAvatar from './components/StudentAvatar';
 import ManaraBrand from '../../src/components/ManaraBrand';
 import TouchCarousel from '../../src/components/TouchCarousel';
+import VideoCarousel from '../../src/components/VideoCarousel';
 import {
   getPeriodicQuizLabel,
   normalizeCreatedQuiz,
@@ -381,11 +382,6 @@ const StudentCardErrorFallback: React.FC<{ onBack: () => void }> = ({ onBack }) 
   </div>
 );
 
-const getVideoThumbnail = (url: string) => {
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^?&#/]+)/i);
-  return match?.[1] ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null;
-};
-
 const StudentPortalFallback: React.FC<{
   subject: string;
   atram: string;
@@ -458,7 +454,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [selectedUnit, setSelectedUnit] = useState('');
   const [showSelectionPanel, setShowSelectionPanel] = useState(false);
   const [explanationVideoIndex, setExplanationVideoIndex] = useState(0);
-  const explanationVideoRef = useRef<HTMLVideoElement | null>(null);
   const explanationVideoSignatureRef = useRef('');
   const matchedContentSignatureRef = useRef('');
 
@@ -527,7 +522,8 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
       setStudent(active);
       setIsAuthenticated(true);
-      speakGreeting();
+       playWelcomeStudentOnRefresh();
+       speakGreeting();
       checkStreak();
       refreshGamification();
       syncGamificationToStudent(active);
@@ -1502,25 +1498,6 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const moduleTheme = getModuleTheme(activeModule);
   const lessonRewarded = activeLesson ? hasCompletedActivity('lesson', getLessonRewardId(activeLesson)) : false;
   const explanationVideos = getLessonExplanationVideos(activeLesson);
-  const activeExplanationVideo = explanationVideos[
-    Math.min(explanationVideoIndex, Math.max(explanationVideos.length - 1, 0))
-  ];
-
-  useEffect(() => {
-    const video = explanationVideoRef.current;
-    if (!video || activeModule !== StudentModuleType.EXPLANATION || !activeExplanationVideo) return;
-
-    video.pause();
-    video.currentTime = 0;
-    void video.play().catch(() => {
-      // Browsers may block autoplay with sound; the visible controls remain
-      // available and the student can start the current video manually.
-    });
-
-    return () => {
-      video.pause();
-    };
-  }, [activeExplanationVideo?.id, activeModule]);
   const nextLevelXP = (level + 1) * 100;
   const xpRemainingToNextLevel = Math.max(0, nextLevelXP - xp);
 
@@ -2115,119 +2092,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <EducationalCardEffects accent="#fbbf24" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.18),_transparent_30%)]" />
                   <div className="relative z-10">
-                  <h2 className="text-3xl font-black text-white mb-6">📺 سينما الشرح الممتع</h2>
-                  <div className="overflow-hidden rounded-[28px] bg-black shadow-2xl aspect-video">
-                    {activeExplanationVideo ? (
-                      activeExplanationVideo.sourceType === 'mp4' ? (
-                        <video
-                          key={activeExplanationVideo.id}
-                          ref={explanationVideoRef}
-                          className="h-full w-full"
-                          src={activeExplanationVideo.url}
-                          title={activeExplanationVideo.title || 'Lesson Video'}
-                          controls
-                          autoPlay
-                          playsInline
-                        />
-                      ) : (
-                        <iframe
-                          key={activeExplanationVideo.id}
-                          className="h-full w-full"
-                          src={activeExplanationVideo.url}
-                          title={activeExplanationVideo.title || 'Lesson Video'}
-                          allowFullScreen
-                        />
-                      )
-                    ) : (
-                      <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900 text-slate-400">
-                         <Interactive3DEmoji emoji="📴" accent="#fbbf24" size="xl" className="mb-4" />
-                        <p className="text-2xl font-bold">لم يتم رفع فيديو لهذا الدرس بعد</p>
-                      </div>
-                    )}
-                  </div>
-                  {explanationVideos.length > 0 && (
-                    <div className="mt-5 rounded-[28px] border border-amber-300/20 bg-slate-950/60 p-4 shadow-inner">
-                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-lg font-black text-white">🎞️ اختر شرح الدرس</p>
-                          <p className="mt-1 text-xs font-bold text-slate-400">
-                            اضغط على أي بطاقة لتشغيل الفيديو
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-black text-amber-200">
-                          {explanationVideoIndex + 1} / {explanationVideos.length}
-                        </span>
-                      </div>
-                      <TouchCarousel
-                        label="فيديوهات شرح الدرس"
-                        nested
-                        activeIndex={explanationVideoIndex}
-                        onActiveIndexChange={setExplanationVideoIndex}
-                        itemCount={explanationVideos.length}
-                        trackClassName="sm:grid sm:grid-cols-2 lg:grid-cols-3"
-                      >
-                        {explanationVideos.map((video, index) => {
-                          const isSelected = index === explanationVideoIndex;
-                          const isMp4 = video.sourceType === 'mp4';
-                          return (
-                            <button
-                              key={video.id}
-                              type="button"
-                              onClick={() => setExplanationVideoIndex(index)}
-                              aria-label={`تشغيل ${video.title || `فيديو الشرح ${index + 1}`}`}
-                              className={`group relative min-h-[168px] overflow-hidden rounded-[24px] border-2 p-4 text-right transition-all duration-300 ${
-                                isSelected
-                                  ? 'scale-[1.02] border-amber-300 bg-gradient-to-br from-amber-400/25 via-orange-400/15 to-sky-400/20 shadow-[0_0_28px_rgba(251,191,36,0.28)]'
-                                  : 'border-white/10 bg-white/[0.06] hover:-translate-y-1 hover:border-amber-200/60 hover:bg-white/[0.11]'
-                              }`}
-                            >
-                              <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-amber-300/10 blur-2xl transition group-hover:bg-amber-300/20" />
-                              <div className="relative flex h-full flex-col justify-between gap-4">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-2xl border border-white/15 bg-slate-900 shadow-lg">
-                                    {getVideoThumbnail(video.url) ? (
-                                      <img
-                                        src={getVideoThumbnail(video.url) || undefined}
-                                        alt=""
-                                        loading="lazy"
-                                        className="h-full w-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className={`flex h-full w-full items-center justify-center text-4xl ${
-                                        isMp4
-                                          ? 'bg-gradient-to-br from-rose-400 to-orange-500'
-                                          : 'bg-gradient-to-br from-sky-400 to-indigo-600'
-                                      }`}>
-                                        {isMp4 ? '🎬' : '🔗'}
-                                      </div>
-                                    )}
-                                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/15 text-xl">
-                                      ▶
-                                    </span>
-                                  </div>
-                                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
-                                    isSelected
-                                      ? 'bg-amber-300 text-slate-950'
-                                      : 'bg-white/10 text-slate-300'
-                                  }`}>
-                                    {isSelected ? '▶ يعمل الآن' : `فيديو ${index + 1}`}
-                                  </span>
-                                </div>
-                                <div>
-                                  <p className="truncate text-base font-black text-white">
-                                    {video.title || `فيديو الشرح ${index + 1}`}
-                                  </p>
-                                  <p className="mt-1 text-xs font-bold text-slate-400">
-                                    {isMp4 ? 'ملف فيديو MP4' : 'رابط شرح مضمن'}
-                                  </p>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </TouchCarousel>
-                    </div>
-                  )}
+                  <h2 className="mb-6 text-3xl font-black text-white">📺 سينما الشرح الممتع</h2>
+                  <VideoCarousel
+                    videos={explanationVideos}
+                    activeIndex={explanationVideoIndex}
+                    onActiveIndexChange={setExplanationVideoIndex}
+                    title="🎞️ اختر شرح الدرس"
+                    subtitle="اختر أي بطاقة لتشغيل الفيديو وتكبيره"
+                    accent="amber"
+                    emptyMessage="لم يتم رفع فيديو لهذا الدرس بعد"
+                  />
                   {activeLesson && (
                     <button
                       onClick={completeCurrentLesson}

@@ -9,6 +9,7 @@ import AcademicSettings from './AcademicSettings';
 import StudentManagement from './StudentManagement';
 import TeacherManagement from './TeacherManagement';
 import ContentManagement from './ContentManagement';
+import VideoManagement from '../teacher/VideoManagement';
 import QuizManagement from './QuizManagement';
 import Reports from './Reports';
 import SystemSettings from './SystemSettings';
@@ -161,6 +162,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       case AdminMenuType.STUDENT_MANAGEMENT: return <StudentManagement onUpdate={refreshStats} />;
       case AdminMenuType.TEACHER_MANAGEMENT: return <TeacherManagement onUpdate={refreshStats} />;
       case AdminMenuType.CONTENT_MANAGEMENT: return <ContentManagement onUpdate={refreshStats} />;
+      case 'VIDEO_MANAGEMENT' as AdminMenuType: return <VideoManagement isAdmin />;
       case AdminMenuType.QUIZ_MANAGEMENT: return <QuizManagement onUpdate={refreshStats} />;
       case AdminMenuType.REPORTS: return <Reports />;
       case AdminMenuType.SYSTEM_SETTINGS: return <SystemSettings />;
@@ -195,6 +197,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             { id: AdminMenuType.STUDENT_MANAGEMENT, label: 'إدارة الحسابات', icon: '👥' },
             { id: AdminMenuType.TEACHER_MANAGEMENT, label: 'إدارة المعلمين', icon: '👨‍🏫' },
             { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: '📚' },
+            { id: 'VIDEO_MANAGEMENT' as AdminMenuType, label: 'سينما منارة', icon: '🎬' },
             { id: AdminMenuType.QUIZ_MANAGEMENT, label: 'إدارة الاختبارات', icon: '📝' },
             { id: AdminMenuType.REPORTS, label: 'التقارير', icon: '📋' },
             { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'إدارة الصلاحيات', icon: '🔐' },

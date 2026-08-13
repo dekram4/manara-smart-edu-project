@@ -104,6 +104,42 @@ export const playWelcomeStudent = () => {
   GameAudioEngine.play('studentWelcome');
 };
 
+let pendingStudentRefreshWelcome = false;
+let studentRefreshWelcomeAudio: HTMLAudioElement | null = null;
+
+const retryStudentRefreshWelcome = () => {
+  if (!pendingStudentRefreshWelcome || !studentRefreshWelcomeAudio) return;
+  void studentRefreshWelcomeAudio.play().then(() => {
+    pendingStudentRefreshWelcome = false;
+    studentRefreshWelcomeAudio = null;
+  }).catch(() => {
+    // Keep the one-shot retry armed until a real user gesture unlocks audio.
+  });
+};
+
+export const playWelcomeStudentOnRefresh = () => {
+  if (!readSoundPreference() || typeof window === 'undefined') return;
+  const audio = new Audio('/audio/manara-arabic-student-welcome.mp3');
+  audio.preload = 'auto';
+  audio.volume = 1;
+  studentRefreshWelcomeAudio = audio;
+  pendingStudentRefreshWelcome = true;
+
+  void audio.play().then(() => {
+    pendingStudentRefreshWelcome = false;
+    studentRefreshWelcomeAudio = null;
+  }).catch(() => {
+    const events = ['pointerdown', 'touchstart', 'keydown'];
+    const retry = () => {
+      retryStudentRefreshWelcome();
+      if (!pendingStudentRefreshWelcome) {
+        events.forEach(eventName => window.removeEventListener(eventName, retry));
+      }
+    };
+    events.forEach(eventName => window.addEventListener(eventName, retry, { once: false, passive: true }));
+  });
+};
+
 export const playWelcomeAdult = () => {
   playAudioWithGain('/audio/welcome-adult.mp3', 2.0, 'WelcomeAdult');
   playToneJsChime('welcome');

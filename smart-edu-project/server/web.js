@@ -4,7 +4,11 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
-import { registerSupabaseRoutes } from './supabase-bridge.js';
+import {
+  deleteSupabaseVideo,
+  registerSupabaseRoutes,
+  uploadSupabaseVideo,
+} from './supabase-bridge.js';
 import { registerGameEmbedProxy } from './game-embed-proxy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -268,24 +272,34 @@ app.post(
     if (contentType !== 'video/mp4' && path.extname(originalName).toLowerCase() !== '.mp4') {
       return res.status(400).json({ error: 'يسمح برفع ملفات MP4 فقط' });
     }
-    const fileName = `${crypto.randomUUID()}.mp4`;
-    const filePath = path.join(uploadDirectory, fileName);
     try {
-      await fs.promises.writeFile(filePath, req.body);
+      const fileName = `${crypto.randomUUID()}.mp4`;
+      const url = await uploadSupabaseVideo(fileName, req.body);
       return res.status(201).json({
-        url: `/uploads/videos/${fileName}`,
+        url,
         fileName: originalName,
         size: req.body.length,
         contentType: 'video/mp4',
       });
-    } catch {
-      return res.status(500).json({ error: 'تعذر حفظ ملف الفيديو' });
+    } catch (error) {
+      console.error('[media] Supabase Storage upload failed:', error?.message || error);
+      return res.status(502).json({ error: error?.message || 'تعذر حفظ ملف الفيديو في Supabase Storage' });
     }
   },
 );
 
 app.post('/api/media/delete', async (req, res) => {
   const rawUrl = typeof req.body?.url === 'string' ? req.body.url : '';
+  const supabaseMatch = rawUrl.match(/^\/api\/media\/videos\/([a-zA-Z0-9-]+\.mp4)$/);
+  if (supabaseMatch) {
+    try {
+      await deleteSupabaseVideo(supabaseMatch[1]);
+      return res.status(204).end();
+    } catch (error) {
+      console.error('[media] Supabase Storage delete failed:', error?.message || error);
+      return res.status(502).json({ error: 'تعذر حذف ملف الفيديو من Supabase Storage' });
+    }
+  }
   const relativePath = rawUrl.replace(/^\/+/, '');
   const absolutePath = path.resolve(root, relativePath);
   const uploadRoot = path.resolve(uploadDirectory);
