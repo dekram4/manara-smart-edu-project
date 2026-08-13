@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Bounds, Html, OrbitControls } from '@react-three/drei';
+import { Html, OrbitControls } from '@react-three/drei';
 import '@three-ws/avatar/viewer';
 import { StudentAppearance } from '../../../types';
 import { getStudentAppearance } from '../../../utils/studentAppearance';
@@ -496,7 +496,7 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
         ) : (
           <Canvas
             key={`custom-avatar-scene-${customSceneKey}`}
-            camera={{ position: [0, -0.45, 7.5], fov: 36 }}
+            camera={{ position: [0, -0.58, 7.8], fov: 34 }}
             dpr={[1, 1.35]}
             gl={{ antialias: true, powerPreference: 'low-power' }}
           >
@@ -513,20 +513,18 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
                 </Html>
               }
             >
-              <Bounds fit clip observe margin={1.2}>
-                <AvatarModel appearance={resolvedAppearance} />
-                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.7, 0]}>
-                  <circleGeometry args={[1.55, 40]} />
-                  <meshStandardMaterial color="#0f172a" roughness={0.98} transparent opacity={0.85} />
-                </mesh>
-              </Bounds>
+              <AvatarModel appearance={resolvedAppearance} />
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.7, 0]}>
+                <circleGeometry args={[1.55, 40]} />
+                <meshStandardMaterial color="#0f172a" roughness={0.98} transparent opacity={0.85} />
+              </mesh>
             </Suspense>
             <OrbitControls
               enablePan={false}
               enableZoom={false}
               minPolarAngle={Math.PI / 2.35}
               maxPolarAngle={Math.PI / 1.8}
-              target={[0, -0.45, 0]}
+              target={[0, -0.58, 0]}
               rotateSpeed={0.75}
             />
           </Canvas>
