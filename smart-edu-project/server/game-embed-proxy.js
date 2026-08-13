@@ -3,6 +3,7 @@ const GAME_IDS = new Set([
   '172e0bd0c40442dbae3d4adb42a98433',
   '659090e00bfc4650899550d63f8a130d',
   'be797a3996324c03b20bad496a82819f',
+  '19c63777ed1e4653b64b2200560907fd',
 ]);
 
 const GAME_HOST = 'https://html5.gamedistribution.com/rvvASMiM';
@@ -10,12 +11,58 @@ const AD_SDK_PATH = '/ad-sdk.js';
 
 const disabledAdSdk = `
   (() => {
-    const safeResult = Promise.resolve({ args: { success: false } });
+    const emit = (name) => {
+      try {
+        window.GD_OPTIONS?.onEvent?.({ name, data: {} });
+      } catch {
+        // The game can continue even if its optional SDK listener is gone.
+      }
+    };
+
     window.gdsdk = window.gdsdk || {
-      showAd: () => safeResult,
+      showAd: () => {
+        window.setTimeout(() => emit('SDK_GAME_START'), 0);
+        return Promise.resolve({ args: { success: true } });
+      },
       preloadAd: () => Promise.resolve(),
     };
+
+    // SCG-gd-pixim waits for this event before resolving its game bootstrap.
+    window.setTimeout(() => emit('SDK_READY'), 0);
   })();
+`;
+
+const bypassPrerollScript = `
+<script>
+  (() => {
+    const patch = () => {
+      const sdk = window.gdsdk;
+      if (!sdk || typeof sdk.showAd !== 'function' || sdk.__manaraAdBypass) {
+        return Boolean(sdk?.__manaraAdBypass);
+      }
+
+      sdk.showAd = () => {
+        window.setTimeout(() => {
+          try {
+            window.GD_OPTIONS?.onEvent?.({ name: 'SDK_GAME_START', data: {} });
+          } catch {
+            // The game can continue if the provider listener is unavailable.
+          }
+        }, 0);
+        return Promise.resolve({ args: { success: true } });
+      };
+      sdk.__manaraAdBypass = true;
+      return true;
+    };
+
+    if (!patch()) {
+      const timer = window.setInterval(() => {
+        if (patch()) window.clearInterval(timer);
+      }, 50);
+      window.setTimeout(() => window.clearInterval(timer), 30000);
+    }
+  })();
+</script>
 `;
 
 function rewriteGameScript(gameId, source) {
@@ -49,6 +96,16 @@ function rewriteGameScript(gameId, source) {
   );
 
   return rewritten;
+}
+
+function rewriteGameHtml(gameId, source) {
+  const withPrerollBypass = source.replace(
+    /\busePrerollAd\s*:\s*true\b/g,
+    'usePrerollAd: true',
+  );
+  return withPrerollBypass.includes('</body>')
+    ? withPrerollBypass.replace('</body>', `${bypassPrerollScript}</body>`)
+    : `${withPrerollBypass}${bypassPrerollScript}`;
 }
 
 function getContentType(pathname, upstreamType) {
@@ -86,8 +143,19 @@ function registerGameEmbedProxy(app) {
       }
 
       const upstreamType = upstream.headers.get('content-type') || '';
+      const isHtml =
+        requestedPath.endsWith('.html') || upstreamType.includes('text/html');
       const isJavaScript =
         requestedPath.endsWith('.js') || upstreamType.includes('javascript');
+
+      if (isHtml) {
+        const source = await upstream.text();
+        res
+          .type('html')
+          .set('Cache-Control', 'no-store')
+          .send(rewriteGameHtml(gameId, source));
+        return;
+      }
 
       if (isJavaScript) {
         const source = await upstream.text();
