@@ -20,8 +20,11 @@ const EMBEDDED_GAME_URL =
   '/api/game-embed/d4a3629101574bc39bd8f9d1888ca58e/index.html';
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
+// GameDistribution's registered HTML5 Game Player embed. The same-origin
+// proxy keeps the player URL direct while neutralizing the provider ad SDK.
+const GAME_DISTRIBUTION_GAME_3_ID = '72d861a52f3c4e788ae0421649633be3';
 const EMBEDDED_GAME_3_URL =
-  '/api/game-embed/72d861a52f3c4e788ae0421649633be3/index.html?v=1';
+  `/api/game-embed/${GAME_DISTRIBUTION_GAME_3_ID}/index.html`;
 
 const GAME_CARDS: Array<{
   type: GameType;
@@ -61,10 +64,30 @@ const GAME_CARDS: Array<{
   },
 ];
 
-// Local Unity games need same-origin access to load their own assets. Keep
-// provider popup and top-navigation privileges disabled for those games.
+// GameDistribution and other HTML5 players need these permissions for their
+// ad SDK, pointer lock, forms, popups, downloads, and modal game prompts.
 const GAME_FRAME_SANDBOX =
-  'allow-scripts allow-same-origin allow-pointer-lock allow-orientation-lock';
+  'allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-downloads allow-modals';
+const GAME_FRAME_ALLOW =
+  'autoplay; fullscreen; microphone; camera; geolocation; accelerometer; gyroscope';
+
+type GameIframeProps = React.IframeHTMLAttributes<HTMLIFrameElement> & {
+  frameKey: string;
+};
+
+const GameIframe = React.forwardRef<HTMLIFrameElement, GameIframeProps>(
+  ({ frameKey, ...props }, ref) => (
+    <iframe
+      {...props}
+      key={frameKey}
+      ref={ref}
+      sandbox={GAME_FRAME_SANDBOX}
+      allow={GAME_FRAME_ALLOW}
+      loading="lazy"
+    />
+  ),
+);
+GameIframe.displayName = 'GameIframe';
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
@@ -73,6 +96,8 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
   const [lockedMessage, setLockedMessage] = useState('');
   const gamePanelRef = useRef<HTMLDivElement>(null);
   const embeddedGameFrameRef = useRef<HTMLIFrameElement>(null);
+  const embeddedGameFrameErrorHandledRef = useRef(false);
+  const [embeddedGameFrameKey, setEmbeddedGameFrameKey] = useState('game-3-initial');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const stats = useMemo(() => getGamificationStats(), [activeGame]);
 
@@ -86,6 +111,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     setLockedMessage('');
     setGameLoading(true);
     setEmbeddedGameEscaped(false);
+    embeddedGameFrameErrorHandledRef.current = false;
     setActiveGame(game);
   };
 
@@ -125,11 +151,24 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
   };
 
   const restartEmbeddedGame = () => {
+    embeddedGameFrameErrorHandledRef.current = false;
     setEmbeddedGameEscaped(false);
     setGameLoading(true);
+    setEmbeddedGameFrameKey((previous) => `${previous}-manual-retry`);
     if (embeddedGameFrameRef.current) {
       embeddedGameFrameRef.current.src = EMBEDDED_GAME_3_URL;
     }
+  };
+
+  const handleEmbeddedGameError = () => {
+    // iframe errors can be emitted more than once by blocked ad/SDK assets.
+    // Handle the first one only, then replace the frame with a manual-retry
+    // state so React cannot enter an automatic reload loop.
+    if (embeddedGameFrameErrorHandledRef.current) return;
+    embeddedGameFrameErrorHandledRef.current = true;
+    setGameLoading(false);
+    setEmbeddedGameFrameKey((previous) => `${previous}-failed`);
+    setEmbeddedGameEscaped(true);
   };
 
   useEffect(() => {
@@ -265,17 +304,16 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 </span>
               </div>
             )}
-            <iframe
+            <GameIframe
               src={EMBEDDED_GAME_URL}
               title="اللعبة الأولى"
+              frameKey="game-1"
               className="h-full w-full border-0"
               scrolling="no"
-              sandbox={GAME_FRAME_SANDBOX}
-              allow="fullscreen; autoplay; gamepad"
               allowFullScreen
               referrerPolicy="strict-origin-when-cross-origin"
-              loading="eager"
               onLoad={() => setGameLoading(false)}
+              onError={() => setGameLoading(false)}
             />
           </div>
         </div>
@@ -302,17 +340,16 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 </span>
               </div>
             )}
-            <iframe
+            <GameIframe
               src={EMBEDDED_GAME_2_URL}
               title="اللعبة الثانية"
+              frameKey="game-2"
               className="h-full w-full border-0"
               scrolling="no"
-              sandbox={GAME_FRAME_SANDBOX}
-              allow="fullscreen; autoplay; gamepad"
               allowFullScreen
               referrerPolicy="no-referrer"
-              loading="eager"
               onLoad={() => setGameLoading(false)}
+              onError={() => setGameLoading(false)}
             />
           </div>
         </div>
@@ -353,18 +390,17 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 </button>
               </div>
             ) : (
-              <iframe
+              <GameIframe
                 src={EMBEDDED_GAME_3_URL}
                 title="اللعبة الثالثة"
+                frameKey={embeddedGameFrameKey}
                 ref={embeddedGameFrameRef}
                 className="h-full w-full border-0"
                 scrolling="no"
-                sandbox={GAME_FRAME_SANDBOX}
-                allow="fullscreen; autoplay; gamepad; pointer-lock"
                 allowFullScreen
                 referrerPolicy="no-referrer"
-                loading="eager"
                 onLoad={handleEmbeddedGameLoad}
+                onError={handleEmbeddedGameError}
               />
             )}
           </div>
