@@ -186,6 +186,120 @@ const getModuleTheme = (module: StudentModuleType | null) => {
   }
 };
 
+const parseExternalUrl = (rawUrl?: string) => {
+  if (!rawUrl) return null;
+  try {
+    const value = rawUrl.trim();
+    if (!value) return null;
+    return new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+  } catch {
+    return null;
+  }
+};
+
+const isBlockedMeetingEmbed = (url: URL) => {
+  const host = url.hostname.toLowerCase();
+  return (
+    host === 'meet.google.com'
+    || host.endsWith('.zoom.us')
+    || host === 'zoom.us'
+    || host === 'teams.microsoft.com'
+    || host.endsWith('.teams.microsoft.com')
+    || host === 'webex.com'
+    || host.endsWith('.webex.com')
+  );
+};
+
+const OpenExternalButton: React.FC<{ url: string; label: string }> = ({ url, label }) => (
+  <a
+    href={url}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-4 py-2.5 text-center text-sm font-black text-slate-950 shadow-lg transition hover:bg-cyan-100 active:scale-[0.98]"
+  >
+    {label}
+  </a>
+);
+
+const ResponsiveAvatarEmbed: React.FC<{ rawUrl: string }> = ({ rawUrl }) => {
+  const url = parseExternalUrl(rawUrl);
+  if (!url) {
+    return (
+      <div className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-6 text-center text-sm font-bold leading-7 text-amber-100">
+        رابط المعلم الافتراضي غير صالح. اطلب من المعلم تحديث الرابط من لوحة المحتوى.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="relative aspect-[4/3] min-h-[360px] w-full overflow-hidden rounded-2xl border-2 border-purple-500/40 bg-black shadow-2xl sm:aspect-video sm:min-h-[390px] sm:rounded-[26px] sm:border-4 md:min-h-[480px]">
+        <iframe
+          src={url.toString()}
+          title="المعلم الافتراضي"
+          allow="camera; microphone; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          allowFullScreen
+          loading="eager"
+          referrerPolicy="strict-origin-when-cross-origin"
+          className="h-full w-full border-0"
+          style={{ background: '#000' }}
+        />
+      </div>
+      <div className="flex flex-col gap-2 rounded-2xl border border-purple-300/15 bg-purple-950/45 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs font-bold leading-5 text-purple-100">
+          إذا ظهر المعلم قريبًا داخل الموقع الخارجي، افتحه بالحجم الكامل لعرض الشخصية كاملة.
+        </p>
+        <OpenExternalButton url={url.toString()} label="فتح المعلم بالحجم الكامل" />
+      </div>
+    </div>
+  );
+};
+
+const LiveMeetingEmbed: React.FC<{ rawUrl?: string }> = ({ rawUrl }) => {
+  const url = parseExternalUrl(rawUrl);
+  if (!url) {
+    return (
+      <div className="flex min-h-[260px] flex-col items-center justify-center bg-slate-900 px-5 text-center text-slate-300">
+        <p className="text-lg font-black">لم يتم إضافة رابط الاجتماع بعد</p>
+        <p className="mt-2 text-sm font-bold text-slate-400">سيظهر زر الانضمام هنا بعد حفظ رابط صحيح من لوحة المعلم.</p>
+      </div>
+    );
+  }
+
+  if (isBlockedMeetingEmbed(url)) {
+    return (
+      <div className="flex min-h-[300px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,rgba(244,63,94,0.2),transparent_45%),#0f172a] px-5 text-center">
+        <p className="text-xl font-black text-white sm:text-2xl">الاجتماع جاهز للانضمام</p>
+        <p className="mx-auto mt-2 max-w-lg text-sm font-bold leading-7 text-slate-300">
+          هذا التطبيق يمنع تشغيل الاجتماع داخل إطار الصفحة. افتحه في نافذة كاملة ليعمل الصوت والكاميرا بشكل صحيح على الجوال والتابلت والآيباد.
+        </p>
+        <div className="mt-5">
+          <OpenExternalButton url={url.toString()} label="الانضمام إلى الاجتماع" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full min-h-[260px] w-full">
+      <iframe
+        src={url.toString()}
+        title="الاجتماع المباشر"
+        className="h-full min-h-[260px] w-full border-0"
+        allow="camera; microphone; display-capture; autoplay; fullscreen; speaker-selection"
+        allowFullScreen
+        loading="eager"
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+      <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex justify-end">
+        <span className="pointer-events-auto rounded-xl bg-slate-950/80 px-3 py-2 text-[10px] font-black text-white backdrop-blur">
+          <OpenExternalButton url={url.toString()} label="فتح في صفحة كاملة" />
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const getLessonRewardId = (lesson: LessonConfig) => {
   const unitKey = [lesson.grade, lesson.atram, lesson.subject, lesson.term, lesson.unit]
     .map((value) => normalizeScopeValue(value || ''))
@@ -2150,20 +2264,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                    </div>
                   {activeLesson?.avatarInteractionUrl ? (
                     <div className="space-y-6">
-                       <div className="rounded-2xl sm:rounded-[28px] border border-purple-500/30 bg-purple-950/40 p-3 sm:p-5 md:p-6">
-                         <p className="mb-3 text-base font-bold leading-6 text-purple-200 sm:mb-4 sm:text-xl">صديقك الذكي مستعد للعب والكلام!</p>
-                        <div className="flex w-full flex-col items-center">
-                           <div className="mb-4 h-[clamp(220px,56vw,520px)] w-full max-w-4xl overflow-hidden rounded-xl border-2 border-purple-500/40 shadow-2xl sm:mb-6 sm:rounded-2xl sm:border-4">
-                            <iframe
-                              src={activeLesson.avatarInteractionUrl}
-                              title="المعلم الافتراضي"
-                              allow="camera; microphone; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                              allowFullScreen
-                              className="h-full w-full"
-                               style={{ background: '#000' }}
-                            />
-                          </div>
-                        </div>
+                      <div className="rounded-2xl border border-purple-500/30 bg-purple-950/40 p-3 sm:rounded-[28px] sm:p-5 md:p-6">
+                        <p className="mb-3 text-base font-bold leading-6 text-purple-200 sm:mb-4 sm:text-xl">
+                          صديقك الذكي مستعد للعب والكلام!
+                        </p>
+                        <ResponsiveAvatarEmbed rawUrl={activeLesson.avatarInteractionUrl} />
                       </div>
                     </div>
                   ) : (
@@ -2222,14 +2327,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                        <h2 className="text-xl font-black leading-tight text-white sm:text-2xl md:text-3xl">البث المباشر الممتع</h2>
                      </div>
                     <div className="min-h-[220px] w-full overflow-hidden rounded-2xl bg-black shadow-2xl aspect-video sm:min-h-[300px] md:min-h-[420px]">
-                      {activeLesson?.liveMeetingUrl ? (
-                         <iframe src={activeLesson.liveMeetingUrl} title="الاجتماع المباشر" className="h-full min-h-0 w-full" allow="camera; microphone; display-capture; fullscreen" allowFullScreen />
-                      ) : (
-                         <div className="flex h-full min-h-[220px] w-full flex-col items-center justify-center bg-slate-900 px-4 text-center text-slate-400">
-                           <Interactive3DEmoji emoji="📞" accent="#fb7185" size="lg" className="mb-4" />
-                           <p className="text-lg font-bold sm:text-2xl">لم يتم بدء الحصة المباشرة بعد</p>
-                        </div>
-                      )}
+                      <LiveMeetingEmbed rawUrl={activeLesson?.liveMeetingUrl} />
                     </div>
                   </div>
                 </div>

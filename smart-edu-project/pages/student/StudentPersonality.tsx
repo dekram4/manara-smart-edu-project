@@ -67,7 +67,15 @@ const StudentPersonality: React.FC<StudentPersonalityProps> = ({ student, onSave
           </section>
 
           <section className="min-w-0">
-            <ReadyPlayerMeCreator onExport={handleAvatarExport} />
+            <ReadyPlayerMeCreator
+              initialAppearance={appearance}
+              onExport={handleAvatarExport}
+              onLocalSave={(nextAppearance) => {
+                setAppearance(nextAppearance);
+                setSaved(true);
+                onSave(nextAppearance);
+              }}
+            />
           </section>
         </div>
       </div>
