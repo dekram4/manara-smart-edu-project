@@ -21,7 +21,7 @@ const EMBEDDED_GAME_URL =
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_3_URL =
-  '/api/game-embed/be797a3996324c03b20bad496a82819f/index.html';
+  '/api/game-embed/be797a3996324c03b20bad496a82819f/index.html?v=2';
 
 // Local Unity games need same-origin access to load their own assets. Keep
 // provider popup and top-navigation privileges disabled for those games.
@@ -288,7 +288,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               className="h-full w-full border-0"
               scrolling="no"
               sandbox={GAME_FRAME_SANDBOX}
-              allow="fullscreen; autoplay; gamepad"
+              allow="fullscreen; autoplay; gamepad; pointer-lock"
               allowFullScreen
               referrerPolicy="no-referrer"
               loading="eager"
