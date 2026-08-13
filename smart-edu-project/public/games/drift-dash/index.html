@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>سباق السيارات</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Tajawal", "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #07111f;
+      }
+      body { touch-action: none; }
+      .game {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 320px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 8%, rgba(56, 189, 248, .35), transparent 30%),
+          linear-gradient(180deg, #0f2740 0%, #07111f 60%, #020617 100%);
+      }
+      canvas { display: block; width: 100%; height: 100%; }
+      .hud {
+        position: absolute;
+        inset: 14px 14px auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        direction: rtl;
+        pointer-events: none;
+      }
+      .pill {
+        padding: 8px 12px;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px;
+        background: rgba(2, 6, 23, .58);
+        color: #e0f2fe;
+        font-size: 12px;
+        font-weight: 900;
+        backdrop-filter: blur(10px);
+      }
+      .message {
+        position: absolute;
+        inset: 50% auto auto 50%;
+        width: min(88%, 360px);
+        transform: translate(-50%, -50%);
+        padding: 20px;
+        border: 1px solid rgba(125, 211, 252, .3);
+        border-radius: 24px;
+        background: rgba(2, 6, 23, .82);
+        color: white;
+        text-align: center;
+        box-shadow: 0 18px 60px rgba(0,0,0,.35);
+        pointer-events: none;
+      }
+      .message strong { display: block; color: #67e8f9; font-size: 22px; }
+      .message span { display: block; margin-top: 8px; color: #cbd5e1; font-size: 12px; font-weight: 800; line-height: 1.8; }
+      .message.hidden { display: none; }
+      .touch-controls {
+        position: absolute;
+        inset: auto 0 16px;
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        pointer-events: auto;
+      }
+      .touch-controls button {
+        width: 58px;
+        height: 42px;
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 15px;
+        background: rgba(15, 23, 42, .74);
+        color: white;
+        font-size: 20px;
+        font-weight: 900;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .touch-controls button:active { transform: scale(.94); background: #0e7490; }
+    </style>
+  </head>
+  <body>
+    <main class="game" aria-label="لعبة سباق السيارات">
+      <canvas id="game" aria-label="مضمار سباق تفاعلي"></canvas>
+      <div class="hud">
+        <div class="pill">🏎️ سباق السيارات</div>
+        <div class="pill">النقاط: <b id="score">0</b></div>
+      </div>
+      <div id="message" class="message">
+        <strong>انطلق الآن!</strong>
+        <span>حرّك السيارة يمينًا ويسارًا بالسحب أو الأسهم وتجنب الحواجز.</span>
+      </div>
+      <div class="touch-controls" aria-label="أزرار التحكم">
+        <button id="right" type="button" aria-label="يمين">←</button>
+        <button id="left" type="button" aria-label="يسار">→</button>
+      </div>
+    </main>
+    <script>
+      (() => {
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        const scoreEl = document.getElementById("score");
+        const message = document.getElementById("message");
+        const keys = { left: false, right: false };
+        let dpr = 1, width = 0, height = 0, last = 0, score = 0, speed = 0.22;
+        let running = true, spawnTimer = 0, roadOffset = 0, touchX = null;
+        const car = { x: 0, y: 0, w: 38, h: 66, targetX: 0 };
+        const obstacles = [];
+
+        function resize() {
+          dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+          width = canvas.clientWidth;
+          height = canvas.clientHeight;
+          canvas.width = Math.floor(width * dpr);
+          canvas.height = Math.floor(height * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          car.y = height - 108;
+          if (!car.x) car.x = width / 2;
+          car.targetX = Math.max(28, Math.min(width - 28, car.targetX || car.x));
+        }
+        function road() {
+          const roadW = Math.min(width * .78, 430);
+          const left = (width - roadW) / 2;
+          const right = left + roadW;
+          ctx.fillStyle = "#0b1830";
+          ctx.fillRect(left, 0, roadW, height);
+          ctx.fillStyle = "#172554";
+          ctx.fillRect(left - 5, 0, 5, height);
+          ctx.fillRect(right, 0, 5, height);
+          ctx.strokeStyle = "rgba(226,232,240,.72)";
+          ctx.lineWidth = 4;
+          ctx.setLineDash([32, 28]);
+          ctx.lineDashOffset = roadOffset;
+          ctx.beginPath();
+          ctx.moveTo(left + roadW / 2, -20);
+          ctx.lineTo(left + roadW / 2, height + 20);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          return { left, right };
+        }
+        function roundedRect(x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, r);
+          ctx.fill();
+        }
+        function drawCar() {
+          ctx.save();
+          ctx.translate(car.x, car.y);
+          ctx.shadowColor = "rgba(34,211,238,.65)";
+          ctx.shadowBlur = 16;
+          ctx.fillStyle = "#06b6d4";
+          roundedRect(-car.w / 2, -car.h / 2, car.w, car.h, 12);
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#e0f2fe";
+          roundedRect(-12, -20, 24, 17, 6);
+          ctx.fillStyle = "#fbbf24";
+          ctx.fillRect(-car.w / 2 + 5, car.h / 2 - 12, 8, 5);
+          ctx.fillRect(car.w / 2 - 13, car.h / 2 - 12, 8, 5);
+          ctx.fillStyle = "#020617";
+          ctx.fillRect(-car.w / 2 - 5, -22, 6, 15);
+          ctx.fillRect(car.w / 2 - 1, -22, 6, 15);
+          ctx.fillRect(-car.w / 2 - 5, 8, 6, 15);
+          ctx.fillRect(car.w / 2 - 1, 8, 6, 15);
+          ctx.restore();
+        }
+        function drawObstacle(item) {
+          ctx.save();
+          ctx.translate(item.x, item.y);
+          ctx.fillStyle = item.color;
+          ctx.shadowColor = item.color;
+          ctx.shadowBlur = 12;
+          roundedRect(-item.w / 2, -item.h / 2, item.w, item.h, 8);
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "rgba(255,255,255,.75)";
+          ctx.fillRect(-item.w / 2 + 5, -4, item.w - 10, 7);
+          ctx.restore();
+        }
+        function spawn() {
+          const lane = Math.random() < .5 ? -.24 : .24;
+          const roadW = Math.min(width * .78, 430);
+          const center = width / 2;
+          obstacles.push({
+            x: center + lane * roadW,
+            y: -45,
+            w: 35,
+            h: 54,
+            color: Math.random() < .5 ? "#f97316" : "#e11d48"
+          });
+        }
+        function crash(item) {
+          return Math.abs(car.x - item.x) < (car.w + item.w) * .45 &&
+            Math.abs(car.y - item.y) < (car.h + item.h) * .45;
+        }
+        function reset() {
+          score = 0;
+          speed = .22;
+          obstacles.length = 0;
+          running = true;
+          message.classList.add("hidden");
+          last = performance.now();
+        }
+        function frame(now) {
+          const dt = Math.min(40, now - last || 16);
+          last = now;
+          ctx.clearRect(0, 0, width, height);
+          const bounds = road();
+          if (running) {
+            roadOffset = (roadOffset + dt * speed * 2) % 60;
+            const direction = (keys.left ? -1 : 0) + (keys.right ? 1 : 0);
+            car.targetX += direction * dt * .42;
+            car.targetX = Math.max(bounds.left + 30, Math.min(bounds.right - 30, car.targetX));
+            car.x += (car.targetX - car.x) * .18;
+            spawnTimer += dt;
+            if (spawnTimer > Math.max(520, 900 - score * 5)) {
+              spawnTimer = 0;
+              spawn();
+            }
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+              const item = obstacles[i];
+              item.y += dt * speed;
+              drawObstacle(item);
+              if (crash(item)) {
+                running = false;
+                message.innerHTML = "<strong>أحسنت المحاولة!</strong><span>نتيجتك " + score + " نقطة — المس الشاشة أو اضغط Enter للعب من جديد.</span>";
+                message.classList.remove("hidden");
+              } else if (item.y > height + 80) {
+                obstacles.splice(i, 1);
+                score++;
+                scoreEl.textContent = score;
+                speed = Math.min(.42, .22 + score * .006);
+              }
+            }
+          }
+          drawCar();
+          requestAnimationFrame(frame);
+        }
+        function steer(direction) {
+          if (!running) reset();
+          keys[direction] = true;
+          setTimeout(() => { keys[direction] = false; }, 130);
+        }
+        window.addEventListener("resize", resize);
+        window.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") { event.preventDefault(); keys.left = true; }
+          if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") { event.preventDefault(); keys.right = true; }
+          if (event.key === "Enter" && !running) reset();
+        });
+        window.addEventListener("keyup", (event) => {
+          if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") keys.left = false;
+          if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") keys.right = false;
+        });
+        canvas.addEventListener("pointerdown", (event) => { touchX = event.clientX; if (!running) reset(); });
+        canvas.addEventListener("pointermove", (event) => {
+          if (touchX === null) return;
+          const delta = event.clientX - touchX;
+          car.targetX += delta * 1.5;
+          touchX = event.clientX;
+        });
+        window.addEventListener("pointerup", () => { touchX = null; });
+        document.getElementById("left").addEventListener("pointerdown", () => steer("left"));
+        document.getElementById("right").addEventListener("pointerdown", () => steer("right"));
+        resize();
+        requestAnimationFrame(frame);
+      })();
+    </script>
+  </body>
+</html>

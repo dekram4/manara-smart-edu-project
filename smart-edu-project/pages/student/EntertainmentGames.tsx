@@ -44,13 +44,9 @@ export function sanitizeGameIframeUrl(value: string): string {
   }
 }
 
-// The previous Build a Rollercoaster player rejects embedding from this app.
-// Drift Boss is an openly embedded, mobile-friendly HTML5 car game published
-// by GameDistribution, so keep its direct player URL in the same in-card view.
-const GAME_DISTRIBUTION_GAME_3_ID = '0a8b51e5eaee42e7b4db83ca00afc92e';
-const GAME_DISTRIBUTION_GAME_3_URL_WITH_TRACKING =
-  `https://html5.gamedistribution.com/${GAME_DISTRIBUTION_GAME_3_ID}/?gd_sdk_referrer_url=https%3A%2F%2Fgamedistribution.com%2Fgames%2Fdrift-boss%2F`;
-const EMBEDDED_GAME_3_URL = sanitizeGameIframeUrl(GAME_DISTRIBUTION_GAME_3_URL_WITH_TRACKING);
+// Keep the third game self-hosted so it cannot be blocked by GameDistribution,
+// CrazyGames, or a Replit dev-domain allowlist. It starts immediately in-card.
+const EMBEDDED_GAME_3_URL = '/games/drift-dash/index.html';
 
 const GAME_CARDS: Array<{
   type: GameType;
@@ -318,7 +314,6 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               className="h-full w-full border-0"
               scrolling="no"
               allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
               onLoad={() => setGameLoading(false)}
               onError={() => setGameLoading(false)}
             />
@@ -354,7 +349,6 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               className="h-full w-full border-0"
               scrolling="no"
               allowFullScreen
-              referrerPolicy="no-referrer"
               onLoad={() => setGameLoading(false)}
               onError={() => setGameLoading(false)}
             />
@@ -405,7 +399,6 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 className="h-full w-full border-0"
                 scrolling="no"
                 allowFullScreen
-                referrerPolicy="no-referrer"
                 onLoad={handleEmbeddedGameLoad}
                 onError={handleEmbeddedGameError}
               />

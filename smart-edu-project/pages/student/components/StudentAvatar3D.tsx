@@ -1,6 +1,7 @@
-import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls } from '@react-three/drei';
+import '@three-ws/avatar/viewer';
 import { StudentAppearance } from '../../../types';
 import { getStudentAppearance } from '../../../utils/studentAppearance';
 import StudentAvatar from './StudentAvatar';
@@ -14,6 +15,8 @@ interface StudentAvatar3DProps {
 type ModelProps = {
   appearance: StudentAppearance;
 };
+
+const GLOBAL_AVATAR_MODEL_URL = 'https://three.ws/avatars/michelle.glb';
 
 const HAIR_COLORS: Record<string, string> = {
   '#3f2b24': '#3f2b24',
@@ -30,6 +33,31 @@ const normalizeColor = (value: string | undefined, fallback: string) =>
 
 const getHairColor = (appearance: StudentAppearance) =>
   normalizeColor(appearance.hairColor, HAIR_COLORS['#3f2b24']);
+
+const GlobalAvatarViewer: React.FC<{
+  src: string;
+  alt: string;
+  onError: () => void;
+}> = ({ src, alt, onError }) => {
+  const viewerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return undefined;
+    const handleError = () => onError();
+    viewer.addEventListener('error', handleError);
+    return () => viewer.removeEventListener('error', handleError);
+  }, [onError]);
+
+  return React.createElement('three-ws-viewer', {
+    ref: viewerRef,
+    src,
+    alt,
+    background: 'transparent',
+    className: 'h-full min-h-[340px] w-full',
+    style: { height: '100%', minHeight: 340, width: '100%' },
+  });
+};
 
 const isStyle = (value: string | undefined, ...styles: string[]) =>
   Boolean(value && styles.includes(value));
@@ -410,6 +438,17 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
     [appearance],
   );
   const [webglAvailable, setWebglAvailable] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'global' | 'custom'>('global');
+  const [globalAvatarError, setGlobalAvatarError] = useState(false);
+  const previousAppearance = useRef<string | null>(null);
+
+  useEffect(() => {
+    const serializedAppearance = JSON.stringify(resolvedAppearance);
+    if (previousAppearance.current && previousAppearance.current !== serializedAppearance) {
+      setPreviewMode('custom');
+    }
+    previousAppearance.current = serializedAppearance;
+  }, [resolvedAppearance]);
 
   useEffect(() => {
     const canvas = document.createElement('canvas');
@@ -429,43 +468,74 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(56,189,248,0.28),transparent_42%),linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[length:auto,28px_28px,28px_28px]" />
       <Avatar3DErrorBoundary fallback={fallback}>
-        <Canvas
-          camera={{ position: [0, 1.05, 5.2], fov: 35 }}
-          dpr={[1, 1.35]}
-          gl={{ antialias: true, powerPreference: 'low-power' }}
-        >
-          <ambientLight intensity={1.35} />
-          <directionalLight position={[3, 5, 4]} intensity={2.3} color="#dbeafe" />
-          <directionalLight position={[-4, 2, 2]} intensity={1.3} color="#f0abfc" />
-          <pointLight position={[0, 1.5, 2]} intensity={1.15} color="#67e8f9" />
-          <Suspense
-            fallback={
-              <Html center>
-                <div className="whitespace-nowrap rounded-full border border-white/20 bg-slate-950/75 px-4 py-2 text-xs font-black text-white backdrop-blur-md">
-                  جارٍ تجهيز شخصيتك ثلاثية الأبعاد...
-                </div>
-              </Html>
-            }
+        {previewMode === 'global' && !globalAvatarError ? (
+          <div className="relative h-full min-h-[340px] w-full">
+            <GlobalAvatarViewer
+              src={GLOBAL_AVATAR_MODEL_URL}
+              alt={`مجسم عالمي لشخصية ${studentName}`}
+              onError={() => {
+                console.warn('Global avatar model unavailable; using the custom avatar.');
+                setGlobalAvatarError(true);
+                setPreviewMode('custom');
+              }}
+            />
+          </div>
+        ) : (
+          <Canvas
+            camera={{ position: [0, 1.05, 5.2], fov: 35 }}
+            dpr={[1, 1.35]}
+            gl={{ antialias: true, powerPreference: 'low-power' }}
           >
-            <AvatarModel appearance={resolvedAppearance} />
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.7, 0]}>
-              <circleGeometry args={[1.55, 40]} />
-              <meshStandardMaterial color="#0f172a" roughness={0.98} transparent opacity={0.85} />
-            </mesh>
-          </Suspense>
-          <OrbitControls
-            enablePan={false}
-            enableZoom={false}
-            minPolarAngle={Math.PI / 2.35}
-            maxPolarAngle={Math.PI / 1.8}
-            target={[0, 0.3, 0]}
-            rotateSpeed={0.75}
-          />
-        </Canvas>
+            <ambientLight intensity={1.35} />
+            <directionalLight position={[3, 5, 4]} intensity={2.3} color="#dbeafe" />
+            <directionalLight position={[-4, 2, 2]} intensity={1.3} color="#f0abfc" />
+            <pointLight position={[0, 1.5, 2]} intensity={1.15} color="#67e8f9" />
+            <Suspense
+              fallback={
+                <Html center>
+                  <div className="whitespace-nowrap rounded-full border border-white/20 bg-slate-950/75 px-4 py-2 text-xs font-black text-white backdrop-blur-md">
+                    جارٍ تجهيز شخصيتك ثلاثية الأبعاد...
+                  </div>
+                </Html>
+              }
+            >
+              <AvatarModel appearance={resolvedAppearance} />
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.7, 0]}>
+                <circleGeometry args={[1.55, 40]} />
+                <meshStandardMaterial color="#0f172a" roughness={0.98} transparent opacity={0.85} />
+              </mesh>
+            </Suspense>
+            <OrbitControls
+              enablePan={false}
+              enableZoom={false}
+              minPolarAngle={Math.PI / 2.35}
+              maxPolarAngle={Math.PI / 1.8}
+              target={[0, 0.3, 0]}
+              rotateSpeed={0.75}
+            />
+          </Canvas>
+        )}
       </Avatar3DErrorBoundary>
+      <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-full border border-white/15 bg-slate-950/55 p-1 backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => setPreviewMode('global')}
+          className={`rounded-full px-2.5 py-1 text-[10px] font-black transition ${previewMode === 'global' && !globalAvatarError ? 'bg-cyan-400 text-slate-950' : 'text-cyan-100 hover:bg-white/10'}`}
+          disabled={globalAvatarError}
+        >
+          مجسم عالمي
+        </button>
+        <button
+          type="button"
+          onClick={() => setPreviewMode('custom')}
+          className={`rounded-full px-2.5 py-1 text-[10px] font-black transition ${previewMode === 'custom' || globalAvatarError ? 'bg-violet-400 text-slate-950' : 'text-violet-100 hover:bg-white/10'}`}
+        >
+          مظهري المخصص
+        </button>
+      </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
         <span className="rounded-full border border-white/15 bg-slate-950/55 px-3 py-1.5 text-[10px] font-black text-cyan-100 backdrop-blur-md">
-          اسحب بإصبعك أو بالماوس للدوران 360°
+          اسحب بإصبعك أو بالماوس للدوران 360° · تغييراتك تظهر في المظهر المخصص
         </span>
       </div>
       <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-black text-emerald-100">
