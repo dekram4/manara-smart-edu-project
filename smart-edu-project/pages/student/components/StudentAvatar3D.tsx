@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Html, OrbitControls } from '@react-three/drei';
+import { Bounds, Html, OrbitControls } from '@react-three/drei';
 import '@three-ws/avatar/viewer';
 import { StudentAppearance } from '../../../types';
 import { getStudentAppearance } from '../../../utils/studentAppearance';
@@ -443,12 +443,22 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
   // not make a remote GLB the first thing students see.
   const [previewMode, setPreviewMode] = useState<'global' | 'custom'>('custom');
   const [globalAvatarError, setGlobalAvatarError] = useState(false);
+  const [customSceneKey, setCustomSceneKey] = useState(0);
+  const previewModeRef = useRef<'global' | 'custom'>('custom');
   const previousAppearance = useRef<string | null>(null);
+
+  const enterCustomPreview = () => {
+    previewModeRef.current = 'custom';
+    setPreviewMode('custom');
+    setCustomSceneKey((current) => current + 1);
+  };
 
   useEffect(() => {
     const serializedAppearance = JSON.stringify(resolvedAppearance);
     if (previousAppearance.current && previousAppearance.current !== serializedAppearance) {
-      setPreviewMode('custom');
+      if (previewModeRef.current === 'global') {
+        enterCustomPreview();
+      }
     }
     previousAppearance.current = serializedAppearance;
   }, [resolvedAppearance]);
@@ -479,12 +489,13 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
               onError={() => {
                 console.warn('Global avatar model unavailable; using the custom avatar.');
                 setGlobalAvatarError(true);
-                setPreviewMode('custom');
+                enterCustomPreview();
               }}
             />
           </div>
         ) : (
           <Canvas
+            key={`custom-avatar-scene-${customSceneKey}`}
             camera={{ position: [0, -0.45, 7.5], fov: 36 }}
             dpr={[1, 1.35]}
             gl={{ antialias: true, powerPreference: 'low-power' }}
@@ -502,11 +513,13 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
                 </Html>
               }
             >
-              <AvatarModel appearance={resolvedAppearance} />
-              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.7, 0]}>
-                <circleGeometry args={[1.55, 40]} />
-                <meshStandardMaterial color="#0f172a" roughness={0.98} transparent opacity={0.85} />
-              </mesh>
+              <Bounds fit clip observe margin={1.2}>
+                <AvatarModel appearance={resolvedAppearance} />
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.7, 0]}>
+                  <circleGeometry args={[1.55, 40]} />
+                  <meshStandardMaterial color="#0f172a" roughness={0.98} transparent opacity={0.85} />
+                </mesh>
+              </Bounds>
             </Suspense>
             <OrbitControls
               enablePan={false}
@@ -522,7 +535,10 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
       <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-full border border-white/15 bg-slate-950/55 p-1 backdrop-blur-md">
         <button
           type="button"
-          onClick={() => setPreviewMode('global')}
+          onClick={() => {
+            previewModeRef.current = 'global';
+            setPreviewMode('global');
+          }}
           className={`rounded-full px-2.5 py-1 text-[10px] font-black transition ${previewMode === 'global' && !globalAvatarError ? 'bg-cyan-400 text-slate-950' : 'text-cyan-100 hover:bg-white/10'}`}
           disabled={globalAvatarError}
         >
@@ -530,7 +546,7 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => setPreviewMode('custom')}
+          onClick={enterCustomPreview}
           className={`rounded-full px-2.5 py-1 text-[10px] font-black transition ${previewMode === 'custom' || globalAvatarError ? 'bg-violet-400 text-slate-950' : 'text-violet-100 hover:bg-white/10'}`}
         >
           مظهري المخصص

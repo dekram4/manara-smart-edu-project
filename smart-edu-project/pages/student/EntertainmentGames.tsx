@@ -22,7 +22,7 @@ const EMBEDDED_GAME_URL =
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_4_URL =
-  'https://html5.gamedistribution.com/71cbc5e6851846f9b9b4319a070a61ae/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
+  'https://html5.gamedistribution.com/rvvASMiM/71cbc5e6851846f9b9b4319a070a61ae/index.html';
 /**
  * Remove provider tracking/query placeholders before an iframe is mounted.
  * GameDistribution accepts the explicit 32-character player id path; the
@@ -39,7 +39,13 @@ export function sanitizeGameIframeUrl(value: string): string {
       return raw;
     }
 
-    const gameId = decodeURIComponent(url.pathname).match(/\/([a-f0-9]{32})(?:\/|$)/i)?.[1];
+    const pathname = decodeURIComponent(url.pathname);
+    const directGamePath = pathname.match(/\/(rvv[^/]+)\/([a-f0-9]{32})\/index\.html$/i);
+    if (directGamePath) {
+      return `https://html5.gamedistribution.com/${directGamePath[1]}/${directGamePath[2]}/index.html`;
+    }
+
+    const gameId = pathname.match(/\/([a-f0-9]{32})(?:\/|$)/i)?.[1];
     if (!gameId) return raw;
     return `https://html5.gamedistribution.com/${gameId}/`;
   } catch {
@@ -98,22 +104,25 @@ const GAME_CARDS: Array<{
 // privileges: GameDistribution must not navigate the student to a new tab.
 const GAME_FRAME_SANDBOX =
   'allow-scripts allow-same-origin allow-forms allow-pointer-lock';
+const GAME_4_SANDBOX =
+  `${GAME_FRAME_SANDBOX} allow-popups allow-modals allow-top-navigation-by-user-activation`;
 const GAME_FRAME_ALLOW =
-  'autoplay; fullscreen; geolocation; microphone; camera';
+  'autoplay; fullscreen; gamepad; geolocation; microphone; camera';
 
 type GameIframeProps = Omit<React.IframeHTMLAttributes<HTMLIFrameElement>, 'src'> & {
   src: string;
   frameKey: string;
+  sandbox?: string;
 };
 
 const GameIframe = React.forwardRef<HTMLIFrameElement, GameIframeProps>(
-  ({ frameKey, src, ...props }, ref) => (
+  ({ frameKey, src, sandbox = GAME_FRAME_SANDBOX, ...props }, ref) => (
     <iframe
       {...props}
       src={sanitizeGameIframeUrl(src)}
       key={frameKey}
       ref={ref}
-      sandbox={GAME_FRAME_SANDBOX}
+      sandbox={sandbox}
       allow={GAME_FRAME_ALLOW}
       referrerPolicy="no-referrer"
       width="100%"
@@ -379,9 +388,11 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               src={EMBEDDED_GAME_4_URL}
               title="Battalion Commander 1917"
               frameKey="game-4"
+              sandbox={GAME_4_SANDBOX}
               className="h-full w-full border-0"
               scrolling="no"
               allowFullScreen
+              loading="eager"
               onLoad={() => setGameLoading(false)}
               onError={() => setGameLoading(false)}
             />
