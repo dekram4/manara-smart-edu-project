@@ -12,58 +12,12 @@ const AD_SDK_PATH = '/ad-sdk.js';
 
 const disabledAdSdk = `
   (() => {
-    const emit = (name) => {
-      try {
-        window.GD_OPTIONS?.onEvent?.({ name, data: {} });
-      } catch {
-        // The game can continue even if its optional SDK listener is gone.
-      }
-    };
-
+    const safeResult = Promise.resolve({ args: { success: false } });
     window.gdsdk = window.gdsdk || {
-      showAd: () => {
-        window.setTimeout(() => emit('SDK_GAME_START'), 0);
-        return Promise.resolve({ args: { success: true } });
-      },
+      showAd: () => safeResult,
       preloadAd: () => Promise.resolve(),
     };
-
-    // SCG-gd-pixim waits for this event before resolving its game bootstrap.
-    window.setTimeout(() => emit('SDK_READY'), 0);
   })();
-`;
-
-const bypassPrerollScript = `
-<script>
-  (() => {
-    const patch = () => {
-      const sdk = window.gdsdk;
-      if (!sdk || typeof sdk.showAd !== 'function' || sdk.__manaraAdBypass) {
-        return Boolean(sdk?.__manaraAdBypass);
-      }
-
-      sdk.showAd = () => {
-        window.setTimeout(() => {
-          try {
-            window.GD_OPTIONS?.onEvent?.({ name: 'SDK_GAME_START', data: {} });
-          } catch {
-            // The game can continue if the provider listener is unavailable.
-          }
-        }, 0);
-        return Promise.resolve({ args: { success: true } });
-      };
-      sdk.__manaraAdBypass = true;
-      return true;
-    };
-
-    if (!patch()) {
-      const timer = window.setInterval(() => {
-        if (patch()) window.clearInterval(timer);
-      }, 50);
-      window.setTimeout(() => window.clearInterval(timer), 30000);
-    }
-  })();
-</script>
 `;
 
 function rewriteGameScript(gameId, source) {
@@ -100,13 +54,7 @@ function rewriteGameScript(gameId, source) {
 }
 
 function rewriteGameHtml(gameId, source) {
-  const withPrerollBypass = source.replace(
-    /\busePrerollAd\s*:\s*true\b/g,
-    'usePrerollAd: true',
-  );
-  return withPrerollBypass.includes('</body>')
-    ? withPrerollBypass.replace('</body>', `${bypassPrerollScript}</body>`)
-    : `${withPrerollBypass}${bypassPrerollScript}`;
+  return source;
 }
 
 function getContentType(pathname, upstreamType) {
