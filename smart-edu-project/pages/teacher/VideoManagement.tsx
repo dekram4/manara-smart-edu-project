@@ -187,6 +187,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   const addCinemaVideo = async () => {
+    if (isAdmin && !editingVideo && !selectedTeacherId) {
+      alert('يرجى اختيار اسم المعلم المسؤول قبل إضافة فيديو السينما');
+      return;
+    }
     if (formData.sourceType === 'embed' && !formData.url.trim()) {
       alert('يرجى إدخال الرابط المضمن أولاً');
       return;
@@ -554,7 +558,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="space-y-5 rounded-[30px] border-2 border-amber-200 bg-white p-5 shadow-xl animate-bounce-in sm:p-8">
+        <form onSubmit={handleSubmit} className="flex flex-col space-y-5 rounded-[30px] border-2 border-amber-200 bg-white p-5 shadow-xl animate-bounce-in sm:p-8">
           <div className="flex flex-col gap-2 border-b border-amber-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-2xl font-black text-amber-900">
@@ -571,7 +575,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="order-2 grid grid-cols-1 gap-5 md:grid-cols-2">
             {isAdmin && (
               <div className="md:col-span-2">
                 <label htmlFor="cinema-teacher" className="mb-2 block text-sm font-black text-amber-900">
@@ -650,10 +654,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           </div>
 
           <textarea
+            className="order-3 w-full resize-none rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
             placeholder="وصف الفيديو (اختياري)"
             value={formData.description}
             onChange={e => setFormData({ ...formData, description: e.target.value })}
-            className="w-full resize-none rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
             rows={3}
           />
 
@@ -661,16 +665,16 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             <button
               type="button"
               onClick={addCinemaVideo}
-              className="w-full rounded-2xl border-2 border-amber-300 bg-amber-100 px-4 py-4 text-lg font-black text-amber-800 transition hover:bg-amber-200 active:scale-[.99]"
+              className="order-4 w-full rounded-2xl border-2 border-amber-300 bg-amber-100 px-4 py-4 text-lg font-black text-amber-800 transition hover:bg-amber-200 active:scale-[.99]"
             >
-              ➕ إضافة فيديو جديد إلى القائمة
+              ➕ إضافة هذا الفيديو إلى القائمة
             </button>
           )}
 
           {formData.pendingVideos.length > 0 && (
-            <div className="space-y-3 rounded-3xl border-2 border-amber-200 bg-amber-50/70 p-4">
+            <div className="order-5 space-y-3 rounded-3xl border-2 border-amber-200 bg-amber-50/70 p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-black text-amber-900">🎞️ فيديوهات هذه الدفعة</p>
+                <p className="font-black text-amber-900">🎬 فيديوهات هذه الإضافة</p>
                 <span className="text-xs font-bold text-amber-600">ستُحفظ كلها بنفس التصنيف الأكاديمي</span>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -697,7 +701,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="order-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <select
               value={formData.grade}
               onChange={e => updateAcademicField('grade', e.target.value)}
@@ -748,8 +752,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               {availableUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
             </select>
           </div>
-          <button type="submit" className="w-full bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black text-white rounded-2xl shadow-xl transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 animate-pulse-glow">
-            {editingVideo ? '💾 حفظ التعديل' : '✨ حفظ كل فيديوهات السينما'}
+          <button type="submit" className="order-6 w-full bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black text-white rounded-2xl shadow-xl transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 animate-pulse-glow">
+            {editingVideo ? '💾 حفظ التعديل' : '💾 حفظ ونشر فيديوهات السينما'}
           </button>
         </form>
       )}
