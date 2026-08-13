@@ -14,10 +14,10 @@ interface StudentAvatarProps {
 }
 
 const sizeMap = {
-  sm: { shell: 'h-14 w-14', face: 'text-2xl', outfit: 'text-base', body: 'h-5 w-7' },
-  md: { shell: 'h-24 w-24', face: 'text-4xl', outfit: 'text-xl', body: 'h-9 w-12' },
-  lg: { shell: 'h-32 w-32', face: 'text-6xl', outfit: 'text-2xl', body: 'h-12 w-16' },
-  xl: { shell: 'h-40 w-40', face: 'text-7xl', outfit: 'text-3xl', body: 'h-16 w-24' },
+  sm: { shell: 'h-14 w-14', face: 'text-xl', outfit: 'text-sm', head: 'h-5 w-5', body: 'h-6 w-8', leg: 'h-3 w-1.5' },
+  md: { shell: 'h-24 w-24', face: 'text-3xl', outfit: 'text-lg', head: 'h-9 w-9', body: 'h-10 w-14', leg: 'h-5 w-2.5' },
+  lg: { shell: 'h-32 w-32', face: 'text-5xl', outfit: 'text-2xl', head: 'h-12 w-12', body: 'h-14 w-20', leg: 'h-7 w-3.5' },
+  xl: { shell: 'h-40 w-40', face: 'text-6xl', outfit: 'text-3xl', head: 'h-16 w-16', body: 'h-20 w-28', leg: 'h-10 w-5' },
 } as const;
 
 const StudentAvatar: React.FC<StudentAvatarProps> = ({
@@ -47,19 +47,23 @@ const StudentAvatar: React.FC<StudentAvatarProps> = ({
           boxShadow: `0 0 26px ${appearance.color}70, 0 16px 30px rgba(0,0,0,0.3), inset 5px 5px 12px rgba(255,255,255,0.22)`,
         }}
       />
-      <div className={`absolute bottom-[7%] left-1/2 z-10 -translate-x-1/2 rounded-[42%_42%_24%_24%] border-2 border-white/35 shadow-[0_8px_10px_rgba(0,0,0,0.24)] ${dimensions.body}`} style={{
+      <div className={`absolute bottom-[8%] left-1/2 z-10 -translate-x-1/2 rounded-[42%_42%_22%_22%] border-2 border-white/35 shadow-[0_8px_10px_rgba(0,0,0,0.24)] ${dimensions.body}`} style={{
         background: `linear-gradient(160deg, ${appearance.color}f5, ${appearance.color}88)`,
       }}>
         <span className={`absolute inset-0 flex items-center justify-center select-none leading-none drop-shadow-[0_4px_3px_rgba(0,0,0,0.38)] ${dimensions.outfit}`}>
           {appearance.outfit}
         </span>
+        <span className="pointer-events-none absolute inset-x-[16%] bottom-[10%] h-1 rounded-full bg-white/30" />
       </div>
-      <span className={`relative z-20 mb-[22%] select-none leading-none drop-shadow-[0_6px_4px_rgba(0,0,0,0.35)] ${dimensions.face}`}>
-        {appearance.shape}
-      </span>
-      <span className="pointer-events-none absolute bottom-[4%] left-1/2 z-20 h-1 w-[44%] -translate-x-1/2 rounded-full bg-white/45" />
+      <div className={`absolute bottom-[3%] left-[37%] z-20 rounded-b-full bg-slate-950/55 ${dimensions.leg}`} />
+      <div className={`absolute bottom-[3%] right-[37%] z-20 rounded-b-full bg-slate-950/55 ${dimensions.leg}`} />
+      <div className={`absolute left-1/2 top-[7%] z-30 flex -translate-x-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-white/65 bg-white/35 shadow-[0_7px_12px_rgba(0,0,0,0.25)] ${dimensions.head}`}>
+        <span className={`select-none leading-none drop-shadow-[0_5px_3px_rgba(0,0,0,0.35)] ${dimensions.face}`}>
+          {appearance.shape}
+        </span>
+      </div>
       <span
-        className="absolute bottom-[12%] left-[12%] z-30 h-2 w-2 rounded-full bg-white/80"
+        className="absolute bottom-[12%] left-[12%] z-40 h-2 w-2 rounded-full bg-white/80"
         style={{ boxShadow: `0 0 12px ${appearance.color}` }}
       />
       </motion.div>
