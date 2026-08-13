@@ -1,5 +1,13 @@
 export type VideoSourceType = 'embed' | 'mp4';
 
+export interface Mp4UploadResult {
+  url: string;
+  fileName: string;
+  size: number;
+  storage?: 'supabase' | 'local';
+  warning?: string;
+}
+
 export interface LessonVideoEntry {
   id: string;
   url: string;
@@ -120,7 +128,7 @@ export const getLessonExplanationVideos = (lesson: {
   }));
 };
 
-export const uploadMp4Video = async (file: File): Promise<{ url: string; fileName: string; size: number }> => {
+export const uploadMp4Video = async (file: File): Promise<Mp4UploadResult> => {
   const response = await fetch('/api/media/upload', {
     method: 'POST',
     headers: {
@@ -134,6 +142,13 @@ export const uploadMp4Video = async (file: File): Promise<{ url: string; fileNam
     throw new Error(payload?.error || 'فشل رفع ملف الفيديو');
   }
   return payload;
+};
+
+export const showVideoStorageNotice = (upload: Mp4UploadResult): void => {
+  if (upload.storage !== 'local' || typeof window === 'undefined') return;
+  window.alert(
+    `⚠️ ${upload.warning || 'تم حفظ الفيديو مؤقتًا على خادم التطبيق.'}`,
+  );
 };
 
 export const deleteUploadedVideo = async (url?: string | null): Promise<void> => {

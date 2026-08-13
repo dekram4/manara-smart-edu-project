@@ -4,7 +4,7 @@ import { playLamsaSound } from '../../utils/sounds';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissions, getTeacherVideoUsageMb, isLimitReached } from '../../permissions';
-import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, uploadMp4Video, VideoSourceType } from '../../utils/video';
+import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, showVideoStorageNotice, uploadMp4Video, VideoSourceType } from '../../utils/video';
 import VideoThumbnail from '../../src/components/VideoThumbnail';
 
 interface VideoRecord {
@@ -202,6 +202,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       try {
         const file = formData.file;
         const uploaded = await uploadMp4Video(file);
+        showVideoStorageNotice(uploaded);
         videoUrl = uploaded.url;
         title = title || file.name;
       } catch (error) {
@@ -289,6 +290,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       if (formData.sourceType === 'mp4' && formData.file) {
         try {
           const uploaded = await uploadMp4Video(formData.file);
+          showVideoStorageNotice(uploaded);
           videoUrl = uploaded.url;
         } catch (error) {
           alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
@@ -339,6 +341,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         if (formData.sourceType === 'mp4' && formData.file) {
           try {
             const uploaded = await uploadMp4Video(formData.file);
+            showVideoStorageNotice(uploaded);
             videoUrl = uploaded.url;
             title = title || formData.file.name;
           } catch (error) {

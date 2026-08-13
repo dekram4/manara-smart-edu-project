@@ -275,12 +275,29 @@ app.post(
     }
     try {
       const fileName = `${crypto.randomUUID()}.mp4`;
-      const url = await uploadSupabaseVideo(fileName, req.body);
+      let url;
+      let storage = 'supabase';
+      let warning;
+      try {
+        url = await uploadSupabaseVideo(fileName, req.body);
+      } catch (storageError) {
+        // Keep the old upload behavior available while Supabase Storage is
+        // being configured. The response is explicit so the UI can warn the
+        // user that this file is local and should be migrated later.
+        const filePath = path.join(uploadDirectory, fileName);
+        await fs.promises.writeFile(filePath, req.body);
+        url = `/uploads/videos/${fileName}`;
+        storage = 'local';
+        warning = 'تعذر تجهيز Supabase Storage؛ تم حفظ الفيديو مؤقتًا على خادم التطبيق. طبّق server/supabase-storage.sql لنقله إلى التخزين الدائم.';
+        console.warn('[media] Supabase unavailable; saved video locally:', storageError?.message || storageError);
+      }
       return res.status(201).json({
         url,
         fileName: originalName,
         size: req.body.length,
         contentType: 'video/mp4',
+        storage,
+        ...(warning ? { warning } : {}),
       });
     } catch (error) {
       console.error('[media] Supabase Storage upload failed:', error?.message || error);

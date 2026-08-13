@@ -8,6 +8,7 @@ import {
   deleteUploadedVideo,
   getLessonExplanationVideos,
   isMp4VideoUrl,
+  showVideoStorageNotice,
   uploadMp4Video,
   VideoSourceType,
   LessonVideoEntry,
@@ -162,6 +163,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     try {
       const file = formData.explanationVideoFile;
       const uploaded = await uploadMp4Video(file);
+      showVideoStorageNotice(uploaded);
       setFormData(current => ({
         ...current,
         explanationVideos: [
@@ -261,6 +263,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       try {
         const file = formData.explanationVideoFile;
         const uploaded = await uploadMp4Video(file);
+        showVideoStorageNotice(uploaded);
         currentVideos = [
           ...currentVideos,
           {
