@@ -89,6 +89,7 @@ let storageInitializationPromise;
 async function ensureStorageBucket() {
   if (storageInitializationPromise) return storageInitializationPromise;
   storageInitializationPromise = (async () => {
+    let sawPermissionFailure = false;
     for (const bucketName of STORAGE_BUCKET_CANDIDATES) {
       const existing = await proxySupabase(`/storage/v1/bucket/${bucketName}`);
       const existingBody = await existing.clone().text().catch(() => '');
@@ -97,6 +98,7 @@ async function ensureStorageBucket() {
         || existingBody.includes('Bucket not found')
         || /resource was not found/i.test(existingBody);
       if (!existing.ok && !bucketMissing) {
+        sawPermissionFailure = true;
         console.warn(
           `[supabase] could not inspect bucket ${bucketName}: ${existing.status} ${existingBody.slice(0, 180)}`,
         );
@@ -141,6 +143,14 @@ async function ensureStorageBucket() {
           );
         }
       }
+      return true;
+    }
+
+    // Storage object policies can allow uploads while bucket metadata reads
+    // remain restricted for anon. In that case let the object operation decide
+    // whether the bucket is usable instead of repeatedly trying to create it.
+    if (sawPermissionFailure) {
+      activeStorageBucket = SUPABASE_STORAGE_BUCKET;
       return true;
     }
 
@@ -200,29 +210,40 @@ export async function initializeSupabaseStorage() {
 }
 
 export async function uploadSupabaseVideo(fileName, body) {
-  if (!(await ensureStorageBucket())) {
-    throw new Error(
-      `تعذر تجهيز حاوية Supabase Storage (${SUPABASE_STORAGE_BUCKET}). `
-      + 'تحقق من صلاحيات Storage أو طبّق server/supabase-storage.sql مرة واحدة.',
-    );
-  }
-  const upstream = await proxySupabase(
-    `/storage/v1/object/${activeStorageBucket}/${encodeURIComponent(fileName)}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'video/mp4',
-        'x-upsert': 'false',
-        'Cache-Control': 'public, max-age=31536000, immutable',
+  const ready = await ensureStorageBucket();
+  const buckets = ready
+    ? [activeStorageBucket]
+    : Array.from(new Set([activeStorageBucket, ...STORAGE_BUCKET_CANDIDATES]));
+  let lastMessage = '';
+
+  // Some Supabase projects allow object INSERT through Storage policies but
+  // reject bucket metadata reads for anon. Try the object operation directly
+  // before falling back to local storage in the HTTP layer.
+  for (const bucket of buckets) {
+    const upstream = await proxySupabase(
+      `/storage/v1/object/${bucket}/${encodeURIComponent(fileName)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'video/mp4',
+          'x-upsert': 'false',
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+        body,
       },
-      body,
-    },
-  );
-  if (!upstream.ok) {
-    const message = await upstream.text();
-    throw new Error(message.slice(0, 300) || 'فشل رفع الفيديو إلى Supabase Storage');
+    );
+    if (upstream.ok) {
+      activeStorageBucket = bucket;
+      return `/api/media/videos/${encodeURIComponent(fileName)}`;
+    }
+    lastMessage = (await upstream.text()).slice(0, 300);
   }
-  return `/api/media/videos/${encodeURIComponent(fileName)}`;
+
+  throw new Error(
+    lastMessage
+      || `تعذر تجهيز حاوية Supabase Storage (${SUPABASE_STORAGE_BUCKET}). `
+        + 'تحقق من صلاحيات Storage أو طبّق server/supabase-storage.sql مرة واحدة.',
+  );
 }
 
 export async function deleteSupabaseVideo(fileName) {
