@@ -35,12 +35,30 @@ function hasDirectSupabaseConfig() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
 }
 
+function isUsableServiceKey(value) {
+  const key = String(value || '').trim();
+  return key.startsWith('sb_secret_')
+    || /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(key);
+}
+
 async function directSupabaseFetch(path, options = {}) {
   const baseUrl = process.env.SUPABASE_URL.replace(/\/+$/, '');
-  const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  // Keep the privileged key scoped to Storage only. A malformed or rotated
+  // service key must never break the app's normal REST synchronization.
+  const isStorageRequest = String(path).startsWith('/storage/');
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const apiKey = isStorageRequest && isUsableServiceKey(serviceKey)
+    ? serviceKey
+    : process.env.SUPABASE_ANON_KEY;
   const headers = new Headers(options.headers || {});
   headers.set('apikey', apiKey);
-  headers.set('Authorization', `Bearer ${apiKey}`);
+  // Supabase's newer sb_publishable/sb_secret keys are API keys, not JWTs.
+  // Sending one as a Bearer token makes Storage return "Invalid Compact JWS".
+  if (String(apiKey).startsWith('sb_')) {
+    headers.delete('Authorization');
+  } else {
+    headers.set('Authorization', `Bearer ${apiKey}`);
+  }
   return fetch(`${baseUrl}${path}`, { ...options, headers });
 }
 
