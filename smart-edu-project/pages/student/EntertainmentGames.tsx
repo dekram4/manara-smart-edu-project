@@ -28,7 +28,7 @@ const EMBEDDED_GAME_3_URL =
 const GAME_FRAME_SANDBOX =
   'allow-scripts allow-same-origin allow-pointer-lock allow-orientation-lock';
 const GAME_PROVIDER_FRAME_SANDBOX =
-  `${GAME_FRAME_SANDBOX} allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation`;
+  `${GAME_FRAME_SANDBOX} allow-forms allow-modals`;
 
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
@@ -218,7 +218,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               sandbox={GAME_FRAME_SANDBOX}
               allow="fullscreen; autoplay; gamepad"
               allowFullScreen
-              referrerPolicy="no-referrer"
+              referrerPolicy="strict-origin-when-cross-origin"
               loading="eager"
               onLoad={() => setGameLoading(false)}
             />
