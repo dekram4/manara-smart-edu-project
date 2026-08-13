@@ -438,7 +438,10 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
     [appearance],
   );
   const [webglAvailable, setWebglAvailable] = useState(false);
-  const [previewMode, setPreviewMode] = useState<'global' | 'custom'>('global');
+  // The procedural avatar is the reliable full-body preview. Keep the
+  // three.ws viewer available as an optional global-model experiment, but do
+  // not make a remote GLB the first thing students see.
+  const [previewMode, setPreviewMode] = useState<'global' | 'custom'>('custom');
   const [globalAvatarError, setGlobalAvatarError] = useState(false);
   const previousAppearance = useRef<string | null>(null);
 
@@ -482,7 +485,7 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
           </div>
         ) : (
           <Canvas
-            camera={{ position: [0, 1.05, 5.2], fov: 35 }}
+            camera={{ position: [0, -0.45, 7.5], fov: 36 }}
             dpr={[1, 1.35]}
             gl={{ antialias: true, powerPreference: 'low-power' }}
           >
@@ -510,7 +513,7 @@ const StudentAvatar3D: React.FC<StudentAvatar3DProps> = ({
               enableZoom={false}
               minPolarAngle={Math.PI / 2.35}
               maxPolarAngle={Math.PI / 1.8}
-              target={[0, 0.3, 0]}
+              target={[0, -0.45, 0]}
               rotateSpeed={0.75}
             />
           </Canvas>

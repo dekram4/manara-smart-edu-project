@@ -15,12 +15,14 @@ interface EntertainmentGamesProps {
   lessonContent?: string;
 }
 
-type GameType = 'embedded' | 'embedded2' | 'embedded3';
+type GameType = 'embedded' | 'embedded2' | 'embedded3' | 'embedded4';
 
 const EMBEDDED_GAME_URL =
   '/api/game-embed/d4a3629101574bc39bd8f9d1888ca58e/index.html';
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
+const EMBEDDED_GAME_4_URL =
+  'https://html5.gamedistribution.com/71cbc5e6851846f9b9b4319a070a61ae/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
 /**
  * Remove provider tracking/query placeholders before an iframe is mounted.
  * GameDistribution accepts the explicit 32-character player id path; the
@@ -80,6 +82,15 @@ const GAME_CARDS: Array<{
     accent: '#34d399',
     gradient: 'from-emerald-400 via-teal-500 to-cyan-700',
     requiredLevel: 3,
+  },
+  {
+    type: 'embedded4',
+    title: 'Battalion Commander 1917',
+    subtitle: 'مغامرة HTML5 جديدة داخل منصة منارة',
+    icon: '🪖',
+    accent: '#fb923c',
+    gradient: 'from-orange-400 via-amber-500 to-red-700',
+    requiredLevel: 0,
   },
 ];
 
@@ -339,6 +350,41 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
           </div>
           <div className="game-frame-surface mx-auto w-full max-w-[820px] p-4 sm:p-6" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             <PixiArcadeGame />
+          </div>
+        </div>
+      )}
+
+      {activeGame === 'embedded4' && (
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-orange-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
+            <h3 className="font-black text-white">Battalion Commander 1917</h3>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+                {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
+              </button>
+              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+                ✕ إغلاق اللعبة والعودة للألعاب
+              </button>
+            </div>
+          </div>
+          <div className="game-frame-surface relative mx-auto aspect-[654/872] w-full max-w-[654px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+            {gameLoading && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
+                <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
+                  جارٍ تشغيل اللعبة داخل الصفحة...
+                </span>
+              </div>
+            )}
+            <GameIframe
+              src={EMBEDDED_GAME_4_URL}
+              title="Battalion Commander 1917"
+              frameKey="game-4"
+              className="h-full w-full border-0"
+              scrolling="no"
+              allowFullScreen
+              onLoad={() => setGameLoading(false)}
+              onError={() => setGameLoading(false)}
+            />
           </div>
         </div>
       )}

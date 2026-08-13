@@ -44,6 +44,11 @@ export default defineConfig(({ mode, command }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          // Resolve the app's React copy explicitly. The workspace also has
+          // a top-level node_modules folder, and Vite can otherwise bundle a
+          // second React instance for lazily loaded dashboard components.
+          react: path.resolve(__dirname, 'node_modules/react'),
+          'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
         },
         // The workspace and imported project each have node_modules folders.
         // Keep React/R3F on one module instance or lazy-loaded 3D components
