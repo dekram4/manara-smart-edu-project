@@ -191,41 +191,49 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       alert('يرجى اختيار اسم المعلم المسؤول قبل إضافة فيديو السينما');
       return;
     }
-    if (formData.sourceType === 'embed' && !formData.url.trim()) {
-      alert('يرجى إدخال الرابط المضمن أولاً');
-      return;
-    }
-    if (formData.sourceType === 'mp4' && !formData.file) {
-      alert('يرجى اختيار ملف MP4 أولاً');
+    const embedUrl = formData.url.trim();
+    const selectedFile = formData.file;
+    if (!embedUrl && !selectedFile) {
+      alert('أدخل رابطًا مضمنًا أو اختر ملف MP4 واحدًا على الأقل');
       return;
     }
 
-    let videoUrl = formData.url.trim();
-    let title = formData.title.trim();
-    if (formData.sourceType === 'mp4' && formData.file) {
+    const title = formData.title.trim();
+    const description = formData.description.trim();
+    const drafts: CinemaVideoDraft[] = [];
+
+    if (selectedFile) {
       try {
-        const file = formData.file;
-        const uploaded = await uploadMp4Video(file);
+        const uploaded = await uploadMp4Video(selectedFile);
         showVideoStorageNotice(uploaded);
-        videoUrl = uploaded.url;
-        title = title || file.name;
+        drafts.push({
+          id: makeVideoId(),
+          title: title || selectedFile.name,
+          description,
+          url: uploaded.url,
+          sourceType: 'mp4',
+          createdAt: new Date().toISOString(),
+        });
       } catch (error) {
         alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
         return;
       }
     }
 
-    const draft: CinemaVideoDraft = {
-      id: makeVideoId(),
-      title: title || `فيديو السينما ${formData.pendingVideos.length + 1}`,
-      description: formData.description.trim(),
-      url: videoUrl,
-      sourceType: formData.sourceType,
-      createdAt: new Date().toISOString(),
-    };
+    if (embedUrl) {
+      drafts.unshift({
+        id: makeVideoId(),
+        title: title || `رابط سينما ${formData.pendingVideos.length + 1}`,
+        description,
+        url: embedUrl,
+        sourceType: 'embed',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     setFormData(current => ({
       ...current,
-      pendingVideos: [...current.pendingVideos, draft],
+      pendingVideos: [...current.pendingVideos, ...drafts],
       title: '',
       description: '',
       url: '',
@@ -332,35 +340,42 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       // Like the lesson-content form, the last video can be entered and saved
       // directly without requiring a second click on «إضافة فيديو جديد».
       if (hasUnaddedVideoInput) {
-        if (formData.sourceType === 'embed' && !formData.url.trim()) {
-          alert('أكمل بيانات الفيديو الحالي أو اضغط «إضافة فيديو جديد» قبل الحفظ');
+        const embedUrl = formData.url.trim();
+        const selectedFile = formData.file;
+        if (!embedUrl && !selectedFile) {
+          alert('أدخل رابطًا مضمنًا أو اختر ملف MP4 قبل الحفظ');
           return;
         }
-        if (formData.sourceType === 'mp4' && !formData.file) {
-          alert('اختر ملف MP4 للفيديو الحالي أو اضغط «إضافة فيديو جديد» قبل الحفظ');
-          return;
+
+        const title = formData.title.trim();
+        const description = formData.description.trim();
+        if (embedUrl) {
+          videosToCreate.push({
+            id: makeVideoId(),
+            title: title || `رابط سينما ${videosToCreate.length + 1}`,
+            description,
+            url: embedUrl,
+            sourceType: 'embed',
+            createdAt: new Date().toISOString(),
+          });
         }
-        let videoUrl = formData.url.trim();
-        let title = formData.title.trim();
-        if (formData.sourceType === 'mp4' && formData.file) {
+        if (selectedFile) {
           try {
-            const uploaded = await uploadMp4Video(formData.file);
+            const uploaded = await uploadMp4Video(selectedFile);
             showVideoStorageNotice(uploaded);
-            videoUrl = uploaded.url;
-            title = title || formData.file.name;
+            videosToCreate.push({
+              id: makeVideoId(),
+              title: title || selectedFile.name,
+              description,
+              url: uploaded.url,
+              sourceType: 'mp4',
+              createdAt: new Date().toISOString(),
+            });
           } catch (error) {
             alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
             return;
           }
         }
-        videosToCreate.push({
-          id: makeVideoId(),
-          title: title || `فيديو السينما ${videosToCreate.length + 1}`,
-          description: formData.description.trim(),
-          url: videoUrl,
-          sourceType: formData.sourceType,
-          createdAt: new Date().toISOString(),
-        });
       }
 
       if (videosToCreate.length === 0) {
@@ -614,41 +629,70 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               onChange={e => setFormData({ ...formData, title: e.target.value })}
               className="rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
             />
-            <div className="space-y-2">
-              <div className="flex gap-2 rounded-2xl bg-amber-50 p-2">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, sourceType: 'embed', url: formData.sourceType === 'mp4' ? '' : formData.url, file: null })}
-                  className={`flex-1 rounded-xl px-3 py-3 text-sm font-black ${formData.sourceType === 'embed' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700'}`}
-                >
-                  🔗 رابط مضمن
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, sourceType: 'mp4', url: '' })}
-                  className={`flex-1 rounded-xl px-3 py-3 text-sm font-black ${formData.sourceType === 'mp4' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700'}`}
-                >
-                  📁 رفع MP4
-                </button>
-              </div>
-              {formData.sourceType === 'embed' ? (
-                <input
-                  type="url"
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  value={formData.url}
-                  onChange={e => setFormData({ ...formData, url: e.target.value })}
-                  className="w-full rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
-                />
+            <div className="space-y-3">
+              {editingVideo ? (
+                <>
+                  <div className="flex gap-2 rounded-2xl bg-amber-50 p-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, sourceType: 'embed', url: formData.sourceType === 'mp4' ? '' : formData.url, file: null })}
+                      className={`flex-1 rounded-xl px-3 py-3 text-sm font-black ${formData.sourceType === 'embed' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700'}`}
+                    >
+                      🔗 رابط مضمن
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, sourceType: 'mp4', url: '' })}
+                      className={`flex-1 rounded-xl px-3 py-3 text-sm font-black ${formData.sourceType === 'mp4' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700'}`}
+                    >
+                      📁 رفع MP4
+                    </button>
+                  </div>
+                  {formData.sourceType === 'embed' ? (
+                    <input
+                      type="url"
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      value={formData.url}
+                      onChange={e => setFormData({ ...formData, url: e.target.value })}
+                      className="w-full rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                    />
+                  ) : (
+                    <label className="block cursor-pointer rounded-2xl border-[3px] border-dashed border-amber-300 bg-amber-50 p-4 text-center font-bold text-amber-700 transition hover:bg-amber-100">
+                      <span>{formData.file?.name || 'اختر ملف MP4 بحد أقصى 500MB'}</span>
+                      <input
+                        type="file"
+                        accept="video/mp4,.mp4"
+                        className="hidden"
+                        onChange={e => setFormData({ ...formData, file: e.target.files?.[0] || null })}
+                      />
+                    </label>
+                  )}
+                </>
               ) : (
-                <label className="block cursor-pointer rounded-2xl border-[3px] border-dashed border-amber-300 bg-amber-50 p-4 text-center font-bold text-amber-700 transition hover:bg-amber-100">
-                  <span>{formData.file?.name || 'اختر ملف MP4 بحد أقصى 500MB'}</span>
-                  <input
-                    type="file"
-                    accept="video/mp4,.mp4"
-                    className="hidden"
-                    onChange={e => setFormData({ ...formData, file: e.target.files?.[0] || null })}
-                  />
-                </label>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-black text-amber-800">🔗 رابط مضمن</label>
+                    <input
+                      type="url"
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      value={formData.url}
+                      onChange={e => setFormData({ ...formData, url: e.target.value })}
+                      className="w-full rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-black text-amber-800">📁 ملف فيديو MP4</label>
+                    <label className="block cursor-pointer rounded-2xl border-[3px] border-dashed border-amber-300 bg-amber-50 p-4 text-center font-bold text-amber-700 transition hover:bg-amber-100">
+                      <span>{formData.file?.name || 'اختر ملف MP4 بحد أقصى 500MB'}</span>
+                      <input
+                        type="file"
+                        accept="video/mp4,.mp4"
+                        className="hidden"
+                        onChange={e => setFormData({ ...formData, file: e.target.files?.[0] || null })}
+                      />
+                    </label>
+                  </div>
+                </div>
               )}
             </div>
           </div>
