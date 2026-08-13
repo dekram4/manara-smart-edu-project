@@ -21,7 +21,7 @@ const EMBEDDED_GAME_URL =
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_3_URL =
-  '/api/game-embed/19c63777ed1e4653b64b2200560907fd/index.html?v=3';
+  '/api/game-embed/72d861a52f3c4e788ae0421649633be3/index.html?v=1';
 
 // Local Unity games need same-origin access to load their own assets. Keep
 // provider popup and top-navigation privileges disabled for those games.
@@ -274,7 +274,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               </button>
             </div>
           </div>
-          <div className="game-frame-surface relative mx-auto aspect-[9/16] w-full max-w-[378px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+          <div className="game-frame-surface relative mx-auto aspect-[4/3] w-full max-w-[800px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
