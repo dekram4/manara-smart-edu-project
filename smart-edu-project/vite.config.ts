@@ -44,7 +44,11 @@ export default defineConfig(({ mode, command }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-        }
+        },
+        // The workspace and imported project each have node_modules folders.
+        // Keep React/R3F on one module instance or lazy-loaded 3D components
+        // can trigger an Invalid Hook Call in the preview browser.
+        dedupe: ['react', 'react-dom', 'three'],
       }
     };
 });

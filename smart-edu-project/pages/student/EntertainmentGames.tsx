@@ -5,6 +5,7 @@ import { playLamsaSound } from '../../utils/sounds';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import EducationalCardEffects from '../../src/components/effects/EducationalCardEffects';
 import TouchCarousel from '../../src/components/TouchCarousel';
+import PixiArcadeGame from './games/PixiArcadeGame';
 
 interface EntertainmentGamesProps {
   grade: string;
@@ -44,10 +45,6 @@ export function sanitizeGameIframeUrl(value: string): string {
   }
 }
 
-// Keep the third game self-hosted so it cannot be blocked by GameDistribution,
-// CrazyGames, or a Replit dev-domain allowlist. It starts immediately in-card.
-const EMBEDDED_GAME_3_URL = '/games/drift-dash/index.html';
-
 const GAME_CARDS: Array<{
   type: GameType;
   title: string;
@@ -77,11 +74,11 @@ const GAME_CARDS: Array<{
   },
   {
     type: 'embedded3',
-    title: 'سباق السيارات',
-    subtitle: 'تحكم بالسيارة ونفّذ الانعطافات بدقة',
-    icon: '🏎️',
-    accent: '#22d3ee',
-    gradient: 'from-cyan-400 via-sky-500 to-blue-700',
+    title: 'صيد الأهداف',
+    subtitle: 'التقط الأهداف الخضراء وتجنب الحمراء',
+    icon: '🎯',
+    accent: '#34d399',
+    gradient: 'from-emerald-400 via-teal-500 to-cyan-700',
     requiredLevel: 3,
   },
 ];
@@ -119,12 +116,8 @@ GameIframe.displayName = 'GameIframe';
 const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject, term, unit }) => {
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
   const [gameLoading, setGameLoading] = useState(false);
-  const [embeddedGameEscaped, setEmbeddedGameEscaped] = useState(false);
   const [lockedMessage, setLockedMessage] = useState('');
   const gamePanelRef = useRef<HTMLDivElement>(null);
-  const embeddedGameFrameRef = useRef<HTMLIFrameElement>(null);
-  const embeddedGameFrameErrorHandledRef = useRef(false);
-  const [embeddedGameFrameKey, setEmbeddedGameFrameKey] = useState('game-3-initial');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const stats = useMemo(() => getGamificationStats(), [activeGame]);
 
@@ -136,9 +129,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     }
     GameAudioEngine.play('portalTransition');
     setLockedMessage('');
-    setGameLoading(true);
-    setEmbeddedGameEscaped(false);
-    embeddedGameFrameErrorHandledRef.current = false;
+    setGameLoading(game !== 'embedded3');
     setActiveGame(game);
   };
 
@@ -149,29 +140,6 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
     setActiveGame(null);
     setGameLoading(false);
     setIsFullscreen(false);
-    setEmbeddedGameEscaped(false);
-  };
-
-  const handleEmbeddedGameLoad = () => {
-    setGameLoading(false);
-  };
-
-  const restartEmbeddedGame = () => {
-    embeddedGameFrameErrorHandledRef.current = false;
-    setEmbeddedGameEscaped(false);
-    setGameLoading(true);
-    setEmbeddedGameFrameKey((previous) => `${previous}-manual-retry`);
-  };
-
-  const handleEmbeddedGameError = () => {
-    // iframe errors can be emitted more than once by blocked ad/SDK assets.
-    // Handle the first one only, then replace the frame with a manual-retry
-    // state so React cannot enter an automatic reload loop.
-    if (embeddedGameFrameErrorHandledRef.current) return;
-    embeddedGameFrameErrorHandledRef.current = true;
-    setGameLoading(false);
-    setEmbeddedGameFrameKey((previous) => `${previous}-failed`);
-    setEmbeddedGameEscaped(true);
   };
 
   useEffect(() => {
@@ -273,7 +241,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                     <h3 className="text-xl font-black text-white">{game.title}</h3>
                     <p className="mt-1 text-xs font-bold leading-5 text-slate-400">{game.subtitle}</p>
                   </div>
-                  <span className="mt-1 text-xs font-black text-slate-500">{index + 1}/3</span>
+                   <span className="mt-1 text-xs font-black text-slate-500">{index + 1}/{GAME_CARDS.length}</span>
                 </div>
                 <span className={`mt-4 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-black ${
                   unlocked ? 'bg-white/10 text-white group-hover:bg-white/20' : 'bg-white/5 text-slate-400'
@@ -357,9 +325,9 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       )}
 
       {activeGame === 'embedded3' && (
-        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-cyan-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-emerald-300/30 bg-slate-950 shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
           <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
-            <h3 className="font-black text-white">سباق السيارات</h3>
+            <h3 className="font-black text-white">صيد الأهداف</h3>
             <div className="flex items-center gap-2">
               <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
@@ -369,40 +337,8 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               </button>
             </div>
           </div>
-          <div className="game-frame-surface relative mx-auto aspect-[4/3] w-full max-w-[800px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
-            {gameLoading && (
-              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
-                <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
-                  جارٍ تشغيل اللعبة داخل الصفحة...
-                </span>
-              </div>
-            )}
-            {embeddedGameEscaped ? (
-              <div className="flex h-full min-h-80 flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center">
-                <p className="text-sm font-black text-white">
-                  تعذر تحميل اللعبة أو خدمة الإعلانات، ولم تتم إعادة تحميلها تلقائيًا.
-                </p>
-                <button
-                  type="button"
-                  onClick={restartEmbeddedGame}
-                  className="rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-400"
-                >
-                  إعادة تشغيل اللعبة
-                </button>
-              </div>
-            ) : (
-              <GameIframe
-                src={EMBEDDED_GAME_3_URL}
-                title="سباق السيارات"
-                frameKey={embeddedGameFrameKey}
-                ref={embeddedGameFrameRef}
-                className="h-full w-full border-0"
-                scrolling="no"
-                allowFullScreen
-                onLoad={handleEmbeddedGameLoad}
-                onError={handleEmbeddedGameError}
-              />
-            )}
+          <div className="game-frame-surface mx-auto w-full max-w-[820px] p-4 sm:p-6" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+            <PixiArcadeGame />
           </div>
         </div>
       )}
