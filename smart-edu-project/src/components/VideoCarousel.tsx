@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TouchCarousel from './TouchCarousel';
+import VideoThumbnail from './VideoThumbnail';
 import {
   getVideoEmbedUrl,
   getVideoSourceType,
@@ -8,13 +9,6 @@ import {
   isSafeVideoUrl,
   VideoSourceType,
 } from '../../utils/video';
-
-const getVideoThumbnailUrl = (value: string): string | null => {
-  const match = value.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([^?&#/]+)/i,
-  );
-  return match?.[1] ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
-};
 
 export interface CarouselVideo {
   id: string;
@@ -168,22 +162,12 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({
                   } ${videoLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                 >
                   <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-[20px] border border-white/15 bg-slate-950 shadow-lg">
-                    {getVideoThumbnailUrl(video.url) ? (
-                      <img
-                        src={getVideoThumbnailUrl(video.url) || undefined}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className={`flex h-full w-full items-center justify-center text-6xl ${
-                        getVideoSourceType(video.sourceType, video.url) === 'mp4'
-                          ? 'bg-gradient-to-br from-rose-400 via-orange-500 to-amber-500'
-                          : 'bg-gradient-to-br from-sky-400 via-indigo-500 to-violet-700'
-                      }`}>
-                        {getVideoSourceType(video.sourceType, video.url) === 'mp4' ? '🎬' : '🔗'}
-                      </div>
-                    )}
+                    <VideoThumbnail
+                      url={video.url}
+                      sourceType={video.sourceType}
+                      alt=""
+                      className="transition duration-500 group-hover:scale-105"
+                    />
                     <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/20">
                       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/95 text-2xl text-slate-950 shadow-2xl transition group-hover:scale-110">
                         ▶

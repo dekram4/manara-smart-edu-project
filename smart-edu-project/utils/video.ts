@@ -32,6 +32,14 @@ export const getVideoSourceType = (
   url?: string | null,
 ): VideoSourceType => sourceType || (isMp4VideoUrl(url) ? 'mp4' : 'embed');
 
+export const getVideoThumbnailUrl = (value?: string | null): string | null => {
+  const raw = (value || '').trim();
+  const match = raw.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([^?&#/]+)/i,
+  );
+  return match?.[1] ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+};
+
 export const getVideoEmbedUrl = (value?: string | null): string => {
   const raw = (value || '').trim();
   if (!raw || !isSafeVideoUrl(raw)) return '';
