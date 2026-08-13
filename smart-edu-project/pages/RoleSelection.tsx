@@ -310,9 +310,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[linear-gradient(145deg,_#04041a_0%,_#0d0b33_40%,_#0a1628_70%,_#03051a_100%)]" />
         {/* animated nebula orbs */}
-        <div className="absolute -left-32 top-0 h-[520px] w-[520px] animate-pulse rounded-full bg-indigo-600/18 blur-[80px]" />
-        <div className="absolute -right-24 bottom-0 h-[480px] w-[480px] animate-pulse rounded-full bg-purple-600/15 blur-[80px]" style={{ animationDelay: '1.2s' }} />
-        <div className="absolute left-1/2 top-1/4 h-[320px] w-[320px] -translate-x-1/2 animate-pulse rounded-full bg-cyan-500/8 blur-[60px]" style={{ animationDelay: '2.4s' }} />
+        <div className="absolute -left-32 top-0 h-[42vw] w-[42vw] max-h-[520px] max-w-[520px] animate-pulse rounded-full bg-indigo-600/18 blur-[80px]" />
+        <div className="absolute -right-24 bottom-0 h-[38vw] w-[38vw] max-h-[480px] max-w-[480px] animate-pulse rounded-full bg-purple-600/15 blur-[80px]" style={{ animationDelay: '1.2s' }} />
+        <div className="absolute left-1/2 top-1/4 h-[26vw] w-[26vw] max-h-[320px] max-w-[320px] -translate-x-1/2 animate-pulse rounded-full bg-cyan-500/8 blur-[60px]" style={{ animationDelay: '2.4s' }} />
         {/* grid overlay */}
         <div
           className="absolute inset-0 opacity-[0.07]"
@@ -363,7 +363,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               onMouseEnter={() => { setHoveredId(role.id); GameAudioEngine.play('uiHover'); }}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => { GameAudioEngine.play('uiSelect'); handlers[role.id](); }}
-               className="group relative min-h-[190px] overflow-hidden text-right sm:min-h-[214px]"
+               className="group relative min-h-48 overflow-hidden text-right sm:min-h-56"
               style={{
                  borderRadius: '30px',
                  border: `1px solid rgba(255,255,255,${isHovered ? 0.24 : 0.11})`,
@@ -395,7 +395,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
 
                {/* SVG illustration — large atmospheric art behind the role icon */}
               <div
-                 className="pointer-events-none absolute -right-2 top-1/2 h-[172px] w-[220px] -translate-y-1/2 scale-125 origin-center opacity-25 transition-all duration-500 group-hover:scale-[1.38] group-hover:opacity-55 sm:h-[190px] sm:w-[250px]"
+                  className="pointer-events-none absolute -right-2 top-1/2 h-44 w-52 -translate-y-1/2 scale-125 origin-center opacity-25 transition-all duration-500 group-hover:scale-[1.38] group-hover:opacity-55 sm:h-48 sm:w-60"
               >
                 {role.svgIllustration}
               </div>
@@ -442,7 +442,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                <div className="relative z-10 flex h-full items-center gap-4 p-5 sm:gap-6 sm:p-6">
                  {/* Role icon badge */}
                 <div
-                   className="relative flex h-[112px] w-[112px] shrink-0 items-center justify-center rounded-[30px] text-[4.7rem] shadow-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg] sm:h-[132px] sm:w-[132px] sm:text-[5.5rem]"
+                   className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-[30px] text-[4.7rem] shadow-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg] sm:h-32 sm:w-32 sm:text-[5.5rem]"
                   style={{
                      background: `linear-gradient(145deg, ${role.palette.from}f2, ${role.palette.via}e8 52%, ${role.palette.to}f5)`,
                      border: `2px solid ${role.accentLight}55`,
@@ -498,7 +498,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                   >
                     {role.subtitle}
                   </p>
-                   <p className="mt-2 max-w-[260px] text-[13px] font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200 sm:text-sm">
+                    <p className="mt-2 max-w-xs text-[13px] font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200 sm:text-sm">
                     {role.description}
                   </p>
                 </div>

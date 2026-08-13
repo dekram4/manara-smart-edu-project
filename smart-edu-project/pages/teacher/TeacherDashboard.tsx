@@ -55,10 +55,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, latestTeacher);
         }
         loadDashboardStats();
-      }, 2000);
+      }, 5000);
       return () => window.clearInterval(interval);
     }
-  }, [isAuthenticated, currentTeacher]);
+  }, [isAuthenticated, currentTeacher?.id]);
 
   const loadDashboardStats = () => {
     if (!currentTeacher) return;

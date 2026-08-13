@@ -94,9 +94,9 @@ const getSafeGradeEnrollments = (
   candidate: StudentInfo | null | undefined,
 ): SafeGradeEnrollment[] => (
   Array.isArray(candidate?.gradeEnrollments)
-    ? candidate.gradeEnrollments.filter(
-      (entry): entry is SafeGradeEnrollment => Boolean(entry && typeof entry === 'object'),
-    )
+    ? candidate.gradeEnrollments
+      .filter((entry) => Boolean(entry && typeof entry === 'object'))
+      .map((entry) => entry as SafeGradeEnrollment)
     : []
 );
 
@@ -470,6 +470,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [rewardInfo, setRewardInfo] = useState({ xp: 0, gems: 0, message: '' });
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messageSignatureRef = useRef('');
+  const rewardTimersRef = useRef<number[]>([]);
+  const studentRef = useRef<StudentInfo | null>(null);
+  const isAuthenticatedRef = useRef(false);
+  studentRef.current = student;
+  isAuthenticatedRef.current = isAuthenticated;
 
   // Load gamification stats
   const refreshGamification = () => {
@@ -479,7 +485,11 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setLevel(stats.level);
     setStreak(stats.streak);
     setLevelProgress(stats.levelProgress);
-    setAchievements(stats.achievements);
+    setAchievements((previous) =>
+      JSON.stringify(previous) === JSON.stringify(stats.achievements)
+        ? previous
+        : stats.achievements,
+    );
     // Read the latest active student from storage. Passing the render's
     // previous `student` snapshot here could overwrite a newly selected
     // subject/unit during the periodic gamification refresh.
@@ -541,29 +551,33 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     if (student) {
       loadAcademicSettings();
     }
-  }, [student]);
+  }, [
+    student?.id,
+    student?.grade,
+    student?.subject,
+    student?.atram,
+    student?.term,
+    student?.unit,
+    selectedGrade,
+  ]);
 
   useEffect(() => {
-    if (selectedGrade) {
-      loadAcademicSettings();
-    }
-  }, [selectedGrade]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       const current = readActiveSession<StudentInfo>(STORAGE_KEYS.ACTIVE_STUDENT);
       if (current) {
-        const accountChanged = current.id !== student?.id;
-        const sessionDataChanged = current.lastActivity !== student?.lastActivity ||
-          current.grade !== student?.grade ||
-          current.subject !== student?.subject ||
-          current.atram !== student?.atram ||
-          current.term !== student?.term ||
-          current.unit !== student?.unit;
+        const previous = studentRef.current;
+        const accountChanged = current.id !== previous?.id;
+        const sessionDataChanged = current.lastActivity !== previous?.lastActivity ||
+          current.grade !== previous?.grade ||
+          current.subject !== previous?.subject ||
+          current.atram !== previous?.atram ||
+          current.term !== previous?.term ||
+          current.unit !== previous?.unit;
         if (accountChanged || sessionDataChanged) {
           if (accountChanged) {
             ensureGamificationResetIfNeeded(current);
           }
+          studentRef.current = current;
           setStudent(current);
           let fallbackGrade = current.primaryGrade || current.grade || '';
           const currentGradeEnrollments = getSafeGradeEnrollments(current);
@@ -586,31 +600,36 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         console.warn('[student] session read was temporarily unavailable; preserving current session');
       }
     }, 5000);
-    return () => clearInterval(interval);
-  }, [student, isAuthenticated]);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (isAuthenticated) refreshGamification();
+    const interval = window.setInterval(() => {
+      if (isAuthenticatedRef.current) refreshGamification();
     }, 5000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (chatEnabled) {
       loadChatMessages();
-      const interval = setInterval(loadChatMessages, 1500);
-      return () => clearInterval(interval);
+      const interval = window.setInterval(loadChatMessages, 4000);
+      return () => window.clearInterval(interval);
     }
   }, [student?.grade, chatEnabled, showChat]);
 
   useEffect(() => {
     if (showChat) {
       setHasNewMessage(false);
-      const timer = setTimeout(() => setHasNewMessage(false), 100);
-      return () => clearTimeout(timer);
+      const timer = window.setTimeout(() => setHasNewMessage(false), 100);
+      return () => window.clearTimeout(timer);
     }
   }, [showChat]);
+
+  useEffect(() => () => {
+    rewardTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    rewardTimersRef.current = [];
+  }, []);
 
   useEffect(() => {
     if (chatContainerRef.current && showChat) {
@@ -636,7 +655,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const loadChatMessages = () => {
     if (!student?.grade || !chatEnabled) return;
 
-    const allMessages = readStorageArray(STORAGE_KEYS.CHAT_MESSAGES);
+    const allMessages = readStorageArray<any>(STORAGE_KEYS.CHAT_MESSAGES);
     const studentScope = getStudentTeacherScope(student);
 
     const gradeMessages = allMessages
@@ -672,8 +691,28 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setHasNewMessage(false);
     }
 
+    const messageSignature = [
+      student.id,
+      studentScope.teacherId,
+      ...gradeMessages.map((message: any) => `${message.id}:${message.time}:${message.message}`),
+    ].join('|');
     setLastMessageCount(gradeMessages.length);
-    setChatMessages(gradeMessages);
+    if (messageSignatureRef.current !== messageSignature) {
+      messageSignatureRef.current = messageSignature;
+      setChatMessages(gradeMessages);
+    }
+  };
+
+  const showRewardPopupFor = (info: { xp: number; gems: number; message: string }, delay: number) => {
+    rewardTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    rewardTimersRef.current = [];
+    setRewardInfo(info);
+    setShowRewardPopup(true);
+    const timer = window.setTimeout(() => {
+      setShowRewardPopup(false);
+      rewardTimersRef.current = rewardTimersRef.current.filter((item) => item !== timer);
+    }, delay);
+    rewardTimersRef.current.push(timer);
   };
 
   const sendChatMessage = () => {
@@ -954,11 +993,16 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     // The session monitor runs periodically. Avoid replacing the lesson
     // object when its content did not change; replacing it remounts the
     // video/Swiper surfaces while a student is touching the screen.
+    const foundMetadata = found as LessonConfig & {
+      title?: string;
+      description?: string;
+      updatedAt?: string;
+    };
     const contentSignature = JSON.stringify({
       id: found.id,
-      title: found.title,
-      description: found.description,
-      updatedAt: found.updatedAt,
+      title: foundMetadata.title,
+      description: foundMetadata.description,
+      updatedAt: foundMetadata.updatedAt,
       videoSignature,
     });
     if (matchedContentSignatureRef.current === contentSignature) return;
@@ -1167,21 +1211,18 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
     if (reward.alreadyRewarded) {
       feedback = 'تمت إعادة نفس الاختبار: النتيجة محفوظة، بدون جواهر إضافية لهذه المحاولة. ✅';
-      setRewardInfo({ xp: 0, gems: 0, message: 'لا توجد جواهر إضافية عند إعادة نفس الاختبار' });
-      setShowRewardPopup(true);
-      setTimeout(() => setShowRewardPopup(false), 2500);
+      showRewardPopupFor(
+        { xp: 0, gems: 0, message: 'لا توجد جواهر إضافية عند إعادة نفس الاختبار' },
+        2500,
+      );
     }
 
     if (!reward.alreadyRewarded && percentage >= 90) {
       feedback = 'رائع ومذهل جداً! أنت عبقري ومتميز اليوم! 🏆✨';
-      setRewardInfo({ xp: reward.xp, gems: reward.gems, message: `عبقري! حصلت على ${percentage}%` });
-      setShowRewardPopup(true);
-      setTimeout(() => setShowRewardPopup(false), 3000);
+      showRewardPopupFor({ xp: reward.xp, gems: reward.gems, message: `عبقري! حصلت على ${percentage}%` }, 3000);
     } else if (!reward.alreadyRewarded && percentage >= 60) {
       feedback = 'عمل رائع ودرجة ممتازة! تستحق نجمة لمسة البراقة! ⭐';
-      setRewardInfo({ xp: reward.xp, gems: reward.gems, message: `ممتاز! حصلت على ${percentage}%` });
-      setShowRewardPopup(true);
-      setTimeout(() => setShowRewardPopup(false), 3000);
+      showRewardPopupFor({ xp: reward.xp, gems: reward.gems, message: `ممتاز! حصلت على ${percentage}%` }, 3000);
     } else if (!reward.alreadyRewarded) {
       playLamsaSound('magic');
     }
@@ -1381,9 +1422,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           const reward = rewardProblemSolved();
           GameAudioEngine.playRewardSequence({ gems: reward.gems });
           refreshGamification();
-          setRewardInfo({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! حللت مسألة!' });
-          setShowRewardPopup(true);
-          setTimeout(() => setShowRewardPopup(false), 3000);
+           showRewardPopupFor({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! حللت مسألة!' }, 3000);
           setSolutionText(`💡 ${data.answer}`);
         } else {
           playLamsaSound('error');
@@ -1410,14 +1449,12 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const reward = rewardLessonComplete(rewardId);
     if (reward.alreadyRewarded) {
       playLamsaSound('click');
-      setRewardInfo({ xp: 0, gems: 0, message: 'هذا الدرس مكتمل في سجل إنجازاتك ✅' });
+      showRewardPopupFor({ xp: 0, gems: 0, message: 'هذا الدرس مكتمل في سجل إنجازاتك ✅' }, 3000);
     } else {
       GameAudioEngine.playRewardSequence({ celebrate: true, gems: reward.gems });
-      setRewardInfo({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! أنهيت الدرس بنجاح! +5 جواهر' });
+      showRewardPopupFor({ xp: reward.xp, gems: reward.gems, message: 'أحسنت! أنهيت الدرس بنجاح! +5 جواهر' }, 3000);
     }
     refreshGamification();
-    setShowRewardPopup(true);
-    setTimeout(() => setShowRewardPopup(false), 3000);
   };
 
   const openModule = (module: StudentModuleType) => {
@@ -1468,7 +1505,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,_#020617,_#111827,_#312e81)] text-white p-3 sm:p-4 lg:p-6 font-tajawal relative overflow-hidden safe-area-x safe-area-bottom">
+    <div className="min-h-screen w-full max-w-full bg-[linear-gradient(135deg,_#020617,_#111827,_#312e81)] text-white p-3 sm:p-4 lg:p-6 font-tajawal relative overflow-x-clip safe-area-x safe-area-bottom">
       <PremiumBackground accent="#8b5cf6" />
       <div className="absolute left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-10 hidden items-center gap-3 rounded-[28px] border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-lg sm:flex">
         <img src={getStickerAsset('spark')} alt="spark" className="h-10 w-10 rounded-2xl border border-white/20 bg-white/80 p-2 shadow" />

@@ -89,10 +89,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       if (isAuthenticated) loadChildrenOnly();
-    }, 2000);
-    return () => clearInterval(interval);
+    }, 5000);
+    return () => window.clearInterval(interval);
   }, [isAuthenticated, activeChild]);
 
   const loadChildrenOnly = () => {

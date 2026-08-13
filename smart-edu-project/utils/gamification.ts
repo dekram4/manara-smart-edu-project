@@ -504,7 +504,12 @@ export function syncGamificationToStudent(studentInfo?: StudentInfo | null): Stu
   }
 
   const updatedActive = { ...active, gamification: snapshot };
-  writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, updatedActive);
+  // Avoid rewriting the active session on every polling tick when nothing
+  // changed. Repeated writes can wake sync observers and cause needless
+  // dashboard work on mobile Safari.
+  if (JSON.stringify(updatedActive) !== JSON.stringify(active)) {
+    writeActiveSession(STORAGE_KEYS.ACTIVE_STUDENT, updatedActive);
+  }
   return snapshot;
 }
 

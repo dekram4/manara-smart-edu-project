@@ -63,7 +63,7 @@ export const triggerCelebration = (won = true) => {
 type MainView = 'role' | 'admin' | 'teacher' | 'student' | 'parent';
 
 class DashboardErrorBoundary extends Component<
-  { children: ReactNode },
+  { children: ReactNode; onReturnToRoles?: () => void },
   { hasError: boolean; errorMessage: string }
 > {
   state = { hasError: false, errorMessage: '' };
@@ -77,6 +77,9 @@ class DashboardErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[app] dashboard render error:', error, errorInfo);
+    // A broken dashboard must never leave the whole shell blank. Return to
+    // role selection without clearing the persisted user session.
+    this.props.onReturnToRoles?.();
   }
 
   handleRetry = () => {
@@ -124,7 +127,7 @@ const BootLoader: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center gap-4">
-      <motion.div ref={loaderRef} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative flex items-center justify-center" style={{ width: '180px', height: '180px' }}>
+      <motion.div ref={loaderRef} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative flex h-44 w-44 items-center justify-center sm:h-48 sm:w-48">
         <div className="absolute inset-0 rounded-full border-8 border-indigo-200 border-t-indigo-600 animate-spin" />
         <div className="absolute inset-6 rounded-full border-4 border-cyan-200 border-b-cyan-500 animate-[spin_1.4s_linear_infinite_reverse]" />
         {splineScene ? (
@@ -194,9 +197,17 @@ const App: React.FC = () => {
   };
 
   const enterRole = (role: MainView) => {
-    clearActiveSessions();
+    // Selecting a role is navigation, not logout. Clearing sessions here
+    // caused iOS/Safari to reopen dashboards in an apparent logout loop.
     writeSessionValue(SESSION_KEYS.ACTIVE_ROLE, role);
     setMainView(role);
+  };
+
+  const returnToRoles = () => {
+    // Preserve role-specific sessions so the user can re-enter after a
+    // transient render failure. Only an explicit logout clears them.
+    removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
+    setMainView('role');
   };
 
   const leaveRole = () => {
@@ -229,10 +240,10 @@ const App: React.FC = () => {
     }
     setSessionReady(true);
 
+    let bootTimeoutId: number | undefined;
     (async () => {
       const syncTask = (async () => {
         migratePasswordsToHash();
-        await new Promise((resolve) => setTimeout(resolve, 300));
         // Do not mount role dashboards until the shared data has been loaded.
         // Otherwise a student can read an empty local content list on a new device.
         await initSupabaseSync();
@@ -243,7 +254,7 @@ const App: React.FC = () => {
         // If it is slow, initSupabaseSync continues in the background and the
         // existing localStorage data remains available to the user.
         const bootFallback = new Promise<'timeout'>((resolve) => {
-          window.setTimeout(() => resolve('timeout'), 2500);
+          bootTimeoutId = window.setTimeout(() => resolve('timeout'), 2500);
         });
         const result = await Promise.race([
           syncTask.then(() => 'ready' as const, (error) => {
@@ -265,6 +276,7 @@ const App: React.FC = () => {
     })();
     return () => {
       mounted = false;
+      if (bootTimeoutId !== undefined) window.clearTimeout(bootTimeoutId);
     };
   }, []);
 
@@ -303,7 +315,9 @@ const App: React.FC = () => {
     <div className="min-h-screen font-tajawal">
       <ScrollDownButton />
       <GameControls />
-      <DashboardErrorBoundary key={mainView}>{renderView()}</DashboardErrorBoundary>
+      <DashboardErrorBoundary key={mainView} onReturnToRoles={returnToRoles}>
+        {renderView()}
+      </DashboardErrorBoundary>
       {syncing && (
         <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] max-w-[calc(100vw-2rem)] bg-white/90 border border-gray-300 rounded-3xl shadow-xl px-4 py-3 backdrop-blur-md flex items-center gap-3">
           <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />

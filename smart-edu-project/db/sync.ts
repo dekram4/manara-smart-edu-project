@@ -63,6 +63,7 @@ const nativeRemoveItem = window.localStorage.removeItem.bind(window.localStorage
 const nativeGetItem = window.localStorage.getItem.bind(window.localStorage);
 
 let writeThroughInstalled = false;
+let syncInitializationPromise: Promise<void> | null = null;
 
 function safeParse(raw: string | null): any {
   if (!raw) return null;
@@ -265,7 +266,9 @@ async function hydrateRowTable(
 
   const { data, error } = await supabase.from(table).select('id,data');
   if (error) {
-    if (!error.silent) console.error(`[sync] فشل تحميل ${table}:`, error.message);
+    if (!(error as Error & { silent?: boolean }).silent) {
+      console.error(`[sync] فشل تحميل ${table}:`, error.message);
+    }
     return; // لا نلمس المحلي عند فشل القراءة
   }
   const remote = (data || []).map((row: any) => row.data);
@@ -349,7 +352,9 @@ async function hydrateRowTable(
 async function hydrateKv(pendingKv: Set<string>): Promise<void> {
   const { data, error } = await supabase.from('app_kv').select('key,value');
   if (error) {
-    if (!error.silent) console.error('[sync] فشل تحميل app_kv:', error.message);
+    if (!(error as Error & { silent?: boolean }).silent) {
+      console.error('[sync] فشل تحميل app_kv:', error.message);
+    }
     return;
   }
   const byKey = new Map((data || []).map((row: any) => [row.key, row.value]));
@@ -502,19 +507,33 @@ export function installWriteThrough(): void {
 }
 
 // تهيئة كاملة: أرسل المعلّق ← حمّل (دون طمس المعلّق) ← فعّل الاعتراض
-export async function initSupabaseSync(): Promise<void> {
-  const { pendingTables, pendingKv } = await flushPending();
-  // Convert older deleted quiz records into shared tombstones before hydration.
-  // This prevents stale rows from being merged back from Supabase.
-  prepareDeletedQuizTombstones();
-  await hydrateFromSupabase(pendingTables, pendingKv);
-  installWriteThrough();
+export function initSupabaseSync(): Promise<void> {
+  // React StrictMode and fast remounts can invoke the boot effect twice.
+  // Share one initialization promise so hydration/write-through cannot race.
+  if (syncInitializationPromise) return syncInitializationPromise;
 
-  // دمج الرسائل القديمة بعد hydrate حتى لا تطمس الرسائل المحلية القديمة
-  // نسخة Supabase الحالية، ثم مرّر الدمج عبر write-through لمزامنته.
-  const migratedMessages = mergeLegacyPublicMessages();
-  if (migratedMessages) {
-    window.localStorage.setItem(PUBLIC_MESSAGES_KEY, migratedMessages);
-    nativeRemoveItem(LEGACY_PUBLIC_MESSAGES_KEY);
-  }
+  syncInitializationPromise = (async () => {
+    try {
+      const { pendingTables, pendingKv } = await flushPending();
+      // Convert older deleted quiz records into shared tombstones before hydration.
+      // This prevents stale rows from being merged back from Supabase.
+      prepareDeletedQuizTombstones();
+      await hydrateFromSupabase(pendingTables, pendingKv);
+
+      // دمج الرسائل القديمة بعد hydrate حتى لا تطمس الرسائل المحلية القديمة
+      // نسخة Supabase الحالية، ثم مرّر الدمج عبر write-through لمزامنته.
+      const migratedMessages = mergeLegacyPublicMessages();
+      if (migratedMessages) {
+        window.localStorage.setItem(PUBLIC_MESSAGES_KEY, migratedMessages);
+        nativeRemoveItem(LEGACY_PUBLIC_MESSAGES_KEY);
+      }
+    } catch (error) {
+      // Local data remains usable when the connector is unavailable.
+      console.error('[sync] initialization failed; continuing with local data:', error);
+    } finally {
+      installWriteThrough();
+    }
+  })();
+
+  return syncInitializationPromise;
 }

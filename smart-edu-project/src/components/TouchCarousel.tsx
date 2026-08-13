@@ -64,7 +64,12 @@ const TouchCarousel: React.FC<TouchCarouselProps> = ({
         onScroll={handleMobileScroll}
       >
         {items.map((item, index) => (
-          <div key={index} className="student-swiper-mobile-item h-full min-w-0 snap-center" dir="rtl">
+          <div
+            key={index}
+            className="student-swiper-mobile-item h-full min-w-0 snap-center"
+            data-swiper-no-swiping
+            dir="rtl"
+          >
             {item}
           </div>
         ))}

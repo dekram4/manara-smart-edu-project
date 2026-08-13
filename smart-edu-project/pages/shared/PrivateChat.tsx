@@ -39,11 +39,11 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
     loadMessages();
     loadAdminContact();
     
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       loadMessages();
-    }, 2000);
+    }, 4000);
     
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [selectedContact]);
 
   useEffect(() => {
