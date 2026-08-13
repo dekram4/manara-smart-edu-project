@@ -44,9 +44,12 @@ export function sanitizeGameIframeUrl(value: string): string {
   }
 }
 
-const GAME_DISTRIBUTION_GAME_3_ID = '72d861a52f3c4e788ae0421649633be3';
+// The previous Build a Rollercoaster player rejects embedding from this app.
+// Drift Boss is an openly embedded, mobile-friendly HTML5 car game published
+// by GameDistribution, so keep its direct player URL in the same in-card view.
+const GAME_DISTRIBUTION_GAME_3_ID = '0a8b51e5eaee42e7b4db83ca00afc92e';
 const GAME_DISTRIBUTION_GAME_3_URL_WITH_TRACKING =
-  `https://html5.gamedistribution.com/${GAME_DISTRIBUTION_GAME_3_ID}/?gd_sdk_referrer_url=https%3A%2F%2Fmanara.local%2Fgames&game-path={game-path}`;
+  `https://html5.gamedistribution.com/${GAME_DISTRIBUTION_GAME_3_ID}/?gd_sdk_referrer_url=https%3A%2F%2Fgamedistribution.com%2Fgames%2Fdrift-boss%2F`;
 const EMBEDDED_GAME_3_URL = sanitizeGameIframeUrl(GAME_DISTRIBUTION_GAME_3_URL_WITH_TRACKING);
 
 const GAME_CARDS: Array<{
@@ -78,9 +81,9 @@ const GAME_CARDS: Array<{
   },
   {
     type: 'embedded3',
-    title: 'المستوى الثالث',
-    subtitle: 'اختبر مهارتك في تجربة تفاعلية',
-    icon: '🎲',
+    title: 'سباق السيارات',
+    subtitle: 'تحكم بالسيارة ونفّذ الانعطافات بدقة',
+    icon: '🏎️',
     accent: '#22d3ee',
     gradient: 'from-cyan-400 via-sky-500 to-blue-700',
     requiredLevel: 3,
@@ -108,6 +111,7 @@ const GameIframe = React.forwardRef<HTMLIFrameElement, GameIframeProps>(
       ref={ref}
       sandbox={GAME_FRAME_SANDBOX}
       allow={GAME_FRAME_ALLOW}
+      referrerPolicy="no-referrer"
       width="100%"
       height="100%"
       loading="lazy"
@@ -361,7 +365,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       {activeGame === 'embedded3' && (
         <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-cyan-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
           <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
-            <h3 className="font-black text-white">اللعبة الثالثة</h3>
+            <h3 className="font-black text-white">سباق السيارات</h3>
             <div className="flex items-center gap-2">
               <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
                 {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
@@ -395,7 +399,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
             ) : (
               <GameIframe
                 src={EMBEDDED_GAME_3_URL}
-                title="اللعبة الثالثة"
+                title="سباق السيارات"
                 frameKey={embeddedGameFrameKey}
                 ref={embeddedGameFrameRef}
                 className="h-full w-full border-0"
