@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { STORAGE_KEYS } from '../../constants';
 import { playLamsaSound } from '../../utils/sounds';
@@ -44,6 +44,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
   const [previewVideoId, setPreviewVideoId] = useState<string | null>(null);
   const [currentGems, setCurrentGems] = useState(0);
   const [lockMessage, setLockMessage] = useState('');
+  const activeVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     loadVideos();
@@ -134,6 +135,8 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      activeVideoRef.current?.pause();
+      activeVideoRef.current = null;
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -192,6 +195,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
           >
             <TouchCarousel
               label="فيديوهات سينما منارة"
+              nested
               activeIndex={activeIndex}
               onActiveIndexChange={(index) => {
                 setIsAutoPlaying(false);
@@ -352,7 +356,16 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
             >
               <div className="aspect-video w-full">
                 {getVideoSourceType(activeVideo.sourceType, activeVideo.url) === 'mp4' || isMp4VideoUrl(activeVideo.url) ? (
-                  <video className="h-full w-full" src={activeVideo.url} title={activeVideo.title} controls autoPlay playsInline />
+                   <video
+                     ref={activeVideoRef}
+                     className="h-full w-full"
+                     src={activeVideo.url}
+                     title={activeVideo.title}
+                     controls
+                     autoPlay
+                     playsInline
+                     data-swiper-no-swiping="true"
+                   />
                 ) : (
                   <iframe
                     className="h-full w-full"
@@ -360,6 +373,7 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
                     title={activeVideo.title}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
+                     data-swiper-no-swiping="true"
                   />
                 )}
               </div>

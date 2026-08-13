@@ -197,6 +197,8 @@ table {
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-y: contain;
 }
 
 .student-swiper-mobile::-webkit-scrollbar {
@@ -210,6 +212,100 @@ table {
   height: auto;
 }
 
+.student-swiper-no-swiping,
+[data-swiper-no-swiping="true"] {
+  touch-action: none;
+}
+
+.student-swiper-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: -1rem;
+  position: relative;
+  z-index: 3;
+}
+
+.student-swiper-arrow {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 9999px;
+  background: rgba(15,23,42,0.82);
+  color: white;
+  font-size: 1.75rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.22);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.student-swiper-arrow:hover,
+.student-swiper-arrow:focus-visible {
+  background: rgba(99,102,241,0.92);
+  transform: scale(1.08);
+  outline: none;
+}
+
+.student-swiper-dots {
+  display: flex;
+  max-width: min(50vw, 18rem);
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+.student-swiper-dots span {
+  display: block;
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 9999px;
+  background: rgba(148,163,184,0.55);
+  transition: width 160ms ease, background 160ms ease;
+}
+
+.student-swiper-dots span.is-active {
+  width: 1.25rem;
+  background: #fbbf24;
+}
+
+.game-frame-surface {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.game-frame-surface iframe,
+.game-frame-surface canvas {
+  touch-action: none;
+  user-select: none;
+}
+
+.game-viewport-shell:fullscreen,
+.game-viewport-shell.is-game-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-viewport-shell:fullscreen .game-frame-surface,
+.game-viewport-shell.is-game-fullscreen .game-frame-surface {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+  min-height: 0;
+}
+
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .student-swiper-mobile {
     display: none;
@@ -218,6 +314,10 @@ table {
   .student-swiper-desktop {
     display: grid;
     align-items: stretch;
+  }
+
+  .student-swiper-controls {
+    display: none;
   }
 }
 

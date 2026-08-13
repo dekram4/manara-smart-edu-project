@@ -33,6 +33,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
   const [gameLoading, setGameLoading] = useState(false);
   const [lockedMessage, setLockedMessage] = useState('');
   const gamePanelRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const stats = useMemo(() => getGamificationStats(), [activeGame]);
 
   const openGame = (game: GameType, requiredLevel: number) => {
@@ -48,9 +49,46 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
   };
 
   const closeGame = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
     setActiveGame(null);
     setGameLoading(false);
+    setIsFullscreen(false);
   };
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
+
+  const toggleFullscreen = async () => {
+    const panel = gamePanelRef.current;
+    if (!panel) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await panel.requestFullscreen();
+      }
+    } catch {
+      // iOS Safari may not expose element.requestFullscreen(). Keep the
+      // student in a fixed, app-level fullscreen viewport instead.
+      setIsFullscreen(true);
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === gamePanelRef.current);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   useEffect(() => {
     if (!activeGame) return;
@@ -80,6 +118,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       <TouchCarousel
         label="ألعاب عالم الترفيه"
         trackClassName="grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+        nested
       >
         <button
           type="button"
@@ -98,9 +137,9 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
           </div>
           <h3 className="mt-4 text-2xl font-black text-white">اللعبة الأولى</h3>
           <p className="mt-2 text-sm font-bold text-white/90">لعبة مضمنة داخل منصة منارة.</p>
-          <div className="mt-4 text-xs font-black text-white/95">
-            اضغط لبدء اللعبة
-          </div>
+          <span className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white">
+            ▶ العب الآن
+          </span>
         </button>
 
         <button
@@ -120,9 +159,9 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
           </div>
           <h3 className="mt-4 text-2xl font-black text-white">اللعبة الثانية</h3>
           <p className="mt-2 text-sm font-bold text-white/90">لعبة HTML5 مضمنة داخل منصة منارة.</p>
-          <div className="mt-4 text-xs font-black text-white/95">
-            {stats.level >= 2 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 2'}
-          </div>
+          <span className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white">
+            {stats.level >= 2 ? '▶ العب الآن' : '🔒 تُفتح في المستوى 2'}
+          </span>
         </button>
 
         <button
@@ -142,24 +181,26 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
           </div>
           <h3 className="mt-4 text-2xl font-black text-white">اللعبة الثالثة</h3>
           <p className="mt-2 text-sm font-bold text-white/90">لعبة HTML5 مضمنة داخل منصة منارة.</p>
-          <div className="mt-4 text-xs font-black text-white/95">
-            {stats.level >= 3 ? 'اضغط لبدء اللعبة' : 'تُفتح عند الوصول إلى المستوى 3'}
-          </div>
+          <span className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white">
+            {stats.level >= 3 ? '▶ العب الآن' : '🔒 تُفتح في المستوى 3'}
+          </span>
         </button>
       </TouchCarousel>
 
       {activeGame === 'embedded' && (
-        <div ref={gamePanelRef} className="scroll-mt-6 overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl">
-          <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-amber-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
             <h3 className="font-black text-white">اللعبة الأولى</h3>
-            <button
-              onClick={closeGame}
-              className="rounded-xl bg-white/10 px-4 py-2 font-black text-white hover:bg-white/20"
-            >
-              إغلاق اللعبة
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+                {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
+              </button>
+              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+                ✕ خروج
+              </button>
+            </div>
           </div>
-          <div className="relative aspect-video w-full bg-black">
+          <div className="game-frame-surface relative aspect-video w-full bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
@@ -184,17 +225,19 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       )}
 
       {activeGame === 'embedded2' && (
-        <div ref={gamePanelRef} className="scroll-mt-6 overflow-hidden rounded-3xl border border-fuchsia-300/30 bg-black shadow-2xl">
-          <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-fuchsia-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
             <h3 className="font-black text-white">اللعبة الثانية</h3>
-            <button
-              onClick={closeGame}
-              className="rounded-xl bg-white/10 px-4 py-2 font-black text-white hover:bg-white/20"
-            >
-              إغلاق اللعبة
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+                {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
+              </button>
+              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+                ✕ خروج
+              </button>
+            </div>
           </div>
-          <div className="relative mx-auto aspect-[9/16] w-full max-w-[720px] bg-black">
+          <div className="game-frame-surface relative mx-auto aspect-[9/16] w-full max-w-[720px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
@@ -219,17 +262,19 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
       )}
 
       {activeGame === 'embedded3' && (
-        <div ref={gamePanelRef} className="scroll-mt-6 overflow-hidden rounded-3xl border border-cyan-300/30 bg-black shadow-2xl">
-          <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+        <div ref={gamePanelRef} className={`game-viewport-shell scroll-mt-6 overflow-hidden rounded-3xl border border-cyan-300/30 bg-black shadow-2xl ${isFullscreen ? 'is-game-fullscreen' : ''}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-3">
             <h3 className="font-black text-white">اللعبة الثالثة</h3>
-            <button
-              onClick={closeGame}
-              className="rounded-xl bg-white/10 px-4 py-2 font-black text-white hover:bg-white/20"
-            >
-              إغلاق اللعبة
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={toggleFullscreen} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/20">
+                {isFullscreen ? '↙ تصغير' : '⛶ ملء الشاشة'}
+              </button>
+              <button type="button" onClick={closeGame} className="rounded-xl bg-rose-500/80 px-3 py-2 text-sm font-black text-white hover:bg-rose-500">
+                ✕ خروج
+              </button>
+            </div>
           </div>
-          <div className="relative mx-auto aspect-[4/3] w-full max-w-[800px] bg-black">
+          <div className="game-frame-surface relative mx-auto aspect-[4/3] w-full max-w-[800px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">

@@ -2136,6 +2136,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       </div>
                       <TouchCarousel
                         label="فيديوهات شرح الدرس"
+                        nested
                         activeIndex={explanationVideoIndex}
                         onActiveIndexChange={setExplanationVideoIndex}
                         itemCount={explanationVideos.length}
