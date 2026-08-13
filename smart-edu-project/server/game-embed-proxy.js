@@ -2,6 +2,7 @@ const GAME_IDS = new Set([
   'd4a3629101574bc39bd8f9d1888ca58e',
   '172e0bd0c40442dbae3d4adb42a98433',
   '659090e00bfc4650899550d63f8a130d',
+  'be797a3996324c03b20bad496a82819f',
 ]);
 
 const GAME_HOST = 'https://html5.gamedistribution.com/rvvASMiM';

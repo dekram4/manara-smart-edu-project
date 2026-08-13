@@ -21,7 +21,7 @@ const EMBEDDED_GAME_URL =
 const EMBEDDED_GAME_2_URL =
   '/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html';
 const EMBEDDED_GAME_3_URL =
-  'https://html5.gamedistribution.com/ea3977490e1946809874593467f6157e/?gd_sdk_referrer_url=https://www.example.com/games/{game-path}';
+  '/api/game-embed/be797a3996324c03b20bad496a82819f/index.html';
 
 // Unity games need same-origin access to load their own assets. Keep popup and
 // top-navigation privileges disabled so provider ads cannot replace Manara.
@@ -274,7 +274,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
               </button>
             </div>
           </div>
-          <div className="game-frame-surface relative mx-auto aspect-[4/3] w-full max-w-[800px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
+          <div className="game-frame-surface relative mx-auto aspect-[8/5] w-full max-w-[958px] bg-black" data-swiper-no-swiping="true" onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
             {gameLoading && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80">
                 <span className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
