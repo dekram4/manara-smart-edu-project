@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "منارة المعرفة - MANARA SYSTEM"
+description = "منصة تعليمية ذكية متكاملة تستهدف الطلاب والمعلمين وأولياء الأمور والمشرفين. تتضمن لوحات تحكم تفاعلية وألعاب تعليمية وتتبع التقدم وإدارة المحتوى والتواصل عبر الدردشة الخاصة."
+version = "1.0.0"
+id = "artifacts/manara"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25425
+
+[services.development]
+run = "pnpm --filter @workspace/manara run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/manara", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/manara/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25425"
+BASE_PATH = "/"

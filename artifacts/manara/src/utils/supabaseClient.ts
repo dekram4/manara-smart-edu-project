@@ -1,0 +1,1 @@
+export { isSupabaseAuthConfigured, supabase } from '../supabaseClient';

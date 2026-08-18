@@ -1,56 +1,20 @@
-modules = ["nodejs-20", "php-8.2", "web", "python-3.11"]
-[agent]
-expertMode = true
-stack = "BEST_EFFORT_FALLBACK"
+modules = ["nodejs-24"]
 
-[nix]
-channel = "stable-25_05"
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
 
 [workflows]
 runButton = "Project"
 
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd smart-edu-project && npm run dev:web"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3002
-
-[[ports]]
-localPort = 23636
-externalPort = 3000
-
-[[ports]]
-localPort = 24678
-externalPort = 3001
-
-[deployment]
-deploymentTarget = "autoscale"
-run = ["bash", "-lc", "cd smart-edu-project && npm run start:web"]
-build = ["bash", "-lc", "cd smart-edu-project && npm run build"]
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 180000
+timeoutMs = 20000
