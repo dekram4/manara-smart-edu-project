@@ -11,3 +11,4 @@
 - [Deleted lesson tombstones](deleted-lesson-tombstones.md) — preserve deleted lesson IDs across Supabase hydration so removed content cannot return.
 - [Permission hierarchy](permission-hierarchy.md) — admin policy is the ceiling; teacher and parent overrides cannot grant more than the role policy.
 - [Permission package propagation](permission-package-propagation.md) — nested teacher screens must receive the active package explicitly so every feature uses the same effective permissions.
+- [Post-merge dependency setup](post-merge-setup.md) — install each app's lockfile dependencies before running its post-merge build.
