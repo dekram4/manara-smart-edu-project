@@ -191,7 +191,6 @@ body {
 html, body {
   height: auto;
   min-height: 100%;
-  overflow-x: hidden;
   overflow-y: auto;
   scroll-behavior: smooth;
 }
@@ -200,7 +199,6 @@ html, body {
   min-height: 100vh;
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
 }
 
 /* Every dashboard page must be able to shrink when a phone rotates.

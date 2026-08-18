@@ -137,7 +137,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               {/* Parents Card */}
               <div className="min-h-[130px] bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-2xl shadow-lg border-2 border-purple-200 hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer flex flex-col justify-between"
                    onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
@@ -205,7 +205,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
                 <span className="text-3xl">⚡</span>
                 إجراءات سريعة
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}
                   className="min-h-14 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 px-4 rounded-2xl font-bold text-base transition-all shadow-md hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3 text-center active:scale-95"
@@ -316,12 +316,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col md:flex-row-reverse bg-gradient-to-br from-amber-50 to-orange-50 animate-fadeIn overflow-x-hidden">
+    <div dir="rtl" className="min-h-screen w-full flex flex-col md:flex-row bg-gradient-to-br from-amber-50 to-orange-50 animate-fadeIn">
       {/* Sidebar */}
       {mobileNavOpen && (
         <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
       )}
-       <div className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col overflow-y-auto bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:min-h-screen md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+       <div className={`fixed inset-y-0 right-0 z-50 flex w-64 max-w-[88vw] transform flex-col overflow-y-auto bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:h-screen md:z-auto md:w-64 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 self-start rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
         <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
           <ManaraBrand variant="sidebar" className="text-white" />

@@ -668,12 +668,12 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Render ===== */
   return (
-    <div className="min-h-screen w-full flex flex-col md:flex-row-reverse bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn overflow-x-hidden">
+    <div dir="rtl" className="min-h-screen w-full flex flex-col md:flex-row bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
       {/* ===== SIDEBAR ===== */}
       {mobileNavOpen && (
         <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
       )}
-       <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:min-h-screen md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+       <aside className={`fixed inset-y-0 right-0 z-50 flex w-64 max-w-[88vw] transform flex-col overflow-y-auto bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:h-screen md:z-auto md:w-64 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-rose-800">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
@@ -778,7 +778,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                      { label: 'الخبرة', value: progress.xp, color: 'text-cyan-700', bg: 'border-l-4 border-cyan-500', icon: '⚡' },
                   ];
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                       {stats.map((s, i) => (
                         <div key={i} className={`min-h-[130px] bg-white p-5 rounded-2xl shadow-md ${s.bg} flex flex-col justify-between hover:shadow-lg transition-shadow`}>
                           <div className="flex items-center justify-between gap-3">
@@ -1104,7 +1104,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       .some(filter => filter !== 'all');
                     return (
                       <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                           <label className="text-xs font-black text-rose-700">
                             الطالب
                             <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">

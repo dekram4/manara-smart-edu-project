@@ -33,7 +33,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
         {cards.map((card, i) => (
           <div key={i} className="min-h-[130px] bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col justify-between">
             <div className="flex items-center justify-between gap-3">
