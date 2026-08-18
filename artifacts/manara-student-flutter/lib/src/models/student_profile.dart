@@ -5,6 +5,11 @@ class StudentProfile {
     required this.name,
     required this.role,
     this.grade,
+    this.atram,
+    this.subject,
+    this.term,
+    this.unit,
+    this.teacherId,
     this.studentIdNumber,
     this.appearance,
   });
@@ -20,6 +25,11 @@ class StudentProfile {
       name: _asText(data['name']) ?? _asText(data['fullName']) ?? username,
       role: (_asText(data['role']) ?? _asText(data['userRole']) ?? 'student').toLowerCase(),
       grade: _asText(data['primaryGrade']) ?? _asText(data['grade']),
+      atram: _asText(data['atram']),
+      subject: _asText(data['subject']),
+      term: _asText(data['term']),
+      unit: _asText(data['unit']),
+      teacherId: _asText(data['teacherId']) ?? _asText(data['teacher_id']),
       studentIdNumber: _asText(data['studentIdNumber']),
       appearance: _asMap(data['appearance']),
     );
@@ -36,6 +46,11 @@ class StudentProfile {
       name: _asText(profile['full_name']) ?? _asText(profile['name']) ?? username,
       role: (_asText(profile['role']) ?? '').toLowerCase(),
       grade: _asText(profile['grade']),
+      atram: _asText(profile['atram']),
+      subject: _asText(profile['subject']),
+      term: _asText(profile['term']),
+      unit: _asText(profile['unit']),
+      teacherId: _asText(profile['teacher_id']) ?? _asText(profile['teacherId']),
       studentIdNumber: _asText(profile['student_id_number']),
     );
   }
@@ -45,6 +60,11 @@ class StudentProfile {
   final String name;
   final String role;
   final String? grade;
+  final String? atram;
+  final String? subject;
+  final String? term;
+  final String? unit;
+  final String? teacherId;
   final String? studentIdNumber;
   final Map<String, dynamic>? appearance;
 

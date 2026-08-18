@@ -2,14 +2,17 @@ class SupabaseConfig {
   const SupabaseConfig({
     required this.url,
     required this.anonKey,
+    this.apiBaseUrl = '',
   });
 
   const SupabaseConfig.fromEnvironment()
       : url = const String.fromEnvironment('SUPABASE_URL'),
-        anonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
+        anonKey = const String.fromEnvironment('SUPABASE_ANON_KEY'),
+        apiBaseUrl = const String.fromEnvironment('API_BASE_URL');
 
   final String url;
   final String anonKey;
+  final String apiBaseUrl;
 
   bool get isConfigured => url.trim().isNotEmpty && anonKey.trim().isNotEmpty;
 

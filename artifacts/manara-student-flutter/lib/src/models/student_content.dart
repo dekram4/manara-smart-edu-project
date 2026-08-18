@@ -1,0 +1,63 @@
+enum VideoSourceType { embed, mp4 }
+
+class LessonVideo {
+  const LessonVideo({
+    required this.id,
+    required this.url,
+    required this.sourceType,
+    required this.title,
+    this.description,
+  });
+
+  final String id;
+  final String url;
+  final VideoSourceType sourceType;
+  final String title;
+  final String? description;
+}
+
+class HtmlGame {
+  const HtmlGame({
+    required this.id,
+    required this.url,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String id;
+  final String url;
+  final String title;
+  final String subtitle;
+}
+
+class LessonContent {
+  const LessonContent({
+    required this.id,
+    required this.grade,
+    required this.atram,
+    required this.subject,
+    required this.term,
+    required this.unit,
+    this.ownerId,
+    required this.videos,
+    required this.games,
+    this.lessonText,
+    this.avatarInteractionUrl,
+  });
+
+  final String id;
+  final String grade;
+  final String atram;
+  final String subject;
+  final String term;
+  final String unit;
+  final String? ownerId;
+  final String? lessonText;
+  final String? avatarInteractionUrl;
+  final List<LessonVideo> videos;
+  final List<HtmlGame> games;
+
+  String get scopeLabel => [grade, subject, term, unit]
+      .where((value) => value.trim().isNotEmpty)
+      .join(' • ');
+}

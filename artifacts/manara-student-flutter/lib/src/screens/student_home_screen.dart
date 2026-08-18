@@ -1,22 +1,24 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../widgets/manara_logo.dart';
+import 'student_content_screen.dart';
 import 'login_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
     required this.profile,
     required this.authService,
+    required this.apiBaseUrl,
     super.key,
   });
 
   final StudentProfile profile;
   final StudentAuthService authService;
+  final String apiBaseUrl;
 
   @override
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
@@ -28,7 +30,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   final _pageController = PageController(viewportFraction: 0.86);
   late final AnimationController _ambientController;
   int _activePage = 0;
-  bool _showGamePreview = false;
 
   @override
   void initState() {
@@ -70,6 +71,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
         builder: (_) => LoginScreen(
           authService: widget.authService,
           initializationError: null,
+          apiBaseUrl: widget.apiBaseUrl,
         ),
       ),
       (_) => false,
@@ -147,23 +149,23 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                     child: _HomeSectionCarousel(
                       controller: _pageController,
                       activePage: _activePage,
-                      onPageChanged: (page) => setState(() {
-                        _activePage = page;
-                        if (page != 2) _showGamePreview = false;
-                      }),
+                      onPageChanged: (page) => setState(() => _activePage = page),
                       onSectionPressed: (index) {
-                        setState(() {
-                          _activePage = index;
-                          _showGamePreview = index == 2;
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              index == 2
-                                  ? 'مساحة الألعاب التفاعلية جاهزة لك!'
-                                  : 'بوابة ${_homeSections[index].title} ستتوفر مع محتوى الدرس.',
+                        final modules = [
+                          StudentContentModule.lesson,
+                          StudentContentModule.lesson,
+                          StudentContentModule.games,
+                          StudentContentModule.personality,
+                          StudentContentModule.tutor,
+                        ];
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => StudentContentScreen(
+                              profile: widget.profile,
+                              authService: widget.authService,
+                              apiBaseUrl: widget.apiBaseUrl,
+                              initialModule: modules[index],
                             ),
-                            behavior: SnackBarBehavior.floating,
                           ),
                         );
                       },
@@ -174,16 +176,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                     count: _homeSections.length,
                     activeIndex: _activePage,
                   ),
-                  if (_showGamePreview) ...[
-                    const SizedBox(height: 14),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: const _InteractiveGamePreview()
-                          .animate()
-                          .fadeIn(duration: 350.ms)
-                          .slideY(begin: 0.1),
-                    ),
-                  ],
                   const SizedBox(height: 18),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -242,18 +234,18 @@ class _HomeSection {
 
 const _homeSections = <_HomeSection>[
   _HomeSection(
-    title: 'سينما الشرح',
-    subtitle: 'شرح الدرس الممتع',
-    description: 'شاهد الدرس بطريقة سهلة ومليئة بالحماس.',
+    title: 'شرح الدرس',
+    subtitle: 'تعلم بطريقة ممتعة',
+    description: 'افتح الدرس وشاهد الشرح خطوة بخطوة.',
     icon: Icons.play_lesson_rounded,
     colors: [Color(0xFF9A5B09), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE08A),
   ),
   _HomeSection(
-    title: 'إنجازاتي',
-    subtitle: 'أتابع تقدمي',
-    description: 'شاهد نجومك وجواهرك وخطواتك القادمة.',
-    icon: Icons.emoji_events_rounded,
+    title: 'سينما منارة',
+    subtitle: 'فيديوهات المعلم والمشرف',
+    description: 'اسحب بين الفيديوهات وافتح المشغل بكامل الشاشة.',
+    icon: Icons.movie_filter_rounded,
     colors: [Color(0xFF0B5D66), Color(0xFF0B8693)],
     accent: Color(0xFF9EEBEA),
   ),
@@ -264,6 +256,14 @@ const _homeSections = <_HomeSection>[
     icon: Icons.sports_esports_rounded,
     colors: [Color(0xFF4B267F), Color(0xFF8B5CF6)],
     accent: Color(0xFFE9D5FF),
+  ),
+  _HomeSection(
+    title: 'شخصيتي',
+    subtitle: 'أصنع بطلي',
+    description: 'غيّر شعرك وملابسك واحفظ شخصيتك كاملة الجسم.',
+    icon: Icons.face_retouching_natural_rounded,
+    colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
+    accent: Color(0xFFFFD0DF),
   ),
   _HomeSection(
     title: 'المعلم الافتراضي',
@@ -673,39 +673,6 @@ class _WelcomeCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _InteractiveGamePreview extends StatelessWidget {
-  const _InteractiveGamePreview();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 230,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: const Color(0xFF081426),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF63D9DA).withAlpha(90)),
-      ),
-      child: InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri('about:blank')),
-        initialSettings: InAppWebViewSettings(
-          transparentBackground: true,
-          javaScriptEnabled: false,
-        ),
-        onWebViewCreated: (controller) {
-          controller.loadData(
-            data: '''
-              <html dir="rtl"><body style="margin:0;background:#081426;color:#cdf6f5;font-family:Arial;text-align:center;padding:45px 18px">
-              <h2>مساحة الألعاب التفاعلية</h2><p>سيتم تحميل الألعاب المرتبطة بالدرس هنا.</p>
-              </body></html>
-            ''',
-          );
-        },
       ),
     );
   }

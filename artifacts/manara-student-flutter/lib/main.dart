@@ -32,6 +32,7 @@ Future<void> main() async {
     ManaraStudentApp(
       client: client,
       initializationError: initializationError,
+      apiBaseUrl: config.apiBaseUrl,
     ),
   );
 }
@@ -40,11 +41,13 @@ class ManaraStudentApp extends StatelessWidget {
   const ManaraStudentApp({
     required this.client,
     required this.initializationError,
+    required this.apiBaseUrl,
     super.key,
   });
 
   final SupabaseClient? client;
   final String? initializationError;
+  final String apiBaseUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +92,7 @@ class ManaraStudentApp extends StatelessWidget {
         child: LoginScreen(
           authService: client == null ? null : StudentAuthService(client!),
           initializationError: initializationError,
+          apiBaseUrl: apiBaseUrl,
         ),
       ),
     );

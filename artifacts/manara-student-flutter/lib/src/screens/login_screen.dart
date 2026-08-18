@@ -10,11 +10,13 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({
     required this.authService,
     required this.initializationError,
+    required this.apiBaseUrl,
     super.key,
   });
 
   final StudentAuthService? authService;
   final String? initializationError;
+  final String apiBaseUrl;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -63,6 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (_) => StudentHomeScreen(
             profile: student,
             authService: widget.authService!,
+            apiBaseUrl: widget.apiBaseUrl,
           ),
         ),
       );
