@@ -397,7 +397,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-[30px] shadow-lg border-2 border-yellow-200">
           <div className="text-5xl mb-3">🏆</div>
           <div className="text-3xl font-black text-yellow-900">{students.filter(s => getStudentAverage(s.id) >= 90).length}</div>
@@ -425,7 +425,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
             <p className="text-gray-500 font-bold text-xl">لا توجد نتائج</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredStudents.map((student) => {
               const average = getStudentAverage(student.id);
               const quizCount = allQuizzes.filter(q => q.studentId === student.id).length;

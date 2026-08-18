@@ -311,7 +311,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                       <div className="bg-blue-50 p-3 rounded-xl">
                         <p className="text-xs text-blue-600 font-bold">هوية المعلم</p>
                         <p className="font-black text-blue-900">{teacher.teacherId}</p>

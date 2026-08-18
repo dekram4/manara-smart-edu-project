@@ -781,7 +781,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                      { label: 'الخبرة', value: progress.xp, color: 'text-cyan-700', bg: 'border-l-4 border-cyan-500', icon: '⚡' },
                   ];
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7 gap-3">
                       {stats.map((s, i) => (
                         <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bg} flex items-center gap-3 hover:shadow-lg transition-shadow`}>
                           <div className="text-2xl shrink-0">{s.icon}</div>
@@ -875,7 +875,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           </div>
                           {teacherQuizzes.length > 0 ? (
                             <>
-                              <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 text-center">
                                 <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-rose-400 font-bold">الاختبارات</p><p className="text-xl text-rose-700 font-black">{teacherQuizzes.length}</p></div>
                                 <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-rose-400 font-bold">المعدل</p><p className="text-xl text-rose-700 font-black">{average}%</p></div>
                                 <div className="bg-white rounded-xl p-2"><p className="text-[10px] text-rose-400 font-bold">التقدير</p><p className="text-base text-rose-700 font-black">{average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين'}</p></div>
@@ -916,7 +916,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       </div>
                     );
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                         {subjectsOfChild.map(subObj => {
                           const subQuizzes = qs.filter(q => q.subject === subObj.subject);
                           const avg = subQuizzes.length > 0 ? (subQuizzes.reduce((acc, q) => acc + q.percentage, 0) / subQuizzes.length).toFixed(0) : '0';
@@ -974,7 +974,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     { label: 'الشهادات', value: filteredCertificates.length, sub: 'مصدرة', icon: '🏆', color: 'text-orange-700', bar: 'border-l-4 border-orange-500' },
                   ];
                   return (
-                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
                       {stats.map((s, i) => (
                         <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bar} hover:shadow-lg transition-shadow`}>
                           <div className="flex items-center gap-2 mb-1">
@@ -1105,7 +1105,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       .some(filter => filter !== 'all');
                     return (
                       <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
                           <label className="text-xs font-black text-rose-700">
                             الطالب
                             <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">
@@ -1149,7 +1149,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           </button>
                         )}
                     {filteredResultStudents.length > 0 ? (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                         {filteredResultStudents.map(({ child, results }) => {
                           const average = Math.round(results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length);
                           return (
@@ -1166,7 +1166,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                   🖨️ طباعة
                                 </button>
                               </div>
-                              <div className="grid grid-cols-3 gap-2 mb-2 text-center">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2 text-center">
                                 <div className="bg-white rounded-lg p-2"><p className="text-[9px] text-rose-400 font-bold">المعدل</p><p className="text-base text-rose-700 font-black">{average}%</p></div>
                                 <div className="bg-white rounded-lg p-2"><p className="text-[9px] text-rose-400 font-bold">أعلى</p><p className="text-base text-rose-700 font-black">{Math.max(...results.map(getQuizResultPercentage))}%</p></div>
                                 <div className="bg-white rounded-lg p-2"><p className="text-[9px] text-rose-400 font-bold">التقدير</p><p className="text-[11px] text-rose-700 font-black">{average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين'}</p></div>
@@ -1242,7 +1242,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                 <p className="text-rose-400 text-xs font-bold truncate">{child.primaryGrade || child.grade || 'غير محدد'}</p>
                               </div>
                             </div>
-                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-2 mb-3">
                               <div className="bg-blue-50 p-2 rounded-xl text-center"><p className="text-blue-900 font-black text-sm">{subjs.length}</p><p className="text-blue-500 text-[9px] font-bold">مواد</p></div>
                               <div className="bg-purple-50 p-2 rounded-xl text-center"><p className="text-purple-900 font-black text-sm">{qs.length}</p><p className="text-purple-500 text-[9px] font-bold">اختبارات</p></div>
                               <div className="bg-green-50 p-2 rounded-xl text-center"><p className="text-green-900 font-black text-sm">{avg}%</p><p className="text-green-500 text-[9px] font-bold">معدل</p></div>
@@ -1321,7 +1321,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           <p className="text-rose-200 text-[10px] font-bold">{activeChild.primaryGrade || activeChild.grade}</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-center">
+                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                         <div className="bg-white/10 rounded-lg p-2"><p className="font-black text-sm">{subjectsOfChild.length}</p><p className="text-[9px] text-rose-200 font-bold">مواد</p></div>
                         <div className="bg-white/10 rounded-lg p-2"><p className="font-black text-sm">{qs.length}</p><p className="text-[9px] text-rose-200 font-bold">اختبارات</p></div>
                         <div className="bg-white/10 rounded-lg p-2"><p className="font-black text-sm">{avg}%</p><p className="text-[9px] text-rose-200 font-bold">معدل</p></div>
@@ -1339,10 +1339,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   <div className="space-y-5 pb-4">
                     {/* Profile Card — compact */}
                     <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-5 rounded-2xl shadow-xl text-white">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
                           <div className="text-4xl">👤</div>
-                          <div>
+                          <div className="min-w-0">
                             <h1 className="text-xl font-black">{activeChild.name}</h1>
                             <div className="flex gap-2 flex-wrap mt-1">
                               <span className="bg-white/20 text-white px-2 py-0.5 rounded-full font-bold text-xs">🎓 {activeChild.primaryGrade || activeChild.grade}</span>
@@ -1359,7 +1359,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     </div>
 
                     {/* Quick Stats — compact 3-col */}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
                         <p className="text-blue-900 font-black text-lg">{subjectsOfChild.length}</p>
                         <p className="text-blue-500 text-[10px] font-bold">مواد</p>
@@ -1424,8 +1424,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       <div className="space-y-5 animate-fadeIn">
                         <button onClick={() => setActiveSubject(null)} className="bg-white px-4 py-1.5 rounded-full font-black text-rose-500 border border-rose-200 shadow-sm hover:bg-rose-50 transition-all text-xs">← جميع المواد</button>
                         <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-4 rounded-2xl shadow-xl text-white">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-0">
                               <h2 className="text-lg font-black">📚 {activeSubject}</h2>
                               <div className="flex gap-3 text-rose-200 font-bold text-xs mt-1"><span>{activeChild.name}</span><span>• {activeChild.grade}</span><span>• {activeChild.atram}</span></div>
                             </div>
@@ -1438,7 +1438,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           const subQuizzes = myChildQuizzes.filter(q => q.subject === activeSubject);
                           const avg = subQuizzes.length > 0 ? (subQuizzes.reduce((acc, q) => acc + q.percentage, 0) / subQuizzes.length).toFixed(0) : '0';
                           return (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                               <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-center"><p className="text-emerald-600 text-[10px] font-bold">المعدل</p><p className="text-xl font-black text-emerald-700">{avg}%</p></div>
                               <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center"><p className="text-blue-600 text-[10px] font-bold">أعلى</p><p className="text-xl font-black text-blue-700">{subQuizzes.length > 0 ? Math.max(...subQuizzes.map(q => q.percentage)) : 0}%</p></div>
                               <div className="bg-purple-50 p-3 rounded-xl border border-purple-100 text-center"><p className="text-purple-600 text-[10px] font-bold">أقل</p><p className="text-xl font-black text-purple-700">{subQuizzes.length > 0 ? Math.min(...subQuizzes.map(q => q.percentage)) : 0}%</p></div>

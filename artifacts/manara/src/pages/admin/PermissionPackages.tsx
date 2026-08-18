@@ -194,8 +194,8 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,1.1fr)]">
-        <div className="space-y-3">
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 space-y-3">
           <h2 className="text-xl font-black text-purple-900">إعدادات الصلاحيات المحفوظة — {roleLabels[activeRole]}</h2>
            <p className="text-sm font-bold text-purple-400">
              المحفوظ: {visiblePackages.length} إعدادات — حفظ إعداد جديد لا يحذف الإعدادات السابقة
@@ -223,7 +223,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
           ))}
         </div>
 
-        <form onSubmit={handleSave} className="rounded-3xl border-2 border-purple-100 bg-white p-6 shadow-lg">
+        <form onSubmit={handleSave} className="min-w-0 rounded-3xl border-2 border-purple-100 bg-white p-6 shadow-lg">
           <h2 className="text-xl font-black text-purple-900">
              {editingPackage ? '✏️ تعديل إعداد الصلاحيات' : '✨ إنشاء إعداد صلاحيات'}
           </h2>
@@ -235,9 +235,9 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
           <div className="mt-6 space-y-3">
             <h3 className="font-black text-slate-800">الصلاحيات</h3>
             {Object.entries(draft).filter(([, value]) => typeof value === 'boolean').map(([key, value]) => (
-              <label key={key} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 font-bold text-slate-700">
-                <span>{permissionLabels[key] || key}</span>
-                <input type="checkbox" checked={Boolean(value)} onChange={() => togglePermission(key)} className="h-5 w-5 accent-purple-600" />
+              <label key={key} className="flex min-w-0 flex-wrap cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 font-bold text-slate-700">
+                <span className="min-w-0 flex-1 break-words">{permissionLabels[key] || key}</span>
+                <input type="checkbox" checked={Boolean(value)} onChange={() => togglePermission(key)} className="h-5 w-5 shrink-0 accent-purple-600" />
               </label>
             ))}
           </div>

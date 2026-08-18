@@ -578,7 +578,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
 
       {/* My Settings Tab */}
       {activeTab === 'my' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '25px', marginTop: '25px' }}>
+        <div className="dashboard-academic-editor-grid" style={{ marginTop: '25px' }}>
           {/* Form Section */}
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>إنشاء الهيكل الأكاديمي</h3>
@@ -716,7 +716,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
           </div>
 
           {/* Display Section */}
-          <div style={{ ...styles.card, maxHeight: '800px', overflowY: 'auto' }}>
+          <div className="teacher-academic-config-list" style={styles.card}>
             <h3 style={styles.cardTitle}>إعداداتي الحالية</h3>
             
             {myConfigs.length === 0 ? (

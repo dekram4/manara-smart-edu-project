@@ -702,11 +702,100 @@ table {
   overflow: visible;
 }
 
+.dashboard-main .grid > *,
+.dashboard-main .flex > *,
+.dashboard-main label,
+.dashboard-main form {
+  min-width: 0;
+}
+
+.dashboard-main input,
+.dashboard-main select,
+.dashboard-main textarea {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.dashboard-main .overflow-x-auto {
+  min-width: 0;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-main table:not(.dashboard-report-table) {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.dashboard-main table:not(.dashboard-report-table) th,
+.dashboard-main table:not(.dashboard-report-table) td {
+  max-width: 18rem;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.dashboard-main .truncate {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .dashboard-content {
   width: 100%;
   max-width: 80rem;
   margin-inline: auto;
   min-width: 0;
+}
+
+.dashboard-report-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-report-table {
+  width: 100%;
+  min-width: 1100px;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  line-height: 1.5;
+}
+
+.dashboard-report-table th,
+.dashboard-report-table td {
+  min-width: 7rem;
+  padding: 0.75rem 1rem;
+  vertical-align: middle;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.dashboard-report-table th {
+  background: #f3f4f6;
+  font-weight: 900;
+}
+
+.dashboard-report-table td:nth-child(1),
+.dashboard-report-table td:nth-child(2),
+.dashboard-report-table td:nth-child(7) {
+  white-space: normal;
+  min-width: 10rem;
+  max-width: 15rem;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 767px) {
@@ -728,5 +817,53 @@ table {
   .dashboard-main {
     width: 100%;
     min-height: 100vh;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .dashboard-sidebar {
+    flex-basis: 17rem;
+    width: 17rem;
+  }
+}
+
+.dashboard-academic-settings-grid,
+.dashboard-academic-editor-grid {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.dashboard-academic-settings-grid {
+  grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-academic-editor-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.dashboard-academic-scroll {
+  max-height: min(600px, calc(100dvh - 12rem));
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.teacher-academic-config-list {
+  max-height: min(800px, calc(100dvh - 12rem));
+  overflow-y: auto;
+  min-height: 0;
+}
+
+@media (max-width: 767px) {
+  .dashboard-academic-settings-grid,
+  .dashboard-academic-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-academic-scroll,
+  .teacher-academic-config-list {
+    max-height: none;
+    overflow: visible;
   }
 }

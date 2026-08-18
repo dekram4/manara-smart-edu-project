@@ -984,7 +984,7 @@ ${contentSummary}
             </div>
 
             {/* الاختيارات الأكاديمية */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5">
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
               {/* الصف */}
               <select
                 value={quizFormData.grade}
@@ -1068,7 +1068,7 @@ ${contentSummary}
             )}
 
             {/* إعدادات الاختبار */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {/* نوع الاختبار */}
               <div>
                 <label className="block font-black text-purple-900 mb-2">🎯 نوع الاختبار</label>
@@ -1158,7 +1158,7 @@ ${contentSummary}
                         <div key={q.id} className="bg-purple-50 p-4 rounded-2xl border-2 border-purple-200 flex justify-between items-start">
                           <div className="flex-1">
                             <p className="font-bold text-purple-800 mb-2">{idx + 1}. {q.question}</p>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                               {q.options.map((opt, i) => (
                                 <div 
                                   key={i}
@@ -1306,7 +1306,7 @@ ${contentSummary}
                           {quiz.questions.map((q, idx) => (
                             <div key={idx} className="bg-purple-50 p-4 rounded-2xl border-2 border-purple-200">
                               <p className="font-bold text-purple-800 mb-2">{idx + 1}. {q.question}</p>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                                 {q.options.map((opt, i) => (
                                   <div 
                                     key={i}

@@ -840,15 +840,13 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
       {/* للمشرف فقط: قائمة المعلمين */}
       {!teacherId && (
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '25px', marginBottom: '25px' }}>
+        <div className="dashboard-academic-settings-grid">
           {/* القائمة الجانبية */}
           <div style={{ 
             backgroundColor: 'white', 
             padding: '20px', 
             borderRadius: '16px', 
             border: '2px solid #818cf8',
-            maxHeight: '600px',
-            overflowY: 'auto'
           }}>
             <h3 style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#4338ca', marginBottom: '15px' }}>
               👨‍🏫 المعلمون
@@ -987,7 +985,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '25px' }}>
+      <div className="dashboard-academic-editor-grid">
         {/* قسم التكوين */}
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', height: 'fit-content' }}>
           <h3 style={{ fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '20px', color: '#111827' }}>بناء التكوين الهرمي</h3>

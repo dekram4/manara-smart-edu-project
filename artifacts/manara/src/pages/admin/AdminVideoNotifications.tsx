@@ -101,7 +101,7 @@ const AdminVideoNotifications: React.FC = () => {
             مسح الفلاتر
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
             <option value="">🎓 كل الصفوف</option>
             {filterOptions.grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}

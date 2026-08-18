@@ -521,17 +521,17 @@ const Reports: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 animate-fadeIn sm:space-y-8 lg:space-y-12">
+    <div className="w-full max-w-7xl mx-auto space-y-6 animate-fadeIn">
       <div>
-        <h1 className="text-4xl font-black text-purple-900">مركز التقارير</h1>
-        <p className="text-purple-500 font-bold mt-2 text-lg">استخرج إحصائيات دقيقة وشاملة حول أداء المنصة</p>
+        <h1 className="text-3xl sm:text-4xl font-black text-purple-900 leading-10">مركز التقارير</h1>
+        <p className="text-purple-500 font-bold mt-2 text-base sm:text-lg leading-7">استخرج إحصائيات دقيقة وشاملة حول أداء المنصة</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-         <div className="bg-white p-5 rounded-[28px] shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-2xl hover:-translate-y-2 transition-all sm:p-8 sm:rounded-[40px] lg:p-10 lg:rounded-[50px]">
-           <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] bg-blue-50 text-6xl transition-transform group-hover:scale-110 sm:mb-8 sm:h-32 sm:w-32 sm:rounded-[40px] sm:text-8xl">👨‍🎓</div>
-          <h3 className="text-2xl font-black text-purple-800 mb-4">تقرير الطلاب</h3>
-          <p className="text-purple-400 font-bold mb-6 flex-1">بيانات الطلاب الأكاديمية وحالة التسجيل والصفوف</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-5">
+         <div className="min-w-0 bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-md transition-all">
+           <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 text-5xl">👨‍🎓</div>
+          <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">تقرير الطلاب</h3>
+          <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">بيانات الطلاب الأكاديمية وحالة التسجيل والصفوف</p>
           
           <div className="w-full mb-4 text-right space-y-3">
             <div>
@@ -586,10 +586,10 @@ const Reports: React.FC = () => {
           >🖨️ طباعة التقرير</button>
         </div>
 
-         <div className="bg-white p-5 rounded-[28px] shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-2xl hover:-translate-y-2 transition-all sm:p-8 sm:rounded-[40px] lg:p-10 lg:rounded-[50px]">
-           <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] bg-emerald-50 text-6xl transition-transform group-hover:scale-110 sm:mb-8 sm:h-32 sm:w-32 sm:rounded-[40px] sm:text-8xl">📝</div>
-          <h3 className="text-2xl font-black text-purple-800 mb-4">نتائج الاختبارات</h3>
-          <p className="text-purple-400 font-bold mb-10 flex-1">تحليل شامل لنتائج جميع الطلاب في مختلف المواد والوحدات</p>
+         <div className="min-w-0 bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-md transition-all">
+           <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-50 text-5xl">📝</div>
+          <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">نتائج الاختبارات</h3>
+          <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">تحليل شامل لنتائج جميع الطلاب في مختلف المواد والوحدات</p>
           <div className="w-full mb-4 text-right">
             <label className="text-sm font-bold text-purple-700 mr-2">تصفية حسب الطالب</label>
             <select value={selectedStudentId} onChange={e => setSelectedStudentId(e.target.value)} className="p-3 rounded-lg border-2 border-emerald-100">
@@ -603,10 +603,10 @@ const Reports: React.FC = () => {
           >🖨️ طباعة التقرير</button>
         </div>
 
-         <div className="bg-white p-5 rounded-[28px] shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-2xl hover:-translate-y-2 transition-all sm:p-8 sm:rounded-[40px] lg:p-10 lg:rounded-[50px]">
-           <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] bg-purple-50 text-6xl transition-transform group-hover:scale-110 sm:mb-8 sm:h-32 sm:w-32 sm:rounded-[40px] sm:text-8xl">📈</div>
-          <h3 className="text-2xl font-black text-purple-800 mb-4">تقرير التفاعل</h3>
-          <p className="text-purple-400 font-bold mb-6 flex-1">سجل تفاعلات الطلاب مع المحتوى (الأفاتار، الفيديو)</p>
+         <div className="min-w-0 bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-md transition-all">
+           <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-purple-50 text-5xl">📈</div>
+          <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">تقرير التفاعل</h3>
+          <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">سجل تفاعلات الطلاب مع المحتوى (الأفاتار، الفيديو)</p>
           <button
             onClick={() => handlePrint('interactions')}
             className="w-full bg-purple-600 text-white py-5 rounded-[25px] font-black text-xl hover:bg-purple-700 shadow-xl shadow-purple-100 transition-all"

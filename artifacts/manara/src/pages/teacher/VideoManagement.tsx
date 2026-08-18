@@ -548,7 +548,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             مسح الفلاتر
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
             <option value="">🎓 كل الصفوف</option>
             {filterOptions.grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
@@ -745,7 +745,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             </div>
           )}
 
-          <div className="order-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="order-1 grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
             <select
               value={formData.grade}
               onChange={e => updateAcademicField('grade', e.target.value)}
@@ -802,7 +802,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         </form>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
         {filteredVideos.map((video) => {
           return (
             <div key={video.id} className="bg-white rounded-[30px] shadow-xl border-2 border-amber-100 overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all group">

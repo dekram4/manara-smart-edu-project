@@ -525,7 +525,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         <div className="bg-white p-8 rounded-[40px] shadow-lg border animate-fadeIn border-purple-100">
           <h2 className="text-xl font-black text-purple-800 mb-6">{editingLesson ? 'تعديل المحتوى' : 'إضافة محتوى جديد'}</h2>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
               {/* الصف - Grade */}
               <select value={formData.grade} onChange={e => {
                 const newGrade = e.target.value;
