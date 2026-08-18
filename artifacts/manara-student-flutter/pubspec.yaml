@@ -1,0 +1,29 @@
+name: manara_student
+description: تطبيق منارة المعرفة المخصص للطلاب.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  supabase_flutter: ^2.8.0
+  flutter_animate: ^4.5.2
+  audioplayers: ^6.1.0
+  flutter_inappwebview: ^6.1.5
+  google_fonts: ^6.2.1
+  crypto: ^3.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/manara-logo-mark-transparent.png
+    - assets/audio/manara-login-chime.mp3
+    - assets/audio/manara-arabic-student-welcome.mp3
