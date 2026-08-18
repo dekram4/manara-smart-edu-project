@@ -668,12 +668,12 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Render ===== */
   return (
-    <div dir="rtl" className="min-h-screen w-full flex flex-col md:flex-row bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
+    <div className="flex min-h-screen bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn overflow-x-hidden">
       {/* ===== SIDEBAR ===== */}
       {mobileNavOpen && (
         <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
       )}
-       <aside className={`fixed inset-y-0 right-0 z-50 flex w-64 max-w-[88vw] transform flex-col overflow-y-auto bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:h-screen md:z-auto md:w-64 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:static md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-rose-800">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
@@ -733,7 +733,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       </aside>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="min-w-0 flex-1 min-h-screen overflow-y-auto p-6 sm:p-7 lg:p-8 space-y-6 safe-area-x safe-area-bottom">
+      <main className="min-w-0 flex-1 p-4 sm:p-6 md:p-10 overflow-y-auto safe-area-x safe-area-bottom">
         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-rose-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
 
         {/* ---------- DASHBOARD ---------- */}
@@ -778,14 +778,14 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                      { label: 'الخبرة', value: progress.xp, color: 'text-cyan-700', bg: 'border-l-4 border-cyan-500', icon: '⚡' },
                   ];
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
                       {stats.map((s, i) => (
-                        <div key={i} className={`min-h-[130px] bg-white p-5 rounded-2xl shadow-md ${s.bg} flex flex-col justify-between hover:shadow-lg transition-shadow`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-3xl">{s.icon}</div>
-                            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                        <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bg} flex items-center gap-3 hover:shadow-lg transition-shadow`}>
+                          <div className="text-2xl shrink-0">{s.icon}</div>
+                          <div>
+                            <p className="text-[10px] font-bold text-rose-400 uppercase">{s.label}</p>
+                            <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
                           </div>
-                          <p className="text-sm font-bold text-rose-500 leading-relaxed">{s.label}</p>
                         </div>
                       ))}
                     </div>
@@ -971,17 +971,15 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     { label: 'الشهادات', value: filteredCertificates.length, sub: 'مصدرة', icon: '🏆', color: 'text-orange-700', bar: 'border-l-4 border-orange-500' },
                   ];
                   return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                       {stats.map((s, i) => (
-                         <div key={i} className={`min-h-[130px] bg-white p-5 rounded-2xl shadow-md ${s.bar} flex flex-col justify-between hover:shadow-lg transition-shadow`}>
-                           <div className="flex items-center justify-between gap-2">
-                             <span className="text-2xl">{s.icon}</span>
-                             <span className={`text-2xl font-bold ${s.color}`}>{s.value}</span>
+                        <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bar} hover:shadow-lg transition-shadow`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">{s.icon}</span>
+                            <span className="text-[10px] font-bold text-rose-400 uppercase">{s.label}</span>
                           </div>
-                           <div>
-                             <p className="text-sm font-bold text-rose-500 leading-relaxed">{s.label}</p>
-                             <p className="text-xs text-rose-400 font-bold leading-relaxed">{s.sub}</p>
-                           </div>
+                          <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                          <p className="text-[10px] text-rose-400 font-bold mt-0.5">{s.sub}</p>
                         </div>
                       ))}
                     </div>
@@ -1104,7 +1102,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       .some(filter => filter !== 'all');
                     return (
                       <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                           <label className="text-xs font-black text-rose-700">
                             الطالب
                             <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">
@@ -1276,7 +1274,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- CHILDREN (dropdown + detail) ---------- */}
         {menuType === ParentMenuType.CHILDREN && (
-          <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 animate-fadeIn">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Left sidebar — dropdown selector */}
             <div className="w-full lg:w-72 bg-white rounded-2xl shadow-md border border-rose-100 p-4 flex flex-col shrink-0 overflow-hidden">
               <h3 className="text-xs font-black text-rose-700 mb-3 border-b border-rose-100 pb-2 flex items-center gap-2">
@@ -1332,8 +1330,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
 
             {/* Main detail area */}
-            <div className="min-w-0 flex-1 flex flex-col">
-              <div className="flex-1 pr-1">
+            <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto pr-1 min-h-0">
                 {activeChild ? (
                   <div className="space-y-5 pb-4">
                     {/* Profile Card — compact */}
@@ -1358,27 +1356,18 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     </div>
 
                     {/* Quick Stats — compact 3-col */}
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                       <div className="min-h-[130px] bg-blue-50 p-5 rounded-2xl border border-blue-100 flex flex-col justify-between">
-                         <span className="text-3xl">📚</span>
-                         <div>
-                           <p className="text-blue-900 text-2xl font-bold">{subjectsOfChild.length}</p>
-                           <p className="text-blue-500 text-sm font-bold leading-relaxed">مواد</p>
-                         </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
+                        <p className="text-blue-900 font-black text-lg">{subjectsOfChild.length}</p>
+                        <p className="text-blue-500 text-[10px] font-bold">مواد</p>
                       </div>
-                       <div className="min-h-[130px] bg-purple-50 p-5 rounded-2xl border border-purple-100 flex flex-col justify-between">
-                         <span className="text-3xl">📝</span>
-                         <div>
-                           <p className="text-purple-900 text-2xl font-bold">{myChildQuizzes.length}</p>
-                           <p className="text-purple-500 text-sm font-bold leading-relaxed">اختبارات</p>
-                         </div>
+                      <div className="bg-purple-50 p-3 rounded-xl border border-purple-100 text-center">
+                        <p className="text-purple-900 font-black text-lg">{myChildQuizzes.length}</p>
+                        <p className="text-purple-500 text-[10px] font-bold">اختبارات</p>
                       </div>
-                       <div className="min-h-[130px] bg-green-50 p-5 rounded-2xl border border-green-100 flex flex-col justify-between">
-                         <span className="text-3xl">📊</span>
-                         <div>
-                           <p className="text-green-900 text-2xl font-bold">{myChildQuizzes.length > 0 ? (myChildQuizzes.reduce((acc, q) => acc + q.percentage, 0) / myChildQuizzes.length).toFixed(0) : '0'}%</p>
-                           <p className="text-green-500 text-sm font-bold leading-relaxed">معدل</p>
-                         </div>
+                      <div className="bg-green-50 p-3 rounded-xl border border-green-100 text-center">
+                        <p className="text-green-900 font-black text-lg">{myChildQuizzes.length > 0 ? (myChildQuizzes.reduce((acc, q) => acc + q.percentage, 0) / myChildQuizzes.length).toFixed(0) : '0'}%</p>
+                        <p className="text-green-500 text-[10px] font-bold">معدل</p>
                       </div>
                     </div>
 
@@ -1568,11 +1557,11 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- CERTIFICATES ---------- */}
         {menuType === ParentMenuType.CERTIFICATES && (
-          <div className="flex flex-col lg:flex-row gap-4 animate-fadeIn">
+          <div className="flex flex-col lg:flex-row gap-4 animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Inner sidebar — children list */}
-            <div className="w-full lg:w-56 bg-white rounded-2xl shadow-md border border-rose-100 p-3 flex flex-col shrink-0">
+            <div className="w-full lg:w-56 bg-white rounded-2xl shadow-md border border-rose-100 p-3 flex flex-col shrink-0 overflow-hidden">
               <h3 className="text-xs font-black text-rose-700 mb-2 border-b border-rose-100 pb-2">👨‍👧 الأبناء</h3>
-              <div className="space-y-2">
+              <div className="flex-1 overflow-y-auto space-y-2">
                 <button
                   onClick={() => setCertSelectedChild(null)}
                   className={`w-full text-right p-2 rounded-xl transition-all text-xs font-bold ${!certSelectedChild ? 'bg-rose-500 text-white shadow-sm' : 'hover:bg-rose-50 text-rose-700'}`}
@@ -1594,7 +1583,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
 
             {/* Main certificates area */}
-            <div className="min-w-0 flex-1 flex flex-col">
+            <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
               {/* Filter bar */}
               <div className="bg-white p-3 rounded-2xl shadow-md border border-rose-100 mb-3 shrink-0">
                 <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-center">
@@ -1626,7 +1615,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               </div>
 
               {/* Certificates grid */}
-              <div>
+              <div className="flex-1 overflow-y-auto">
                 {filteredCertificates.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2">
                     {filteredCertificates.map((cert, idx) => (

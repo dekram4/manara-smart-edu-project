@@ -246,9 +246,6 @@ const App: React.FC = () => {
       removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     }
     setSessionReady(true);
-    // The dashboard must remain usable while the remote sync warms up.
-    // Local data and the role selector are available before Supabase finishes.
-    setBooting(false);
 
     let bootTimeoutId: number | undefined;
     (async () => {
@@ -322,7 +319,7 @@ const App: React.FC = () => {
   }
 
   return (
-      <div dir="rtl" className="min-h-screen w-full overflow-visible font-tajawal">
+    <div className="min-h-screen font-tajawal">
       <ScrollDownButton />
       <GameControls />
       <DashboardErrorBoundary key={mainView}>

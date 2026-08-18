@@ -18,8 +18,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
   ];
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-10 animate-fadeIn">
+      <div className="flex justify-between items-end">
         <div>
           <h1 className="text-4xl font-black text-purple-900">نظرة عامة</h1>
           <p className="text-purple-500 mt-2">إليك ملخص سريع لأداء المنصة التعليمية اليوم</p>
@@ -33,18 +33,14 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-5 lg:gap-6">
         {cards.map((card, i) => (
-          <div key={i} className="bg-white/90 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[130px]">
-            <div className="flex items-center justify-between w-full">
-              <span className="text-sm font-semibold text-slate-600">{card.label}</span>
-              <div className={`p-2.5 rounded-xl ${card.color} text-2xl`}>
-                {card.icon}
-              </div>
+          <div key={i} className="bg-white p-5 rounded-[28px] shadow-sm border border-purple-100 flex flex-col items-center text-center sm:p-8 sm:rounded-[32px]">
+            <div className={`w-16 h-16 rounded-2xl ${card.color} flex items-center justify-center text-3xl mb-4`}>
+              {card.icon}
             </div>
-            <div className="mt-2">
-              <span className="text-3xl font-extrabold text-slate-800">{card.value}</span>
-            </div>
+            <p className="text-purple-400 font-medium text-sm">{card.label}</p>
+            <p className="text-4xl font-black text-purple-900 mt-1">{card.value}</p>
           </div>
         ))}
       </div>
