@@ -456,28 +456,28 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   });
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn">
       <div style={styles.header}>
         <h1 style={styles.title}>إدارة الحسابات</h1>
         <p style={styles.subtitle}>إدارة حسابات الطلاب وأولياء الأمور</p>
       </div>
 
-      <div style={styles.quickAddContainer}>
-        <div style={styles.quickAddHeader}>
+       <div style={styles.quickAddContainer}>
+         <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
           <h3 style={styles.quickAddTitle}>إضافة حساب جديد</h3>
-          <div style={styles.quickAddButtons}>
-            <button onClick={() => quickAddAccount('student')} style={styles.quickAddButton}>👨‍🎓 إضافة طالب</button>
-            <button onClick={() => quickAddAccount('parent')} style={{...styles.quickAddButton, backgroundColor: COLORS.secondary}}>👨‍👦 إضافة ولي أمر</button>
+           <div className="flex flex-wrap gap-2">
+             <button onClick={() => quickAddAccount('student')} className="py-3 px-4 rounded-xl bg-blue-600 text-white font-bold inline-flex items-center gap-3">👨‍🎓 إضافة طالب</button>
+             <button onClick={() => quickAddAccount('parent')} className="py-3 px-4 rounded-xl bg-green-600 text-white font-bold inline-flex items-center gap-3">👨‍👦 إضافة ولي أمر</button>
           </div>
         </div>
-        <div style={styles.quickAddStats}>
-          <div style={styles.statCard}>
-             <div style={styles.statIcon}>👨‍🎓</div>
-             <div style={styles.statContent}><div style={styles.statValue}>{students.length}</div><div style={styles.statLabel}>طالب</div></div>
+         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+           <div className="h-auto min-h-[130px] py-4 px-5 rounded-2xl bg-blue-50 border border-blue-100 flex flex-col justify-between">
+              <div className="text-3xl">👨‍🎓</div>
+              <div><div className="text-2xl font-bold text-blue-900">{students.length}</div><div className="text-sm font-bold text-blue-600 leading-relaxed">طالب</div></div>
           </div>
-          <div style={styles.statCard}>
-             <div style={styles.statIcon}>👨‍👦</div>
-             <div style={styles.statContent}><div style={styles.statValue}>{parents.length}</div><div style={styles.statLabel}>ولي أمر</div></div>
+           <div className="h-auto min-h-[130px] py-4 px-5 rounded-2xl bg-green-50 border border-green-100 flex flex-col justify-between">
+              <div className="text-3xl">👨‍👦</div>
+              <div><div className="text-2xl font-bold text-green-900">{parents.length}</div><div className="text-sm font-bold text-green-600 leading-relaxed">ولي أمر</div></div>
           </div>
         </div>
       </div>
@@ -575,8 +575,8 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       )}
 
       <div style={styles.controlsCard}>
-        <div style={styles.controlsHeader}>
-          <div style={styles.searchContainer}>
+         <div className="flex flex-wrap gap-4 items-center">
+           <div className="flex-1 min-w-[240px]">
             <input 
               type="text" 
               value={searchTerm} 
@@ -585,7 +585,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
               placeholder="بحث عن اسم أو هوية..." 
             />
           </div>
-          <div style={styles.tabButtons}>
+           <div className="flex flex-wrap gap-2">
             <button onClick={() => setActiveTab('students')} style={{...styles.tabButton, backgroundColor: activeTab === 'students' ? COLORS.primary : '#f3f4f6', color: activeTab === 'students' ? 'white' : COLORS.dark }}>الطلاب</button>
             <button onClick={() => setActiveTab('parents')} style={{...styles.tabButton, backgroundColor: activeTab === 'parents' ? COLORS.primary : '#f3f4f6', color: activeTab === 'parents' ? 'white' : COLORS.dark }}>أولياء الأمور</button>
           </div>
@@ -641,7 +641,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border shadow-sm overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm p-6 overflow-x-auto">
          <table className="w-full min-w-[900px] text-right">
            <thead className="bg-purple-50 border-b">
               <tr>
@@ -742,12 +742,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                       )}
                     </td>
                   )}
-                  <td className="p-4 space-x-2 space-x-reverse">
-                    {activeTab === 'students' && (
-                      <button onClick={() => handleResetStudentCounter(item as StudentInfo)} className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg font-bold text-xs">تصفير العداد</button>
-                    )}
-                    <button onClick={() => activeTab === 'students' ? handleEditStudent(item) : handleEditParent(item)} className="bg-yellow-50 text-yellow-600 px-3 py-1 rounded-lg font-bold text-xs">تعديل</button>
-                    <button onClick={() => activeTab === 'students' ? handleDeleteStudent(item.id) : handleDeleteParent(item.id)} className="bg-red-50 text-red-600 px-3 py-1 rounded-lg font-bold text-xs">حذف</button>
+                   <td className="p-4">
+                     <div className="flex flex-wrap items-center gap-2">
+                       {activeTab === 'students' && (
+                         <button onClick={() => handleResetStudentCounter(item as StudentInfo)} className="bg-indigo-50 text-indigo-600 py-2 px-3 rounded-xl font-bold text-xs whitespace-nowrap">تصفير العداد</button>
+                       )}
+                       <button onClick={() => activeTab === 'students' ? handleEditStudent(item) : handleEditParent(item)} className="bg-yellow-50 text-yellow-600 py-2 px-3 rounded-xl font-bold text-xs whitespace-nowrap">تعديل</button>
+                       <button onClick={() => activeTab === 'students' ? handleDeleteStudent(item.id) : handleDeleteParent(item.id)} className="bg-red-50 text-red-600 py-2 px-3 rounded-xl font-bold text-xs whitespace-nowrap">حذف</button>
+                     </div>
                   </td>
                 </tr>
               ))}

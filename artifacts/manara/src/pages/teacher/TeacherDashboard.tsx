@@ -316,12 +316,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gradient-to-br from-amber-50 to-orange-50 animate-fadeIn overflow-y-auto overflow-x-hidden">
+    <div className="min-h-screen w-full flex flex-col md:flex-row-reverse bg-gradient-to-br from-amber-50 to-orange-50 animate-fadeIn overflow-x-hidden">
       {/* Sidebar */}
       {mobileNavOpen && (
         <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
       )}
-       <div className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col overflow-y-auto bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:h-screen md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+       <div className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col overflow-y-auto bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:min-h-screen md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 self-start rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
         <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
           <ManaraBrand variant="sidebar" className="text-white" />
@@ -429,7 +429,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       </div>
 
       {/* Main Content */}
-        <div className="min-w-0 flex-1 p-6 sm:p-7 lg:p-8 space-y-6 safe-area-x safe-area-bottom">
+        <div className="min-w-0 flex-1 min-h-screen overflow-y-auto p-6 sm:p-7 lg:p-8 space-y-6 safe-area-x safe-area-bottom">
         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 min-h-11 rounded-xl bg-amber-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         {renderContent()}
       </div>

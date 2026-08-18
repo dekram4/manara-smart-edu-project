@@ -319,7 +319,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen font-tajawal">
+    <div className="min-h-screen w-full overflow-visible font-tajawal">
       <ScrollDownButton />
       <GameControls />
       <DashboardErrorBoundary key={mainView}>

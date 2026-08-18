@@ -451,18 +451,16 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   return (
     <div className="space-y-6">
       {/* العنوان والبحث */}
-      <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 rounded-2xl text-white shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-black mb-2">👥 إدارة أولياء الأمور والطلاب</h1>
-            <p className="text-blue-100 font-medium">
+      <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl text-white shadow-lg overflow-hidden">
+        <div className="px-6 py-4">
+          <h1 className="text-2xl sm:text-3xl font-black">👥 إدارة أولياء الأمور والطلاب</h1>
+          <p className="text-blue-100 font-medium mt-1 leading-relaxed">
               يمكنك إنشاء حسابات أولياء الأمور وإضافة الطلاب لهم
-            </p>
-          </div>
+          </p>
         </div>
-        {/* حقل البحث */}
-        <div className="mt-4">
-          <div className="relative">
+        <div className="bg-orange-600/20 px-4 sm:px-6 py-4 flex flex-wrap gap-4 items-center">
+          {/* حقل البحث */}
+          <div className="relative flex-[2] min-w-[280px]">
             <input
               type="text"
               value={searchQuery}
@@ -479,10 +477,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               </button>
             )}
           </div>
-        </div>
-        {/* قوائم منسدلة لأولياء الأمور والطلاب */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
+          {/* قوائم منسدلة لأولياء الأمور والطلاب */}
+          <div className="flex-1 min-w-[220px]">
             <label className="text-white/70 text-xs font-bold mb-1 block">👨‍👩‍👧‍👦 ولي الأمر</label>
             <select
               value={selectedParentId}
@@ -495,7 +491,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               ))}
             </select>
           </div>
-          <div>
+          <div className="flex-1 min-w-[220px]">
             <label className="text-white/70 text-xs font-bold mb-1 block">🎓 الطالب</label>
             <select
               value={selectedStudentId}
@@ -512,32 +508,36 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       </div>
 
       {/* إحصائيات */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-2xl text-white shadow-lg">
-          <div className="text-5xl mb-2">👨‍👩‍👧‍👦</div>
-          <div className="text-3xl font-black">{parents.length}</div>
-          <div className="text-green-100 font-medium">ولي أمر</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="h-auto min-h-[130px] bg-gradient-to-br from-green-500 to-green-600 py-4 px-5 rounded-2xl text-white shadow-lg flex flex-col justify-between">
+          <div className="text-4xl">👨‍👩‍👧‍👦</div>
+          <div>
+            <div className="text-2xl font-bold">{parents.length}</div>
+            <div className="text-green-100 font-medium leading-relaxed">ولي أمر</div>
+          </div>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-2xl text-white shadow-lg">
-          <div className="text-5xl mb-2">🎓</div>
-          <div className="text-3xl font-black">{students.length}</div>
-          <div className="text-blue-100 font-medium">طالب</div>
+        <div className="h-auto min-h-[130px] bg-gradient-to-br from-blue-500 to-blue-600 py-4 px-5 rounded-2xl text-white shadow-lg flex flex-col justify-between">
+          <div className="text-4xl">🎓</div>
+          <div>
+            <div className="text-2xl font-bold">{students.length}</div>
+            <div className="text-blue-100 font-medium leading-relaxed">طالب</div>
+          </div>
         </div>
       </div>
 
       {/* قسم أولياء الأمور */}
-      <div className="bg-white p-6 rounded-2xl shadow-lg">
+      <div className="bg-white rounded-2xl shadow-sm p-6 overflow-x-auto">
         {/* إذا كان نموذج ولي الأمر مفتوحاً، اخفِ القائمة */}
         {!showParentForm && !showStudentForm && (
           <>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
               <h2 className="text-2xl font-black text-gray-800">👨‍👩‍👧‍👦 أولياء الأمور والطلاب</h2>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-2">
                 {permissions.canCreateStudents && (
                   <button
                     onClick={() => setShowStudentForm(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all"
+                    className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-xl font-bold transition-all whitespace-nowrap"
                   >
                     ➕ إضافة طالب
                   </button>
@@ -545,7 +545,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 {permissions.canCreateParents && (
                   <button
                     onClick={() => setShowParentForm(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all"
+                    className="bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-xl font-bold transition-all whitespace-nowrap"
                   >
                     ➕ إضافة ولي أمر
                   </button>
@@ -742,8 +742,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               return (
                 <div key={parent.id} className="bg-gradient-to-r from-gray-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
                   {/* معلومات ولي الأمر */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-3">
+                    <div className="flex flex-wrap items-center gap-3 min-w-0">
                       <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white text-2xl">👤</div>
                       <div>
                         <h3 className="text-xl font-black text-gray-800">{parent.name}</h3>
@@ -752,20 +752,20 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                       </div>
                       <span className="bg-blue-600 text-white px-3 py-1 rounded-full font-bold text-sm">{parentStudents.length} طالب/طلاب</span>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 shrink-0">
                       {permissions.canEditParents && (
-                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">✏️ تعديل</button>
+                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-3 rounded-xl font-bold whitespace-nowrap">✏️ تعديل</button>
                       )}
                       {permissions.canManageParentPermissions && (
                         <button
                           onClick={() => openParentPermissions(parent)}
-                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold"
+                          className="bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-3 rounded-xl font-bold whitespace-nowrap"
                         >
                           🔐 الصلاحيات
                         </button>
                       )}
                       {permissions.canDeleteParents && (
-                        <button onClick={() => handleDeleteParent(parent.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold">🗑️ حذف</button>
+                        <button onClick={() => handleDeleteParent(parent.id)} className="bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-xl font-bold whitespace-nowrap">🗑️ حذف</button>
                       )}
                     </div>
                   </div>
@@ -804,13 +804,13 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                               <p className="text-xs text-gray-500">الصف: {student.primaryGrade}</p>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
+                          <div className="flex flex-wrap gap-2 shrink-0">
+                            <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-3 rounded-xl font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                                 <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-3 rounded-xl font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
-                              <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
+                              <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-xl font-bold text-sm">🗑️</button>
                             )}
                           </div>
                         </div>
