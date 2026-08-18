@@ -18,10 +18,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
   ];
 
   return (
-    <div className="space-y-10 animate-fadeIn">
+    <div className="w-full space-y-6 animate-fadeIn">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-4xl font-black text-purple-900">نظرة عامة</h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-purple-900">نظرة عامة</h1>
           <p className="text-purple-500 mt-2">إليك ملخص سريع لأداء المنصة التعليمية اليوم</p>
         </div>
         <button 
@@ -35,8 +35,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-5 lg:gap-6">
         {cards.map((card, i) => (
-          <div key={i} className="bg-white p-5 rounded-[28px] shadow-sm border border-purple-100 flex flex-col items-center text-center sm:p-8 sm:rounded-[32px]">
-            <div className={`w-16 h-16 rounded-2xl ${card.color} flex items-center justify-center text-3xl mb-4`}>
+          <div key={i} className="min-h-[130px] bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col items-center justify-center text-center sm:p-6">
+            <div className={`w-14 h-14 rounded-xl ${card.color} flex items-center justify-center text-3xl mb-3`}>
               {card.icon}
             </div>
             <p className="text-purple-400 font-medium text-sm">{card.label}</p>
@@ -46,7 +46,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
-         <div className="bg-white p-5 rounded-[28px] shadow-sm border border-purple-100 sm:p-8 sm:rounded-[32px]">
+         <div className="bg-white p-6 rounded-2xl shadow-sm border border-purple-100">
            <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
              <span>🚀</span> التوزيع الأكاديمي
            </h3>
@@ -62,7 +62,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
            </div>
         </div>
 
-         <div className="bg-purple-800 p-5 rounded-[28px] shadow-xl text-white relative overflow-hidden sm:p-8 sm:rounded-[32px]">
+          <div className="bg-purple-800 p-6 rounded-2xl shadow-sm text-white relative overflow-hidden">
            <div className="relative z-10">
              <h3 className="text-xl font-bold mb-2">متوسط النتائج</h3>
              <p className="text-purple-300 text-sm mb-6">معدل نجاح الطلاب في جميع الاختبارات</p>
@@ -72,7 +72,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
         </div>
       </div>
 
-       <div className="bg-white p-8 rounded-[32px] shadow-sm border border-purple-100">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-purple-100">
          <div className="flex items-center justify-between mb-6">
            <h3 className="text-xl font-bold flex items-center gap-2">
              <span>🕘</span> آخر نشاط للطلاب

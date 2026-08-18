@@ -173,7 +173,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div className="flex min-h-screen md:h-screen bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn overflow-x-hidden">
+    <div dir="rtl" className="flex min-h-screen w-full flex-row bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn overflow-visible">
       {/* Sidebar */}
       {mobileNavOpen && (
         <button
@@ -183,7 +183,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           className="fixed inset-0 z-40 bg-slate-950/60 md:hidden"
         />
       )}
-      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 md:static md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] shrink-0 transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:h-screen md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-4 sm:p-8 border-b">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="text-white" />
@@ -240,7 +240,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       </aside>
 
       {/* Main Area */}
-      <main className="min-w-0 flex-1 flex flex-col overflow-hidden">
+      <main className="min-w-0 flex-1 min-h-screen flex flex-col overflow-visible">
         <header className="bg-white border-b px-4 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-wrap justify-between items-center gap-3 shrink-0 safe-area-top">
           <div className="flex items-center gap-6">
              <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-xl bg-purple-100 px-3 py-2 text-purple-800 font-black md:hidden" aria-label="فتح القائمة">☰</button>
@@ -267,7 +267,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </div>
         </header>
 
-        <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 safe-area-x safe-area-bottom">
+        <div className="min-w-0 flex-1 overflow-visible p-4 sm:p-6 lg:p-10 safe-area-x safe-area-bottom">
           <div className="max-w-7xl mx-auto">
             {renderContent()}
           </div>
