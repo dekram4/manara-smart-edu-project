@@ -4,7 +4,7 @@ import { GameAudioEngine } from '../utils/gameAudioEngine';
 import ManaraBrand from '../components/ManaraBrand';
 
 interface RoleCard {
-  id: 'student' | 'teacher' | 'parent' | 'admin';
+  id: 'teacher' | 'parent' | 'admin';
   title: string;
   subtitle: string;
   description: string;
@@ -19,37 +19,10 @@ interface RoleCard {
 interface RoleSelectionProps {
   onSelectAdmin: () => void;
   onSelectTeacher: () => void;
-  onSelectStudent: () => void;
   onSelectParent: () => void;
 }
 
 /* ─── Per-role SVG illustrations ─── */
-const StudentIllustration = () => (
-  <svg viewBox="0 0 120 90" fill="none" className="h-full w-full" aria-hidden="true">
-    {/* open book */}
-    <rect x="18" y="38" width="36" height="28" rx="2" fill="#c7d2fe" fillOpacity="0.55" />
-    <rect x="54" y="38" width="36" height="28" rx="2" fill="#a5b4fc" fillOpacity="0.55" />
-    <rect x="52" y="36" width="4" height="32" rx="1" fill="#6366f1" fillOpacity="0.8" />
-    {/* lines on pages */}
-    <line x1="24" y1="48" x2="48" y2="48" stroke="#6366f1" strokeWidth="1.5" strokeOpacity="0.6" />
-    <line x1="24" y1="54" x2="48" y2="54" stroke="#6366f1" strokeWidth="1.5" strokeOpacity="0.4" />
-    <line x1="24" y1="60" x2="40" y2="60" stroke="#6366f1" strokeWidth="1.5" strokeOpacity="0.4" />
-    <line x1="60" y1="48" x2="84" y2="48" stroke="#6366f1" strokeWidth="1.5" strokeOpacity="0.6" />
-    <line x1="60" y1="54" x2="84" y2="54" stroke="#6366f1" strokeWidth="1.5" strokeOpacity="0.4" />
-    <line x1="60" y1="60" x2="76" y2="60" stroke="#6366f1" strokeWidth="1.5" strokeOpacity="0.4" />
-    {/* graduation cap */}
-    <rect x="44" y="18" width="32" height="7" rx="3" fill="#4f46e5" fillOpacity="0.75" />
-    <polygon points="60,8 72,18 48,18" fill="#6366f1" fillOpacity="0.8" />
-    <line x1="76" y1="22" x2="76" y2="30" stroke="#a5b4fc" strokeWidth="1.5" />
-    <circle cx="76" cy="31" r="2" fill="#fbbf24" />
-    {/* sparkle stars */}
-    <circle cx="14" cy="24" r="2" fill="#fbbf24" fillOpacity="0.8" />
-    <circle cx="106" cy="18" r="2.5" fill="#a5b4fc" fillOpacity="0.8" />
-    <circle cx="102" cy="72" r="1.8" fill="#fbbf24" fillOpacity="0.6" />
-    <circle cx="14" cy="68" r="1.8" fill="#a5b4fc" fillOpacity="0.6" />
-  </svg>
-);
-
 const TeacherIllustration = () => (
   <svg viewBox="0 0 120 90" fill="none" className="h-full w-full" aria-hidden="true">
     {/* whiteboard */}
@@ -136,18 +109,6 @@ const AdminIllustration = () => (
 );
 
 const roles: RoleCard[] = [
-  {
-    id: 'student',
-    title: 'بوابة الطالب',
-    subtitle: 'تعلّم • استكشف • تفوّق',
-    description: 'دروس تفاعلية، اختبارات ذكية، وشارات التفوق',
-    icon: '👨‍🎓',
-    palette: { from: '#3730a3', via: '#4f46e5', to: '#7c3aed' },
-    glowColor: 'rgba(99,102,241,0.5)',
-    accentLight: '#a5b4fc',
-    tag: 'طالب',
-    svgIllustration: <StudentIllustration />,
-  },
   {
     id: 'teacher',
     title: 'بوابة المعلم',
@@ -295,7 +256,6 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const handlers: Record<RoleCard['id'], () => void> = {
-    student: props.onSelectStudent,
     teacher: props.onSelectTeacher,
     parent: props.onSelectParent,
     admin: props.onSelectAdmin,
@@ -348,7 +308,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
       </motion.div>
 
       {/* ─── Role cards grid ─── */}
-      <div className="relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+      <div className="relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
         {roles.map((role, index) => {
           const isHovered = hoveredId === role.id;
           return (

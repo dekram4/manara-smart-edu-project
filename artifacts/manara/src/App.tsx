@@ -5,7 +5,6 @@ import { gsap } from 'gsap';
 import RoleSelection from './pages/RoleSelection';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
-import StudentDashboard from './pages/student/StudentDashboard';
 import ParentDashboard from './pages/parent/ParentDashboard';
 import { STORAGE_KEYS } from './constants';
 import { initSupabaseSync } from './db/sync';
@@ -66,7 +65,7 @@ export const triggerCelebration = (won = true) => {
   }
 };
 
-type MainView = 'role' | 'admin' | 'teacher' | 'student' | 'parent';
+type MainView = 'role' | 'admin' | 'teacher' | 'parent';
 
 class DashboardErrorBoundary extends Component<
   { children: ReactNode },
@@ -221,9 +220,8 @@ const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
     const savedRole = readSessionValue(SESSION_KEYS.ACTIVE_ROLE);
-    const validRoles: MainView[] = ['admin', 'teacher', 'student', 'parent'];
+    const validRoles: MainView[] = ['admin', 'teacher', 'parent'];
     const legacyRole =
-      readSessionValue(STORAGE_KEYS.ACTIVE_STUDENT) ? 'student' :
       readSessionValue(STORAGE_KEYS.CURRENT_TEACHER) ? 'teacher' :
       readSessionValue(STORAGE_KEYS.ACTIVE_PARENT) ? 'parent' :
       readSessionValue(SESSION_KEYS.ADMIN_SESSION) === '1' ? 'admin' :
@@ -296,8 +294,6 @@ const App: React.FC = () => {
         return <AdminDashboard onLogout={leaveRole} />;
       case 'teacher':
         return <TeacherDashboard onLogout={leaveRole} />;
-      case 'student':
-        return <StudentDashboard onLogout={leaveRole} />;
       case 'parent':
         return <ParentDashboard onLogout={leaveRole} />;
       default:
@@ -305,7 +301,6 @@ const App: React.FC = () => {
           <RoleSelection
             onSelectAdmin={() => enterRole('admin')}
             onSelectTeacher={() => enterRole('teacher')}
-            onSelectStudent={() => enterRole('student')}
             onSelectParent={() => enterRole('parent')}
           />
         );

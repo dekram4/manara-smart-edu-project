@@ -430,13 +430,13 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
           </div>
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             {Object.entries(packageDraft).filter(([, value]) => typeof value === 'boolean').map(([key, value]) => (
-              <label key={key} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 font-bold text-slate-700">
-                <span>{permissionLabels[key] || key}</span>
+              <label key={key} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 font-bold text-slate-700">
+                <span className="min-w-0 flex-1 break-words">{permissionLabels[key] || key}</span>
                 <input
                   type="checkbox"
                   checked={Boolean(value)}
                   onChange={() => setPackageDraft(previous => ({ ...previous, [key]: !previous[key] }))}
-                  className="h-5 w-5 accent-indigo-600"
+                  className="h-5 w-5 shrink-0 accent-indigo-600"
                 />
               </label>
             ))}

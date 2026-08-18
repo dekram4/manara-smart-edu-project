@@ -7,6 +7,8 @@ import {
 } from './sessionPersistence';
 import { readActiveSession } from './storage';
 
+// Keep the legacy student session shape for migration compatibility.
+// The web app no longer exposes or mounts the student dashboard; students use Flutter.
 export type AuthRole = 'admin' | 'teacher' | 'student' | 'parent';
 
 type AuthSessionRecord = {
