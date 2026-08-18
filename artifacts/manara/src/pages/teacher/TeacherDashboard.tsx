@@ -139,62 +139,54 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             {/* Statistics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               {/* Parents Card */}
-              <div className="min-h-[130px] bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-2xl shadow-lg border-2 border-purple-200 hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer flex flex-col justify-between"
+              <div className="bg-white/90 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[130px] cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-4xl">👨‍👩‍👧‍👦</div>
-                  <div className="bg-purple-500 text-white px-3 py-2 rounded-xl text-2xl font-bold leading-none">
-                    {dashboardStats.parentsCount}
-                  </div>
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold text-slate-600">أولياء الأمور</span>
+                  <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 text-2xl">👨‍👩‍👧‍👦</div>
                 </div>
-                <div>
-                  <h3 className="text-purple-900 font-black text-lg mb-1">أولياء الأمور</h3>
-                  <p className="text-purple-600 text-sm font-medium leading-relaxed">إجمالي أولياء الأمور المسجلين</p>
+                <div className="mt-2">
+                  <span className="text-3xl font-extrabold text-slate-800">{dashboardStats.parentsCount}</span>
+                  <p className="text-xs text-slate-500 mt-1">إجمالي أولياء الأمور المسجلين</p>
                 </div>
               </div>
 
               {/* Students Card */}
-              <div className="min-h-[130px] bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-2xl shadow-lg border-2 border-amber-200 hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer flex flex-col justify-between"
+              <div className="bg-white/90 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[130px] cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-4xl">👨‍🎓</div>
-                  <div className="bg-amber-500 text-white px-3 py-2 rounded-xl text-2xl font-bold leading-none">
-                    {dashboardStats.studentsCount}
-                  </div>
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold text-slate-600">الطلاب</span>
+                  <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 text-2xl">👨‍🎓</div>
                 </div>
-                <div>
-                  <h3 className="text-blue-900 font-black text-lg mb-1">الطلاب</h3>
-                  <p className="text-amber-500 text-sm font-medium leading-relaxed">إجمالي الطلاب المسجلين</p>
+                <div className="mt-2">
+                  <span className="text-3xl font-extrabold text-slate-800">{dashboardStats.studentsCount}</span>
+                  <p className="text-xs text-slate-500 mt-1">إجمالي الطلاب المسجلين</p>
                 </div>
               </div>
 
               {/* Lessons Card */}
-              <div className="min-h-[130px] bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-2xl shadow-lg border-2 border-green-200 hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer flex flex-col justify-between"
+              <div className="bg-white/90 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[130px] cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.CONTENT_MANAGEMENT)}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-4xl">📚</div>
-                  <div className="bg-green-500 text-white px-3 py-2 rounded-xl text-2xl font-bold leading-none">
-                    {dashboardStats.lessonsCount}
-                  </div>
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold text-slate-600">المحتوى التعليمي</span>
+                  <div className="p-2.5 rounded-xl bg-green-50 text-green-600 text-2xl">📚</div>
                 </div>
-                <div>
-                  <h3 className="text-green-900 font-black text-lg mb-1">المحتوى التعليمي</h3>
-                  <p className="text-green-600 text-sm font-medium leading-relaxed">إجمالي الدروس المضافة</p>
+                <div className="mt-2">
+                  <span className="text-3xl font-extrabold text-slate-800">{dashboardStats.lessonsCount}</span>
+                  <p className="text-xs text-slate-500 mt-1">إجمالي الدروس المضافة</p>
                 </div>
               </div>
 
               {/* Academic Settings Card */}
-              <div className="min-h-[130px] bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-2xl shadow-lg border-2 border-orange-200 hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer flex flex-col justify-between"
+              <div className="bg-white/90 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[130px] cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.ACADEMIC_SETTINGS)}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-4xl">⚙️</div>
-                  <div className="bg-orange-500 text-white px-3 py-2 rounded-xl text-2xl font-bold leading-none">
-                    {dashboardStats.academicSettingsCount}
-                  </div>
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold text-slate-600">الإعدادات الأكاديمية</span>
+                  <div className="p-2.5 rounded-xl bg-orange-50 text-orange-600 text-2xl">⚙️</div>
                 </div>
-                <div>
-                  <h3 className="text-orange-900 font-black text-lg mb-1">الإعدادات الأكاديمية</h3>
-                  <p className="text-orange-600 text-sm font-medium leading-relaxed">إعدادات الصفوف والمواد</p>
+                <div className="mt-2">
+                  <span className="text-3xl font-extrabold text-slate-800">{dashboardStats.academicSettingsCount}</span>
+                  <p className="text-xs text-slate-500 mt-1">إعدادات الصفوف والمواد</p>
                 </div>
               </div>
             </div>
@@ -208,7 +200,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}
-                  className="min-h-14 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 px-4 rounded-2xl font-bold text-base transition-all shadow-md hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3 text-center active:scale-95"
+                  className="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl font-bold text-white shadow-sm hover:opacity-95 transition-all text-base min-h-[52px] bg-gradient-to-r from-purple-500 to-purple-600"
                 >
                   <span className="text-3xl">➕</span>
                   <span>إضافة ولي أمر / طالب</span>
@@ -216,7 +208,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.CONTENT_MANAGEMENT)}
-                  className="min-h-14 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 px-4 rounded-2xl font-bold text-base transition-all shadow-md hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3 text-center active:scale-95"
+                  className="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl font-bold text-white shadow-sm hover:opacity-95 transition-all text-base min-h-[52px] bg-gradient-to-r from-green-500 to-green-600"
                 >
                   <span className="text-3xl">📖</span>
                   <span>إضافة محتوى تعليمي</span>
@@ -224,7 +216,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.ACADEMIC_SETTINGS)}
-                  className="min-h-14 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 px-4 rounded-2xl font-bold text-base transition-all shadow-md hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3 text-center active:scale-95"
+                  className="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl font-bold text-white shadow-sm hover:opacity-95 transition-all text-base min-h-[52px] bg-gradient-to-r from-orange-500 to-orange-600"
                 >
                   <span className="text-3xl">🔧</span>
                   <span>إدارة الإعدادات</span>
@@ -232,7 +224,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.REPORTS)}
-                  className="min-h-14 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 px-4 rounded-2xl font-bold text-base transition-all shadow-md hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3 text-center active:scale-95"
+                  className="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl font-bold text-white shadow-sm hover:opacity-95 transition-all text-base min-h-[52px] bg-gradient-to-r from-blue-500 to-blue-600"
                 >
                   <span className="text-3xl">📊</span>
                   <span>عرض التقارير</span>
@@ -240,7 +232,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.MY_ACCOUNT)}
-                  className="min-h-14 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-700 text-white py-3 px-4 rounded-2xl font-bold text-base transition-all shadow-md hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3 text-center active:scale-95"
+                  className="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl font-bold text-white shadow-sm hover:opacity-95 transition-all text-base min-h-[52px] bg-gradient-to-r from-amber-500 to-amber-600"
                 >
                   <span className="text-3xl">👤</span>
                   <span>إعدادات الحساب</span>
@@ -248,7 +240,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={loadDashboardStats}
-                  className="min-h-14 bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white py-3 px-4 rounded-2xl font-bold text-base transition-all shadow-md hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3 text-center active:scale-95"
+                  className="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl font-bold text-white shadow-sm hover:opacity-95 transition-all text-base min-h-[52px] bg-gradient-to-r from-orange-400 to-amber-500"
                 >
                   <span className="text-3xl">🔄</span>
                   <span>تحديث البيانات</span>
@@ -257,12 +249,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             </div>
 
             {/* Welcome Message */}
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-2xl border-2 border-amber-200 shadow-lg">
+            <div className="w-full p-6 mt-6 rounded-2xl bg-amber-50/70 border border-amber-200">
               <div className="flex items-start gap-4">
                 <div className="text-5xl">💡</div>
                 <div>
                   <h3 className="text-2xl font-black text-amber-800 mb-3">نصائح للبداية</h3>
-                  <ul className="space-y-3 text-amber-700 font-medium leading-relaxed">
+                  <ul className="space-y-3 text-sm leading-relaxed text-slate-700">
                     <li className="flex items-start gap-2">
                       <span className="text-amber-500 font-black">1.</span>
                       <span>ابدأ بإنشاء الإعدادات الأكاديمية (الصفوف والمواد والفصول)</span>

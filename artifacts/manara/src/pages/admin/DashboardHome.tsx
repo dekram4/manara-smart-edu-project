@@ -35,14 +35,16 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
         {cards.map((card, i) => (
-          <div key={i} className="min-h-[130px] bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col justify-between">
-            <div className="flex items-center justify-between gap-3">
-              <div className={`w-12 h-12 rounded-2xl ${card.color} flex items-center justify-center text-2xl`}>
+          <div key={i} className="bg-white/90 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[130px]">
+            <div className="flex items-center justify-between w-full">
+              <span className="text-sm font-semibold text-slate-600">{card.label}</span>
+              <div className={`p-2.5 rounded-xl ${card.color} text-2xl`}>
                 {card.icon}
               </div>
-              <p className="text-2xl font-bold text-purple-900">{card.value}</p>
             </div>
-            <p className="text-purple-500 font-bold text-sm leading-relaxed">{card.label}</p>
+            <div className="mt-2">
+              <span className="text-3xl font-extrabold text-slate-800">{card.value}</span>
+            </div>
           </div>
         ))}
       </div>
