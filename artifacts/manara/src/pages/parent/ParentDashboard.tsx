@@ -735,7 +735,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       </aside>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="dashboard-main px-4 py-6 sm:px-6 md:px-10 safe-area-x safe-area-bottom">
+      <main className="dashboard-main dashboard-content-area safe-area-x safe-area-bottom">
         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-rose-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         <div className="w-full max-w-7xl mx-auto">
 

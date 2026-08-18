@@ -86,7 +86,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>🔐</div>
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
 
-        <div className="mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
+        <div className="web-login-panel mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
           <div className="text-center mb-8">
             <div className="relative mx-auto mb-4 w-20 h-20">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-xl animate-wiggle">
@@ -149,7 +149,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '8%', top: '70%', animationDelay: '1s' }}>📚</div>
 
-      <div className="mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
+      <div className="web-login-panel mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
         {onBack && (
           <button
             type="button"

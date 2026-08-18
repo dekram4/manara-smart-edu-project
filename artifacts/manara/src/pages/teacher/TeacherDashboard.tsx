@@ -422,7 +422,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       </div>
 
       {/* Main Content */}
-        <div className="dashboard-main px-4 py-6 sm:px-6 lg:px-8 safe-area-x safe-area-bottom">
+        <div className="dashboard-main dashboard-content-area safe-area-x safe-area-bottom">
         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 min-h-11 rounded-xl bg-amber-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         {renderContent()}
       </div>
