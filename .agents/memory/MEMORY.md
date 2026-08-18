@@ -1,3 +1,4 @@
 - [MANARA API routing](manara-api-routing.md) — Express 5 wildcard syntax and artifact routing pitfalls discovered during port.
 - [Flutter runtime validation](flutter-runtime-validation.md) — Flutter source is ready, but this workspace lacks Flutter/Dart tooling for local execution.
 - [Dashboard menu layout](dashboard-menu-layout.md) — Arabic dashboard menus need non-shrinking flex items, explicit line-height, and isolated sidebar scrolling.
+- [Web global layout](web-global-layout.md) — Keep the web reset minimal; dashboard shells own scrolling and Flutter/legacy selectors stay scoped.

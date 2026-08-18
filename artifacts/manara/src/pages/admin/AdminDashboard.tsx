@@ -175,14 +175,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   return (
     <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn">
       {/* Sidebar */}
-      {mobileNavOpen && (
-        <button
-          type="button"
-          aria-label="إغلاق القائمة"
-          onClick={() => setMobileNavOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/60 md:hidden"
-        />
-      )}
       <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-4 sm:p-8 border-b">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
