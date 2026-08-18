@@ -668,12 +668,12 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Render ===== */
   return (
-    <div dir="rtl" className="flex min-h-screen w-full flex-row bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn overflow-visible">
+    <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
       {/* ===== SIDEBAR ===== */}
       {mobileNavOpen && (
         <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
       )}
-      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] shrink-0 transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:h-screen md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-rose-800">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
@@ -687,7 +687,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         </div>
 
         {/* Menu buttons */}
-        <div className="p-3 space-y-1 border-t border-rose-800">
+        <div className="dashboard-nav flex-1 p-3 space-y-1 border-t border-rose-800">
           {[
             { key: ParentMenuType.DASHBOARD, icon: '🏠', label: 'الرئيسية' },
             { key: ParentMenuType.CHILDREN, icon: '👨‍👧', label: 'الأبناء' },
@@ -716,24 +716,26 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                   }
                 }
               }}
-              className={`w-full text-right p-3 rounded-xl transition-all font-bold text-sm hover:translate-x-[-2px] active:scale-95 ${
+              className={`dashboard-menu-item rounded-xl px-3 py-2.5 transition-all font-bold text-sm hover:translate-x-[-2px] active:scale-95 ${
                 menuType === item.key ? 'bg-rose-700 shadow-lg' : 'hover:bg-rose-800'
               }`}
             >
-              {item.icon} {item.label}
+              <span aria-hidden="true">{item.icon}</span>
+              <span>{item.label}</span>
             </button>
           ))}
           <button
             onClick={() => { removeActiveSession(STORAGE_KEYS.ACTIVE_PARENT); onLogout(); }}
-            className="w-full text-right p-3 rounded-xl text-red-400 hover:bg-red-950 font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
+            className="dashboard-menu-item rounded-xl px-3 py-2.5 text-red-400 hover:bg-red-950 font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
           >
-            🚪 تسجيل الخروج
+            <span aria-hidden="true">🚪</span>
+            <span>تسجيل الخروج</span>
           </button>
         </div>
       </aside>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="min-w-0 flex-1 min-h-screen px-4 py-6 sm:px-6 md:px-10 overflow-visible safe-area-x safe-area-bottom">
+      <main className="dashboard-main px-4 py-6 sm:px-6 md:px-10 safe-area-x safe-area-bottom">
         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-rose-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         <div className="w-full max-w-7xl mx-auto">
 

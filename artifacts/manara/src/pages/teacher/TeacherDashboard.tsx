@@ -308,12 +308,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div dir="rtl" className="min-h-screen w-full bg-gradient-to-br from-amber-50 to-orange-50 flex flex-row animate-fadeIn overflow-visible">
+    <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-amber-50 to-orange-50 animate-fadeIn">
       {/* Sidebar */}
       {mobileNavOpen && (
         <button type="button" aria-label="إغلاق القائمة" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/60 md:hidden" />
       )}
-       <div className={`fixed inset-y-0 right-0 z-50 flex w-[min(20rem,88vw)] shrink-0 transform flex-col overflow-y-auto bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:h-screen md:z-auto md:w-80 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+       <div className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 self-start rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
         <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
           <ManaraBrand variant="sidebar" className="text-white" />
@@ -330,7 +330,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-2">
+        <nav className="dashboard-nav flex-1 space-y-2">
           {Object.values(TeacherMenuType).map((menu) => {
             // فحص الصلاحيات
             const permissions = getTeacherPermissions(effectiveTeacher);
@@ -390,14 +390,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               <button
                 key={menu}
                  onClick={() => { setActiveMenu(menu); setMobileNavOpen(false); }}
-                className={`w-full text-right p-4 rounded-[20px] font-bold text-lg transition-all hover:translate-x-[-2px] active:scale-95 ${
+                 className={`dashboard-menu-item rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all hover:translate-x-[-2px] active:scale-95 ${
                   activeMenu === menu
                     ? 'bg-white text-amber-800 shadow-lg'
                     : 'hover:bg-white/10'
                 }`}
               >
-                <span className="mr-3">{icons[menu]}</span>
-                {labels[menu]}
+                 <span aria-hidden="true">{icons[menu]}</span>
+                 <span>{labels[menu]}</span>
               </button>
             );
           })}
@@ -405,23 +405,24 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           {/* زر الدردشة */}
           <button
             onClick={() => { setShowChat(true); setMobileNavOpen(false); }}
-            className="w-full text-right p-4 rounded-[20px] font-bold text-lg transition-all hover:bg-white/10 hover:translate-x-[-2px] active:scale-95"
+            className="dashboard-menu-item rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all hover:bg-white/10 hover:translate-x-[-2px] active:scale-95"
           >
-            <span className="mr-3">💬</span>
-            الدردشة والدعم
+            <span aria-hidden="true">💬</span>
+            <span>الدردشة والدعم</span>
           </button>
         </nav>
 
         <button
           onClick={handleLogout}
-          className="w-full bg-red-500 hover:bg-red-600 text-white p-4 rounded-[20px] font-bold text-lg transition-all mt-4 hover:scale-[1.02] active:scale-95"
+          className="dashboard-menu-item shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all mt-4 hover:scale-[1.02] active:scale-95"
         >
-          🚪 تسجيل الخروج
+          <span aria-hidden="true">🚪</span>
+          <span>تسجيل الخروج</span>
         </button>
       </div>
 
       {/* Main Content */}
-        <div className="min-w-0 flex-1 min-h-screen px-4 py-6 sm:px-6 lg:px-8 overflow-visible safe-area-x safe-area-bottom">
+        <div className="dashboard-main px-4 py-6 sm:px-6 lg:px-8 safe-area-x safe-area-bottom">
         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 min-h-11 rounded-xl bg-amber-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         {renderContent()}
       </div>

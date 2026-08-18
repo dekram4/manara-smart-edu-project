@@ -629,3 +629,104 @@ table {
   font-display: swap;
   src: url('https://fonts.gstatic.com/s/tajawal/v12/Iurf6YBj_oCad4k1l4qkLrY.ttf') format('truetype');
 }
+
+/* Stable shell for the three web dashboards.
+   Keep navigation items from shrinking into their Arabic text when a
+   dashboard has many menu entries or the viewport is short. */
+.dashboard-shell {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  align-items: stretch;
+  direction: rtl;
+  line-height: 1.5;
+}
+
+.dashboard-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  flex: 0 0 20rem;
+  width: 20rem;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dashboard-nav {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.dashboard-menu-item {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.75rem;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.dashboard-shell button,
+.dashboard-shell a,
+.dashboard-shell label,
+.dashboard-shell p,
+.dashboard-shell h1,
+.dashboard-shell h2,
+.dashboard-shell h3,
+.dashboard-shell h4 {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-shell button,
+.dashboard-shell a {
+  flex-shrink: 0;
+}
+
+.dashboard-menu-item > span:last-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dashboard-main {
+  min-width: 0;
+  min-height: 100vh;
+  flex: 1 1 auto;
+  overflow: visible;
+}
+
+.dashboard-content {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .dashboard-shell {
+    display: block;
+  }
+
+  .dashboard-sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: 50;
+    width: min(20rem, 88vw);
+    max-width: 88vw;
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .dashboard-main {
+    width: 100%;
+    min-height: 100vh;
+  }
+}
