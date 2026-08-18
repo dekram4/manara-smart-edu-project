@@ -18,7 +18,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
   ];
 
   return (
-    <div className="space-y-10 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-4xl font-black text-purple-900">نظرة عامة</h1>
@@ -33,14 +33,16 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {cards.map((card, i) => (
-          <div key={i} className="min-h-[168px] bg-white p-6 rounded-[28px] shadow-sm border border-purple-100 flex flex-col items-center justify-center text-center sm:rounded-[32px]">
-            <div className={`w-16 h-16 rounded-2xl ${card.color} flex items-center justify-center text-3xl mb-4`}>
-              {card.icon}
+          <div key={i} className="min-h-[130px] bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-3">
+              <div className={`w-12 h-12 rounded-2xl ${card.color} flex items-center justify-center text-2xl`}>
+                {card.icon}
+              </div>
+              <p className="text-2xl font-bold text-purple-900">{card.value}</p>
             </div>
-            <p className="text-purple-400 font-medium text-sm">{card.label}</p>
-            <p className="text-4xl font-black text-purple-900 mt-1">{card.value}</p>
+            <p className="text-purple-500 font-bold text-sm leading-relaxed">{card.label}</p>
           </div>
         ))}
       </div>

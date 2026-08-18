@@ -267,7 +267,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </div>
         </header>
 
-        <div className="min-w-0 flex-1 p-6 sm:p-7 lg:p-10 safe-area-x safe-area-bottom">
+        <div className="min-w-0 flex-1 p-6 sm:p-7 lg:p-10 space-y-6 safe-area-x safe-area-bottom">
           <div className="max-w-7xl mx-auto">
             {renderContent()}
           </div>
