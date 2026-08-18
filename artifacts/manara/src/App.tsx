@@ -246,6 +246,9 @@ const App: React.FC = () => {
       removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     }
     setSessionReady(true);
+    // The role selector and local data must remain usable even when the
+    // remote Supabase sync is unavailable or slow. Sync continues below.
+    setBooting(false);
 
     let bootTimeoutId: number | undefined;
     (async () => {
