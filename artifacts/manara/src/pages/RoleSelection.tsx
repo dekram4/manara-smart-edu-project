@@ -308,7 +308,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
       </motion.div>
 
       {/* ─── Role cards grid ─── */}
-      <div className="relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
+      <div className="relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
         {roles.map((role, index) => {
           const isHovered = hoveredId === role.id;
           return (

@@ -670,10 +670,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   return (
     <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
       {/* ===== SIDEBAR ===== */}
-      <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+       <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-rose-800">
-          <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
+           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="justify-center text-white" />
           <h2 className="text-2xl font-black text-center mb-1">بوابة المتابعة</h2>
           <p className="text-rose-300 text-center text-xs font-bold">تابع تقدم أبنائك</p>
@@ -733,7 +733,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
       {/* ===== MAIN CONTENT ===== */}
       <main className="dashboard-main dashboard-content-area safe-area-x safe-area-bottom">
-        <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-rose-800 px-3 py-2 text-white font-black md:hidden" aria-label="فتح القائمة">☰ القائمة</button>
+         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-rose-800 px-3 py-2 text-white font-black lg:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         <div className="w-full max-w-7xl mx-auto">
 
         {/* ---------- DASHBOARD ---------- */}

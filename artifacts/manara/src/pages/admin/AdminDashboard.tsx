@@ -175,9 +175,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   return (
     <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn">
       {/* Sidebar */}
-      <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-4 sm:p-8 border-b">
-          <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold md:hidden">✕ إغلاق</button>
+          <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="text-white" />
           <p className="mt-2 text-center text-purple-200 text-xs font-bold">لوحة إدارة المشرف</p>
         </div>
@@ -235,7 +235,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       <main className="dashboard-main flex flex-col">
         <header className="bg-white border-b px-4 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-wrap justify-between items-center gap-3 shrink-0 safe-area-top">
           <div className="flex items-center gap-6">
-             <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-xl bg-purple-100 px-3 py-2 text-purple-800 font-black md:hidden" aria-label="فتح القائمة">☰</button>
+              <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-xl bg-purple-100 px-3 py-2 text-purple-800 font-black lg:hidden" aria-label="فتح القائمة">☰</button>
              <div className="bg-purple-50 px-4 py-2 rounded-full border border-purple-100 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 <span className="text-xs font-bold text-purple-700">النظام نشط</span>

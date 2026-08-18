@@ -802,7 +802,7 @@ table {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .dashboard-sidebar {
     position: fixed;
     inset-block: 0;
@@ -820,15 +820,10 @@ table {
   }
 }
 
-@media (min-width: 768px) and (max-width: 1023px) {
-  .dashboard-sidebar {
-    flex-basis: 16rem;
-    width: 16rem;
-  }
-
+@media (min-width: 1024px) {
   .dashboard-content-area {
-    padding-inline: 1rem;
-    padding-block: 1.25rem;
+    padding-inline: clamp(1rem, 3vw, 2.5rem);
+    padding-block: clamp(1rem, 2vw, 2.5rem);
   }
 }
 
