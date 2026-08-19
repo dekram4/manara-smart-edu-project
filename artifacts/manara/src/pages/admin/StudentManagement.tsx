@@ -457,12 +457,12 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
 
   return (
     <div className="dashboard-page animate-fadeIn">
-      <div style={styles.header}>
+       <div className="dashboard-section-header" style={styles.header}>
         <h1 style={styles.title}>إدارة الحسابات</h1>
         <p style={styles.subtitle}>إدارة حسابات الطلاب وأولياء الأمور</p>
       </div>
 
-      <div style={styles.quickAddContainer}>
+       <div className="dashboard-surface" style={styles.quickAddContainer}>
         <div style={styles.quickAddHeader}>
           <h3 style={styles.quickAddTitle}>إضافة حساب جديد</h3>
           <div style={styles.quickAddButtons}>
@@ -574,7 +574,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
       )}
 
-      <div style={styles.controlsCard}>
+       <div className="dashboard-surface" style={styles.controlsCard}>
         <div style={styles.controlsHeader}>
           <div style={styles.searchContainer}>
             <input 

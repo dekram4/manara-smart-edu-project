@@ -145,7 +145,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
     };
 
     return (
-      <div style={styles.permissionsGrid}>
+      <div className="dashboard-card-grid dashboard-card-grid-wide" style={styles.permissionsGrid}>
         {Object.entries(rolePermissions)
           .filter(([, value]) => typeof value === 'boolean')
           .map(([key, value]) => (
@@ -207,8 +207,8 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
+      <div className="dashboard-page dashboard-permissions-page" style={styles.container}>
+       <div className="dashboard-section-header" style={styles.header}>
         <div>
           <h1 style={styles.title}>🔐 إدارة الصلاحيات</h1>
           <p style={styles.subtitle}>تحكم في صلاحيات المعلمين وأولياء الأمور والطلاب</p>
@@ -230,7 +230,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
         </div>
       </div>
 
-      <div style={styles.infoCard}>
+       <div className="dashboard-notice" style={styles.infoCard}>
         <div style={styles.infoIcon}>ℹ️</div>
         <div>
           <h3 style={styles.infoTitle}>ملاحظة هامة</h3>
@@ -240,7 +240,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
         </div>
       </div>
 
-      <div style={styles.tabsContainer}>
+       <div className="dashboard-filter-surface" style={styles.tabsContainer}>
         <button
           onClick={() => setActiveTab('teacher')}
           style={{
@@ -270,12 +270,12 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
         </button>
       </div>
 
-      <div style={styles.content}>
+       <div className="dashboard-surface" style={styles.content}>
         {renderPermissionCard(activeTab)}
         {(activeTab === 'teacher' || activeTab === 'parent') && renderLimitCards(activeTab)}
       </div>
 
-      <div style={styles.statsCard}>
+       <div className="dashboard-stats-grid" style={styles.statsCard}>
         <div style={styles.stat}>
           <div style={styles.statValue}>{Object.values(permissions.teacher).filter(value => typeof value === 'boolean' && value).length}</div>
           <div style={styles.statLabel}>صلاحيات المعلمين المفعلة</div>

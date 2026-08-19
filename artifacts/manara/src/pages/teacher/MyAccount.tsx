@@ -55,13 +55,15 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
 
   return (
     <div className="dashboard-page animate-fadeIn">
-      <h1 className="text-4xl font-black text-amber-900">👤 حسابي</h1>
+       <div className="dashboard-section-header">
+         <h1 className="text-4xl font-black text-amber-900">👤 حسابي</h1>
+       </div>
 
       {/* معلومات الحساب */}
-      <div className="bg-white p-8 rounded-[30px] border-2 border-amber-100 shadow-lg">
+       <div className="dashboard-surface border-amber-100">
         <h2 className="text-2xl font-black text-amber-900 mb-6">📋 معلومات الحساب</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+         <div className="dashboard-card-grid">
           <div className="bg-amber-50 p-6 rounded-2xl">
             <p className="text-sm text-amber-500 font-bold mb-1">الاسم الكامل</p>
             <p className="text-2xl font-black text-blue-900">{teacher.name}</p>
@@ -87,8 +89,8 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
       </div>
 
       {/* تغيير كلمة المرور */}
-      <div className="bg-white p-8 rounded-[30px] border-2 border-amber-100 shadow-lg">
-        <div className="flex justify-between items-center mb-6">
+       <div className="dashboard-surface border-amber-100">
+         <div className="dashboard-section-header mb-6">
           <h2 className="text-2xl font-black text-amber-900">🔐 كلمة المرور</h2>
           <button
             onClick={() => setShowChangePassword(!showChangePassword)}

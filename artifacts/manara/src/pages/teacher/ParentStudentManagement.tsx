@@ -451,7 +451,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   return (
     <div className="dashboard-page animate-fadeIn">
       {/* العنوان والبحث */}
-      <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 rounded-2xl text-white shadow-lg">
+      <div className="dashboard-page-banner bg-gradient-to-r from-amber-500 to-orange-500">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-3xl font-black mb-2">👥 إدارة أولياء الأمور والطلاب</h1>
@@ -481,7 +481,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           </div>
         </div>
         {/* قوائم منسدلة لأولياء الأمور والطلاب */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="dashboard-filter-grid">
           <div>
             <label className="text-white/70 text-xs font-bold mb-1 block">👨‍👩‍👧‍👦 ولي الأمر</label>
             <select
@@ -512,14 +512,14 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       </div>
 
       {/* إحصائيات */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-2xl text-white shadow-lg">
+      <div className="dashboard-stats-grid">
+        <div className="dashboard-stat-card bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="text-5xl mb-2">👨‍👩‍👧‍👦</div>
           <div className="text-3xl font-black">{parents.length}</div>
           <div className="text-green-100 font-medium">ولي أمر</div>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-2xl text-white shadow-lg">
+        <div className="dashboard-stat-card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="text-5xl mb-2">🎓</div>
           <div className="text-3xl font-black">{students.length}</div>
           <div className="text-blue-100 font-medium">طالب</div>
@@ -527,11 +527,11 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       </div>
 
       {/* قسم أولياء الأمور */}
-      <div className="bg-white p-6 rounded-2xl shadow-lg">
+      <div className="dashboard-surface">
         {/* إذا كان نموذج ولي الأمر مفتوحاً، اخفِ القائمة */}
         {!showParentForm && !showStudentForm && (
           <>
-            <div className="flex justify-between items-center mb-4">
+            <div className="dashboard-section-header mb-4">
               <h2 className="text-2xl font-black text-gray-800">👨‍👩‍👧‍👦 أولياء الأمور والطلاب</h2>
               <div className="flex gap-3">
                 {permissions.canCreateStudents && (

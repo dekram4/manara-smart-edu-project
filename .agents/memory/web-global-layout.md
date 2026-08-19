@@ -20,3 +20,9 @@ The same responsive contract applies to role selection, all three login screens,
 **Why:** Navigation and authentication were the remaining places where each role had separate spacing, overflow, and mobile behavior, so fixing dashboard content alone left the experience inconsistent.
 
 **How to apply:** Keep sidebars fixed/sticky on desktop and fixed to the right on smaller screens; use an independently scrolling nav and responsive login card. Reuse the shared chat responsive classes when opening support chat from any role.
+
+Internal role pages also need explicit shared wrappers for section headers, filter surfaces, card grids, table surfaces, and split detail layouts; adding only a `dashboard-page` root does not normalize legacy inline-style pages.
+
+**Why:** Several menus kept their old bespoke grids and inline surfaces, so the first shell pass did not visibly fix their content layouts.
+
+**How to apply:** Use `dashboard-section-header`, `dashboard-filter-surface`, `dashboard-card-grid`, `dashboard-table-surface`, and `dashboard-internal-layout` on each role-specific menu, including parent child/certificate views and shared chat.

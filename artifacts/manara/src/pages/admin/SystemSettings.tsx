@@ -24,12 +24,12 @@ const SystemSettings: React.FC = () => {
 
   return (
     <div className="dashboard-page animate-fadeIn">
-      <div>
+       <div className="dashboard-section-header">
         <h1 className="text-3xl font-bold">إعدادات النظام</h1>
         <p className="text-purple-500">تحكم في الخصائص العامة للمنصة</p>
       </div>
 
-       <div className="w-full max-w-2xl space-y-6 rounded-3xl border bg-white p-4 text-right shadow-sm sm:space-y-8 sm:p-8">
+        <div className="dashboard-surface w-full max-w-2xl space-y-6 text-right sm:space-y-8">
          <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h3 className="font-bold text-lg">تفعيل الدردشة الجماعية</h3>

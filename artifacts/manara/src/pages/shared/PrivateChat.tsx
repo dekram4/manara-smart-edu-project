@@ -190,7 +190,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
      <div className="dashboard-chat-overlay" style={styles.overlay}>
        <div className="dashboard-chat-container" style={styles.container}>
         {/* Header */}
-        <div style={styles.header}>
+         <div className="dashboard-chat-header" style={styles.header}>
           <h2 style={styles.headerTitle}>💬 الدردشة الخاصة</h2>
           <button onClick={onClose} style={styles.closeButton}>✖</button>
         </div>
@@ -242,7 +242,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
             {selectedContact ? (
               <>
                 {/* Chat Header */}
-                <div style={styles.chatHeader}>
+                 <div className="dashboard-chat-header" style={styles.chatHeader}>
                   <div style={styles.chatHeaderIcon}>{getRoleIcon(selectedContact.role)}</div>
                   <div>
                     <div style={styles.chatHeaderName}>{selectedContact.name}</div>
@@ -251,7 +251,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
                 </div>
 
                 {/* Messages */}
-                <div style={styles.messagesContainer}>
+                 <div className="dashboard-chat-messages" style={styles.messagesContainer}>
                   {messages.length === 0 ? (
                     <div style={styles.emptyMessages}>
                       <div style={styles.emptyIcon}>💬</div>
@@ -295,7 +295,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
                 </div>
 
                 {/* Input */}
-                <form onSubmit={handleSendMessage} style={styles.inputForm}>
+                 <form className="dashboard-chat-input" onSubmit={handleSendMessage} style={styles.inputForm}>
                   <input
                     type="text"
                     value={newMessage}

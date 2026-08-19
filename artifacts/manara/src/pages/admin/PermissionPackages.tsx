@@ -160,7 +160,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
 
   return (
     <div className="dashboard-page animate-fadeIn" dir="rtl">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+       <div className="dashboard-section-header">
         <div>
           <h1 className="text-3xl font-black text-purple-900">🔐 إدارة الصلاحيات</h1>
           <p className="mt-1 font-bold text-purple-500">
@@ -175,7 +175,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+       <div className="dashboard-card-grid">
         {(Object.keys(roleLabels) as PermissionPackageRole[]).map(role => (
           <button
             key={role}

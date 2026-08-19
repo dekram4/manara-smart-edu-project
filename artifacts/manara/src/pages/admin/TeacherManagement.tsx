@@ -164,7 +164,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   return (
     <div className="dashboard-page animate-fadeIn">
       {/* 📊 Header */}
-      <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
+       <div className="dashboard-section-header">
         <div className="min-w-0">
           <h1 className="text-2xl font-black text-purple-900 sm:text-3xl">👨‍🏫 إدارة المعلمين</h1>
           <p className="text-purple-500 font-medium">إضافة وإدارة حسابات المعلمين</p>
@@ -184,7 +184,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
 
       {/* 📝 نموذج الإضافة/التعديل */}
       {showForm && (
-        <div className="mobile-modal-panel bg-gradient-to-br from-blue-50 to-violet-50 p-4 rounded-[28px] border-2 border-blue-300 shadow-2xl sm:p-8 sm:rounded-[40px]">
+         <div className="dashboard-surface mobile-modal-panel bg-gradient-to-br from-blue-50 to-violet-50 border-blue-300 shadow-2xl">
           <h2 className="text-2xl font-black text-blue-900 mb-8">
             {editingTeacher ? '✏️ تعديل بيانات المعلم' : '✨ إضافة معلم جديد'}
           </h2>
@@ -284,7 +284,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       )}
 
       {/* 📋 قائمة المعلمين */}
-      <div className="space-y-4">
+       <div className="dashboard-surface space-y-4">
         <h2 className="text-2xl font-black text-purple-900">
           📚 المعلمون المسجلون ({teachers.length})
         </h2>

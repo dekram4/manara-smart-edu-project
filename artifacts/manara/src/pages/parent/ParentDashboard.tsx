@@ -1202,7 +1202,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </div>
 
                 {/* Filter + Children grid */}
-                <div className="bg-white p-4 rounded-2xl shadow-md border border-rose-100">
+                <div className="dashboard-surface">
                   <div className="flex gap-3 items-center mb-5">
                     <div className="flex-1 relative">
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-400 text-sm">🔍</span>
@@ -1210,7 +1210,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     </div>
                     {dashFilter && <button onClick={() => setDashFilter('')} className="px-3 py-2 bg-rose-100 text-rose-500 rounded-xl font-bold text-xs hover:bg-rose-200 transition-all">إلغاء</button>}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div className="dashboard-card-grid dashboard-card-grid-wide">
                     {(() => {
                       const filtered = dashFilter.trim()
                         ? children.filter(c => c.name.toLowerCase().includes(dashFilter.toLowerCase()) || (c.primaryGrade || c.grade || '').includes(dashFilter))
@@ -1285,7 +1285,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- CHILDREN (dropdown + detail) ---------- */}
         {menuType === ParentMenuType.CHILDREN && (
-          <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 animate-fadeIn min-h-[calc(100dvh-8rem)]">
+          <div className="dashboard-internal-layout animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Left sidebar — dropdown selector */}
             <div className="w-full lg:w-72 bg-white rounded-2xl shadow-md border border-rose-100 p-4 flex flex-col shrink-0 overflow-hidden">
               <h3 className="text-xs font-black text-rose-700 mb-3 border-b border-rose-100 pb-2 flex items-center gap-2">
@@ -1387,7 +1387,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       <h3 className="text-base font-black mb-3 text-rose-800 flex items-center gap-2">
                         <span className="w-1 h-4 bg-rose-500 rounded-full"></span> 📚 المواد والتحصيل
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      <div className="dashboard-card-grid dashboard-card-grid-wide">
                         {subjectsOfChild.length > 0 ? subjectsOfChild.map(subObj => {
                           const subQuizzes = myChildQuizzes.filter(q => q.subject === subObj.subject);
                           const avg = subQuizzes.length > 0 ? (subQuizzes.reduce((acc, q) => acc + q.percentage, 0) / subQuizzes.length).toFixed(0) : '0';
@@ -1534,12 +1534,12 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- ADD CHILDREN ---------- */}
         {menuType === ParentMenuType.ADD_CHILDREN && (
-          <div className="max-w-xl mx-auto animate-fadeIn space-y-5">
-            <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-5 rounded-2xl shadow-xl text-white">
+          <div className="dashboard-page max-w-xl mx-auto animate-fadeIn">
+            <div className="dashboard-page-banner bg-gradient-to-r from-rose-500 to-rose-600">
               <h1 className="text-xl font-black">➕ إضافة ابن/ابنة جديد</h1>
               <p className="text-rose-200 font-bold text-xs mt-1">قم بملء بيانات الابن</p>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-md border border-rose-100">
+            <div className="dashboard-surface border-rose-100">
               <form onSubmit={handleAddChild} className="space-y-4 text-right">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1"><label className="text-xs font-bold text-rose-600 block">الاسم الكامل *</label><input type="text" placeholder="أدخل اسم الابن" value={newChild.name} onChange={e => setNewChild({...newChild, name: e.target.value})} className="w-full p-3 bg-white rounded-xl border border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none font-bold text-sm transition-all" required /></div>
@@ -1568,7 +1568,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- CERTIFICATES ---------- */}
         {menuType === ParentMenuType.CERTIFICATES && (
-          <div className="flex flex-col lg:flex-row gap-4 animate-fadeIn min-h-[calc(100dvh-8rem)]">
+          <div className="dashboard-internal-layout animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Inner sidebar — children list */}
             <div className="w-full lg:w-56 bg-white rounded-2xl shadow-md border border-rose-100 p-3 flex flex-col shrink-0 overflow-hidden">
               <h3 className="text-xs font-black text-rose-700 mb-2 border-b border-rose-100 pb-2">👨‍👧 الأبناء</h3>
@@ -1596,7 +1596,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             {/* Main certificates area */}
             <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
               {/* Filter bar */}
-              <div className="bg-white p-3 rounded-2xl shadow-md border border-rose-100 mb-3 shrink-0">
+              <div className="dashboard-filter-surface mb-3 shrink-0">
                 <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-center">
                   <div className="flex-1 relative">
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-400 text-sm">🔍</span>
@@ -1628,7 +1628,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               {/* Certificates grid */}
               <div className="flex-1 overflow-y-auto">
                 {filteredCertificates.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2">
+                  <div className="dashboard-card-grid dashboard-card-grid-wide pb-2">
                     {filteredCertificates.map((cert, idx) => (
                       <div key={idx} className={`bg-white p-4 rounded-2xl shadow-sm border transform hover:scale-[1.01] transition-all ${
                         cert.type === 'excellence' ? 'border-amber-200' : cert.type === 'appreciation' ? 'border-blue-200' : 'border-emerald-200'
@@ -1666,7 +1666,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- SETTINGS ---------- */}
         {menuType === ParentMenuType.SETTINGS && (
-          <div className="dashboard-page max-w-lg bg-white p-6 rounded-2xl shadow-md border border-rose-100 mx-auto animate-fadeIn">
+          <div className="dashboard-page dashboard-surface max-w-lg border-rose-100 mx-auto animate-fadeIn">
             <h1 className="text-xl font-black text-rose-800 flex items-center gap-2">
               <span className="w-1 h-5 bg-rose-500 rounded-full"></span> إعدادات الحساب
             </h1>

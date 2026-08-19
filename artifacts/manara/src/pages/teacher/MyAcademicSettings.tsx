@@ -549,13 +549,13 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
 
   return (
     <div style={styles.container} className="dashboard-page">
-      <div style={styles.header}>
+       <div className="dashboard-section-header" style={styles.header}>
         <h1 style={styles.title}>إعداداتي الأكاديمية</h1>
         <p style={styles.subtitle}>إدارة الهيكل الأكاديمي الخاص بي</p>
       </div>
 
       {/* Tabs */}
-      <div style={styles.tabs}>
+       <div className="dashboard-filter-surface" style={styles.tabs}>
         <button
           onClick={() => setActiveTab('my')}
           style={{

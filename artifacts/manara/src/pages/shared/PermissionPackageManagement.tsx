@@ -375,7 +375,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+       <div className="dashboard-section-header">
         {(managerRole === 'teacher' ? (['parent', 'student'] as TargetRole[]) : (['student'] as TargetRole[])).map(role => (
           <button
             key={role}
@@ -401,7 +401,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
       </div>
 
       {showEditor && (
-        <form onSubmit={savePackage} className="rounded-3xl border-2 border-indigo-100 bg-white p-6 shadow-lg">
+        <form onSubmit={savePackage} className="dashboard-surface border-indigo-100">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-black text-indigo-900">
@@ -428,7 +428,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
               className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold outline-none focus:border-indigo-400"
             />
           </div>
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+         <div className="dashboard-card-grid">
             {Object.entries(packageDraft).filter(([, value]) => typeof value === 'boolean').map(([key, value]) => (
               <label key={key} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 font-bold text-slate-700">
                 <span className="min-w-0 flex-1 break-words">{permissionLabels[key] || key}</span>
@@ -442,7 +442,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
             ))}
           </div>
           {roleLimitKeys[editorRole].length > 0 && (
-            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+           <div className="dashboard-card-grid">
               {roleLimitKeys[editorRole].map(key => (
                 <label key={key} className="text-sm font-black text-slate-700">
                   {limitLabels[key]} <span className="text-xs text-slate-400">(-1 غير محدود)</span>
@@ -476,7 +476,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
             لا توجد إعدادات صلاحيات لهذا الدور حاليًا.
           </div>
         )}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="dashboard-card-grid">
           {visiblePackages.map(pkg => {
             const isOwner = packageBelongsToManager(pkg, managerRole, managerId);
             return (

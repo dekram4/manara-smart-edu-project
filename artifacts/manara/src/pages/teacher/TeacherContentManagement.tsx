@@ -14,7 +14,7 @@ const TeacherContentManagement: React.FC<TeacherContentManagementProps> = ({ tea
 
   if (!canManageContent) {
     return (
-      <div style={styles.noPermissionContainer}>
+      <div className="dashboard-page dashboard-empty-state" style={styles.noPermissionContainer}>
         <div style={styles.noPermissionIcon}>🔒</div>
         <h2 style={styles.noPermissionTitle}>لا توجد صلاحية</h2>
         <p style={styles.noPermissionText}>

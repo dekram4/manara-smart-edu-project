@@ -349,7 +349,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   return (
     <div className="dashboard-page animate-fadeIn">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-8 rounded-[40px] shadow-2xl text-white">
+      <div className="dashboard-page-banner bg-gradient-to-r from-purple-600 to-pink-600">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-black mb-2">🏆 شهادات التقدير</h1>
@@ -397,18 +397,18 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-[30px] shadow-lg border-2 border-yellow-200">
+      <div className="dashboard-stats-grid">
+        <div className="dashboard-stat-card bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
           <div className="text-5xl mb-3">🏆</div>
           <div className="text-3xl font-black text-yellow-900">{students.filter(s => getStudentAverage(s.id) >= 90).length}</div>
           <div className="text-yellow-700 font-bold">طالب متفوق (90%+)</div>
         </div>
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-[30px] shadow-lg border-2 border-amber-200">
+        <div className="dashboard-stat-card bg-gradient-to-br from-blue-50 to-blue-100 border-amber-200">
           <div className="text-5xl mb-3">⭐</div>
           <div className="text-3xl font-black text-blue-900">{students.filter(s => getStudentAverage(s.id) >= 70 && getStudentAverage(s.id) < 90).length}</div>
           <div className="text-blue-700 font-bold">طالب مجتهد (70-89%)</div>
         </div>
-        <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-[30px] shadow-lg border-2 border-green-200">
+        <div className="dashboard-stat-card bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <div className="text-5xl mb-3">👨‍🎓</div>
           <div className="text-3xl font-black text-green-900">{students.length}</div>
           <div className="text-green-700 font-bold">إجمالي الطلاب</div>
@@ -416,7 +416,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
       </div>
 
       {/* Students List */}
-      <div className="bg-white p-8 rounded-[40px] shadow-lg border-2 border-amber-200">
+      <div className="dashboard-surface border-amber-200">
         <h2 className="text-2xl font-black text-amber-900 mb-6">📋 قائمة الطلاب</h2>
 
         {filteredStudents.length === 0 ? (
@@ -425,7 +425,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
             <p className="text-gray-500 font-bold text-xl">لا توجد نتائج</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="dashboard-card-grid dashboard-card-grid-wide">
             {filteredStudents.map((student) => {
               const average = getStudentAverage(student.id);
               const quizCount = allQuizzes.filter(q => q.studentId === student.id).length;

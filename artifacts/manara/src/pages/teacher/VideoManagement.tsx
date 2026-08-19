@@ -501,7 +501,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
   return (
      <div className="dashboard-page animate-fadeIn">
-      <div className="flex justify-between items-center">
+       <div className="dashboard-section-header">
         <div>
            <h2 className="text-4xl font-black text-amber-800">🎬 إدارة سينما منارة</h2>
            <p className="text-amber-500 font-medium mt-1">{isAdmin ? 'إدارة الفيديوهات العامة لجميع الطلاب' : 'أضف فيديوهات تعليمية لطلابك'}</p>
@@ -538,7 +538,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         </button>
       </div>
 
-      <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/80 p-4">
+       <div className="dashboard-filter-surface border-amber-200 bg-amber-50/80">
          <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-black text-amber-800">🔎 فلترة الفيديوهات</h3>
           <button
@@ -548,7 +548,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             مسح الفلاتر
           </button>
         </div>
-        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+         <div className="dashboard-filter-grid dashboard-filter-grid-wide">
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
             <option value="">🎓 كل الصفوف</option>
             {filterOptions.grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
@@ -573,7 +573,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="flex flex-col space-y-5 rounded-[30px] border-2 border-amber-200 bg-white p-5 shadow-xl animate-bounce-in sm:p-8">
+         <form onSubmit={handleSubmit} className="dashboard-surface flex flex-col space-y-5 border-amber-200 animate-bounce-in">
           <div className="flex flex-col gap-2 border-b border-amber-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-2xl font-black text-amber-900">

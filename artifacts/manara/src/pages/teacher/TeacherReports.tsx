@@ -296,7 +296,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   }
 
   return (
-    <div className="dashboard-page w-full max-w-7xl mx-auto">
+     <div className="dashboard-page">
       {/* العنوان */}
       <div className="dashboard-page-banner bg-gradient-to-r from-amber-600 to-orange-600">
         <h1 className="text-2xl sm:text-3xl font-black mb-2 leading-8">📊 التقارير والإحصائيات</h1>
@@ -617,7 +617,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             <p className="text-xl font-medium">لا يوجد أولياء أمور حتى الآن</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+       <div className="dashboard-card-grid dashboard-card-grid-wide">
             {parents.map((parent) => {
               const parentStudents = students.filter(s => s.parentId === parent.id);
               return (

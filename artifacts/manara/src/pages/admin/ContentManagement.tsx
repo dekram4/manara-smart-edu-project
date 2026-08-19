@@ -415,7 +415,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     <div className="dashboard-page animate-fadeIn">
       {/* للمشرف فقط: اختيار المعلم */}
       {!teacherId && (
-        <div style={{ 
+        <div className="dashboard-surface" style={{
           backgroundColor: 'white', 
           padding: '25px', 
           borderRadius: '16px', 
@@ -423,7 +423,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           marginBottom: '25px',
           boxShadow: '0 4px 6px rgba(99, 102, 241, 0.1)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
+          <div className="dashboard-section-header" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
             <span style={{ fontSize: '2rem' }}>📚</span>
             <div>
               <h3 style={{ fontWeight: 'bold', fontSize: '1.3rem', color: '#4338ca', marginBottom: '5px' }}>
@@ -435,7 +435,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             </div>
           </div>
           
-          <select 
+          <select className="dashboard-form-control"
             value={selectedTeacherId} 
             onChange={handleTeacherChange}
             style={{ 
@@ -461,7 +461,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </select>
           
           {selectedTeacherId === 'admin' && (
-            <div style={{ 
+            <div className="dashboard-notice" style={{
               marginTop: '15px', 
               padding: '12px', 
               backgroundColor: '#dcfce7',
@@ -474,7 +474,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             </div>
           )}
           {selectedTeacherName && selectedTeacherId !== 'admin' && (
-            <div style={{ 
+            <div className="dashboard-notice" style={{
               marginTop: '15px', 
               padding: '12px', 
               backgroundColor: '#eef2ff',
@@ -487,7 +487,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             </div>
           )}
           {!selectedTeacherId && (
-            <div style={{ 
+            <div className="dashboard-notice" style={{
               marginTop: '15px', 
               padding: '12px', 
               backgroundColor: '#fef3c7',
@@ -502,7 +502,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
       
-      <div className="flex justify-between items-center">
+      <div className="dashboard-section-header">
         <div>
           <h1 className="text-3xl font-bold">إدارة المحتوى التعليمي</h1>
           <p className="text-gray-500">اربط الروابط التعليمية بالصفوف والمواد</p>
@@ -522,7 +522,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       </div>
 
       {showForm && (
-        <div className="bg-white p-8 rounded-[40px] shadow-lg border animate-fadeIn border-purple-100">
+         <div className="dashboard-surface animate-fadeIn border-purple-100">
           <h2 className="text-xl font-black text-purple-800 mb-6">{editingLesson ? 'تعديل المحتوى' : 'إضافة محتوى جديد'}</h2>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
