@@ -76,7 +76,7 @@ flutter run \
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "args": [
+      "toolArgs": [
         "--dart-define=SUPABASE_URL=https://your-project.supabase.co",
         "--dart-define=SUPABASE_ANON_KEY=your-public-anon-key",
         "--dart-define=API_BASE_URL=https://your-manara-api.example.com"
