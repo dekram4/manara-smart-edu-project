@@ -412,44 +412,25 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   };
 
   return (
-    <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
+    <div className="dashboard-page dashboard-consistent-page dashboard-content-management animate-fadeIn">
       {/* للمشرف فقط: اختيار المعلم */}
       {!teacherId && (
-        <div className="dashboard-surface" style={{
-          backgroundColor: 'white', 
-          padding: '25px', 
-          borderRadius: '16px', 
-          border: '2px solid #818cf8',
-          marginBottom: '25px',
-          boxShadow: '0 4px 6px rgba(99, 102, 241, 0.1)'
-        }}>
-          <div className="dashboard-section-header" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
-            <span style={{ fontSize: '2rem' }}>📚</span>
+        <div className="dashboard-surface dashboard-content-scope">
+          <div className="dashboard-content-scope-header">
+            <span className="dashboard-content-scope-icon">📚</span>
             <div>
-              <h3 style={{ fontWeight: 'bold', fontSize: '1.3rem', color: '#4338ca', marginBottom: '5px' }}>
+              <h3>
                 اختر المعلم لإدارة المحتوى
               </h3>
-              <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+              <p>
                 كل معلم له محتوى تعليمي مستقل مرتبط بإعداداته الأكاديمية
               </p>
             </div>
           </div>
           
-          <select className="dashboard-form-control"
+          <select className="dashboard-form-control dashboard-content-select"
             value={selectedTeacherId} 
             onChange={handleTeacherChange}
-            style={{ 
-              width: '100%', 
-              padding: '15px', 
-              fontSize: '1.1rem',
-              fontWeight: 'bold',
-              border: '2px solid #c7d2fe',
-              borderRadius: '12px',
-              backgroundColor: '#f5f3ff',
-              color: '#4338ca',
-              outline: 'none',
-              cursor: 'pointer'
-            }}
           >
             <option value="">🌐 عرض الكل (جميع المعلمين)</option>
             <option value="admin">📚 محتوى عام (يظهر لجميع المعلمين)</option>
@@ -461,40 +442,22 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </select>
           
           {selectedTeacherId === 'admin' && (
-            <div className="dashboard-notice" style={{
-              marginTop: '15px', 
-              padding: '12px', 
-              backgroundColor: '#dcfce7',
-              borderRadius: '8px',
-              borderRight: '4px solid #22c55e'
-            }}>
-              <span style={{ fontWeight: 'bold', color: '#15803d' }}>
+            <div className="dashboard-notice dashboard-content-notice dashboard-content-notice-success">
+              <span>
                 ✅ تقوم الآن بإنشاء محتوى عام - سيظهر لجميع المعلمين
               </span>
             </div>
           )}
           {selectedTeacherName && selectedTeacherId !== 'admin' && (
-            <div className="dashboard-notice" style={{
-              marginTop: '15px', 
-              padding: '12px', 
-              backgroundColor: '#eef2ff',
-              borderRadius: '8px',
-              borderRight: '4px solid #818cf8'
-            }}>
-              <span style={{ fontWeight: 'bold', color: '#4338ca' }}>
+            <div className="dashboard-notice dashboard-content-notice dashboard-content-notice-info">
+              <span>
                 ✅ تقوم الآن بإدارة محتوى المعلم: {selectedTeacherName}
               </span>
             </div>
           )}
           {!selectedTeacherId && (
-            <div className="dashboard-notice" style={{
-              marginTop: '15px', 
-              padding: '12px', 
-              backgroundColor: '#fef3c7',
-              borderRadius: '8px',
-              borderRight: '4px solid #f59e0b'
-            }}>
-              <span style={{ fontWeight: 'bold', color: '#92400e' }}>
+            <div className="dashboard-notice dashboard-content-notice dashboard-content-notice-warning">
+              <span>
                 ℹ️ وضع العرض فقط - لإضافة محتوى، اختر "محتوى عام" أو معلم معين
               </span>
             </div>
@@ -502,18 +465,19 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
       
-      <div className="dashboard-section-header">
+      <div className="dashboard-section-header dashboard-content-header">
         <div>
-          <h1 className="text-3xl font-bold">إدارة المحتوى التعليمي</h1>
-          <p className="text-gray-500">اربط الروابط التعليمية بالصفوف والمواد</p>
+          <span className="dashboard-content-eyebrow">المكتبة التعليمية</span>
+          <h1>إدارة المحتوى التعليمي</h1>
+          <p>اربط الروابط التعليمية بالصفوف والمواد والوحدات من مكان واحد.</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
           disabled={!teacherId && !selectedTeacherId}
-          className={`px-6 py-2 rounded-xl font-bold ${
+          className={`dashboard-content-primary-action ${
             !teacherId && !selectedTeacherId 
-              ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-              : 'bg-purple-500 text-white hover:bg-purple-600'
+              ? 'is-disabled'
+              : ''
           }`}
           title={!teacherId && !selectedTeacherId ? 'اختر معلماً أو محتوى عام لإضافة محتوى جديد' : ''}
         >
@@ -522,10 +486,24 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       </div>
 
       {showForm && (
-         <div className="dashboard-surface animate-fadeIn border-purple-100">
-          <h2 className="text-xl font-black text-purple-800 mb-6">{editingLesson ? 'تعديل المحتوى' : 'إضافة محتوى جديد'}</h2>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="dashboard-filter-grid dashboard-filter-grid-wide">
+         <div className="dashboard-surface dashboard-content-form-surface animate-fadeIn">
+           <div className="dashboard-content-form-heading">
+             <div>
+               <span>الخطوة 01</span>
+               <h2>{editingLesson ? 'تعديل المحتوى' : 'إضافة محتوى جديد'}</h2>
+             </div>
+             <p>حدد المسار الأكاديمي ثم أضف مصادر الدرس وشرح المعلم.</p>
+           </div>
+           <form onSubmit={handleSubmit} className="dashboard-content-form">
+             <div className="dashboard-content-form-section">
+               <div className="dashboard-content-form-section-heading">
+                 <span>01</span>
+                 <div>
+                   <h3>المسار الأكاديمي</h3>
+                   <p>اختر المكان الذي سيظهر فيه المحتوى للطلاب.</p>
+                 </div>
+               </div>
+             <div className="dashboard-filter-grid dashboard-filter-grid-wide dashboard-content-academic-grid">
               {/* الصف - Grade */}
               <select value={formData.grade} onChange={e => {
                 const newGrade = e.target.value;
@@ -542,7 +520,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 setAvailableSubjects([]);
                 setAvailableTerms([]);
                 setAvailableUnits([]);
-              }} className="p-3 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" required>
+               }} className="dashboard-content-control" required>
                 <option value="">الصف</option>
                 {options.grades.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
@@ -565,7 +543,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 }
                 setAvailableTerms([]);
                 setAvailableUnits([]);
-              }} className="p-3 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" required disabled={!formData.grade}>
+               }} className="dashboard-content-control" required disabled={!formData.grade}>
                 <option value="">الترم</option>
                 {availableAtrams.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
@@ -590,7 +568,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   }
                 }
                 setAvailableUnits([]);
-              }} className="p-3 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" required disabled={!formData.atram}>
+               }} className="dashboard-content-control" required disabled={!formData.atram}>
                 <option value="">المادة</option>
                 {availableSubjects.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
@@ -617,7 +595,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                     }
                   }
                 }
-              }} className="p-3 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" required disabled={!formData.subject}>
+               }} className="dashboard-content-control" required disabled={!formData.subject}>
                 <option value="">الفصل</option>
                 {availableTerms.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
@@ -626,23 +604,32 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               <select value={formData.unit} onChange={e => {
                 const newUnit = e.target.value;
                 setFormData({...formData, unit: newUnit});
-              }} className="p-3 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" required disabled={!formData.term}>
+               }} className="dashboard-content-control" required disabled={!formData.term}>
                 <option value="">الوحدة</option>
                 {availableUnits.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
-            </div>
+             </div>
+             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-bold mb-1 text-purple-700">فيديو شرح الدرس</label>
-                <div className="mb-2 flex gap-2 rounded-2xl bg-purple-50 p-2">
+             <div className="dashboard-content-form-section">
+               <div className="dashboard-content-form-section-heading">
+                 <span>02</span>
+                 <div>
+                   <h3>مصادر الدرس</h3>
+                   <p>أضف الفيديو أو الروابط التي يحتاجها الطالب.</p>
+                 </div>
+               </div>
+             <div className="dashboard-content-resource-grid">
+               <div className="dashboard-content-resource-card dashboard-content-video-card">
+                 <label>فيديو شرح الدرس</label>
+                 <div className="dashboard-content-toggle">
                   <button type="button" onClick={() => setFormData({ ...formData, explanationVideoType: 'embed', explanationVideoUrl: formData.explanationVideoType === 'mp4' && isMp4VideoUrl(formData.explanationVideoUrl) ? '' : formData.explanationVideoUrl, explanationVideoFile: null })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.explanationVideoType === 'embed' ? 'bg-purple-500 text-white' : 'text-purple-700'}`}>🔗 رابط مضمن</button>
                   <button type="button" onClick={() => setFormData({ ...formData, explanationVideoType: 'mp4' })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.explanationVideoType === 'mp4' ? 'bg-purple-500 text-white' : 'text-purple-700'}`}>📁 رفع MP4</button>
                 </div>
                 {formData.explanationVideoType === 'embed' ? (
-                  <input type="url" value={formData.explanationVideoUrl} onChange={e => setFormData({...formData, explanationVideoUrl: e.target.value})} className="w-full p-4 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" placeholder="https://..." />
+                   <input type="url" value={formData.explanationVideoUrl} onChange={e => setFormData({...formData, explanationVideoUrl: e.target.value})} className="dashboard-content-control" placeholder="https://..." />
                 ) : (
-                  <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-purple-300 bg-purple-50 p-4 text-center font-bold text-purple-700">
+                   <label className="dashboard-content-upload">
                     <span>{formData.explanationVideoFile?.name || (editingLesson?.explanationVideoUrl ? 'استبدال ملف MP4 (اختياري)' : 'اختر ملف MP4 بحد أقصى 500MB')}</span>
                     <input type="file" accept="video/mp4,.mp4" className="hidden" onChange={e => setFormData({ ...formData, explanationVideoFile: e.target.files?.[0] || null })} />
                   </label>
@@ -650,27 +637,27 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 <button
                   type="button"
                   onClick={addExplanationVideo}
-                  className="mt-2 w-full rounded-xl bg-purple-100 px-4 py-3 font-black text-purple-700 transition hover:bg-purple-200"
+                   className="dashboard-content-secondary-action"
                 >
                   ➕ إضافة هذا الفيديو إلى شرح الدرس
                 </button>
                 {formData.explanationVideos.length > 0 && (
-                  <div className="mt-3 space-y-2 rounded-2xl border border-purple-200 bg-white p-3">
-                    <p className="text-xs font-black text-purple-700">
+                   <div className="dashboard-content-video-list">
+                     <p>
                       🎬 فيديوهات هذا الدرس ({formData.explanationVideos.length})
                     </p>
                     {formData.explanationVideos.map((video, index) => (
-                      <div key={video.id} className="flex items-center gap-2 rounded-xl bg-purple-50 px-3 py-2">
-                        <span className="flex-1 truncate text-xs font-bold text-purple-800">
+                       <div key={video.id} className="dashboard-content-video-row">
+                         <span>
                           {index + 1}. {video.title || video.url}
                         </span>
-                        <span className="text-[10px] font-black text-purple-500">
+                         <span className="dashboard-content-video-type">
                           {video.sourceType === 'mp4' ? 'MP4' : 'رابط'}
                         </span>
-                        <button
+                         <button
                           type="button"
                           onClick={() => removeExplanationVideo(video)}
-                          className="rounded-lg px-2 py-1 text-xs font-black text-red-600 hover:bg-red-100"
+                           className="dashboard-content-video-remove"
                         >
                           حذف
                         </button>
@@ -679,28 +666,36 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   </div>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-bold mb-1 text-purple-700">رابط الأفاتار التفاعلي</label>
-                <input type="url" value={formData.avatarInteractionUrl} onChange={e => setFormData({...formData, avatarInteractionUrl: e.target.value})} className="w-full p-4 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" placeholder="https://..." />
+               <div className="dashboard-content-resource-card">
+                 <label>رابط الأفاتار التفاعلي</label>
+                 <input type="url" value={formData.avatarInteractionUrl} onChange={e => setFormData({...formData, avatarInteractionUrl: e.target.value})} className="dashboard-content-control" placeholder="https://..." />
               </div>
-              <div>
-                <label className="block text-sm font-bold mb-1 text-purple-700">رابط الاجتماع المباشر</label>
-                <input type="url" value={formData.liveMeetingUrl} onChange={e => setFormData({...formData, liveMeetingUrl: e.target.value})} className="w-full p-4 border-2 rounded-2xl outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50" placeholder="https://..." />
+               <div className="dashboard-content-resource-card">
+                 <label>رابط الاجتماع المباشر</label>
+                 <input type="url" value={formData.liveMeetingUrl} onChange={e => setFormData({...formData, liveMeetingUrl: e.target.value})} className="dashboard-content-control" placeholder="https://..." />
               </div>
             </div>
+             </div>
 
-            <div>
-              <label className="block text-sm font-bold mb-1 text-purple-800">نص الشرح الكامل (سياق المعلم الذكي)</label>
+             <div className="dashboard-content-form-section">
+               <div className="dashboard-content-form-section-heading">
+                 <span>03</span>
+                 <div>
+                   <h3>المادة التعليمية</h3>
+                   <p>هذا النص يستخدمه المساعد الذكي لمساعدة الطالب.</p>
+                 </div>
+               </div>
+               <label className="dashboard-content-textarea-label">نص الشرح الكامل (سياق المعلم الذكي)</label>
               <textarea
                 value={formData.lessonContent}
                 onChange={e => setFormData({...formData, lessonContent: e.target.value})}
-                className="w-full p-5 border-2 rounded-3xl min-h-[180px] outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 bg-purple-50 font-medium"
+                 className="dashboard-content-textarea"
                 placeholder="أدخل النص الكامل للدرس هنا أو ارفع ملف نصي/بي دي إف. سيستخدمه النظام كمرجع للإجابة على أسئلة الطالب في قسم حل المسائل. هذا النص مخفي عن الطالب."
               />
               <input
                 type="file"
                 accept=".txt,application/pdf"
-                className="mt-3"
+                 className="dashboard-content-file-input"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
@@ -731,14 +726,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   }
                 }}
               />
-              <p className="text-xs text-orange-600 mt-2 font-bold flex items-center gap-1">
+               <p className="dashboard-content-hint">
                 <span>⚠️</span> يمكنك رفع ملف نصي أو PDF وسيتم استخراج النص تلقائياً.
               </p>
             </div>
 
             <button 
               type="submit" 
-              className="w-full bg-purple-500 hover:bg-purple-600 text-white py-5 rounded-[24px] font-black text-xl shadow-xl shadow-purple-100 transition-all"
+               className="dashboard-content-submit"
             >
               💾 حفظ ونشر المحتوى
             </button>
@@ -746,9 +741,16 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
 
-      <div className="dashboard-table-surface dashboard-content-records">
-        <table className="w-full min-w-[900px] text-right">
-          <thead className="bg-purple-50 border-b">
+      <div className="dashboard-table-surface dashboard-content-records dashboard-content-table-surface">
+        <div className="dashboard-content-table-heading">
+          <div>
+            <span>المحتوى المنشور</span>
+            <h2>دروس المنصة</h2>
+          </div>
+          <strong>{lessons.length} محتوى</strong>
+        </div>
+        <table className="dashboard-content-table text-right">
+          <thead className="dashboard-content-table-head">
             <tr>
               <th className="px-6 py-5">الصف</th>
               <th className="px-6 py-5">المادة</th>
@@ -763,7 +765,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </thead>
           <tbody>
             {lessons.map(l => (
-              <tr key={l.id} className="border-b hover:bg-purple-50/30 transition-colors">
+              <tr key={l.id}>
                 <td className="px-6 py-5 font-black text-purple-800">{l.grade}</td>
                 <td className="px-6 py-5 font-bold text-purple-600">{l.subject}</td>
                 <td className="px-6 py-5 font-black text-purple-700">{l.atram}</td>
@@ -785,14 +787,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   {l.liveMeetingUrl ? <span className="bg-purple-100 text-purple-600 px-3 py-1 rounded-lg text-xs font-black">✅ موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">❌ غير موجود</span>}
                 </td>
                 <td className="px-6 py-5 space-x-2 space-x-reverse">
-                  <button onClick={() => handleEdit(l)} className="text-purple-500 font-bold hover:underline">تعديل</button>
-                  <button onClick={() => handleDelete(l.id)} className="text-red-500 font-bold hover:underline">حذف</button>
+                   <button onClick={() => handleEdit(l)} className="dashboard-content-table-edit">تعديل</button>
+                   <button onClick={() => handleDelete(l.id)} className="dashboard-content-table-delete">حذف</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {lessons.length === 0 && <div className="p-32 text-center text-purple-400 font-bold">لا يوجد محتوى تعليمي مضاف حالياً</div>}
+        {lessons.length === 0 && <div className="dashboard-content-empty">لا يوجد محتوى تعليمي مضاف حالياً</div>}
       </div>
     </div>
   );

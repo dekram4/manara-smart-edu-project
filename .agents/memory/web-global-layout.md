@@ -44,3 +44,9 @@ For cross-role UI changes, update the dashboard shell and shared layout primitiv
 **Why:** Editing isolated pages repeatedly left the same spacing and clipping defects in other teacher, supervisor, and parent menus.
 
 **How to apply:** Treat teacher, supervisor, and parent shells plus `index.css` as the first implementation surface for any global dashboard overhaul.
+
+Screenshot-driven dashboard work must refactor the actual internal page surface, not only the role shell; shared control, form, table, and navigation primitives need to be visibly applied inside the selected menu.
+
+**Why:** A shell-only pass left legacy inline-styled content-management forms and tables visually unchanged even though the surrounding dashboard had been normalized.
+
+**How to apply:** Map the screenshot to its exact page component first, then create a page-specific shared interior pattern and let the other role pages inherit the common controls.
