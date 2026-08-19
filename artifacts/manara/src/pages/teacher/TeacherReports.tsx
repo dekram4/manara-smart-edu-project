@@ -298,27 +298,36 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   return (
      <div className="dashboard-page dashboard-consistent-page dashboard-reports-page">
       {/* العنوان */}
-       <div className="dashboard-filter-surface dashboard-page-toolbar">
-         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-8">📊 التقارير والإحصائيات</h1>
-         <p className="text-slate-500 font-medium">
-          تقارير الأداء الخاصة بطلابك فقط
-        </p>
+        <div className="dashboard-filter-surface dashboard-page-toolbar dashboard-reports-header">
+         <div>
+           <span className="dashboard-reports-eyebrow">لوحة التحليل والمتابعة</span>
+           <h1>التقارير والإحصائيات</h1>
+           <p>تابع أداء طلابك ونتائج اختباراتهم وعلاقة كل طالب بولي أمره من شاشة واحدة.</p>
+         </div>
+         <span className="dashboard-reports-header-icon">📊</span>
       </div>
 
       {/* Search */}
-      <div className="dashboard-surface">
-        <div className="relative">
+       <div className="dashboard-surface dashboard-reports-search">
+         <div className="dashboard-reports-search-heading">
+           <div>
+             <span>بحث سريع</span>
+             <h2>ابحث داخل سجلات الطلاب</h2>
+           </div>
+           <span>⌕</span>
+         </div>
+         <div className="dashboard-reports-search-control">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="🔍 ابحث عن طالب بالاسم، ولي الأمر، أو الصف..."
-            className="w-full rounded-xl border-2 border-amber-100 bg-white p-3 pr-12 text-sm font-bold text-slate-700 outline-none focus:border-amber-400 sm:p-4 sm:text-base"
+             className="dashboard-reports-search-input"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute left-4 top-1/2 -translate-y-1/2 rounded-lg bg-amber-100 px-3 py-1 text-sm font-bold text-amber-700 transition-all hover:bg-amber-200"
+               className="dashboard-reports-clear"
             >
               ✖ مسح
             </button>
@@ -327,20 +336,20 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* إحصائيات عامة */}
-       <div className="dashboard-stats-grid dashboard-stats-grid-compact">
-        <div className="dashboard-stat-card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <div className="dashboard-stats-grid dashboard-stats-grid-compact dashboard-reports-stats">
+         <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-blue">
           <div className="dashboard-stat-heading"><span className="text-3xl">👨‍👩‍👧‍👦</span><span className="font-black">أولياء الأمور</span></div>
           <div className="dashboard-stat-value">{parents.length}</div>
           <div className="text-blue-100 font-medium">حساب مرتبط</div>
         </div>
 
-        <div className="dashboard-stat-card bg-gradient-to-br from-green-500 to-green-600 text-white">
+         <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-green">
           <div className="dashboard-stat-heading"><span className="text-3xl">🎓</span><span className="font-black">الطلاب</span></div>
           <div className="dashboard-stat-value">{students.length}</div>
           <div className="text-green-100 font-medium">طالب مرتبط</div>
         </div>
 
-        <div className="dashboard-stat-card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+         <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-purple">
           <div className="dashboard-stat-heading"><span className="text-3xl">📝</span><span className="font-black">الاختبارات</span></div>
           <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).totalQuizzes, 0)}
@@ -348,7 +357,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
           <div className="text-purple-100 font-medium">اختبار مكتمل</div>
         </div>
 
-        <div className="dashboard-stat-card bg-gradient-to-br from-amber-500 to-orange-500 text-white">
+         <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-amber">
           <div className="dashboard-stat-heading"><span className="text-3xl">💎</span><span className="font-black">الجواهر</span></div>
           <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).gems, 0)}
@@ -356,7 +365,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
           <div className="text-amber-100 font-medium">إجمالي الجواهر</div>
         </div>
 
-        <div className="dashboard-stat-card bg-gradient-to-br from-cyan-500 to-sky-600 text-white">
+         <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-cyan">
           <div className="dashboard-stat-heading"><span className="text-3xl">⚡</span><span className="font-black">الخبرة</span></div>
           <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).xp, 0)}
@@ -366,8 +375,14 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* جدول الطلاب */}
-      <div className="dashboard-surface">
-        <h2 className="text-xl sm:text-2xl font-black text-gray-800 mb-4 leading-8">📋 تقارير الطلاب</h2>
+       <div className="dashboard-surface dashboard-reports-student-table">
+         <div className="dashboard-reports-section-heading">
+           <div>
+             <span>السجل الأكاديمي</span>
+             <h2>📋 تقارير الطلاب</h2>
+           </div>
+           <p>{filteredStudents.length} طالب ظاهر في التقرير</p>
+         </div>
         
         {students.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
@@ -476,12 +491,14 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* تفاصيل أولياء الأمور */}
-      <div className="dashboard-surface">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+       <div className="dashboard-surface dashboard-reports-results">
+         <div className="dashboard-reports-section-heading">
           <div>
-            <h2 className="text-2xl font-black text-gray-800">📝 نتائج اختبارات الطلاب</h2>
-            <p className="text-sm text-gray-500 font-bold mt-1">ابحث باسم الطالب أو الاختبار أو ولي الأمر، ثم اطبع النتائج التفصيلية</p>
+             <span>التقييمات الخاصة بالمعلم</span>
+             <h2>📝 نتائج اختبارات الطلاب</h2>
+             <p>فلترة النتائج حسب الطالب أو الاختبار أو ولي الأمر أو المادة.</p>
           </div>
+           <span className="dashboard-reports-section-icon">✓</span>
         </div>
         {(() => {
           const teacherResultStudents = filteredStudents
@@ -514,7 +531,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
 
           return (
             <>
-               <div className="dashboard-filter-grid dashboard-filter-grid-wide mb-5">
+                <div className="dashboard-filter-grid dashboard-filter-grid-wide dashboard-reports-filter-grid mb-5">
                 <label className="text-xs font-black text-purple-700">
                   الطالب
                   <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-purple-100 bg-white text-sm font-bold text-gray-700 focus:border-purple-400 outline-none">
@@ -558,13 +575,13 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                 </button>
               )}
               {filteredResultStudents.length > 0 ? (
-               <div className="dashboard-card-grid dashboard-card-grid-wide dashboard-results-grid">
+                <div className="dashboard-card-grid dashboard-card-grid-wide dashboard-results-grid dashboard-reports-result-grid">
                   {filteredResultStudents.map(({ student, results }) => {
                     const average = Math.round(
                       results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length,
                     );
                     return (
-                       <div key={student.id} className="dashboard-account-record dashboard-result-card border border-purple-100 rounded-2xl p-4 bg-gradient-to-br from-purple-50 to-pink-50">
+                       <div key={student.id} className="dashboard-account-record dashboard-result-card dashboard-reports-result-card">
                         <div className="flex items-center justify-between gap-3 mb-3">
                           <div>
                             <h3 className="font-black text-purple-900">{student.name}</h3>
@@ -608,8 +625,14 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* تفاصيل أولياء الأمور */}
-      <div className="dashboard-surface">
-        <h2 className="text-xl sm:text-2xl font-black text-gray-800 mb-4 leading-8">👪 أولياء الأمور</h2>
+       <div className="dashboard-surface dashboard-reports-parents">
+         <div className="dashboard-reports-section-heading">
+           <div>
+             <span>الحسابات المرتبطة</span>
+             <h2>👪 أولياء الأمور</h2>
+           </div>
+           <p>{parents.length} ولي أمر</p>
+         </div>
         
         {parents.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
@@ -623,7 +646,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
               return (
                 <div 
                   key={parent.id}
-                  className="dashboard-account-record bg-gradient-to-br from-amber-50 to-purple-50 p-6 rounded-2xl border-2 border-amber-200"
+                   className="dashboard-account-record dashboard-reports-parent-card"
                 >
                   <div className="text-4xl mb-2">👤</div>
                   <h3 className="text-xl font-black text-gray-800 mb-2">{parent.name}</h3>

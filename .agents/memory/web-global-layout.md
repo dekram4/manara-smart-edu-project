@@ -50,3 +50,9 @@ Screenshot-driven dashboard work must refactor the actual internal page surface,
 **Why:** A shell-only pass left legacy inline-styled content-management forms and tables visually unchanged even though the surrounding dashboard had been normalized.
 
 **How to apply:** Map the screenshot to its exact page component first, then create a page-specific shared interior pattern and let the other role pages inherit the common controls.
+
+The teacher screenshot containing “نتائج اختبارات الطلاب” and “أولياء الأمور” maps to the reports screen, not the parent dashboard or account-management screen.
+
+**Why:** The same Arabic labels appear in multiple role contexts, but the teacher sidebar and combined student/results/parent sections identify the reports component.
+
+**How to apply:** Refactor the reports header, search, stats, student table, result cards, and parent cards together when this screenshot pattern is reported.
