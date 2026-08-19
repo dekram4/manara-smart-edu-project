@@ -1010,14 +1010,17 @@ table {
 }
 
 .login-card {
-  width: min(100%, 30rem);
+  width: min(100%, 42rem);
   min-width: 0;
   margin-inline: auto;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  border-radius: 2rem;
 }
 
 .login-form {
-  width: 100%;
+  width: min(100%, 34rem);
   min-width: 0;
+  margin-inline: auto;
 }
 
 .login-input {
@@ -1097,6 +1100,32 @@ table {
 
   .dashboard-chat-area {
     flex: 1 1 auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .login-shell {
+    padding: 2rem;
+  }
+
+  .login-card {
+    max-width: 42rem !important;
+    min-height: 34rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .login-card.web-login-panel {
+    max-width: 42rem !important;
+  }
+}
+
+@media (max-width: 479px) {
+  .login-card {
+    width: 100%;
+    padding: 1.25rem;
+    border-radius: 1.5rem;
   }
 }
 
