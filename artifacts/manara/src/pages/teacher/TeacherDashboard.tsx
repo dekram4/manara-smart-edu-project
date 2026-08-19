@@ -124,10 +124,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     switch (activeMenu) {
       case TeacherMenuType.DASHBOARD:
         return (
-          <div className="w-full max-w-7xl mx-auto space-y-6">
+          <div className="dashboard-page w-full max-w-7xl mx-auto">
             {/* Header */}
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 sm:p-7 rounded-2xl shadow-sm border border-amber-200/70 text-white">
-              <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="dashboard-page-banner bg-gradient-to-r from-amber-500 to-orange-500 border border-amber-200/70">
+              <div className="flex min-w-0 flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                 <div className="min-w-0">
                   <h1 className="text-2xl sm:text-4xl font-black mb-2 break-words">👋 مرحباً {currentTeacher.name}</h1>
                   <p className="text-amber-100 text-sm sm:text-lg font-medium break-words">مرحباً بك في منصة التعليم الذكي. استخدم القائمة الجانبية للوصول إلى جميع الأدوات.</p>
@@ -137,70 +137,62 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             </div>
 
             {/* Statistics Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="dashboard-stats-grid">
               {/* Parents Card */}
-              <div className="min-h-[130px] bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-4xl">👨‍👩‍👧‍👦</div>
-                  <div className="bg-purple-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                    {dashboardStats.parentsCount}
-                  </div>
+                <div className="dashboard-stat-heading">
+                  <h3 className="text-lg font-black text-purple-900">أولياء الأمور</h3>
+                  <div className="text-3xl">👨‍👩‍👧‍👦</div>
                 </div>
-                <h3 className="text-purple-900 font-black text-xl mb-1">أولياء الأمور</h3>
-                <p className="text-purple-600 text-sm font-medium">إجمالي أولياء الأمور المسجلين</p>
+                <p className="dashboard-stat-value text-purple-700">{dashboardStats.parentsCount}</p>
+                <p className="text-purple-600 text-sm font-medium">إجمالي المسجلين</p>
               </div>
 
               {/* Students Card */}
-              <div className="min-h-[130px] bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-4xl">👨‍🎓</div>
-                  <div className="bg-amber-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                    {dashboardStats.studentsCount}
-                  </div>
+                <div className="dashboard-stat-heading">
+                  <h3 className="text-lg font-black text-blue-900">الطلاب</h3>
+                  <div className="text-3xl">👨‍🎓</div>
                 </div>
-                <h3 className="text-blue-900 font-black text-xl mb-1">الطلاب</h3>
-                <p className="text-amber-500 text-sm font-medium">إجمالي الطلاب المسجلين</p>
+                <p className="dashboard-stat-value text-amber-600">{dashboardStats.studentsCount}</p>
+                <p className="text-amber-500 text-sm font-medium">إجمالي المسجلين</p>
               </div>
 
               {/* Lessons Card */}
-              <div className="min-h-[130px] bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.CONTENT_MANAGEMENT)}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-4xl">📚</div>
-                  <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                    {dashboardStats.lessonsCount}
-                  </div>
+                <div className="dashboard-stat-heading">
+                  <h3 className="text-lg font-black text-green-900">المحتوى التعليمي</h3>
+                  <div className="text-3xl">📚</div>
                 </div>
-                <h3 className="text-green-900 font-black text-xl mb-1">المحتوى التعليمي</h3>
-                <p className="text-green-600 text-sm font-medium">إجمالي الدروس المضافة</p>
+                <p className="dashboard-stat-value text-green-700">{dashboardStats.lessonsCount}</p>
+                <p className="text-green-600 text-sm font-medium">إجمالي الدروس</p>
               </div>
 
               {/* Academic Settings Card */}
-              <div className="min-h-[130px] bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
                    onClick={() => setActiveMenu(TeacherMenuType.ACADEMIC_SETTINGS)}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-4xl">⚙️</div>
-                  <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                    {dashboardStats.academicSettingsCount}
-                  </div>
+                <div className="dashboard-stat-heading">
+                  <h3 className="text-lg font-black text-orange-900">الإعدادات الأكاديمية</h3>
+                  <div className="text-3xl">⚙️</div>
                 </div>
-                <h3 className="text-orange-900 font-black text-xl mb-1">الإعدادات الأكاديمية</h3>
-                <p className="text-orange-600 text-sm font-medium">إعدادات الصفوف والمواد</p>
+                <p className="dashboard-stat-value text-orange-700">{dashboardStats.academicSettingsCount}</p>
+                <p className="text-orange-600 text-sm font-medium">الصفوف والمواد</p>
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-slate-200/80">
+            <div className="dashboard-surface">
               <h2 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
                 <span className="text-2xl">⚡</span>
                 إجراءات سريعة
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="dashboard-actions-grid">
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}
-                  className="min-h-[52px] bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3.5 px-5 rounded-xl font-bold text-base transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
+                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
                 >
                   <span className="text-3xl">➕</span>
                   <span>إضافة ولي أمر / طالب</span>
@@ -208,7 +200,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.CONTENT_MANAGEMENT)}
-                  className="min-h-[52px] bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3.5 px-5 rounded-xl font-bold text-base transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
                 >
                   <span className="text-3xl">📖</span>
                   <span>إضافة محتوى تعليمي</span>
@@ -216,7 +208,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.ACADEMIC_SETTINGS)}
-                  className="min-h-[52px] bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3.5 px-5 rounded-xl font-bold text-base transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
                 >
                   <span className="text-3xl">🔧</span>
                   <span>إدارة الإعدادات</span>
@@ -224,7 +216,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.REPORTS)}
-                  className="min-h-[52px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3.5 px-5 rounded-xl font-bold text-base transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
                 >
                   <span className="text-3xl">📊</span>
                   <span>عرض التقارير</span>
@@ -232,7 +224,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={() => setActiveMenu(TeacherMenuType.MY_ACCOUNT)}
-                  className="min-h-[52px] bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-700 text-white py-3.5 px-5 rounded-xl font-bold text-base transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
                 >
                   <span className="text-3xl">👤</span>
                   <span>إعدادات الحساب</span>
@@ -240,7 +232,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
                 <button
                   onClick={loadDashboardStats}
-                  className="min-h-[52px] bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white py-3.5 px-5 rounded-xl font-bold text-base transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
+                  className="bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
                 >
                   <span className="text-3xl">🔄</span>
                   <span>تحديث البيانات</span>
@@ -249,7 +241,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             </div>
 
             {/* Welcome Message */}
-            <div className="w-full p-6 rounded-2xl bg-amber-50/70 border border-amber-200">
+            <div className="dashboard-surface bg-amber-50/70 border-amber-200">
               <div className="flex items-start gap-4">
                 <div className="shrink-0 rounded-xl bg-amber-100 p-2.5 text-2xl">💡</div>
                 <div>

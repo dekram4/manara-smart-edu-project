@@ -521,14 +521,14 @@ const Reports: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 animate-fadeIn">
+    <div className="dashboard-page w-full max-w-7xl mx-auto">
       <div>
         <h1 className="text-3xl sm:text-4xl font-black text-purple-900 leading-10">مركز التقارير</h1>
         <p className="text-purple-500 font-bold mt-2 text-base sm:text-lg leading-7">استخرج إحصائيات دقيقة وشاملة حول أداء المنصة</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-5">
-         <div className="min-w-0 bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-md transition-all">
+      <div className="grid w-full grid-cols-1 gap-5 sm:grid-cols-2 2xl:grid-cols-3">
+         <div className="dashboard-surface flex flex-col items-center text-center group hover:shadow-md transition-all">
            <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 text-5xl">👨‍🎓</div>
           <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">تقرير الطلاب</h3>
           <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">بيانات الطلاب الأكاديمية وحالة التسجيل والصفوف</p>
@@ -586,7 +586,7 @@ const Reports: React.FC = () => {
           >🖨️ طباعة التقرير</button>
         </div>
 
-         <div className="min-w-0 bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-md transition-all">
+          <div className="dashboard-surface flex flex-col items-center text-center group hover:shadow-md transition-all">
            <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-50 text-5xl">📝</div>
           <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">نتائج الاختبارات</h3>
           <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">تحليل شامل لنتائج جميع الطلاب في مختلف المواد والوحدات</p>
@@ -603,7 +603,7 @@ const Reports: React.FC = () => {
           >🖨️ طباعة التقرير</button>
         </div>
 
-         <div className="min-w-0 bg-white p-5 rounded-2xl shadow-sm border border-purple-100 flex flex-col items-center text-center group hover:shadow-md transition-all">
+         <div className="dashboard-surface flex flex-col items-center text-center group hover:shadow-md transition-all">
            <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-purple-50 text-5xl">📈</div>
           <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">تقرير التفاعل</h3>
           <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">سجل تفاعلات الطلاب مع المحتوى (الأفاتار، الفيديو)</p>

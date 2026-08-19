@@ -195,7 +195,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
       </div>
 
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <div className="min-w-0 space-y-3">
+         <div className="dashboard-surface min-w-0 space-y-3">
           <h2 className="text-xl font-black text-purple-900">إعدادات الصلاحيات المحفوظة — {roleLabels[activeRole]}</h2>
            <p className="text-sm font-bold text-purple-400">
              المحفوظ: {visiblePackages.length} إعدادات — حفظ إعداد جديد لا يحذف الإعدادات السابقة
@@ -223,7 +223,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
           ))}
         </div>
 
-        <form onSubmit={handleSave} className="min-w-0 rounded-3xl border-2 border-purple-100 bg-white p-6 shadow-lg">
+        <form onSubmit={handleSave} className="dashboard-surface min-w-0 border-2 border-purple-100 shadow-lg">
           <h2 className="text-xl font-black text-purple-900">
              {editingPackage ? '✏️ تعديل إعداد الصلاحيات' : '✨ إنشاء إعداد صلاحيات'}
           </h2>

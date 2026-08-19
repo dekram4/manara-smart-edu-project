@@ -740,8 +740,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         {menuType === ParentMenuType.DASHBOARD && (
           <div className="space-y-6 animate-fadeIn">
             {/* Welcome header — tighter, cleaner */}
-            <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 p-5 rounded-2xl shadow-xl text-white">
-              <div className="flex items-center justify-between gap-3">
+             <div className="dashboard-page-banner bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600">
+               <div className="flex min-w-0 flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                 <div>
                   <h1 className="text-2xl font-black">
                     {activeChild ? `${getStudentEmoji(activeChild)} ${activeChild.name}` : '🏠 لوحة المتابعة'}
@@ -778,14 +778,15 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                      { label: 'الخبرة', value: progress.xp, color: 'text-cyan-700', bg: 'border-l-4 border-cyan-500', icon: '⚡' },
                   ];
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7 gap-3">
+                    <div className="dashboard-stats-grid">
                       {stats.map((s, i) => (
-                        <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bg} flex items-center gap-3 hover:shadow-lg transition-shadow`}>
-                          <div className="text-2xl shrink-0">{s.icon}</div>
-                          <div>
-                            <p className="text-[10px] font-bold text-rose-400 uppercase">{s.label}</p>
-                            <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
-                          </div>
+                         <div key={i} className={`dashboard-stat-card ${s.bg} hover:shadow-lg transition-shadow`}>
+                           <div className="dashboard-stat-heading">
+                             <p className="text-base font-black text-rose-800">{s.label}</p>
+                             <div className="text-2xl shrink-0">{s.icon}</div>
+                           </div>
+                           <p className={`dashboard-stat-value ${s.color}`}>{s.value}</p>
+                           <p className="text-xs text-rose-400 font-bold">{s.sub}</p>
                         </div>
                       ))}
                     </div>
@@ -971,14 +972,14 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     { label: 'الشهادات', value: filteredCertificates.length, sub: 'مصدرة', icon: '🏆', color: 'text-orange-700', bar: 'border-l-4 border-orange-500' },
                   ];
                   return (
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                      <div className="dashboard-stats-grid">
                       {stats.map((s, i) => (
-                        <div key={i} className={`bg-white p-4 rounded-2xl shadow-md ${s.bar} hover:shadow-lg transition-shadow`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-lg">{s.icon}</span>
-                            <span className="text-[10px] font-bold text-rose-400 uppercase">{s.label}</span>
+                         <div key={i} className={`dashboard-stat-card ${s.bar} hover:shadow-lg transition-shadow`}>
+                           <div className="dashboard-stat-heading">
+                             <span className="text-base font-black text-rose-800">{s.label}</span>
+                             <span className="text-2xl">{s.icon}</span>
                           </div>
-                          <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                           <p className={`dashboard-stat-value ${s.color}`}>{s.value}</p>
                           <p className="text-[10px] text-rose-400 font-bold mt-0.5">{s.sub}</p>
                         </div>
                       ))}

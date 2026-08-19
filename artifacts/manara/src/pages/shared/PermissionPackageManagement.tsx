@@ -363,7 +363,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
 
   return (
     <div className="space-y-6 animate-fadeIn" dir="rtl">
-      <div className={`rounded-3xl p-6 text-white shadow-xl ${
+      <div className={`dashboard-page-banner ${
         managerRole === 'teacher'
           ? 'bg-gradient-to-r from-amber-500 to-orange-500'
           : 'bg-gradient-to-r from-rose-500 to-pink-600'
@@ -469,7 +469,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="dashboard-surface space-y-3">
         <h2 className="text-xl font-black text-slate-800">إعدادات الصلاحيات المتاحة — {targetLabels[activeTargetRole]}</h2>
         {visiblePackages.length === 0 && (
            <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-5 text-center font-bold text-slate-500 sm:p-10">
@@ -497,7 +497,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="dashboard-surface space-y-3">
          <h2 className="text-xl font-black text-slate-800">إسناد إعدادات الصلاحيات</h2>
         {visibleTargets.map(target => {
           const assignedPackageId = target.permissionPackageId || '';

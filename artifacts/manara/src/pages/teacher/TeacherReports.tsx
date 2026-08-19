@@ -296,69 +296,69 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="dashboard-page w-full max-w-7xl mx-auto">
       {/* العنوان */}
-      <div className="bg-gradient-to-r from-amber-600 to-orange-600 p-5 sm:p-6 rounded-2xl text-white shadow-lg">
+      <div className="dashboard-page-banner bg-gradient-to-r from-amber-600 to-orange-600">
         <h1 className="text-2xl sm:text-3xl font-black mb-2 leading-8">📊 التقارير والإحصائيات</h1>
         <p className="text-purple-100 font-medium">
           تقارير الأداء الخاصة بطلابك فقط
         </p>
-        
-        {/* Search */}
-        <div className="mt-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 ابحث عن طالب بالاسم، ولي الأمر، أو الصف..."
-              className="w-full p-3 sm:p-4 pr-12 rounded-xl border-2 border-white/30 bg-white/10 text-white placeholder-white/70 focus:bg-white/20 focus:border-white outline-none font-bold text-sm sm:text-base backdrop-blur leading-6"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg font-bold text-sm transition-all"
-              >
-                ✖ مسح
-              </button>
-            )}
-          </div>
+      </div>
+
+      {/* Search */}
+      <div className="dashboard-surface">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="🔍 ابحث عن طالب بالاسم، ولي الأمر، أو الصف..."
+            className="w-full rounded-xl border-2 border-amber-100 bg-white p-3 pr-12 text-sm font-bold text-slate-700 outline-none focus:border-amber-400 sm:p-4 sm:text-base"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute left-4 top-1/2 -translate-y-1/2 rounded-lg bg-amber-100 px-3 py-1 text-sm font-bold text-amber-700 transition-all hover:bg-amber-200"
+            >
+              ✖ مسح
+            </button>
+          )}
         </div>
       </div>
 
       {/* إحصائيات عامة */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <div className="min-h-[128px] bg-gradient-to-br from-blue-500 to-blue-600 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between">
-          <div className="text-4xl mb-2">👨‍👩‍👧‍👦</div>
-          <div className="text-3xl font-black">{parents.length}</div>
-          <div className="text-blue-100 font-medium">ولي أمر</div>
+      <div className="dashboard-stats-grid">
+        <div className="dashboard-stat-card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <div className="dashboard-stat-heading"><span className="text-3xl">👨‍👩‍👧‍👦</span><span className="font-black">أولياء الأمور</span></div>
+          <div className="dashboard-stat-value">{parents.length}</div>
+          <div className="text-blue-100 font-medium">حساب مرتبط</div>
         </div>
 
-        <div className="min-h-[128px] bg-gradient-to-br from-green-500 to-green-600 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between">
-          <div className="text-4xl mb-2">🎓</div>
-          <div className="text-3xl font-black">{students.length}</div>
-          <div className="text-green-100 font-medium">طالب</div>
+        <div className="dashboard-stat-card bg-gradient-to-br from-green-500 to-green-600 text-white">
+          <div className="dashboard-stat-heading"><span className="text-3xl">🎓</span><span className="font-black">الطلاب</span></div>
+          <div className="dashboard-stat-value">{students.length}</div>
+          <div className="text-green-100 font-medium">طالب مرتبط</div>
         </div>
 
-        <div className="min-h-[128px] bg-gradient-to-br from-purple-500 to-purple-600 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between">
-          <div className="text-4xl mb-2">📝</div>
-          <div className="text-3xl font-black">
+        <div className="dashboard-stat-card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <div className="dashboard-stat-heading"><span className="text-3xl">📝</span><span className="font-black">الاختبارات</span></div>
+          <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).totalQuizzes, 0)}
           </div>
           <div className="text-purple-100 font-medium">اختبار مكتمل</div>
         </div>
 
-        <div className="min-h-[128px] bg-gradient-to-br from-amber-500 to-orange-500 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between">
-          <div className="text-4xl mb-2">💎</div>
-          <div className="text-3xl font-black">
+        <div className="dashboard-stat-card bg-gradient-to-br from-amber-500 to-orange-500 text-white">
+          <div className="dashboard-stat-heading"><span className="text-3xl">💎</span><span className="font-black">الجواهر</span></div>
+          <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).gems, 0)}
           </div>
           <div className="text-amber-100 font-medium">إجمالي الجواهر</div>
         </div>
 
-        <div className="min-h-[128px] bg-gradient-to-br from-cyan-500 to-sky-600 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between">
-          <div className="text-4xl mb-2">⚡</div>
-          <div className="text-3xl font-black">
+        <div className="dashboard-stat-card bg-gradient-to-br from-cyan-500 to-sky-600 text-white">
+          <div className="dashboard-stat-heading"><span className="text-3xl">⚡</span><span className="font-black">الخبرة</span></div>
+          <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).xp, 0)}
           </div>
           <div className="text-cyan-100 font-medium">إجمالي الخبرة</div>
@@ -366,7 +366,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* جدول الطلاب */}
-      <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg min-w-0">
+      <div className="dashboard-surface">
         <h2 className="text-xl sm:text-2xl font-black text-gray-800 mb-4 leading-8">📋 تقارير الطلاب</h2>
         
         {students.length === 0 ? (
@@ -476,7 +476,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* تفاصيل أولياء الأمور */}
-      <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg min-w-0">
+      <div className="dashboard-surface">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <div>
             <h2 className="text-2xl font-black text-gray-800">📝 نتائج اختبارات الطلاب</h2>
@@ -608,7 +608,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* تفاصيل أولياء الأمور */}
-      <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg min-w-0">
+      <div className="dashboard-surface">
         <h2 className="text-xl sm:text-2xl font-black text-gray-800 mb-4 leading-8">👪 أولياء الأمور</h2>
         
         {parents.length === 0 ? (

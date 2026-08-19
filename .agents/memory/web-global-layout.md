@@ -8,3 +8,9 @@ The web app's global reset must only establish the document canvas (`html`, `bod
 **Why:** Broad `overflow` and height rules added during the student/Flutter transition caused unrelated teacher, admin, and parent screens to compress or clip. Legacy/student styles must not redefine the document root.
 
 **How to apply:** Keep dashboard layouts as a shared flex shell with a fixed-width sticky desktop sidebar and a flexible `min-width: 0` main area. Scope any student or mobile-app overflow rules to their component class; never add root-level `overflow: hidden` or fixed-height rules for a page-specific surface.
+
+Cross-role dashboard pages should use the shared surface primitives for banners, stats, actions, and data regions so card sizing and overflow behavior stay consistent across teacher, admin, and parent views.
+
+**Why:** Per-page Tailwind combinations had diverging minimum heights and grid breakpoints, which made the same kind of card wrap or clip differently between roles.
+
+**How to apply:** Prefer `dashboard-page-banner`, `dashboard-stats-grid`, `dashboard-stat-card`, `dashboard-actions-grid`, and `dashboard-surface` for new dashboard sections; keep fixed heights out of content cards and allow horizontal scrolling only at the data-region boundary.
