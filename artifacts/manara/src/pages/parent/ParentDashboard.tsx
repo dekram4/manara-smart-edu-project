@@ -668,7 +668,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Render ===== */
   return (
-    <div dir="rtl" className="dashboard-shell dashboard-consistent-shell bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
+    <div dir="rtl" className="dashboard-shell dashboard-consistent-shell bg-[#fdfbf7] animate-fadeIn">
       {/* ===== SIDEBAR ===== */}
        {mobileNavOpen && (
          <button
@@ -1045,7 +1045,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         <h3 className="text-base font-black text-rose-800 mb-3 flex items-center gap-2">
                           <span className="w-1.5 h-5 bg-orange-500 rounded-full"></span> 🔔 آخر الأنشطة
                         </h3>
-                        <div className="flex-1 overflow-y-auto space-y-2 max-h-[220px]">
+                        <div className="flex-1 space-y-2">
                           {recentQuizzes.map((q, i) => (
                             <div key={`q-${i}`} className="flex items-center gap-3 p-3 bg-rose-50 rounded-xl border border-rose-100 hover:border-rose-200 transition-all">
                               <div className="text-xl shrink-0">{q.percentage >= 80 ? '🎉' : q.percentage >= 60 ? '👍' : '📖'}</div>
@@ -1287,7 +1287,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         {menuType === ParentMenuType.CHILDREN && (
           <div className="dashboard-internal-layout animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Left sidebar — dropdown selector */}
-            <div className="w-full lg:w-72 bg-white rounded-2xl shadow-md border border-rose-100 p-4 flex flex-col shrink-0 overflow-hidden">
+            <div className="w-full lg:w-72 bg-white rounded-2xl shadow-md border border-rose-100 p-4 flex flex-col shrink-0">
               <h3 className="text-xs font-black text-rose-700 mb-3 border-b border-rose-100 pb-2 flex items-center gap-2">
                 <span className="text-base">👨‍👧</span> اختيار الابن
               </h3>
@@ -1341,7 +1341,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
 
             {/* Main detail area */}
-            <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
+            <div className="min-w-0 flex-1 flex flex-col">
               <div className="flex-1 overflow-y-auto pr-1 min-h-0">
                 {activeChild ? (
                   <div className="space-y-5 pb-4">
@@ -1570,7 +1570,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         {menuType === ParentMenuType.CERTIFICATES && (
           <div className="dashboard-internal-layout animate-fadeIn min-h-[calc(100dvh-8rem)]">
             {/* Inner sidebar — children list */}
-            <div className="w-full lg:w-56 bg-white rounded-2xl shadow-md border border-rose-100 p-3 flex flex-col shrink-0 overflow-hidden">
+            <div className="w-full lg:w-56 bg-white rounded-2xl shadow-md border border-rose-100 p-3 flex flex-col shrink-0">
               <h3 className="text-xs font-black text-rose-700 mb-2 border-b border-rose-100 pb-2">👨‍👧 الأبناء</h3>
               <div className="flex-1 overflow-y-auto space-y-2">
                 <button
@@ -1594,7 +1594,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
 
             {/* Main certificates area */}
-            <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
+            <div className="min-w-0 flex-1 flex flex-col">
               {/* Filter bar */}
               <div className="dashboard-filter-surface mb-3 shrink-0">
                 <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-center">

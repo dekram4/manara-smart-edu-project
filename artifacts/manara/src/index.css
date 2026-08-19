@@ -630,6 +630,7 @@ table {
   min-width: 0;
   align-items: stretch;
   direction: rtl;
+  background: #fdfbf7;
   line-height: 1.5;
 }
 
@@ -640,8 +641,9 @@ table {
   align-self: flex-start;
   flex: 0 0 16rem;
   width: 16rem;
-  height: 100vh;
-  min-height: 0;
+  min-height: 100vh;
+  height: auto;
+  max-height: none;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -767,9 +769,11 @@ table {
 .dashboard-main {
   width: 100%;
   min-width: 0;
-  min-height: 100vh;
+  min-height: 0;
   flex: 1 1 auto;
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fdfbf7;
 }
 
 .dashboard-main .max-w-7xl,
@@ -780,10 +784,10 @@ table {
 .dashboard-content-area {
   width: 100%;
   min-width: 0;
-  min-height: 100vh;
-  overflow-y: auto;
-  padding: 1rem;
-  background: #fffdf5;
+  min-height: 0;
+  overflow: visible;
+  padding: 1.5rem 2rem;
+  background: #fdfbf7;
 }
 
 .dashboard-page {
@@ -796,7 +800,7 @@ table {
 
 .dashboard-page > * {
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 
 .dashboard-section-header {
@@ -806,6 +810,17 @@ table {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.dashboard-page > .dashboard-section-header {
+  width: 100%;
+  min-height: auto;
+  padding: 1.5rem;
+  margin-bottom: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.05);
 }
 
 .dashboard-section-header > * {
@@ -826,7 +841,8 @@ table {
 .dashboard-filter-surface {
   width: 100%;
   min-width: 0;
-  padding: 1.25rem;
+  min-height: auto;
+  padding: 1.5rem;
   border: 1px solid #e2e8f0;
   border-radius: 1rem;
   background: #fff;
@@ -886,8 +902,9 @@ table {
 .dashboard-table-surface {
   width: 100%;
   min-width: 0;
+  min-height: auto;
   overflow-x: auto;
-  padding: 1.25rem;
+  padding: 1.5rem;
   border: 1px solid #e2e8f0;
   border-radius: 1rem;
   background: #fff;
@@ -904,6 +921,8 @@ table {
   gap: 1rem;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  min-height: auto;
+  position: static;
   color: #fff;
   border-radius: 1rem;
   box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
@@ -919,7 +938,7 @@ table {
 
 .dashboard-stat-card {
   min-width: 0;
-  min-height: 120px;
+  min-height: auto;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -967,6 +986,7 @@ table {
 .dashboard-surface {
   width: 100%;
   min-width: 0;
+  min-height: auto;
   overflow-x: auto;
   padding: 1.5rem;
   border: 1px solid #e2e8f0;
@@ -1118,6 +1138,24 @@ table {
 
 .dashboard-account-form-inner {
   box-shadow: none !important;
+}
+
+.dashboard-page form,
+.dashboard-page .dashboard-form-surface {
+  width: 100%;
+  min-width: 0;
+}
+
+.dashboard-page form {
+  min-height: auto;
+}
+
+.dashboard-page > form:not(.dashboard-surface):not(.dashboard-filter-surface):not(.dashboard-table-surface) {
+  padding: 1.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.05);
 }
 
 .dashboard-account-page .dashboard-account-actions > button,
@@ -1315,7 +1353,7 @@ table {
 .dashboard-chat-container {
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dashboard-chat-content,
@@ -1354,6 +1392,7 @@ table {
     max-width: 88vw;
     height: 100dvh;
     max-height: 100dvh;
+    min-height: 100dvh;
   }
 
   .dashboard-sidebar-header {
@@ -1366,7 +1405,11 @@ table {
 
   .dashboard-main {
     width: 100%;
-    min-height: 100vh;
+    min-height: 0;
+  }
+
+  .dashboard-content-area {
+    padding: 1.25rem;
   }
 }
 
@@ -1395,7 +1438,7 @@ table {
 
   .dashboard-chat-content {
     flex-direction: column !important;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .dashboard-chat-contacts {
@@ -1432,6 +1475,36 @@ table {
 
   .dashboard-page-toolbar {
     padding: 1rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .dashboard-stats-grid:not(.dashboard-stats-grid-compact),
+  .dashboard-actions-grid,
+  .dashboard-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-filter-grid-wide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-stats-grid:not(.dashboard-stats-grid-compact) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dashboard-actions-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-card-grid-wide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-filter-grid-wide {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1540,15 +1613,13 @@ table {
 }
 
 .dashboard-academic-scroll {
-  max-height: min(600px, calc(100dvh - 12rem));
-  overflow-y: auto;
-  min-height: 0;
+  min-height: auto;
+  overflow: visible;
 }
 
 .teacher-academic-config-list {
-  max-height: min(800px, calc(100dvh - 12rem));
-  overflow-y: auto;
-  min-height: 0;
+  min-height: auto;
+  overflow: visible;
 }
 
 @media (max-width: 767px) {

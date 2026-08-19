@@ -300,7 +300,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-amber-50 to-orange-50 animate-fadeIn">
+    <div dir="rtl" className="dashboard-shell bg-[#fdfbf7] animate-fadeIn">
       {/* Sidebar */}
        {mobileNavOpen && (
          <button

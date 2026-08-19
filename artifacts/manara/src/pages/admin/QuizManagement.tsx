@@ -1054,7 +1054,7 @@ ${contentSummary}
                       <span className="text-2xl">✅</span>
                       <span>تم العثور على محتوى الدرس</span>
                     </div>
-                    <div className="bg-green-50 p-4 rounded-2xl max-h-[150px] overflow-y-auto text-sm text-purple-700">
+                    <div className="bg-green-50 p-4 rounded-2xl text-sm text-purple-700">
                       {lessonContent.substring(0, 300)}...
                     </div>
                   </div>
@@ -1153,7 +1153,7 @@ ${contentSummary}
                     <h3 className="font-black text-green-900 text-lg mb-4">
                       📝 الأسئلة المضافة ({manualQuestions.length})
                     </h3>
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    <div className="space-y-3">
                       {manualQuestions.map((q, idx) => (
                         <div key={q.id} className="bg-purple-50 p-4 rounded-2xl border-2 border-purple-200 flex justify-between items-start">
                           <div className="flex-1">
@@ -1302,7 +1302,7 @@ ${contentSummary}
                         <summary className="cursor-pointer font-bold text-purple-500 hover:text-purple-800">
                           👁️ عرض الأسئلة ({quiz.questions.length})
                         </summary>
-                        <div className="mt-4 space-y-3 max-h-[400px] overflow-y-auto">
+                        <div className="mt-4 space-y-3">
                           {quiz.questions.map((q, idx) => (
                             <div key={idx} className="bg-purple-50 p-4 rounded-2xl border-2 border-purple-200">
                               <p className="font-bold text-purple-800 mb-2">{idx + 1}. {q.question}</p>

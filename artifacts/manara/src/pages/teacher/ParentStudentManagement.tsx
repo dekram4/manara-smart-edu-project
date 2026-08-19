@@ -990,7 +990,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
       {permissionsParent && parentPermissionDraft && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4" onClick={() => { setPermissionsParent(null); setParentPermissionDraft(null); }}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="text-2xl font-black text-slate-800">🔐 صلاحيات ولي الأمر</h2>

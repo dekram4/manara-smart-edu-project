@@ -724,7 +724,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {formData.pendingVideos.map((video, index) => (
                   <div key={video.id} className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-white p-3 shadow-sm">
-                    <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 text-2xl shadow-md">
+                    <div className="flex min-h-14 w-20 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 text-2xl shadow-md">
                       {video.sourceType === 'mp4' ? '🎬' : '🔗'}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -805,7 +805,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
        <div className="dashboard-card-grid dashboard-card-grid-wide dashboard-video-grid">
         {filteredVideos.map((video) => {
           return (
-            <div key={video.id} className="dashboard-video-card bg-white rounded-[30px] shadow-xl border-2 border-amber-100 overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all group">
+            <div key={video.id} className="dashboard-video-card bg-white rounded-[30px] shadow-xl border-2 border-amber-100 hover:shadow-2xl hover:-translate-y-2 transition-all group">
               <div className="relative aspect-video bg-black">
                 <VideoThumbnail url={video.url} sourceType={video.sourceType} alt={video.title} />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 transition-all group-hover:bg-black/20">

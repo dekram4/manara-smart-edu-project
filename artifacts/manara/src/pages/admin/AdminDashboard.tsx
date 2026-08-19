@@ -173,7 +173,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn">
+    <div dir="rtl" className="dashboard-shell bg-[#fdfbf7] animate-fadeIn">
       {/* Sidebar */}
        {mobileNavOpen && (
          <button

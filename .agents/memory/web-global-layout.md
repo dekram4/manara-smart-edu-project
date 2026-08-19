@@ -38,3 +38,9 @@ Shared dashboard stat-card rules can override utility gradient classes because t
 **Why:** Account statistics rendered as white cards with nearly invisible light text when the shared surface background won the cascade.
 
 **How to apply:** Give dashboard stat variants explicit component classes with explicit backgrounds and readable text instead of relying only on utility gradient/color classes.
+
+For cross-role UI changes, update the dashboard shell and shared layout primitives first, then remove page-specific height/overflow constraints; individual screens should inherit the same responsive contract.
+
+**Why:** Editing isolated pages repeatedly left the same spacing and clipping defects in other teacher, supervisor, and parent menus.
+
+**How to apply:** Treat teacher, supervisor, and parent shells plus `index.css` as the first implementation surface for any global dashboard overhaul.
