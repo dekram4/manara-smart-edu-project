@@ -412,7 +412,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   };
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page animate-fadeIn">
       {/* للمشرف فقط: اختيار المعلم */}
       {!teacherId && (
         <div style={{ 

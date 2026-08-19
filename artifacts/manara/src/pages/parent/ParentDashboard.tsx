@@ -670,9 +670,17 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   return (
     <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
       {/* ===== SIDEBAR ===== */}
+       {mobileNavOpen && (
+         <button
+           type="button"
+           className="dashboard-sidebar-overlay lg:hidden"
+           onClick={() => setMobileNavOpen(false)}
+           aria-label="إغلاق القائمة الجانبية"
+         />
+       )}
        <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-rose-800">
+         <div className="dashboard-sidebar-header border-rose-800">
            <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="justify-center text-white" />
           <h2 className="text-2xl font-black text-center mb-1">بوابة المتابعة</h2>
@@ -684,7 +692,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         </div>
 
         {/* Menu buttons */}
-        <div className="dashboard-nav flex-1 p-3 space-y-1 border-t border-rose-800">
+         <div className="dashboard-nav border-rose-800">
           {[
             { key: ParentMenuType.DASHBOARD, icon: '🏠', label: 'الرئيسية' },
             { key: ParentMenuType.CHILDREN, icon: '👨‍👧', label: 'الأبناء' },
@@ -721,24 +729,26 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <span>{item.label}</span>
             </button>
           ))}
-          <button
-            onClick={() => { removeActiveSession(STORAGE_KEYS.ACTIVE_PARENT); onLogout(); }}
-            className="dashboard-menu-item rounded-xl px-3 py-2.5 text-red-400 hover:bg-red-950 font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
-          >
-            <span aria-hidden="true">🚪</span>
-            <span>تسجيل الخروج</span>
-          </button>
+         <div className="dashboard-sidebar-footer">
+           <button
+               onClick={() => { removeActiveSession(STORAGE_KEYS.ACTIVE_PARENT); onLogout(); }}
+               className="dashboard-menu-item rounded-xl px-3 py-2.5 text-red-400 hover:bg-red-950 font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
+             >
+               <span aria-hidden="true">🚪</span>
+               <span>تسجيل الخروج</span>
+             </button>
+         </div>
         </div>
       </aside>
 
       {/* ===== MAIN CONTENT ===== */}
       <main className="dashboard-main dashboard-content-area safe-area-x safe-area-bottom">
-         <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 rounded-xl bg-rose-800 px-3 py-2 text-white font-black lg:hidden" aria-label="فتح القائمة">☰ القائمة</button>
+         <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger mb-4 bg-rose-800 px-3 py-2 text-white lg:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         <div className="w-full max-w-7xl mx-auto">
 
         {/* ---------- DASHBOARD ---------- */}
         {menuType === ParentMenuType.DASHBOARD && (
-          <div className="space-y-6 animate-fadeIn">
+          <div className="dashboard-page animate-fadeIn">
             {/* Welcome header — tighter, cleaner */}
              <div className="dashboard-page-banner bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600">
                <div className="flex min-w-0 flex-col items-start justify-between gap-4 md:flex-row md:items-center">
@@ -1656,7 +1666,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
         {/* ---------- SETTINGS ---------- */}
         {menuType === ParentMenuType.SETTINGS && (
-          <div className="max-w-lg bg-white p-6 rounded-2xl shadow-md border border-rose-100 mx-auto animate-fadeIn space-y-5">
+          <div className="dashboard-page max-w-lg bg-white p-6 rounded-2xl shadow-md border border-rose-100 mx-auto animate-fadeIn">
             <h1 className="text-xl font-black text-rose-800 flex items-center gap-2">
               <span className="w-1 h-5 bg-rose-500 rounded-full"></span> إعدادات الحساب
             </h1>

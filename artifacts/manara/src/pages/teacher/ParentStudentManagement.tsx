@@ -449,7 +449,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   };
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page animate-fadeIn">
       {/* العنوان والبحث */}
       <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 rounded-2xl text-white shadow-lg">
         <div className="flex items-center justify-between mb-4">

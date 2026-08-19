@@ -54,7 +54,7 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page animate-fadeIn">
       <h1 className="text-4xl font-black text-amber-900">👤 حسابي</h1>
 
       {/* معلومات الحساب */}

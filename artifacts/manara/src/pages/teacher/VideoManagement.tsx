@@ -500,7 +500,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   };
 
   return (
-     <div className="animate-fadeIn space-y-6">
+     <div className="dashboard-page animate-fadeIn">
       <div className="flex justify-between items-center">
         <div>
            <h2 className="text-4xl font-black text-amber-800">🎬 إدارة سينما منارة</h2>

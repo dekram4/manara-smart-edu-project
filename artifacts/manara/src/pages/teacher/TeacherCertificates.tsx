@@ -347,7 +347,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   });
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page animate-fadeIn">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-8 rounded-[40px] shadow-2xl text-white">
         <div className="flex items-center justify-between">

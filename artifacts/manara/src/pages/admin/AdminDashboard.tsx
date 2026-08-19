@@ -175,14 +175,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   return (
     <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-purple-50 to-violet-50 animate-fadeIn">
       {/* Sidebar */}
+       {mobileNavOpen && (
+         <button
+           type="button"
+           className="dashboard-sidebar-overlay lg:hidden"
+           onClick={() => setMobileNavOpen(false)}
+           aria-label="إغلاق القائمة الجانبية"
+         />
+       )}
         <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="p-4 sm:p-8 border-b">
+         <div className="dashboard-sidebar-header">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="text-white" />
           <p className="mt-2 text-center text-purple-200 text-xs font-bold">لوحة إدارة المشرف</p>
         </div>
 
-        <nav className="dashboard-nav flex-1 p-4 sm:p-6 space-y-2">
+         <nav className="dashboard-nav">
           {[
             { id: AdminMenuType.DASHBOARD, label: 'الرئيسية', icon: '📊' },
             { id: AdminMenuType.ACADEMIC_SETTINGS, label: 'الإعدادات الأكاديمية', icon: '🏫' },
@@ -220,7 +228,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </button>
         </nav>
 
-          <div className="shrink-0 p-4 border-t">
+           <div className="dashboard-sidebar-footer">
           <button
             onClick={onLogout}
             className="dashboard-menu-item justify-center rounded-xl px-4 py-3 text-red-500 hover:bg-red-50 font-bold transition-all hover:scale-[1.02] active:scale-95"
@@ -235,7 +243,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       <main className="dashboard-main flex flex-col">
         <header className="bg-white border-b px-4 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-wrap justify-between items-center gap-3 shrink-0 safe-area-top">
           <div className="flex items-center gap-6">
-              <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-xl bg-purple-100 px-3 py-2 text-purple-800 font-black lg:hidden" aria-label="فتح القائمة">☰</button>
+               <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger bg-purple-100 px-3 py-2 text-purple-800 lg:hidden" aria-label="فتح القائمة">☰</button>
              <div className="bg-purple-50 px-4 py-2 rounded-full border border-purple-100 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 <span className="text-xs font-bold text-purple-700">النظام نشط</span>

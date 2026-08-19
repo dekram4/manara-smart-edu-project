@@ -456,7 +456,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   });
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="dashboard-page animate-fadeIn">
       <div style={styles.header}>
         <h1 style={styles.title}>إدارة الحسابات</h1>
         <p style={styles.subtitle}>إدارة حسابات الطلاب وأولياء الأمور</p>

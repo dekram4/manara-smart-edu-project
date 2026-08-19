@@ -302,12 +302,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   return (
     <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-amber-50 to-orange-50 animate-fadeIn">
       {/* Sidebar */}
+       {mobileNavOpen && (
+         <button
+           type="button"
+           className="dashboard-sidebar-overlay lg:hidden"
+           onClick={() => setMobileNavOpen(false)}
+           aria-label="إغلاق القائمة الجانبية"
+         />
+       )}
        <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-         <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 self-start rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
-        <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/10">
+         <div className="dashboard-sidebar-header">
+           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 self-start rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="text-white" />
         </div>
-        <div className="mb-8">
+         <div className="dashboard-sidebar-profile">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-4xl animate-float">
               👨‍🏫
@@ -319,7 +327,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           </div>
         </div>
 
-        <nav className="dashboard-nav flex-1 space-y-2">
+         <nav className="dashboard-nav">
           {Object.values(TeacherMenuType).map((menu) => {
             // فحص الصلاحيات
             const permissions = getTeacherPermissions(effectiveTeacher);
@@ -401,18 +409,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           </button>
         </nav>
 
-        <button
-          onClick={handleLogout}
-          className="dashboard-menu-item shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all mt-4 hover:scale-[1.02] active:scale-95"
-        >
-          <span aria-hidden="true">🚪</span>
-          <span>تسجيل الخروج</span>
-        </button>
+         <div className="dashboard-sidebar-footer">
+           <button
+             onClick={handleLogout}
+             className="dashboard-menu-item shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all hover:scale-[1.02] active:scale-95"
+           >
+             <span aria-hidden="true">🚪</span>
+             <span>تسجيل الخروج</span>
+           </button>
+         </div>
       </aside>
 
       {/* Main Content */}
         <main className="dashboard-main dashboard-content-area safe-area-x safe-area-bottom">
-        <button type="button" onClick={() => setMobileNavOpen(true)} className="mb-4 min-h-11 rounded-xl bg-amber-800 px-3 py-2 text-white font-black lg:hidden" aria-label="فتح القائمة">☰ القائمة</button>
+         <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger mb-4 bg-amber-800 px-3 py-2 text-white lg:hidden" aria-label="فتح القائمة">☰ القائمة</button>
         {renderContent()}
       </main>
 

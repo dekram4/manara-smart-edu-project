@@ -832,7 +832,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   };
 
   return (
-    <div style={styles.container} className="animate-fadeIn">
+    <div style={styles.container} className="dashboard-page animate-fadeIn">
       <div style={styles.header}>
         <h1 style={styles.title}>الإعدادات الأكاديمية - النظام الهرمي</h1>
         <p style={styles.subtitle}>إدارة البنية الهرمية: صف → ترم → مادة → فصل → وحدة</p>

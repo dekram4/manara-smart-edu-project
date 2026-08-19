@@ -362,7 +362,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
      : 'أنشئ وعدّل إعدادات صلاحيات الطلاب، ثم أسندها لأبنائك فقط.';
 
   return (
-    <div className="space-y-6 animate-fadeIn" dir="rtl">
+    <div className="dashboard-page animate-fadeIn" dir="rtl">
       <div className={`dashboard-page-banner ${
         managerRole === 'teacher'
           ? 'bg-gradient-to-r from-amber-500 to-orange-500'

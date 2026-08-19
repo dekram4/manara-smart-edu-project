@@ -23,7 +23,7 @@ const SystemSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn sm:space-y-10">
+    <div className="dashboard-page animate-fadeIn">
       <div>
         <h1 className="text-3xl font-bold">إعدادات النظام</h1>
         <p className="text-purple-500">تحكم في الخصائص العامة للمنصة</p>

@@ -890,7 +890,7 @@ ${contentSummary}
   };
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-page animate-fadeIn">
       {/* 📊 Header */}
       <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
         <div className="min-w-0">

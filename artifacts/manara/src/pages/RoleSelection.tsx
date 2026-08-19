@@ -263,7 +263,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
 
   return (
     <div
-      className="relative flex min-h-screen w-full select-none flex-col items-center justify-center overflow-hidden p-5 font-tajawal"
+      className="role-selection-shell relative flex min-h-screen w-full select-none flex-col items-center justify-center overflow-hidden p-5 font-tajawal"
       dir="rtl"
     >
       {/* ─── Rich gradient background ─── */}
@@ -299,7 +299,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
         initial={{ opacity: 0, y: -28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, ease: 'easeOut' }}
-        className="relative z-10 mb-8 text-center sm:mb-10"
+         className="role-selection-header relative z-10 mb-8 text-center sm:mb-10"
       >
         <ManaraBrand variant="hero" className="text-white" />
         <p className="mt-2 text-base font-medium text-slate-400">
@@ -308,7 +308,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
       </motion.div>
 
       {/* ─── Role cards grid ─── */}
-      <div className="relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
+       <div className="role-selection-grid relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
         {roles.map((role, index) => {
           const isHovered = hoveredId === role.id;
           return (
@@ -323,7 +323,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               onMouseEnter={() => { setHoveredId(role.id); GameAudioEngine.play('uiHover'); }}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => { GameAudioEngine.play('uiSelect'); handlers[role.id](); }}
-               className="group relative min-h-48 overflow-hidden text-right sm:min-h-56"
+                className="role-selection-card group relative min-h-48 overflow-hidden text-right sm:min-h-56"
               style={{
                  borderRadius: '30px',
                  border: `1px solid rgba(255,255,255,${isHovered ? 0.24 : 0.11})`,

@@ -187,17 +187,17 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
   };
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.container}>
+     <div className="dashboard-chat-overlay" style={styles.overlay}>
+       <div className="dashboard-chat-container" style={styles.container}>
         {/* Header */}
         <div style={styles.header}>
           <h2 style={styles.headerTitle}>💬 الدردشة الخاصة</h2>
           <button onClick={onClose} style={styles.closeButton}>✖</button>
         </div>
 
-        <div style={styles.content}>
+         <div className="dashboard-chat-content" style={styles.content}>
           {/* Contacts Sidebar */}
-          <div style={styles.sidebar}>
+           <div className="dashboard-chat-contacts" style={styles.sidebar}>
             <h3 style={styles.sidebarTitle}>جهات الاتصال</h3>
             
             {adminContact && currentUserRole === 'teacher' && (
@@ -238,7 +238,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
           </div>
 
           {/* Chat Area */}
-          <div style={styles.chatArea}>
+           <div className="dashboard-chat-area" style={styles.chatArea}>
             {selectedContact ? (
               <>
                 {/* Chat Header */}

@@ -548,7 +548,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="dashboard-page">
       <div style={styles.header}>
         <h1 style={styles.title}>إعداداتي الأكاديمية</h1>
         <p style={styles.subtitle}>إدارة الهيكل الأكاديمي الخاص بي</p>

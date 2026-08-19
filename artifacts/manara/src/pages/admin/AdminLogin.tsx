@@ -33,13 +33,13 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center overflow-y-auto p-3 sm:p-4 bg-gradient-to-br from-purple-50 via-violet-50 to-orange-50 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom">
+    <div className="login-shell flex items-center justify-center bg-gradient-to-br from-purple-50 via-violet-50 to-orange-50 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom sm:p-4">
       {/* floating decorations */}
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>⚙️</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '8%', top: '70%', animationDelay: '1s' }}>🔒</div>
 
-      <div className="web-login-panel mobile-modal-panel relative z-10 w-full max-w-md rounded-[2rem] border-[3px] border-purple-200 bg-white/90 p-5 text-center shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
+      <div className="login-card web-login-panel mobile-modal-panel relative z-10 rounded-[2rem] border-[3px] border-purple-200 bg-white/90 p-5 text-center shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
         {onBack && (
           <button
             type="button"
@@ -54,14 +54,14 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
         <h1 className="text-2xl font-black mb-2 text-gray-800 animate-popIn sm:text-3xl">بوابة المشرف</h1>
         <p className="text-purple-500 mb-6 font-bold animate-popIn sm:mb-10" style={{ animationDelay: '0.1s' }}>إدارة النظام والمحتوى 🔒</p>
 
-        <form onSubmit={handleLogin} className="space-y-6 text-right">
+        <form onSubmit={handleLogin} className="login-form space-y-6 text-right">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2 px-1">اسم المستخدم</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-4 bg-purple-50/50 border-[3px] border-purple-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none rounded-2xl transition-all hover:border-purple-300"
+              className="login-input p-4 bg-purple-50/50 border-[3px] border-purple-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none rounded-2xl transition-all hover:border-purple-300"
               placeholder="Username"
               required
             />
@@ -72,14 +72,14 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 bg-purple-50/50 border-[3px] border-purple-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none rounded-2xl transition-all hover:border-purple-300"
+              className="login-input p-4 bg-purple-50/50 border-[3px] border-purple-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none rounded-2xl transition-all hover:border-purple-300"
               placeholder="••••••••"
               required
             />
           </div>
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-purple-400 to-violet-500 text-white py-5 rounded-2xl font-black text-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-xl shadow-lg transition-all duration-200 active:scale-95 animate-pulse-glow"
+            className="login-submit bg-gradient-to-r from-purple-400 to-violet-500 text-white py-5 rounded-2xl font-black text-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-xl shadow-lg transition-all duration-200 active:scale-95 animate-pulse-glow"
           >
             🔒 دخول النظام
           </button>
