@@ -162,7 +162,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   };
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+    <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
       {/* 📊 Header */}
        <div className="dashboard-section-header">
         <div className="min-w-0">
@@ -184,7 +184,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
 
       {/* 📝 نموذج الإضافة/التعديل */}
       {showForm && (
-         <div className="dashboard-surface mobile-modal-panel bg-gradient-to-br from-blue-50 to-violet-50 border-blue-300 shadow-2xl">
+         <div className="dashboard-surface dashboard-account-form mobile-modal-panel bg-gradient-to-br from-blue-50 to-violet-50 border-blue-300 shadow-2xl">
           <h2 className="text-2xl font-black text-blue-900 mb-8">
             {editingTeacher ? '✏️ تعديل بيانات المعلم' : '✨ إضافة معلم جديد'}
           </h2>
@@ -284,7 +284,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       )}
 
       {/* 📋 قائمة المعلمين */}
-       <div className="dashboard-surface space-y-4">
+       <div className="dashboard-surface dashboard-content-records space-y-4">
         <h2 className="text-2xl font-black text-purple-900">
           📚 المعلمون المسجلون ({teachers.length})
         </h2>
@@ -296,9 +296,9 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
             <p className="text-purple-400">ابدأ بإضافة معلم جديد</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+           <div className="dashboard-card-grid">
             {teachers.map(teacher => (
-              <div key={teacher.id} className="bg-white p-6 rounded-[30px] border-2 border-purple-100 shadow-sm hover:shadow-lg transition-all">
+               <div key={teacher.id} className="dashboard-account-record bg-white p-6 rounded-[30px] border-2 border-purple-100 shadow-sm hover:shadow-lg transition-all">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">

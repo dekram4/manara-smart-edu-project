@@ -347,26 +347,26 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   });
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+    <div className="dashboard-page dashboard-consistent-page dashboard-certificates-page animate-fadeIn">
       {/* Header */}
-      <div className="dashboard-page-banner bg-gradient-to-r from-purple-600 to-pink-600">
-        <div className="flex items-center justify-between">
+      <div className="dashboard-filter-surface dashboard-page-toolbar">
+        <div className="dashboard-section-header">
           <div>
-            <h1 className="text-4xl font-black mb-2">🏆 شهادات التقدير</h1>
-            <p className="text-purple-100 text-lg font-medium">
+            <h1 className="text-3xl font-black text-slate-900">🏆 شهادات التقدير</h1>
+            <p className="text-slate-500 text-lg font-medium">
               اطبع شهادات شكر وتقدير للطلاب المتميزين
             </p>
           </div>
-          <div className="text-7xl opacity-30">📜</div>
+          <div className="text-5xl opacity-70">📜</div>
         </div>
 
         {/* Parent Filter + Search */}
-        <div className="mt-6 flex flex-col md:flex-row gap-4">
+        <div className="dashboard-filter-grid dashboard-filter-grid-wide">
           <div className="md:w-1/3">
             <select
               value={selectedParentId}
               onChange={(e) => setSelectedParentId(e.target.value)}
-              className="w-full p-4 rounded-xl border-2 border-white/30 bg-white/10 text-white font-bold text-lg backdrop-blur outline-none focus:bg-white/20 focus:border-white cursor-pointer"
+              className="dashboard-form-control w-full p-4 rounded-xl border-2 border-slate-200 bg-white text-slate-800 font-bold text-lg outline-none focus:border-purple-500 cursor-pointer"
             >
               <option value="all" className="text-amber-800">👨‍👧 جميع أولياء الأمور</option>
               {parents.map((parent) => (
@@ -382,12 +382,12 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="🔍 ابحث عن طالب بالاسم أو اسم المستخدم..."
-              className="w-full p-4 pr-12 rounded-xl border-2 border-white/30 bg-white/10 text-white placeholder-white/70 focus:bg-white/20 focus:border-white outline-none font-bold text-lg backdrop-blur"
+              className="dashboard-form-control w-full p-4 pr-12 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-purple-500 outline-none font-bold text-lg"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg font-bold text-sm transition-all"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold text-sm transition-all"
               >
                 ✖ مسح
               </button>
@@ -397,7 +397,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
       </div>
 
       {/* Statistics */}
-      <div className="dashboard-stats-grid">
+      <div className="dashboard-stats-grid dashboard-stats-grid-compact">
         <div className="dashboard-stat-card bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
           <div className="text-5xl mb-3">🏆</div>
           <div className="text-3xl font-black text-yellow-900">{students.filter(s => getStudentAverage(s.id) >= 90).length}</div>

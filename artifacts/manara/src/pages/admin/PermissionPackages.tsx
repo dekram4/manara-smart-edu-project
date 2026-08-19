@@ -159,7 +159,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
   };
 
   return (
-    <div className="dashboard-page animate-fadeIn" dir="rtl">
+    <div className="dashboard-page dashboard-consistent-page animate-fadeIn" dir="rtl">
        <div className="dashboard-section-header">
         <div>
           <h1 className="text-3xl font-black text-purple-900">🔐 إدارة الصلاحيات</h1>

@@ -890,7 +890,7 @@ ${contentSummary}
   };
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+    <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
       {/* 📊 Header */}
        <div className="dashboard-section-header">
         <div className="min-w-0">

@@ -412,7 +412,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   };
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+    <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
       {/* للمشرف فقط: اختيار المعلم */}
       {!teacherId && (
         <div className="dashboard-surface" style={{
@@ -525,7 +525,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
          <div className="dashboard-surface animate-fadeIn border-purple-100">
           <h2 className="text-xl font-black text-purple-800 mb-6">{editingLesson ? 'تعديل المحتوى' : 'إضافة محتوى جديد'}</h2>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <div className="dashboard-filter-grid dashboard-filter-grid-wide">
               {/* الصف - Grade */}
               <select value={formData.grade} onChange={e => {
                 const newGrade = e.target.value;
@@ -746,7 +746,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
 
-      <div className="bg-white rounded-[40px] border border-purple-100 shadow-sm overflow-x-auto">
+      <div className="dashboard-table-surface dashboard-content-records">
         <table className="w-full min-w-[900px] text-right">
           <thead className="bg-purple-50 border-b">
             <tr>

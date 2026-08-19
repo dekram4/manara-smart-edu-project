@@ -521,7 +521,7 @@ const Reports: React.FC = () => {
   };
 
   return (
-     <div className="dashboard-page">
+     <div className="dashboard-page dashboard-consistent-page">
        <div className="dashboard-section-header">
         <h1 className="text-3xl sm:text-4xl font-black text-purple-900 leading-10">مركز التقارير</h1>
         <p className="text-purple-500 font-bold mt-2 text-base sm:text-lg leading-7">استخرج إحصائيات دقيقة وشاملة حول أداء المنصة</p>

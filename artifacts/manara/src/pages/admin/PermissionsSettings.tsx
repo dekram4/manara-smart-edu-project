@@ -207,7 +207,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
   };
 
   return (
-      <div className="dashboard-page dashboard-permissions-page" style={styles.container}>
+      <div className="dashboard-page dashboard-consistent-page dashboard-permissions-page" style={styles.container}>
        <div className="dashboard-section-header" style={styles.header}>
         <div>
           <h1 style={styles.title}>🔐 إدارة الصلاحيات</h1>
@@ -275,7 +275,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
         {(activeTab === 'teacher' || activeTab === 'parent') && renderLimitCards(activeTab)}
       </div>
 
-       <div className="dashboard-stats-grid" style={styles.statsCard}>
+       <div className="dashboard-stats-grid dashboard-stats-grid-compact" style={styles.statsCard}>
         <div style={styles.stat}>
           <div style={styles.statValue}>{Object.values(permissions.teacher).filter(value => typeof value === 'boolean' && value).length}</div>
           <div style={styles.statLabel}>صلاحيات المعلمين المفعلة</div>

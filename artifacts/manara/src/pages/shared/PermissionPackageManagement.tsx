@@ -362,15 +362,11 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
      : 'أنشئ وعدّل إعدادات صلاحيات الطلاب، ثم أسندها لأبنائك فقط.';
 
   return (
-    <div className="dashboard-page animate-fadeIn" dir="rtl">
-      <div className={`dashboard-page-banner ${
-        managerRole === 'teacher'
-          ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-          : 'bg-gradient-to-r from-rose-500 to-pink-600'
-      }`}>
-         <h1 className="text-2xl font-black">🔐 إدارة الصلاحيات</h1>
-        <p className="mt-2 font-bold text-white/80">{managerDescription}</p>
-        <p className="mt-1 text-sm font-bold text-white/70">
+    <div className="dashboard-page dashboard-consistent-page" dir="rtl">
+      <div className="dashboard-page-toolbar dashboard-filter-surface">
+         <h1 className="text-2xl font-black text-slate-900">🔐 إدارة الصلاحيات</h1>
+        <p className="mt-2 font-bold text-slate-600">{managerDescription}</p>
+        <p className="mt-1 text-sm font-bold text-slate-500">
            سياسة المشرف هي الحد الأعلى، ولا يمكن لأي دور منح صلاحية غير مسموحة بها.
         </p>
       </div>
@@ -480,7 +476,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
           {visiblePackages.map(pkg => {
             const isOwner = packageBelongsToManager(pkg, managerRole, managerId);
             return (
-              <div key={pkg.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div key={pkg.id} className="dashboard-account-record rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-lg font-black text-slate-800">{pkg.name}</h3>
@@ -511,7 +507,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
                .map(([key]) => permissionLabels[key] || key)
              : [];
           return (
-            <div key={target.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+             <div key={target.id} className="dashboard-account-record rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-black text-slate-800">{getTargetName(target)}</h3>

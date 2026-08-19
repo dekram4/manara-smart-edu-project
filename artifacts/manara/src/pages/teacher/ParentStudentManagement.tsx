@@ -449,31 +449,31 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   };
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+    <div className="dashboard-page dashboard-account-page animate-fadeIn">
       {/* العنوان والبحث */}
-      <div className="dashboard-page-banner bg-gradient-to-r from-amber-500 to-orange-500">
-        <div className="flex items-center justify-between mb-4">
+      <div className="dashboard-filter-surface dashboard-account-toolbar">
+        <div className="dashboard-section-header">
           <div>
-            <h1 className="text-3xl font-black mb-2">👥 إدارة أولياء الأمور والطلاب</h1>
-            <p className="text-blue-100 font-medium">
+            <h1 className="text-3xl font-black text-slate-900">👥 إدارة أولياء الأمور والطلاب</h1>
+            <p className="text-slate-500 font-medium">
               يمكنك إنشاء حسابات أولياء الأمور وإضافة الطلاب لهم
             </p>
           </div>
         </div>
         {/* حقل البحث */}
-        <div className="mt-4">
+        <div className="dashboard-account-search">
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="🔍 ابحث عن ولي أمر أو طالب بالاسم، اسم المستخدم، رقم الجوال، أو رقم الهوية..."
-              className="w-full p-4 pr-12 rounded-xl border-2 border-white/30 bg-white/10 text-white placeholder-white/70 focus:bg-white/20 focus:border-white outline-none font-bold text-lg backdrop-blur"
+              className="dashboard-form-control w-full p-4 pr-12 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-amber-500 outline-none font-bold text-lg"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg font-bold text-sm transition-all"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold text-sm transition-all"
               >
                 ✖ مسح
               </button>
@@ -481,13 +481,13 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           </div>
         </div>
         {/* قوائم منسدلة لأولياء الأمور والطلاب */}
-        <div className="dashboard-filter-grid">
+        <div className="dashboard-filter-grid dashboard-filter-grid-wide">
           <div>
-            <label className="text-white/70 text-xs font-bold mb-1 block">👨‍👩‍👧‍👦 ولي الأمر</label>
+            <label className="text-slate-600 text-xs font-bold mb-1 block">👨‍👩‍👧‍👦 ولي الأمر</label>
             <select
               value={selectedParentId}
               onChange={(e) => { setSelectedParentId(e.target.value); setSelectedStudentId('all'); }}
-              className="w-full p-2.5 rounded-xl bg-white/10 text-white border border-white/30 font-bold text-sm focus:bg-white/20 focus:border-white outline-none backdrop-blur"
+              className="dashboard-form-control w-full p-2.5 rounded-xl bg-white text-slate-800 border border-slate-200 font-bold text-sm focus:border-amber-500 outline-none"
             >
               <option value="all" className="text-gray-800">جميع أولياء الأمور</option>
               {parents.map(p => (
@@ -496,11 +496,11 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
             </select>
           </div>
           <div>
-            <label className="text-white/70 text-xs font-bold mb-1 block">🎓 الطالب</label>
+            <label className="text-slate-600 text-xs font-bold mb-1 block">🎓 الطالب</label>
             <select
               value={selectedStudentId}
               onChange={(e) => { setSelectedStudentId(e.target.value); setSelectedParentId('all'); }}
-              className="w-full p-2.5 rounded-xl bg-white/10 text-white border border-white/30 font-bold text-sm focus:bg-white/20 focus:border-white outline-none backdrop-blur"
+              className="dashboard-form-control w-full p-2.5 rounded-xl bg-white text-slate-800 border border-slate-200 font-bold text-sm focus:border-amber-500 outline-none"
             >
               <option value="all" className="text-gray-800">جميع الطلاب</option>
               {(selectedParentId === 'all' ? students : students.filter(s => s.parentId === selectedParentId)).map(s => (
@@ -512,14 +512,14 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       </div>
 
       {/* إحصائيات */}
-      <div className="dashboard-stats-grid">
-        <div className="dashboard-stat-card bg-gradient-to-br from-green-500 to-green-600 text-white">
+      <div className="dashboard-stats-grid dashboard-stats-grid-compact">
+        <div className="dashboard-stat-card dashboard-account-stat bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="text-5xl mb-2">👨‍👩‍👧‍👦</div>
           <div className="text-3xl font-black">{parents.length}</div>
           <div className="text-green-100 font-medium">ولي أمر</div>
         </div>
 
-        <div className="dashboard-stat-card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <div className="dashboard-stat-card dashboard-account-stat bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="text-5xl mb-2">🎓</div>
           <div className="text-3xl font-black">{students.length}</div>
           <div className="text-blue-100 font-medium">طالب</div>
@@ -531,9 +531,9 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         {/* إذا كان نموذج ولي الأمر مفتوحاً، اخفِ القائمة */}
         {!showParentForm && !showStudentForm && (
           <>
-            <div className="dashboard-section-header mb-4">
+             <div className="dashboard-section-header dashboard-account-section-header mb-4">
               <h2 className="text-2xl font-black text-gray-800">👨‍👩‍👧‍👦 أولياء الأمور والطلاب</h2>
-              <div className="flex gap-3">
+               <div className="dashboard-account-actions flex gap-3">
                 {permissions.canCreateStudents && (
                   <button
                     onClick={() => setShowStudentForm(true)}
@@ -684,7 +684,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                   {filteredStudents.map(student => {
                     const parent = parents.find(p => p.id === student.parentId);
                     return (
-                      <div key={student.id} className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
+                 <div key={student.id} className="dashboard-account-record bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                              <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center text-white text-2xl">{getStudentEmoji(student)}</div>
@@ -737,10 +737,10 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               </div>
             );
 
-            return filteredParents.map((parent) => {
+               return filteredParents.map((parent) => {
               const parentStudents = students.filter(s => s.parentId === parent.id);
               return (
-                <div key={parent.id} className="bg-gradient-to-r from-gray-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
+                <div key={parent.id} className="dashboard-account-record bg-gradient-to-r from-gray-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
                   {/* معلومات ولي الأمر */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -772,7 +772,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
                   {/* قائمة الطلاب التابعين — تُعرض فقط في وضع الكل أو أولياء الأمور */}
                   {parentStudents.length > 0 && (
-                    <div className="mt-3 mr-16 space-y-2">
+                     <div className="dashboard-account-students mt-3 mr-16 space-y-2">
                       <h4 className="text-sm font-bold text-gray-700 mb-2">🎓 الطلاب:</h4>
                       {parentStudents.map((student) => {
                         const studentMatches = searchQuery && (
@@ -782,9 +782,9 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           (student.studentIdNumber || '').includes(search)
                         );
                         return (
-                        <div
+                         <div
                           key={student.id}
-                          className={`bg-white p-3 rounded-lg border-2 flex items-center justify-between transition-all ${
+                          className={`dashboard-account-student bg-white p-3 rounded-lg border-2 flex items-center justify-between transition-all ${
                             studentMatches
                               ? 'border-yellow-400 bg-yellow-50 shadow-lg'
                               : 'border-gray-200'
@@ -833,8 +833,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
       {/* نموذج إضافة/تعديل طالب */}
       {showStudentForm && (
-        <div className="bg-white p-6 rounded-2xl shadow-lg">
-          <div className="bg-gradient-to-br from-green-50 to-orange-50 p-8 rounded-2xl border-2 border-green-300 shadow-2xl">
+         <div className="dashboard-surface dashboard-account-form">
+           <div className="dashboard-account-form-inner bg-gradient-to-br from-green-50 to-orange-50 p-8 rounded-2xl border-2 border-green-300 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-4xl">{getStudentEmoji(editingStudent)}</div>

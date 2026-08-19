@@ -10,7 +10,7 @@ interface TeacherAccountManagementProps {
 const TeacherAccountManagement: React.FC<TeacherAccountManagementProps> = ({ teacherId, teacherName }) => {
   // المعلم يمكنه فقط إنشاء أولياء أمور
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page dashboard-consistent-page">
       <div className="dashboard-notice bg-blue-50 border-blue-200">
         <h2 className="text-2xl font-black text-blue-900 mb-2">👥 إدارة أولياء الأمور</h2>
         <p className="text-blue-700 font-medium">

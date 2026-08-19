@@ -668,7 +668,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Render ===== */
   return (
-    <div dir="rtl" className="dashboard-shell bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
+    <div dir="rtl" className="dashboard-shell dashboard-consistent-shell bg-gradient-to-br from-rose-50 to-pink-50 animate-fadeIn">
       {/* ===== SIDEBAR ===== */}
        {mobileNavOpen && (
          <button

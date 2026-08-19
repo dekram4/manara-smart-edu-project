@@ -54,7 +54,7 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
   };
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+    <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
        <div className="dashboard-section-header">
          <h1 className="text-4xl font-black text-amber-900">👤 حسابي</h1>
        </div>
@@ -64,22 +64,22 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
         <h2 className="text-2xl font-black text-amber-900 mb-6">📋 معلومات الحساب</h2>
         
          <div className="dashboard-card-grid">
-          <div className="bg-amber-50 p-6 rounded-2xl">
+           <div className="dashboard-account-record bg-amber-50 p-6 rounded-2xl">
             <p className="text-sm text-amber-500 font-bold mb-1">الاسم الكامل</p>
             <p className="text-2xl font-black text-blue-900">{teacher.name}</p>
           </div>
 
-          <div className="bg-green-50 p-6 rounded-2xl">
+           <div className="dashboard-account-record bg-green-50 p-6 rounded-2xl">
             <p className="text-sm text-green-600 font-bold mb-1">اسم المستخدم</p>
             <p className="text-2xl font-black text-green-900">@{teacher.username}</p>
           </div>
 
-          <div className="bg-purple-50 p-6 rounded-2xl">
+           <div className="dashboard-account-record bg-purple-50 p-6 rounded-2xl">
             <p className="text-sm text-purple-600 font-bold mb-1">هوية المعلم</p>
             <p className="text-2xl font-black text-purple-900">{teacher.teacherId}</p>
           </div>
 
-          <div className="bg-orange-50 p-6 rounded-2xl">
+           <div className="dashboard-account-record bg-orange-50 p-6 rounded-2xl">
             <p className="text-sm text-orange-600 font-bold mb-1">تاريخ الإنشاء</p>
             <p className="text-2xl font-black text-orange-900">
               {new Date(teacher.createdAt).toLocaleDateString('ar-SA')}

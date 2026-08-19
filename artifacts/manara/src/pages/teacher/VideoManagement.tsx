@@ -500,7 +500,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   };
 
   return (
-     <div className="dashboard-page animate-fadeIn">
+     <div className="dashboard-page dashboard-consistent-page dashboard-video-page animate-fadeIn">
        <div className="dashboard-section-header">
         <div>
            <h2 className="text-4xl font-black text-amber-800">🎬 إدارة سينما منارة</h2>
@@ -802,10 +802,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         </form>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+       <div className="dashboard-card-grid dashboard-card-grid-wide dashboard-video-grid">
         {filteredVideos.map((video) => {
           return (
-            <div key={video.id} className="bg-white rounded-[30px] shadow-xl border-2 border-amber-100 overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all group">
+            <div key={video.id} className="dashboard-video-card bg-white rounded-[30px] shadow-xl border-2 border-amber-100 overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all group">
               <div className="relative aspect-video bg-black">
                 <VideoThumbnail url={video.url} sourceType={video.sourceType} alt={video.title} />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 transition-all group-hover:bg-black/20">

@@ -456,13 +456,13 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   });
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+     <div className="dashboard-page dashboard-consistent-page dashboard-account-page animate-fadeIn">
        <div className="dashboard-section-header" style={styles.header}>
         <h1 style={styles.title}>إدارة الحسابات</h1>
         <p style={styles.subtitle}>إدارة حسابات الطلاب وأولياء الأمور</p>
       </div>
 
-       <div className="dashboard-surface" style={styles.quickAddContainer}>
+       <div className="dashboard-surface dashboard-account-toolbar" style={styles.quickAddContainer}>
         <div style={styles.quickAddHeader}>
           <h3 style={styles.quickAddTitle}>إضافة حساب جديد</h3>
           <div style={styles.quickAddButtons}>
@@ -470,7 +470,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
             <button onClick={() => quickAddAccount('parent')} style={{...styles.quickAddButton, backgroundColor: COLORS.secondary}}>👨‍👦 إضافة ولي أمر</button>
           </div>
         </div>
-        <div style={styles.quickAddStats}>
+         <div className="dashboard-stats-grid dashboard-stats-grid-compact" style={styles.quickAddStats}>
           <div style={styles.statCard}>
              <div style={styles.statIcon}>👨‍🎓</div>
              <div style={styles.statContent}><div style={styles.statValue}>{students.length}</div><div style={styles.statLabel}>طالب</div></div>
@@ -483,7 +483,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       </div>
 
       {showStudentForm && (
-        <div style={styles.formCard}>
+         <div className="dashboard-surface dashboard-account-form" style={styles.formCard}>
           <h3 style={styles.formTitle}>{editingStudent ? '✏️ تعديل الطالب' : '➕ إضافة طالب جديد'}</h3>
           <form onSubmit={handleAddStudent} style={styles.form}>
             <div style={styles.formGrid}>
@@ -543,7 +543,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       )}
 
       {showParentForm && (
-        <div style={styles.formCard}>
+         <div className="dashboard-surface dashboard-account-form" style={styles.formCard}>
            <h3 style={styles.formTitle}>{editingParent ? '✏️ تعديل ولي أمر' : '➕ إضافة ولي أمر جديد'}</h3>
            <form onSubmit={handleAddParent} style={styles.form}>
              <div style={styles.formGrid}>
@@ -574,7 +574,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
       )}
 
-       <div className="dashboard-surface" style={styles.controlsCard}>
+       <div className="dashboard-filter-surface" style={styles.controlsCard}>
         <div style={styles.controlsHeader}>
           <div style={styles.searchContainer}>
             <input 
@@ -641,7 +641,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border shadow-sm overflow-x-auto">
+       <div className="dashboard-table-surface dashboard-content-records">
          <table className="w-full min-w-[900px] text-right">
            <thead className="bg-purple-50 border-b">
               <tr>
@@ -771,7 +771,7 @@ const styles = {
   quickAddTitle: { fontSize: '1.2rem', fontWeight: 'bold' },
   quickAddButtons: { display: 'flex', gap: '15px' },
   quickAddButton: { padding: '10px 20px', backgroundColor: COLORS.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' },
-  quickAddStats: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' },
+   quickAddStats: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '15px' },
   statCard: { display: 'flex', alignItems: 'center', gap: '15px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e5e7eb' },
   statIcon: { fontSize: '1.5rem' },
   statContent: { flex: 1 },

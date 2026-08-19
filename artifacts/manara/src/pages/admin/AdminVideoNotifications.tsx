@@ -71,7 +71,7 @@ const AdminVideoNotifications: React.FC = () => {
   };
 
   return (
-    <div className="dashboard-page animate-fadeIn">
+    <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-3xl font-black text-purple-800">📢 إشعارات الفيديوهات</h2>

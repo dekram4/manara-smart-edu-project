@@ -26,3 +26,9 @@ Internal role pages also need explicit shared wrappers for section headers, filt
 **Why:** Several menus kept their old bespoke grids and inline surfaces, so the first shell pass did not visibly fix their content layouts.
 
 **How to apply:** Use `dashboard-section-header`, `dashboard-filter-surface`, `dashboard-card-grid`, `dashboard-table-surface`, and `dashboard-internal-layout` on each role-specific menu, including parent child/certificate views and shared chat.
+
+The teacher account screenshot corresponds to the parent/student management page, so visual QA must inspect that route rather than only the admin student-management table.
+
+**Why:** The two account-management screens have different data layouts and the earlier shell-only pass fixed the wrong surface for the reported screenshot.
+
+**How to apply:** When a screenshot is supplied, map its sidebar role and page title to the exact role-specific component before choosing which internal layout to refactor.

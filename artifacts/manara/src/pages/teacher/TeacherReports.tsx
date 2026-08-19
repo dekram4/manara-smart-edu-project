@@ -296,11 +296,11 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   }
 
   return (
-     <div className="dashboard-page">
+     <div className="dashboard-page dashboard-consistent-page dashboard-reports-page">
       {/* العنوان */}
-      <div className="dashboard-page-banner bg-gradient-to-r from-amber-600 to-orange-600">
-        <h1 className="text-2xl sm:text-3xl font-black mb-2 leading-8">📊 التقارير والإحصائيات</h1>
-        <p className="text-purple-100 font-medium">
+       <div className="dashboard-filter-surface dashboard-page-toolbar">
+         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-8">📊 التقارير والإحصائيات</h1>
+         <p className="text-slate-500 font-medium">
           تقارير الأداء الخاصة بطلابك فقط
         </p>
       </div>
@@ -327,7 +327,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       </div>
 
       {/* إحصائيات عامة */}
-      <div className="dashboard-stats-grid">
+       <div className="dashboard-stats-grid dashboard-stats-grid-compact">
         <div className="dashboard-stat-card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="dashboard-stat-heading"><span className="text-3xl">👨‍👩‍👧‍👦</span><span className="font-black">أولياء الأمور</span></div>
           <div className="dashboard-stat-value">{parents.length}</div>

@@ -41,7 +41,7 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-rose-50 p-3 font-tajawal safe-area-x safe-area-top safe-area-bottom sm:p-4">
+    <div className="dashboard-account-setup flex min-h-screen items-center justify-center overflow-y-auto bg-rose-50 p-3 font-tajawal safe-area-x safe-area-top safe-area-bottom sm:p-4">
       <div className="mobile-modal-panel w-full max-w-lg rounded-[34px] border-t-8 border-emerald-500 bg-white p-5 text-center shadow-2xl sm:rounded-[50px] sm:p-10">
         <div className="w-24 h-24 bg-rose-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-8 shadow-inner">👤</div>
         <h1 className="text-2xl font-black mb-2 text-rose-800 sm:text-3xl">أهلاً بك {parent.name}!</h1>
