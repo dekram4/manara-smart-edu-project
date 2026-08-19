@@ -869,7 +869,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         ? Math.round(teacherQuizzes.reduce((sum, quiz) => sum + getQuizResultPercentage(quiz), 0) / teacherQuizzes.length)
                         : 0;
                       return (
-                        <div className="bg-gradient-to-br from-rose-50 to-orange-50 p-4 rounded-2xl border-2 border-rose-200 shadow-sm">
+                         <div className="dashboard-account-record dashboard-result-card bg-gradient-to-br from-rose-50 to-orange-50 p-4 rounded-2xl border-2 border-rose-200 shadow-sm">
                           <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
                               <h3 className="text-base font-black text-rose-800">📝 تفاصيل نتائج اختبارات الطالب</h3>
@@ -1072,7 +1072,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </div>
 
                 {/* Filter + Children grid */}
-                <div className="bg-white p-5 rounded-2xl shadow-md border border-rose-100">
+                 <div className="dashboard-surface dashboard-results-panel">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <h3 className="text-base font-black text-rose-800">📝 نتائج اختبارات الطلاب</h3>
@@ -1113,7 +1113,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       .some(filter => filter !== 'all');
                     return (
                       <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
+                         <div className="dashboard-filter-grid dashboard-filter-grid-wide mb-4">
                           <label className="text-xs font-black text-rose-700">
                             الطالب
                             <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-rose-100 bg-white text-sm font-bold text-gray-700 focus:border-rose-400 outline-none">
@@ -1157,11 +1157,11 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           </button>
                         )}
                     {filteredResultStudents.length > 0 ? (
-                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                       <div className="dashboard-card-grid dashboard-card-grid-wide dashboard-results-grid">
                         {filteredResultStudents.map(({ child, results }) => {
                           const average = Math.round(results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length);
                           return (
-                            <div key={child.id} className="border border-rose-100 rounded-xl p-3 bg-rose-50/60">
+                             <div key={child.id} className="dashboard-account-record dashboard-result-card border border-rose-100 rounded-xl p-3 bg-rose-50/60">
                               <div className="flex items-center justify-between gap-3 mb-2">
                                 <div className="min-w-0">
                                   <p className="font-black text-sm text-rose-800 truncate">{child.name}</p>
@@ -1455,7 +1455,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           );
                         })()}
                         {/* Quiz results list */}
-                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-100">
+                         <div className="dashboard-surface dashboard-results-panel">
                           <h3 className="text-sm font-black text-rose-800 mb-3">📋 نتائج الاختبارات</h3>
                           <div className="space-y-2">
                             {myChildQuizzes.filter(q => q.subject === activeSubject).reverse().length > 0 ?

@@ -514,7 +514,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
 
           return (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+               <div className="dashboard-filter-grid dashboard-filter-grid-wide mb-5">
                 <label className="text-xs font-black text-purple-700">
                   الطالب
                   <select value={teacherResultStudentFilter} onChange={e => setTeacherResultStudentFilter(e.target.value)} className="mt-1 w-full p-3 rounded-xl border-2 border-purple-100 bg-white text-sm font-bold text-gray-700 focus:border-purple-400 outline-none">
@@ -558,13 +558,13 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                 </button>
               )}
               {filteredResultStudents.length > 0 ? (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
+               <div className="dashboard-card-grid dashboard-card-grid-wide dashboard-results-grid">
                   {filteredResultStudents.map(({ student, results }) => {
                     const average = Math.round(
                       results.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / results.length,
                     );
                     return (
-                      <div key={student.id} className="border border-purple-100 rounded-2xl p-4 bg-gradient-to-br from-purple-50 to-pink-50">
+                       <div key={student.id} className="dashboard-account-record dashboard-result-card border border-purple-100 rounded-2xl p-4 bg-gradient-to-br from-purple-50 to-pink-50">
                         <div className="flex items-center justify-between gap-3 mb-3">
                           <div>
                             <h3 className="font-black text-purple-900">{student.name}</h3>
@@ -623,7 +623,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
               return (
                 <div 
                   key={parent.id}
-                  className="bg-gradient-to-br from-amber-50 to-purple-50 p-6 rounded-2xl border-2 border-amber-200"
+                  className="dashboard-account-record bg-gradient-to-br from-amber-50 to-purple-50 p-6 rounded-2xl border-2 border-amber-200"
                 >
                   <div className="text-4xl mb-2">👤</div>
                   <h3 className="text-xl font-black text-gray-800 mb-2">{parent.name}</h3>

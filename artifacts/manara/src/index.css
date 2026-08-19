@@ -1048,6 +1048,20 @@ table {
   padding: 1rem 1.25rem;
 }
 
+.dashboard-account-stat-green {
+  border-color: #bbf7d0 !important;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important;
+}
+
+.dashboard-account-stat-blue {
+  border-color: #bfdbfe !important;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe) !important;
+}
+
+.dashboard-account-stat > div:first-child {
+  flex: 0 0 auto;
+}
+
 .dashboard-account-stat > div {
   margin-bottom: 0 !important;
 }
@@ -1104,6 +1118,37 @@ table {
 
 .dashboard-account-form-inner {
   box-shadow: none !important;
+}
+
+.dashboard-account-page .dashboard-account-actions > button,
+.dashboard-account-page .dashboard-account-record button {
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 0.75rem !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  box-shadow: none !important;
+}
+
+.dashboard-account-page .dashboard-account-actions > button:hover,
+.dashboard-account-page .dashboard-account-record button:hover {
+  background: #eef2ff !important;
+  color: #3730a3 !important;
+}
+
+.dashboard-results-grid {
+  align-items: stretch;
+}
+
+.dashboard-result-card {
+  min-width: 0;
+}
+
+.dashboard-results-panel {
+  min-width: 0;
+}
+
+.dashboard-quiz-record {
+  min-width: 0;
 }
 
 .dashboard-main .grid > *,

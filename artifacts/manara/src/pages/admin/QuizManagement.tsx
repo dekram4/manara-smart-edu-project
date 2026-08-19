@@ -1146,7 +1146,7 @@ ${contentSummary}
                 {isGenerating ? '⏳ جاري التوليد الاحترافي...' : '✨ توليد الاختبار الآن'}
               </button>
             ) : (
-              <div className="space-y-4">
+       <div className="dashboard-surface dashboard-content-records space-y-4">
                 {/* عرض الأسئلة اليدوية */}
                 {manualQuestions.length > 0 && (
                   <div className="bg-white p-6 rounded-[25px] border-2 border-green-300">
@@ -1251,9 +1251,9 @@ ${contentSummary}
             <p className="text-purple-400">ابدأ بإنشاء اختبار جديد</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+           <div className="dashboard-card-grid">
             {createdQuizzes.map(quiz => (
-              <div key={quiz.id} className="bg-white p-6 rounded-[30px] border-2 border-purple-100 shadow-sm hover:shadow-lg transition-all">
+               <div key={quiz.id} className="dashboard-account-record dashboard-quiz-record bg-white p-6 rounded-[30px] border-2 border-purple-100 shadow-sm hover:shadow-lg transition-all">
                 <div className="flex justify-between items-start gap-6">
                   {/* معلومات الاختبار */}
                   <div className="flex-1 space-y-3">

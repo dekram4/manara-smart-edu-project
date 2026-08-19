@@ -513,16 +513,16 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
       {/* إحصائيات */}
       <div className="dashboard-stats-grid dashboard-stats-grid-compact">
-        <div className="dashboard-stat-card dashboard-account-stat bg-gradient-to-br from-green-500 to-green-600 text-white">
+        <div className="dashboard-stat-card dashboard-account-stat dashboard-account-stat-green">
           <div className="text-5xl mb-2">👨‍👩‍👧‍👦</div>
-          <div className="text-3xl font-black">{parents.length}</div>
-          <div className="text-green-100 font-medium">ولي أمر</div>
+          <div className="text-3xl font-black text-slate-900">{parents.length}</div>
+          <div className="text-slate-500 font-medium">ولي أمر</div>
         </div>
 
-        <div className="dashboard-stat-card dashboard-account-stat bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <div className="dashboard-stat-card dashboard-account-stat dashboard-account-stat-blue">
           <div className="text-5xl mb-2">🎓</div>
-          <div className="text-3xl font-black">{students.length}</div>
-          <div className="text-blue-100 font-medium">طالب</div>
+          <div className="text-3xl font-black text-slate-900">{students.length}</div>
+          <div className="text-slate-500 font-medium">طالب</div>
         </div>
       </div>
 
@@ -560,8 +560,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           </>
         )}
 
-        {showParentForm && (
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-8 rounded-2xl border-2 border-amber-300 shadow-2xl">
+         {showParentForm && (
+           <div className="dashboard-surface dashboard-account-form bg-slate-50">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-4xl">👤</div>
@@ -694,7 +694,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
+                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
@@ -833,8 +833,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
       {/* نموذج إضافة/تعديل طالب */}
       {showStudentForm && (
-         <div className="dashboard-surface dashboard-account-form">
-           <div className="dashboard-account-form-inner bg-gradient-to-br from-green-50 to-orange-50 p-8 rounded-2xl border-2 border-green-300 shadow-2xl">
+          <div className="dashboard-surface dashboard-account-form">
+           <div className="dashboard-account-form-inner bg-slate-50 p-8 rounded-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-4xl">{getStudentEmoji(editingStudent)}</div>

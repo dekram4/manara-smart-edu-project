@@ -32,3 +32,9 @@ The teacher account screenshot corresponds to the parent/student management page
 **Why:** The two account-management screens have different data layouts and the earlier shell-only pass fixed the wrong surface for the reported screenshot.
 
 **How to apply:** When a screenshot is supplied, map its sidebar role and page title to the exact role-specific component before choosing which internal layout to refactor.
+
+Shared dashboard stat-card rules can override utility gradient classes because the shared stylesheet is loaded after utility classes.
+
+**Why:** Account statistics rendered as white cards with nearly invisible light text when the shared surface background won the cascade.
+
+**How to apply:** Give dashboard stat variants explicit component classes with explicit backgrounds and readable text instead of relying only on utility gradient/color classes.
