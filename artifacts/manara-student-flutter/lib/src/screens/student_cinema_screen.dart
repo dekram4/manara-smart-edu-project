@@ -44,7 +44,10 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
 
   Future<void> _loadVideos() async {
     try {
-      final videos = await _contentService.fetchCinemaVideos();
+      final videos = await _contentService.fetchCinemaVideos(
+        widget.profile,
+        academicContext: widget.academicContext,
+      );
       if (!mounted) return;
       setState(() {
         _videos = videos;
@@ -102,8 +105,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     if (_videos.isEmpty) {
       return const _CinemaStateCard(
         icon: Icons.movie_filter_outlined,
-        title: 'لا توجد فيديوهات منشورة',
-        message: 'ستظهر هنا جميع فيديوهات المعلم والمشرف المنشورة من إدارة المحتوى.',
+        title: 'لا توجد فيديوهات لمسارك',
+        message: 'ستظهر هنا فيديوهات المعلم والمشرف المطابقة لمسارك الأكاديمي.',
       );
     }
 
@@ -123,7 +126,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
         const SizedBox(height: 5),
         Text(
           widget.academicContext?.label ??
-              'جميع الفيديوهات المنشورة من إدارة المحتوى',
+              'فيديوهات تعليمية مرتبطة بمسارك الأكاديمي',
           textAlign: TextAlign.right,
           style: const TextStyle(
             color: Color(0xFFBE123C),
@@ -286,7 +289,7 @@ class _CinemaVideoCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                video.description ?? 'فيديو تعليمي منشور من إدارة المحتوى',
+                video.description ?? 'فيديو تعليمي من مسارك الأكاديمي',
                 textAlign: TextAlign.right,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,

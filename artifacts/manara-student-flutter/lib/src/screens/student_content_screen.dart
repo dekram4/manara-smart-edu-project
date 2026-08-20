@@ -236,7 +236,7 @@ class _LessonModule extends StatelessWidget {
       return const _StateCard(
         icon: Icons.auto_stories_outlined,
         title: 'لا توجد دروس متاحة',
-        message: 'ستظهر هنا جميع الدروس المنشورة من إدارة المحتوى.',
+        message: 'ستظهر هنا الدروس المنشورة لمسارك الأكاديمي.',
       );
     }
 
@@ -256,7 +256,7 @@ class _LessonModule extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           lesson.scopeLabel.isEmpty
-              ? 'كل الدروس المنشورة من إدارة المحتوى'
+              ? 'المحتوى المرتبط بمسارك الأكاديمي'
               : lesson.scopeLabel,
           style: const TextStyle(color: Color(0xFF5680AC), fontWeight: FontWeight.w700),
         ),
