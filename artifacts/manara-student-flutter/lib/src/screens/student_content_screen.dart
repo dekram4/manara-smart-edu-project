@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -598,25 +600,24 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                   if (needsApiBaseUrl) {
                     return const _VideoConfigurationMessage();
                   }
+                  if (video.sourceType == VideoSourceType.mp4) {
+                    return _NativeMp4Player(
+                      key: ValueKey(url),
+                      url: url,
+                      title: video.title,
+                    );
+                  }
                   return Center(
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
                       child: InAppWebView(
-                        initialUrlRequest: video.sourceType == VideoSourceType.mp4
+                        initialUrlRequest: isYoutube
                             ? null
-                            : URLRequest(
-                                url: WebUri(url),
-                                headers: isYoutube
-                                    ? const {
-                                        'Referer': 'https://www.youtube.com/',
-                                        'Origin': 'https://www.youtube.com',
-                                      }
-                                    : null,
-                              ),
-                        initialData: video.sourceType == VideoSourceType.mp4
+                            : URLRequest(url: WebUri(url)),
+                        initialData: isYoutube
                             ? InAppWebViewInitialData(
-                                data: _mp4VideoHtml(url, video.title),
-                                baseUrl: _webDocumentBaseUrl(url),
+                                data: _youtubeEmbedHtml(url, video.title),
+                                baseUrl: WebUri('https://www.youtube.com/'),
                               )
                             : null,
                         initialSettings: InAppWebViewSettings(
@@ -692,13 +693,108 @@ class _VideoConfigurationMessage extends StatelessWidget {
   }
 }
 
-WebUri? _webDocumentBaseUrl(String url) {
-  final uri = Uri.tryParse(url);
-  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) return null;
-  return WebUri('${uri.scheme}://${uri.authority}/');
+class _NativeMp4Player extends StatefulWidget {
+  const _NativeMp4Player({
+    required this.url,
+    required this.title,
+    super.key,
+  });
+
+  final String url;
+  final String title;
+
+  @override
+  State<_NativeMp4Player> createState() => _NativeMp4PlayerState();
 }
 
-String _mp4VideoHtml(String url, String title) {
+class _NativeMp4PlayerState extends State<_NativeMp4Player> {
+  late final Player _player;
+  late final VideoController _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = Player();
+    _controller = VideoController(_player);
+    _player.stream.error.listen((error) {
+      if (!mounted) return;
+      setState(() => _error = error);
+    });
+    _player.open(Media(widget.url));
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Video(
+          controller: _controller,
+          fill: Colors.black,
+        ),
+        if (_error != null)
+          _NativeVideoError(
+            title: 'تعذر تشغيل ملف MP4',
+            message:
+                'تعذر الوصول إلى الفيديو أو قراءته. تحقق من الاتصال ثم أعد فتح الفيديو.',
+          ),
+      ],
+    );
+  }
+}
+
+class _NativeVideoError extends StatelessWidget {
+  const _NativeVideoError({
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xED071425),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Color(0xFF5EEAD4), size: 52),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFFBFEFED), height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _youtubeEmbedHtml(String url, String title) {
   final safeUrl = _escapeHtmlAttribute(url);
   final safeTitle = _escapeHtmlAttribute(title);
   return '''
@@ -707,30 +803,17 @@ String _mp4VideoHtml(String url, String title) {
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    html, body { margin: 0; height: 100%; background: #071425; }
-    body { display: flex; align-items: center; justify-content: center; font-family: sans-serif; }
-    video { width: 100%; max-height: 100vh; background: #000; }
-    #error { display: none; max-width: 440px; padding: 22px; color: #e6fffe; text-align: center; line-height: 1.7; }
-    #error strong { display: block; color: #5eead4; font-size: 18px; margin-bottom: 8px; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+    iframe { border: 0; width: 100%; height: 100%; }
   </style>
 </head>
 <body>
-  <video id="video" controls playsinline preload="auto" aria-label="$safeTitle">
-    <source src="$safeUrl" type="video/mp4">
-    عذرًا، لا يمكن تشغيل هذا الفيديو على هذا الجهاز.
-  </video>
-  <div id="error">
-    <strong>تعذر تشغيل ملف MP4</strong>
-    تحقق من أن رابط الفيديو متاح وأن الملف لم يُحذف من التخزين، ثم أعد المحاولة.
-  </div>
-  <script>
-    const video = document.getElementById('video');
-    const error = document.getElementById('error');
-    video.addEventListener('error', () => {
-      video.style.display = 'none';
-      error.style.display = 'block';
-    });
-  </script>
+  <iframe
+    src="$safeUrl"
+    title="$safeTitle"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen
+    referrerpolicy="origin"></iframe>
 </body>
 </html>
 ''';
