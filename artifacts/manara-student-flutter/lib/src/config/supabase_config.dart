@@ -6,8 +6,18 @@ class SupabaseConfig {
   });
 
   const SupabaseConfig.fromEnvironment()
-      : url = const String.fromEnvironment('SUPABASE_URL'),
-        anonKey = const String.fromEnvironment('SUPABASE_ANON_KEY'),
+      : url = const String.fromEnvironment(
+          'SUPABASE_URL',
+          defaultValue: 'https://kpqlotlyniomssnzcgqn.supabase.co',
+        ),
+        anonKey = const String.fromEnvironment(
+          'SUPABASE_ANON_KEY',
+          defaultValue:
+              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIs'
+              'InJlZiI6ImtwcWxvdGx5bmlvbXNzbnpjZ3FuIiwicm9sZSI6ImFub24iLCJpYXQi'
+              'OjE3ODcxMzcxNjIsImV4cCI6MjEwMjcxMzE2Mn0.AHZ5vsoBNQ6cemiswQksEe91'
+              'M1IQRU3RsAtDINNymkg',
+        ),
         apiBaseUrl = const String.fromEnvironment('API_BASE_URL');
 
   final String url;
