@@ -241,7 +241,6 @@ class _LessonModule extends StatelessWidget {
     }
 
     final lesson = selectedLesson ?? lessons.first;
-    final lessonText = lesson.lessonText?.trim();
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
@@ -295,38 +294,7 @@ class _LessonModule extends StatelessWidget {
           const SizedBox(height: 16),
           _VideoCarousel(videos: lesson.videos),
         ],
-        if (lessonText != null && lessonText.isNotEmpty) ...[
-          const SizedBox(height: 18),
-          _GlassPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'نص الدرس',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: Color(0xFF0E1B2A),
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  lessonText,
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                    color: Color(0xFF274E76),
-                    fontSize: 16,
-                    height: 1.7,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        if (lesson.videos.isEmpty &&
-            (lessonText == null || lessonText.isEmpty))
+        if (lesson.videos.isEmpty)
           const _StateCard(
             icon: Icons.menu_book_outlined,
             title: 'محتوى الدرس غير متوفر بعد',
@@ -1063,7 +1031,11 @@ class _TutorModuleState extends State<_TutorModule> {
           Uri.parse('$base/api/gemini/answer'),
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({
-            'lesson': widget.lesson?.lessonText ?? 'لا يوجد نص درس محدد.',
+            'lesson': widget.lesson?.lessonName.isNotEmpty == true
+                ? widget.lesson!.lessonName
+                : (widget.lesson?.subject.isNotEmpty == true
+                    ? widget.lesson!.subject
+                    : 'الدرس'),
             'question': question,
           }),
         )
