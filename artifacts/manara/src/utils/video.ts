@@ -156,6 +156,11 @@ export const uploadMp4Video = async (file: File): Promise<Mp4UploadResult> => {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error(
+        'انتهت جلسة رفع الفيديو. سجّل الخروج ثم ادخل بحساب المعلم مرة أخرى.',
+      );
+    }
     throw new Error(payload?.error || 'فشل رفع ملف الفيديو');
   }
   return payload;
