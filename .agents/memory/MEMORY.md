@@ -2,3 +2,4 @@
 - [Flutter runtime validation](flutter-runtime-validation.md) — Flutter source is ready, but this workspace lacks Flutter/Dart tooling for local execution.
 - [Dashboard menu layout](dashboard-menu-layout.md) — Arabic dashboard menus need non-shrinking flex items, explicit line-height, and isolated sidebar scrolling.
 - [Web global layout](web-global-layout.md) — Keep the web reset minimal; dashboard shells own scrolling and Flutter/legacy selectors stay scoped.
+- [Student content visibility](student-content-visibility.md) — Student lesson explanation and cinema show all managed lesson records, not only the selected academic path.

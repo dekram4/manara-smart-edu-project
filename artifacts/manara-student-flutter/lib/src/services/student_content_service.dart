@@ -67,51 +67,38 @@ class StudentContentService {
     );
   }
 
-  Future<List<LessonContent>> fetchLessons(
-    StudentProfile profile, {
-    AcademicContext? academicContext,
-  }) async {
+  Future<List<LessonContent>> fetchLessons() async {
     final response = await client
         .from('lesson_configs')
         .select('id,data')
         .limit(500);
 
+    // The student lesson explanation is a catalogue of the content published
+    // through content management. It must not be narrowed to the currently
+    // selected academic path; teachers and supervisors may publish lessons
+    // outside that selection and the student should still see them.
     final lessons = response
         .whereType<Map>()
         .map((row) => parseLessonContent(row, baseUrl: baseUrl))
-        .where(
-          (lesson) => _matchesStudent(
-            lesson,
-            profile,
-            academicContext: academicContext,
-          ),
-        )
         .toList();
 
     lessons.sort((a, b) => a.id.compareTo(b.id));
     return lessons;
   }
 
-  Future<List<LessonVideo>> fetchCinemaVideos(
-    StudentProfile profile, {
-    AcademicContext? academicContext,
-  }) async {
+  Future<List<LessonVideo>> fetchCinemaVideos() async {
     final response = await client
         .from('lesson_configs')
         .select('id,data')
         .limit(500);
 
+    // Cinema follows the same visibility rule as lesson explanation: every
+    // managed lesson can contribute its safe videos, regardless of the
+    // student's current academic selection or teacher assignment.
     final lessons = response
         .whereType<Map>()
         .map((row) => parseLessonContent(row, baseUrl: baseUrl))
-        .where(
-          (lesson) => _matchesStudent(
-            lesson,
-            profile,
-            academicContext: academicContext,
-            includeLesson: false,
-          ),
-        );
+        .toList();
 
     final videos = <LessonVideo>[];
     final seen = <String>{};
@@ -189,31 +176,6 @@ class StudentContentService {
     });
   }
 
-  bool _matchesStudent(
-    LessonContent lesson,
-    StudentProfile profile, {
-    AcademicContext? academicContext,
-    bool includeLesson = true,
-  }) {
-    final grade = academicContext?.grade ?? profile.grade;
-    final atram = academicContext?.atram ?? profile.atram;
-    final subject = academicContext?.subject ?? profile.subject;
-    final term = academicContext?.term ?? profile.term;
-    final unit = academicContext?.unit ?? profile.unit;
-    final lessonId = academicContext?.lessonId;
-    return _matchesOwner(lesson, profile) &&
-        _matches(lesson.grade, grade) &&
-        _matches(lesson.atram, atram) &&
-        _matches(lesson.subject, subject) &&
-        _matches(lesson.term, term) &&
-        _matches(lesson.unit, unit) &&
-        (!includeLesson ||
-            lessonId == null ||
-            lessonId.isEmpty ||
-            _normalize(lesson.id) == _normalize(lessonId) ||
-            _normalize(lesson.lessonId) == _normalize(lessonId));
-  }
-
   bool _matchesOwner(LessonContent lesson, StudentProfile profile) {
     final owner = _normalize(lesson.ownerId);
     final teacher = _normalize(profile.teacherId);
@@ -222,12 +184,6 @@ class StudentContentService {
     return owner == teacher;
   }
 
-  bool _matches(String lessonValue, String? studentValue) {
-    final lesson = _normalize(lessonValue);
-    final student = _normalize(studentValue);
-    if (student.isEmpty || lesson.isEmpty) return true;
-    return lesson == student;
-  }
 }
 
 List<AcademicPath> _pathsFromHierarchy(

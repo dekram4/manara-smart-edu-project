@@ -58,10 +58,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
 
   Future<void> _loadContent() async {
     try {
-      final lessons = await _contentService.fetchLessons(
-        widget.profile,
-        academicContext: widget.academicContext,
-      );
+      final lessons = await _contentService.fetchLessons();
       if (!mounted) return;
       setState(() {
         final selectedFromContext = widget.academicContext?.selectedLesson;
@@ -236,7 +233,7 @@ class _LessonModule extends StatelessWidget {
       return const _StateCard(
         icon: Icons.auto_stories_outlined,
         title: 'لا توجد دروس متاحة',
-        message: 'سيظهر هنا محتوى المعلم والمشرف المطابق لصفك وترمك ومادتك ووحدتك.',
+        message: 'ستظهر هنا جميع الدروس المنشورة من إدارة المحتوى.',
       );
     }
 
@@ -256,7 +253,7 @@ class _LessonModule extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           lesson.scopeLabel.isEmpty
-              ? 'المحتوى المرتبط بمسارك الأكاديمي'
+              ? 'كل الدروس المنشورة من إدارة المحتوى'
               : lesson.scopeLabel,
           style: const TextStyle(color: Color(0xFF5680AC), fontWeight: FontWeight.w700),
         ),
