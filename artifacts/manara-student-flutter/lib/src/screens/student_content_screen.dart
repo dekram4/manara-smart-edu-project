@@ -672,7 +672,7 @@ class _VideoConfigurationMessage extends StatelessWidget {
             Icon(Icons.link_off_rounded, color: Color(0xFF5EEAD4), size: 52),
             SizedBox(height: 14),
             Text(
-              'يلزم إعداد عنوان خادم الفيديو',
+              'رابط الفيديو غير متاح',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white,
@@ -682,7 +682,8 @@ class _VideoConfigurationMessage extends StatelessWidget {
             ),
             SizedBox(height: 8),
             Text(
-              'أعِد تشغيل التطبيق مع API_BASE_URL ليتمكن من تشغيل ملفات MP4 المرفوعة.',
+              'لم يتم العثور على ملف الفيديو أو لا تملك صلاحية الوصول إليه. '
+              'تأكد من اتصال الإنترنت ثم حاول فتحه مرة أخرى.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Color(0xFFBFEFED), height: 1.5),
             ),
@@ -1551,7 +1552,9 @@ String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
   var raw = video.url.trim();
   if (raw.startsWith('/')) {
     final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
-    if (base.isNotEmpty) raw = '$base$raw';
+    final isLocalBase = base.toLowerCase().contains('localhost') ||
+        base.contains('127.0.0.1');
+    if (base.isNotEmpty && !isLocalBase) raw = '$base$raw';
   }
   if (video.sourceType == VideoSourceType.mp4) return raw;
   final uri = Uri.tryParse(raw);

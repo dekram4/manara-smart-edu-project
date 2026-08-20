@@ -14,7 +14,8 @@ import { logger } from "../lib/logger";
 const router = Router();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Store uploads at the workspace root so they survive API rebuilds and restarts.
+// Keep this directory only as a read/delete fallback for videos uploaded before
+// Supabase Storage was enabled. New uploads must use durable remote storage.
 export const uploadDirectory = path.resolve(
   __dirname,
   "../../../uploads/videos",
@@ -42,18 +43,102 @@ type UploadOwner = {
   teacherId?: string;
 };
 
-function publicVideoUrl(req: import("express").Request, fileName: string): string {
-  const origin = req.get("origin")?.trim();
-  if (!origin) return `/api/media/videos/${fileName}`;
-  try {
-    const base = new URL(origin);
-    if (base.protocol === "http:" || base.protocol === "https:") {
-      return new URL(`/api/media/videos/${fileName}`, base.origin).toString();
-    }
-  } catch {
-    // The API will retain the portable relative URL when no valid public origin exists.
+function supabaseStorageConfig(): { url: string; key: string; bucket: string } | null {
+  const url = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const bucket = (process.env.SUPABASE_VIDEO_BUCKET || "lesson-videos").trim();
+  return url && key && bucket ? { url, key, bucket } : null;
+}
+
+function storageObjectUrl(config: { url: string; bucket: string }, objectPath: string): string {
+  return `${config.url}/storage/v1/object/public/${encodeURIComponent(config.bucket)}/${objectPath
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")}`;
+}
+
+async function uploadToSupabase(
+  config: { url: string; key: string; bucket: string },
+  objectPath: string,
+  body: Buffer,
+): Promise<string> {
+  const response = await fetch(
+    `${config.url}/storage/v1/object/${encodeURIComponent(config.bucket)}/${objectPath
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "video/mp4",
+        "x-upsert": "false",
+      },
+      body,
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      detail
+        ? `تعذر حفظ الفيديو في التخزين الدائم: ${detail.slice(0, 240)}`
+        : "تعذر حفظ الفيديو في التخزين الدائم",
+    );
   }
-  return `/api/media/videos/${fileName}`;
+  return storageObjectUrl(config, objectPath);
+}
+
+async function ensureSupabaseBucket(config: {
+  url: string;
+  key: string;
+  bucket: string;
+}): Promise<void> {
+  const headers = {
+    apikey: config.key,
+    Authorization: `Bearer ${config.key}`,
+  };
+  const existing = await fetch(
+    `${config.url}/storage/v1/bucket/${encodeURIComponent(config.bucket)}`,
+    { headers },
+  );
+  if (existing.ok) return;
+  if (existing.status !== 404) {
+    throw new Error("تعذر التحقق من إعداد تخزين الفيديو");
+  }
+
+  const created = await fetch(`${config.url}/storage/v1/bucket`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: config.bucket,
+      name: config.bucket,
+      public: true,
+      allowed_mime_types: ["video/mp4"],
+    }),
+  });
+  if (!created.ok && created.status !== 409) {
+    throw new Error("تعذر إنشاء مساحة تخزين الفيديو العامة");
+  }
+}
+
+async function deleteFromSupabase(
+  config: { url: string; key: string; bucket: string },
+  objectPath: string,
+): Promise<void> {
+  const response = await fetch(`${config.url}/storage/v1/object/${encodeURIComponent(config.bucket)}/remove`, {
+    method: "POST",
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prefixes: [objectPath] }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(detail || "تعذر حذف الفيديو من التخزين الدائم");
+  }
 }
 
 function ownerFilePath(fileName: string): string {
@@ -86,7 +171,7 @@ async function readOwner(fileName: string): Promise<UploadOwner | null> {
   return null;
 }
 
-// GET /api/media/videos/:fileName — serve from local uploads
+// GET /api/media/videos/:fileName — legacy local-media compatibility route
 router.get("/media/videos/:fileName", (req, res) => {
   const fileName = String(req.params.fileName || "");
   if (!/^[a-zA-Z0-9-]+\.mp4$/.test(fileName)) {
@@ -99,7 +184,7 @@ router.get("/media/videos/:fileName", (req, res) => {
   return res.sendFile(filePath);
 });
 
-// POST /api/media/upload — save video to local disk (raw body)
+// POST /api/media/upload — save video to Supabase Storage (raw body)
 const rawVideoParser = express.raw({
   type: ["video/mp4", "application/octet-stream"],
   limit: "500mb",
@@ -120,22 +205,30 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
     return res.status(400).json({ error: "يسمح برفع ملفات MP4 فقط" });
   }
   try {
-    const fileName = `${crypto.randomUUID()}.mp4`;
-    const filePath = path.join(uploadDirectory, fileName);
-    await fs.promises.writeFile(filePath, req.body as Buffer);
+    const storage = supabaseStorageConfig();
+    if (!storage) {
+      return res.status(503).json({
+        error: "لم يتم إعداد التخزين الدائم للفيديو. أضف SUPABASE_URL وSUPABASE_SERVICE_ROLE_KEY.",
+      });
+    }
     const actor = res.locals.contentActor as ContentActor;
-    await writeOwner(fileName, actor);
-    // Use /api/media/videos/ so the browser fetches through the API artifact.
-    // A bare /uploads/videos/ path is caught by the web artifact's SPA rewrite.
-    const url = publicVideoUrl(req, fileName);
+    const ownerKey = actor.role === "admin"
+      ? "admin"
+      : crypto.createHmac("sha256", process.env.SESSION_SECRET || "manara")
+          .update(actor.teacherId)
+          .digest("hex")
+          .slice(0, 24);
+    const fileName = `${crypto.randomUUID()}.mp4`;
+    const storagePath = `videos/${ownerKey}/${fileName}`;
+    await ensureSupabaseBucket(storage);
+    const url = await uploadToSupabase(storage, storagePath, req.body as Buffer);
     return res.status(201).json({
       url,
       fileName: originalName,
       size: (req.body as Buffer).length,
       contentType: "video/mp4",
-      storage: "local",
-      warning:
-        "تم رفع الفيديو بنجاح. التخزين الحالي مؤقت على خادم التطبيق؛ احفظ الدرس الآن.",
+      storage: "supabase",
+      storagePath,
     });
   } catch (error: any) {
     logger.error({ err: error }, "[media] upload failed");
@@ -152,19 +245,46 @@ router.post("/media/delete", requireContentManager, async (req, res) => {
   const localMatch =
     rawUrl.match(/^\/api\/media\/videos\/([a-zA-Z0-9-]+\.mp4)$/) ||
     rawUrl.match(/^\/uploads\/videos\/([a-zA-Z0-9-]+\.mp4)$/);
-  if (!localMatch) {
-    return res.status(400).json({ error: "مسار ملف غير صالح" });
-  }
-  const filePath = videoFilePath(localMatch[1]);
-  if (
-    ![uploadDirectory, ...legacyUploadDirectories].some((directory) =>
-      filePath.startsWith(`${directory}${path.sep}`),
-    )
-  ) {
-    return res.status(400).json({ error: "مسار ملف غير صالح" });
-  }
   try {
     const actor = getContentActor(req);
+    const storage = supabaseStorageConfig();
+    let remotePath: string | null = null;
+    if (storage) {
+      try {
+        const parsed = new URL(rawUrl);
+        const prefix = `/storage/v1/object/public/${storage.bucket}/`;
+        if (parsed.origin === storage.url && parsed.pathname.startsWith(prefix)) {
+          remotePath = decodeURIComponent(parsed.pathname.slice(prefix.length));
+        }
+      } catch {
+        // Fall through to legacy local URL handling.
+      }
+    }
+    if (remotePath) {
+      if (!remotePath.startsWith("videos/") || !/^videos\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9-]+\.mp4$/.test(remotePath)) {
+        return res.status(400).json({ error: "مسار ملف غير صالح" });
+      }
+      const ownerKey = remotePath.split("/")[1];
+      const teacherKey = actor?.role === "teacher"
+        ? crypto.createHmac("sha256", process.env.SESSION_SECRET || "manara")
+            .update(actor.teacherId)
+            .digest("hex")
+            .slice(0, 24)
+        : "";
+      if (actor?.role !== "admin" && ownerKey !== teacherKey) {
+        return res.status(403).json({ error: "لا تملك صلاحية حذف هذا الملف" });
+      }
+      await deleteFromSupabase(storage!, remotePath);
+      return res.status(204).end();
+    }
+    if (!localMatch) {
+      return res.status(400).json({ error: "مسار ملف غير صالح" });
+    }
+    const filePath = videoFilePath(localMatch[1]);
+    if (![uploadDirectory, ...legacyUploadDirectories].some((directory) =>
+      filePath.startsWith(`${directory}${path.sep}`))) {
+      return res.status(400).json({ error: "مسار ملف غير صالح" });
+    }
     const owner = await readOwner(localMatch[1]);
     if (
       actor?.role !== "admin" &&

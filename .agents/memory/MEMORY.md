@@ -6,3 +6,4 @@
 - [Teacher media authentication](teacher-media-auth.md) — MP4 uploads use a signed teacher session; the Supabase service key may reject teacher lookups, so retain its anonymous-key fallback.
 - [Native WebView media CORS](native-webview-media-cors.md) — Desktop WebViews can request public MP4 media with an opaque null origin.
 - [Local media storage path](local-media-storage-path.md) — API upload paths must resolve inside the workspace, not above the bundled dist directory.
+- [Supabase video storage](supabase-video-storage.md) — New MP4 uploads use public durable URLs; local API paths remain legacy-only fallbacks.

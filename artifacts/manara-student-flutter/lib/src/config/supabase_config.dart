@@ -20,7 +20,7 @@ class SupabaseConfig {
         ),
         apiBaseUrl = const String.fromEnvironment(
           'API_BASE_URL',
-          defaultValue: 'http://localhost:8080',
+          defaultValue: '',
         );
 
   final String url;
@@ -38,4 +38,5 @@ class SupabaseConfig {
     }
     return 'قيمة SUPABASE_ANON_KEY غير موجودة في إعدادات تشغيل التطبيق.';
   }
+
 }
