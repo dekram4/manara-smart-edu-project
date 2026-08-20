@@ -1481,8 +1481,7 @@ String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
     if (id.trim().isNotEmpty) {
       return 'https://www.youtube.com/embed/'
           '${Uri.encodeComponent(id)}'
-          '?autoplay=1&playsinline=1&rel=0&modestbranding=1'
-          '&enablejsapi=1&origin=https%3A%2F%2Fwww.youtube.com';
+          '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
     }
   }
   if (host == 'vimeo.com') {
