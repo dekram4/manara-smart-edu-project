@@ -484,15 +484,26 @@ bool _isSafeUrl(String value) {
   if (raw.isEmpty || raw.startsWith('javascript:') || raw.startsWith('data:') || raw.startsWith('blob:')) {
     return false;
   }
+  if (RegExp(r'^/api/media/videos/[a-z0-9-]+\.mp4$').hasMatch(raw)) {
+    return true;
+  }
   final uri = Uri.tryParse(value.trim());
   return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
 }
 
 String _resolveUrl(String value, String baseUrl) {
-  final raw = value.trim();
+  final raw = _canonicalLocalVideoPath(value.trim());
   if (!raw.startsWith('/') || baseUrl.trim().isEmpty) return raw;
   final base = Uri.tryParse(baseUrl.trim());
   return base == null ? raw : base.resolve(raw).toString();
+}
+
+String _canonicalLocalVideoPath(String value) {
+  final legacyMatch = RegExp(
+    r'^/uploads/videos/([a-zA-Z0-9-]+\.mp4)$',
+  ).firstMatch(value);
+  if (legacyMatch == null) return value;
+  return '/api/media/videos/${legacyMatch.group(1)}';
 }
 
 String? _nullableText(Object? value) {

@@ -545,7 +545,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
 
 String _videoHtml(String url, String title) {
   final safeUrl = _escapeHtmlAttribute(url);
-  final safeTitle = _escapeHtml(title);
+  final safeTitle = _escapeHtmlAttribute(title);
   return '''
 <!doctype html>
 <html lang="ar" dir="rtl">
