@@ -3,3 +3,4 @@
 - [Dashboard menu layout](dashboard-menu-layout.md) — Arabic dashboard menus need non-shrinking flex items, explicit line-height, and isolated sidebar scrolling.
 - [Web global layout](web-global-layout.md) — Keep the web reset minimal; dashboard shells own scrolling and Flutter/legacy selectors stay scoped.
 - [Student content visibility](student-content-visibility.md) — Student lesson explanation and cinema show all managed lesson records, not only the selected academic path.
+- [Teacher media authentication](teacher-media-auth.md) — MP4 uploads use a signed teacher session; the Supabase service key may reject teacher lookups, so retain its anonymous-key fallback.
