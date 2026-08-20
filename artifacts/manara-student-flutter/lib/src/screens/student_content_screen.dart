@@ -602,20 +602,20 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
                       child: InAppWebView(
-                        initialUrlRequest: video.sourceType == VideoSourceType.mp4
+                        initialUrlRequest: video.sourceType == VideoSourceType.mp4 || isYoutube
                             ? null
-                            : URLRequest(
-                                url: WebUri(url),
-                                headers: isYoutube
-                                    ? const {'Referer': 'https://www.youtube.com/'}
-                                    : null,
-                              ),
+                            : URLRequest(url: WebUri(url)),
                         initialData: video.sourceType == VideoSourceType.mp4
                             ? InAppWebViewInitialData(
-                                data: _videoHtml(url, video.title),
-                                baseUrl: WebUri(url),
+                                data: _mp4VideoHtml(url, video.title),
+                                baseUrl: _webDocumentBaseUrl(url),
                               )
-                            : null,
+                            : isYoutube
+                                ? InAppWebViewInitialData(
+                                    data: _youtubeVideoHtml(url, video.title),
+                                    baseUrl: WebUri('https://www.youtube-nocookie.com/'),
+                                  )
+                                : null,
                         initialSettings: InAppWebViewSettings(
                           javaScriptEnabled: true,
                           mediaPlaybackRequiresUserGesture: false,
@@ -685,7 +685,13 @@ class _VideoConfigurationMessage extends StatelessWidget {
   }
 }
 
-String _videoHtml(String url, String title) {
+WebUri? _webDocumentBaseUrl(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) return null;
+  return WebUri('${uri.scheme}://${uri.authority}/');
+}
+
+String _mp4VideoHtml(String url, String title) {
   final safeUrl = _escapeHtmlAttribute(url);
   final safeTitle = _escapeHtmlAttribute(title);
   return '''
@@ -695,15 +701,54 @@ String _videoHtml(String url, String title) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     html, body { margin: 0; height: 100%; background: #071425; }
-    body { display: flex; align-items: center; justify-content: center; }
+    body { display: flex; align-items: center; justify-content: center; font-family: sans-serif; }
     video { width: 100%; max-height: 100vh; background: #000; }
+    #error { display: none; max-width: 440px; padding: 22px; color: #e6fffe; text-align: center; line-height: 1.7; }
+    #error strong { display: block; color: #5eead4; font-size: 18px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
-  <video controls autoplay playsinline preload="metadata" aria-label="$safeTitle">
+  <video id="video" controls playsinline preload="auto" aria-label="$safeTitle">
     <source src="$safeUrl" type="video/mp4">
     عذرًا، لا يمكن تشغيل هذا الفيديو على هذا الجهاز.
   </video>
+  <div id="error">
+    <strong>تعذر تشغيل ملف MP4</strong>
+    تحقق من أن رابط الفيديو متاح وأن الملف لم يُحذف من التخزين، ثم أعد المحاولة.
+  </div>
+  <script>
+    const video = document.getElementById('video');
+    const error = document.getElementById('error');
+    video.addEventListener('error', () => {
+      video.style.display = 'none';
+      error.style.display = 'block';
+    });
+  </script>
+</body>
+</html>
+''';
+}
+
+String _youtubeVideoHtml(String url, String title) {
+  final safeUrl = _escapeHtmlAttribute(url);
+  final safeTitle = _escapeHtmlAttribute(title);
+  return '''
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+    iframe { border: 0; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <iframe
+    src="$safeUrl"
+    title="$safeTitle"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen
+    referrerpolicy="strict-origin-when-cross-origin"></iframe>
 </body>
 </html>
 ''';
@@ -1450,12 +1495,11 @@ String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
   if (host == 'youtu.be' ||
       host.endsWith('youtube.com') ||
       host.endsWith('youtube-nocookie.com')) {
-    final id = host == 'youtu.be'
-        ? (uri.pathSegments.isEmpty ? '' : uri.pathSegments.first)
-        : uri.queryParameters['v'] ??
-            (uri.pathSegments.length >= 2 ? uri.pathSegments[1] : '');
+    final id = _youtubeVideoId(uri, host);
     if (id.trim().isNotEmpty) {
-      return 'https://www.youtube.com/watch?v=${Uri.encodeQueryComponent(id)}';
+      return 'https://www.youtube-nocookie.com/embed/'
+          '${Uri.encodeComponent(id)}'
+          '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
     }
   }
   if (host == 'vimeo.com') {
@@ -1463,6 +1507,19 @@ String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
     return 'https://player.vimeo.com/video/$id?autoplay=1';
   }
   return raw;
+}
+
+String _youtubeVideoId(Uri uri, String host) {
+  if (host == 'youtu.be') {
+    return uri.pathSegments.isEmpty ? '' : uri.pathSegments.first;
+  }
+  final queryId = uri.queryParameters['v'];
+  if (queryId != null && queryId.trim().isNotEmpty) return queryId;
+  if (uri.pathSegments.length >= 2 &&
+      const {'embed', 'shorts', 'live'}.contains(uri.pathSegments.first)) {
+    return uri.pathSegments[1];
+  }
+  return '';
 }
 
 bool _isYoutubeUrl(String value) {
