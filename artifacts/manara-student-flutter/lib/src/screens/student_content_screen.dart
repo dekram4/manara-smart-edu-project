@@ -345,7 +345,10 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                   video: video,
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => VideoViewerScreen(video: video),
+                      builder: (_) => VideoViewerScreen(
+                        video: video,
+                        apiBaseUrl: widget.apiBaseUrl,
+                      ),
                     ),
                   ),
                 ),
@@ -480,9 +483,14 @@ class _VideoCard extends StatelessWidget {
 }
 
 class VideoViewerScreen extends StatefulWidget {
-  const VideoViewerScreen({required this.video, super.key});
+  const VideoViewerScreen({
+    required this.video,
+    required this.apiBaseUrl,
+    super.key,
+  });
 
   final LessonVideo video;
+  final String apiBaseUrl;
 
   @override
   State<VideoViewerScreen> createState() => _VideoViewerScreenState();
@@ -493,7 +501,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final url = _videoUrl(widget.video);
+    final url = _videoUrl(widget.video, apiBaseUrl: widget.apiBaseUrl);
+    final isYoutube = _isYoutubeUrl(url);
     return Scaffold(
       backgroundColor: const Color(0xFF071425),
       appBar: AppBar(
@@ -521,7 +530,12 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
           child: InAppWebView(
             initialUrlRequest: widget.video.sourceType == VideoSourceType.mp4
                 ? null
-                : URLRequest(url: WebUri(url)),
+                : URLRequest(
+                    url: WebUri(url),
+                    headers: isYoutube
+                        ? const {'Referer': 'https://www.youtube.com/'}
+                        : null,
+                  ),
             initialData: widget.video.sourceType == VideoSourceType.mp4
                 ? InAppWebViewInitialData(
                     data: _videoHtml(url, widget.video.title),
@@ -1295,21 +1309,24 @@ Color _hexColor(String value) {
   return parsed == null ? const Color(0xFFEDB891) : Color(0xFF000000 | parsed);
 }
 
-String _videoUrl(LessonVideo video) {
-  final raw = video.url.trim();
+String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
+  var raw = video.url.trim();
+  if (raw.startsWith('/')) {
+    final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isNotEmpty) raw = '$base$raw';
+  }
   if (video.sourceType == VideoSourceType.mp4) return raw;
   final uri = Uri.tryParse(raw);
   if (uri == null) return raw;
   final host = uri.host.toLowerCase().replaceFirst('www.', '');
-  if (host == 'youtu.be') {
-    final id = uri.pathSegments.isEmpty ? '' : uri.pathSegments.first;
-    return 'https://www.youtube.com/embed/$id?autoplay=1&rel=0';
-  }
-  if (host.endsWith('youtube.com')) {
-    final id = uri.queryParameters['v'] ??
-        (uri.pathSegments.length >= 2 ? uri.pathSegments[1] : '');
-    if (id.isNotEmpty) {
-      return 'https://www.youtube.com/embed/$id?autoplay=1&rel=0';
+  if (host == 'youtu.be' || host == 'youtube.com' || host == 'youtube-nocookie.com') {
+    final id = host == 'youtu.be'
+        ? (uri.pathSegments.isEmpty ? '' : uri.pathSegments.first)
+        : uri.queryParameters['v'] ??
+            (uri.pathSegments.length >= 2 ? uri.pathSegments[1] : '');
+    if (id.trim().isNotEmpty) {
+      return 'https://www.youtube-nocookie.com/embed/${Uri.encodeComponent(id)}'
+          '?autoplay=1&rel=0&playsinline=1&enablejsapi=1';
     }
   }
   if (host == 'vimeo.com') {
@@ -1317,4 +1334,13 @@ String _videoUrl(LessonVideo video) {
     return 'https://player.vimeo.com/video/$id?autoplay=1';
   }
   return raw;
+}
+
+bool _isYoutubeUrl(String value) {
+  final uri = Uri.tryParse(value);
+  if (uri == null) return false;
+  final host = uri.host.toLowerCase().replaceFirst('www.', '');
+  return host == 'youtube.com' ||
+      host == 'youtube-nocookie.com' ||
+      host == 'youtu.be';
 }

@@ -181,7 +181,10 @@ class _CinemaCarouselState extends State<_CinemaCarousel> {
                   video: video,
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => VideoViewerScreen(video: video),
+                      builder: (_) => VideoViewerScreen(
+                        video: video,
+                        apiBaseUrl: widget.apiBaseUrl,
+                      ),
                     ),
                   ),
                 ),
