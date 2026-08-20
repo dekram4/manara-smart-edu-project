@@ -50,6 +50,17 @@ function supabaseStorageConfig(): { url: string; key: string; bucket: string } |
   return url && key && bucket ? { url, key, bucket } : null;
 }
 
+function supabaseHeaders(
+  key: string,
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    ...extra,
+  };
+}
+
 function storageObjectUrl(config: { url: string; bucket: string }, objectPath: string): string {
   return `${config.url}/storage/v1/object/public/${encodeURIComponent(config.bucket)}/${objectPath
     .split("/")
@@ -83,12 +94,10 @@ async function uploadToSupabase(
       .join("/")}`,
     {
       method: "POST",
-      headers: {
-        apikey: config.key,
-        Authorization: `Bearer ${config.key}`,
+      headers: supabaseHeaders(config.key, {
         "Content-Type": "video/mp4",
         "x-upsert": "false",
-      },
+      }),
       body,
     },
   );
@@ -108,22 +117,28 @@ async function ensureSupabaseBucket(config: {
   key: string;
   bucket: string;
 }): Promise<void> {
-  const headers = {
-    apikey: config.key,
-    Authorization: `Bearer ${config.key}`,
-  };
+  if (!config.key.startsWith("eyJ")) {
+    throw new Error(
+      "إعداد SUPABASE_SERVICE_ROLE_KEY غير صالح لـSupabase Storage. استخدم مفتاح service_role بصيغة JWT.",
+    );
+  }
+
+  const headers = supabaseHeaders(config.key);
   const existing = await fetch(
     `${config.url}/storage/v1/bucket/${encodeURIComponent(config.bucket)}`,
     { headers },
   );
   if (existing.ok) return;
-  if (existing.status !== 404) {
+  const existingDetail = await existing.text().catch(() => "");
+  const bucketMissing =
+    existing.status === 404 || existingDetail.includes("NoSuchBucket");
+  if (!bucketMissing) {
     throw new Error("تعذر التحقق من إعداد تخزين الفيديو");
   }
 
   const created = await fetch(`${config.url}/storage/v1/bucket`, {
     method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
+    headers: supabaseHeaders(config.key, { "Content-Type": "application/json" }),
     body: JSON.stringify({
       id: config.bucket,
       name: config.bucket,
@@ -142,11 +157,9 @@ async function deleteFromSupabase(
 ): Promise<void> {
   const response = await fetch(`${config.url}/storage/v1/object/${encodeURIComponent(config.bucket)}/remove`, {
     method: "POST",
-    headers: {
-      apikey: config.key,
-      Authorization: `Bearer ${config.key}`,
+    headers: supabaseHeaders(config.key, {
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify({ prefixes: [objectPath] }),
   });
   if (!response.ok) {
