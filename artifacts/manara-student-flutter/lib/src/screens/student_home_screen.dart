@@ -175,13 +175,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                       activePage: _activePage,
                       onPageChanged: (page) => setState(() => _activePage = page),
                       onSectionPressed: (index) {
-                        final modules = [
-                          StudentContentModule.lesson,
-                          StudentContentModule.lesson,
-                          StudentContentModule.games,
-                          StudentContentModule.personality,
-                          StudentContentModule.tutor,
-                        ];
+                        if (index != 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'هذه البوابة ستكون متاحة في مرحلة ترحيل قادمة.',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => StudentContentScreen(
@@ -189,8 +193,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               authService: widget.authService,
                               apiBaseUrl: widget.apiBaseUrl,
                               academicContext: widget.academicContext,
-                              initialModule: modules[index],
-                              lessonOnly: index == 0,
+                              initialModule: StudentContentModule.lesson,
+                              lessonOnly: true,
                             ),
                           ),
                         );

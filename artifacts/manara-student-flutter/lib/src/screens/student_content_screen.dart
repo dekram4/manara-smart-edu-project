@@ -50,7 +50,9 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
       widget.authService.client,
       baseUrl: widget.apiBaseUrl,
     );
-    _activeModule = widget.initialModule;
+    _activeModule = widget.lessonOnly
+        ? StudentContentModule.lesson
+        : widget.initialModule;
     _loadContent();
   }
 
@@ -232,8 +234,8 @@ class _LessonModule extends StatelessWidget {
   Widget build(BuildContext context) {
     if (lessons.isEmpty) {
       return const _StateCard(
-        icon: Icons.video_library_outlined,
-        title: 'لا توجد فيديوهات بعد',
+        icon: Icons.auto_stories_outlined,
+        title: 'لا توجد دروس متاحة',
         message: 'سيظهر هنا محتوى المعلم والمشرف المطابق لصفك وترمك ومادتك ووحدتك.',
       );
     }
@@ -244,8 +246,8 @@ class _LessonModule extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
-         Text(
-           'تفاصيل الدرس',
+        Text(
+          'تفاصيل الدرس',
           style: const TextStyle(
             color: Color(0xFF0E1B2A),
             fontSize: 24,
@@ -253,10 +255,10 @@ class _LessonModule extends StatelessWidget {
           ),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
         const SizedBox(height: 4),
-         Text(
-           lesson.scopeLabel.isEmpty
-               ? 'المحتوى المرتبط بمسارك الأكاديمي'
-               : lesson.scopeLabel,
+        Text(
+          lesson.scopeLabel.isEmpty
+              ? 'المحتوى المرتبط بمسارك الأكاديمي'
+              : lesson.scopeLabel,
           style: const TextStyle(color: Color(0xFF5680AC), fontWeight: FontWeight.w700),
         ),
         if (lessons.length > 1) ...[
