@@ -58,7 +58,10 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
 
   Future<void> _loadContent() async {
     try {
-      final lessons = await _contentService.fetchLessons();
+      final lessons = await _contentService.fetchLessons(
+        widget.profile,
+        academicContext: widget.academicContext,
+      );
       if (!mounted) return;
       setState(() {
         final selectedFromContext = widget.academicContext?.selectedLesson;
@@ -516,7 +519,15 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
         child: AspectRatio(
           aspectRatio: 16 / 9,
           child: InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(url)),
+            initialUrlRequest: widget.video.sourceType == VideoSourceType.mp4
+                ? null
+                : URLRequest(url: WebUri(url)),
+            initialData: widget.video.sourceType == VideoSourceType.mp4
+                ? InAppWebViewInitialData(
+                    data: _videoHtml(url, widget.video.title),
+                    baseUrl: WebUri(url),
+                  )
+                : null,
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               mediaPlaybackRequiresUserGesture: false,
@@ -531,6 +542,37 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
     );
   }
 }
+
+String _videoHtml(String url, String title) {
+  final safeUrl = _escapeHtmlAttribute(url);
+  final safeTitle = _escapeHtml(title);
+  return '''
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin: 0; height: 100%; background: #071425; }
+    body { display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; max-height: 100vh; background: #000; }
+  </style>
+</head>
+<body>
+  <video controls autoplay playsinline preload="metadata" aria-label="$safeTitle">
+    <source src="$safeUrl" type="video/mp4">
+    عذرًا، لا يمكن تشغيل هذا الفيديو على هذا الجهاز.
+  </video>
+</body>
+</html>
+''';
+}
+
+String _escapeHtml(String value) => value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+
+String _escapeHtmlAttribute(String value) => _escapeHtml(value).replaceAll('"', '&quot;');
 
 class _GamesModule extends StatefulWidget {
   const _GamesModule({required this.lesson});

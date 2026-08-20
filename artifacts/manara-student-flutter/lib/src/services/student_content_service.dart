@@ -67,57 +67,61 @@ class StudentContentService {
     );
   }
 
-  Future<List<LessonContent>> fetchLessons() async {
+  Future<List<LessonContent>> fetchLessons(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) async {
     final response = await client
         .from('lesson_configs')
         .select('id,data')
         .limit(500);
 
-    // The student lesson explanation is a catalogue of the content published
-    // through content management. It must not be narrowed to the currently
-    // selected academic path; teachers and supervisors may publish lessons
-    // outside that selection and the student should still see them.
     final lessons = response
         .whereType<Map>()
         .map((row) => parseLessonContent(row, baseUrl: baseUrl))
+        .where(
+          (lesson) => _matchesStudentPath(
+            lesson,
+            profile,
+            academicContext: academicContext,
+          ),
+        )
         .toList();
 
     lessons.sort((a, b) => a.id.compareTo(b.id));
     return lessons;
   }
 
-  Future<List<LessonVideo>> fetchCinemaVideos() async {
-    final response = await client
-        .from('lesson_configs')
-        .select('id,data')
-        .limit(500);
-
-    // Cinema follows the same visibility rule as lesson explanation: every
-    // managed lesson can contribute its safe videos, regardless of the
-    // student's current academic selection or teacher assignment.
-    final lessons = response
-        .whereType<Map>()
-        .map((row) => parseLessonContent(row, baseUrl: baseUrl))
-        .toList();
-
+  Future<List<LessonVideo>> fetchCinemaVideos(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) async {
+    final row = await client
+        .from('app_kv')
+        .select('value')
+        .eq('key', 'smartEdu_videos')
+        .maybeSingle();
+    final rawVideos = _asList(row?['value']);
     final videos = <LessonVideo>[];
     final seen = <String>{};
-    for (final lesson in lessons) {
-      for (final video in lesson.videos) {
-        final key = '${video.id}|${video.url}';
-        if (!seen.add(key)) continue;
-        videos.add(
-          LessonVideo(
-            id: '${lesson.id}:${video.id}',
-            url: video.url,
-            sourceType: video.sourceType,
-            title: lesson.lessonName.trim().isEmpty
-                ? video.title
-                : '${lesson.lessonName} • ${video.title}',
-            description: video.description,
-          ),
-        );
-      }
+    for (final rawVideo in rawVideos) {
+      final data = _asMap(rawVideo);
+      if (!_matchesCinemaScope(data, profile, academicContext)) continue;
+
+      final url = _resolveUrl(_text(data['url']), baseUrl);
+      if (!_isSafeUrl(url)) continue;
+      final id = _text(data['id']).isEmpty ? url : _text(data['id']);
+      final key = '$id|$url';
+      if (!seen.add(key)) continue;
+      videos.add(
+        LessonVideo(
+          id: id,
+          url: url,
+          sourceType: _videoType(data['sourceType'], url),
+          title: _text(data['title']).isEmpty ? 'فيديو سينما منارة' : _text(data['title']),
+          description: _nullableText(data['description']),
+        ),
+      );
     }
     return videos;
   }
@@ -182,6 +186,56 @@ class StudentContentService {
     if (owner.isEmpty || owner == 'admin' || owner == 'supervisor') return true;
     if (teacher.isEmpty) return false;
     return owner == teacher;
+  }
+
+  bool _matchesStudentPath(
+    LessonContent lesson,
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) {
+    final grade = academicContext?.grade ?? profile.grade;
+    final atram = academicContext?.atram ?? profile.atram;
+    final subject = academicContext?.subject ?? profile.subject;
+    final term = academicContext?.term ?? profile.term;
+    final unit = academicContext?.unit ?? profile.unit;
+    return _matchesOwner(lesson, profile) &&
+        _matches(lesson.grade, grade) &&
+        _matches(lesson.atram, atram) &&
+        _matches(lesson.subject, subject) &&
+        _matches(lesson.term, term) &&
+        _matches(lesson.unit, unit);
+  }
+
+  bool _matchesCinemaScope(
+    Map<String, dynamic> video,
+    StudentProfile profile,
+    AcademicContext? academicContext,
+  ) {
+    final owner = _normalize(
+      video['teacher_id'] ?? video['teacherId'] ?? video['createdBy'],
+    );
+    final teacher = _normalize(profile.teacherId);
+    final ownerAllowed = owner.isEmpty || owner == 'admin' || owner == 'supervisor' ||
+        (teacher.isNotEmpty && owner == teacher);
+    if (!ownerAllowed) return false;
+
+    final grade = academicContext?.grade ?? profile.grade;
+    final atram = academicContext?.atram ?? profile.atram;
+    final subject = academicContext?.subject ?? profile.subject;
+    final term = academicContext?.term ?? profile.term;
+    final unit = academicContext?.unit ?? profile.unit;
+    return _matches(_text(video['grade']), grade) &&
+        _matches(_text(video['atram']), atram) &&
+        _matches(_text(video['subject']), subject) &&
+        _matches(_text(video['term']), term) &&
+        _matches(_text(video['unit']), unit);
+  }
+
+  bool _matches(String contentValue, String? selectedValue) {
+    final content = _normalize(contentValue);
+    final selected = _normalize(selectedValue);
+    if (content.isEmpty || selected.isEmpty) return true;
+    return content == selected;
   }
 
 }
@@ -414,6 +468,16 @@ VideoSourceType _videoType(Object? value, String url) {
 String _normalize(Object? value) => value?.toString().trim().toLowerCase() ?? '';
 
 String _text(Object? value) => value?.toString().trim() ?? '';
+
+List<Object?> _asList(Object? value) {
+  if (value is List) return value.cast<Object?>();
+  if (value is Map) {
+    final map = _asMap(value);
+    final nested = map['videos'] ?? map['items'] ?? map['data'];
+    if (nested is List) return nested.cast<Object?>();
+  }
+  return const [];
+}
 
 bool _isSafeUrl(String value) {
   final raw = value.trim().toLowerCase();
