@@ -522,7 +522,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
   void initState() {
     super.initState();
     _videos = widget.videos.isEmpty ? [widget.video] : widget.videos;
-    _activeIndex = widget.initialIndex.clamp(0, _videos.length - 1);
+    _activeIndex = widget.initialIndex.clamp(0, _videos.length - 1).toInt();
     _pageController = PageController(initialPage: _activeIndex);
   }
 
