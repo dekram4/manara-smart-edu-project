@@ -9,6 +9,7 @@ import '../models/academic_context.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../widgets/manara_logo.dart';
+import 'student_cinema_screen.dart';
 import 'student_content_screen.dart';
 import 'login_screen.dart';
 
@@ -176,13 +177,26 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                       activePage: _activePage,
                       onPageChanged: (page) => setState(() => _activePage = page),
                       onSectionPressed: (index) {
-                        if (index != 0) {
+                        if (index > 1) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
                                 'هذه البوابة ستكون متاحة في مرحلة ترحيل قادمة.',
                               ),
                               behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                        if (index == 1) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => StudentCinemaScreen(
+                                profile: widget.profile,
+                                authService: widget.authService,
+                                apiBaseUrl: widget.apiBaseUrl,
+                                academicContext: widget.academicContext,
+                              ),
                             ),
                           );
                           return;

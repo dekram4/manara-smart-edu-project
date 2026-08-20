@@ -92,6 +92,49 @@ class StudentContentService {
     return lessons;
   }
 
+  Future<List<LessonVideo>> fetchCinemaVideos(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) async {
+    final response = await client
+        .from('lesson_configs')
+        .select('id,data')
+        .limit(500);
+
+    final lessons = response
+        .whereType<Map>()
+        .map((row) => parseLessonContent(row, baseUrl: baseUrl))
+        .where(
+          (lesson) => _matchesStudent(
+            lesson,
+            profile,
+            academicContext: academicContext,
+            includeLesson: false,
+          ),
+        );
+
+    final videos = <LessonVideo>[];
+    final seen = <String>{};
+    for (final lesson in lessons) {
+      for (final video in lesson.videos) {
+        final key = '${video.id}|${video.url}';
+        if (!seen.add(key)) continue;
+        videos.add(
+          LessonVideo(
+            id: '${lesson.id}:${video.id}',
+            url: video.url,
+            sourceType: video.sourceType,
+            title: lesson.lessonName.trim().isEmpty
+                ? video.title
+                : '${lesson.lessonName} • ${video.title}',
+            description: video.description,
+          ),
+        );
+      }
+    }
+    return videos;
+  }
+
   Future<void> saveAppearance({
     required StudentProfile profile,
     required Map<String, dynamic> appearance,
@@ -150,6 +193,7 @@ class StudentContentService {
     LessonContent lesson,
     StudentProfile profile, {
     AcademicContext? academicContext,
+    bool includeLesson = true,
   }) {
     final grade = academicContext?.grade ?? profile.grade;
     final atram = academicContext?.atram ?? profile.atram;
@@ -163,7 +207,8 @@ class StudentContentService {
         _matches(lesson.subject, subject) &&
         _matches(lesson.term, term) &&
         _matches(lesson.unit, unit) &&
-        (lessonId == null ||
+        (!includeLesson ||
+            lessonId == null ||
             lessonId.isEmpty ||
             _normalize(lesson.id) == _normalize(lessonId) ||
             _normalize(lesson.lessonId) == _normalize(lessonId));
