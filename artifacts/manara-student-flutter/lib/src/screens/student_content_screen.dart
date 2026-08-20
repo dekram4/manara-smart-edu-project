@@ -262,7 +262,11 @@ class _LessonModule extends StatelessWidget {
                 return ChoiceChip(
                   selected: item.id == lesson.id,
                   onSelected: (_) => onLessonChanged(item),
-                  label: Text(item.unit.isEmpty ? 'درس ${index + 1}' : item.unit),
+                  label: Text(
+                    item.lessonName.isNotEmpty
+                        ? item.lessonName
+                        : (item.unit.isEmpty ? 'درس ${index + 1}' : item.unit),
+                  ),
                   selectedColor: const Color(0xFFBFEFED),
                   labelStyle: const TextStyle(
                     color: Color(0xFF0E1B2A),

@@ -29,13 +29,20 @@ class AcademicOptions {
 
   factory AcademicOptions.defaults(StudentAcademicValues values) {
     return AcademicOptions(
-      grades: _withValue(const ['الصف الأول'], values.grade),
-      terms: _withValue(const ['الفصل الدراسي الأول'], values.term),
-      subjects: _withValue(const ['المادة الدراسية'], values.subject),
-      units: _withValue(const ['الوحدة الأولى'], values.unit),
-      lessons: _withValue(const ['الدرس الأول'], values.lesson),
+      grades: _fallback(const [], values.grade, 'الصف الأول'),
+      terms: _fallback(const [], values.term, 'الفصل الدراسي الأول'),
+      subjects: _fallback(const [], values.subject, 'المادة الدراسية'),
+      units: _fallback(const [], values.unit, 'الوحدة الأولى'),
+      lessons: _fallback(const [], values.lesson, 'الدرس الأول'),
     );
   }
+
+  const AcademicOptions.empty()
+      : grades = const [],
+        terms = const [],
+        subjects = const [],
+        units = const [],
+        lessons = const [];
 
   final List<String> grades;
   final List<String> terms;
@@ -53,8 +60,24 @@ class AcademicOptions {
     );
   }
 
-  static List<String> _withValue(List<String> defaults, String? value) {
-    return _merge(defaults, [if (value != null) value]);
+  AcademicOptions withFallback(StudentAcademicValues values) {
+    return AcademicOptions(
+      grades: _fallback(grades, values.grade, 'الصف الأول'),
+      terms: _fallback(terms, values.term, 'الفصل الدراسي الأول'),
+      subjects: _fallback(subjects, values.subject, 'المادة الدراسية'),
+      units: _fallback(units, values.unit, 'الوحدة الأولى'),
+      lessons: _fallback(lessons, values.lesson, 'الدرس الأول'),
+    );
+  }
+
+  static List<String> _fallback(
+    List<String> values,
+    String? profileValue,
+    String fallback,
+  ) {
+    final configured = _merge(values, const []);
+    if (configured.isNotEmpty) return configured;
+    return _merge([if (profileValue != null) profileValue, fallback], const []);
   }
 
   static List<String> _merge(Iterable<String> first, Iterable<String> second) {

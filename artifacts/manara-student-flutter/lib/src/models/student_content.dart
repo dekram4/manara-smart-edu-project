@@ -38,6 +38,7 @@ class LessonContent {
     required this.subject,
     required this.term,
     required this.unit,
+    required this.lessonName,
     this.ownerId,
     required this.videos,
     required this.games,
@@ -51,13 +52,14 @@ class LessonContent {
   final String subject;
   final String term;
   final String unit;
+  final String lessonName;
   final String? ownerId;
   final String? lessonText;
   final String? avatarInteractionUrl;
   final List<LessonVideo> videos;
   final List<HtmlGame> games;
 
-  String get scopeLabel => [grade, subject, term, unit]
+  String get scopeLabel => [grade, subject, term, unit, lessonName]
       .where((value) => value.trim().isNotEmpty)
       .join(' • ');
 }

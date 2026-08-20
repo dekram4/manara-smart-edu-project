@@ -19,7 +19,7 @@ class StudentContentService {
         .select('id,data')
         .limit(500);
 
-    var options = AcademicOptions.defaults(profile.academicValues);
+    var options = const AcademicOptions.empty();
     for (final row in response.whereType<Map>()) {
       final data = _asMap(row['data']);
       final values = AcademicOptions(
@@ -36,7 +36,7 @@ class StudentContentService {
       );
       options = options.merge(values);
     }
-    return options;
+    return options.withFallback(profile.academicValues);
   }
 
   Future<List<LessonContent>> fetchLessons(
@@ -127,12 +127,14 @@ class StudentContentService {
     final term = academicContext?.term ?? profile.term;
     final subject = academicContext?.subject ?? profile.subject;
     final unit = academicContext?.unit ?? profile.unit;
+    final selectedLesson = academicContext?.lesson;
     return _matchesOwner(lesson, profile) &&
         _matches(lesson.grade, grade) &&
         _matches(lesson.atram, profile.atram) &&
         _matches(lesson.subject, subject) &&
         _matches(lesson.term, term) &&
-        _matches(lesson.unit, unit);
+        _matches(lesson.unit, unit) &&
+        _matches(lesson.lessonName, selectedLesson);
   }
 
   bool _matchesOwner(LessonContent lesson, StudentProfile profile) {
@@ -205,6 +207,10 @@ LessonContent parseLessonContent(
     subject: _text(data['subject']),
     term: _text(data['term']),
     unit: _text(data['unit']),
+    lessonName: _value(
+      data,
+      ['lesson', 'lessonName', 'lessonTitle', 'currentLesson', 'name'],
+    ),
     ownerId: _nullableText(data['teacherId'] ?? data['teacher_id'] ?? data['createdBy']),
     lessonText: _nullableText(data['lessonContent']),
     avatarInteractionUrl: _nullableText(data['avatarInteractionUrl']),

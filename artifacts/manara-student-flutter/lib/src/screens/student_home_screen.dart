@@ -1,7 +1,10 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../models/academic_context.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../widgets/manara_logo.dart';
@@ -13,15 +16,27 @@ class StudentHomeScreen extends StatefulWidget {
     required this.profile,
     required this.authService,
     required this.apiBaseUrl,
+    this.academicContext,
     super.key,
   });
 
   final StudentProfile profile;
   final StudentAuthService authService;
   final String apiBaseUrl;
+  final AcademicContext? academicContext;
 
   @override
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
+}
+
+class StudentDashboardScreen extends StudentHomeScreen {
+  const StudentDashboardScreen({
+    required super.profile,
+    required super.authService,
+    required super.apiBaseUrl,
+    super.academicContext,
+    super.key,
+  });
 }
 
 class _StudentHomeScreenState extends State<StudentHomeScreen>
@@ -120,6 +135,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                         .fadeIn(duration: 450.ms)
                         .slideY(begin: 0.12),
                   ),
+                  if (widget.academicContext != null) ...[
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: _AcademicContextSummary(
+                        academicContext: widget.academicContext!,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 18),
@@ -164,6 +188,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               profile: widget.profile,
                               authService: widget.authService,
                               apiBaseUrl: widget.apiBaseUrl,
+                              academicContext: widget.academicContext,
                               initialModule: modules[index],
                             ),
                           ),
@@ -232,6 +257,43 @@ class _HomeSection {
   final Color accent;
 }
 
+class _AcademicContextSummary extends StatelessWidget {
+  const _AcademicContextSummary({required this.academicContext});
+
+  final AcademicContext academicContext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6FFFB).withAlpha(230),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF99F6E4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_stories_rounded, color: Color(0xFF0B8693)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              academicContext.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF115E59),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 const _homeSections = <_HomeSection>[
   _HomeSection(
     title: 'شرح الدرس',
@@ -275,7 +337,7 @@ const _homeSections = <_HomeSection>[
   ),
 ];
 
-class _HomeSectionCarousel extends StatelessWidget {
+class _HomeSectionCarousel extends StatefulWidget {
   const _HomeSectionCarousel({
     required this.controller,
     required this.activePage,
@@ -289,40 +351,87 @@ class _HomeSectionCarousel extends StatelessWidget {
   final ValueChanged<int> onSectionPressed;
 
   @override
+  State<_HomeSectionCarousel> createState() => _HomeSectionCarouselState();
+}
+
+class _HomeSectionCarouselState extends State<_HomeSectionCarousel> {
+  final _focusNode = FocusNode(debugLabel: 'student-home-carousel');
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final forward = event.logicalKey == LogicalKeyboardKey.arrowLeft;
+    final backward = event.logicalKey == LogicalKeyboardKey.arrowRight;
+    if (!forward && !backward) return KeyEventResult.ignored;
+
+    final target = (widget.activePage + (forward ? 1 : -1))
+        .clamp(0, _homeSections.length - 1)
+        .toInt();
+    if (target != widget.activePage && widget.controller.hasClients) {
+      widget.controller.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    return KeyEventResult.handled;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return PageView.builder(
-      controller: controller,
-      itemCount: _homeSections.length,
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
-      onPageChanged: onPageChanged,
-      itemBuilder: (context, index) {
-        final section = _homeSections[index];
-        return AnimatedBuilder(
-          animation: controller,
-          child: _SectionCard(
-            section: section,
-            onPressed: () => onSectionPressed(index),
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+            PointerDeviceKind.stylus,
+          },
+        ),
+        child: PageView.builder(
+          controller: widget.controller,
+          itemCount: _homeSections.length,
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
           ),
-          builder: (context, child) {
-            var page = activePage.toDouble();
-            if (controller.hasClients && controller.page != null) {
-              page = controller.page!;
-            }
-            final distance = (page - index).abs().clamp(0.0, 1.0).toDouble();
-            final scale = 1.0 - (distance * 0.08);
-            final opacity = 1.0 - (distance * 0.18);
-            return Opacity(
-              opacity: opacity,
-              child: Transform.scale(
-                scale: scale,
-                child: child,
+          onPageChanged: widget.onPageChanged,
+          itemBuilder: (context, index) {
+            final section = _homeSections[index];
+            return AnimatedBuilder(
+              animation: widget.controller,
+              child: _SectionCard(
+                section: section,
+                onPressed: () => widget.onSectionPressed(index),
               ),
+              builder: (context, child) {
+                var page = widget.activePage.toDouble();
+                if (widget.controller.hasClients && widget.controller.page != null) {
+                  page = widget.controller.page!;
+                }
+                final distance = (page - index).abs().clamp(0.0, 1.0).toDouble();
+                final scale = 1.0 - (distance * 0.08);
+                final opacity = 1.0 - (distance * 0.18);
+                return Opacity(
+                  opacity: opacity,
+                  child: Transform.scale(
+                    scale: scale,
+                    child: child,
+                  ),
+                );
+              },
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 }

@@ -182,7 +182,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'يمكنك تغيير الاختيار لاحقًا من بوابة الطالب.',
+                              'سنستخدم اختيارك لعرض الدروس والأنشطة المناسبة.',
                               textAlign: TextAlign.right,
                               style: TextStyle(
                                 color: Color(0xFF64748B),
