@@ -44,20 +44,36 @@ const allowedOrigins: string[] = [
     ? [`https://${process.env.REPLIT_DEV_DOMAIN}`]
     : []),
 ];
-// Allow port variants for local dev (Vite runs on various ports)
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // same-origin / server-to-server
-      const trusted =
-        allowedOrigins.some((o) => origin === o || origin.startsWith(o + ":")) ||
-        (process.env.REPLIT_DEV_DOMAIN &&
-          origin.endsWith(`.${process.env.REPLIT_DEV_DOMAIN}`));
-      cb(trusted ? null : new Error("CORS: origin not allowed"), trusted ?? false);
-    },
-    credentials: true,
-  }),
-);
+// Allow port variants for local dev (Vite runs on various ports).
+const apiCors = cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // same-origin / server-to-server
+    const trusted =
+      allowedOrigins.some((o) => origin === o || origin.startsWith(o + ":")) ||
+      (process.env.REPLIT_DEV_DOMAIN &&
+        origin.endsWith(`.${process.env.REPLIT_DEV_DOMAIN}`));
+    cb(trusted ? null : new Error("CORS: origin not allowed"), trusted ?? false);
+  },
+  credentials: true,
+});
+
+app.use((req, res, next) => {
+  const isNativeVideoRequest =
+    req.method === "GET" &&
+    /^\/api\/media\/videos\/[a-zA-Z0-9-]+\.mp4$/.test(req.path) &&
+    req.get("origin") === "null";
+
+  // Desktop WebViews can request a media source with an opaque `null` origin.
+  // The endpoint is intentionally public and read-only; do not relax CORS for
+  // authenticated or mutating API routes.
+  if (isNativeVideoRequest) {
+    res.setHeader("Access-Control-Allow-Origin", "null");
+    res.append("Vary", "Origin");
+    return next();
+  }
+
+  return apiCors(req, res, next);
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

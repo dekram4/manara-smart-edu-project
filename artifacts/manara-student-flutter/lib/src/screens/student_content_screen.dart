@@ -513,6 +513,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
   Widget build(BuildContext context) {
     final url = _videoUrl(widget.video, apiBaseUrl: widget.apiBaseUrl);
     final isYoutube = _isYoutubeUrl(url);
+    final needsApiBaseUrl =
+        widget.video.sourceType == VideoSourceType.mp4 && url.startsWith('/');
     return Scaffold(
       backgroundColor: const Color(0xFF071425),
       appBar: AppBar(
@@ -534,33 +536,70 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
           ),
         ],
       ),
-      body: Center(
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: InAppWebView(
-            initialUrlRequest: widget.video.sourceType == VideoSourceType.mp4
-                ? null
-                : URLRequest(
-                    url: WebUri(url),
-                    headers: isYoutube
-                        ? const {'Referer': 'https://www.youtube.com/'}
-                        : null,
+      body: needsApiBaseUrl
+          ? const _VideoConfigurationMessage()
+          : Center(
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: InAppWebView(
+                  initialUrlRequest: widget.video.sourceType == VideoSourceType.mp4
+                      ? null
+                      : URLRequest(
+                          url: WebUri(url),
+                          headers: isYoutube
+                              ? const {'Referer': 'https://www.youtube.com/'}
+                              : null,
+                        ),
+                  initialData: widget.video.sourceType == VideoSourceType.mp4
+                      ? InAppWebViewInitialData(
+                          data: _videoHtml(url, widget.video.title),
+                          baseUrl: WebUri(url),
+                        )
+                      : null,
+                  initialSettings: InAppWebViewSettings(
+                    javaScriptEnabled: true,
+                    mediaPlaybackRequiresUserGesture: false,
+                    allowsInlineMediaPlayback: true,
+                    supportZoom: true,
+                    transparentBackground: true,
                   ),
-            initialData: widget.video.sourceType == VideoSourceType.mp4
-                ? InAppWebViewInitialData(
-                    data: _videoHtml(url, widget.video.title),
-                    baseUrl: WebUri(url),
-                  )
-                : null,
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              mediaPlaybackRequiresUserGesture: false,
-              allowsInlineMediaPlayback: true,
-              supportZoom: true,
-              transparentBackground: true,
+                  onWebViewCreated: (controller) => _controller = controller,
+                ),
+              ),
             ),
-            onWebViewCreated: (controller) => _controller = controller,
-          ),
+    );
+  }
+}
+
+class _VideoConfigurationMessage extends StatelessWidget {
+  const _VideoConfigurationMessage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.link_off_rounded, color: Color(0xFF5EEAD4), size: 52),
+            SizedBox(height: 14),
+            Text(
+              'يلزم إعداد عنوان خادم الفيديو',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'أعِد تشغيل التطبيق مع API_BASE_URL ليتمكن من تشغيل ملفات MP4 المرفوعة.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFBFEFED), height: 1.5),
+            ),
+          ],
         ),
       ),
     );
