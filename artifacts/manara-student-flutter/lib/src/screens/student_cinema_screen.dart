@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -173,32 +175,42 @@ class _CinemaCarouselState extends State<_CinemaCarousel> {
       children: [
         SizedBox(
           height: 330,
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: widget.videos.length,
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: const {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+                PointerDeviceKind.stylus,
+              },
             ),
-            onPageChanged: (index) => setState(() => _activeIndex = index),
-            itemBuilder: (context, index) {
-              final video = widget.videos[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: _CinemaVideoCard(
-                  video: video,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => VideoViewerScreen(
-                        video: video,
-                        apiBaseUrl: widget.apiBaseUrl,
-                        videos: widget.videos,
-                        initialIndex: index,
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: widget.videos.length,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              onPageChanged: (index) => setState(() => _activeIndex = index),
+              itemBuilder: (context, index) {
+                final video = widget.videos[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: _CinemaVideoCard(
+                    video: video,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => VideoViewerScreen(
+                          video: video,
+                          apiBaseUrl: widget.apiBaseUrl,
+                          videos: widget.videos,
+                          initialIndex: index,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: 8),

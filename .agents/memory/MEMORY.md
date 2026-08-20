@@ -5,3 +5,4 @@
 - [Student content visibility](student-content-visibility.md) — Student lesson explanation and cinema show all managed lesson records, not only the selected academic path.
 - [Teacher media authentication](teacher-media-auth.md) — MP4 uploads use a signed teacher session; the Supabase service key may reject teacher lookups, so retain its anonymous-key fallback.
 - [Native WebView media CORS](native-webview-media-cors.md) — Desktop WebViews can request public MP4 media with an opaque null origin.
+- [Local media storage path](local-media-storage-path.md) — API upload paths must resolve inside the workspace, not above the bundled dist directory.

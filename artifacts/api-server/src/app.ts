@@ -59,7 +59,7 @@ const apiCors = cors({
 
 app.use((req, res, next) => {
   const isNativeVideoRequest =
-    req.method === "GET" &&
+    (req.method === "GET" || req.method === "HEAD") &&
     /^\/api\/media\/videos\/[a-zA-Z0-9-]+\.mp4$/.test(req.path) &&
     req.get("origin") === "null";
 

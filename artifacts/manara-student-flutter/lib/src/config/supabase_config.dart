@@ -18,7 +18,10 @@ class SupabaseConfig {
               'OjE3ODcxMzcxNjIsImV4cCI6MjEwMjcxMzE2Mn0.AHZ5vsoBNQ6cemiswQksEe91'
               'M1IQRU3RsAtDINNymkg',
         ),
-        apiBaseUrl = const String.fromEnvironment('API_BASE_URL');
+        apiBaseUrl = const String.fromEnvironment(
+          'API_BASE_URL',
+          defaultValue: 'http://localhost:8080',
+        );
 
   final String url;
   final String anonKey;

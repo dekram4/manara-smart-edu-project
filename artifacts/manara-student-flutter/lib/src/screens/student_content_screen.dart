@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -340,32 +341,42 @@ class _VideoCarouselState extends State<_VideoCarousel> {
       children: [
         SizedBox(
           height: 285,
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: widget.videos.length,
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: const {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+                PointerDeviceKind.stylus,
+              },
             ),
-            onPageChanged: (index) => setState(() => _activeIndex = index),
-            itemBuilder: (context, index) {
-              final video = widget.videos[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: _VideoCard(
-                  video: video,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => VideoViewerScreen(
-                        video: video,
-                        apiBaseUrl: widget.apiBaseUrl,
-                        videos: widget.videos,
-                        initialIndex: index,
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: widget.videos.length,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              onPageChanged: (index) => setState(() => _activeIndex = index),
+              itemBuilder: (context, index) {
+                final video = widget.videos[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: _VideoCard(
+                    video: video,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => VideoViewerScreen(
+                          video: video,
+                          apiBaseUrl: widget.apiBaseUrl,
+                          videos: widget.videos,
+                          initialIndex: index,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -559,57 +570,67 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
       body: Column(
         children: [
           Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _videos.length,
-              physics: const BouncingScrollPhysics(),
-              onPageChanged: (index) {
-                setState(() {
-                  _activeIndex = index;
-                  _controller = null;
-                });
-              },
-              itemBuilder: (context, index) {
-                final video = _videos[index];
-                final url = _videoUrl(video, apiBaseUrl: widget.apiBaseUrl);
-                final isYoutube = _isYoutubeUrl(url);
-                final needsApiBaseUrl =
-                    video.sourceType == VideoSourceType.mp4 && url.startsWith('/');
-                if (needsApiBaseUrl) {
-                  return const _VideoConfigurationMessage();
-                }
-                return Center(
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: InAppWebView(
-                      initialUrlRequest: video.sourceType == VideoSourceType.mp4
-                          ? null
-                          : URLRequest(
-                              url: WebUri(url),
-                              headers: isYoutube
-                                  ? const {'Referer': 'https://www.youtube.com/'}
-                                  : null,
-                            ),
-                      initialData: video.sourceType == VideoSourceType.mp4
-                          ? InAppWebViewInitialData(
-                              data: _videoHtml(url, video.title),
-                              baseUrl: WebUri(url),
-                            )
-                          : null,
-                      initialSettings: InAppWebViewSettings(
-                        javaScriptEnabled: true,
-                        mediaPlaybackRequiresUserGesture: false,
-                        allowsInlineMediaPlayback: true,
-                        supportZoom: true,
-                        transparentBackground: true,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: const {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.trackpad,
+                  PointerDeviceKind.stylus,
+                },
+              ),
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: _videos.length,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: (index) {
+                  setState(() {
+                    _activeIndex = index;
+                    _controller = null;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final video = _videos[index];
+                  final url = _videoUrl(video, apiBaseUrl: widget.apiBaseUrl);
+                  final isYoutube = _isYoutubeUrl(url);
+                  final needsApiBaseUrl =
+                      video.sourceType == VideoSourceType.mp4 && url.startsWith('/');
+                  if (needsApiBaseUrl) {
+                    return const _VideoConfigurationMessage();
+                  }
+                  return Center(
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: InAppWebView(
+                        initialUrlRequest: video.sourceType == VideoSourceType.mp4
+                            ? null
+                            : URLRequest(
+                                url: WebUri(url),
+                                headers: isYoutube
+                                    ? const {'Referer': 'https://www.youtube.com/'}
+                                    : null,
+                              ),
+                        initialData: video.sourceType == VideoSourceType.mp4
+                            ? InAppWebViewInitialData(
+                                data: _videoHtml(url, video.title),
+                                baseUrl: WebUri(url),
+                              )
+                            : null,
+                        initialSettings: InAppWebViewSettings(
+                          javaScriptEnabled: true,
+                          mediaPlaybackRequiresUserGesture: false,
+                          allowsInlineMediaPlayback: true,
+                          supportZoom: true,
+                          transparentBackground: true,
+                        ),
+                        onWebViewCreated: (controller) {
+                          if (index == _activeIndex) _controller = controller;
+                        },
                       ),
-                      onWebViewCreated: (controller) {
-                        if (index == _activeIndex) _controller = controller;
-                      },
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
           if (_videos.length > 1)

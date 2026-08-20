@@ -14,17 +14,47 @@ import { logger } from "../lib/logger";
 const router = Router();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Store uploads at workspace root so they survive api-server rebuilds
+// Store uploads at the workspace root so they survive API rebuilds and restarts.
 export const uploadDirectory = path.resolve(
   __dirname,
-  "../../../../uploads/videos",
+  "../../../uploads/videos",
 );
 fs.mkdirSync(uploadDirectory, { recursive: true });
+
+const legacyUploadDirectories = [
+  path.resolve(__dirname, "../../../smart-edu-project/uploads/videos"),
+];
+
+function videoFilePath(fileName: string): string {
+  const primaryPath = path.join(uploadDirectory, fileName);
+  if (fs.existsSync(primaryPath)) return primaryPath;
+
+  for (const directory of legacyUploadDirectories) {
+    const legacyPath = path.join(directory, fileName);
+    if (fs.existsSync(legacyPath)) return legacyPath;
+  }
+
+  return primaryPath;
+}
 
 type UploadOwner = {
   role: ContentActor["role"];
   teacherId?: string;
 };
+
+function publicVideoUrl(req: import("express").Request, fileName: string): string {
+  const origin = req.get("origin")?.trim();
+  if (!origin) return `/api/media/videos/${fileName}`;
+  try {
+    const base = new URL(origin);
+    if (base.protocol === "http:" || base.protocol === "https:") {
+      return new URL(`/api/media/videos/${fileName}`, base.origin).toString();
+    }
+  } catch {
+    // The API will retain the portable relative URL when no valid public origin exists.
+  }
+  return `/api/media/videos/${fileName}`;
+}
 
 function ownerFilePath(fileName: string): string {
   return path.join(uploadDirectory, `${fileName}.owner.json`);
@@ -62,7 +92,7 @@ router.get("/media/videos/:fileName", (req, res) => {
   if (!/^[a-zA-Z0-9-]+\.mp4$/.test(fileName)) {
     return res.status(400).json({ error: "اسم ملف فيديو غير صالح" });
   }
-  const filePath = path.join(uploadDirectory, fileName);
+  const filePath = videoFilePath(fileName);
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "ملف الفيديو غير موجود" });
   }
@@ -97,7 +127,7 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
     await writeOwner(fileName, actor);
     // Use /api/media/videos/ so the browser fetches through the API artifact.
     // A bare /uploads/videos/ path is caught by the web artifact's SPA rewrite.
-    const url = `/api/media/videos/${fileName}`;
+    const url = publicVideoUrl(req, fileName);
     return res.status(201).json({
       url,
       fileName: originalName,
@@ -125,8 +155,12 @@ router.post("/media/delete", requireContentManager, async (req, res) => {
   if (!localMatch) {
     return res.status(400).json({ error: "مسار ملف غير صالح" });
   }
-  const filePath = path.join(uploadDirectory, localMatch[1]);
-  if (!filePath.startsWith(`${uploadDirectory}${path.sep}`)) {
+  const filePath = videoFilePath(localMatch[1]);
+  if (
+    ![uploadDirectory, ...legacyUploadDirectories].some((directory) =>
+      filePath.startsWith(`${directory}${path.sep}`),
+    )
+  ) {
     return res.status(400).json({ error: "مسار ملف غير صالح" });
   }
   try {
