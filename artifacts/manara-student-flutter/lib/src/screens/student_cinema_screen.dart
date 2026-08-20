@@ -191,6 +191,8 @@ class _CinemaCarouselState extends State<_CinemaCarousel> {
                       builder: (_) => VideoViewerScreen(
                         video: video,
                         apiBaseUrl: widget.apiBaseUrl,
+                        videos: widget.videos,
+                        initialIndex: index,
                       ),
                     ),
                   ),

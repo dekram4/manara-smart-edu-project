@@ -358,6 +358,8 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                       builder: (_) => VideoViewerScreen(
                         video: video,
                         apiBaseUrl: widget.apiBaseUrl,
+                        videos: widget.videos,
+                        initialIndex: index,
                       ),
                     ),
                   ),
@@ -496,31 +498,49 @@ class VideoViewerScreen extends StatefulWidget {
   const VideoViewerScreen({
     required this.video,
     required this.apiBaseUrl,
+    this.videos = const [],
+    this.initialIndex = 0,
     super.key,
   });
 
   final LessonVideo video;
   final String apiBaseUrl;
+  final List<LessonVideo> videos;
+  final int initialIndex;
 
   @override
   State<VideoViewerScreen> createState() => _VideoViewerScreenState();
 }
 
 class _VideoViewerScreenState extends State<VideoViewerScreen> {
+  late final PageController _pageController;
   InAppWebViewController? _controller;
+  late final List<LessonVideo> _videos;
+  late int _activeIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _videos = widget.videos.isEmpty ? [widget.video] : widget.videos;
+    _activeIndex = widget.initialIndex.clamp(0, _videos.length - 1);
+    _pageController = PageController(initialPage: _activeIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final url = _videoUrl(widget.video, apiBaseUrl: widget.apiBaseUrl);
-    final isYoutube = _isYoutubeUrl(url);
-    final needsApiBaseUrl =
-        widget.video.sourceType == VideoSourceType.mp4 && url.startsWith('/');
+    final activeVideo = _videos[_activeIndex];
     return Scaffold(
       backgroundColor: const Color(0xFF071425),
       appBar: AppBar(
         backgroundColor: const Color(0xFF071425),
         foregroundColor: Colors.white,
-        title: Text(widget.video.title),
+        title: Text(activeVideo.title),
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'إغلاق المشغل',
@@ -536,37 +556,75 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
           ),
         ],
       ),
-      body: needsApiBaseUrl
-          ? const _VideoConfigurationMessage()
-          : Center(
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: InAppWebView(
-                  initialUrlRequest: widget.video.sourceType == VideoSourceType.mp4
-                      ? null
-                      : URLRequest(
-                          url: WebUri(url),
-                          headers: isYoutube
-                              ? const {'Referer': 'https://www.youtube.com/'}
-                              : null,
-                        ),
-                  initialData: widget.video.sourceType == VideoSourceType.mp4
-                      ? InAppWebViewInitialData(
-                          data: _videoHtml(url, widget.video.title),
-                          baseUrl: WebUri(url),
-                        )
-                      : null,
-                  initialSettings: InAppWebViewSettings(
-                    javaScriptEnabled: true,
-                    mediaPlaybackRequiresUserGesture: false,
-                    allowsInlineMediaPlayback: true,
-                    supportZoom: true,
-                    transparentBackground: true,
+      body: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: _videos.length,
+              physics: const BouncingScrollPhysics(),
+              onPageChanged: (index) {
+                setState(() {
+                  _activeIndex = index;
+                  _controller = null;
+                });
+              },
+              itemBuilder: (context, index) {
+                final video = _videos[index];
+                final url = _videoUrl(video, apiBaseUrl: widget.apiBaseUrl);
+                final isYoutube = _isYoutubeUrl(url);
+                final needsApiBaseUrl =
+                    video.sourceType == VideoSourceType.mp4 && url.startsWith('/');
+                if (needsApiBaseUrl) {
+                  return const _VideoConfigurationMessage();
+                }
+                return Center(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: InAppWebView(
+                      initialUrlRequest: video.sourceType == VideoSourceType.mp4
+                          ? null
+                          : URLRequest(
+                              url: WebUri(url),
+                              headers: isYoutube
+                                  ? const {'Referer': 'https://www.youtube.com/'}
+                                  : null,
+                            ),
+                      initialData: video.sourceType == VideoSourceType.mp4
+                          ? InAppWebViewInitialData(
+                              data: _videoHtml(url, video.title),
+                              baseUrl: WebUri(url),
+                            )
+                          : null,
+                      initialSettings: InAppWebViewSettings(
+                        javaScriptEnabled: true,
+                        mediaPlaybackRequiresUserGesture: false,
+                        allowsInlineMediaPlayback: true,
+                        supportZoom: true,
+                        transparentBackground: true,
+                      ),
+                      onWebViewCreated: (controller) {
+                        if (index == _activeIndex) _controller = controller;
+                      },
+                    ),
                   ),
-                  onWebViewCreated: (controller) => _controller = controller,
+                );
+              },
+            ),
+          ),
+          if (_videos.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                '${_activeIndex + 1} / ${_videos.length}  •  اسحب للتنقل بين الفيديوهات',
+                style: const TextStyle(
+                  color: Color(0xFFBFFBFA),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
+        ],
+      ),
     );
   }
 }
@@ -1376,8 +1434,7 @@ String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
         : uri.queryParameters['v'] ??
             (uri.pathSegments.length >= 2 ? uri.pathSegments[1] : '');
     if (id.trim().isNotEmpty) {
-      return 'https://www.youtube-nocookie.com/embed/${Uri.encodeComponent(id)}'
-          '?autoplay=1&rel=0&playsinline=1&enablejsapi=1';
+      return 'https://www.youtube.com/watch?v=${Uri.encodeQueryComponent(id)}';
     }
   }
   if (host == 'vimeo.com') {
