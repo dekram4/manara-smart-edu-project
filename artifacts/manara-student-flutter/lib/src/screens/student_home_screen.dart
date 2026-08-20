@@ -190,6 +190,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               apiBaseUrl: widget.apiBaseUrl,
                               academicContext: widget.academicContext,
                               initialModule: modules[index],
+                              lessonOnly: index == 0,
                             ),
                           ),
                         );

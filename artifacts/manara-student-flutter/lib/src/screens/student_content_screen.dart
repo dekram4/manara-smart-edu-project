@@ -20,6 +20,7 @@ class StudentContentScreen extends StatefulWidget {
     required this.initialModule,
     this.academicContext,
     this.apiBaseUrl = '',
+    this.lessonOnly = false,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class StudentContentScreen extends StatefulWidget {
   final StudentContentModule initialModule;
   final AcademicContext? academicContext;
   final String apiBaseUrl;
+  final bool lessonOnly;
 
   @override
   State<StudentContentScreen> createState() => _StudentContentScreenState();
@@ -94,10 +96,11 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _ModuleSwitcher(
-              activeModule: _activeModule,
-              onChanged: (module) => setState(() => _activeModule = module),
-            ),
+            if (!widget.lessonOnly)
+              _ModuleSwitcher(
+                activeModule: _activeModule,
+                onChanged: (module) => setState(() => _activeModule = module),
+              ),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -152,7 +155,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
 String _moduleTitle(StudentContentModule module) {
   switch (module) {
     case StudentContentModule.lesson:
-      return 'شرح الدرس وسينما منارة';
+      return 'تفاصيل الدرس';
     case StudentContentModule.games:
       return 'الترفيه والألعاب';
     case StudentContentModule.personality:
@@ -236,12 +239,13 @@ class _LessonModule extends StatelessWidget {
     }
 
     final lesson = selectedLesson ?? lessons.first;
+    final lessonText = lesson.lessonText?.trim();
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
-        Text(
-          'سينما منارة',
+         Text(
+           'تفاصيل الدرس',
           style: const TextStyle(
             color: Color(0xFF0E1B2A),
             fontSize: 24,
@@ -249,8 +253,10 @@ class _LessonModule extends StatelessWidget {
           ),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
         const SizedBox(height: 4),
-        Text(
-          lesson.scopeLabel.isEmpty ? 'فيديوهات الشرح الخاصة بك' : lesson.scopeLabel,
+         Text(
+           lesson.scopeLabel.isEmpty
+               ? 'المحتوى المرتبط بمسارك الأكاديمي'
+               : lesson.scopeLabel,
           style: const TextStyle(color: Color(0xFF5680AC), fontWeight: FontWeight.w700),
         ),
         if (lessons.length > 1) ...[
@@ -283,28 +289,47 @@ class _LessonModule extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 16),
-        if (lesson.videos.isEmpty)
-          const _StateCard(
-            icon: Icons.video_call_outlined,
-            title: 'لم تتم إضافة فيديو',
-            message: 'يمكن للمعلم أو المشرف إضافة رابط فيديو أو ملف MP4 لهذا الدرس.',
-          )
-        else
+        if (lesson.videos.isNotEmpty) ...[
+          const SizedBox(height: 16),
           _VideoCarousel(videos: lesson.videos),
-        if (lesson.lessonText != null) ...[
+        ],
+        if (lessonText != null && lessonText.isNotEmpty) ...[
           const SizedBox(height: 18),
           _GlassPanel(
-            child: Text(
-              lesson.lessonText!,
-              style: const TextStyle(
-                color: Color(0xFF274E76),
-                fontSize: 16,
-                height: 1.7,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'نص الدرس',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: Color(0xFF0E1B2A),
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  lessonText,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: Color(0xFF274E76),
+                    fontSize: 16,
+                    height: 1.7,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+        if (lesson.videos.isEmpty &&
+            (lessonText == null || lessonText.isEmpty))
+          const _StateCard(
+            icon: Icons.menu_book_outlined,
+            title: 'محتوى الدرس غير متوفر بعد',
+            message: 'الدرس موجود في المسار، لكن لم تتم إضافة نص أو فيديو له بعد.',
+          )
       ],
     );
   }

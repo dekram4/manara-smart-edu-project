@@ -173,7 +173,7 @@ class StudentContentService {
     final owner = _normalize(lesson.ownerId);
     final teacher = _normalize(profile.teacherId);
     if (owner.isEmpty || owner == 'admin' || owner == 'supervisor') return true;
-    if (teacher.isEmpty) return true;
+    if (teacher.isEmpty) return false;
     return owner == teacher;
   }
 
