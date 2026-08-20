@@ -1,3 +1,5 @@
+import 'academic_context.dart';
+
 class StudentProfile {
   const StudentProfile({
     required this.id,
@@ -67,6 +69,13 @@ class StudentProfile {
   final String? teacherId;
   final String? studentIdNumber;
   final Map<String, dynamic>? appearance;
+
+  StudentAcademicValues get academicValues => StudentAcademicValues(
+        grade: grade,
+        term: term,
+        subject: subject,
+        unit: unit,
+      );
 
   bool get isStudent => role == 'student';
 }

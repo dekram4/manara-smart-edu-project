@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
@@ -17,6 +18,7 @@ class StudentContentScreen extends StatefulWidget {
     required this.profile,
     required this.authService,
     required this.initialModule,
+    this.academicContext,
     this.apiBaseUrl = '',
     super.key,
   });
@@ -24,6 +26,7 @@ class StudentContentScreen extends StatefulWidget {
   final StudentProfile profile;
   final StudentAuthService authService;
   final StudentContentModule initialModule;
+  final AcademicContext? academicContext;
   final String apiBaseUrl;
 
   @override
@@ -51,7 +54,10 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
 
   Future<void> _loadContent() async {
     try {
-      final lessons = await _contentService.fetchLessons(widget.profile);
+      final lessons = await _contentService.fetchLessons(
+        widget.profile,
+        academicContext: widget.academicContext,
+      );
       if (!mounted) return;
       setState(() {
         _lessons = lessons;

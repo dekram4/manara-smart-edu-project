@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 
@@ -12,7 +13,36 @@ class StudentContentService {
   final SupabaseClient client;
   final String baseUrl;
 
-  Future<List<LessonContent>> fetchLessons(StudentProfile profile) async {
+  Future<AcademicOptions> fetchAcademicOptions(StudentProfile profile) async {
+    final response = await client
+        .from('lesson_configs')
+        .select('id,data')
+        .limit(500);
+
+    var options = AcademicOptions.defaults(profile.academicValues);
+    for (final row in response.whereType<Map>()) {
+      final data = _asMap(row['data']);
+      final values = AcademicOptions(
+        grades: [_value(data, ['grade', 'class', 'schoolGrade'])],
+        terms: [_value(data, ['term', 'semester', 'atram'])],
+        subjects: [_value(data, ['subject', 'course'])],
+        units: [_value(data, ['unit', 'chapter'])],
+        lessons: [
+          _value(
+            data,
+            ['lesson', 'lessonName', 'lessonTitle', 'currentLesson', 'name'],
+          ),
+        ],
+      );
+      options = options.merge(values);
+    }
+    return options;
+  }
+
+  Future<List<LessonContent>> fetchLessons(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) async {
     final response = await client
         .from('lesson_configs')
         .select('id,data')
@@ -21,7 +51,13 @@ class StudentContentService {
     final lessons = response
         .whereType<Map>()
         .map((row) => parseLessonContent(row, baseUrl: baseUrl))
-        .where((lesson) => _matchesStudent(lesson, profile))
+        .where(
+          (lesson) => _matchesStudent(
+            lesson,
+            profile,
+            academicContext: academicContext,
+          ),
+        )
         .toList();
 
     lessons.sort((a, b) => a.id.compareTo(b.id));
@@ -82,13 +118,21 @@ class StudentContentService {
     });
   }
 
-  bool _matchesStudent(LessonContent lesson, StudentProfile profile) {
+  bool _matchesStudent(
+    LessonContent lesson,
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) {
+    final grade = academicContext?.grade ?? profile.grade;
+    final term = academicContext?.term ?? profile.term;
+    final subject = academicContext?.subject ?? profile.subject;
+    final unit = academicContext?.unit ?? profile.unit;
     return _matchesOwner(lesson, profile) &&
-        _matches(lesson.grade, profile.grade) &&
+        _matches(lesson.grade, grade) &&
         _matches(lesson.atram, profile.atram) &&
-        _matches(lesson.subject, profile.subject) &&
-        _matches(lesson.term, profile.term) &&
-        _matches(lesson.unit, profile.unit);
+        _matches(lesson.subject, subject) &&
+        _matches(lesson.term, term) &&
+        _matches(lesson.unit, unit);
   }
 
   bool _matchesOwner(LessonContent lesson, StudentProfile profile) {
@@ -105,6 +149,14 @@ class StudentContentService {
     if (student.isEmpty || lesson.isEmpty) return true;
     return lesson == student;
   }
+}
+
+String _value(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key]?.toString().trim() ?? '';
+    if (value.isNotEmpty) return value;
+  }
+  return '';
 }
 
 LessonContent parseLessonContent(

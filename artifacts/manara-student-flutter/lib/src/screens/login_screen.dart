@@ -4,7 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_auth_service.dart';
 import '../widgets/manara_logo.dart';
-import 'student_home_screen.dart';
+import 'academic_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -62,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => StudentHomeScreen(
+          builder: (_) => AcademicSelectionScreen(
             profile: student,
             authService: widget.authService!,
             apiBaseUrl: widget.apiBaseUrl,
