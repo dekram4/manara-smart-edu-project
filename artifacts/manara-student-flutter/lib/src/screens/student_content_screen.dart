@@ -60,8 +60,13 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _lessons = lessons;
-        _selectedLesson = lessons.isEmpty ? null : lessons.first;
+        final selectedFromContext = widget.academicContext?.selectedLesson;
+        final includesSelected = selectedFromContext != null &&
+            lessons.any((lesson) => lesson.id == selectedFromContext.id);
+        _lessons = selectedFromContext == null || includesSelected
+            ? lessons
+            : [selectedFromContext, ...lessons];
+        _selectedLesson = selectedFromContext ?? (lessons.isEmpty ? null : lessons.first);
         _loading = false;
         _error = null;
       });

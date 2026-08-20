@@ -13,30 +13,58 @@ class StudentContentService {
   final SupabaseClient client;
   final String baseUrl;
 
-  Future<AcademicOptions> fetchAcademicOptions(StudentProfile profile) async {
+  Future<AcademicSelectionData> fetchAcademicSelectionData(
+    StudentProfile profile,
+  ) async {
+    Object? hierarchyValue;
+    var hierarchyUnavailable = false;
+
+    try {
+      final row = await client
+          .from('app_kv')
+          .select('value')
+          .eq('key', 'smartEdu_hierarchicalConfigs')
+          .maybeSingle();
+      hierarchyValue = row?['value'];
+    } catch (_) {
+      hierarchyUnavailable = true;
+    }
+
     final response = await client
         .from('lesson_configs')
         .select('id,data')
         .limit(500);
+    final lessons = response
+        .whereType<Map>()
+        .map((row) => parseLessonContent(row, baseUrl: baseUrl))
+        .where((lesson) => _matchesOwner(lesson, profile))
+        .toList();
 
-    var options = const AcademicOptions.empty();
-    for (final row in response.whereType<Map>()) {
-      final data = _asMap(row['data']);
-      final values = AcademicOptions(
-        grades: [_value(data, ['grade', 'class', 'schoolGrade'])],
-        terms: [_value(data, ['term', 'semester', 'atram'])],
-        subjects: [_value(data, ['subject', 'course'])],
-        units: [_value(data, ['unit', 'chapter'])],
-        lessons: [
-          _value(
-            data,
-            ['lesson', 'lessonName', 'lessonTitle', 'currentLesson', 'name'],
+    final hierarchyPaths = <AcademicPath>[
+      ..._pathsFromHierarchy(hierarchyValue, profile),
+      ...lessons
+          .where(_hasCompleteAcademicPath)
+          .map(
+            (lesson) => AcademicPath(
+              grade: lesson.grade,
+              atram: lesson.atram,
+              subject: lesson.subject,
+              term: lesson.term,
+              unit: lesson.unit,
+            ),
           ),
-        ],
-      );
-      options = options.merge(values);
-    }
-    return options.withFallback(profile.academicValues);
+    ];
+    final paths = _uniquePaths(hierarchyPaths)
+        .where(
+          (path) => lessons.any((lesson) => _lessonMatchesPath(lesson, path)),
+        )
+        .toList();
+
+    return AcademicSelectionData(
+      paths: paths,
+      lessons: lessons,
+      hierarchyUnavailable: hierarchyUnavailable,
+    );
   }
 
   Future<List<LessonContent>> fetchLessons(
@@ -124,17 +152,21 @@ class StudentContentService {
     AcademicContext? academicContext,
   }) {
     final grade = academicContext?.grade ?? profile.grade;
-    final term = academicContext?.term ?? profile.term;
+    final atram = academicContext?.atram ?? profile.atram;
     final subject = academicContext?.subject ?? profile.subject;
+    final term = academicContext?.term ?? profile.term;
     final unit = academicContext?.unit ?? profile.unit;
-    final selectedLesson = academicContext?.lesson;
+    final lessonId = academicContext?.lessonId;
     return _matchesOwner(lesson, profile) &&
         _matches(lesson.grade, grade) &&
-        _matches(lesson.atram, profile.atram) &&
+        _matches(lesson.atram, atram) &&
         _matches(lesson.subject, subject) &&
         _matches(lesson.term, term) &&
         _matches(lesson.unit, unit) &&
-        _matches(lesson.lessonName, selectedLesson);
+        (lessonId == null ||
+            lessonId.isEmpty ||
+            _normalize(lesson.id) == _normalize(lessonId) ||
+            _normalize(lesson.lessonId) == _normalize(lessonId));
   }
 
   bool _matchesOwner(LessonContent lesson, StudentProfile profile) {
@@ -151,6 +183,117 @@ class StudentContentService {
     if (student.isEmpty || lesson.isEmpty) return true;
     return lesson == student;
   }
+}
+
+List<AcademicPath> _pathsFromHierarchy(
+  Object? value,
+  StudentProfile profile,
+) {
+  if (value is! List) return const [];
+
+  final paths = <AcademicPath>[];
+  for (final rawConfig in value) {
+    final config = _asMap(rawConfig);
+    if (!_matchesConfigOwner(config, profile)) continue;
+
+    final grade = _value(config, ['grade', 'class', 'schoolGrade']);
+    final atrams = config['atrams'];
+    if (grade.isEmpty || atrams is! List) continue;
+
+    for (final rawAtram in atrams) {
+      final atram = _asMap(rawAtram);
+      final atramName = _value(atram, ['atram', 'semester', 'term']);
+      final subjects = atram['subjects'];
+      if (atramName.isEmpty || subjects is! List) continue;
+
+      for (final rawSubject in subjects) {
+        final subject = _asMap(rawSubject);
+        final subjectName = _value(subject, ['subject', 'course']);
+        final terms = subject['terms'];
+        if (subjectName.isEmpty || terms is! List) continue;
+
+        for (final rawTerm in terms) {
+          final term = _asMap(rawTerm);
+          final termName = _value(term, ['term', 'chapter', 'name']);
+          final units = term['units'];
+          if (termName.isEmpty || units is! List) continue;
+
+          for (final rawUnit in units) {
+            final unit = _text(rawUnit);
+            if (unit.isEmpty) continue;
+            paths.add(
+              AcademicPath(
+                grade: grade,
+                atram: atramName,
+                subject: subjectName,
+                term: termName,
+                unit: unit,
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+  return paths;
+}
+
+List<AcademicPath> _uniquePaths(Iterable<AcademicPath> paths) {
+  final unique = <AcademicPath>[];
+  final seen = <String>{};
+  for (final path in paths) {
+    if (!_hasPathValues(path)) continue;
+    final key = [
+      path.grade,
+      path.atram,
+      path.subject,
+      path.term,
+      path.unit,
+    ].map(_normalize).join('|');
+    if (seen.add(key)) unique.add(path);
+  }
+  return unique;
+}
+
+bool _hasCompleteAcademicPath(LessonContent lesson) {
+  return _hasPathValues(
+    AcademicPath(
+      grade: lesson.grade,
+      atram: lesson.atram,
+      subject: lesson.subject,
+      term: lesson.term,
+      unit: lesson.unit,
+    ),
+  );
+}
+
+bool _hasPathValues(AcademicPath path) {
+  return [
+    path.grade,
+    path.atram,
+    path.subject,
+    path.term,
+    path.unit,
+  ].every((value) => value.trim().isNotEmpty);
+}
+
+bool _lessonMatchesPath(LessonContent lesson, AcademicPath path) {
+  return [
+    (lesson.grade, path.grade),
+    (lesson.atram, path.atram),
+    (lesson.subject, path.subject),
+    (lesson.term, path.term),
+    (lesson.unit, path.unit),
+  ].every((pair) => _normalize(pair.$1) == _normalize(pair.$2));
+}
+
+bool _matchesConfigOwner(Map<String, dynamic> config, StudentProfile profile) {
+  final owner = _normalize(
+    config['teacherId'] ?? config['teacher_id'] ?? config['createdBy'],
+  );
+  final teacher = _normalize(profile.teacherId);
+  if (owner.isEmpty || owner == 'admin' || owner == 'supervisor') return true;
+  return teacher.isNotEmpty && owner == teacher;
 }
 
 String _value(Map<String, dynamic> data, List<String> keys) {
@@ -202,6 +345,9 @@ LessonContent parseLessonContent(
   final games = _parseGames(data, baseUrl: baseUrl);
   return LessonContent(
     id: _text(row['id']).isEmpty ? _text(data['id']) : _text(row['id']),
+    lessonId: _value(data, ['lesson_id', 'lessonId', 'id']).isEmpty
+        ? _text(row['id'])
+        : _value(data, ['lesson_id', 'lessonId', 'id']),
     grade: _text(data['grade']),
     atram: _text(data['atram']),
     subject: _text(data['subject']),

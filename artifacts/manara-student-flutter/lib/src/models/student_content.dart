@@ -33,6 +33,7 @@ class HtmlGame {
 class LessonContent {
   const LessonContent({
     required this.id,
+    required this.lessonId,
     required this.grade,
     required this.atram,
     required this.subject,
@@ -47,6 +48,7 @@ class LessonContent {
   });
 
   final String id;
+  final String lessonId;
   final String grade;
   final String atram;
   final String subject;

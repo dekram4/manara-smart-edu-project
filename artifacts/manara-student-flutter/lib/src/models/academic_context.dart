@@ -1,94 +1,168 @@
+import 'student_content.dart';
+
 class AcademicContext {
   const AcademicContext({
     required this.grade,
-    required this.term,
+    required this.atram,
     required this.subject,
+    required this.term,
     required this.unit,
-    required this.lesson,
+    required this.selectedLesson,
   });
 
   final String grade;
-  final String term;
+  final String atram;
   final String subject;
+  final String term;
   final String unit;
-  final String lesson;
+  final LessonContent selectedLesson;
 
-  String get label => [grade, term, subject, unit, lesson]
+  String get lesson => selectedLesson.lessonName;
+  String get lessonId => selectedLesson.id;
+
+  String get label => [grade, atram, subject, term, unit, lesson]
       .where((value) => value.trim().isNotEmpty)
       .join(' • ');
 }
 
-class AcademicOptions {
-  const AcademicOptions({
-    required this.grades,
-    required this.terms,
-    required this.subjects,
-    required this.units,
-    required this.lessons,
+class AcademicPath {
+  const AcademicPath({
+    required this.grade,
+    required this.atram,
+    required this.subject,
+    required this.term,
+    required this.unit,
   });
 
-  factory AcademicOptions.defaults(StudentAcademicValues values) {
-    return AcademicOptions(
-      grades: _fallback(const [], values.grade, 'الصف الأول'),
-      terms: _fallback(const [], values.term, 'الفصل الدراسي الأول'),
-      subjects: _fallback(const [], values.subject, 'المادة الدراسية'),
-      units: _fallback(const [], values.unit, 'الوحدة الأولى'),
-      lessons: _fallback(const [], values.lesson, 'الدرس الأول'),
-    );
+  final String grade;
+  final String atram;
+  final String subject;
+  final String term;
+  final String unit;
+
+  bool matches({
+    String? grade,
+    String? atram,
+    String? subject,
+    String? term,
+    String? unit,
+  }) {
+    return _matches(this.grade, grade) &&
+        _matches(this.atram, atram) &&
+        _matches(this.subject, subject) &&
+        _matches(this.term, term) &&
+        _matches(this.unit, unit);
   }
 
-  const AcademicOptions.empty()
-      : grades = const [],
-        terms = const [],
-        subjects = const [],
-        units = const [],
-        lessons = const [];
-
-  final List<String> grades;
-  final List<String> terms;
-  final List<String> subjects;
-  final List<String> units;
-  final List<String> lessons;
-
-  AcademicOptions merge(AcademicOptions other) {
-    return AcademicOptions(
-      grades: _merge(grades, other.grades),
-      terms: _merge(terms, other.terms),
-      subjects: _merge(subjects, other.subjects),
-      units: _merge(units, other.units),
-      lessons: _merge(lessons, other.lessons),
-    );
-  }
-
-  AcademicOptions withFallback(StudentAcademicValues values) {
-    return AcademicOptions(
-      grades: _fallback(grades, values.grade, 'الصف الأول'),
-      terms: _fallback(terms, values.term, 'الفصل الدراسي الأول'),
-      subjects: _fallback(subjects, values.subject, 'المادة الدراسية'),
-      units: _fallback(units, values.unit, 'الوحدة الأولى'),
-      lessons: _fallback(lessons, values.lesson, 'الدرس الأول'),
-    );
-  }
-
-  static List<String> _fallback(
-    List<String> values,
-    String? profileValue,
-    String fallback,
-  ) {
-    final configured = _merge(values, const []);
-    if (configured.isNotEmpty) return configured;
-    return _merge([if (profileValue != null) profileValue, fallback], const []);
-  }
-
-  static List<String> _merge(Iterable<String> first, Iterable<String> second) {
-    final values = <String>[];
-    for (final value in [...first, ...second]) {
-      final clean = value.trim();
-      if (clean.isNotEmpty && !values.contains(clean)) values.add(clean);
-    }
-    return values;
+  static bool _matches(String value, String? expected) {
+    if (expected == null || expected.trim().isEmpty) return true;
+    return _normalize(value) == _normalize(expected);
   }
 }
+
+class AcademicSelectionData {
+  const AcademicSelectionData({
+    required this.paths,
+    required this.lessons,
+    this.hierarchyUnavailable = false,
+  });
+
+  final List<AcademicPath> paths;
+  final List<LessonContent> lessons;
+  final bool hierarchyUnavailable;
+
+  bool get isEmpty => paths.isEmpty || lessons.isEmpty;
+
+  List<String> get grades => _values(paths.map((path) => path.grade));
+
+  List<String> atramsFor(String grade) => _values(
+        paths
+            .where((path) => path.matches(grade: grade))
+            .map((path) => path.atram),
+      );
+
+  List<String> subjectsFor({
+    required String grade,
+    required String atram,
+  }) =>
+      _values(
+        paths
+            .where((path) => path.matches(grade: grade, atram: atram))
+            .map((path) => path.subject),
+      );
+
+  List<String> termsFor({
+    required String grade,
+    required String atram,
+    required String subject,
+  }) =>
+      _values(
+        paths
+            .where(
+              (path) => path.matches(
+                grade: grade,
+                atram: atram,
+                subject: subject,
+              ),
+            )
+            .map((path) => path.term),
+      );
+
+  List<String> unitsFor({
+    required String grade,
+    required String atram,
+    required String subject,
+    required String term,
+  }) =>
+      _values(
+        paths
+            .where(
+              (path) => path.matches(
+                grade: grade,
+                atram: atram,
+                subject: subject,
+                term: term,
+              ),
+            )
+            .map((path) => path.unit),
+      );
+
+  List<LessonContent> lessonsFor({
+    required String grade,
+    required String atram,
+    required String subject,
+    required String term,
+    required String unit,
+  }) {
+    return lessons
+        .where(
+          (lesson) =>
+              _matches(lesson.grade, grade) &&
+              _matches(lesson.atram, atram) &&
+              _matches(lesson.subject, subject) &&
+              _matches(lesson.term, term) &&
+              _matches(lesson.unit, unit),
+        )
+        .toList();
+  }
+
+  static List<String> _values(Iterable<String> values) {
+    final unique = <String>[];
+    for (final value in values) {
+      final clean = value.trim();
+      if (clean.isNotEmpty && !unique.any((item) => _normalize(item) == _normalize(clean))) {
+        unique.add(clean);
+      }
+    }
+    return unique;
+  }
+
+  static bool _matches(String value, String expected) {
+    return _normalize(value) == _normalize(expected);
+  }
+}
+
+String _normalize(Object? value) => value?.toString().trim().toLowerCase() ?? '';
 
 class StudentAcademicValues {
   const StudentAcademicValues({
