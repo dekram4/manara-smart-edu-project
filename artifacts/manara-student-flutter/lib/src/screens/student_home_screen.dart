@@ -2,6 +2,7 @@ import 'dart:ui' show PointerDeviceKind;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+${importLine}
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
