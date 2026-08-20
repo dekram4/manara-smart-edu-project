@@ -212,7 +212,10 @@ const App: React.FC = () => {
     clearAuthSessions();
     removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
-    void fetch('/api/auth/admin/logout', { method: 'POST' }).catch(() => {});
+    void Promise.all([
+      fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }),
+      fetch('/api/auth/teacher/logout', { method: 'POST', credentials: 'same-origin' }),
+    ]).catch(() => {});
     setMainView('role');
   };
 

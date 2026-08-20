@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ManaraBrand from '../../components/ManaraBrand';
 import { readStorageArray, writeActiveSession } from '../../utils/storage';
+import { establishTeacherMediaSession } from '../../utils/video';
 
 interface TeacherLoginProps {
   onLoginSuccess: (teacher: TeacherInfo) => void;
@@ -19,7 +20,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
   const [currentTeacher, setCurrentTeacher] = useState<TeacherInfo | null>(null);
   const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -39,12 +40,22 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
       setCurrentTeacher(teacher);
       setShowChangePassword(true);
     } else {
+      try {
+        await establishTeacherMediaSession(teacher.username, password);
+      } catch (sessionError) {
+        setError(
+          `⚠️ ${sessionError instanceof Error
+            ? sessionError.message
+            : 'تعذر تأكيد جلسة رفع الفيديو للمعلم'}`,
+        );
+        return;
+      }
       writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, teacher);
       onLoginSuccess(teacher);
     }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -76,6 +87,16 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
     localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
 
     const updatedTeacher = { ...currentTeacher, password: hashedPassword, mustChangePassword: false };
+    try {
+      await establishTeacherMediaSession(updatedTeacher.username, newPassword);
+    } catch (sessionError) {
+      setError(
+        `⚠️ ${sessionError instanceof Error
+          ? sessionError.message
+          : 'تعذر تأكيد جلسة رفع الفيديو للمعلم'}`,
+      );
+      return;
+    }
     writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, updatedTeacher);
     onLoginSuccess(updatedTeacher);
   };

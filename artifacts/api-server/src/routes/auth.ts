@@ -1,12 +1,17 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { verifyAdminSession } from "../middleware/adminAuth";
+import {
+  readCookie,
+  TEACHER_SESSION_COOKIE,
+  verifyAdminSession,
+} from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
 
 const router = Router();
 
 const ADMIN_SESSION_COOKIE = "manara_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
+const TEACHER_SESSION_TTL_SECONDS = 60 * 60 * 12;
 
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -27,21 +32,95 @@ function signAdminSession(payload: object): string {
   return `${encoded}.${signature}`;
 }
 
-function readCookie(req: { headers: { cookie?: string } }, name: string): string {
-  const cookies = String(req.headers.cookie || "")
-    .split(";")
-    .map((part) => part.trim().split("="))
-    .filter(([key]) => key);
-  const match = cookies.find(([key]) => key === name);
-  return match ? decodeURIComponent(match.slice(1).join("=")) : "";
-}
-
 function adminCookieOptions(maxAge = ADMIN_SESSION_TTL_SECONDS): string {
   const secure =
     process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT
       ? "; Secure"
       : "";
   return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+function teacherCookieOptions(maxAge = TEACHER_SESSION_TTL_SECONDS): string {
+  const secure =
+    process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT
+      ? "; Secure"
+      : "";
+  return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+function signTeacherSession(teacherId: string): string {
+  return signAdminSession({
+    role: "teacher",
+    teacherId,
+    expiresAt: Date.now() + TEACHER_SESSION_TTL_SECONDS * 1000,
+  });
+}
+
+function passwordsMatch(input: string, stored: unknown): boolean {
+  if (typeof stored !== "string" || !stored) return false;
+  const expected = /^[a-f0-9]{64}$/.test(stored)
+    ? stored
+    : crypto.createHash("sha256").update(stored).digest("hex");
+  const received = crypto.createHash("sha256").update(input).digest("hex");
+  return crypto.timingSafeEqual(
+    Buffer.from(expected, "utf8"),
+    Buffer.from(received, "utf8"),
+  );
+}
+
+async function findTeacher(username: string): Promise<{
+  id: string;
+  username: string;
+  password: unknown;
+  mustChangePassword: boolean;
+} | null> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || (!serviceRoleKey && !anonKey)) {
+    throw new Error("Supabase credentials are required");
+  }
+  const url = new URL("/rest/v1/teachers", supabaseUrl);
+  url.searchParams.set("select", "id,data");
+  url.searchParams.set("data->>username", `eq.${username}`);
+  const keys = [serviceRoleKey, anonKey].filter(
+    (key): key is string => Boolean(key),
+  );
+  let response: Response | null = null;
+  for (const key of keys) {
+    response = await fetch(url, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+    });
+    if (response.ok || (response.status !== 401 && response.status !== 403)) {
+      break;
+    }
+  }
+  if (!response?.ok) {
+    throw new Error(`Supabase teachers lookup failed (${response?.status || 0})`);
+  }
+  const rows = (await response.json()) as Array<{
+    id?: unknown;
+    data?: Record<string, unknown>;
+  }>;
+  const row = rows.find((item) => item?.data?.username === username);
+  if (!row?.data) return null;
+  const teacherId =
+    typeof row.data.id === "string" && row.data.id.trim()
+      ? row.data.id.trim()
+      : typeof row.id === "string"
+        ? row.id.trim()
+        : "";
+  return teacherId
+    ? {
+        id: teacherId,
+        username,
+        password: row.data.password,
+        mustChangePassword: row.data.mustChangePassword === true,
+      }
+    : null;
 }
 
 router.post("/auth/admin", (req, res) => {
@@ -81,10 +160,52 @@ router.get("/auth/admin/session", (req, res) => {
   });
 });
 
+router.post("/auth/teacher/session", async (req, res) => {
+  const username =
+    typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : "";
+  if (!username || !password) {
+    return res.status(400).json({ error: "بيانات دخول المعلم مطلوبة" });
+  }
+
+  try {
+    const teacher = await findTeacher(username);
+    if (!teacher || !passwordsMatch(password, teacher.password)) {
+      return res.status(401).json({ error: "بيانات دخول المعلم غير صحيحة" });
+    }
+    if (teacher.mustChangePassword) {
+      return res.status(403).json({
+        error: "يجب تغيير كلمة المرور قبل رفع ملفات الفيديو",
+      });
+    }
+    res.setHeader(
+      "Set-Cookie",
+      `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
+        signTeacherSession(teacher.id),
+      )}; ${teacherCookieOptions()}`,
+    );
+    return res.json({ ok: true });
+  } catch (error) {
+    logger.error({ err: error }, "Teacher media session authentication failed");
+    return res.status(503).json({
+      error: "تعذر التحقق من جلسة المعلم الآن. حاول مرة أخرى.",
+    });
+  }
+});
+
 router.post("/auth/admin/logout", (_req, res) => {
   res.setHeader(
     "Set-Cookie",
     `${ADMIN_SESSION_COOKIE}=; ${adminCookieOptions(0)}`,
+  );
+  return res.json({ ok: true });
+});
+
+router.post("/auth/teacher/logout", (_req, res) => {
+  res.setHeader(
+    "Set-Cookie",
+    `${TEACHER_SESSION_COOKIE}=; ${teacherCookieOptions(0)}`,
   );
   return res.json({ ok: true });
 });

@@ -16,6 +16,22 @@ export interface LessonVideoEntry {
   createdAt?: string;
 }
 
+export const establishTeacherMediaSession = async (
+  username: string,
+  password: string,
+): Promise<void> => {
+  const response = await fetch('/api/auth/teacher/session', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || 'تعذر تأكيد جلسة رفع الفيديو للمعلم');
+  }
+};
+
 export const isMp4VideoUrl = (value?: string | null): boolean => {
   const url = (value || '').trim().toLowerCase();
   return url.startsWith('/uploads/videos/') || url.includes('.mp4');
@@ -131,6 +147,7 @@ export const getLessonExplanationVideos = (lesson: {
 export const uploadMp4Video = async (file: File): Promise<Mp4UploadResult> => {
   const response = await fetch('/api/media/upload', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'video/mp4',
       'X-File-Name': file.name,
@@ -155,6 +172,7 @@ export const deleteUploadedVideo = async (url?: string | null): Promise<void> =>
   if (!isMp4VideoUrl(url)) return;
   await fetch('/api/media/delete', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
   });
