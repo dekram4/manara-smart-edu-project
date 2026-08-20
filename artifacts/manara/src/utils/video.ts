@@ -169,7 +169,7 @@ export const uploadMp4Video = async (file: File): Promise<Mp4UploadResult> => {
 export const showVideoStorageNotice = (upload: Mp4UploadResult): void => {
   if (upload.storage !== 'local' || typeof window === 'undefined') return;
   window.alert(
-    `⚠️ ${upload.warning || 'تم حفظ الفيديو مؤقتًا على خادم التطبيق.'}`,
+    `✅ تم رفع ملف MP4 بنجاح.\n\n${upload.warning || 'التخزين الحالي مؤقت على خادم التطبيق؛ احفظ الدرس الآن.'}`,
   );
 };
 

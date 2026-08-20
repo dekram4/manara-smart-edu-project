@@ -105,7 +105,7 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
       contentType: "video/mp4",
       storage: "local",
       warning:
-        "تم حفظ الفيديو مؤقتًا على خادم التطبيق. سيتم نقله إلى Supabase Storage لاحقًا.",
+        "تم رفع الفيديو بنجاح. التخزين الحالي مؤقت على خادم التطبيق؛ احفظ الدرس الآن.",
     });
   } catch (error: any) {
     logger.error({ err: error }, "[media] upload failed");
