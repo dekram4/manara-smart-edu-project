@@ -57,6 +57,20 @@ function storageObjectUrl(config: { url: string; bucket: string }, objectPath: s
     .join("/")}`;
 }
 
+function localPublicVideoUrl(req: import("express").Request, fileName: string): string {
+  const origin = req.get("origin")?.trim();
+  if (!origin) return `/api/media/videos/${fileName}`;
+  try {
+    const base = new URL(origin);
+    if (base.protocol === "http:" || base.protocol === "https:") {
+      return new URL(`/api/media/videos/${fileName}`, base.origin).toString();
+    }
+  } catch {
+    // Keep a portable relative URL when the browser origin is unavailable.
+  }
+  return `/api/media/videos/${fileName}`;
+}
+
 async function uploadToSupabase(
   config: { url: string; key: string; bucket: string },
   objectPath: string,
@@ -206,29 +220,49 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
   }
   try {
     const storage = supabaseStorageConfig();
-    if (!storage) {
-      return res.status(503).json({
-        error: "لم يتم إعداد التخزين الدائم للفيديو. أضف SUPABASE_URL وSUPABASE_SERVICE_ROLE_KEY.",
-      });
-    }
     const actor = res.locals.contentActor as ContentActor;
+    const fileName = `${crypto.randomUUID()}.mp4`;
     const ownerKey = actor.role === "admin"
       ? "admin"
       : crypto.createHmac("sha256", process.env.SESSION_SECRET || "manara")
           .update(actor.teacherId)
           .digest("hex")
           .slice(0, 24);
-    const fileName = `${crypto.randomUUID()}.mp4`;
-    const storagePath = `videos/${ownerKey}/${fileName}`;
-    await ensureSupabaseBucket(storage);
-    const url = await uploadToSupabase(storage, storagePath, req.body as Buffer);
+
+    if (storage) {
+      const storagePath = `videos/${ownerKey}/${fileName}`;
+      try {
+        await ensureSupabaseBucket(storage);
+        const url = await uploadToSupabase(storage, storagePath, req.body as Buffer);
+        return res.status(201).json({
+          url,
+          fileName: originalName,
+          size: (req.body as Buffer).length,
+          contentType: "video/mp4",
+          storage: "supabase",
+          storagePath,
+        });
+      } catch (error: any) {
+        logger.warn(
+          { err: error },
+          "[media] durable storage unavailable; using local fallback",
+        );
+      }
+    }
+
+    await fs.promises.writeFile(
+      path.join(uploadDirectory, fileName),
+      req.body as Buffer,
+    );
+    await writeOwner(fileName, actor);
     return res.status(201).json({
-      url,
+      url: localPublicVideoUrl(req, fileName),
       fileName: originalName,
       size: (req.body as Buffer).length,
       contentType: "video/mp4",
-      storage: "supabase",
-      storagePath,
+      storage: "local",
+      warning:
+        "تمت إضافة الفيديو، لكن التخزين الدائم غير متاح حاليًا؛ سيعمل الفيديو الآن وقد تحتاج الإدارة إلى إعادة رفعه بعد إصلاح إعداد Supabase Storage.",
     });
   } catch (error: any) {
     logger.error({ err: error }, "[media] upload failed");
