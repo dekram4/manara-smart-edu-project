@@ -57,6 +57,7 @@ function supabaseHeaders(
   return {
     apikey: key,
     Authorization: `Bearer ${key}`,
+    "x-client-info": "supabase-js/2.112.3",
     ...extra,
   };
 }
@@ -117,12 +118,6 @@ async function ensureSupabaseBucket(config: {
   key: string;
   bucket: string;
 }): Promise<void> {
-  if (!config.key.startsWith("eyJ")) {
-    throw new Error(
-      "إعداد SUPABASE_SERVICE_ROLE_KEY غير صالح لـSupabase Storage. استخدم مفتاح service_role بصيغة JWT.",
-    );
-  }
-
   const headers = supabaseHeaders(config.key);
   const existing = await fetch(
     `${config.url}/storage/v1/bucket/${encodeURIComponent(config.bucket)}`,
@@ -155,8 +150,8 @@ async function deleteFromSupabase(
   config: { url: string; key: string; bucket: string },
   objectPath: string,
 ): Promise<void> {
-  const response = await fetch(`${config.url}/storage/v1/object/${encodeURIComponent(config.bucket)}/remove`, {
-    method: "POST",
+  const response = await fetch(`${config.url}/storage/v1/object/${encodeURIComponent(config.bucket)}`, {
+    method: "DELETE",
     headers: supabaseHeaders(config.key, {
       "Content-Type": "application/json",
     }),
