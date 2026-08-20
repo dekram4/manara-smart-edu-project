@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
   getContentActor,
+  requireAdmin,
   requireContentManager,
   type ContentActor,
 } from "../middleware/adminAuth";
@@ -113,6 +114,145 @@ async function uploadToSupabase(
   return storageObjectUrl(config, objectPath);
 }
 
+type SupabaseConfig = { url: string; key: string; bucket: string };
+
+async function supabaseRest(
+  config: SupabaseConfig,
+  resource: string,
+  init: RequestInit = {},
+): Promise<any> {
+  const response = await fetch(`${config.url}/rest/v1/${resource}`, {
+    ...init,
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${config.key}`,
+      Accept: "application/json",
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...init.headers,
+    },
+  });
+  const text = await response.text().catch(() => "");
+  let body: any = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
+  if (!response.ok) {
+    const detail = typeof body === "string" ? body : body?.message || body?.hint;
+    throw new Error(detail ? `Supabase: ${detail.slice(0, 240)}` : `Supabase REST error (${response.status})`);
+  }
+  return body;
+}
+
+function localVideoName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  const match = raw.match(/(?:^|\/)(?:api\/)?(?:uploads\/videos|media\/videos)\/([a-zA-Z0-9-]+\.mp4)$/i);
+  return match?.[1] || null;
+}
+
+function replaceLegacyVideoUrls(value: any, replacements: Map<string, string>): { value: any; count: number } {
+  let count = 0;
+  if (typeof value === "string") {
+    const fileName = localVideoName(value);
+    if (fileName && replacements.has(fileName)) {
+      return { value: replacements.get(fileName), count: 1 };
+    }
+    return { value, count: 0 };
+  }
+  if (Array.isArray(value)) {
+    const next = value.map((item) => {
+      const result = replaceLegacyVideoUrls(item, replacements);
+      count += result.count;
+      return result.value;
+    });
+    return { value: next, count };
+  }
+  if (value && typeof value === "object") {
+    const next: Record<string, any> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const result = replaceLegacyVideoUrls(item, replacements);
+      count += result.count;
+      next[key] = result.value;
+    }
+    return { value: next, count };
+  }
+  return { value, count };
+}
+
+type MigrationFileReport = {
+  fileName: string;
+  path: string;
+  size: number;
+  status: "planned" | "migrated" | "already_migrated" | "unreferenced" | "failed";
+  url?: string;
+  references?: number;
+  error?: string;
+};
+
+async function listLegacyVideoFiles(): Promise<{ fileName: string; filePath: string; size: number }[]> {
+  const files = new Map<string, { fileName: string; filePath: string; size: number }>();
+  for (const directory of [uploadDirectory, ...legacyUploadDirectories]) {
+    const entries = await fs.promises.readdir(directory, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isFile() || !/^[a-zA-Z0-9-]+\.mp4$/i.test(entry.name)) continue;
+      const filePath = path.join(directory, entry.name);
+      const stat = await fs.promises.stat(filePath).catch(() => null);
+      if (stat?.isFile()) files.set(entry.name, { fileName: entry.name, filePath, size: stat.size });
+    }
+  }
+  return [...files.values()];
+}
+
+async function migrateFileToSupabase(
+  config: SupabaseConfig,
+  file: { fileName: string; filePath: string },
+): Promise<{ url: string; alreadyExists: boolean }> {
+  const objectPath = `videos/admin/legacy-${file.fileName}`;
+  const url = storageObjectUrl(config, objectPath);
+  const existing = await fetch(url, {
+    method: "HEAD",
+    headers: { apikey: config.key, Authorization: `Bearer ${config.key}` },
+  }).catch(() => null);
+  if (existing?.ok) return { url, alreadyExists: true };
+
+  const body = await fs.promises.readFile(file.filePath);
+  const response = await fetch(
+    `${config.url}/storage/v1/object/${encodeURIComponent(config.bucket)}/${objectPath
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "video/mp4",
+        "x-upsert": "true",
+      },
+      body,
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(detail ? detail.slice(0, 240) : `HTTP ${response.status}`);
+  }
+  return { url, alreadyExists: false };
+}
+
+function countLegacyVideoUrls(value: any, knownFiles: Set<string>): number {
+  if (typeof value === "string") return localVideoName(value) && knownFiles.has(localVideoName(value)!) ? 1 : 0;
+  if (Array.isArray(value)) return value.reduce((total, item) => total + countLegacyVideoUrls(item, knownFiles), 0);
+  if (value && typeof value === "object") {
+    return Object.values(value).reduce<number>(
+      (total, item) => total + countLegacyVideoUrls(item, knownFiles),
+      0,
+    );
+  }
+  return 0;
+}
+
 async function ensureSupabaseBucket(config: {
   url: string;
   key: string;
@@ -204,6 +344,147 @@ router.get("/media/videos/:fileName", (req, res) => {
     return res.status(404).json({ error: "ملف الفيديو غير موجود" });
   }
   return res.sendFile(filePath);
+});
+
+// POST /api/media/migrate-legacy — admin-only migration for pre-Supabase MP4 files.
+// dryRun defaults to true so an accidental request cannot change content.
+router.post("/media/migrate-legacy", requireAdmin, async (req, res) => {
+  const storage = supabaseStorageConfig();
+  if (!storage) {
+    return res.status(503).json({
+      error: "لم يتم إعداد التخزين الدائم للفيديو. أضف إعدادات Supabase للخادم.",
+    });
+  }
+
+  const dryRun = req.body?.dryRun !== false;
+  try {
+    if (!dryRun) await ensureSupabaseBucket(storage);
+    const files = await listLegacyVideoFiles();
+    const knownFiles = new Set(files.map((file) => file.fileName));
+    let lessonRows: any;
+    let kvRows: any;
+    try {
+      [lessonRows, kvRows] = await Promise.all([
+        supabaseRest(storage, "lesson_configs?select=id,data"),
+        supabaseRest(storage, "app_kv?select=key,value"),
+      ]);
+    } catch (error: any) {
+      const filesReport: MigrationFileReport[] = files.map((file) => ({
+        fileName: file.fileName,
+        path: file.filePath,
+        size: file.size,
+        status: "failed",
+        url: storageObjectUrl(storage, `videos/admin/legacy-${file.fileName}`),
+        error: "تعذر قراءة سجلات الدروس من Supabase قبل الترحيل",
+      }));
+      return res.status(502).json({
+        dryRun,
+        bucket: storage.bucket,
+        scanned: filesReport.length,
+        migrated: 0,
+        failed: filesReport.length,
+        updatedLessonConfigs: 0,
+        updatedVideoCollections: 0,
+        files: filesReport,
+        error: error?.message || "تعذر الاتصال بقاعدة بيانات Supabase",
+        warning: "لم يتم رفع أو تعديل أي ملف. أصلح إعدادات Supabase ثم أعد تشغيل المعاينة.",
+      });
+    }
+    const lessons = Array.isArray(lessonRows) ? lessonRows : [];
+    const kv = Array.isArray(kvRows) ? kvRows : [];
+    const contentRows = [
+      ...lessons.map((row: any) => ({ source: "lesson_configs" as const, row })),
+      ...kv
+        .filter((row: any) => row?.key === "smartEdu_videos")
+        .map((row: any) => ({ source: "app_kv" as const, row })),
+    ];
+
+    const reports: MigrationFileReport[] = files.map((file) => ({
+      fileName: file.fileName,
+      path: file.filePath,
+      size: file.size,
+      status: "planned",
+      references: contentRows.reduce(
+        (total, entry) => total + countLegacyVideoUrls(entry.row?.data ?? entry.row?.value, new Set([file.fileName])),
+        0,
+      ),
+    }));
+    const replacements = new Map<string, string>();
+
+    for (const report of reports) {
+      const file = files.find((item) => item.fileName === report.fileName)!;
+      const objectPath = `videos/admin/legacy-${file.fileName}`;
+      const plannedUrl = storageObjectUrl(storage, objectPath);
+      report.url = plannedUrl;
+      if (dryRun) continue;
+      try {
+        const result = await migrateFileToSupabase(storage, file);
+        replacements.set(file.fileName, result.url);
+        report.url = result.url;
+        report.status = result.alreadyExists
+          ? "already_migrated"
+          : report.references
+            ? "migrated"
+            : "unreferenced";
+      } catch (error: any) {
+        report.status = "failed";
+        report.error = error?.message || "تعذر نقل الملف";
+      }
+    }
+
+    let updatedLessonConfigs = 0;
+    let updatedVideoCollections = 0;
+    if (!dryRun && replacements.size) {
+      for (const row of lessons) {
+        const result = replaceLegacyVideoUrls(row.data, replacements);
+        if (!result.count) continue;
+        await supabaseRest(
+          storage,
+          `lesson_configs?id=eq.${encodeURIComponent(String(row.id))}`,
+          {
+            method: "PATCH",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ data: result.value }),
+          },
+        );
+        updatedLessonConfigs += 1;
+      }
+      for (const row of kv.filter((item: any) => item?.key === "smartEdu_videos")) {
+        const result = replaceLegacyVideoUrls(row.value, replacements);
+        if (!result.count) continue;
+        await supabaseRest(
+          storage,
+          `app_kv?key=eq.${encodeURIComponent(String(row.key))}`,
+          {
+            method: "PATCH",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ value: result.value }),
+          },
+        );
+        updatedVideoCollections += 1;
+      }
+    }
+
+    const failed = reports.filter((report) => report.status === "failed");
+    return res.json({
+      dryRun,
+      bucket: storage.bucket,
+      scanned: reports.length,
+      migrated: reports.filter((report) => report.status === "migrated").length,
+      alreadyMigrated: reports.filter((report) => report.status === "already_migrated").length,
+      unreferenced: reports.filter((report) => report.status === "unreferenced").length,
+      failed: failed.length,
+      updatedLessonConfigs,
+      updatedVideoCollections,
+      files: reports,
+      warning: failed.length ? "بعض الملفات لم تُنقل؛ راجع قائمة files وأعد تشغيل الترحيل بعد معالجة السبب." : undefined,
+    });
+  } catch (error: any) {
+    logger.error({ err: error }, "[media] legacy migration failed");
+    return res.status(500).json({
+      error: error?.message || "تعذر تنفيذ ترحيل فيديوهات الدروس القديمة",
+    });
+  }
 });
 
 // POST /api/media/upload — save video to Supabase Storage (raw body)
