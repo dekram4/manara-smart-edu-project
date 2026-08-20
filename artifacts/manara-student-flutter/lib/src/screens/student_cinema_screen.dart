@@ -135,16 +135,23 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        _CinemaCarousel(videos: _videos),
+        _CinemaCarousel(
+          videos: _videos,
+          apiBaseUrl: widget.apiBaseUrl,
+        ),
       ],
     );
   }
 }
 
 class _CinemaCarousel extends StatefulWidget {
-  const _CinemaCarousel({required this.videos});
+  const _CinemaCarousel({
+    required this.videos,
+    required this.apiBaseUrl,
+  });
 
   final List<LessonVideo> videos;
+  final String apiBaseUrl;
 
   @override
   State<_CinemaCarousel> createState() => _CinemaCarouselState();

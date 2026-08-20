@@ -134,6 +134,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
         return _LessonModule(
           lessons: _lessons,
           selectedLesson: _selectedLesson,
+          apiBaseUrl: widget.apiBaseUrl,
           onLessonChanged: (lesson) => setState(() => _selectedLesson = lesson),
         );
       case StudentContentModule.games:
@@ -223,11 +224,13 @@ class _LessonModule extends StatelessWidget {
   const _LessonModule({
     required this.lessons,
     required this.selectedLesson,
+    required this.apiBaseUrl,
     required this.onLessonChanged,
   });
 
   final List<LessonContent> lessons;
   final LessonContent? selectedLesson;
+  final String apiBaseUrl;
   final ValueChanged<LessonContent> onLessonChanged;
 
   @override
@@ -292,7 +295,10 @@ class _LessonModule extends StatelessWidget {
         const SizedBox(height: 16),
         if (lesson.videos.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _VideoCarousel(videos: lesson.videos),
+            _VideoCarousel(
+              videos: lesson.videos,
+              apiBaseUrl: apiBaseUrl,
+            ),
         ],
         if (lesson.videos.isEmpty)
           const _StateCard(
@@ -306,9 +312,13 @@ class _LessonModule extends StatelessWidget {
 }
 
 class _VideoCarousel extends StatefulWidget {
-  const _VideoCarousel({required this.videos});
+  const _VideoCarousel({
+    required this.videos,
+    required this.apiBaseUrl,
+  });
 
   final List<LessonVideo> videos;
+  final String apiBaseUrl;
 
   @override
   State<_VideoCarousel> createState() => _VideoCarouselState();
@@ -1319,7 +1329,9 @@ String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
   final uri = Uri.tryParse(raw);
   if (uri == null) return raw;
   final host = uri.host.toLowerCase().replaceFirst('www.', '');
-  if (host == 'youtu.be' || host == 'youtube.com' || host == 'youtube-nocookie.com') {
+  if (host == 'youtu.be' ||
+      host.endsWith('youtube.com') ||
+      host.endsWith('youtube-nocookie.com')) {
     final id = host == 'youtu.be'
         ? (uri.pathSegments.isEmpty ? '' : uri.pathSegments.first)
         : uri.queryParameters['v'] ??
