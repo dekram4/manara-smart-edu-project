@@ -602,26 +602,33 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
                       child: InAppWebView(
-                        initialUrlRequest: video.sourceType == VideoSourceType.mp4 || isYoutube
+                        initialUrlRequest: video.sourceType == VideoSourceType.mp4
                             ? null
-                            : URLRequest(url: WebUri(url)),
+                            : URLRequest(
+                                url: WebUri(url),
+                                headers: isYoutube
+                                    ? const {
+                                        'Referer': 'https://www.youtube.com/',
+                                        'Origin': 'https://www.youtube.com',
+                                      }
+                                    : null,
+                              ),
                         initialData: video.sourceType == VideoSourceType.mp4
                             ? InAppWebViewInitialData(
                                 data: _mp4VideoHtml(url, video.title),
                                 baseUrl: _webDocumentBaseUrl(url),
                               )
-                            : isYoutube
-                                ? InAppWebViewInitialData(
-                                    data: _youtubeVideoHtml(url, video.title),
-                                    baseUrl: WebUri('https://www.youtube-nocookie.com/'),
-                                  )
-                                : null,
+                            : null,
                         initialSettings: InAppWebViewSettings(
                           javaScriptEnabled: true,
                           mediaPlaybackRequiresUserGesture: false,
                           allowsInlineMediaPlayback: true,
                           supportZoom: true,
                           transparentBackground: true,
+                          userAgent:
+                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                              'AppleWebKit/537.36 (KHTML, like Gecko) '
+                              'Chrome/124.0.0.0 Safari/537.36',
                         ),
                         onWebViewCreated: (controller) {
                           if (index == _activeIndex) _controller = controller;
@@ -724,31 +731,6 @@ String _mp4VideoHtml(String url, String title) {
       error.style.display = 'block';
     });
   </script>
-</body>
-</html>
-''';
-}
-
-String _youtubeVideoHtml(String url, String title) {
-  final safeUrl = _escapeHtmlAttribute(url);
-  final safeTitle = _escapeHtmlAttribute(title);
-  return '''
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
-    iframe { border: 0; width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <iframe
-    src="$safeUrl"
-    title="$safeTitle"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowfullscreen
-    referrerpolicy="strict-origin-when-cross-origin"></iframe>
 </body>
 </html>
 ''';
@@ -1497,9 +1479,10 @@ String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
       host.endsWith('youtube-nocookie.com')) {
     final id = _youtubeVideoId(uri, host);
     if (id.trim().isNotEmpty) {
-      return 'https://www.youtube-nocookie.com/embed/'
+      return 'https://www.youtube.com/embed/'
           '${Uri.encodeComponent(id)}'
-          '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
+          '?autoplay=1&playsinline=1&rel=0&modestbranding=1'
+          '&enablejsapi=1&origin=https%3A%2F%2Fwww.youtube.com';
     }
   }
   if (host == 'vimeo.com') {
