@@ -1,17 +1,15 @@
-import 'dart:ui' show PointerDeviceKind;
+﻿import 'dart:ui' show PointerDeviceKind;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../widgets/manara_logo.dart';
-import 'student_cinema_screen.dart';
-import 'student_content_screen.dart';
 import 'login_screen.dart';
+import 'student_content_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
@@ -63,9 +61,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       await _audioPlayer.play(
         AssetSource('audio/manara-arabic-student-welcome.mp3'),
       );
-    } catch (_) {
-      // Audio is optional; the home screen remains usable if a platform blocks it.
-    }
+    } catch (_) {}
   }
 
   @override
@@ -79,9 +75,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   Future<void> _signOut() async {
     try {
       await widget.authService.client.auth.signOut();
-    } catch (_) {
-      // Custom student records do not always create an Auth session.
-    }
+    } catch (_) {}
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
@@ -95,12 +89,30 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     );
   }
 
+  void _openModule(int index) {
+    final modules = [
+      StudentContentModule.lesson,
+      StudentContentModule.lesson,
+      StudentContentModule.games,
+      StudentContentModule.personality,
+      StudentContentModule.tutor,
+    ];
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StudentContentScreen(
+          profile: widget.profile,
+          authService: widget.authService,
+          apiBaseUrl: widget.apiBaseUrl,
+          academicContext: widget.academicContext,
+          initialModule: modules[index],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!widget.profile.isStudent) {
-      return const _StudentOnlyGuard();
-    }
-
     final size = MediaQuery.sizeOf(context);
     final carouselHeight = (size.height * 0.38).clamp(290.0, 420.0).toDouble();
 
@@ -148,7 +160,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   ],
                   const SizedBox(height: 24),
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Text(
                       'اختر بوابتك واسحب البطاقات',
                       style: TextStyle(
@@ -160,7 +172,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   ),
                   const SizedBox(height: 5),
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Text(
                       'مرّر يمينًا ويسارًا لاستكشاف رحلة التعلم',
                       style: TextStyle(
@@ -176,78 +188,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                       controller: _pageController,
                       activePage: _activePage,
                       onPageChanged: (page) => setState(() => _activePage = page),
-                      onSectionPressed: (index) {
-                        if (index > 1) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'هذه البوابة ستكون متاحة في مرحلة ترحيل قادمة.',
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                          return;
-                        }
-                        if (index == 1) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => StudentCinemaScreen(
-                                profile: widget.profile,
-                                authService: widget.authService,
-                                apiBaseUrl: widget.apiBaseUrl,
-                                academicContext: widget.academicContext,
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => StudentContentScreen(
-                              profile: widget.profile,
-                              authService: widget.authService,
-                              apiBaseUrl: widget.apiBaseUrl,
-                              academicContext: widget.academicContext,
-                              initialModule: StudentContentModule.lesson,
-                              lessonOnly: true,
-                            ),
-                          ),
-                        );
-                      },
+                      onSectionPressed: _openModule,
                     ),
                   ),
                   const SizedBox(height: 12),
                   _CarouselIndicator(
                     count: _homeSections.length,
                     activeIndex: _activePage,
-                  ),
-                  const SizedBox(height: 18),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(235),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: const Color(0xFFD7E3EF)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.verified_user_rounded, color: Color(0xFF0B8693)),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'تم التحقق من دور الحساب: طالب. هذه البوابة لا تسمح بدخول الأدوار الأخرى.',
-                              style: TextStyle(
-                                color: Color(0xFF274E76),
-                                fontWeight: FontWeight.w700,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -326,7 +273,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     title: 'سينما منارة',
     subtitle: 'فيديوهات المعلم والمشرف',
-    description: 'اسحب بين الفيديوهات وافتح المشغل بكامل الشاشة.',
+    description: 'اسحب بين الفيديوهات وشاهد الشروحات بجودة عالية.',
     icon: Icons.movie_filter_rounded,
     colors: [Color(0xFF0B5D66), Color(0xFF0B8693)],
     accent: Color(0xFF9EEBEA),
@@ -342,7 +289,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     title: 'شخصيتي',
     subtitle: 'أصنع بطلي',
-    description: 'غيّر شعرك وملابسك واحفظ شخصيتك كاملة الجسم.',
+    description: 'غيّر شعرك وملابسك واحفظ شخصيتك.',
     icon: Icons.face_retouching_natural_rounded,
     colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
     accent: Color(0xFFFFD0DF),
@@ -357,7 +304,7 @@ const _homeSections = <_HomeSection>[
   ),
 ];
 
-class _HomeSectionCarousel extends StatefulWidget {
+class _HomeSectionCarousel extends StatelessWidget {
   const _HomeSectionCarousel({
     required this.controller,
     required this.activePage,
@@ -371,86 +318,30 @@ class _HomeSectionCarousel extends StatefulWidget {
   final ValueChanged<int> onSectionPressed;
 
   @override
-  State<_HomeSectionCarousel> createState() => _HomeSectionCarouselState();
-}
-
-class _HomeSectionCarouselState extends State<_HomeSectionCarousel> {
-  final _focusNode = FocusNode(debugLabel: 'student-home-carousel');
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    final forward = event.logicalKey == LogicalKeyboardKey.arrowLeft;
-    final backward = event.logicalKey == LogicalKeyboardKey.arrowRight;
-    if (!forward && !backward) return KeyEventResult.ignored;
-
-    final target = (widget.activePage + (forward ? 1 : -1))
-        .clamp(0, _homeSections.length - 1)
-        .toInt();
-    if (target != widget.activePage && widget.controller.hasClients) {
-      widget.controller.animateToPage(
-        target,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-      );
-    }
-    return KeyEventResult.handled;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Focus(
-      focusNode: _focusNode,
-      autofocus: true,
-      onKeyEvent: _onKeyEvent,
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(
-          dragDevices: {
-            PointerDeviceKind.touch,
-            PointerDeviceKind.mouse,
-            PointerDeviceKind.trackpad,
-            PointerDeviceKind.stylus,
-          },
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: PageView.builder(
+        controller: controller,
+        itemCount: _homeSections.length,
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
         ),
-        child: PageView.builder(
-          controller: widget.controller,
-          itemCount: _homeSections.length,
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          onPageChanged: widget.onPageChanged,
-          itemBuilder: (context, index) {
-            final section = _homeSections[index];
-            return AnimatedBuilder(
-              animation: widget.controller,
-              child: _SectionCard(
-                section: section,
-                onPressed: () => widget.onSectionPressed(index),
-              ),
-              builder: (context, child) {
-                var page = widget.activePage.toDouble();
-                if (widget.controller.hasClients && widget.controller.page != null) {
-                  page = widget.controller.page!;
-                }
-                final distance = (page - index).abs().clamp(0.0, 1.0).toDouble();
-                final scale = 1.0 - (distance * 0.08);
-                final opacity = 1.0 - (distance * 0.18);
-                return Opacity(
-                  opacity: opacity,
-                  child: Transform.scale(
-                    scale: scale,
-                    child: child,
-                  ),
-                );
-              },
-            );
-          },
-        ),
+        onPageChanged: onPageChanged,
+        itemBuilder: (context, index) {
+          final section = _homeSections[index];
+          return _SectionCard(
+            section: section,
+            onPressed: () => onSectionPressed(index),
+          );
+        },
       ),
     );
   }
@@ -467,145 +358,55 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
-      padding: const EdgeInsets.all(21),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: section.colors,
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
+        padding: const EdgeInsets.all(21),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: section.colors,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: section.colors.last.withAlpha(105),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
-        border: Border.all(color: Colors.white.withAlpha(90)),
-        boxShadow: [
-          BoxShadow(
-            color: section.colors.last.withAlpha(105),
-            blurRadius: 24,
-            spreadRadius: 1,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -35,
-            left: -30,
-            child: Container(
-              width: 135,
-              height: 135,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: section.accent.withAlpha(35),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: Icon(section.icon, size: 48, color: Colors.white),
+            ),
+            const Spacer(),
+            Text(
+              section.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
               ),
             ),
-          ),
-          Positioned(
-            bottom: -45,
-            right: -25,
-            child: Container(
-              width: 155,
-              height: 155,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: section.accent.withAlpha(40), width: 20),
+            const SizedBox(height: 4),
+            Text(
+              section.subtitle,
+              style: TextStyle(
+                color: section.accent,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withAlpha(45),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: const Text(
-                      'اسحب للاستكشاف',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.touch_app_rounded,
-                    color: section.accent,
-                    size: 24,
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Container(
-                  width: 86,
-                  height: 86,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(42),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: Colors.white.withAlpha(105), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: section.accent.withAlpha(75),
-                        blurRadius: 18,
-                        spreadRadius: 3,
-                      ),
-                    ],
-                  ),
-                  child: Icon(section.icon, size: 49, color: Colors.white),
-                ),
-              ),
-              const SizedBox(height: 17),
-              Text(
-                section.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 27,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                section.subtitle,
-                style: TextStyle(
-                  color: section.accent,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                section.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  height: 1.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
-
-    return (onPressed == null ? card : GestureDetector(onTap: onPressed, child: card))
-        .animate()
-        .fadeIn(duration: 450.ms)
-        .slideX(begin: 0.12, duration: 500.ms)
-        .shimmer(
-          delay: 650.ms,
-          duration: 1500.ms,
-          color: section.accent.withAlpha(55),
-        );
   }
 }
 
@@ -648,90 +449,15 @@ class _AnimatedManaraBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          final value = animation.value;
-          final topColor = Color.lerp(
-            const Color(0xFFF3F8F9),
-            const Color(0xFFE4F8F6),
-            value,
-          )!;
-          final bottomColor = Color.lerp(
-            const Color(0xFFEAF1FA),
-            const Color(0xFFF8F2FF),
-            value,
-          )!;
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
-                      colors: [topColor, bottomColor],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: -80 + (value * 28),
-                left: -55 + (value * 65),
-                child: _GlowOrb(
-                  size: 220,
-                  color: const Color(0xFF63D9DA).withAlpha(32),
-                ),
-              ),
-              Positioned(
-                top: 300 - (value * 38),
-                right: -75 + (value * 45),
-                child: _GlowOrb(
-                  size: 245,
-                  color: const Color(0xFF8B5CF6).withAlpha(23),
-                ),
-              ),
-              Positioned(
-                bottom: -85 + (value * 40),
-                left: 80 - (value * 55),
-                child: _GlowOrb(
-                  size: 200,
-                  color: const Color(0xFFF59E0B).withAlpha(20),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({
-    required this.size,
-    required this.color,
-  });
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: size * 0.42,
-            spreadRadius: size * 0.08,
+    return const Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [Color(0xFFF3F8F9), Color(0xFFEAF1FA)],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -753,17 +479,10 @@ class _WelcomeCard extends StatelessWidget {
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x330B8693),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
       ),
       child: Row(
         children: [
-          const ManaraLogo(size: 72),
+          const ManaraLogo(size: 64),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -771,61 +490,20 @@ class _WelcomeCard extends StatelessWidget {
               children: [
                 const Text(
                   'أهلًا بك في منارة المعرفة',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
-                const SizedBox(height: 4),
                 Text(
                   profile.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 24,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                if (profile.grade != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'الصف: ${profile.grade}',
-                    style: const TextStyle(
-                      color: Color(0xFFCDF6F5),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StudentOnlyGuard extends StatelessWidget {
-  const _StudentOnlyGuard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            studentOnlyMessage,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Color(0xFF9F1239),
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
       ),
     );
   }
