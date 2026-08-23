@@ -104,7 +104,9 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: Color(0xFF0B8693)));
     }
-    if (_error != null && _activeModule == StudentContentModule.lesson) {
+    if (_error != null &&
+        (_activeModule == StudentContentModule.lesson ||
+            _activeModule == StudentContentModule.games)) {
       return _StateCard(
         icon: Icons.cloud_off_rounded,
         title: 'تعذر تحميل المحتوى',
@@ -126,10 +128,9 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           onLessonChanged: (lesson) => setState(() => _selectedLesson = lesson),
         );
       case StudentContentModule.games:
-        return const _StateCard(
-          icon: Icons.sports_esports_rounded,
-          title: 'الألعاب التعليمية',
-          message: 'قسم الألعاب التفاعلية قيد التجهيز.',
+        return _GamesModule(
+          games: _gamesFromLessons,
+          apiBaseUrl: widget.apiBaseUrl,
         );
       case StudentContentModule.personality:
         return const _StateCard(
@@ -144,6 +145,17 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           message: 'المساعد الذكي للدروس.',
         );
     }
+  }
+
+  List<HtmlGame> get _gamesFromLessons {
+    final games = <HtmlGame>[];
+    final seen = <String>{};
+    for (final lesson in _lessons) {
+      for (final game in lesson.games) {
+        if (seen.add(game.url)) games.add(game);
+      }
+    }
+    return games;
   }
 }
 
@@ -273,6 +285,269 @@ class _LessonModule extends StatelessWidget {
         else
           _VideoCarousel(videos: lesson.videos, apiBaseUrl: apiBaseUrl),
       ],
+    );
+  }
+}
+
+class _GamesModule extends StatelessWidget {
+  const _GamesModule({
+    required this.games,
+    required this.apiBaseUrl,
+  });
+
+  final List<HtmlGame> games;
+  final String apiBaseUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (games.isEmpty) {
+      return const _StateCard(
+        icon: Icons.sports_esports_rounded,
+        title: 'لا توجد ألعاب متاحة',
+        message: 'ستظهر هنا الألعاب التعليمية المرتبطة بدروس مسارك الأكاديمي.',
+      );
+    }
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: [
+        const Text(
+          'الألعاب التعليمية',
+          style: TextStyle(
+            color: Color(0xFF0E1B2A),
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+          ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
+        const SizedBox(height: 4),
+        const Text(
+          'تعلّم والعب داخل منارة المعرفة',
+          style: TextStyle(
+            color: Color(0xFF5680AC),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...games.map(
+          (game) => Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _GameCard(
+              game: game,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _GamePlayerScreen(
+                    game: game,
+                    apiBaseUrl: apiBaseUrl,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  const _GameCard({
+    required this.game,
+    required this.onPressed,
+  });
+
+  final HtmlGame game;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4B267F), Color(0xFF8B5CF6)],
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x458B5CF6),
+                blurRadius: 18,
+                offset: Offset(0, 9),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.sports_esports_rounded,
+                color: Color(0xFFE9D5FF),
+                size: 48,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      game.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      game.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: Color(0xFFE9D5FF),
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.play_circle_fill_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 350.ms).slideX(begin: 0.08);
+  }
+}
+
+class _GamePlayerScreen extends StatefulWidget {
+  const _GamePlayerScreen({
+    required this.game,
+    required this.apiBaseUrl,
+  });
+
+  final HtmlGame game;
+  final String apiBaseUrl;
+
+  @override
+  State<_GamePlayerScreen> createState() => _GamePlayerScreenState();
+}
+
+class _GamePlayerScreenState extends State<_GamePlayerScreen> {
+  InAppWebViewController? _controller;
+  String? _error;
+  bool _loading = true;
+
+  String get _url {
+    final raw = widget.game.url.trim();
+    if (!raw.startsWith('/')) return raw;
+    final base = widget.apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    return base.isEmpty ? raw : '$base$raw';
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _error = null;
+      _loading = true;
+    });
+    await _controller?.reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(_url);
+    final validUrl = uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF160C2D),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF160C2D),
+        foregroundColor: Colors.white,
+        title: Text(widget.game.title),
+      ),
+      body: !validUrl
+          ? _StateCard(
+              icon: Icons.link_off_rounded,
+              title: 'رابط اللعبة غير صالح',
+              message: 'لا يمكن فتح هذه اللعبة حاليًا.',
+            )
+          : Stack(
+              children: [
+                InAppWebView(
+                  initialUrlRequest: URLRequest(url: WebUri(_url)),
+                  initialSettings: InAppWebViewSettings(
+                    javaScriptEnabled: true,
+                    mediaPlaybackRequiresUserGesture: true,
+                    allowsInlineMediaPlayback: true,
+                    supportMultipleWindows: false,
+                    javaScriptCanOpenWindowsAutomatically: false,
+                    useShouldOverrideUrlLoading: true,
+                  ),
+                  onWebViewCreated: (controller) => _controller = controller,
+                  onLoadStart: (_, __) => setState(() {
+                    _loading = true;
+                    _error = null;
+                  }),
+                  onLoadStop: (_, __) => setState(() => _loading = false),
+                  onLoadError: (_, __, ___, description) => setState(() {
+                    _loading = false;
+                    _error = description;
+                  }),
+                  onReceivedError: (_, __, action) => setState(() {
+                    _loading = false;
+                    _error = action.description;
+                  }),
+                  shouldOverrideUrlLoading: (_, action) async {
+                    final target = action.request.url;
+                    if (target == null) return NavigationActionPolicy.CANCEL;
+                    final scheme = target.scheme.toLowerCase();
+                    return scheme == 'http' || scheme == 'https'
+                        ? NavigationActionPolicy.ALLOW
+                        : NavigationActionPolicy.CANCEL;
+                  },
+                ),
+                if (_loading)
+                  const ColoredBox(
+                    color: Color(0xFF160C2D),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFE9D5FF),
+                      ),
+                    ),
+                  ),
+                if (_error != null)
+                  ColoredBox(
+                    color: const Color(0xF2160C2D),
+                    child: Center(
+                      child: _StateCard(
+                        icon: Icons.error_outline_rounded,
+                        title: 'تعذر تشغيل اللعبة',
+                        message: _error!,
+                        actionLabel: 'إعادة المحاولة',
+                        onAction: _reload,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }
