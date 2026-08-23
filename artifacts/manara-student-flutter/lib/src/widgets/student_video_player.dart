@@ -40,6 +40,14 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   }
 
   Future<void> _openNativeVideo() async {
+    final uri = Uri.tryParse(_url);
+    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+      setState(() {
+        _error = 'يجب أن يكون رابط الفيديو رابط HTTP أو HTTPS عامًا.';
+      });
+      return;
+    }
+
     final player = Player();
     _player = player;
     _videoController = VideoController(player);
@@ -104,16 +112,17 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       widget.video,
       apiBaseUrl: widget.apiBaseUrl,
     );
+    final isYoutube = isYoutubeVideoUrl(url);
     return InAppWebView(
-      initialUrlRequest: isYoutubeVideoUrl(url)
-          ? null
-          : URLRequest(url: WebUri(url)),
-      initialData: isYoutubeVideoUrl(url)
-          ? InAppWebViewInitialData(
-              data: youtubeEmbedHtml(url, widget.video.title),
-              baseUrl: WebUri('https://www.youtube.com/'),
-            )
-          : null,
+      // Load the YouTube player URL inside this WebView instead of opening an
+      // external browser or nesting it in a document with an opaque origin.
+      // YouTube error 153 is returned when the player has no usable client
+      // identity or embed origin, so the URL and request headers below are
+      // deliberately supplied together.
+      initialUrlRequest: URLRequest(
+        url: WebUri(url),
+        headers: isYoutube ? _youtubeEmbedHeaders : null,
+      ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         mediaPlaybackRequiresUserGesture: false,
@@ -121,6 +130,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         supportZoom: !widget.compact,
         transparentBackground: true,
         userAgent: _windowsUserAgent,
+        supportMultipleWindows: false,
+        javaScriptCanOpenWindowsAutomatically: false,
       ),
       shouldOverrideUrlLoading: (controller, action) async {
         final target = action.request.url;
@@ -202,9 +213,18 @@ String resolveStudentVideoUrl(
   if (isYoutubeHost(host)) {
     final id = youtubeVideoId(uri, host);
     if (id.isNotEmpty) {
-      return 'https://www.youtube-nocookie.com/embed/'
-          '${Uri.encodeComponent(id)}'
-          '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
+        return Uri.https(
+          'www.youtube-nocookie.com',
+          '/embed/$id',
+          const {
+            'autoplay': '1',
+            'playsinline': '1',
+            'enablejsapi': '1',
+            'origin': 'https://www.youtube.com',
+            'rel': '0',
+            'modestbranding': '1',
+          },
+        ).toString();
     }
   }
   if (host == 'vimeo.com') {
@@ -251,40 +271,14 @@ String youtubeVideoId(Uri uri, String host) {
   return '';
 }
 
-String youtubeEmbedHtml(String url, String title) {
-  final safeUrl = _escapeHtmlAttribute(url);
-  final safeTitle = _escapeHtmlAttribute(title);
-  return '''
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
-    iframe { border: 0; width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <iframe
-    src="$safeUrl"
-    title="$safeTitle"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowfullscreen
-    referrerpolicy="origin"></iframe>
-</body>
-</html>
-''';
-}
-
-String _escapeHtml(String value) => value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-
-String _escapeHtmlAttribute(String value) =>
-    _escapeHtml(value).replaceAll('"', '&quot;');
-
 const _windowsUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
     'AppleWebKit/537.36 (KHTML, like Gecko) '
     'Chrome/124.0.0.0 Safari/537.36';
+
+const _youtubeEmbedHeaders = <String, String>{
+  'Origin': 'https://www.youtube.com',
+  'Referer': 'https://www.youtube.com/',
+  'Accept-Language': 'ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7',
+  'User-Agent': _windowsUserAgent,
+};

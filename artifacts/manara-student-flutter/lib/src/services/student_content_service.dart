@@ -36,7 +36,13 @@ class StudentContentService {
         .limit(500);
     final lessons = response
         .whereType<Map>()
-        .map((row) => parseLessonContent(row, baseUrl: baseUrl))
+        .map(
+          (row) => parseLessonContent(
+            row,
+            baseUrl: baseUrl,
+            storageClient: client,
+          ),
+        )
         .where((lesson) => _matchesOwner(lesson, profile))
         .toList();
 
@@ -78,7 +84,13 @@ class StudentContentService {
 
     final lessons = response
         .whereType<Map>()
-        .map((row) => parseLessonContent(row, baseUrl: baseUrl))
+        .map(
+          (row) => parseLessonContent(
+            row,
+            baseUrl: baseUrl,
+            storageClient: client,
+          ),
+        )
         .where(
           (lesson) => _matchesStudentPath(
             lesson,
@@ -108,7 +120,11 @@ class StudentContentService {
       final data = _asMap(rawVideo);
       if (!_matchesCinemaScope(data, profile, academicContext)) continue;
 
-      final url = _resolveUrl(_text(data['url']), baseUrl);
+      final url = _resolveVideoUrl(
+        _text(data['url']),
+        baseUrl: baseUrl,
+        storageClient: client,
+      );
       if (!_isSafeUrl(url)) continue;
       final id = _text(data['id']).isEmpty ? url : _text(data['id']);
       final key = '$id|$url';
@@ -362,6 +378,7 @@ String _value(Map<String, dynamic> data, List<String> keys) {
 LessonContent parseLessonContent(
   Map row, {
   String baseUrl = '',
+  SupabaseClient? storageClient,
 }) {
   final data = _asMap(row['data']);
   final videos = <LessonVideo>[];
@@ -370,7 +387,11 @@ LessonContent parseLessonContent(
   if (rawVideos is List) {
     for (var index = 0; index < rawVideos.length; index++) {
       final item = _asMap(rawVideos[index]);
-      final url = _resolveUrl(_text(item['url']), baseUrl);
+      final url = _resolveVideoUrl(
+        _text(item['url']),
+        baseUrl: baseUrl,
+        storageClient: storageClient,
+      );
       if (!_isSafeUrl(url)) continue;
       videos.add(
         LessonVideo(
@@ -384,7 +405,11 @@ LessonContent parseLessonContent(
     }
   }
 
-  final legacyUrl = _resolveUrl(_text(data['explanationVideoUrl']), baseUrl);
+  final legacyUrl = _resolveVideoUrl(
+    _text(data['explanationVideoUrl']),
+    baseUrl: baseUrl,
+    storageClient: storageClient,
+  );
   if (_isSafeUrl(legacyUrl) && !videos.any((video) => video.url == legacyUrl)) {
     videos.insert(
       0,
@@ -500,6 +525,59 @@ String _resolveUrl(String value, String baseUrl) {
   if (!raw.startsWith('/') || baseUrl.trim().isEmpty) return raw;
   final base = Uri.tryParse(baseUrl.trim());
   return base == null ? raw : base.resolve(raw).toString();
+}
+
+String _resolveVideoUrl(
+  String value, {
+  required String baseUrl,
+  SupabaseClient? storageClient,
+}) {
+  final raw = _canonicalLocalVideoPath(value.trim());
+  final storagePath = _lessonVideoStoragePath(raw);
+  if (storagePath != null && storageClient != null) {
+    return storageClient.storage
+        .from('lesson-videos')
+        .getPublicUrl(storagePath);
+  }
+  return _resolveUrl(raw, baseUrl);
+}
+
+String? _lessonVideoStoragePath(String raw) {
+  if (raw.isEmpty) return null;
+
+  final uri = Uri.tryParse(raw);
+  if (uri != null && uri.hasScheme) return null;
+
+  var path = raw.split(RegExp(r'[?#]')).first.replaceAll('\\', '/');
+  if (path.isEmpty ||
+      path.startsWith('/api/') ||
+      path.startsWith('/uploads/')) {
+    return null;
+  }
+
+  final bucketMatch = RegExp(
+    r'^/?(?:(?:storage/v1/)?object/public/)?lesson-videos/(.+)$',
+  ).firstMatch(path);
+  if (bucketMatch != null) {
+    path = bucketMatch.group(1)!;
+  } else {
+    // A leading slash without the bucket name is treated as an API path,
+    // except for a recognizable video object key saved by older admin forms.
+    if (path.startsWith('/')) {
+      final candidate = path.substring(1);
+      if (!RegExp(r'\.(mp4|m4v|mov|webm|m3u8)$', caseSensitive: false)
+          .hasMatch(candidate)) {
+        return null;
+      }
+      path = candidate;
+    }
+  }
+
+  try {
+    return Uri.decodeComponent(path);
+  } on FormatException {
+    return path;
+  }
 }
 
 String _canonicalLocalVideoPath(String value) {
