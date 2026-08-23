@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/academic_context.dart';
@@ -102,6 +105,38 @@ class StudentContentService {
 
     lessons.sort((a, b) => a.id.compareTo(b.id));
     return lessons;
+  }
+
+  Future<List<HtmlGame>> fetchGameCatalog() async {
+    final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isEmpty) return const [];
+
+    final response = await http.get(Uri.parse('$base/api/game-catalog'));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('تعذر تحميل قائمة الألعاب من الخادم.');
+    }
+
+    final decoded = jsonDecode(response.body);
+    final rawGames = decoded is Map ? decoded['games'] : decoded;
+    if (rawGames is! List) return const [];
+
+    final games = <HtmlGame>[];
+    for (var index = 0; index < rawGames.length; index++) {
+      final map = _asMap(rawGames[index]);
+      final url = _resolveUrl(_text(map['url']), base);
+      if (!_isSafeUrl(url)) continue;
+      games.add(
+        HtmlGame(
+          id: _text(map['id']).isEmpty ? 'api-game-$index' : _text(map['id']),
+          url: url,
+          title: _text(map['title']).isEmpty ? 'لعبة تعليمية' : _text(map['title']),
+          subtitle: _text(map['subtitle']).isEmpty
+              ? 'لعبة تفاعلية داخل منارة'
+              : _text(map['subtitle']),
+        ),
+      );
+    }
+    return games;
   }
 
   Future<List<LessonVideo>> fetchCinemaVideos(

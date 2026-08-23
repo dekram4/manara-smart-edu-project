@@ -37,6 +37,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
   late final StudentContentService _contentService;
   late StudentContentModule _activeModule;
   List<LessonContent> _lessons = const [];
+  List<HtmlGame> _apiGames = const [];
   LessonContent? _selectedLesson;
   bool _loading = true;
   String? _error;
@@ -58,9 +59,17 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
         widget.profile,
         academicContext: widget.academicContext,
       );
+      List<HtmlGame> apiGames = const [];
+      try {
+        apiGames = await _contentService.fetchGameCatalog();
+      } catch (_) {
+        // Supabase lesson games remain available if the optional API catalog
+        // is unavailable.
+      }
       if (!mounted) return;
       setState(() {
         _lessons = lessons;
+        _apiGames = apiGames;
         _selectedLesson = lessons.isEmpty ? null : lessons.first;
         _loading = false;
         _error = null;
@@ -154,6 +163,9 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
       for (final game in lesson.games) {
         if (seen.add(game.url)) games.add(game);
       }
+    }
+    for (final game in _apiGames) {
+      if (seen.add(game.url)) games.add(game);
     }
     return games;
   }

@@ -25,6 +25,25 @@ const disabledAdSdk = `
   })();
 `;
 
+router.get("/game-catalog", (_req, res) => {
+  res.json({
+    games: [
+      {
+        id: "d4a3629101574bc39bd8f9d1888ca58e",
+        title: "مغامرة التعلم",
+        subtitle: "لعبة تعليمية تفاعلية داخل منارة",
+        url: "/api/game-embed/d4a3629101574bc39bd8f9d1888ca58e/index.html",
+      },
+      {
+        id: "172e0bd0c40442dbae3d4adb42a98433",
+        title: "تحدي المعرفة",
+        subtitle: "اختبر مهاراتك بطريقة ممتعة",
+        url: "/api/game-embed/172e0bd0c40442dbae3d4adb42a98433/index.html",
+      },
+    ],
+  });
+});
+
 function rewriteGameScript(gameId: string, source: string): string {
   let rewritten = source.replaceAll(
     "https://html5.api.gamedistribution.com/main.min.js",
