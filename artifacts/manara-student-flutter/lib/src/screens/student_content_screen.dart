@@ -450,9 +450,17 @@ class _GamePlayerScreen extends StatefulWidget {
 }
 
 class _GamePlayerScreenState extends State<_GamePlayerScreen> {
-  InAppWebViewController? _controller;
+  late final String _viewId;
+  html.IFrameElement? _frame;
   String? _error;
   bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _viewId = 'manara-game-${widget.game.id}-${identityHashCode(this)}';
+    _registerGameFrame();
+  }
 
   String get _url {
     final raw = widget.game.url.trim();
@@ -461,12 +469,52 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     return base.isEmpty ? raw : '$base$raw';
   }
 
-  Future<void> _reload() async {
+  bool get _isRelativeApiGame =>
+      RegExp(r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)')
+          .hasMatch(_url);
+
+  void _registerGameFrame() {
+    ui_web.platformViewRegistry.registerViewFactory(_viewId, (int _) {
+      final frame = html.IFrameElement()
+        ..src = _url
+        ..style.border = '0'
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..allow =
+            'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write'
+        ..allowFullscreen = true;
+      frame.onLoad.listen((_) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = null;
+        });
+      });
+      frame.onError.listen((_) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'تعذر تحميل محتوى اللعبة من المصدر.';
+        });
+      });
+      _frame = frame;
+      return frame;
+    });
+  }
+
+  void _reload() {
     setState(() {
       _error = null;
       _loading = true;
     });
-    await _controller?.reload();
+    final uri = Uri.tryParse(_url);
+    if (uri == null) return;
+    _frame?.src = uri.replace(
+      queryParameters: {
+        ...uri.queryParameters,
+        '_reload': DateTime.now().millisecondsSinceEpoch.toString(),
+      },
+    ).toString();
   }
 
   @override
@@ -474,7 +522,7 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     final uri = Uri.tryParse(_url);
     final validUrl = uri != null &&
         (uri.scheme == 'http' || uri.scheme == 'https') &&
-        uri.host.isNotEmpty;
+        uri.host.isNotEmpty || _isRelativeApiGame;
 
     return Scaffold(
       backgroundColor: const Color(0xFF160C2D),
@@ -482,6 +530,13 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
         backgroundColor: const Color(0xFF160C2D),
         foregroundColor: Colors.white,
         title: Text(widget.game.title),
+        actions: [
+          IconButton(
+            onPressed: validUrl ? _reload : null,
+            tooltip: 'إعادة تحميل اللعبة',
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
       body: !validUrl
           ? _StateCard(
@@ -491,38 +546,8 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
             )
           : Stack(
               children: [
-                InAppWebView(
-                  initialUrlRequest: URLRequest(url: WebUri(_url)),
-                  initialSettings: InAppWebViewSettings(
-                    javaScriptEnabled: true,
-                    mediaPlaybackRequiresUserGesture: true,
-                    allowsInlineMediaPlayback: true,
-                    supportMultipleWindows: false,
-                    javaScriptCanOpenWindowsAutomatically: false,
-                    useShouldOverrideUrlLoading: true,
-                  ),
-                  onWebViewCreated: (controller) => _controller = controller,
-                  onLoadStart: (_, __) => setState(() {
-                    _loading = true;
-                    _error = null;
-                  }),
-                  onLoadStop: (_, __) => setState(() => _loading = false),
-                  onLoadError: (_, __, ___, description) => setState(() {
-                    _loading = false;
-                    _error = description;
-                  }),
-                  onReceivedError: (_, __, action) => setState(() {
-                    _loading = false;
-                    _error = action.description;
-                  }),
-                  shouldOverrideUrlLoading: (_, action) async {
-                    final target = action.request.url;
-                    if (target == null) return NavigationActionPolicy.CANCEL;
-                    final scheme = target.scheme.toLowerCase();
-                    return scheme == 'http' || scheme == 'https'
-                        ? NavigationActionPolicy.ALLOW
-                        : NavigationActionPolicy.CANCEL;
-                  },
+                Positioned.fill(
+                  child: HtmlElementView(viewType: _viewId),
                 ),
                 if (_loading)
                   const ColoredBox(

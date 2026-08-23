@@ -516,6 +516,11 @@ bool _isSafeUrl(String value) {
   if (RegExp(r'^/api/media/videos/[a-z0-9-]+\.mp4$').hasMatch(raw)) {
     return true;
   }
+  if (RegExp(
+    r'^/api/game-embed/[a-z0-9-]+/index\.html(?:[?#]|$)',
+  ).hasMatch(raw)) {
+    return true;
+  }
   final uri = Uri.tryParse(value.trim());
   return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
 }
