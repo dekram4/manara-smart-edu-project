@@ -9,6 +9,7 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import 'student_content_screen.dart';
+import '../widgets/student_video_player.dart';
 
 class StudentCinemaScreen extends StatefulWidget {
   const StudentCinemaScreen({
@@ -174,7 +175,7 @@ class _CinemaCarouselState extends State<_CinemaCarousel> {
     return Column(
       children: [
         SizedBox(
-          height: 330,
+          height: 470,
           child: ScrollConfiguration(
             behavior: ScrollConfiguration.of(context).copyWith(
               dragDevices: const {
@@ -197,6 +198,7 @@ class _CinemaCarouselState extends State<_CinemaCarousel> {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   child: _CinemaVideoCard(
                     video: video,
+                    apiBaseUrl: widget.apiBaseUrl,
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => VideoViewerScreen(
@@ -240,39 +242,38 @@ class _CinemaCarouselState extends State<_CinemaCarousel> {
 class _CinemaVideoCard extends StatelessWidget {
   const _CinemaVideoCard({
     required this.video,
+    required this.apiBaseUrl,
     required this.onPressed,
   });
 
   final LessonVideo video;
   final VoidCallback onPressed;
+  final String apiBaseUrl;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(30),
-        child: Ink(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF9F1239), Color(0xFFE11D48), Color(0xFFF97316)],
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x559F1239),
-                blurRadius: 24,
-                offset: Offset(0, 14),
-              ),
-            ],
+      child: Ink(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF9F1239), Color(0xFFE11D48), Color(0xFFF97316)],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x559F1239),
+              blurRadius: 24,
+              offset: Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -298,11 +299,23 @@ class _CinemaVideoCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const Spacer(),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 190,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: StudentVideoPlayer(
+                    video: video,
+                    apiBaseUrl: apiBaseUrl,
+                    compact: true,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
               Text(
                 video.title,
                 textAlign: TextAlign.right,
-                maxLines: 3,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
@@ -315,7 +328,7 @@ class _CinemaVideoCard extends StatelessWidget {
               Text(
                 video.description ?? 'فيديو تعليمي من مسارك الأكاديمي',
                 textAlign: TextAlign.right,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFFFFE4E6),
@@ -334,8 +347,7 @@ class _CinemaVideoCard extends StatelessWidget {
                   textStyle: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);

@@ -5,14 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
+import '../widgets/student_video_player.dart';
 
 enum StudentContentModule { lesson, games, personality, tutor }
 
@@ -527,7 +526,6 @@ class VideoViewerScreen extends StatefulWidget {
 
 class _VideoViewerScreenState extends State<VideoViewerScreen> {
   late final PageController _pageController;
-  InAppWebViewController? _controller;
   late final List<LessonVideo> _videos;
   late int _activeIndex;
 
@@ -559,15 +557,6 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
           tooltip: 'إغلاق المشغل',
           icon: const Icon(Icons.close_rounded),
         ),
-        actions: [
-          IconButton(
-            onPressed: () => _controller?.evaluateJavascript(
-              source: 'document.documentElement.requestFullscreen?.();',
-            ),
-            tooltip: 'تكبير',
-            icon: const Icon(Icons.fullscreen_rounded),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -588,52 +577,26 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                 onPageChanged: (index) {
                   setState(() {
                     _activeIndex = index;
-                    _controller = null;
                   });
                 },
                 itemBuilder: (context, index) {
                   final video = _videos[index];
-                  final url = _videoUrl(video, apiBaseUrl: widget.apiBaseUrl);
-                  final isYoutube = _isYoutubeUrl(url);
+                  final url = resolveStudentVideoUrl(
+                    video,
+                    apiBaseUrl: widget.apiBaseUrl,
+                  );
                   final needsApiBaseUrl =
-                      video.sourceType == VideoSourceType.mp4 && url.startsWith('/');
+                      isDirectVideoUrl(url, video) && url.startsWith('/');
                   if (needsApiBaseUrl) {
                     return const _VideoConfigurationMessage();
-                  }
-                  if (video.sourceType == VideoSourceType.mp4) {
-                    return _NativeMp4Player(
-                      key: ValueKey(url),
-                      url: url,
-                      title: video.title,
-                    );
                   }
                   return Center(
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
-                      child: InAppWebView(
-                        initialUrlRequest: isYoutube
-                            ? null
-                            : URLRequest(url: WebUri(url)),
-                        initialData: isYoutube
-                            ? InAppWebViewInitialData(
-                                data: _youtubeEmbedHtml(url, video.title),
-                                baseUrl: WebUri('https://www.youtube.com/'),
-                              )
-                            : null,
-                        initialSettings: InAppWebViewSettings(
-                          javaScriptEnabled: true,
-                          mediaPlaybackRequiresUserGesture: false,
-                          allowsInlineMediaPlayback: true,
-                          supportZoom: true,
-                          transparentBackground: true,
-                          userAgent:
-                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                              'AppleWebKit/537.36 (KHTML, like Gecko) '
-                              'Chrome/124.0.0.0 Safari/537.36',
-                        ),
-                        onWebViewCreated: (controller) {
-                          if (index == _activeIndex) _controller = controller;
-                        },
+                      child: StudentVideoPlayer(
+                        key: ValueKey(url),
+                        video: video,
+                        apiBaseUrl: widget.apiBaseUrl,
                       ),
                     ),
                   );
@@ -693,139 +656,6 @@ class _VideoConfigurationMessage extends StatelessWidget {
     );
   }
 }
-
-class _NativeMp4Player extends StatefulWidget {
-  const _NativeMp4Player({
-    required this.url,
-    required this.title,
-    super.key,
-  });
-
-  final String url;
-  final String title;
-
-  @override
-  State<_NativeMp4Player> createState() => _NativeMp4PlayerState();
-}
-
-class _NativeMp4PlayerState extends State<_NativeMp4Player> {
-  late final Player _player;
-  late final VideoController _controller;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _player = Player();
-    _controller = VideoController(_player);
-    _player.stream.error.listen((error) {
-      if (!mounted) return;
-      setState(() => _error = error);
-    });
-    _player.open(Media(widget.url));
-  }
-
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Video(
-          controller: _controller,
-          fill: Colors.black,
-        ),
-        if (_error != null)
-          _NativeVideoError(
-            title: 'تعذر تشغيل ملف MP4',
-            message:
-                'تعذر الوصول إلى الفيديو أو قراءته. تحقق من الاتصال ثم أعد فتح الفيديو.',
-          ),
-      ],
-    );
-  }
-}
-
-class _NativeVideoError extends StatelessWidget {
-  const _NativeVideoError({
-    required this.title,
-    required this.message,
-  });
-
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0xED071425),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline_rounded, color: Color(0xFF5EEAD4), size: 52),
-              const SizedBox(height: 14),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFBFEFED), height: 1.5),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _youtubeEmbedHtml(String url, String title) {
-  final safeUrl = _escapeHtmlAttribute(url);
-  final safeTitle = _escapeHtmlAttribute(title);
-  return '''
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
-    iframe { border: 0; width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <iframe
-    src="$safeUrl"
-    title="$safeTitle"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowfullscreen
-    referrerpolicy="origin"></iframe>
-</body>
-</html>
-''';
-}
-
-String _escapeHtml(String value) => value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-
-String _escapeHtmlAttribute(String value) => _escapeHtml(value).replaceAll('"', '&quot;');
 
 class _GamesModule extends StatefulWidget {
   const _GamesModule({required this.lesson});
@@ -1546,55 +1376,4 @@ Color _hexColor(String value) {
   final normalized = value.replaceFirst('#', '');
   final parsed = int.tryParse(normalized, radix: 16);
   return parsed == null ? const Color(0xFFEDB891) : Color(0xFF000000 | parsed);
-}
-
-String _videoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
-  var raw = video.url.trim();
-  if (raw.startsWith('/')) {
-    final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
-    final isLocalBase = base.toLowerCase().contains('localhost') ||
-        base.contains('127.0.0.1');
-    if (base.isNotEmpty && !isLocalBase) raw = '$base$raw';
-  }
-  if (video.sourceType == VideoSourceType.mp4) return raw;
-  final uri = Uri.tryParse(raw);
-  if (uri == null) return raw;
-  final host = uri.host.toLowerCase().replaceFirst('www.', '');
-  if (host == 'youtu.be' ||
-      host.endsWith('youtube.com') ||
-      host.endsWith('youtube-nocookie.com')) {
-    final id = _youtubeVideoId(uri, host);
-    if (id.trim().isNotEmpty) {
-      return 'https://www.youtube.com/embed/'
-          '${Uri.encodeComponent(id)}'
-          '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
-    }
-  }
-  if (host == 'vimeo.com') {
-    final id = uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
-    return 'https://player.vimeo.com/video/$id?autoplay=1';
-  }
-  return raw;
-}
-
-String _youtubeVideoId(Uri uri, String host) {
-  if (host == 'youtu.be') {
-    return uri.pathSegments.isEmpty ? '' : uri.pathSegments.first;
-  }
-  final queryId = uri.queryParameters['v'];
-  if (queryId != null && queryId.trim().isNotEmpty) return queryId;
-  if (uri.pathSegments.length >= 2 &&
-      const {'embed', 'shorts', 'live'}.contains(uri.pathSegments.first)) {
-    return uri.pathSegments[1];
-  }
-  return '';
-}
-
-bool _isYoutubeUrl(String value) {
-  final uri = Uri.tryParse(value);
-  if (uri == null) return false;
-  final host = uri.host.toLowerCase().replaceFirst('www.', '');
-  return host == 'youtube.com' ||
-      host == 'youtube-nocookie.com' ||
-      host == 'youtu.be';
 }

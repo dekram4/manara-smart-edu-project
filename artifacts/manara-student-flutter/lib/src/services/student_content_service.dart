@@ -459,7 +459,11 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
 }
 
 VideoSourceType _videoType(Object? value, String url) {
-  if (value?.toString().toLowerCase() == 'mp4' || url.toLowerCase().contains('.mp4')) {
+  final normalizedUrl = url.toLowerCase();
+  final isDirectVideo = RegExp(r'\.(mp4|m4v|mov|webm|m3u8)(?:$|[?#])')
+          .hasMatch(normalizedUrl) ||
+      normalizedUrl.contains('/storage/v1/object/public/');
+  if (value?.toString().toLowerCase() == 'mp4' || isDirectVideo) {
     return VideoSourceType.mp4;
   }
   return VideoSourceType.embed;
