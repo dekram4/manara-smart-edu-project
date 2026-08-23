@@ -54,33 +54,46 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
   }
 
   Future<void> _loadContent() async {
+    List<LessonContent> lessons = const [];
+    String? lessonError;
     try {
-      final lessons = await _contentService.fetchLessons(
+      lessons = await _contentService.fetchLessons(
         widget.profile,
         academicContext: widget.academicContext,
       );
-      List<HtmlGame> apiGames = const [];
-      try {
-        apiGames = await _contentService.fetchGameCatalog();
-      } catch (_) {
-        // Supabase lesson games remain available if the optional API catalog
-        // is unavailable.
-      }
-      if (!mounted) return;
-      setState(() {
-        _lessons = lessons;
-        _apiGames = apiGames;
-        _selectedLesson = lessons.isEmpty ? null : lessons.first;
-        _loading = false;
-        _error = null;
-      });
     } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = 'تعذر تحميل المحتوى: $error';
-      });
+      lessonError = 'تعذر تحميل الدروس: $error';
     }
+
+    List<HtmlGame> apiGames = const [];
+    try {
+      // The API catalog is intentionally independent from lesson_configs so
+      // the games portal still works when the lesson query is unavailable.
+      apiGames = await _contentService.fetchGameCatalog();
+    } catch (_) {
+      // Supabase lesson games remain available if the optional API catalog
+      // is unavailable.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _lessons = lessons;
+      _apiGames = apiGames;
+      _selectedLesson = lessons.isEmpty ? null : lessons.first;
+      _loading = false;
+      _error = lessonError;
+    });
+  }
+
+  Future<void> _retryContent() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    await _loadContent();
+  }
+
+  bool get _hasGameContent {
+    if (_apiGames.isNotEmpty) return true;
+    return _lessons.any((lesson) => lesson.games.isNotEmpty);
   }
 
   @override
@@ -115,16 +128,14 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
     }
     if (_error != null &&
         (_activeModule == StudentContentModule.lesson ||
-            _activeModule == StudentContentModule.games)) {
+            (_activeModule == StudentContentModule.games &&
+                !_hasGameContent))) {
       return _StateCard(
         icon: Icons.cloud_off_rounded,
         title: 'تعذر تحميل المحتوى',
         message: _error!,
         actionLabel: 'إعادة المحاولة',
-        onAction: () {
-          setState(() => _loading = true);
-          _loadContent();
-        },
+        onAction: _retryContent,
       );
     }
 
