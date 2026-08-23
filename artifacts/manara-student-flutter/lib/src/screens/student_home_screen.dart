@@ -9,6 +9,7 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../widgets/manara_logo.dart';
 import 'login_screen.dart';
+import 'student_cinema_screen.dart';
 import 'student_content_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
@@ -92,11 +93,24 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   void _openModule(int index) {
     final modules = [
       StudentContentModule.lesson,
-      StudentContentModule.lesson,
       StudentContentModule.games,
       StudentContentModule.personality,
       StudentContentModule.tutor,
     ];
+
+    if (index == 1) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StudentCinemaScreen(
+            profile: widget.profile,
+            authService: widget.authService,
+            apiBaseUrl: widget.apiBaseUrl,
+            academicContext: widget.academicContext,
+          ),
+        ),
+      );
+      return;
+    }
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -105,7 +119,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           authService: widget.authService,
           apiBaseUrl: widget.apiBaseUrl,
           academicContext: widget.academicContext,
-          initialModule: modules[index],
+          initialModule: modules[index - 1],
         ),
       ),
     );

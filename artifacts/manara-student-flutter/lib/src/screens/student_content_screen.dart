@@ -150,7 +150,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
 String _moduleTitle(StudentContentModule module) {
   switch (module) {
     case StudentContentModule.lesson:
-      return 'شرح الدرس وسينما منارة';
+      return 'شرح الدرس';
     case StudentContentModule.games:
       return 'الترفيه والألعاب';
     case StudentContentModule.personality:
@@ -234,7 +234,7 @@ class _LessonModule extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
         Text(
-          'سينما منارة',
+          'فيديو شرح الدرس',
           style: const TextStyle(color: Color(0xFF0E1B2A), fontSize: 24, fontWeight: FontWeight.w900),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
         const SizedBox(height: 4),

@@ -1,60 +1,92 @@
-﻿import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../models/student_content.dart';
+import 'package:flutter/material.dart';
 
-class StudentCinemaScreen extends StatelessWidget {
+import '../models/academic_context.dart';
+import '../models/student_content.dart';
+import '../models/student_profile.dart';
+import '../services/student_auth_service.dart';
+import '../services/student_content_service.dart';
+import '../widgets/student_video_player.dart';
+
+class StudentCinemaScreen extends StatefulWidget {
   const StudentCinemaScreen({
-    required this.videos,
+    required this.profile,
+    required this.authService,
+    this.academicContext,
     this.apiBaseUrl = '',
     super.key,
   });
 
-  final List<LessonVideo> videos;
+  final StudentProfile profile;
+  final StudentAuthService authService;
+  final AcademicContext? academicContext;
   final String apiBaseUrl;
 
-  Future<void> _openVideo(BuildContext context, LessonVideo video) async {
-    var raw = video.url.trim();
+  @override
+  State<StudentCinemaScreen> createState() => _StudentCinemaScreenState();
+}
 
-    if (raw.startsWith('/')) {
-      final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
-      if (base.isNotEmpty) {
-        raw = '$base$raw';
-      } else {
-        raw = 'https://manara-smart-edu-new.replit.app$raw';
-      }
-    }
+class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
+  late final StudentContentService _contentService;
+  final _pageController = PageController(viewportFraction: 0.9);
+  List<LessonVideo> _videos = const [];
+  int _activeIndex = 0;
+  bool _loading = true;
+  String? _error;
 
-    if (raw.contains('/embed/')) {
-      final parts = raw.split('/embed/');
-      if (parts.length > 1) {
-        final id = parts[1].split('?').first.split('&').first;
-        raw = 'https://www.youtube.com/watch?v=$id';
-      }
-    }
+  @override
+  void initState() {
+    super.initState();
+    _contentService = StudentContentService(
+      widget.authService.client,
+      baseUrl: widget.apiBaseUrl,
+    );
+    _loadVideos();
+  }
 
-    final uri = Uri.tryParse(raw);
-    if (uri != null) {
-      try {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } catch (_) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تعذر تشغيل الفيديو: $raw')),
-          );
-        }
-      }
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadVideos() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final videos = await _contentService.fetchCinemaVideos(
+        widget.profile,
+        academicContext: widget.academicContext,
+      );
+      if (!mounted) return;
+      setState(() {
+        _videos = videos;
+        _activeIndex = 0;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'تعذر تحميل فيديوهات السينما: $error';
+      });
     }
+  }
+
+  void _openVideo(LessonVideo video) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _CinemaPlayerScreen(
+          video: video,
+          apiBaseUrl: widget.apiBaseUrl,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (videos.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('سينما منارة')),
-        body: const Center(child: Text('لا توجد مقاطع سينما متاحة حالياً.')),
-      );
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFF071425),
       appBar: AppBar(
@@ -62,31 +94,337 @@ class StudentCinemaScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         title: const Text('سينما منارة'),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: videos.length,
-        itemBuilder: (context, index) {
-          final video = videos[index];
-          return Card(
-            color: const Color(0xFF132337),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: const Icon(Icons.play_circle_fill_rounded, color: Color(0xFF0B8693), size: 40),
-              title: Text(
-                video.title,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
+      );
+    }
+    if (_error != null) {
+      return _CinemaStateCard(
+        icon: Icons.cloud_off_rounded,
+        title: 'تعذر تحميل السينما',
+        message: _error!,
+        actionLabel: 'إعادة المحاولة',
+        onAction: _loadVideos,
+      );
+    }
+    if (_videos.isEmpty) {
+      return const _CinemaStateCard(
+        icon: Icons.movie_filter_outlined,
+        title: 'لا توجد فيديوهات متاحة',
+        message: 'ستظهر هنا فيديوهات المعلم والمشرف المطابقة لمسارك الأكاديمي.',
+      );
+    }
+
+    final activeVideo = _videos[_activeIndex];
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+      children: [
+        const Text(
+          'شاهد وتعلّم',
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 5),
+        const Text(
+          'فيديوهات آمنة ومطابقة لمسارك الأكاديمي',
+          textAlign: TextAlign.right,
+          style: TextStyle(color: Color(0xFFB3C8DE), fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          height: 310,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: _videos.length,
+            onPageChanged: (index) => setState(() => _activeIndex = index),
+            itemBuilder: (context, index) {
+              final video = _videos[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: _CinemaVideoCard(
+                  video: video,
+                  onPressed: () => _openVideo(video),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            _videos.length,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: index == _activeIndex ? 28 : 8,
+              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: index == _activeIndex
+                    ? const Color(0xFF5EEAD4)
+                    : const Color(0xFF49617C),
+                borderRadius: BorderRadius.circular(20),
               ),
-              subtitle: Text(
-                video.description ?? 'اضغط للمشاهدة بأعلى جودة',
-                style: const TextStyle(color: Color(0xFFB3C8DE)),
-              ),
-              trailing: const Icon(Icons.open_in_new_rounded, color: Colors.white70),
-              onTap: () => _openVideo(context, video),
             ),
-          );
-        },
+          ),
+        ),
+        const SizedBox(height: 20),
+        _CinemaDetails(video: activeVideo, onPressed: () => _openVideo(activeVideo)),
+      ],
+    );
+  }
+}
+
+class _CinemaVideoCard extends StatelessWidget {
+  const _CinemaVideoCard({required this.video, required this.onPressed});
+
+  final LessonVideo video;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF132337),
+      borderRadius: BorderRadius.circular(26),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(26),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Icon(
+                    Icons.movie_filter_rounded,
+                    color: Color(0xFF5EEAD4),
+                    size: 46,
+                  ),
+                  _VideoTypeBadge(sourceType: video.sourceType),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                video.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                video.description ?? 'اضغط للمشاهدة داخل التطبيق',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: Color(0xFFB3C8DE),
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onPressed,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('شاهد الآن'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF5EEAD4),
+                  foregroundColor: const Color(0xFF071425),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CinemaDetails extends StatelessWidget {
+  const _CinemaDetails({required this.video, required this.onPressed});
+
+  final LessonVideo video;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF132337),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF274E76)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              video.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          IconButton(
+            onPressed: onPressed,
+            tooltip: 'فتح المشغل',
+            icon: const Icon(
+              Icons.fullscreen_rounded,
+              color: Color(0xFF5EEAD4),
+              size: 30,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoTypeBadge extends StatelessWidget {
+  const _VideoTypeBadge({required this.sourceType});
+
+  final VideoSourceType sourceType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(55),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        sourceType == VideoSourceType.mp4 ? 'MP4' : 'يوتيوب',
+        style: const TextStyle(
+          color: Color(0xFFBFFBFA),
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _CinemaPlayerScreen extends StatelessWidget {
+  const _CinemaPlayerScreen({
+    required this.video,
+    required this.apiBaseUrl,
+  });
+
+  final LessonVideo video;
+  final String apiBaseUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF071425),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF071425),
+        foregroundColor: Colors.white,
+        title: Text(video.title),
+      ),
+      body: Center(
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: StudentVideoPlayer(
+            video: video,
+            apiBaseUrl: apiBaseUrl,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CinemaStateCard extends StatelessWidget {
+  const _CinemaStateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF132337),
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: const Color(0xFF5EEAD4), size: 54),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFB3C8DE),
+                  height: 1.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (onAction != null) ...[
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: onAction,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: Text(actionLabel ?? 'إعادة المحاولة'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF5EEAD4),
+                    side: const BorderSide(color: Color(0xFF5EEAD4)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
