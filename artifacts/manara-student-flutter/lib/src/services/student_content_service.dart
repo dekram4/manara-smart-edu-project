@@ -109,11 +109,11 @@ class StudentContentService {
 
   Future<List<HtmlGame>> fetchGameCatalog() async {
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
-    if (base.isEmpty) return const [];
+    if (base.isEmpty) return _embeddedGameCatalog('');
 
     final response = await http.get(Uri.parse('$base/api/game-catalog'));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('تعذر تحميل قائمة الألعاب من الخادم.');
+      return _embeddedGameCatalog(base);
     }
 
     final decoded = jsonDecode(response.body);
@@ -136,7 +136,7 @@ class StudentContentService {
         ),
       );
     }
-    return games;
+    return games.isEmpty ? _embeddedGameCatalog(base) : games;
   }
 
   Future<List<LessonVideo>> fetchCinemaVideos(
@@ -516,6 +516,34 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
     );
   }
   return games;
+}
+
+List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
+  const entries = [
+    (
+      id: 'd4a3629101574bc39bd8f9d1888ca58e',
+      title: 'مغامرة التعلم',
+      subtitle: 'لعبة تعليمية تفاعلية داخل منارة',
+    ),
+    (
+      id: '172e0bd0c40442dbae3d4adb42a98433',
+      title: 'تحدي المعرفة',
+      subtitle: 'اختبر مهاراتك بطريقة ممتعة',
+    ),
+  ];
+  return entries
+      .map(
+        (entry) => HtmlGame(
+          id: entry.id,
+          url: _resolveUrl(
+            '/api/game-embed/${entry.id}/index.html',
+            baseUrl,
+          ),
+          title: entry.title,
+          subtitle: entry.subtitle,
+        ),
+      )
+      .toList();
 }
 
 VideoSourceType _videoType(Object? value, String url) {
