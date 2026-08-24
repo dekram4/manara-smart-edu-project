@@ -7,10 +7,15 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/academic_context.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_content_screen.dart';
+import 'student_personality_screen.dart';
+import 'student_problem_solver_screen.dart';
+import 'student_quiz_screen.dart';
+import 'student_tutor_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
@@ -94,8 +99,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     final modules = [
       StudentContentModule.lesson,
       StudentContentModule.games,
-      StudentContentModule.personality,
-      StudentContentModule.tutor,
     ];
 
     if (index == 1) {
@@ -112,6 +115,50 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       return;
     }
 
+    if (index == 3) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StudentPersonalityScreen(
+            profile: widget.profile,
+            contentService: StudentContentService(widget.authService.client),
+            creatorUrl: const String.fromEnvironment('READY_PLAYER_ME_CREATOR_URL'),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (index == 4) {
+      _openTutor();
+      return;
+    }
+
+    if (index == 5) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StudentQuizScreen(
+            profile: widget.profile,
+            contentService: StudentContentService(
+              widget.authService.client,
+              baseUrl: widget.apiBaseUrl,
+            ),
+            academicContext: widget.academicContext,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (index == 6) {
+      _openProblemSolver();
+      return;
+    }
+
+    if (index == 7) {
+      _openTutor(liveMeeting: true);
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => StudentContentScreen(
@@ -125,6 +172,57 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _openTutor({bool liveMeeting = false}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final lessons = await StudentContentService(
+        widget.authService.client,
+        baseUrl: widget.apiBaseUrl,
+      ).fetchLessons(widget.profile, academicContext: widget.academicContext);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StudentTutorScreen(contents: lessons, liveMeeting: liveMeeting),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            liveMeeting
+                ? 'تعذر تحميل اللقاء المباشر. حاول مرة أخرى.'
+                : 'تعذر تحميل المعلم الافتراضي. حاول مرة أخرى.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openProblemSolver() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final lessons = await StudentContentService(
+        widget.authService.client,
+        baseUrl: widget.apiBaseUrl,
+      ).fetchLessons(widget.profile, academicContext: widget.academicContext);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StudentProblemSolverScreen(
+            lessons: lessons,
+            apiBaseUrl: widget.apiBaseUrl,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('تعذر تحميل الدروس لحل المسائل. حاول مرة أخرى.')),
+      );
+    }
   }
 
   @override
@@ -317,6 +415,30 @@ const _homeSections = <_HomeSection>[
     icon: Icons.smart_toy_rounded,
     colors: [Color(0xFF274E76), Color(0xFF1394D2)],
     accent: Color(0xFFBAE6FD),
+  ),
+  _HomeSection(
+    title: 'مركز الاختبارات',
+    subtitle: 'اختبارات المعلم والدورية',
+    description: 'أجب عن أسئلتك وشاهد نتيجتك المحفوظة بأمان.',
+    icon: Icons.quiz_rounded,
+    colors: [Color(0xFF165B4A), Color(0xFF16A085)],
+    accent: Color(0xFFB7F7DD),
+  ),
+  _HomeSection(
+    title: 'حلّ المسائل',
+    subtitle: 'اسأل عن الدرس',
+    description: 'مساعد ذكي يجيبك من محتوى الدرس الذي أعده معلمك.',
+    icon: Icons.auto_awesome_rounded,
+    colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
+    accent: Color(0xFFE9D5FF),
+  ),
+  _HomeSection(
+    title: 'اللقاء المباشر',
+    subtitle: 'انضم داخل منارة',
+    description: 'ادخل لقاء الدرس من دون مغادرة التطبيق.',
+    icon: Icons.videocam_rounded,
+    colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
+    accent: Color(0xFFFFE4A3),
   ),
 ];
 

@@ -1,0 +1,246 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../models/student_content.dart';
+
+class StudentProblemSolverScreen extends StatefulWidget {
+  const StudentProblemSolverScreen({
+    required this.lessons,
+    required this.apiBaseUrl,
+    super.key,
+  });
+
+  final List<LessonContent> lessons;
+  final String apiBaseUrl;
+
+  @override
+  State<StudentProblemSolverScreen> createState() => _StudentProblemSolverScreenState();
+}
+
+class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen> {
+  final _questionController = TextEditingController();
+  LessonContent? _selectedLesson;
+  bool _sending = false;
+  String? _answer;
+  String? _error;
+
+  List<LessonContent> get _supportedLessons => widget.lessons
+      .where((lesson) => (lesson.lessonText ?? '').trim().isNotEmpty)
+      .toList();
+
+  @override
+  void initState() {
+    super.initState();
+    final supported = _supportedLessons;
+    _selectedLesson = supported.isEmpty ? null : supported.first;
+  }
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    super.dispose();
+  }
+
+  Uri? get _answerEndpoint {
+    final base = widget.apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isNotEmpty) return Uri.tryParse('$base/api/gemini/answer');
+    final current = Uri.base;
+    if (current.scheme == 'http' || current.scheme == 'https') {
+      return current.replace(path: '/api/gemini/answer', query: null, fragment: null);
+    }
+    return null;
+  }
+
+  Future<void> _ask() async {
+    final lesson = _selectedLesson;
+    final question = _questionController.text.trim();
+    final endpoint = _answerEndpoint;
+    if (lesson == null) {
+      setState(() => _error = 'لا توجد مادة تعليمية صالحة للمساعدة فيها الآن.');
+      return;
+    }
+    if (question.isEmpty) {
+      setState(() => _error = 'اكتب سؤالك أولًا.');
+      return;
+    }
+    if (endpoint == null) {
+      setState(() => _error = 'لم يتم إعداد اتصال خدمة المساعد في هذا التطبيق.');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+      _answer = null;
+    });
+    try {
+      final response = await http.post(
+        endpoint,
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'lesson': lesson.lessonText, 'question': question}),
+      );
+      final payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final message = payload is Map ? payload['error']?.toString() : null;
+        throw Exception(message?.trim().isNotEmpty == true ? message : 'تعذر الحصول على إجابة.');
+      }
+      final answer = payload is Map ? payload['answer']?.toString().trim() : null;
+      if (answer == null || answer.isEmpty) {
+        throw Exception('لم تصل إجابة صالحة. حاول مرة أخرى.');
+      }
+      if (!mounted) return;
+      setState(() => _answer = answer);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = 'تعذر حل السؤال: $error');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final supported = _supportedLessons;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F8FF),
+        appBar: AppBar(title: const Text('حلّ المسائل'), centerTitle: true),
+        body: supported.isEmpty
+            ? const _SolverEmptyState()
+            : ListView(
+                padding: const EdgeInsets.all(18),
+                children: [
+                  const Text(
+                    'اسأل عن درسك',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'سيجيب المساعد من محتوى الدرس الذي اختاره معلمك.',
+                    style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 18),
+                  DropdownButtonFormField<LessonContent>(
+                    value: _selectedLesson,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'اختر الدرس',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: supported
+                        .map(
+                          (lesson) => DropdownMenuItem(
+                            value: lesson,
+                            child: Text(
+                              lesson.lessonName.isEmpty ? 'درس منارة' : lesson.lessonName,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _sending ? null : (lesson) => setState(() => _selectedLesson = lesson),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _questionController,
+                    enabled: !_sending,
+                    minLines: 3,
+                    maxLines: 6,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      labelText: 'اكتب مسألتك أو سؤالك',
+                      hintText: 'مثال: كيف نحل هذه المسألة؟',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  FilledButton.icon(
+                    onPressed: _sending ? null : _ask,
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded),
+                    label: Text(_sending ? 'جارٍ التفكير...' : 'ساعدني في الحل'),
+                    style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    _MessageCard(
+                      icon: Icons.error_outline_rounded,
+                      color: const Color(0xFFB42318),
+                      text: _error!,
+                    ),
+                  ],
+                  if (_answer != null) ...[
+                    const SizedBox(height: 16),
+                    _MessageCard(
+                      icon: Icons.lightbulb_rounded,
+                      color: const Color(0xFF0B8693),
+                      text: _answer!,
+                    ),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _SolverEmptyState extends StatelessWidget {
+  const _SolverEmptyState();
+
+  @override
+  Widget build(BuildContext context) => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.menu_book_outlined, size: 60, color: Color(0xFF0B8693)),
+              SizedBox(height: 14),
+              Text(
+                'لم يُضف المعلم محتوى نصيًا لهذا الدرس بعد، لذلك لا يستطيع المساعد الإجابة بأمان.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _MessageCard extends StatelessWidget {
+  const _MessageCard({required this.icon, required this.color, required this.text});
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: color.withAlpha(100)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SelectableText(
+                text,
+                style: const TextStyle(height: 1.65, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+}

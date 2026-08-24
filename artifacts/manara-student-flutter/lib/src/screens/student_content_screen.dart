@@ -12,7 +12,7 @@ import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/student_video_player.dart';
 
-enum StudentContentModule { lesson, games, personality, tutor }
+enum StudentContentModule { lesson, games }
 
 class StudentContentScreen extends StatefulWidget {
   const StudentContentScreen({
@@ -153,18 +153,6 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           games: _gamesFromLessons,
           apiBaseUrl: widget.apiBaseUrl,
         );
-      case StudentContentModule.personality:
-        return const _StateCard(
-          icon: Icons.face_retouching_natural_rounded,
-          title: 'شخصيتي',
-          message: 'تعديل وتخصيص البطل.',
-        );
-      case StudentContentModule.tutor:
-        return const _StateCard(
-          icon: Icons.smart_toy_rounded,
-          title: 'المعلم الافتراضي',
-          message: 'المساعد الذكي للدروس.',
-        );
     }
   }
 
@@ -189,10 +177,6 @@ String _moduleTitle(StudentContentModule module) {
       return 'شرح الدرس';
     case StudentContentModule.games:
       return 'الترفيه والألعاب';
-    case StudentContentModule.personality:
-      return 'شخصيتي';
-    case StudentContentModule.tutor:
-      return 'المعلم الافتراضي';
   }
 }
 
@@ -207,8 +191,6 @@ class _ModuleSwitcher extends StatelessWidget {
     final items = [
       (StudentContentModule.lesson, Icons.play_lesson_rounded, 'الدرس'),
       (StudentContentModule.games, Icons.sports_esports_rounded, 'الألعاب'),
-      (StudentContentModule.personality, Icons.face_retouching_natural_rounded, 'شخصيتي'),
-      (StudentContentModule.tutor, Icons.smart_toy_rounded, 'المعلم'),
     ];
     return SizedBox(
       height: 58,

@@ -192,6 +192,93 @@ class StudentContentService {
     return videos;
   }
 
+  /// Loads only active quizzes that belong to the signed-in student's teacher
+  /// and current academic context. The row payload is intentionally returned
+  /// as JSON because older teacher-created quizzes have several compatible
+  /// shapes in Supabase.
+  Future<List<Map<String, dynamic>>> fetchAvailableQuizzes(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) async {
+    final response = await client
+        .from('created_quizzes')
+        .select('id,data,updated_at')
+        .limit(300);
+
+    final quizzes = <Map<String, dynamic>>[];
+    for (final row in response.whereType<Map>()) {
+      final rowMap = _asMap(row);
+      final data = _asMap(rowMap['data']);
+      if (data.isEmpty || data['deleted'] == true || data['isActive'] == false) {
+        continue;
+      }
+
+      final owner = _normalize(
+        _text(data['createdBy'] ?? data['teacherId'] ?? data['teacher_id']),
+      );
+      final teacher = _normalize(profile.teacherId);
+      final ownerAllowed = owner == 'admin' ||
+          owner == 'supervisor' ||
+          (teacher.isNotEmpty && owner == teacher);
+      if (!ownerAllowed) continue;
+
+      final grade = academicContext?.grade ?? profile.grade;
+      final atram = academicContext?.atram ?? profile.atram;
+      final subject = academicContext?.subject ?? profile.subject;
+      final term = academicContext?.term ?? profile.term;
+      final unit = academicContext?.unit ?? profile.unit;
+      if (!_matches(_text(data['grade']), grade) ||
+          !_matches(_text(data['atram']), atram) ||
+          !_matches(_text(data['subject']), subject) ||
+          !_matches(_text(data['term']), term) ||
+          !_matches(_text(data['unit']), unit)) {
+        continue;
+      }
+
+      quizzes.add(<String, dynamic>{
+        ...data,
+        'id': _text(rowMap['id']).isEmpty ? _text(data['id']) : _text(rowMap['id']),
+        'updatedAt': _text(rowMap['updated_at'] ?? data['updatedAt']),
+      });
+    }
+    quizzes.sort((a, b) {
+      final aNumber = int.tryParse('${a['periodicNumber'] ?? ''}') ?? 999;
+      final bNumber = int.tryParse('${b['periodicNumber'] ?? ''}') ?? 999;
+      return aNumber.compareTo(bNumber);
+    });
+    return quizzes;
+  }
+
+  /// Results are always filtered by student ID before they reach the UI.
+  Future<List<Map<String, dynamic>>> fetchQuizResults(String studentId) async {
+    final response = await client
+        .from('quiz_results')
+        .select('id,data,updated_at')
+        .eq('data->>studentId', studentId)
+        .order('updated_at', ascending: false)
+        .limit(100);
+    return response.whereType<Map>().map((row) {
+      final rowMap = _asMap(row);
+      final data = _asMap(rowMap['data']);
+      return <String, dynamic>{
+        ...data,
+        'id': _text(rowMap['id']).isEmpty ? _text(data['id']) : _text(rowMap['id']),
+      };
+    }).toList();
+  }
+
+  Future<void> saveQuizResult(Map<String, dynamic> result) async {
+    final id = _text(result['id']);
+    if (id.isEmpty) {
+      throw ArgumentError('لا يمكن حفظ نتيجة اختبار بدون معرف.');
+    }
+    await client.from('quiz_results').upsert({
+      'id': id,
+      'data': result,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
   Future<void> saveAppearance({
     required StudentProfile profile,
     required Map<String, dynamic> appearance,
@@ -542,6 +629,7 @@ LessonContent parseLessonContent(
     ownerId: _nullableText(data['teacherId'] ?? data['teacher_id'] ?? data['createdBy']),
     lessonText: _nullableText(data['lessonContent']),
     avatarInteractionUrl: _nullableText(data['avatarInteractionUrl']),
+    liveMeetingUrl: _nullableText(data['liveMeetingUrl']),
     videos: videos,
     games: games,
   );

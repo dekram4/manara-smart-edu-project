@@ -46,6 +46,7 @@ class LessonContent {
     required this.games,
     this.lessonText,
     this.avatarInteractionUrl,
+    this.liveMeetingUrl,
   });
 
   final String id;
@@ -60,6 +61,7 @@ class LessonContent {
   final String? ownerId;
   final String? lessonText;
   final String? avatarInteractionUrl;
+  final String? liveMeetingUrl;
   final List<LessonVideo> videos;
   final List<HtmlGame> games;
 
