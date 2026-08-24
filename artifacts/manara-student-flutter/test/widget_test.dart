@@ -1,30 +1,42 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:manara_student/main.dart';
+import 'package:manara_student/src/models/academic_context.dart';
+import 'package:manara_student/src/models/student_content.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('academic context reports whether its path is complete', () {
+    final lesson = LessonContent(
+      id: 'lesson-1',
+      lessonId: 'lesson-1',
+      grade: 'السادس',
+      atram: 'الفصل الأول',
+      subject: 'الرياضيات',
+      term: 'الترم الأول',
+      unit: 'الوحدة الأولى',
+      lessonName: 'الكسور',
+      createdAt: '2026-01-01T00:00:00Z',
+      videos: const [],
+      games: const [],
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final complete = AcademicContext(
+      grade: 'السادس',
+      atram: 'الفصل الأول',
+      subject: 'الرياضيات',
+      term: 'الترم الأول',
+      unit: 'الوحدة الأولى',
+      selectedLesson: lesson,
+    );
+    final partial = AcademicContext(
+      grade: 'السادس',
+      atram: '',
+      subject: 'الرياضيات',
+      term: 'الترم الأول',
+      unit: 'الوحدة الأولى',
+      selectedLesson: lesson,
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(complete.hasCompletePath, isTrue);
+    expect(partial.hasCompletePath, isFalse);
   });
 }

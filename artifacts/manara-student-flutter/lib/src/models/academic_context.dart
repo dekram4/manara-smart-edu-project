@@ -20,6 +20,11 @@ class AcademicContext {
   String get lesson => selectedLesson.lessonName;
   String get lessonId => selectedLesson.id;
 
+  /// The tutor and live-meeting experiences must never guess a partial scope.
+  /// Requiring every path level keeps links from another class or unit hidden.
+  bool get hasCompletePath => [grade, atram, subject, term, unit]
+      .every((value) => value.trim().isNotEmpty);
+
   String get label => [grade, atram, subject, term, unit, lesson]
       .where((value) => value.trim().isNotEmpty)
       .join(' • ');

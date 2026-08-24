@@ -111,6 +111,106 @@ class StudentContentService {
     return _preferredLessonsForStudent(lessons, profile);
   }
 
+  /// Resolves one safe, scoped experience for the student dashboard.
+  ///
+  /// Unlike general lesson browsing, this deliberately rejects partial academic
+  /// selections. A virtual-teacher or meeting URL is sensitive to the assigned
+  /// teacher and must never be guessed from a broader profile scope.
+  Future<TutorExperienceSelection> fetchTutorExperience(
+    StudentProfile profile, {
+    required AcademicContext? academicContext,
+    required TutorExperienceType type,
+  }) async {
+    if (academicContext == null || !academicContext.hasCompletePath) {
+      return TutorExperienceSelection(
+        type: type,
+        status: TutorExperienceStatus.missingAcademicContext,
+      );
+    }
+
+    final response = await client
+        .from('lesson_configs')
+        .select('id,data')
+        .limit(500)
+        .timeout(_requestTimeout);
+    final lessons = response
+        .whereType<Map>()
+        .map(
+          (row) => parseLessonContent(
+            row,
+            baseUrl: baseUrl,
+            storageClient: client,
+          ),
+        )
+        .toList();
+
+    return resolveTutorExperience(
+      lessons: lessons,
+      profile: profile,
+      academicContext: academicContext,
+      type: type,
+    );
+  }
+
+  /// Pure selection logic kept public for regression tests and for callers
+  /// that already hold the scoped lesson records.
+  static TutorExperienceSelection resolveTutorExperience({
+    required List<LessonContent> lessons,
+    required StudentProfile profile,
+    required AcademicContext? academicContext,
+    required TutorExperienceType type,
+  }) {
+    if (academicContext == null || !academicContext.hasCompletePath) {
+      return TutorExperienceSelection(
+        type: type,
+        status: TutorExperienceStatus.missingAcademicContext,
+      );
+    }
+
+    final matchingPath = lessons
+        .where(
+          (lesson) => _matchesExactTutorPath(lesson, academicContext),
+        )
+        .toList();
+    final studentTeacher = _normalize(profile.teacherId);
+    final teacherLessons = studentTeacher.isEmpty
+        ? const <LessonContent>[]
+        : matchingPath
+            .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
+            .toList();
+    final administratorLessons = matchingPath
+        .where(_isAdministratorOrLegacyLesson)
+        .toList();
+
+    final teacherSelection = _latestConfiguredExperience(teacherLessons, type);
+    // A configured teacher link is authoritative, even if it is malformed.
+    // Falling back in that case could show a different experience than the
+    // one explicitly configured for the student's teacher.
+    final selected = teacherSelection ??
+        _latestConfiguredExperience(administratorLessons, type);
+    if (selected == null) {
+      return TutorExperienceSelection(
+        type: type,
+        status: TutorExperienceStatus.unavailable,
+      );
+    }
+
+    final url = normalizeTutorExperienceUrl(_experienceUrl(selected, type));
+    if (url == null) {
+      return TutorExperienceSelection(
+        type: type,
+        status: TutorExperienceStatus.unsafeUrl,
+        lesson: selected,
+      );
+    }
+    return TutorExperienceSelection(
+      type: type,
+      status: TutorExperienceStatus.ready,
+      lesson: selected,
+      url: url,
+    );
+  }
+
   Future<List<HtmlGame>> fetchGameCatalog() async {
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return _embeddedGameCatalog('');
@@ -440,6 +540,36 @@ class StudentContentService {
     return content == selected;
   }
 
+  static bool _matchesExactTutorPath(
+    LessonContent lesson,
+    AcademicContext context,
+  ) {
+    return _normalize(lesson.grade) == _normalize(context.grade) &&
+        _normalize(lesson.atram) == _normalize(context.atram) &&
+        _normalize(lesson.subject) == _normalize(context.subject) &&
+        _normalize(lesson.term) == _normalize(context.term) &&
+        _normalize(lesson.unit) == _normalize(context.unit);
+  }
+
+  static bool _isAdministratorOrLegacyLesson(LessonContent lesson) {
+    final owner = _normalize(lesson.ownerId);
+    return owner.isEmpty || owner == 'admin' || owner == 'supervisor';
+  }
+
+  static LessonContent? _latestConfiguredExperience(
+    List<LessonContent> lessons,
+    TutorExperienceType type,
+  ) {
+    final configured = lessons
+        .where((lesson) => _experienceUrl(lesson, type).trim().isNotEmpty)
+        .toList()
+      ..sort((a, b) {
+        final timestamp = b.createdAt.compareTo(a.createdAt);
+        return timestamp != 0 ? timestamp : b.id.compareTo(a.id);
+      });
+    return configured.isEmpty ? null : configured.first;
+  }
+
   List<LessonContent> _preferredLessonsForStudent(
     List<LessonContent> lessons,
     StudentProfile profile,
@@ -475,6 +605,38 @@ class StudentContentService {
     return preferred;
   }
 
+}
+
+String _experienceUrl(LessonContent lesson, TutorExperienceType type) {
+  return type == TutorExperienceType.liveMeeting
+      ? lesson.liveMeetingUrl ?? ''
+      : lesson.avatarInteractionUrl ?? '';
+}
+
+/// Accepts only browser-safe HTTPS links before a lesson author’s data reaches
+/// the embedded WebView. This is shared by selection and rendering.
+String? normalizeTutorExperienceUrl(String? value) {
+  if (value == null) return null;
+  final raw = value.trim();
+  if (raw.isEmpty || RegExp(r'[\s\x00-\x1F\x7F]').hasMatch(raw)) {
+    return null;
+  }
+
+  var candidate = raw;
+  if (candidate.startsWith('//')) {
+    candidate = 'https:$candidate';
+  } else if (!candidate.contains('://') && !candidate.contains(':')) {
+    candidate = 'https://$candidate';
+  }
+
+  final uri = Uri.tryParse(candidate);
+  if (uri == null ||
+      uri.scheme.toLowerCase() != 'https' ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty) {
+    return null;
+  }
+  return uri.toString();
 }
 
 bool _isDeletedVideo(Map<String, dynamic> data) {

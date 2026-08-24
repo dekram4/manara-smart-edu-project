@@ -3,20 +3,18 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_content.dart';
 
-/// Shows the virtual teacher configured for the current set of lessons.
+/// Shows the virtual teacher configured for one selected academic path.
 ///
 /// Only HTTPS avatar URLs are accepted.  This is deliberately kept as a
 /// separate screen so avatar providers remain inside the student application.
 class StudentTutorScreen extends StatefulWidget {
   const StudentTutorScreen({
-    required this.contents,
-    this.liveMeeting = false,
+    required this.selection,
     this.fullscreen = false,
     super.key,
   });
 
-  final List<LessonContent> contents;
-  final bool liveMeeting;
+  final TutorExperienceSelection selection;
   final bool fullscreen;
 
   @override
@@ -33,59 +31,13 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
   @override
   void initState() {
     super.initState();
-    final selection = _firstValidExperience(widget.contents);
-    _avatarUrl = selection.$1;
-    _avatarLesson = selection.$2;
+    _avatarUrl = widget.selection.url;
+    _avatarLesson = widget.selection.lesson;
     _loading = _avatarUrl != null;
   }
 
-  /// Normalizes harmless shorthand while rejecting non-web and malformed URLs.
-  ///
-  /// URLs are data controlled by lesson authors, so schemes such as
-  /// `javascript:`, credentials in a URL, and whitespace are never handed to
-  /// the embedded browser.
-  static String? normalizeAvatarUrl(String? value) {
-    if (value == null) return null;
-    final raw = value.trim();
-    if (raw.isEmpty || RegExp(r'[\s\x00-\x1F\x7F]').hasMatch(raw)) {
-      return null;
-    }
-
-    var candidate = raw;
-    if (candidate.startsWith('//')) {
-      candidate = 'https:$candidate';
-    } else if (!candidate.contains('://') && !candidate.contains(':')) {
-      candidate = 'https://$candidate';
-    }
-
-    final uri = Uri.tryParse(candidate);
-    if (uri == null ||
-        uri.scheme.toLowerCase() != 'https' ||
-        uri.host.isEmpty ||
-        uri.userInfo.isNotEmpty) {
-      return null;
-    }
-    return uri.toString();
-  }
-
-  (String?, LessonContent?) _firstValidExperience(List<LessonContent> contents) {
-    for (final content in contents) {
-      final url = normalizeAvatarUrl(
-        widget.liveMeeting ? content.liveMeetingUrl : content.avatarInteractionUrl,
-      );
-      if (url != null) return (url, content);
-    }
-    return (null, null);
-  }
-
-  bool get _hasProvidedAvatarUrl => widget.contents.any(
-        (content) => ((widget.liveMeeting
-                    ? content.liveMeetingUrl
-                    : content.avatarInteractionUrl) ??
-                '')
-            .trim()
-            .isNotEmpty,
-      );
+  bool get _isLiveMeeting =>
+      widget.selection.type == TutorExperienceType.liveMeeting;
 
   void _reload() {
     if (_avatarUrl == null) return;
@@ -100,8 +52,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => StudentTutorScreen(
-          contents: widget.contents,
-          liveMeeting: widget.liveMeeting,
+          selection: widget.selection,
           fullscreen: true,
         ),
       ),
@@ -122,7 +73,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
           : AppBar(
               backgroundColor: const Color(0xFF071425),
               foregroundColor: Colors.white,
-              title: Text(widget.liveMeeting ? 'اللقاء المباشر' : 'صديقك المعلم الافتراضي'),
+              title: Text(_isLiveMeeting ? 'اللقاء المباشر' : 'صديقك المعلم الافتراضي'),
               actions: [
                 IconButton(
                   onPressed: _avatarUrl == null ? null : _reload,
@@ -158,22 +109,31 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
   Widget _buildBody() {
     if (_avatarUrl == null) {
+      final missingContext =
+          widget.selection.status == TutorExperienceStatus.missingAcademicContext;
+      final unsafeUrl = widget.selection.status == TutorExperienceStatus.unsafeUrl;
       return _TutorStateCard(
-        icon: _hasProvidedAvatarUrl
+        icon: unsafeUrl
             ? Icons.link_off_rounded
-            : widget.liveMeeting
+            : missingContext
+                ? Icons.school_outlined
+                : _isLiveMeeting
                 ? Icons.videocam_off_rounded
                 : Icons.smart_toy_outlined,
-        title: _hasProvidedAvatarUrl
-            ? widget.liveMeeting
+        title: unsafeUrl
+            ? _isLiveMeeting
                 ? 'رابط اللقاء المباشر غير صالح'
                 : 'رابط المعلم الافتراضي غير صالح'
-            : widget.liveMeeting
+            : missingContext
+                ? 'اختر مسارك الدراسي أولًا'
+                : _isLiveMeeting
                 ? 'لم يتم إضافة لقاء مباشر بعد'
                 : 'لم يتم إضافة رابط التفاعل بعد',
-        message: _hasProvidedAvatarUrl
+        message: unsafeUrl
             ? 'يجب أن يكون الرابط آمنًا ويبدأ بـ HTTPS.'
-            : widget.liveMeeting
+            : missingContext
+                ? 'اختر الصف والفصل والمادة والترم والوحدة، ثم افتح التجربة الخاصة بالدرس.'
+                : _isLiveMeeting
                 ? 'سيظهر اللقاء هنا عندما يضيف المعلم رابطًا للدرس.'
                 : 'سيظهر صديقك المعلم هنا عندما يضيف المعلم رابط التفاعل للدرس.',
       );
@@ -187,7 +147,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
             child: Row(
               children: [
                 Icon(
-                  widget.liveMeeting
+                  _isLiveMeeting
                       ? Icons.videocam_rounded
                       : Icons.smart_toy_rounded,
                   color: Color(0xFFC4B5FD),
@@ -198,7 +158,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                   child: Text(
                     _avatarLesson?.lessonName.trim().isNotEmpty == true
                         ? _avatarLesson!.lessonName
-                        : widget.liveMeeting
+                        : _isLiveMeeting
                             ? 'اللقاء المباشر جاهز للانضمام'
                             : 'صديقك الذكي مستعد للعب والكلام!',
                     maxLines: 2,
@@ -258,7 +218,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                     if (!mounted || request.url?.toString() != _avatarUrl) return;
                     setState(() {
                       _loading = false;
-                      _frameError = widget.liveMeeting
+                      _frameError = _isLiveMeeting
                           ? 'تعذر الاتصال بخدمة اللقاء. تحقق من الرابط ثم أعد المحاولة.'
                           : 'تعذر الاتصال بخدمة المعلم الافتراضي. حاول مرة أخرى.';
                     });
@@ -280,7 +240,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                           CircularProgressIndicator(color: Color(0xFFC4B5FD)),
                           SizedBox(height: 14),
                           Text(
-                            widget.liveMeeting
+                            _isLiveMeeting
                                 ? 'جارٍ تجهيز اللقاء المباشر...'
                                 : 'جارٍ تجهيز المعلم الافتراضي...',
                             style: TextStyle(
@@ -297,7 +257,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                     color: const Color(0xF0101D33),
                     child: _TutorStateCard(
                       icon: Icons.error_outline_rounded,
-                      title: widget.liveMeeting
+                      title: _isLiveMeeting
                           ? 'تعذر تحميل اللقاء المباشر'
                           : 'تعذر تحميل المعلم الافتراضي',
                       message: _frameError!,

@@ -1,5 +1,30 @@
 enum VideoSourceType { embed, mp4 }
 
+enum TutorExperienceType { virtualTeacher, liveMeeting }
+
+enum TutorExperienceStatus {
+  ready,
+  missingAcademicContext,
+  unavailable,
+  unsafeUrl,
+}
+
+class TutorExperienceSelection {
+  const TutorExperienceSelection({
+    required this.type,
+    required this.status,
+    this.lesson,
+    this.url,
+  });
+
+  final TutorExperienceType type;
+  final TutorExperienceStatus status;
+  final LessonContent? lesson;
+  final String? url;
+
+  bool get isReady => status == TutorExperienceStatus.ready && url != null;
+}
+
 class LessonVideo {
   const LessonVideo({
     required this.id,

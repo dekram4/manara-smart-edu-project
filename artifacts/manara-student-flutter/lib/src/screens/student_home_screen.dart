@@ -193,16 +193,21 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       return;
     }
     try {
-      final lessons = await StudentContentService(
+      final selection = await StudentContentService(
         widget.authService.client,
         baseUrl: widget.apiBaseUrl,
-      ).fetchLessons(widget.profile, academicContext: widget.academicContext);
+      ).fetchTutorExperience(
+        widget.profile,
+        academicContext: widget.academicContext,
+        type: liveMeeting
+            ? TutorExperienceType.liveMeeting
+            : TutorExperienceType.virtualTeacher,
+      );
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => StudentTutorScreen(
-            contents: lessons,
-            liveMeeting: liveMeeting,
+            selection: selection,
           ),
         ),
       );
