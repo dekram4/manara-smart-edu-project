@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -27,6 +29,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
   late final LessonContent? _avatarLesson;
   bool _loading = false;
   String? _frameError;
+  Timer? _loadTimeout;
 
   @override
   void initState() {
@@ -34,6 +37,13 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
     _avatarUrl = widget.selection.url;
     _avatarLesson = widget.selection.lesson;
     _loading = _avatarUrl != null;
+    if (_loading) _armLoadTimeout();
+  }
+
+  @override
+  void dispose() {
+    _loadTimeout?.cancel();
+    super.dispose();
   }
 
   bool get _isLiveMeeting =>
@@ -45,7 +55,31 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
       _loading = true;
       _frameError = null;
     });
+    _armLoadTimeout();
     _controller?.reload();
+  }
+
+  void _armLoadTimeout() {
+    _loadTimeout?.cancel();
+    _loadTimeout = Timer(const Duration(seconds: 15), () {
+      if (!mounted || !_loading) return;
+      setState(() {
+        _loading = false;
+        _frameError = _isLiveMeeting
+            ? 'استغرق تحميل اللقاء وقتًا طويلًا. تحقق من الرابط ثم أعد المحاولة.'
+            : 'استغرق تحميل المعلم الافتراضي وقتًا طويلًا. تحقق من الرابط ثم أعد المحاولة.';
+      });
+    });
+  }
+
+  void _finishLoading() {
+    _loadTimeout?.cancel();
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _frameError = null;
+      });
+    }
   }
 
   void _openFullscreen() {
@@ -209,13 +243,20 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                         _loading = true;
                         _frameError = null;
                       });
+                      _armLoadTimeout();
                     }
                   },
-                  onLoadStop: (_, __) {
-                    if (mounted) setState(() => _loading = false);
+                  onLoadStop: (_, __) => _finishLoading(),
+                  // On Flutter Web some cross-origin pages do not reliably
+                  // emit onLoadStop, while the progress callback still reaches
+                  // 100. This prevents a successful embed from being hidden
+                  // behind the permanent loading overlay.
+                  onProgressChanged: (_, progress) {
+                    if (progress >= 100) _finishLoading();
                   },
                   onReceivedError: (_, request, error) {
                     if (!mounted || request.url?.toString() != _avatarUrl) return;
+                    _loadTimeout?.cancel();
                     setState(() {
                       _loading = false;
                       _frameError = _isLiveMeeting
