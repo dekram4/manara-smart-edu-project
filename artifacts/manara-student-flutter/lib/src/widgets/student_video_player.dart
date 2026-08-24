@@ -174,16 +174,9 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       widget.video,
       apiBaseUrl: widget.apiBaseUrl,
     );
-    final isYoutube = isYoutubeVideoUrl(url);
     return InAppWebView(
-      // Load the YouTube player URL inside this WebView instead of opening an
-      // external browser or nesting it in a document with an opaque origin.
-      // YouTube error 153 is returned when the player has no usable client
-      // identity or embed origin, so the URL and request headers below are
-      // deliberately supplied together.
       initialUrlRequest: URLRequest(
         url: WebUri(url),
-        headers: isYoutube ? _youtubeEmbedHeaders : null,
       ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
@@ -460,9 +453,7 @@ String resolveStudentVideoUrl(
   var raw = video.url.trim();
   if (raw.startsWith('/')) {
     final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
-    final isLocalBase = base.toLowerCase().contains('localhost') ||
-        base.contains('127.0.0.1');
-    if (base.isNotEmpty && !isLocalBase) raw = '$base$raw';
+    if (base.isNotEmpty) raw = '$base$raw';
   }
   if (video.sourceType == VideoSourceType.mp4) return raw;
 
@@ -473,13 +464,11 @@ String resolveStudentVideoUrl(
     final id = youtubeVideoId(uri, host);
     if (id.isNotEmpty) {
         return Uri.https(
-          'www.youtube-nocookie.com',
+          'www.youtube.com',
           '/embed/$id',
           const {
             'autoplay': '1',
             'playsinline': '1',
-            'enablejsapi': '1',
-            'origin': 'https://www.youtube.com',
             'rel': '0',
             'modestbranding': '1',
           },
@@ -534,10 +523,3 @@ const _windowsUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
     'AppleWebKit/537.36 (KHTML, like Gecko) '
     'Chrome/124.0.0.0 Safari/537.36';
-
-const _youtubeEmbedHeaders = <String, String>{
-  'Origin': 'https://www.youtube.com',
-  'Referer': 'https://www.youtube.com/',
-  'Accept-Language': 'ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7',
-  'User-Agent': _windowsUserAgent,
-};
