@@ -293,7 +293,7 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     final wasPlaying = controller.value.isPlaying;
     final position = controller.value.position;
     await controller.pause();
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<_FullscreenPlaybackState>(
       MaterialPageRoute<void>(
         builder: (_) => _FullscreenNetworkVideoScreen(
           video: widget.video,
@@ -304,7 +304,13 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
       ),
     );
     if (!mounted) return;
-    if (wasPlaying) await controller.play();
+    if (!controller.value.isInitialized) return;
+    await controller.seekTo(result?.position ?? position);
+    if (result?.isPlaying ?? wasPlaying) {
+      await controller.play();
+    } else {
+      await controller.pause();
+    }
     setState(() => _showControls = true);
   }
 
@@ -377,7 +383,12 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
                     IconButton(
                       tooltip: widget.fullscreen ? 'إغلاق ملء الشاشة' : 'ملء الشاشة',
                       onPressed: widget.fullscreen
-                          ? () => Navigator.of(context).pop()
+                          ? () => Navigator.of(context).pop(
+                                _FullscreenPlaybackState(
+                                  position: widget.controller.value.position,
+                                  isPlaying: widget.controller.value.isPlaying,
+                                ),
+                              )
                           : _openFullscreen,
                       icon: Icon(
                         widget.fullscreen
@@ -395,6 +406,16 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
       ),
     );
   }
+}
+
+class _FullscreenPlaybackState {
+  const _FullscreenPlaybackState({
+    required this.position,
+    required this.isPlaying,
+  });
+
+  final Duration position;
+  final bool isPlaying;
 }
 
 class _FullscreenNetworkVideoScreen extends StatelessWidget {
