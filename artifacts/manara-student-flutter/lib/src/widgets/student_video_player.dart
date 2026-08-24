@@ -294,7 +294,7 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     final position = controller.value.position;
     await controller.pause();
     final result = await Navigator.of(context).push<_FullscreenPlaybackState>(
-      MaterialPageRoute<void>(
+      MaterialPageRoute<_FullscreenPlaybackState>(
         builder: (_) => _FullscreenNetworkVideoScreen(
           video: widget.video,
           apiBaseUrl: widget.apiBaseUrl,
