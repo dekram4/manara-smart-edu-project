@@ -600,15 +600,22 @@ List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
   ];
   return entries
       .map(
-        (entry) => HtmlGame(
-          id: entry.id,
-          url: _resolveUrl(
-            '/api/game-embed/${entry.id}/index.html',
-            baseUrl,
-          ),
-          title: entry.title,
-          subtitle: entry.subtitle,
-        ),
+        (entry) {
+          final apiPath = '/api/game-embed/${entry.id}/index.html';
+          // Flutter Web runs on a different localhost port from the optional
+          // API service. When no API base is supplied, load the game's public
+          // HTML5 entry point directly rather than requesting the API path
+          // from Flutter's own development server.
+          final url = baseUrl.trim().isEmpty
+              ? 'https://html5.gamedistribution.com/rvvASMiM/${entry.id}/index.html'
+              : _resolveUrl(apiPath, baseUrl);
+          return HtmlGame(
+            id: entry.id,
+            url: url,
+            title: entry.title,
+            subtitle: entry.subtitle,
+          );
+        },
       )
       .toList();
 }
