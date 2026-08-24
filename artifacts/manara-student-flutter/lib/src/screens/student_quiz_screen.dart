@@ -48,7 +48,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
           widget.profile,
           academicContext: widget.academicContext,
         ),
-        widget.contentService.fetchQuizResults(widget.profile.id),
+        widget.contentService.fetchQuizResults(widget.profile),
       ]);
       if (!mounted) return;
       setState(() {
@@ -84,6 +84,16 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         int.tryParse('${quiz['questionCount'] ?? ''}') ??
         questions.length;
     final limit = requested.clamp(0, questions.length).toInt();
+    final quizId = _text(quiz['id']);
+    questions.sort(
+      (left, right) => _stableQuestionHash(
+        '${widget.profile.id}:$quizId:${_text(left['id'] ?? left['question'])}',
+      ).compareTo(
+        _stableQuestionHash(
+          '${widget.profile.id}:$quizId:${_text(right['id'] ?? right['question'])}',
+        ),
+      ),
+    );
     return questions.take(limit).toList();
   }
 
@@ -126,8 +136,13 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
     if (index < 0) index = arabic.indexOf(raw.trim());
     if (index < 0) {
       final numeric = int.tryParse(normalized);
-      if (numeric != null && numeric >= 1 && numeric <= options.length) index = numeric - 1;
-      if (numeric != null && numeric >= 0 && numeric < options.length) index = numeric;
+     if (numeric != null) {
+       if (numeric >= 1 && numeric <= options.length) {
+         index = numeric - 1;
+       } else if (numeric >= 0 && numeric < options.length) {
+         index = numeric;
+       }
+     }
     }
     final correct = index >= 0 && index < options.length ? options[index] : raw;
     return _normalize(answer) == _normalize(correct);
@@ -180,11 +195,14 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       'isRetake': _results.any((item) => _text(item['quizId']) == _text(quiz['id'])),
     };
     try {
-      await widget.contentService.saveQuizResult(result);
+       final savedResult = await widget.contentService.saveQuizResult(
+         profile: widget.profile,
+         result: result,
+       );
       if (!mounted) return;
       setState(() {
-        _results = [result, ..._results];
-        _shownResult = result;
+         _results = [savedResult, ..._results];
+         _shownResult = savedResult;
         _activeQuiz = null;
         _questions = const [];
         _answers.clear();
@@ -194,7 +212,9 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر حفظ النتيجة: $error')),
+       const SnackBar(
+         content: Text('تعذر حفظ النتيجة الآن. تحقق من الاتصال ثم أعد المحاولة.'),
+       ),
       );
     }
   }
@@ -471,9 +491,22 @@ String _correctAnswerText(Map<String, dynamic> question) {
   const arabic = ['أ', 'ب', 'ج', 'د'];
   var index = latin.indexOf(lower);
   if (index < 0) index = arabic.indexOf(answer);
-  final numeric = int.tryParse(lower);
-  if (index < 0 && numeric != null) {
-    index = numeric >= 1 && numeric <= options.length ? numeric - 1 : numeric;
+   final numeric = int.tryParse(lower);
+   if (index < 0 && numeric != null) {
+     if (numeric >= 1 && numeric <= options.length) {
+       index = numeric - 1;
+     } else if (numeric >= 0 && numeric < options.length) {
+       index = numeric;
+     }
   }
   return index >= 0 && index < options.length ? options[index] : answer;
+}
+
+int _stableQuestionHash(String value) {
+  var hash = 2166136261;
+  for (final code in value.codeUnits) {
+    hash ^= code;
+    hash = (hash * 16777619) & 0xffffffff;
+  }
+  return hash;
 }

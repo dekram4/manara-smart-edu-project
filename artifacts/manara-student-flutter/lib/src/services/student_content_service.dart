@@ -15,6 +15,7 @@ class StudentContentService {
 
   final SupabaseClient client;
   final String baseUrl;
+  static const _requestTimeout = Duration(seconds: 15);
 
   Future<AcademicSelectionData> fetchAcademicSelectionData(
     StudentProfile profile,
@@ -36,7 +37,8 @@ class StudentContentService {
     final response = await client
         .from('lesson_configs')
         .select('id,data')
-        .limit(500);
+        .limit(500)
+        .timeout(_requestTimeout);
     final matchingLessons = response
         .whereType<Map>()
         .map(
@@ -85,7 +87,8 @@ class StudentContentService {
     final response = await client
         .from('lesson_configs')
         .select('id,data')
-        .limit(500);
+        .limit(500)
+        .timeout(_requestTimeout);
 
     final lessons = response
         .whereType<Map>()
@@ -203,7 +206,8 @@ class StudentContentService {
     final response = await client
         .from('created_quizzes')
         .select('id,data,updated_at')
-        .limit(300);
+        .limit(300)
+        .timeout(_requestTimeout);
 
     final quizzes = <Map<String, dynamic>>[];
     for (final row in response.whereType<Map>()) {
@@ -250,13 +254,16 @@ class StudentContentService {
   }
 
   /// Results are always filtered by student ID before they reach the UI.
-  Future<List<Map<String, dynamic>>> fetchQuizResults(String studentId) async {
+  Future<List<Map<String, dynamic>>> fetchQuizResults(
+    StudentProfile profile,
+  ) async {
     final response = await client
         .from('quiz_results')
         .select('id,data,updated_at')
-        .eq('data->>studentId', studentId)
+        .eq('data->>studentId', profile.id)
         .order('updated_at', ascending: false)
-        .limit(100);
+        .limit(100)
+        .timeout(_requestTimeout);
     return response.whereType<Map>().map((row) {
       final rowMap = _asMap(row);
       final data = _asMap(rowMap['data']);
@@ -264,19 +271,29 @@ class StudentContentService {
         ...data,
         'id': _text(rowMap['id']).isEmpty ? _text(data['id']) : _text(rowMap['id']),
       };
-    }).toList();
+    }).where((result) => _text(result['studentId']) == profile.id).toList();
   }
 
-  Future<void> saveQuizResult(Map<String, dynamic> result) async {
+  Future<Map<String, dynamic>> saveQuizResult({
+    required StudentProfile profile,
+    required Map<String, dynamic> result,
+  }) async {
     final id = _text(result['id']);
     if (id.isEmpty) {
       throw ArgumentError('لا يمكن حفظ نتيجة اختبار بدون معرف.');
     }
+    final safeResult = <String, dynamic>{
+      ...result,
+      'id': id,
+      'studentId': profile.id,
+      'studentName': profile.name,
+    };
     await client.from('quiz_results').upsert({
       'id': id,
-      'data': result,
+      'data': safeResult,
       'updated_at': DateTime.now().toIso8601String(),
-    });
+    }).timeout(_requestTimeout);
+    return safeResult;
   }
 
   Future<void> saveAppearance({
@@ -304,33 +321,60 @@ class StudentContentService {
         .eq('id', profile.id);
   }
 
-  Future<List<Map<String, dynamic>>> loadTutorHistory(String studentId) async {
+  Future<List<Map<String, dynamic>>> loadTutorHistory(
+    StudentProfile profile,
+  ) async {
     final response = await client
         .from('interactions')
         .select('id,data')
-        .eq('data->>studentId', studentId)
+        .eq('data->>studentId', profile.id)
         .order('updated_at', ascending: true)
-        .limit(60);
-    return response.whereType<Map>().map(_asMap).toList();
+        .limit(60)
+        .timeout(_requestTimeout);
+    return response
+        .whereType<Map>()
+        .map((row) => _asMap(row['data']))
+        .where((data) => _text(data['studentId']) == profile.id)
+        .where((data) => _text(data['type']) == 'virtual_teacher')
+        .toList();
   }
 
   Future<void> saveTutorInteraction({
-    required String studentId,
+    required StudentProfile profile,
     required String question,
     required String answer,
   }) async {
-    final id = '${studentId}_${DateTime.now().microsecondsSinceEpoch}';
+    final id = '${profile.id}_${DateTime.now().microsecondsSinceEpoch}';
     await client.from('interactions').upsert({
       'id': id,
       'data': {
-        'studentId': studentId,
+        'studentId': profile.id,
         'type': 'virtual_teacher',
         'question': question,
         'answer': answer,
         'createdAt': DateTime.now().toIso8601String(),
       },
       'updated_at': DateTime.now().toIso8601String(),
-    });
+    }).timeout(_requestTimeout);
+  }
+
+  Future<void> saveProblemSolverInteraction({
+    required StudentProfile profile,
+    required String lessonId,
+    required String question,
+  }) async {
+    final now = DateTime.now();
+    await client.from('interactions').upsert({
+      'id': '${profile.id}_solver_${now.microsecondsSinceEpoch}',
+      'data': {
+        'studentId': profile.id,
+        'type': 'problem_solver',
+        'lessonId': lessonId,
+        'question': question,
+        'createdAt': now.toIso8601String(),
+      },
+      'updated_at': now.toIso8601String(),
+    }).timeout(_requestTimeout);
   }
 
   bool _matchesOwner(LessonContent lesson, StudentProfile profile) {

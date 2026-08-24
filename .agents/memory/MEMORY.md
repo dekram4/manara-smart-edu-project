@@ -8,3 +8,4 @@
 - [Local media storage path](local-media-storage-path.md) — API upload paths must resolve inside the workspace, not above the bundled dist directory.
 - [Supabase video storage](supabase-video-storage.md) — New MP4 uploads use public durable URLs; local API paths remain legacy-only fallbacks.
 - [Media upload fallback](media-upload-fallback.md) — If durable Storage is unavailable, accept uploads locally with an explicit non-persistence warning.
+- [Student chat authorization](student-chat-authorization.md) — Keep Flutter chat unavailable until server-side student authorization isolates message access.

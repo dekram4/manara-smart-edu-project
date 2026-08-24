@@ -11,6 +11,7 @@ import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
+import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
 import 'student_personality_screen.dart';
 import 'student_problem_solver_screen.dart';
@@ -159,6 +160,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       return;
     }
 
+    if (index == 8) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StudentChatScreen(profile: widget.profile),
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => StudentContentScreen(
@@ -176,6 +186,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
   Future<void> _openTutor({bool liveMeeting = false}) async {
     final messenger = ScaffoldMessenger.of(context);
+    if (liveMeeting && !widget.profile.canAccessLiveMeeting) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('اللقاء المباشر غير مفعّل لحسابك حاليًا.')),
+      );
+      return;
+    }
     try {
       final lessons = await StudentContentService(
         widget.authService.client,
@@ -184,7 +200,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => StudentTutorScreen(contents: lessons, liveMeeting: liveMeeting),
+          builder: (_) => StudentTutorScreen(
+            contents: lessons,
+            liveMeeting: liveMeeting,
+          ),
         ),
       );
     } catch (_) {
@@ -214,6 +233,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           builder: (_) => StudentProblemSolverScreen(
             lessons: lessons,
             apiBaseUrl: widget.apiBaseUrl,
+            profile: widget.profile,
+            contentService: StudentContentService(
+              widget.authService.client,
+              baseUrl: widget.apiBaseUrl,
+            ),
           ),
         ),
       );
@@ -439,6 +463,14 @@ const _homeSections = <_HomeSection>[
     icon: Icons.videocam_rounded,
     colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE4A3),
+  ),
+  _HomeSection(
+    title: 'دردشة منارة',
+    subtitle: 'تواصل آمن',
+    description: 'نتحقق من الخصوصية قبل عرض أي رسالة أو زميل.',
+    icon: Icons.forum_rounded,
+    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+    accent: Color(0xFFBFDBFE),
   ),
 ];
 

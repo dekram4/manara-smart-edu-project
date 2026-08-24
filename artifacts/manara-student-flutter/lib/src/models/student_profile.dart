@@ -14,6 +14,8 @@ class StudentProfile {
     this.teacherId,
     this.studentIdNumber,
     this.appearance,
+    this.canAccessChat = true,
+    this.canAccessLiveMeeting = true,
   });
 
   factory StudentProfile.fromStudentRow(Map<String, dynamic> row) {
@@ -34,6 +36,8 @@ class StudentProfile {
       teacherId: _asText(data['teacherId']) ?? _asText(data['teacher_id']),
       studentIdNumber: _asText(data['studentIdNumber']),
       appearance: _asMap(data['appearance']),
+      canAccessChat: _asBool(data['canAccessChat'], fallback: true),
+      canAccessLiveMeeting: _asBool(data['canAccessLiveMeeting'], fallback: true),
     );
   }
 
@@ -54,6 +58,12 @@ class StudentProfile {
       unit: _asText(profile['unit']),
       teacherId: _asText(profile['teacher_id']) ?? _asText(profile['teacherId']),
       studentIdNumber: _asText(profile['student_id_number']),
+      canAccessChat: _asBool(profile['can_access_chat'] ?? profile['canAccessChat'],
+          fallback: true),
+      canAccessLiveMeeting: _asBool(
+        profile['can_access_live_meeting'] ?? profile['canAccessLiveMeeting'],
+        fallback: true,
+      ),
     );
   }
 
@@ -69,6 +79,8 @@ class StudentProfile {
   final String? teacherId;
   final String? studentIdNumber;
   final Map<String, dynamic>? appearance;
+  final bool canAccessChat;
+  final bool canAccessLiveMeeting;
 
   StudentAcademicValues get academicValues => StudentAcademicValues(
         grade: grade,
@@ -91,4 +103,12 @@ Map<String, dynamic> _asMap(Object? value) {
 String? _asText(Object? value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
+}
+
+bool _asBool(Object? value, {required bool fallback}) {
+  if (value is bool) return value;
+  final normalized = _asText(value)?.toLowerCase();
+  if (normalized == 'true' || normalized == '1') return true;
+  if (normalized == 'false' || normalized == '0') return false;
+  return fallback;
 }

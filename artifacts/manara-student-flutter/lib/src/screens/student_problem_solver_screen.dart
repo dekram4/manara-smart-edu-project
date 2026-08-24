@@ -4,16 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/student_content.dart';
+import '../models/student_profile.dart';
+import '../services/student_content_service.dart';
 
 class StudentProblemSolverScreen extends StatefulWidget {
   const StudentProblemSolverScreen({
     required this.lessons,
     required this.apiBaseUrl,
+    required this.profile,
+    required this.contentService,
     super.key,
   });
 
   final List<LessonContent> lessons;
   final String apiBaseUrl;
+  final StudentProfile profile;
+  final StudentContentService contentService;
 
   @override
   State<StudentProblemSolverScreen> createState() => _StudentProblemSolverScreenState();
@@ -79,8 +85,13 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         endpoint,
         headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({'lesson': lesson.lessonText, 'question': question}),
-      );
-      final payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+      ).timeout(const Duration(seconds: 25));
+       Object? payload;
+       try {
+         payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+       } on FormatException {
+         throw Exception('استجابة الخدمة غير صالحة. حاول مرة أخرى.');
+       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final message = payload is Map ? payload['error']?.toString() : null;
         throw Exception(message?.trim().isNotEmpty == true ? message : 'تعذر الحصول على إجابة.');
@@ -91,9 +102,19 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       }
       if (!mounted) return;
       setState(() => _answer = answer);
+       try {
+         await widget.contentService.saveProblemSolverInteraction(
+           profile: widget.profile,
+           lessonId: lesson.id,
+           question: question,
+         );
+       } catch (_) {
+         // The answer is already valid. Failing to store a learning activity
+         // must never hide it from the student.
+       }
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = 'تعذر حل السؤال: $error');
+       setState(() => _error = _studentSafeError(error));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -243,4 +264,12 @@ class _MessageCard extends StatelessWidget {
           ],
         ),
       );
+}
+
+String _studentSafeError(Object error) {
+  final message = error.toString().replaceFirst('Exception: ', '').trim();
+  if (message.contains('استجابة الخدمة غير صالحة')) return message;
+  if (message.contains('لم تصل إجابة صالحة')) return message;
+  if (message.contains('تعذر الحصول على إجابة')) return message;
+  return 'تعذر حل السؤال الآن. تحقق من الاتصال ثم حاول مرة أخرى.';
 }

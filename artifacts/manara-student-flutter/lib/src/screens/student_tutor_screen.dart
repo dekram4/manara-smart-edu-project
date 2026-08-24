@@ -258,9 +258,9 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                     if (!mounted || request.url?.toString() != _avatarUrl) return;
                     setState(() {
                       _loading = false;
-                      _frameError = error.description.isEmpty
-                          ? 'تعذر الاتصال بخدمة المعلم الافتراضي.'
-                          : 'تعذر تحميل خدمة المعلم الافتراضي: ${error.description}';
+                      _frameError = widget.liveMeeting
+                          ? 'تعذر الاتصال بخدمة اللقاء. تحقق من الرابط ثم أعد المحاولة.'
+                          : 'تعذر الاتصال بخدمة المعلم الافتراضي. حاول مرة أخرى.';
                     });
                   },
                   shouldOverrideUrlLoading: (_, action) async {
