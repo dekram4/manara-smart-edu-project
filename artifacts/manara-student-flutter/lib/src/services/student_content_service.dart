@@ -280,7 +280,12 @@ class StudentContentService {
       video['teacher_id'] ?? video['teacherId'] ?? video['createdBy'],
     );
     final teacher = _normalize(profile.teacherId);
-    final ownerAllowed = owner.isEmpty || owner == 'admin' || owner == 'supervisor' ||
+    // Cinema records are created by the teacher/admin manager with an owner.
+    // Treat ownerless records as legacy data, not public student content; this
+    // prevents obsolete app_kv entries from appearing as "ghost" videos.
+    final ownerAllowed =
+        owner == 'admin' ||
+        owner == 'supervisor' ||
         (teacher.isNotEmpty && owner == teacher);
     if (!ownerAllowed) return false;
 
@@ -467,7 +472,10 @@ LessonContent parseLessonContent(
     baseUrl: baseUrl,
     storageClient: storageClient,
   );
-  if (_isSafeUrl(legacyUrl) && !videos.any((video) => video.url == legacyUrl)) {
+  // explanationVideos is the authoritative structured list. The legacy
+  // single-video field can point at a previous upload, so use it only for
+  // lessons created before the structured list existed.
+  if (videos.isEmpty && _isSafeUrl(legacyUrl)) {
     videos.insert(
       0,
       LessonVideo(

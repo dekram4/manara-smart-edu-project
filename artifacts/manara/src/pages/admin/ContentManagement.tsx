@@ -291,7 +291,9 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     const nextVideos = videosToSave.filter((video, index, all) =>
       all.findIndex(item => item.url === video.url) === index,
     );
-    const primaryVideo = nextVideos[0];
+    // The latest selected/uploaded video is the legacy single-video fallback.
+    // The structured explanationVideos list remains the source of truth.
+    const primaryVideo = nextVideos.at(-1);
     const preservedLesson = matchingLesson || editingLesson;
     const lesson: LessonConfig = {
       id: editingLesson?.id || matchingLesson?.id || Date.now().toString(),
