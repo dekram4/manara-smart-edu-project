@@ -517,4 +517,3 @@ String youtubeVideoId(Uri uri, String host) {
   }
   return '';
 }
-
