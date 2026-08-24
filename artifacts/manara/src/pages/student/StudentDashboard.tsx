@@ -578,7 +578,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [quizEmptyMessage, setQuizEmptyMessage] = useState<string | null>(null);
 
-  const [chatMessages, setChatMessages] = useState<Array<{id: string; name: string; message: string; time: string}>>([]);
+  const [chatMessages, setChatMessages] = useState<Array<{id: string; from: string; name: string; message: string; time: string}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [showChat, setShowChat] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
@@ -586,6 +586,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [peers, setPeers] = useState<Array<{id: string; name: string}>>([]);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [lastMessageCount, setLastMessageCount] = useState(0);
+  const [studentApiToken, setStudentApiToken] = useState<string | null>(null);
 
   const [showModuleCards, setShowModuleCards] = useState(false);
   const [selectedPath, setSelectedPath] = useState(false);
@@ -750,7 +751,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       return () => window.clearInterval(interval);
     }
     return undefined;
-  }, [student?.grade, chatEnabled, showChat]);
+  }, [student?.id, chatEnabled, showChat, studentApiToken]);
 
   useEffect(() => {
     if (showChat) {
@@ -772,69 +773,40 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     }
   }, [chatMessages, showChat]);
 
-  useEffect(() => {
-    if (!student?.grade) return;
-    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
-    const studentScope = getStudentTeacherScope(student);
-    const same = allStudents.filter((s: any) => {
-      const sameGrade = (s.grade || '').toString().trim().toLowerCase() === (student.grade || '').toString().trim().toLowerCase();
-      const candidateScope = getStudentTeacherScope(s);
-      const sameTeacher = studentScope.explicit
-        ? candidateScope.explicit && candidateScope.teacherId === studentScope.teacherId
-        : candidateScope.teacherId === studentScope.teacherId;
-      return sameGrade && sameTeacher;
-    });
-    setPeers(same.filter((s: any) => s.id !== student.id).map((s: any) => ({ id: s.id, name: s.name })));
-  }, [student]);
-
-  const loadChatMessages = () => {
-    if (!student?.grade || !chatEnabled) return;
-
-    const allMessages = readStorageArray<any>(STORAGE_KEYS.CHAT_MESSAGES);
-    const studentScope = getStudentTeacherScope(student);
-
-    const gradeMessages = allMessages
-      .filter((m: any) => {
-        const sameGrade = normalizeScopeValue(m.grade) === normalizeScopeValue(student.grade);
-        const sameTeacher = studentScope.explicit
-          ? normalizeScopeValue(m.teacherId) === studentScope.teacherId
-          : !m.teacherId || normalizeScopeValue(m.teacherId) === studentScope.teacherId;
-        return sameGrade && sameTeacher;
-      })
-      .filter((m: any) => m.to === 'all' || m.to === student.id || m.from === student.id)
-      .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
-
-    const lastReadKey = `LAST_READ_MESSAGE_${student.id}_${student.grade}_${studentScope.teacherId}`;
-    const lastReadTime = localStorage.getItem(lastReadKey) || '0';
-
-    if (!showChat) {
-      const unreadMessages = gradeMessages.filter((m: any) => {
-        const isNew = new Date(m.time).getTime() > parseInt(lastReadTime);
-        const isFromOthers = m.from !== student.id;
-        const isForMe = m.to === student.id || m.to === 'all';
-        return isNew && isFromOthers && isForMe;
-      });
-
-      if (unreadMessages.length > 0) {
+  const loadChatMessages = async () => {
+    if (!studentApiToken) {
+      setChatEnabled(false);
+      setChatMessages([]);
+      setPeers([]);
+      return;
+    }
+    if (!chatEnabled) return;
+    const headers = { Authorization: `Bearer ${studentApiToken}` };
+    try {
+      const [messagesResponse, peersResponse] = await Promise.all([
+        fetch('/api/student/chat/messages', { headers }),
+        fetch('/api/student/chat/peers', { headers }),
+      ]);
+      const messagesBody = await messagesResponse.json().catch(() => ({}));
+      const peersBody = await peersResponse.json().catch(() => ({}));
+      if (!messagesResponse.ok || !peersResponse.ok) {
+        setChatEnabled(false);
+        return;
+      }
+      const messages = Array.isArray(messagesBody.messages) ? messagesBody.messages : [];
+      const nextPeers = Array.isArray(peersBody.peers) ? peersBody.peers : [];
+      if (!showChat && messages.some((message: any) => message.from !== student?.id)) {
         setHasNewMessage(true);
       }
-    }
-
-    if (showChat && gradeMessages.length > 0) {
-      const latestMessageTime = new Date(gradeMessages[gradeMessages.length - 1].time).getTime();
-      localStorage.setItem(lastReadKey, latestMessageTime.toString());
-      setHasNewMessage(false);
-    }
-
-    const messageSignature = [
-      student.id,
-      studentScope.teacherId,
-      ...gradeMessages.map((message: any) => `${message.id}:${message.time}:${message.message}`),
-    ].join('|');
-    setLastMessageCount(gradeMessages.length);
-    if (messageSignatureRef.current !== messageSignature) {
-      messageSignatureRef.current = messageSignature;
-      setChatMessages(gradeMessages);
+      const signature = messages.map((message: any) => `${message.id}:${message.time}:${message.message}`).join('|');
+      setLastMessageCount(messages.length);
+      setPeers(nextPeers);
+      if (messageSignatureRef.current !== signature) {
+        messageSignatureRef.current = signature;
+        setChatMessages(messages);
+      }
+    } catch {
+      setChatEnabled(false);
     }
   };
 
@@ -860,27 +832,22 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setPendingStreakBonus(0);
   }, [pendingStreakBonus]);
 
-  const sendChatMessage = () => {
-    if (!chatInput.trim() || !student) return;
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || !student || !studentApiToken) return;
     playLamsaSound('send');
-    const toName = chatTarget === 'all' ? 'الجميع' : (peers.find(p => p.id === chatTarget)?.name || 'مخفي');
-    const newMessage = {
-      id: Date.now().toString(),
-      from: student.id,
-      name: student.name,
-      to: chatTarget || 'all',
-      toName,
-      message: chatInput,
-      grade: student.grade,
-      time: new Date().toISOString(),
-      teacherId: getStudentTeacherScope(student).teacherId
-    };
-    const allMessages = readStorageArray(STORAGE_KEYS.CHAT_MESSAGES);
-    allMessages.push(newMessage);
-    localStorage.setItem(STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(allMessages));
-    loadChatMessages();
-    setChatInput('');
-    setHasNewMessage(false);
+    try {
+      const response = await fetch('/api/student/chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentApiToken}` },
+        body: JSON.stringify({ message: chatInput.trim(), to: chatTarget || 'all' }),
+      });
+      if (!response.ok) throw new Error();
+      setChatInput('');
+      setHasNewMessage(false);
+      await loadChatMessages();
+    } catch {
+      alert('تعذر إرسال الرسالة. أعد تسجيل الدخول أو حاول مرة أخرى.');
+    }
   };
 
   const getFilteredHierarchicalConfigs = () => {
@@ -1487,7 +1454,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     });
   };
 
-  const handleLogin = (username: string, password: string) => {
+  const handleLogin = async (username: string, password: string) => {
     const all = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     const found = all.find((s: StudentInfo) => 
       (s.username === username || s.studentIdNumber === username) && passwordsMatch(password, s.password)
@@ -1516,6 +1483,19 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       hydrateGamificationFromStudent(activeStudent);
       setStudent(activeStudent);
       setIsAuthenticated(true);
+      // The dashboard itself remains legacy-compatible, but protected student
+      // services use the server-issued token rather than localStorage identity.
+      try {
+        const response = await fetch('/api/auth/student/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const body = await response.json().catch(() => ({}));
+        setStudentApiToken(response.ok && typeof body.token === 'string' ? body.token : null);
+      } catch {
+        setStudentApiToken(null);
+      }
       const streakCheck = checkStreak();
       if (streakCheck.bonusXp > 0) setPendingStreakBonus(streakCheck.bonusXp);
       refreshGamification();
@@ -1554,11 +1534,18 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setSolutionText('');
     playLamsaSound('send');
     try {
+      if (!studentApiToken) {
+        setSolutionText('لأمان حسابك، سجّل الخروج ثم ادخل باسم المستخدم وكلمة المرور قبل استخدام المساعد.');
+        return;
+      }
       const response = await fetch('/api/gemini/answer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${studentApiToken}`,
+        },
         body: JSON.stringify({
-          lesson: activeLesson.lessonContent,
+          lessonId: activeLesson.id,
           question: problemText
         })
       });

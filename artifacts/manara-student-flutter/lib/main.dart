@@ -92,7 +92,9 @@ class ManaraStudentApp extends StatelessWidget {
       home: Directionality(
         textDirection: TextDirection.rtl,
         child: LoginScreen(
-          authService: client == null ? null : StudentAuthService(client!),
+          authService: client == null
+              ? null
+              : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
           initializationError: initializationError,
           apiBaseUrl: apiBaseUrl,
         ),

@@ -6,6 +6,11 @@ import {
   verifyAdminSession,
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
+import {
+  findStudentByUsername,
+  passwordsMatch as studentPasswordsMatch,
+  studentToken,
+} from "../lib/studentAccess";
 
 const router = Router();
 
@@ -158,6 +163,29 @@ router.get("/auth/admin/session", (req, res) => {
   return res.json({
     authenticated: verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE)),
   });
+});
+
+// Native clients cannot use the web-only cookie flow. They receive a short-lived
+// signed bearer token that only identifies the verified student account.
+router.post("/auth/student/session", async (req, res) => {
+  const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!username || !password) {
+    return res.status(400).json({ error: "بيانات دخول الطالب مطلوبة" });
+  }
+  try {
+    const student = await findStudentByUsername(username);
+    if (!student || !studentPasswordsMatch(password, student.password)) {
+      return res.status(401).json({ error: "بيانات دخول الطالب غير صحيحة" });
+    }
+    return res.json({
+      token: studentToken(student.id),
+      expiresAt: Date.now() + 60 * 60 * 12 * 1000,
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Student API session authentication failed");
+    return res.status(503).json({ error: "تعذر إنشاء جلسة الطالب الآن. حاول مرة أخرى." });
+  }
 });
 
 router.post("/auth/teacher/session", async (req, res) => {

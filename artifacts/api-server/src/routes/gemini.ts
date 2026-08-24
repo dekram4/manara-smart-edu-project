@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/adminAuth";
+import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
+import {
+  apiSupabaseConfig,
+  matchesStudentScope,
+  type StudentActor,
+} from "../lib/studentAccess";
 
 // 20 AI-answer requests per IP per minute — prevents Gemini quota abuse
 // while still allowing normal student lesson use
@@ -155,19 +161,92 @@ function getGeminiText(data: any): string | null {
   );
 }
 
-// /api/gemini/answer is public (students need it) but rate-limited per IP
-router.post("/gemini/answer", answerRateLimit, async (req, res) => {
-  const lesson =
-    typeof req.body?.lesson === "string" ? req.body.lesson.trim() : "";
+async function resolveStudentLesson(
+  lessonId: string,
+  student: StudentActor,
+): Promise<{ id: string; text: string } | null> {
+  const config = apiSupabaseConfig();
+  if (!config || !lessonId) return null;
+  const url = new URL(`${config.url}/rest/v1/lesson_configs`);
+  url.searchParams.set("select", "id,data");
+  url.searchParams.set("id", `eq.${lessonId}`);
+  const response = await fetch(url, {
+    headers: { apikey: config.key, Authorization: `Bearer ${config.key}` },
+  });
+  if (!response.ok) throw new Error(`Lesson lookup failed (${response.status})`);
+  const rows = await response.json();
+  const row = Array.isArray(rows) ? rows[0] : null;
+  const data = row?.data && typeof row.data === "object" ? row.data : null;
+  if (!data || !matchesStudentScope(data, student)) return null;
+  const lesson = data as Record<string, unknown>;
+  const text = typeof lesson.lessonContent === "string"
+    ? lesson.lessonContent.trim()
+    : typeof lesson.lessonText === "string"
+      ? lesson.lessonText.trim()
+      : "";
+  return text ? { id: String(row.id || lessonId), text } : null;
+}
+
+async function recordProblemSolverActivity(
+  student: StudentActor,
+  lessonId: string,
+  question: string,
+  answer: string,
+): Promise<void> {
+  const config = apiSupabaseConfig();
+  if (!config) return;
+  const now = new Date().toISOString();
+  await fetch(`${config.url}/rest/v1/interactions`, {
+    method: "POST",
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: `solver_${student.id}_${Date.now()}`,
+      data: {
+        type: "problem_solver",
+        studentId: student.id,
+        studentName: student.name,
+        teacherId: student.teacherId,
+        lessonId,
+        question,
+        answer,
+        grade: student.grade,
+        atram: student.atram,
+        subject: student.subject,
+        term: student.term,
+        unit: student.unit,
+        createdAt: now,
+      },
+      updated_at: now,
+    }),
+  });
+}
+
+router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req, res) => {
+  const lessonId =
+    typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
   const question =
     typeof req.body?.question === "string" ? req.body.question.trim() : "";
-  if (!lesson || !question || lesson.length > 12000 || question.length > 2000) {
-    return res.status(400).json({ error: "محتوى الدرس أو السؤال غير صالح" });
+  if (!lessonId || !question || question.length > 2000) {
+    return res.status(400).json({ error: "معرّف الدرس أو السؤال غير صالح" });
   }
-  const prompt = `أنت مساعد تعليمي ذكي. اقرأ النص التالي:\n\n${lesson}\n\nالسؤال: ${question}\n\nأجب إجابة مباشرة، ذكية، مفصلة، وبدون مقدمات أو تكرار للسؤال. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة. فقط أعطِ الجواب النهائي للطالب.\n`;
   try {
+    const student = res.locals.student as StudentActor;
+    const lesson = await resolveStudentLesson(lessonId, student);
+    if (!lesson) {
+      return res.status(403).json({ error: "هذا الدرس غير متاح لحسابك أو لا يحتوي على شرح نصي." });
+    }
+    const prompt = `أنت مساعد تعليمي ذكي. اقرأ النص التالي:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب إجابة مباشرة ومفيدة خطوة بخطوة للطالب. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
     const data = await callGemini(prompt);
-    return res.json({ answer: getGeminiText(data) });
+    const answer = getGeminiText(data);
+    if (!answer) return res.status(502).json({ error: "لم تصل إجابة صالحة من خدمة الذكاء الاصطناعي" });
+    await recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
+      logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
+    );
+    return res.json({ answer });
   } catch (error: any) {
     logger.error({ err: error }, "[gemini] answer failed");
     return res

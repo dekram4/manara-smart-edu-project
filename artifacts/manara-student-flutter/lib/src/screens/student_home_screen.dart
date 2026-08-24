@@ -164,7 +164,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     if (index == 8) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => StudentChatScreen(profile: widget.profile),
+          builder: (_) => StudentChatScreen(
+            profile: widget.profile,
+            apiBaseUrl: widget.apiBaseUrl,
+            studentSessionToken: widget.authService.apiSessionToken,
+          ),
         ),
       );
       return;
@@ -244,6 +248,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               widget.authService.client,
               baseUrl: widget.apiBaseUrl,
             ),
+            studentSessionToken: widget.authService.apiSessionToken,
             academicContext: widget.academicContext,
           ),
         ),

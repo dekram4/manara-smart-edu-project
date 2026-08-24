@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/student_profile.dart';
@@ -17,9 +18,14 @@ class StudentAuthException implements Exception {
 }
 
 class StudentAuthService {
-  StudentAuthService(this.client);
+  StudentAuthService(this.client, {required this.apiBaseUrl});
 
   final SupabaseClient client;
+  final String apiBaseUrl;
+  String? _apiSessionToken;
+
+  /// Never persist this token. It lives only for the signed-in app session.
+  String? get apiSessionToken => _apiSessionToken;
 
   Future<StudentProfile> signIn({
     required String username,
@@ -43,6 +49,7 @@ class StudentAuthService {
         if (!profile.isStudent) {
           throw const StudentAuthException(studentOnlyMessage);
         }
+        await _createApiSession(cleanUsername, password);
         return profile;
       }
 
@@ -60,6 +67,34 @@ class StudentAuthService {
     } catch (error) {
       throw StudentAuthException('حدث خطأ أثناء تسجيل الدخول: $error');
     }
+  }
+
+  Future<void> _createApiSession(String username, String password) async {
+    final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isEmpty) {
+      throw const StudentAuthException('لم يتم إعداد اتصال خدمة الطالب الآمنة.');
+    }
+    final response = await http
+        .post(
+          Uri.parse('$base/api/auth/student/session'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'username': username, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 12));
+    final payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300 || payload is! Map) {
+      final message = payload is Map ? payload['error']?.toString() : null;
+      throw StudentAuthException(
+        message?.trim().isNotEmpty == true
+            ? message!
+            : 'تعذر تأمين جلسة الطالب. حاول مرة أخرى.',
+      );
+    }
+    final token = payload['token']?.toString().trim();
+    if (token == null || token.isEmpty) {
+      throw const StudentAuthException('تعذر تأمين جلسة الطالب. حاول مرة أخرى.');
+    }
+    _apiSessionToken = token;
   }
 
   Future<Map<String, dynamic>?> _findStudent(String username) async {
@@ -101,6 +136,10 @@ class StudentAuthService {
       await client.auth.signOut();
       throw const StudentAuthException(studentOnlyMessage);
     }
+    // This legacy email path has no server-verifiable student password row.
+    // It can browse permitted Supabase content, but protected chat/AI remains
+    // unavailable until an administrator provisions a student username.
+    _apiSessionToken = null;
     return profile;
   }
 

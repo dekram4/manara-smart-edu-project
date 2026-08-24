@@ -15,6 +15,7 @@ class StudentProblemSolverScreen extends StatefulWidget {
     required this.apiBaseUrl,
     required this.profile,
     required this.contentService,
+    required this.studentSessionToken,
     this.academicContext,
     super.key,
   });
@@ -23,6 +24,7 @@ class StudentProblemSolverScreen extends StatefulWidget {
   final String apiBaseUrl;
   final StudentProfile profile;
   final StudentContentService contentService;
+  final String? studentSessionToken;
   final AcademicContext? academicContext;
 
   @override
@@ -101,6 +103,11 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       setState(() => _error = 'لم يتم إعداد اتصال خدمة المساعد في هذا التطبيق.');
       return;
     }
+    final token = widget.studentSessionToken?.trim();
+    if (token == null || token.isEmpty) {
+      setState(() => _error = 'انتهت جلسة الطالب الآمنة. سجّل الدخول مرة أخرى للمتابعة.');
+      return;
+    }
     setState(() {
       _sending = true;
       _error = null;
@@ -109,8 +116,11 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     try {
       final response = await http.post(
         endpoint,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({'lesson': lesson.lessonText, 'question': question}),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'lessonId': lesson.id, 'question': question}),
       ).timeout(const Duration(seconds: 25));
        Object? payload;
        try {
@@ -128,16 +138,6 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       }
       if (!mounted) return;
       setState(() => _answer = answer);
-       try {
-         await widget.contentService.saveProblemSolverInteraction(
-           profile: widget.profile,
-           lessonId: lesson.id,
-           question: question,
-         );
-       } catch (_) {
-         // The answer is already valid. Failing to store a learning activity
-         // must never hide it from the student.
-       }
     } catch (error) {
       if (!mounted) return;
        setState(() => _error = _studentSafeError(error));
