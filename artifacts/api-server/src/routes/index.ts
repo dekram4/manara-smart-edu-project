@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import geminiRouter from "./gemini";
 import mediaRouter from "./media";
 import gameEmbedRouter from "./gameEmbed";
+import supabaseBridgeRouter from "./supabaseBridge";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(authRouter);
 router.use(geminiRouter);
 router.use(mediaRouter);
 router.use(gameEmbedRouter);
+router.use(supabaseBridgeRouter);
 
 export default router;
