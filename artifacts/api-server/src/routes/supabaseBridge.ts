@@ -99,6 +99,14 @@ function mergeDeletedIds(remoteValue: unknown, requestedValue: unknown): string[
   ].map(stringValue).filter(Boolean)));
 }
 
+function recordIds(value: unknown): Set<string> {
+  return new Set(
+    asRecords(value)
+      .map((record) => stringValue(record.id))
+      .filter(Boolean),
+  );
+}
+
 function tableName(req: Request): string {
   const table = stringValue(req.params.table);
   return ROW_TABLES.has(table) ? table : "";
@@ -193,6 +201,27 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify({ key, value: mergedValue }),
       });
+
+      // A saved live video is an explicit restore action. Clear only the
+      // submitted live IDs from the tombstone list; deletion itself removes
+      // records from smartEdu_videos, so this cannot revive a deleted record.
+      if (key === VIDEO_KEY) {
+        const submittedIds = recordIds(row.value);
+        if (submittedIds.size) {
+          const deletedIds = mergeDeletedIds(
+            await readValue(config, DELETED_VIDEO_KEY),
+            [],
+          );
+          const restoredDeletedIds = deletedIds.filter((id) => !submittedIds.has(id));
+          if (restoredDeletedIds.length !== deletedIds.length) {
+            await rest(config, "app_kv?on_conflict=key", {
+              method: "POST",
+              headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+              body: JSON.stringify({ key: DELETED_VIDEO_KEY, value: restoredDeletedIds }),
+            });
+          }
+        }
+      }
     }
     res.status(204).end();
   } catch (error) {
