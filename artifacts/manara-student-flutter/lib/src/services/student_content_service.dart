@@ -143,16 +143,30 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
-    final row = await client
-        .from('app_kv')
-        .select('value')
-        .eq('key', 'smartEdu_videos')
-        .maybeSingle();
-    final rawVideos = _asList(row?['value']);
+    final rows = await Future.wait([
+      client
+          .from('app_kv')
+          .select('value')
+          .eq('key', 'smartEdu_videos')
+          .maybeSingle(),
+      client
+          .from('app_kv')
+          .select('value')
+          .eq('key', 'smartEdu_deletedVideos')
+          .maybeSingle(),
+    ]);
+    final rawVideos = _asList(rows[0]?['value']);
+    final deletedIds = _asList(rows[1]?['value'])
+        .map(_text)
+        .where((id) => id.isNotEmpty)
+        .toSet();
     final videos = <LessonVideo>[];
     final seen = <String>{};
     for (final rawVideo in rawVideos) {
       final data = _asMap(rawVideo);
+      final recordId = _text(data['id']);
+      if (recordId.isNotEmpty && deletedIds.contains(recordId)) continue;
+      if (_isDeletedVideo(data)) continue;
       if (!_matchesCinemaScope(data, profile, academicContext)) continue;
 
       final url = _resolveVideoUrl(
@@ -161,7 +175,7 @@ class StudentContentService {
         storageClient: client,
       );
       if (!_isSafeUrl(url)) continue;
-      final id = _text(data['id']).isEmpty ? url : _text(data['id']);
+      final id = recordId.isEmpty ? url : recordId;
       final key = '$id|$url';
       if (!seen.add(key)) continue;
       videos.add(
@@ -289,6 +303,14 @@ class StudentContentService {
     return content == selected;
   }
 
+}
+
+bool _isDeletedVideo(Map<String, dynamic> data) {
+  final status = _text(data['status']).toLowerCase();
+  return data['deleted'] == true ||
+      data['isDeleted'] == true ||
+      status == 'deleted' ||
+      status == 'removed';
 }
 
 List<AcademicPath> _pathsFromHierarchy(

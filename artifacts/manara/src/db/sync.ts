@@ -477,6 +477,16 @@ async function syncKv(key: string, value: any): Promise<void> {
   if (res.error) appendPending({ type: 'kv', key, value });
 }
 
+/**
+ * Immediately persists a shared collection value while retaining the normal
+ * offline queue. Use this for tombstones that other applications must see
+ * without waiting for another localStorage write or hydration cycle.
+ */
+export function syncSharedValue(key: string, value: unknown): void {
+  if (!KV_SET.has(key)) return;
+  void enqueue(key, () => syncKv(key, value));
+}
+
 // تركيب الاعتراض على الكتابة (يُستدعى بعد hydrate)
 export function installWriteThrough(): void {
   if (writeThroughInstalled) return;

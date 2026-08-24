@@ -804,10 +804,14 @@ class UniversalWebVideoScreen extends StatelessWidget {
     if (clean.startsWith('http://') || clean.startsWith('https://')) {
       return clean;
     }
+    if (clean.startsWith('/')) {
+      final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+      return base.isEmpty ? clean : '$base$clean';
+    }
     if (clean.startsWith('videos/')) {
       return 'https://kpqlotlyniomssnzcgqn.supabase.co/storage/v1/object/public/lesson-videos/$clean';
     }
-    return 'https://kpqlotlyniomssnzcgqn.supabase.co/storage/v1/object/public/lesson-videos/videos/320ac17fe3e12446032ef3b7/5cc97be9-92b5-4fc5-8de5-8c4ecf6b19a3.mp4';
+    return clean;
   }
 
   @override

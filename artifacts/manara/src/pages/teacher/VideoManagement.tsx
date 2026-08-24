@@ -6,6 +6,7 @@ import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissions, getTeacherVideoUsageMb, isLimitReached } from '../../permissions';
 import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, showVideoStorageNotice, uploadMp4Video, VideoSourceType } from '../../utils/video';
 import VideoThumbnail from '../../components/VideoThumbnail';
+import { syncSharedValue } from '../../db/sync';
 
 interface VideoRecord {
   id: string;
@@ -471,6 +472,9 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     // Save the tombstone before removing the record so a later Supabase hydrate
     // cannot merge this deliberately deleted video back into the local list.
     localStorage.setItem(STORAGE_KEYS.DELETED_VIDEOS, JSON.stringify(nextDeletedIds));
+    // The Flutter student app reads this shared tombstone to exclude deleted
+    // cinema videos, even when an older smartEdu_videos record is still cached.
+    syncSharedValue(STORAGE_KEYS.DELETED_VIDEOS, nextDeletedIds);
     const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
     if (saved) {
       const all = JSON.parse(saved).filter((v: VideoRecord) => v.id !== id);

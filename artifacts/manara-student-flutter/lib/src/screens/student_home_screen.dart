@@ -119,7 +119,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           authService: widget.authService,
           apiBaseUrl: widget.apiBaseUrl,
           academicContext: widget.academicContext,
-          initialModule: modules[index - 1],
+          // The first card is "شرح الدرس"; the cinema card is handled above.
+          // Subtracting one here made the first card access modules[-1].
+          initialModule: modules[index == 0 ? 0 : index - 1],
         ),
       ),
     );

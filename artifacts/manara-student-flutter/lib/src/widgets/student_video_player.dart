@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/student_content.dart';
 
@@ -24,6 +26,7 @@ class StudentVideoPlayer extends StatefulWidget {
 class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   Player? _player;
   VideoController? _videoController;
+  VideoPlayerController? _networkController;
   String? _error;
 
   String get _url => resolveStudentVideoUrl(
@@ -32,14 +35,15 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       );
 
   bool get _isNativeVideo => isDirectVideoUrl(_url, widget.video);
+  bool get _usesMediaKit => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
   @override
   void initState() {
     super.initState();
-    if (_isNativeVideo) _openNativeVideo();
+    if (_isNativeVideo) _openVideo();
   }
 
-  Future<void> _openNativeVideo() async {
+  Future<void> _openVideo() async {
     final uri = Uri.tryParse(_url);
     if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
       setState(() {
@@ -48,6 +52,14 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       return;
     }
 
+    if (_usesMediaKit) {
+      await _openWithMediaKit();
+    } else {
+      await _openWithVideoPlayer(uri);
+    }
+  }
+
+  Future<void> _openWithMediaKit() async {
     final player = Player();
     _player = player;
     _videoController = VideoController(player);
@@ -75,9 +87,36 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     }
   }
 
+  Future<void> _openWithVideoPlayer(Uri uri) async {
+    final controller = VideoPlayerController.networkUrl(
+      uri,
+      httpHeaders: const {'Accept': 'video/*'},
+    );
+    _networkController = controller;
+    controller.addListener(() {
+      final value = controller.value;
+      if (!mounted || !value.hasError) return;
+      setState(() {
+        _error = value.errorDescription ?? 'تعذر تحميل مصدر الفيديو.';
+      });
+    });
+
+    try {
+      await controller.initialize();
+      await controller.setLooping(false);
+      if (!mounted) return;
+      setState(() {});
+      await controller.play();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    }
+  }
+
   @override
   void dispose() {
     _player?.dispose();
+    _networkController?.dispose();
     super.dispose();
   }
 
@@ -86,15 +125,20 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     if (!_isNativeVideo) return _buildInlineEmbed();
 
     final controller = _videoController;
+    final networkController = _networkController;
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (controller != null)
+        if (_usesMediaKit && controller != null)
           Video(
             controller: controller,
             fill: Colors.black,
             controls: MaterialVideoControls,
           )
+        else if (!_usesMediaKit &&
+            networkController != null &&
+            networkController.value.isInitialized)
+          _NetworkVideoSurface(controller: networkController)
         else
           const ColoredBox(
             color: Colors.black,
@@ -171,13 +215,15 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               OutlinedButton.icon(
                 onPressed: () async {
                   await _player?.dispose();
+                  await _networkController?.dispose();
                   if (!mounted) return;
                   setState(() {
                     _error = null;
                     _player = null;
                     _videoController = null;
+                    _networkController = null;
                   });
-                  await _openNativeVideo();
+                  await _openVideo();
                 },
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('إعادة المحاولة'),
@@ -189,6 +235,80 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _NetworkVideoSurface extends StatefulWidget {
+  const _NetworkVideoSurface({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  State<_NetworkVideoSurface> createState() => _NetworkVideoSurfaceState();
+}
+
+class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
+  bool _showControls = true;
+
+  void _togglePlayback() {
+    final controller = widget.controller;
+    if (controller.value.isPlaying) {
+      controller.pause();
+    } else {
+      controller.play();
+    }
+    setState(() => _showControls = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = widget.controller.value.aspectRatio;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _togglePlayback,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Center(
+            child: AspectRatio(
+              aspectRatio: ratio <= 0 ? 16 / 9 : ratio,
+              child: VideoPlayer(widget.controller),
+            ),
+          ),
+          if (_showControls)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(80),
+                shape: BoxShape.circle,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Icon(
+                  widget.controller.value.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 34,
+                ),
+              ),
+            ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 8,
+            child: VideoProgressIndicator(
+              widget.controller,
+              allowScrubbing: true,
+              colors: const VideoProgressColors(
+                playedColor: Color(0xFF5EEAD4),
+                bufferedColor: Color(0x885EEAD4),
+                backgroundColor: Color(0x66788A9F),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
