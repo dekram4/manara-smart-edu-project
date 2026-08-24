@@ -18,6 +18,25 @@ const ROW_TABLES = new Set([
   "public_messages",
   "certificates",
 ]);
+const SYNC_KV_KEYS = new Set([
+  "smartEdu_grades",
+  "smartEdu_subjects",
+  "smartEdu_terms",
+  "smartEdu_atrams",
+  "smartEdu_units",
+  "smartEdu_hierarchicalConfigs",
+  "smartEdu_gradeConfigs",
+  "smartEdu_adminSettings",
+  "smartEdu_permissions",
+  "smartEdu_permissionPackages",
+  "smartEdu_reports",
+  "smartEdu_quizQuestions",
+  "smartEdu_videos",
+  "smartEdu_deletedVideos",
+  "smartEdu_deletedLessons",
+  "smartEdu_deletedQuizzes",
+  "smartEdu_videoNotifications",
+]);
 
 type SupabaseConfig = { url: string; serviceRoleKey: string };
 
@@ -137,6 +156,17 @@ router.get("/supabase/health", (_req, res) => {
   res.json({ ready: true });
 });
 
+router.get("/supabase/context", (req: Request, res: Response) => {
+  const actor = getContentActor(req);
+  if (!actor) {
+    res.status(401).json({ error: "يجب تسجيل الدخول كمعلم أو مشرف لمزامنة البيانات" });
+    return;
+  }
+  res.json(actor.role === "admin"
+    ? { role: "admin", scope: "admin" }
+    : { role: "teacher", teacherId: actor.teacherId, scope: `teacher:${actor.teacherId}` });
+});
+
 router.get("/supabase/app_kv", async (req: Request, res: Response) => {
   const actor = getContentActor(req);
   if (!actor) {
@@ -150,15 +180,23 @@ router.get("/supabase/app_kv", async (req: Request, res: Response) => {
   }
 
   try {
-    const videos = await readValue(config, VIDEO_KEY);
-    const deletedVideoIds = await readValue(config, DELETED_VIDEO_KEY);
-    const scopedVideos = actor.role === "admin"
-      ? asRecords(videos)
-      : asRecords(videos).filter((video) => recordOwner(video) === actor.teacherId);
-    res.json([
-      { key: VIDEO_KEY, value: scopedVideos },
-      { key: DELETED_VIDEO_KEY, value: mergeDeletedIds([], deletedVideoIds) },
-    ]);
+    const keys = Array.from(SYNC_KV_KEYS);
+    const values = await Promise.all(keys.map(async (key) => ({ key, value: await readValue(config, key) })));
+    res.json(values
+      .filter(({ key }) => actor.role === "admin" || ![
+        "smartEdu_adminSettings",
+        "smartEdu_permissions",
+        "smartEdu_permissionPackages",
+        "smartEdu_reports",
+      ].includes(key))
+      .map(({ key, value }) => ({
+        key,
+        value: key === VIDEO_KEY && actor.role !== "admin"
+          ? asRecords(value).filter((video) => recordOwner(video) === actor.teacherId)
+          : key === DELETED_VIDEO_KEY
+            ? mergeDeletedIds([], value)
+            : value,
+      })));
   } catch (error) {
     logger.error({ err: error }, "Failed to load shared cinema videos from Supabase");
     res.status(502).json({ error: "تعذر تحميل فيديوهات السينما المشتركة" });
@@ -183,12 +221,13 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
     return;
   }
 
+  let key = "";
   try {
     for (const row of rows as Array<{ key?: unknown; value?: unknown }>) {
-      const key = stringValue(row.key);
+      key = stringValue(row.key);
       // hydrateKv can batch unrelated legacy keys. This bridge owns the
-      // shared video keys; other app_kv keys continue using their own path.
-      if (key !== VIDEO_KEY && key !== DELETED_VIDEO_KEY) continue;
+      // shared keys. Unknown keys are ignored rather than persisted blindly.
+      if (!SYNC_KV_KEYS.has(key)) continue;
       const remoteValue = await readValue(config, key);
       const mergedValue = key === VIDEO_KEY
         ? actor.role === "admin"
@@ -225,8 +264,8 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
     }
     res.status(204).end();
   } catch (error) {
-    logger.error({ err: error, key }, "Failed to persist shared cinema videos to Supabase");
-    res.status(502).json({ error: "تعذر حفظ فيديوهات السينما المشتركة" });
+    logger.error({ err: error, key }, "Failed to persist shared values to Supabase");
+    res.status(502).json({ error: "تعذر حفظ الإعدادات المشتركة" });
   }
 });
 

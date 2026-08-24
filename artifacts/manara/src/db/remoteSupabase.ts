@@ -1,4 +1,18 @@
-type RemoteResult<T = unknown> = { data: T; error: null } | { data: null; error: Error };
+type RemoteResult<T = unknown> =
+  | { data: T; error: null }
+  | { data: null; error: RemoteRequestError };
+
+export class RemoteRequestError extends Error {
+  readonly status: number;
+  readonly retryable: boolean;
+
+  constructor(message: string, status = 0) {
+    super(message);
+    this.name = 'RemoteRequestError';
+    this.status = status;
+    this.retryable = status === 0 || status >= 500 || status === 408 || status === 429;
+  }
+}
 
 class RemoteUnavailableError extends Error {
   silent = true;
@@ -53,7 +67,7 @@ async function isRemoteReady(): Promise<boolean> {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult<T>> {
-  let lastError: Error = new RemoteUnavailableError();
+  let lastError: RemoteRequestError = new RemoteUnavailableError();
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (!(await isRemoteReady())) {
@@ -83,7 +97,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
         const message = typeof body === 'string'
           ? body
           : body?.error || `Supabase request failed (${response.status})`;
-        lastError = new Error(message);
+        lastError = new RemoteRequestError(message, response.status);
 
         // Do not clear a user's local session because an upstream request
         // briefly returned JWT/network/connector errors. Let the next attempt
@@ -91,7 +105,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
         remoteState = 'unknown';
         remoteUnavailableUntil = 0;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error('Supabase request failed');
+        lastError = error instanceof RemoteRequestError
+          ? error
+          : new RemoteRequestError(
+            error instanceof Error ? error.message : 'Supabase request failed',
+          );
         remoteState = 'unknown';
         remoteUnavailableUntil = 0;
       }
@@ -106,6 +124,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
 }
 
 export const supabase = {
+  context() {
+    return request<{ role: 'admin' | 'teacher'; scope: string; teacherId?: string }>('/api/supabase/context');
+  },
   from(table: string) {
     return {
       select(columns = '*') {
