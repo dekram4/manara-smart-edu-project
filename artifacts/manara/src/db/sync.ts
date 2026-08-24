@@ -1,4 +1,4 @@
-import { supabase } from './remoteSupabase';
+import { RemoteRequestError, supabase } from './remoteSupabase';
 
 // ============================================================
 // طبقة المزامنة بين localStorage و Supabase
@@ -166,9 +166,17 @@ function mergeLegacyPublicMessages(): string | null {
 // الطابور الدائم: عمليات لم تنجح بعد، تُعاد محاولتها لاحقاً
 // ------------------------------------------------------------
 type PendingOp =
-  | { type: 'row_upsert'; table: string; rows: { id: string; data: any }[] }
-  | { type: 'row_delete'; table: string; ids: string[] }
-  | { type: 'kv'; key: string; value: any };
+  | { type: 'row_upsert'; table: string; rows: { id: string; data: any }[]; scope?: string }
+  | { type: 'row_delete'; table: string; ids: string[]; scope?: string }
+  | { type: 'kv'; key: string; value: any; scope?: string };
+
+type SyncContext = {
+  role: 'admin' | 'teacher';
+  scope: string;
+  teacherId?: string;
+};
+
+let activeSyncContext: SyncContext | null = null;
 
 function loadPending(): PendingOp[] {
   const parsed = safeParse(nativeGetItem(PENDING_KEY));
@@ -183,6 +191,21 @@ function appendPending(op: PendingOp): void {
   const ops = loadPending();
   ops.push(op);
   savePending(ops);
+}
+
+function currentScope(): string {
+  return activeSyncContext?.scope ?? 'unverified';
+}
+
+function recordBelongsToContext(record: any, context: SyncContext): boolean {
+  if (context.role === 'admin') return true;
+  if (!record || typeof record !== 'object') return false;
+  const owner = String(record.teacherId ?? record.teacher_id ?? record.createdBy ?? '').trim();
+  return owner === context.teacherId;
+}
+
+function shouldRetry(error: unknown): boolean {
+  return !(error instanceof RemoteRequestError) || error.retryable;
 }
 
 function executeOp(op: PendingOp): PromiseLike<{ error: any }> {
@@ -207,6 +230,7 @@ async function withRetry(
     last = await fn();
     if (!last.error) return last;
     if (last.error.silent) return last;
+    if (!shouldRetry(last.error)) return last;
     await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
   }
   console.error(`[sync] فشل ${label} بعد عدة محاولات:`, last?.error?.message);
@@ -232,19 +256,28 @@ function enqueue(key: string, op: () => Promise<void>): Promise<void> {
 // إرسال العمليات المعلّقة قبل أي تحميل. تُعيد المفاتيح التي ما زالت معلّقة
 // حتى لا يطمسها التحميل لاحقاً.
 // ------------------------------------------------------------
-async function flushPending(): Promise<{ pendingTables: Set<string>; pendingKv: Set<string> }> {
+async function flushPending(context: SyncContext): Promise<{ pendingTables: Set<string>; pendingKv: Set<string> }> {
   const ops = loadPending();
   const remaining: PendingOp[] = [];
 
   for (const op of ops) {
+    // Pending writes are account-scoped. A legacy entry without a scope cannot
+    // be attributed safely, so do not replay it under whichever teacher signs
+    // in next. Scoped writes for another account remain available for that
+    // account's next session.
+    if (op.scope !== context.scope) {
+      if (!op.scope) console.warn('[sync] تم تجاهل عملية قديمة بلا نطاق حساب');
+      else remaining.push(op);
+      continue;
+    }
     const res = await withRetry('إرسال عملية معلّقة', () => executeOp(op));
-    if (res.error) remaining.push(op);
+    if (res.error && shouldRetry(res.error)) remaining.push(op);
   }
   savePending(remaining);
 
   const pendingTables = new Set<string>();
   const pendingKv = new Set<string>();
-  for (const op of remaining) {
+  for (const op of remaining.filter((op) => op.scope === context.scope)) {
     if (op.type === 'kv') pendingKv.add(op.key);
     else pendingTables.add(op.table);
   }
@@ -260,7 +293,8 @@ async function flushPending(): Promise<{ pendingTables: Set<string>; pendingKv: 
 async function hydrateRowTable(
   storageKey: string,
   table: string,
-  pendingTables: Set<string>
+  pendingTables: Set<string>,
+  context: SyncContext,
 ): Promise<void> {
   if (pendingTables.has(table)) return; // المحلي هو المرجع، لا تطمسه
 
@@ -273,7 +307,8 @@ async function hydrateRowTable(
   }
   const remote = (data || []).map((row: any) => row.data);
   const local = safeParse(nativeGetItem(storageKey));
-  const localArr = Array.isArray(local) ? local : [];
+  const localArr = (Array.isArray(local) ? local : [])
+    .filter((record: any) => recordBelongsToContext(record, context));
   const deletedLessonIds = new Set(
     stringIdArray(safeParse(nativeGetItem('smartEdu_deletedLessons'))),
   );
@@ -299,6 +334,7 @@ async function hydrateRowTable(
           type: 'kv',
           key: 'smartEdu_deletedQuizzes',
           value: tombstoneValue,
+          scope: currentScope(),
         });
       }
     }
@@ -324,7 +360,9 @@ async function hydrateRowTable(
     const res = await withRetry(`دمج ${table}`, () =>
       supabase.from(table).upsert(localOnly, { onConflict: 'id' }),
     );
-    if (res.error) appendPending({ type: 'row_upsert', table, rows: localOnly });
+    if (res.error && shouldRetry(res.error)) {
+      appendPending({ type: 'row_upsert', table, rows: localOnly, scope: currentScope() });
+    }
   }
 
   if (
@@ -342,7 +380,9 @@ async function hydrateRowTable(
         () =>
         supabase.from(table).delete().in('id', staleRemoteIds),
       );
-      if (res.error) appendPending({ type: 'row_delete', table, ids: staleRemoteIds });
+      if (res.error && shouldRetry(res.error)) {
+        appendPending({ type: 'row_delete', table, ids: staleRemoteIds, scope: currentScope() });
+      }
     }
   }
 
@@ -414,8 +454,10 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
     const res = await withRetry('رفع app_kv (هجرة أولى)', () =>
       supabase.from('app_kv').upsert(toUpload, { onConflict: 'key' })
     );
-    if (res.error) {
-      for (const item of toUpload) appendPending({ type: 'kv', key: item.key, value: item.value });
+    if (res.error && shouldRetry(res.error)) {
+      for (const item of toUpload) {
+        appendPending({ type: 'kv', key: item.key, value: item.value, scope: currentScope() });
+      }
     }
   }
 }
@@ -423,14 +465,15 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
 // تحميل كل البيانات من Supabase إلى التخزين المحلي
 export async function hydrateFromSupabase(
   pendingTables: Set<string> = new Set(),
-  pendingKv: Set<string> = new Set()
+  pendingKv: Set<string> = new Set(),
+  context: SyncContext = activeSyncContext ?? { role: 'admin', scope: 'admin' },
 ): Promise<void> {
   await hydrateKv(pendingKv).catch((e) =>
     console.error('[sync] خطأ أثناء تحميل app_kv:', e?.message || e)
   );
   await Promise.all([
     ...Object.entries(ROW_TABLES).map(([storageKey, table]) =>
-      hydrateRowTable(storageKey, table, pendingTables).catch((e) =>
+      hydrateRowTable(storageKey, table, pendingTables, context).catch((e) =>
         console.error(`[sync] خطأ أثناء تحميل ${table}:`, e?.message || e)
       )
     ),
@@ -460,13 +503,17 @@ async function syncRowTable(table: string, oldArr: any[], newArr: any[]): Promis
     const res = await withRetry(`حفظ ${table}`, () =>
       supabase.from(table).upsert(upserts, { onConflict: 'id' })
     );
-    if (res.error) appendPending({ type: 'row_upsert', table, rows: upserts });
+    if (res.error && shouldRetry(res.error)) {
+      appendPending({ type: 'row_upsert', table, rows: upserts, scope: currentScope() });
+    }
   }
   if (deletes.length) {
     const res = await withRetry(`حذف من ${table}`, () =>
       supabase.from(table).delete().in('id', deletes)
     );
-    if (res.error) appendPending({ type: 'row_delete', table, ids: deletes });
+    if (res.error && shouldRetry(res.error)) {
+      appendPending({ type: 'row_delete', table, ids: deletes, scope: currentScope() });
+    }
   }
 }
 
@@ -474,7 +521,9 @@ async function syncKv(key: string, value: any): Promise<void> {
   const res = await withRetry(`حفظ ${key}`, () =>
     supabase.from('app_kv').upsert({ key, value }, { onConflict: 'key' })
   );
-  if (res.error) appendPending({ type: 'kv', key, value });
+  if (res.error && shouldRetry(res.error)) {
+    appendPending({ type: 'kv', key, value, scope: currentScope() });
+  }
 }
 
 /**
@@ -524,11 +573,17 @@ export function initSupabaseSync(): Promise<void> {
 
   syncInitializationPromise = (async () => {
     try {
-      const { pendingTables, pendingKv } = await flushPending();
+      const contextResult = await supabase.context();
+      if (contextResult.error) {
+        console.error('[sync] تعذر تحديد حساب المزامنة:', contextResult.error.message);
+        return;
+      }
+      activeSyncContext = contextResult.data;
+      const { pendingTables, pendingKv } = await flushPending(activeSyncContext);
       // Convert older deleted quiz records into shared tombstones before hydration.
       // This prevents stale rows from being merged back from Supabase.
       prepareDeletedQuizTombstones();
-      await hydrateFromSupabase(pendingTables, pendingKv);
+      await hydrateFromSupabase(pendingTables, pendingKv, activeSyncContext);
 
       // دمج الرسائل القديمة بعد hydrate حتى لا تطمس الرسائل المحلية القديمة
       // نسخة Supabase الحالية، ثم مرّر الدمج عبر write-through لمزامنته.
@@ -546,4 +601,15 @@ export function initSupabaseSync(): Promise<void> {
   })();
 
   return syncInitializationPromise;
+}
+
+/**
+ * Call immediately after the authenticated server session changes. This
+ * rehydrates the active browser cache from the new account's server scope
+ * without replaying pending work created by a different account.
+ */
+export function refreshSupabaseSync(): Promise<void> {
+  activeSyncContext = null;
+  syncInitializationPromise = null;
+  return initSupabaseSync();
 }

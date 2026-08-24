@@ -118,6 +118,16 @@ function mergeDeletedIds(remoteValue: unknown, requestedValue: unknown): string[
   ].map(stringValue).filter(Boolean)));
 }
 
+function isDeletedIdsKey(key: string): boolean {
+  return key === DELETED_VIDEO_KEY ||
+    key === "smartEdu_deletedLessons" ||
+    key === "smartEdu_deletedQuizzes";
+}
+
+function canWriteKv(key: string, actor: NonNullable<ReturnType<typeof getContentActor>>): boolean {
+  return actor.role === "admin" || key === VIDEO_KEY;
+}
+
 function recordIds(value: unknown): Set<string> {
   return new Set(
     asRecords(value)
@@ -229,11 +239,17 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
       // shared keys. Unknown keys are ignored rather than persisted blindly.
       if (!SYNC_KV_KEYS.has(key)) continue;
       const remoteValue = await readValue(config, key);
+      if (!canWriteKv(key, actor)) {
+        res.status(403).json({ error: "لا يمكن للمعلم تعديل هذا الإعداد المشترك" });
+        return;
+      }
       const mergedValue = key === VIDEO_KEY
         ? actor.role === "admin"
           ? asRecords(row.value)
           : mergeTeacherVideos(remoteValue, row.value, actor.teacherId)
-        : mergeDeletedIds(remoteValue, row.value);
+        : isDeletedIdsKey(key)
+          ? mergeDeletedIds(remoteValue, row.value)
+          : row.value;
 
       await rest(config, "app_kv?on_conflict=key", {
         method: "POST",

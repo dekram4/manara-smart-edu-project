@@ -14,11 +14,12 @@ export class RemoteRequestError extends Error {
   }
 }
 
-class RemoteUnavailableError extends Error {
+class RemoteUnavailableError extends RemoteRequestError {
   silent = true;
 
   constructor() {
     super('Supabase is unavailable in this environment');
+    this.name = 'RemoteUnavailableError';
   }
 }
 

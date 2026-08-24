@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AdminMenuType, SystemStats } from '../../types';
 import { COLORS, STORAGE_KEYS } from '../../constants';
 import AdminLogin from './AdminLogin';
+import { refreshSupabaseSync } from '../../db/sync';
 import { playWelcomeAdult } from '../../utils/sounds';
 import DashboardHome from './DashboardHome';
 import AcademicSettings from './AcademicSettings';
@@ -147,9 +148,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   }
 
   if (!isAuthenticated) {
-    return <AdminLogin onLoginSuccess={() => {
+    return <AdminLogin onLoginSuccess={async () => {
       writeSessionValue(SESSION_KEYS.ADMIN_SESSION, '1');
       writeAuthSession('admin', 'admin');
+      await refreshSupabaseSync();
       setIsAuthenticated(true);
       playWelcomeAdult();
     }} onBack={onLogout} />;
