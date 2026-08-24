@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/academic_context.dart';
+import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
@@ -13,6 +15,7 @@ class StudentProblemSolverScreen extends StatefulWidget {
     required this.apiBaseUrl,
     required this.profile,
     required this.contentService,
+    this.academicContext,
     super.key,
   });
 
@@ -20,6 +23,7 @@ class StudentProblemSolverScreen extends StatefulWidget {
   final String apiBaseUrl;
   final StudentProfile profile;
   final StudentContentService contentService;
+  final AcademicContext? academicContext;
 
   @override
   State<StudentProblemSolverScreen> createState() => _StudentProblemSolverScreenState();
@@ -34,7 +38,29 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
 
   List<LessonContent> get _supportedLessons => widget.lessons
       .where((lesson) => (lesson.lessonText ?? '').trim().isNotEmpty)
+      .where(_isAvailableToStudent)
       .toList();
+
+  bool _isAvailableToStudent(LessonContent lesson) {
+    final owner = StudentAssessmentRules.ownerId({
+      'teacherId': lesson.ownerId,
+    });
+    final teacher = widget.profile.teacherId?.trim().toLowerCase() ?? '';
+    final allowedOwner =
+        owner.isEmpty || owner == 'admin' || owner == 'supervisor' || owner == teacher;
+    if (!allowedOwner) return false;
+    return StudentAssessmentRules.matchesAcademicScope(
+      {
+        'grade': lesson.grade,
+        'atram': lesson.atram,
+        'subject': lesson.subject,
+        'term': lesson.term,
+        'unit': lesson.unit,
+      },
+      widget.profile,
+      academicContext: widget.academicContext,
+    );
+  }
 
   @override
   void initState() {

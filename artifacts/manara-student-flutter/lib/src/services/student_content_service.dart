@@ -4,8 +4,18 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/academic_context.dart';
+import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
+
+class TeacherQuizAlreadySubmittedException implements Exception {
+  const TeacherQuizAlreadySubmittedException(this.result);
+
+  final Map<String, dynamic> result;
+
+  @override
+  String toString() => 'تم إكمال اختبار المعلم مسبقًا.';
+}
 
 class StudentContentService {
   StudentContentService(
@@ -295,10 +305,9 @@ class StudentContentService {
     return videos;
   }
 
-  /// Loads only active quizzes that belong to the signed-in student's teacher
-  /// and current academic context. The row payload is intentionally returned
-  /// as JSON because older teacher-created quizzes have several compatible
-  /// shapes in Supabase.
+  /// Loads active assessments from the current manager and the legacy question
+  /// bank. Selection is performed by [StudentAssessmentRules] so Flutter uses
+  /// the same teacher/public ownership and academic-scope rules everywhere.
   Future<List<Map<String, dynamic>>> fetchAvailableQuizzes(
     StudentProfile profile, {
     AcademicContext? academicContext,
@@ -309,48 +318,25 @@ class StudentContentService {
         .limit(300)
         .timeout(_requestTimeout);
 
-    final quizzes = <Map<String, dynamic>>[];
+    final createdQuizzes = <Map<String, dynamic>>[];
     for (final row in response.whereType<Map>()) {
       final rowMap = _asMap(row);
       final data = _asMap(rowMap['data']);
-      if (data.isEmpty || data['deleted'] == true || data['isActive'] == false) {
-        continue;
-      }
-
-      final owner = _normalize(
-        _text(data['createdBy'] ?? data['teacherId'] ?? data['teacher_id']),
-      );
-      final teacher = _normalize(profile.teacherId);
-      final ownerAllowed = owner == 'admin' ||
-          owner == 'supervisor' ||
-          (teacher.isNotEmpty && owner == teacher);
-      if (!ownerAllowed) continue;
-
-      final grade = academicContext?.grade ?? profile.grade;
-      final atram = academicContext?.atram ?? profile.atram;
-      final subject = academicContext?.subject ?? profile.subject;
-      final term = academicContext?.term ?? profile.term;
-      final unit = academicContext?.unit ?? profile.unit;
-      if (!_matches(_text(data['grade']), grade) ||
-          !_matches(_text(data['atram']), atram) ||
-          !_matches(_text(data['subject']), subject) ||
-          !_matches(_text(data['term']), term) ||
-          !_matches(_text(data['unit']), unit)) {
-        continue;
-      }
-
-      quizzes.add(<String, dynamic>{
+      if (data.isEmpty) continue;
+      createdQuizzes.add(<String, dynamic>{
         ...data,
         'id': _text(rowMap['id']).isEmpty ? _text(data['id']) : _text(rowMap['id']),
         'updatedAt': _text(rowMap['updated_at'] ?? data['updatedAt']),
       });
     }
-    quizzes.sort((a, b) {
-      final aNumber = int.tryParse('${a['periodicNumber'] ?? ''}') ?? 999;
-      final bNumber = int.tryParse('${b['periodicNumber'] ?? ''}') ?? 999;
-      return aNumber.compareTo(bNumber);
-    });
-    return quizzes;
+
+    final legacyQuestions = await _fetchLegacyQuizQuestions();
+    return StudentAssessmentRules.selectAvailableQuizzes(
+      createdQuizzes: createdQuizzes,
+      legacyQuestions: legacyQuestions,
+      profile: profile,
+      academicContext: academicContext,
+    );
   }
 
   /// Results are always filtered by student ID before they reach the UI.
@@ -387,7 +373,32 @@ class StudentContentService {
       'id': id,
       'studentId': profile.id,
       'studentName': profile.name,
+      'quizType': StudentAssessmentRules.quizTypeValue(result['quizType']),
+      'grade': _text(result['grade']).isEmpty ? _text(profile.grade) : _text(result['grade']),
+      'atram': _text(result['atram']).isEmpty ? _text(profile.atram) : _text(result['atram']),
+      'subject': _text(result['subject']).isEmpty ? _text(profile.subject) : _text(result['subject']),
+      'term': _text(result['term']).isEmpty ? _text(profile.term) : _text(result['term']),
+      'unit': _text(result['unit']).isEmpty ? _text(profile.unit) : _text(result['unit']),
     };
+    if (StudentAssessmentRules.isTeacherQuiz(safeResult)) {
+      final existing = await client
+          .from('quiz_results')
+          .select('id,data,updated_at')
+          .eq('data->>studentId', profile.id)
+          .eq('data->>quizId', _text(safeResult['quizId']))
+          .limit(1)
+          .timeout(_requestTimeout);
+      for (final row in existing.whereType<Map>()) {
+        final rowMap = _asMap(row);
+        final stored = _asMap(rowMap['data']);
+        if (StudentAssessmentRules.isTeacherQuiz(stored)) {
+          throw TeacherQuizAlreadySubmittedException(<String, dynamic>{
+            ...stored,
+            'id': _text(rowMap['id']).isEmpty ? _text(stored['id']) : _text(rowMap['id']),
+          });
+        }
+      }
+    }
     await client.from('quiz_results').upsert({
       'id': id,
       'data': safeResult,
@@ -468,13 +479,36 @@ class StudentContentService {
       'id': '${profile.id}_solver_${now.microsecondsSinceEpoch}',
       'data': {
         'studentId': profile.id,
+        'studentName': profile.name,
+        'teacherId': profile.teacherId,
         'type': 'problem_solver',
         'lessonId': lessonId,
         'question': question,
+        'grade': profile.grade,
+        'atram': profile.atram,
+        'subject': profile.subject,
+        'term': profile.term,
+        'unit': profile.unit,
         'createdAt': now.toIso8601String(),
       },
       'updated_at': now.toIso8601String(),
     }).timeout(_requestTimeout);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchLegacyQuizQuestions() async {
+    try {
+      final row = await client
+          .from('app_kv')
+          .select('value')
+          .eq('key', 'smartEdu_quizQuestions')
+          .maybeSingle()
+          .timeout(_requestTimeout);
+      return _asList(row?['value']).map(_asMap).where((item) => item.isNotEmpty).toList();
+    } catch (_) {
+      // The modern quiz table remains usable when older installations do not
+      // expose the historical app_kv key to the student role.
+      return const [];
+    }
   }
 
   bool _matchesOwner(LessonContent lesson, StudentProfile profile) {

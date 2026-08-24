@@ -244,6 +244,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               widget.authService.client,
               baseUrl: widget.apiBaseUrl,
             ),
+            academicContext: widget.academicContext,
           ),
         ),
       );

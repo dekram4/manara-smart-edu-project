@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
+import '../models/student_assessment.dart';
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
 
@@ -66,47 +67,21 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
   }
 
   bool _isTeacherQuiz(Map<String, dynamic> quiz) =>
-      '${quiz['quizType'] ?? ''}'.toLowerCase().contains('teacher') ||
-      '${quiz['quizType'] ?? ''}'.contains('معلم');
+      StudentAssessmentRules.isTeacherQuiz(quiz);
 
-  List<Map<String, dynamic>> _quizQuestions(Map<String, dynamic> quiz) {
-    final raw = quiz['questions'];
-    if (raw is! List) return const [];
-    final questions = raw
-        .whereType<Map>()
-        .map((item) => item.map((key, value) => MapEntry(key.toString(), value)))
-        .where((item) {
-          final options = item['options'];
-          return _text(item['question']).isNotEmpty && options is List && options.length >= 2;
-        })
-        .toList();
-    final requested = int.tryParse('${quiz['questionsPerAttempt'] ?? ''}') ??
-        int.tryParse('${quiz['questionCount'] ?? ''}') ??
-        questions.length;
-    final limit = requested.clamp(0, questions.length).toInt();
-    final quizId = _text(quiz['id']);
-    questions.sort(
-      (left, right) => _stableQuestionHash(
-        '${widget.profile.id}:$quizId:${_text(left['id'] ?? left['question'])}',
-      ).compareTo(
-        _stableQuestionHash(
-          '${widget.profile.id}:$quizId:${_text(right['id'] ?? right['question'])}',
-        ),
-      ),
-    );
-    return questions.take(limit).toList();
-  }
-
-  Map<String, dynamic>? _previousResult(String quizId) {
-    for (final result in _results) {
-      if (_text(result['quizId']) == quizId) return result;
-    }
-    return null;
-  }
+  List<Map<String, dynamic>> _quizQuestions(Map<String, dynamic> quiz) =>
+      StudentAssessmentRules.questionsForStudent(quiz, studentId: widget.profile.id);
 
   void _openQuiz(Map<String, dynamic> quiz) {
     final quizId = _text(quiz['id']);
-    final previous = _previousResult(quizId);
+    Map<String, dynamic>? previous;
+    for (final result in _results) {
+      if (_text(result['quizId']) == quizId &&
+          StudentAssessmentRules.isTeacherQuiz(result)) {
+        previous = result;
+        break;
+      }
+    }
     if (_isTeacherQuiz(quiz) && previous != null) {
       setState(() => _shownResult = previous);
       return;
@@ -126,28 +101,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
     });
   }
 
-  bool _isCorrect(Map<String, dynamic> question, String answer) {
-    final options = (question['options'] as List).map((item) => _text(item)).toList();
-    final raw = _text(question['correctAnswer']);
-    final normalized = _normalize(raw);
-    const latin = ['a', 'b', 'c', 'd'];
-    const arabic = ['أ', 'ب', 'ج', 'د'];
-    var index = latin.indexOf(normalized);
-    if (index < 0) index = arabic.indexOf(raw.trim());
-    if (index < 0) {
-      final numeric = int.tryParse(normalized);
-     if (numeric != null) {
-       if (numeric >= 1 && numeric <= options.length) {
-         index = numeric - 1;
-       } else if (numeric >= 0 && numeric < options.length) {
-         index = numeric;
-       }
-     }
-    }
-    final correct = index >= 0 && index < options.length ? options[index] : raw;
-    return _normalize(answer) == _normalize(correct);
-  }
-
   Future<void> _submit() async {
     final quiz = _activeQuiz;
     if (quiz == null || _submitting) return;
@@ -159,7 +112,10 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
     }
     setState(() => _submitting = true);
     final score = _questions.asMap().entries.where((entry) {
-      return _isCorrect(entry.value, _answers[_questionId(entry.value, entry.key)] ?? '');
+      return StudentAssessmentRules.isAnswerCorrect(
+        entry.value,
+        _answers[_questionId(entry.value, entry.key)] ?? '',
+      );
     }).length;
     final percentage = ((score / _questions.length) * 100).round();
     final now = DateTime.now().toIso8601String();
@@ -168,11 +124,15 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       'studentId': widget.profile.id,
       'studentName': widget.profile.name,
       'quizId': _text(quiz['id']),
-      'quizType': _text(quiz['quizType']).isEmpty ? 'periodic' : _text(quiz['quizType']),
+      'quizType': StudentAssessmentRules.quizTypeValue(quiz['quizType']),
       'quizTitle': _text(quiz['title']).isEmpty ? 'اختبار منارة' : _text(quiz['title']),
       'subject': _text(quiz['subject']),
       'unit': _text(quiz['unit']),
       'grade': _text(quiz['grade']),
+      'atram': _text(quiz['atram']),
+      'term': _text(quiz['term']),
+      'teacherId': StudentAssessmentRules.ownerId(quiz),
+      'periodicNumber': quiz['periodicNumber'],
       'score': score,
       'total': _questions.length,
       'percentage': percentage,
@@ -184,15 +144,17 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         final question = entry.value;
         final answer = _answers[_questionId(question, entry.key)] ?? '';
         return {
+          'questionId': _questionId(question, entry.key),
           'question': _text(question['question']),
           'userAnswer': answer,
-          'correctAnswer': _correctAnswerText(question),
-          'isCorrect': _isCorrect(question, answer),
+          'correctAnswer': StudentAssessmentRules.correctAnswerText(question),
+          'isCorrect': StudentAssessmentRules.isAnswerCorrect(question, answer),
         };
       }).toList(),
       'createdAt': now,
       'attemptNumber': _results.where((item) => _text(item['quizId']) == _text(quiz['id'])).length + 1,
-      'isRetake': _results.any((item) => _text(item['quizId']) == _text(quiz['id'])),
+      'isRetake': !_isTeacherQuiz(quiz) &&
+          _results.any((item) => _text(item['quizId']) == _text(quiz['id'])),
     };
     try {
        final savedResult = await widget.contentService.saveQuizResult(
@@ -203,6 +165,16 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       setState(() {
          _results = [savedResult, ..._results];
          _shownResult = savedResult;
+        _activeQuiz = null;
+        _questions = const [];
+        _answers.clear();
+        _submitting = false;
+      });
+    } on TeacherQuizAlreadySubmittedException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _results = [error.result, ..._results];
+        _shownResult = error.result;
         _activeQuiz = null;
         _questions = const [];
         _answers.clear();
@@ -328,7 +300,9 @@ class _QuizCatalog extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  teacher ? 'اختبار المعلم • محاولة واحدة' : 'اختبار دوري',
+                  teacher
+                      ? 'اختبار المعلم • محاولة واحدة'
+                      : StudentAssessmentRules.quizTypeLabel(quiz),
                   style: const TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 14),
@@ -417,14 +391,19 @@ class _QuizResultView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percentage = int.tryParse('${result['percentage'] ?? ''}') ?? 0;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Card(
+    final details = result['details'] is List
+        ? (result['details'] as List)
+            .whereType<Map>()
+            .map((item) => item.map((key, value) => MapEntry(key.toString(), value)))
+            .toList()
+        : const <Map<String, dynamic>>[];
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Card(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   percentage >= 60 ? Icons.emoji_events_rounded : Icons.menu_book_rounded,
@@ -446,7 +425,35 @@ class _QuizResultView extends StatelessWidget {
             ),
           ),
         ),
-      ),
+        if (details.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Card(
+            child: ExpansionTile(
+              initiallyExpanded: true,
+              title: const Text(
+                'تفاصيل الإجابات',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              children: details.asMap().entries.map((entry) {
+                final detail = entry.value;
+                final correct = detail['isCorrect'] == true;
+                return ListTile(
+                  leading: Icon(
+                    correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    color: correct ? const Color(0xFF0B9A67) : const Color(0xFFB42318),
+                  ),
+                  title: Text('${entry.key + 1}. ${_text(detail['question'])}'),
+                  subtitle: Text(
+                    'إجابتك: ${_text(detail['userAnswer']).isEmpty ? '—' : _text(detail['userAnswer'])}\n'
+                    'الصحيحة: ${_text(detail['correctAnswer'])}',
+                  ),
+                  isThreeLine: true,
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -477,36 +484,5 @@ class _ErrorState extends StatelessWidget {
 
 String _text(Object? value) => value?.toString().trim() ?? '';
 
-String _normalize(Object? value) =>
-    _text(value).toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
 String _questionId(Map<String, dynamic> question, int index) =>
-    _text(question['id']).isEmpty ? 'question-$index' : '${_text(question['id'])}-$index';
-
-String _correctAnswerText(Map<String, dynamic> question) {
-  final options = (question['options'] as List).map(_text).toList();
-  final answer = _text(question['correctAnswer']);
-  final lower = answer.toLowerCase();
-  const latin = ['a', 'b', 'c', 'd'];
-  const arabic = ['أ', 'ب', 'ج', 'د'];
-  var index = latin.indexOf(lower);
-  if (index < 0) index = arabic.indexOf(answer);
-   final numeric = int.tryParse(lower);
-   if (index < 0 && numeric != null) {
-     if (numeric >= 1 && numeric <= options.length) {
-       index = numeric - 1;
-     } else if (numeric >= 0 && numeric < options.length) {
-       index = numeric;
-     }
-  }
-  return index >= 0 && index < options.length ? options[index] : answer;
-}
-
-int _stableQuestionHash(String value) {
-  var hash = 2166136261;
-  for (final code in value.codeUnits) {
-    hash ^= code;
-    hash = (hash * 16777619) & 0xffffffff;
-  }
-  return hash;
-}
+    StudentAssessmentRules.questionId(question, index);
