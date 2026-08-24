@@ -1169,7 +1169,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                       color: teacherId && !isGeneralConfig(gradeConfig) && !belongsToTeacher(gradeConfig, teacherId) ? '#d1d5db' : COLORS.danger,
                       cursor: teacherId && !isGeneralConfig(gradeConfig) && !belongsToTeacher(gradeConfig, teacherId) ? 'not-allowed' : 'pointer'
                     }}
-                    disabled={teacherId && !isGeneralConfig(gradeConfig) && !belongsToTeacher(gradeConfig, teacherId)}
+                    disabled={Boolean(teacherId && !isGeneralConfig(gradeConfig) && !belongsToTeacher(gradeConfig, teacherId))}
                   >
                     🗑️
                   </button>

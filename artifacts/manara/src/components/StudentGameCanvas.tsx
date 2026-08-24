@@ -56,7 +56,7 @@ const StudentGameCanvas: React.FC<StudentGameCanvasProps> = ({ onGameComplete, o
         bg2.setDepth(-4);
 
         if (!this.textures.exists('hero-block')) {
-          const g = this.make.graphics({ x: 0, y: 0, add: false });
+          const g = this.make.graphics({ x: 0, y: 0 });
           g.fillStyle(0xfbbf24, 1);
           g.fillRoundedRect(0, 0, 38, 54, 10);
           g.generateTexture('hero-block', 38, 54);
@@ -91,8 +91,8 @@ const StudentGameCanvas: React.FC<StudentGameCanvasProps> = ({ onGameComplete, o
         this.player = this.physics.add.sprite(100, 380, 'hero-block');
         this.player.setCollideWorldBounds(true);
         this.player.setBounce(0.05);
-        this.player.body.setSize(34, 50);
-        this.player.body.setOffset(2, 2);
+        this.player.body?.setSize(34, 50);
+        this.player.body?.setOffset(2, 2);
 
         this.gems = this.physics.add.group();
         for (let i = 0; i < GOAL_GEMS; i += 1) {
@@ -150,8 +150,10 @@ const StudentGameCanvas: React.FC<StudentGameCanvasProps> = ({ onGameComplete, o
         this.cameras.main.setBounds(0, 0, WORLD_WIDTH, HEIGHT);
         this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
 
-        this.cursors = this.input.keyboard.createCursorKeys();
-        this.wasd = this.input.keyboard.addKeys('W,A,S,D') as any;
+        const keyboard = this.input.keyboard;
+        if (!keyboard) throw new Error('Keyboard input is unavailable');
+        this.cursors = keyboard.createCursorKeys();
+        this.wasd = keyboard.addKeys('W,A,S,D') as typeof this.wasd;
 
         this.scoreText = this.add.text(18, 16, `Score: ${scoreValue}`, {
           fontFamily: 'Tahoma',

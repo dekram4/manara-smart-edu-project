@@ -38,7 +38,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: ''
   });
 
-  const [options, setOptions] = useState({ grades: [] });
+  const [options, setOptions] = useState<{ grades: string[] }>({ grades: [] });
   const [availableAtrams, setAvailableAtrams] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [availableTerms, setAvailableTerms] = useState<string[]>([]);
@@ -85,11 +85,11 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
 
   // دالة مساعدة للحصول على الإعدادات المفلترة حسب المعلم
   const getFilteredHierarchicalConfigs = () => {
-    const allHierarchicalConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const allHierarchicalConfigs: any[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     
     // فلترة الإعدادات الأكاديمية حسب المعلم
     const effectiveTeacherId = teacherId || selectedTeacherId;
-    let hierarchicalConfigs;
+    let hierarchicalConfigs: any[] = [];
     
     if (effectiveTeacherId && effectiveTeacherId !== 'admin') {
       // للمعلم: إظهار إعداداته + الإعدادات العامة (ولكن تفضيل نسخته على النسخة العامة)
@@ -101,8 +101,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         
         // دمج: إذا كان للمعلم نسخة من إعداد عام، نستخدم نسخة المعلم
         const mergedConfigs = [...teacherConfigs];
-        adminConfigs.forEach(adminConfig => {
-          const hasTeacherVersion = teacherConfigs.some(tc => tc.grade === adminConfig.grade);
+        adminConfigs.forEach((adminConfig: any) => {
+          const hasTeacherVersion = teacherConfigs.some((tc: any) => tc.grade === adminConfig.grade);
           if (!hasTeacherVersion) {
             mergedConfigs.push(adminConfig);
           }

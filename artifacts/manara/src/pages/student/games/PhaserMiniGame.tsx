@@ -60,7 +60,9 @@ const PhaserMiniGame: React.FC = () => {
             y: Phaser.Math.Between(-2, 2) || -1,
           });
         }
-        this.cursors = this.input.keyboard.createCursorKeys();
+        const keyboard = this.input.keyboard;
+        if (!keyboard) throw new Error('Keyboard input is unavailable');
+        this.cursors = keyboard.createCursorKeys();
       }
 
       update() {

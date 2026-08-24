@@ -64,7 +64,7 @@ const playAudioWithGain = (src: string, gain: number, label: string) => {
 
 const playToneJsPattern = (
   sequence: Array<{ note: string; duration?: string; velocity?: number }>,
-  options: { type?: Tone.ToneOscillatorType; volume?: number } = {}
+  options: { type?: 'sine' | 'triangle' | 'square' | 'sawtooth'; volume?: number } = {}
 ) => {
   if (!readSoundPreference()) return;
   try {
@@ -300,13 +300,14 @@ export const playErrorSound = () => {
 };
 
 // 🎵 نظام محرك الأصوات التفاعلي للأطفال (مستوحى من تطبيق لمسة)
-export const playLamsaSound = (type: 'click' | 'pop' | 'success' | 'magic' | 'send' | 'error' | 'star') => {
+export const playLamsaSound = (type: 'click' | 'pop' | 'success' | 'magic' | 'send' | 'error' | 'star' | 'notification') => {
   if (!readSoundPreference()) return;
   switch (type) {
     case 'click':
       playToneJsPattern([{ note: 'A4', duration: '16n', velocity: 0.6 }], { type: 'sine', volume: -10 });
       break;
     case 'pop':
+    case 'notification':
       playToneJsPattern([{ note: 'C5', duration: '16n', velocity: 0.65 }, { note: 'E5', duration: '16n', velocity: 0.7 }], { type: 'triangle', volume: -9 });
       break;
     case 'success':
@@ -345,6 +346,7 @@ export const playLamsaSound = (type: 'click' | 'pop' | 'success' | 'magic' | 'se
         playTone(880, 0, 0.08, 0.16);
         break;
       case 'pop':
+      case 'notification':
         playTone(600, 0, 0.1, 0.16);
         playTone(900, 0.05, 0.08, 0.12);
         break;

@@ -150,7 +150,7 @@ export const getTeacherPermissionDetails = (
   const global = getPermissions().teacher;
   const permissionPackage = getPermissionPackage('teacher', activeTeacher?.permissionPackageId);
   const effective = applyPermissionPackage(
-    global as Record<string, unknown>,
+    global as unknown as Record<string, unknown>,
     permissionPackage?.permissions as Partial<Record<string, unknown>> | undefined,
     !permissionPackage?.ownerRole || permissionPackage.ownerRole === 'admin',
   ) as unknown as typeof global;
@@ -171,12 +171,12 @@ export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
   const defaults = getPermissions().parent;
   const permissionPackage = getPermissionPackage('parent', parent?.permissionPackageId);
   const packaged = applyPermissionPackage(
-    defaults as Record<string, unknown>,
+    defaults as unknown as Record<string, unknown>,
     permissionPackage?.permissions as Partial<Record<string, unknown>> | undefined,
     !permissionPackage?.ownerRole || permissionPackage.ownerRole === 'admin',
   ) as unknown as typeof defaults;
   const custom = parent?.parentPermissions || {};
-  const booleanKeys: (keyof Permissions['parent'])[] = [
+  const booleanKeys: Exclude<keyof Permissions['parent'], 'maxStudents'>[] = [
     'canCreateStudents',
     'canEditStudents',
     'canDeleteStudents',
@@ -186,12 +186,12 @@ export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
     'canChatWithSupport',
     'canCreatePermissionPackages',
   ];
-  const effectiveBooleans = booleanKeys.reduce((result, key) => {
-    result[key] = custom[key] === undefined
+  const effectiveBooleans: Partial<Permissions['parent']> = {};
+  booleanKeys.forEach(key => {
+    effectiveBooleans[key] = custom[key] === undefined
       ? packaged[key]
       : Boolean(packaged[key]) && Boolean(custom[key]);
-    return result;
-  }, {} as Pick<Permissions['parent'], typeof booleanKeys[number]>);
+  });
   const customLimit = numericLimit(custom.maxStudents, packaged.maxStudents);
   return {
     ...packaged,

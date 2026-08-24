@@ -38,7 +38,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     const teacher = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
     setTeacherId(teacher?.id || '');
     setTeacherName(teacher?.name || '');
-    loadSettings(teacher?.id);
+    loadSettings(teacher?.id || '');
   }, [teacherProp?.id, teacherProp?.name, teacherProp?.permissionPackageId]);
 
   const resolvedTeacher: TeacherInfo | null = (() => {

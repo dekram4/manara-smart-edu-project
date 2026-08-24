@@ -305,8 +305,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const updatedParents = parentsList.map((p: ParentInfo) => p.id === parent?.id ? { ...p, children: [...(p.children || []), child] } : p);
     localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
     const refreshedParent = updatedParents.find((p: ParentInfo) => p.id === parent?.id);
-    writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, refreshedParent);
-    setParent(refreshedParent);
+    if (refreshedParent) {
+      writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, refreshedParent);
+      setParent(refreshedParent);
+    }
      if (parent) setChildren(getParentChildren(updatedStudents, parent));
     setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' });
     setShowAddChildForm(false);
@@ -782,10 +784,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     { label: 'المواد', value: subjs.length, color: 'text-blue-700', bg: 'border-l-4 border-blue-500', icon: '📚' },
                     { label: 'الاختبارات', value: qs.length, color: 'text-purple-700', bg: 'border-l-4 border-purple-500', icon: '📝' },
                     { label: 'المعدل', value: `${avg}%`, color: 'text-green-700', bg: 'border-l-4 border-green-500', icon: '📊' },
-                    { label: 'آخر درجة', value: lastScore !== null ? `${lastScore}%` : '—', color: 'text-orange-700', bg: 'border-l-4 border-orange-500', icon: '🎯' },
-                     { label: 'المستوى', value: progress.level, color: 'text-indigo-700', bg: 'border-l-4 border-indigo-500', icon: '🏅' },
-                     { label: 'الجواهر', value: progress.gems, color: 'text-amber-700', bg: 'border-l-4 border-amber-500', icon: '💎' },
-                     { label: 'الخبرة', value: progress.xp, color: 'text-cyan-700', bg: 'border-l-4 border-cyan-500', icon: '⚡' },
+                    { label: 'آخر درجة', value: lastScore !== null ? `${lastScore}%` : '—', color: 'text-orange-700', bg: 'border-l-4 border-orange-500', icon: '🎯', sub: '' },
+                     { label: 'المستوى', value: progress.level, color: 'text-indigo-700', bg: 'border-l-4 border-indigo-500', icon: '🏅', sub: '' },
+                     { label: 'الجواهر', value: progress.gems, color: 'text-amber-700', bg: 'border-l-4 border-amber-500', icon: '💎', sub: '' },
+                     { label: 'الخبرة', value: progress.xp, color: 'text-cyan-700', bg: 'border-l-4 border-cyan-500', icon: '⚡', sub: '' },
                   ];
                   return (
                     <div className="dashboard-stats-grid">

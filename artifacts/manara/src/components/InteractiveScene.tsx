@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Particles from 'react-tsparticles';
-import type { Container, Engine } from 'tsparticles-engine';
 import { loadSlim } from 'tsparticles-slim';
 
 interface InteractiveSceneProps {
@@ -31,11 +30,11 @@ export const InteractiveScene: React.FC<InteractiveSceneProps> = ({
     return () => mediaQuery.removeEventListener?.('change', updateParticleMode);
   }, []);
 
-  const particlesInit = useCallback(async (engine: Engine) => {
+  const particlesInit = useCallback(async (engine: any) => {
     await loadSlim(engine);
   }, []);
 
-  const particlesLoaded = useCallback(async (_container?: Container) => {
+  const particlesLoaded = useCallback(async (_container?: any) => {
     // Subtle ambient particles only.
   }, []);
 
