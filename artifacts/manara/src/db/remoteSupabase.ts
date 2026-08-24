@@ -105,6 +105,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
         // re-probe the bridge instead of permanently pinning it unavailable.
         remoteState = 'unknown';
         remoteUnavailableUntil = 0;
+        if (!lastError.retryable) {
+          return { data: null, error: lastError };
+        }
       } catch (error) {
         lastError = error instanceof RemoteRequestError
           ? error

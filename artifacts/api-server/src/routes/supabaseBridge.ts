@@ -141,11 +141,18 @@ function tableName(req: Request): string {
   return ROW_TABLES.has(table) ? table : "";
 }
 
-function rowBelongsToActor(row: Record<string, unknown>, actor: NonNullable<ReturnType<typeof getContentActor>>): boolean {
+function rowBelongsToActor(
+  row: Record<string, unknown>,
+  actor: NonNullable<ReturnType<typeof getContentActor>>,
+  table: string,
+): boolean {
   if (actor.role === "admin") return true;
   const data = row.data && typeof row.data === "object"
     ? row.data as Record<string, unknown>
     : row;
+  if (table === "teachers") {
+    return stringValue(row.id) === actor.teacherId || stringValue(data.id) === actor.teacherId;
+  }
   const owner = recordOwner(data);
   return owner === actor.teacherId;
 }
@@ -306,7 +313,7 @@ router.get("/supabase/:table", async (req: Request, res: Response) => {
     const rows = asRecords(await rest(config, `${table}?select=id,data`));
     const scopedRows = actor.role === "admin"
       ? rows
-      : rows.filter((row) => rowBelongsToActor(row, actor));
+      : rows.filter((row) => rowBelongsToActor(row, actor, table));
     res.json(scopedRows);
   } catch (error) {
     logger.error({ err: error, table }, "Failed to load Supabase rows");
@@ -331,7 +338,7 @@ router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {
     return;
   }
   const rows = asRecords(req.body?.rows);
-  const validRows = rows.filter((row) => stringValue(row.id) && rowBelongsToActor(row, actor));
+  const validRows = rows.filter((row) => stringValue(row.id) && rowBelongsToActor(row, actor, table));
   if (validRows.length !== rows.length) {
     res.status(403).json({ error: "لا يمكن للمعلم تعديل سجلات تخص مستخدمًا آخر" });
     return;
@@ -373,7 +380,7 @@ router.post("/supabase/:table/delete", async (req: Request, res: Response) => {
   try {
     if (ids.length) {
       const remoteRows = asRecords(await rest(config, `${table}?select=id,data&id=in.(${ids.map(encodeURIComponent).join(",")})`));
-      if (actor.role !== "admin" && remoteRows.some((row) => !rowBelongsToActor(row, actor))) {
+      if (actor.role !== "admin" && remoteRows.some((row) => !rowBelongsToActor(row, actor, table))) {
         res.status(403).json({ error: "لا يمكن للمعلم حذف سجلات تخص مستخدمًا آخر" });
         return;
       }

@@ -255,6 +255,9 @@ const App: React.FC = () => {
     (async () => {
       const syncTask = (async () => {
         migratePasswordsToHash();
+        if (restoredRole !== 'admin' && restoredRole !== 'teacher') {
+          return;
+        }
         // Do not mount role dashboards until the shared data has been loaded.
         // Otherwise a student can read an empty local content list on a new device.
         await initSupabaseSync();

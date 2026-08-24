@@ -197,15 +197,20 @@ function currentScope(): string {
   return activeSyncContext?.scope ?? 'unverified';
 }
 
-function recordBelongsToContext(record: any, context: SyncContext): boolean {
+function recordBelongsToContext(record: any, context: SyncContext, table: string): boolean {
   if (context.role === 'admin') return true;
   if (!record || typeof record !== 'object') return false;
+  if (table === 'teachers') return String(record.id ?? '').trim() === context.teacherId;
   const owner = String(record.teacherId ?? record.teacher_id ?? record.createdBy ?? '').trim();
   return owner === context.teacherId;
 }
 
 function shouldRetry(error: unknown): boolean {
   return !(error instanceof RemoteRequestError) || error.retryable;
+}
+
+function canCurrentActorWriteKv(key: string): boolean {
+  return activeSyncContext?.role === 'admin' || key === 'smartEdu_videos';
 }
 
 function executeOp(op: PendingOp): PromiseLike<{ error: any }> {
@@ -308,7 +313,7 @@ async function hydrateRowTable(
   const remote = (data || []).map((row: any) => row.data);
   const local = safeParse(nativeGetItem(storageKey));
   const localArr = (Array.isArray(local) ? local : [])
-    .filter((record: any) => recordBelongsToContext(record, context));
+    .filter((record: any) => recordBelongsToContext(record, context, table));
   const deletedLessonIds = new Set(
     stringIdArray(safeParse(nativeGetItem('smartEdu_deletedLessons'))),
   );
@@ -430,7 +435,9 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
             : mergeSharedValue(byKey.get(key), localVal);
       nativeSetItem(key, JSON.stringify(merged));
       if (JSON.stringify(merged) !== JSON.stringify(byKey.get(key))) {
-        toUpload.push({ key, value: merged });
+        if (canCurrentActorWriteKv(key)) {
+          toUpload.push({ key, value: merged });
+        }
       }
     } else {
       if (localVal !== null) {
@@ -445,7 +452,9 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
                   ? Array.from(deletedQuizIds)
               : localVal;
         nativeSetItem(key, JSON.stringify(value));
-        toUpload.push({ key, value });
+        if (canCurrentActorWriteKv(key)) {
+          toUpload.push({ key, value });
+        }
       }
     }
   }
@@ -518,6 +527,7 @@ async function syncRowTable(table: string, oldArr: any[], newArr: any[]): Promis
 }
 
 async function syncKv(key: string, value: any): Promise<void> {
+  if (!canCurrentActorWriteKv(key)) return;
   const res = await withRetry(`حفظ ${key}`, () =>
     supabase.from('app_kv').upsert({ key, value }, { onConflict: 'key' })
   );
