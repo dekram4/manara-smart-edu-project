@@ -37,7 +37,7 @@ class StudentContentService {
         .from('lesson_configs')
         .select('id,data')
         .limit(500);
-    final lessons = response
+    final matchingLessons = response
         .whereType<Map>()
         .map(
           (row) => parseLessonContent(
@@ -103,8 +103,7 @@ class StudentContentService {
         )
         .toList();
 
-    lessons.sort((a, b) => a.id.compareTo(b.id));
-    return lessons;
+    return _preferredLessonsForStudent(lessons, profile);
   }
 
   Future<List<HtmlGame>> fetchGameCatalog() async {
@@ -308,6 +307,41 @@ class StudentContentService {
     return content == selected;
   }
 
+  List<LessonContent> _preferredLessonsForStudent(
+    List<LessonContent> lessons,
+    StudentProfile profile,
+  ) {
+    final grouped = <String, List<LessonContent>>{};
+    for (final lesson in lessons) {
+      final key = [
+        lesson.grade,
+        lesson.atram,
+        lesson.subject,
+        lesson.term,
+        lesson.unit,
+      ].map(_normalize).join('|');
+      grouped.putIfAbsent(key, () => []).add(lesson);
+    }
+
+    final studentTeacher = _normalize(profile.teacherId);
+    final preferred = <LessonContent>[];
+    for (final candidates in grouped.values) {
+      final teacherOwned = studentTeacher.isEmpty
+          ? const <LessonContent>[]
+          : candidates
+              .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
+              .toList();
+      final pool = teacherOwned.isNotEmpty ? teacherOwned : candidates;
+      pool.sort((a, b) {
+        final timestamp = b.createdAt.compareTo(a.createdAt);
+        return timestamp != 0 ? timestamp : b.id.compareTo(a.id);
+      });
+      preferred.add(pool.first);
+    }
+    preferred.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return preferred;
+  }
+
 }
 
 bool _isDeletedVideo(Map<String, dynamic> data) {
@@ -502,6 +536,7 @@ LessonContent parseLessonContent(
       data,
       ['lesson', 'lessonName', 'lessonTitle', 'currentLesson', 'name'],
     ),
+    createdAt: _text(data['updatedAt'] ?? data['createdAt']),
     ownerId: _nullableText(data['teacherId'] ?? data['teacher_id'] ?? data['createdBy']),
     lessonText: _nullableText(data['lessonContent']),
     avatarInteractionUrl: _nullableText(data['avatarInteractionUrl']),

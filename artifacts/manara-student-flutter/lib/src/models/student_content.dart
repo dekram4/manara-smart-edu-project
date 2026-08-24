@@ -40,6 +40,7 @@ class LessonContent {
     required this.term,
     required this.unit,
     required this.lessonName,
+    required this.createdAt,
     this.ownerId,
     required this.videos,
     required this.games,
@@ -55,6 +56,7 @@ class LessonContent {
   final String term;
   final String unit;
   final String lessonName;
+  final String createdAt;
   final String? ownerId;
   final String? lessonText;
   final String? avatarInteractionUrl;

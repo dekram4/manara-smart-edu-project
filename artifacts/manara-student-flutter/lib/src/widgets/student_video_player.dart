@@ -244,9 +244,13 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 }
 
 class _NetworkVideoSurface extends StatefulWidget {
-  const _NetworkVideoSurface({required this.controller});
+  const _NetworkVideoSurface({
+    required this.controller,
+    this.fullscreen = false,
+  });
 
   final VideoPlayerController controller;
+  final bool fullscreen;
 
   @override
   State<_NetworkVideoSurface> createState() => _NetworkVideoSurfaceState();
@@ -265,6 +269,16 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     setState(() => _showControls = true);
   }
 
+  Future<void> _openFullscreen() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _FullscreenNetworkVideoScreen(
+          controller: widget.controller,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ratio = widget.controller.value.aspectRatio;
@@ -281,37 +295,100 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
             ),
           ),
           if (_showControls)
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withAlpha(80),
-                shape: BoxShape.circle,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Icon(
-                  widget.controller.value.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 34,
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(80),
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Icon(
+                    widget.controller.value.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 34,
+                  ),
                 ),
               ),
             ),
           Positioned(
             left: 12,
             right: 12,
-            bottom: 8,
-            child: VideoProgressIndicator(
-              widget.controller,
-              allowScrubbing: true,
-              colors: const VideoProgressColors(
-                playedColor: Color(0xFF5EEAD4),
-                bufferedColor: Color(0x885EEAD4),
-                backgroundColor: Color(0x66788A9F),
-              ),
+            bottom: 10,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                VideoProgressIndicator(
+                  widget.controller,
+                  allowScrubbing: true,
+                  colors: const VideoProgressColors(
+                    playedColor: Color(0xFF5EEAD4),
+                    bufferedColor: Color(0x885EEAD4),
+                    backgroundColor: Color(0x66788A9F),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: widget.controller.value.isPlaying
+                          ? 'إيقاف مؤقت'
+                          : 'تشغيل',
+                      onPressed: _togglePlayback,
+                      icon: Icon(
+                        widget.controller.value.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: widget.fullscreen ? 'إغلاق ملء الشاشة' : 'ملء الشاشة',
+                      onPressed: widget.fullscreen
+                          ? () => Navigator.of(context).pop()
+                          : _openFullscreen,
+                      icon: Icon(
+                        widget.fullscreen
+                            ? Icons.fullscreen_exit_rounded
+                            : Icons.fullscreen_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FullscreenNetworkVideoScreen extends StatelessWidget {
+  const _FullscreenNetworkVideoScreen({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: controller.value.aspectRatio <= 0
+                ? 16 / 9
+                : controller.value.aspectRatio,
+            child: _NetworkVideoSurface(
+              controller: controller,
+              fullscreen: true,
+            ),
+          ),
+        ),
       ),
     );
   }
