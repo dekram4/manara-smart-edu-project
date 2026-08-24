@@ -15,6 +15,7 @@ class StudentVideoPlayer extends StatefulWidget {
     this.initialPosition = Duration.zero,
     this.autoPlay = true,
     this.fullscreen = false,
+    this.allowInteractivePermissions = false,
     super.key,
   });
 
@@ -24,6 +25,9 @@ class StudentVideoPlayer extends StatefulWidget {
   final Duration initialPosition;
   final bool autoPlay;
   final bool fullscreen;
+  /// Enables only the browser permissions required by an interactive tutor
+  /// embedded from another origin. Lesson videos keep this disabled.
+  final bool allowInteractivePermissions;
 
   @override
   State<StudentVideoPlayer> createState() => _StudentVideoPlayerState();
@@ -186,6 +190,14 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         transparentBackground: true,
         supportMultipleWindows: false,
         javaScriptCanOpenWindowsAutomatically: false,
+        // Flutter Web renders InAppWebView as an iframe. Interactive tutor
+        // providers request getUserMedia from inside that frame, so the
+        // microphone/camera feature policy must be delegated explicitly.
+        iframeAllow: widget.allowInteractivePermissions
+            ? 'camera *; microphone *; autoplay *; clipboard-write *; '
+                'encrypted-media *; fullscreen *; picture-in-picture *'
+            : null,
+        iframeAllowFullscreen: widget.allowInteractivePermissions,
       ),
       shouldOverrideUrlLoading: (controller, action) async {
         final target = action.request.url;

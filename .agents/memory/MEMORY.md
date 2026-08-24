@@ -9,3 +9,4 @@
 - [Supabase video storage](supabase-video-storage.md) — New MP4 uploads use public durable URLs; local API paths remain legacy-only fallbacks.
 - [Media upload fallback](media-upload-fallback.md) — If durable Storage is unavailable, accept uploads locally with an explicit non-persistence warning.
 - [Student chat authorization](student-chat-authorization.md) — Keep Flutter chat unavailable until server-side student authorization isolates message access.
+- [Interactive tutor iframe permissions](interactive-tutor-iframe-permissions.md) — Flutter Web tutors that request media need explicit iframe camera/microphone delegation.

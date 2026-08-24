@@ -188,6 +188,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                 title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
               ),
               autoPlay: false,
+              allowInteractivePermissions: true,
             ),
           ),
         ),
