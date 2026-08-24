@@ -24,6 +24,7 @@ export const AnimatedCelebration: React.FC<AnimatedCelebrationProps> = ({
       return () => window.clearTimeout(timer);
     }
     setShow(false);
+    return undefined;
   }, [visible]);
 
   useEffect(() => {

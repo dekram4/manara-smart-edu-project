@@ -232,7 +232,7 @@ const App: React.FC = () => {
     const candidateRole = savedRole && validRoles.includes(savedRole as MainView)
       ? savedRole as MainView
       : legacyRole;
-    const isDashboardRole = (role: MainView): role is AuthRole => role !== 'role';
+    const isDashboardRole = (role: MainView): role is Exclude<MainView, 'role'> => role !== 'role';
     const restoredRole = candidateRole && isDashboardRole(candidateRole) && hasValidRoleSession(candidateRole)
       ? candidateRole
       : null;

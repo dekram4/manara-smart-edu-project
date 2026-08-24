@@ -24,7 +24,7 @@ export function readSessionValue(key: string): string | null {
   const local = getStorage('local');
   try {
     const value = local?.getItem(key);
-    if (value !== null) return value;
+    if (value != null) return value;
   } catch {
     // Try the fallback stores below.
   }
@@ -32,7 +32,7 @@ export function readSessionValue(key: string): string | null {
   const session = getStorage('session');
   try {
     const value = session?.getItem(key);
-    if (value !== null) return value;
+    if (value != null) return value;
   } catch {
     // Use memory below.
   }

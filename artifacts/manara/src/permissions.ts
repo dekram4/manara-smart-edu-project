@@ -29,12 +29,12 @@ export const getPermissionPackage = (
 
 const capRolePermissions = <T extends Record<string, unknown>>(global: T, packagePermissions?: Partial<T>): T => {
   if (!packagePermissions) return global;
-  const result = { ...global };
+  const result: Record<string, unknown> = { ...global };
   Object.keys(global).forEach(key => {
     const globalValue = global[key];
     const packageValue = packagePermissions[key];
     if (typeof globalValue === 'boolean') {
-      result[key] = (globalValue && packageValue !== false) as T[Extract<keyof T, string>];
+      result[key] = globalValue && packageValue !== false;
     } else if (typeof globalValue === 'number') {
       const globalLimit = numericLimit(globalValue, -1);
       const packageLimit = numericLimit(packageValue, globalLimit);
@@ -44,10 +44,10 @@ const capRolePermissions = <T extends Record<string, unknown>>(global: T, packag
           : packageLimit < 0
             ? globalLimit
             : Math.min(globalLimit, packageLimit)
-      ) as T[Extract<keyof T, string>];
+      );
     }
   });
-  return result;
+  return result as T;
 };
 
 /**
@@ -64,13 +64,13 @@ const applyPermissionPackage = <T extends Record<string, unknown>>(
   if (!packageValue) return global;
   if (!isAdminOwned) return capRolePermissions(global, packageValue);
 
-  const result = { ...global };
+  const result: Record<string, unknown> = { ...global };
   Object.keys(global).forEach(key => {
     if (packageValue[key] !== undefined) {
-      result[key] = packageValue[key] as T[Extract<keyof T, string>];
+      result[key] = packageValue[key];
     }
   });
-  return result;
+  return result as T;
 };
 
 const mergePermissions = (saved: Partial<Permissions> | null): Permissions => ({
@@ -150,10 +150,10 @@ export const getTeacherPermissionDetails = (
   const global = getPermissions().teacher;
   const permissionPackage = getPermissionPackage('teacher', activeTeacher?.permissionPackageId);
   const effective = applyPermissionPackage(
-    global as unknown as Record<string, unknown>,
+    global as Record<string, unknown>,
     permissionPackage?.permissions as Partial<Record<string, unknown>> | undefined,
     !permissionPackage?.ownerRole || permissionPackage.ownerRole === 'admin',
-  ) as typeof global;
+  ) as unknown as typeof global;
   return { global, permissionPackage, effective };
 };
 
@@ -171,10 +171,10 @@ export const getEffectiveParentPermissions = (parent?: ParentInfo | null) => {
   const defaults = getPermissions().parent;
   const permissionPackage = getPermissionPackage('parent', parent?.permissionPackageId);
   const packaged = applyPermissionPackage(
-    defaults as unknown as Record<string, unknown>,
+    defaults as Record<string, unknown>,
     permissionPackage?.permissions as Partial<Record<string, unknown>> | undefined,
     !permissionPackage?.ownerRole || permissionPackage.ownerRole === 'admin',
-  ) as typeof defaults;
+  ) as unknown as typeof defaults;
   const custom = parent?.parentPermissions || {};
   const booleanKeys: (keyof Permissions['parent'])[] = [
     'canCreateStudents',

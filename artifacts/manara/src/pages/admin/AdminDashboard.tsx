@@ -85,6 +85,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       const interval = window.setInterval(refreshStats, 5000);
       return () => window.clearInterval(interval);
     }
+    return undefined;
   }, [isAuthenticated]);
 
   const refreshStats = () => {

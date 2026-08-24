@@ -60,6 +60,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       }, 5000);
       return () => window.clearInterval(interval);
     }
+    return undefined;
   }, [isAuthenticated, currentTeacher?.id]);
 
   const loadDashboardStats = () => {

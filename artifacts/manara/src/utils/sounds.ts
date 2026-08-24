@@ -64,7 +64,7 @@ const playAudioWithGain = (src: string, gain: number, label: string) => {
 
 const playToneJsPattern = (
   sequence: Array<{ note: string; duration?: string; velocity?: number }>,
-  options: { type?: string; volume?: number } = {}
+  options: { type?: Tone.ToneOscillatorType; volume?: number } = {}
 ) => {
   if (!readSoundPreference()) return;
   try {

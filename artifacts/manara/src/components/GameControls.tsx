@@ -28,8 +28,8 @@ const persistState = (next: { soundEnabled: boolean; hapticsEnabled: boolean }) 
 };
 
 export const GameControls: React.FC<GameControlsProps> = ({ className = '' }) => {
-  const [soundEnabled, setSoundEnabled] = useState(readState().soundEnabled);
-  const [hapticsEnabled, setHapticsEnabled] = useState(readState().hapticsEnabled);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(readState().soundEnabled);
+  const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(readState().hapticsEnabled);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
