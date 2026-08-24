@@ -649,7 +649,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                     video: video,
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => UniversalWebVideoScreen(
+                        builder: (_) => _LessonPlayerScreen(
                           video: video,
                           apiBaseUrl: widget.apiBaseUrl,
                         ),
@@ -767,6 +767,37 @@ class _VideoCard extends StatelessWidget {
 
   MainAxisAlignment dynamicPaddingAlignment(BuildContext context) =>
       MainAxisAlignment.spaceBetween;
+}
+
+class _LessonPlayerScreen extends StatelessWidget {
+  const _LessonPlayerScreen({
+    required this.video,
+    required this.apiBaseUrl,
+  });
+
+  final LessonVideo video;
+  final String apiBaseUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF071425),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF071425),
+        foregroundColor: Colors.white,
+        title: Text(video.title),
+      ),
+      body: Center(
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: StudentVideoPlayer(
+            video: video,
+            apiBaseUrl: apiBaseUrl,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class UniversalWebVideoScreen extends StatelessWidget {
@@ -904,25 +935,6 @@ class UniversalWebVideoScreen extends StatelessWidget {
                 aspectRatio: 16 / 9,
                 child: HtmlElementView(viewType: viewId),
               ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: const Color(0xFF0B192C),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FilledButton.icon(
-                  onPressed: () => html.window.open(targetUrl, '_blank'),
-                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                  label: const Text('تشغيل في تبويب جديد مباشر'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF0B8693),
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ],
             ),
           ),
         ],
