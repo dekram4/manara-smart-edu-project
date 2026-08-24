@@ -14,6 +14,7 @@ class StudentVideoPlayer extends StatefulWidget {
     this.compact = false,
     this.initialPosition = Duration.zero,
     this.autoPlay = true,
+    this.fullscreen = false,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class StudentVideoPlayer extends StatefulWidget {
   final bool compact;
   final Duration initialPosition;
   final bool autoPlay;
+  final bool fullscreen;
 
   @override
   State<StudentVideoPlayer> createState() => _StudentVideoPlayerState();
@@ -153,6 +155,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
              controller: networkController,
              video: widget.video,
              apiBaseUrl: widget.apiBaseUrl,
+             fullscreen: widget.fullscreen,
            )
         else
           const ColoredBox(
@@ -420,6 +423,7 @@ class _FullscreenNetworkVideoScreen extends StatelessWidget {
               apiBaseUrl: apiBaseUrl,
               initialPosition: initialPosition,
               autoPlay: autoPlay,
+              fullscreen: true,
             ),
           ),
         ),
