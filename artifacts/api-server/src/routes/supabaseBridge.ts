@@ -6,6 +6,18 @@ const router = Router();
 
 const VIDEO_KEY = "smartEdu_videos";
 const DELETED_VIDEO_KEY = "smartEdu_deletedVideos";
+const ROW_TABLES = new Set([
+  "students",
+  "parents",
+  "teachers",
+  "lesson_configs",
+  "created_quizzes",
+  "quiz_results",
+  "interactions",
+  "private_messages",
+  "public_messages",
+  "certificates",
+]);
 
 type SupabaseConfig = { url: string; serviceRoleKey: string };
 
@@ -87,6 +99,20 @@ function mergeDeletedIds(remoteValue: unknown, requestedValue: unknown): string[
   ].map(stringValue).filter(Boolean)));
 }
 
+function tableName(req: Request): string {
+  const table = stringValue(req.params.table);
+  return ROW_TABLES.has(table) ? table : "";
+}
+
+function rowBelongsToActor(row: Record<string, unknown>, actor: NonNullable<ReturnType<typeof getContentActor>>): boolean {
+  if (actor.role === "admin") return true;
+  const data = row.data && typeof row.data === "object"
+    ? row.data as Record<string, unknown>
+    : row;
+  const owner = recordOwner(data);
+  return owner === actor.teacherId;
+}
+
 async function readValue(config: SupabaseConfig, key: string): Promise<unknown> {
   const rows = await rest(
     config,
@@ -144,34 +170,138 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
   }
 
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
-  if (rows.length !== 1 || !rows[0] || typeof rows[0] !== "object") {
+  if (!rows.length || rows.some((row: unknown) => !row || typeof row !== "object")) {
     res.status(400).json({ error: "صيغة طلب المزامنة غير صالحة" });
     return;
   }
 
-  const { key, value } = rows[0] as { key?: unknown; value?: unknown };
-  if (key !== VIDEO_KEY && key !== DELETED_VIDEO_KEY) {
-    res.status(403).json({ error: "هذا النوع من البيانات لا يُزامَن عبر هذه القناة" });
-    return;
-  }
-
   try {
-    const remoteValue = await readValue(config, key);
-    const mergedValue = key === VIDEO_KEY
-      ? actor.role === "admin"
-        ? asRecords(value)
-        : mergeTeacherVideos(remoteValue, value, actor.teacherId)
-      : mergeDeletedIds(remoteValue, value);
+    for (const row of rows as Array<{ key?: unknown; value?: unknown }>) {
+      const key = stringValue(row.key);
+      // hydrateKv can batch unrelated legacy keys. This bridge owns the
+      // shared video keys; other app_kv keys continue using their own path.
+      if (key !== VIDEO_KEY && key !== DELETED_VIDEO_KEY) continue;
+      const remoteValue = await readValue(config, key);
+      const mergedValue = key === VIDEO_KEY
+        ? actor.role === "admin"
+          ? asRecords(row.value)
+          : mergeTeacherVideos(remoteValue, row.value, actor.teacherId)
+        : mergeDeletedIds(remoteValue, row.value);
 
-    await rest(config, "app_kv?on_conflict=key", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ key, value: mergedValue }),
-    });
+      await rest(config, "app_kv?on_conflict=key", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ key, value: mergedValue }),
+      });
+    }
     res.status(204).end();
   } catch (error) {
     logger.error({ err: error, key }, "Failed to persist shared cinema videos to Supabase");
     res.status(502).json({ error: "تعذر حفظ فيديوهات السينما المشتركة" });
+  }
+});
+
+router.get("/supabase/:table", async (req: Request, res: Response) => {
+  const actor = getContentActor(req);
+  const table = tableName(req);
+  if (!actor) {
+    res.status(401).json({ error: "يجب تسجيل الدخول كمعلم أو مشرف لمزامنة البيانات" });
+    return;
+  }
+  if (!table) {
+    res.status(404).json({ error: "جدول المزامنة غير معروف" });
+    return;
+  }
+  const config = getSupabaseConfig();
+  if (!config) {
+    res.status(503).json({ error: "Supabase is not configured on the API server" });
+    return;
+  }
+
+  try {
+    const rows = asRecords(await rest(config, `${table}?select=id,data`));
+    const scopedRows = actor.role === "admin"
+      ? rows
+      : rows.filter((row) => rowBelongsToActor(row, actor));
+    res.json(scopedRows);
+  } catch (error) {
+    logger.error({ err: error, table }, "Failed to load Supabase rows");
+    res.status(502).json({ error: "تعذر تحميل البيانات المشتركة" });
+  }
+});
+
+router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {
+  const actor = getContentActor(req);
+  const table = tableName(req);
+  if (!actor) {
+    res.status(401).json({ error: "يجب تسجيل الدخول كمعلم أو مشرف لمزامنة البيانات" });
+    return;
+  }
+  if (!table) {
+    res.status(404).json({ error: "جدول المزامنة غير معروف" });
+    return;
+  }
+  const config = getSupabaseConfig();
+  if (!config) {
+    res.status(503).json({ error: "Supabase is not configured on the API server" });
+    return;
+  }
+  const rows = asRecords(req.body?.rows);
+  const validRows = rows.filter((row) => stringValue(row.id) && rowBelongsToActor(row, actor));
+  if (validRows.length !== rows.length) {
+    res.status(403).json({ error: "لا يمكن للمعلم تعديل سجلات تخص مستخدمًا آخر" });
+    return;
+  }
+
+  try {
+    if (validRows.length) {
+      await rest(config, `${table}?on_conflict=id`, {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(validRows.map((row) => ({ id: stringValue(row.id), data: row.data }))),
+      });
+    }
+    res.status(204).end();
+  } catch (error) {
+    logger.error({ err: error, table }, "Failed to persist Supabase rows");
+    res.status(502).json({ error: "تعذر حفظ البيانات المشتركة" });
+  }
+});
+
+router.post("/supabase/:table/delete", async (req: Request, res: Response) => {
+  const actor = getContentActor(req);
+  const table = tableName(req);
+  if (!actor) {
+    res.status(401).json({ error: "يجب تسجيل الدخول كمعلم أو مشرف لمزامنة البيانات" });
+    return;
+  }
+  if (!table) {
+    res.status(404).json({ error: "جدول المزامنة غير معروف" });
+    return;
+  }
+  const config = getSupabaseConfig();
+  if (!config) {
+    res.status(503).json({ error: "Supabase is not configured on the API server" });
+    return;
+  }
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(stringValue).filter(Boolean) : [];
+
+  try {
+    if (ids.length) {
+      const remoteRows = asRecords(await rest(config, `${table}?select=id,data&id=in.(${ids.map(encodeURIComponent).join(",")})`));
+      if (actor.role !== "admin" && remoteRows.some((row) => !rowBelongsToActor(row, actor))) {
+        res.status(403).json({ error: "لا يمكن للمعلم حذف سجلات تخص مستخدمًا آخر" });
+        return;
+      }
+      await rest(config, `${table}?id=in.(${ids.map(encodeURIComponent).join(",")})`, {
+        method: "DELETE",
+        headers: { Prefer: "return=minimal" },
+      });
+    }
+    res.status(204).end();
+  } catch (error) {
+    logger.error({ err: error, table }, "Failed to delete Supabase rows");
+    res.status(502).json({ error: "تعذر حذف البيانات المشتركة" });
   }
 });
 
