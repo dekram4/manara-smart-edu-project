@@ -51,7 +51,7 @@ class StudentContentService {
 
     final hierarchyPaths = <AcademicPath>[
       ..._pathsFromHierarchy(hierarchyValue, profile),
-      ...lessons
+      ...matchingLessons
           .where(_hasCompleteAcademicPath)
           .map(
             (lesson) => AcademicPath(
@@ -65,13 +65,15 @@ class StudentContentService {
     ];
     final paths = _uniquePaths(hierarchyPaths)
         .where(
-          (path) => lessons.any((lesson) => _lessonMatchesPath(lesson, path)),
+          (path) => matchingLessons.any(
+            (lesson) => _lessonMatchesPath(lesson, path),
+          ),
         )
         .toList();
 
     return AcademicSelectionData(
       paths: paths,
-      lessons: lessons,
+      lessons: matchingLessons,
       hierarchyUnavailable: hierarchyUnavailable,
     );
   }
