@@ -184,7 +184,6 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         allowsInlineMediaPlayback: true,
         supportZoom: !widget.compact,
         transparentBackground: true,
-        userAgent: _windowsUserAgent,
         supportMultipleWindows: false,
         javaScriptCanOpenWindowsAutomatically: false,
       ),
@@ -519,7 +518,3 @@ String youtubeVideoId(Uri uri, String host) {
   return '';
 }
 
-const _windowsUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-    'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/124.0.0.0 Safari/537.36';
