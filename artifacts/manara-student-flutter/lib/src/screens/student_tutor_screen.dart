@@ -1,9 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_content.dart';
+import '../widgets/student_video_player.dart';
 
 /// Shows the virtual teacher configured for one selected academic path.
 ///
@@ -24,62 +22,17 @@ class StudentTutorScreen extends StatefulWidget {
 }
 
 class _StudentTutorScreenState extends State<StudentTutorScreen> {
-  InAppWebViewController? _controller;
-  late final String? _avatarUrl;
-  late final LessonContent? _avatarLesson;
-  bool _loading = false;
-  String? _frameError;
-  Timer? _loadTimeout;
+  var _embedRevision = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _avatarUrl = widget.selection.url;
-    _avatarLesson = widget.selection.lesson;
-    _loading = _avatarUrl != null;
-    if (_loading) _armLoadTimeout();
-  }
-
-  @override
-  void dispose() {
-    _loadTimeout?.cancel();
-    super.dispose();
-  }
+  String? get _avatarUrl => widget.selection.url;
+  LessonContent? get _avatarLesson => widget.selection.lesson;
 
   bool get _isLiveMeeting =>
       widget.selection.type == TutorExperienceType.liveMeeting;
 
   void _reload() {
     if (_avatarUrl == null) return;
-    setState(() {
-      _loading = true;
-      _frameError = null;
-    });
-    _armLoadTimeout();
-    _controller?.reload();
-  }
-
-  void _armLoadTimeout() {
-    _loadTimeout?.cancel();
-    _loadTimeout = Timer(const Duration(seconds: 15), () {
-      if (!mounted || !_loading) return;
-      setState(() {
-        _loading = false;
-        _frameError = _isLiveMeeting
-            ? 'استغرق تحميل اللقاء وقتًا طويلًا. تحقق من الرابط ثم أعد المحاولة.'
-            : 'استغرق تحميل المعلم الافتراضي وقتًا طويلًا. تحقق من الرابط ثم أعد المحاولة.';
-      });
-    });
-  }
-
-  void _finishLoading() {
-    _loadTimeout?.cancel();
-    if (mounted) {
-      setState(() {
-        _loading = false;
-        _frameError = null;
-      });
-    }
+    setState(() => _embedRevision++);
   }
 
   void _openFullscreen() {
@@ -223,90 +176,18 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                   ? null
                   : Border.all(color: const Color(0xFF5B3B87)),
             ),
-            child: Stack(
-              children: [
-                InAppWebView(
-                  initialUrlRequest: URLRequest(url: WebUri(_avatarUrl!)),
-                  initialSettings: InAppWebViewSettings(
-                    javaScriptEnabled: true,
-                    mediaPlaybackRequiresUserGesture: false,
-                    allowsInlineMediaPlayback: true,
-                    supportZoom: true,
-                    supportMultipleWindows: false,
-                    javaScriptCanOpenWindowsAutomatically: false,
-                    transparentBackground: false,
-                  ),
-                  onWebViewCreated: (controller) => _controller = controller,
-                  onLoadStart: (_, __) {
-                    if (mounted) {
-                      setState(() {
-                        _loading = true;
-                        _frameError = null;
-                      });
-                      _armLoadTimeout();
-                    }
-                  },
-                  onLoadStop: (_, __) => _finishLoading(),
-                  // On Flutter Web some cross-origin pages do not reliably
-                  // emit onLoadStop, while the progress callback still reaches
-                  // 100. This prevents a successful embed from being hidden
-                  // behind the permanent loading overlay.
-                  onProgressChanged: (_, progress) {
-                    if (progress >= 100) _finishLoading();
-                  },
-                  onReceivedError: (_, request, error) {
-                    if (!mounted || request.url?.toString() != _avatarUrl) return;
-                    _loadTimeout?.cancel();
-                    setState(() {
-                      _loading = false;
-                      _frameError = _isLiveMeeting
-                          ? 'تعذر الاتصال بخدمة اللقاء. تحقق من الرابط ثم أعد المحاولة.'
-                          : 'تعذر الاتصال بخدمة المعلم الافتراضي. حاول مرة أخرى.';
-                    });
-                  },
-                  shouldOverrideUrlLoading: (_, action) async {
-                    final target = action.request.url;
-                    return target != null && target.scheme.toLowerCase() == 'https'
-                        ? NavigationActionPolicy.ALLOW
-                        : NavigationActionPolicy.CANCEL;
-                  },
-                ),
-                if (_loading)
-                  ColoredBox(
-                    color: const Color(0xFF101D33),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: Color(0xFFC4B5FD)),
-                          SizedBox(height: 14),
-                          Text(
-                            _isLiveMeeting
-                                ? 'جارٍ تجهيز اللقاء المباشر...'
-                                : 'جارٍ تجهيز المعلم الافتراضي...',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (_frameError != null)
-                  ColoredBox(
-                    color: const Color(0xF0101D33),
-                    child: _TutorStateCard(
-                      icon: Icons.error_outline_rounded,
-                      title: _isLiveMeeting
-                          ? 'تعذر تحميل اللقاء المباشر'
-                          : 'تعذر تحميل المعلم الافتراضي',
-                      message: _frameError!,
-                      actionLabel: 'إعادة المحاولة',
-                      onAction: _reload,
-                    ),
-                  ),
-              ],
+            child: StudentVideoPlayer(
+              // Use the same inline-embed widget as “شرح الدرس”. It handles
+              // YouTube conversion and WebView embedding consistently across
+              // both student cards.
+              key: ValueKey('${_avatarUrl!}:$_embedRevision'),
+              video: LessonVideo(
+                id: 'tutor-${_avatarLesson?.id ?? 'experience'}',
+                url: _avatarUrl!,
+                sourceType: VideoSourceType.embed,
+                title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
+              ),
+              autoPlay: false,
             ),
           ),
         ),
