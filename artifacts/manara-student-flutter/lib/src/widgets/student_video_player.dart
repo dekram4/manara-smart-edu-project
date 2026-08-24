@@ -45,7 +45,10 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
   Future<void> _openVideo() async {
     final uri = Uri.tryParse(_url);
-    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+    final isWebRelativeUrl = kIsWeb && _url.startsWith('/');
+    if (uri == null ||
+        (!(uri.scheme == 'http' || uri.scheme == 'https') &&
+            !isWebRelativeUrl)) {
       setState(() {
         _error = 'يجب أن يكون رابط الفيديو رابط HTTP أو HTTPS عامًا.';
       });
