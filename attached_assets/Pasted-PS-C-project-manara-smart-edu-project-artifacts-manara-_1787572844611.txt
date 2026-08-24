@@ -1,0 +1,37 @@
+PS C:\project\manara-smart-edu-project\artifacts\manara-student-flutter> git pull origin main; flutter run -d chrome --web-browser-flag "--disable-web-security"
+remote: Enumerating objects: 32, done.
+remote: Counting objects: 100% (32/32), done.
+remote: Compressing objects: 100% (7/7), done.
+remote: Total 17 (delta 10), reused 17 (delta 10), pack-reused 0 (from 0)
+Unpacking objects: 100% (17/17), 5.63 KiB | 81.00 KiB/s, done.
+From https://github.com/dekram4/manara-smart-edu-project
+ * branch            main       -> FETCH_HEAD
+   972f082..cd4e3b0  main       -> origin/main
+Updating 972f082..cd4e3b0
+Fast-forward
+ .../lib/src/models/academic_context.dart           |   5 +
+ .../lib/src/models/student_content.dart            |  25 +++
+ .../lib/src/screens/student_home_screen.dart       |  13 +-
+ .../lib/src/screens/student_tutor_screen.dart      | 100 +++-------
+ .../lib/src/services/student_content_service.dart  | 162 ++++++++++++++++
+ .../test/tutor_experience_selection_test.dart      | 211 +++++++++++++++++++++
+ .../manara-student-flutter/test/widget_test.dart   |  56 +++---
+ 7 files changed, 476 insertions(+), 96 deletions(-)
+ create mode 100644 artifacts/manara-student-flutter/test/tutor_experience_selection_test.dart
+Launching lib\main.dart on Chrome in debug mode...
+lib/src/screens/student_home_screen.dart:203:15: Error: The getter 'TutorExperienceType' isn't defined for the type
+'_StudentHomeScreenState'.
+ - '_StudentHomeScreenState' is from 'package:manara_student/src/screens/student_home_screen.dart'
+ ('lib/src/screens/student_home_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'TutorExperienceType'.
+            ? TutorExperienceType.liveMeeting
+              ^^^^^^^^^^^^^^^^^^^
+lib/src/screens/student_home_screen.dart:204:15: Error: The getter 'TutorExperienceType' isn't defined for the type
+'_StudentHomeScreenState'.
+ - '_StudentHomeScreenState' is from 'package:manara_student/src/screens/student_home_screen.dart'
+ ('lib/src/screens/student_home_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'TutorExperienceType'.
+            : TutorExperienceType.virtualTeacher,
+              ^^^^^^^^^^^^^^^^^^^
+Waiting for connection from debug service on Chrome...             22.3s
+Failed to compile application.
