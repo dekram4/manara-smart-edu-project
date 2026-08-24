@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -603,16 +602,12 @@ List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
       .map(
         (entry) {
           final apiPath = '/api/game-embed/${entry.id}/index.html';
-          // Flutter Web runs on a different localhost port from the API
-          // service. Use the local API proxy by default in the Replit browser:
-          // it rewrites the game's ad SDK to no-op methods. Production and
-          // mobile builds should provide their real API_BASE_URL instead.
-          final resolvedBase = baseUrl.trim().isEmpty && kIsWeb
-              ? 'http://localhost:8080'
-              : baseUrl;
-          final url = resolvedBase.trim().isEmpty
+          // Flutter Web can run in a browser that does not expose the local
+          // API service port. Use the public HTML5 game entry point when an
+          // API base was not explicitly supplied, so the iframe always loads.
+          final url = baseUrl.trim().isEmpty
               ? 'https://html5.gamedistribution.com/rvvASMiM/${entry.id}/index.html'
-              : _resolveUrl(apiPath, resolvedBase);
+              : _resolveUrl(apiPath, baseUrl);
           return HtmlGame(
             id: entry.id,
             url: url,
