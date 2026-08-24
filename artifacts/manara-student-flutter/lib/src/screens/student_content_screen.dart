@@ -10,6 +10,7 @@ import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
+import '../widgets/student_video_player.dart';
 
 enum StudentContentModule { lesson, games, personality, tutor }
 
@@ -817,6 +818,25 @@ class UniversalWebVideoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final targetUrl = _getFinalUrl(video.url);
+    if (video.sourceType == VideoSourceType.mp4) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF071425),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF071425),
+          foregroundColor: Colors.white,
+          title: Text(video.title),
+        ),
+        body: Center(
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: StudentVideoPlayer(
+              video: video,
+              apiBaseUrl: apiBaseUrl,
+            ),
+          ),
+        ),
+      );
+    }
     final ytId = _extractYouTubeId(targetUrl);
     final isYouTube = ytId.isNotEmpty && video.sourceType != VideoSourceType.mp4;
     final viewId = 'player-${DateTime.now().microsecondsSinceEpoch}';

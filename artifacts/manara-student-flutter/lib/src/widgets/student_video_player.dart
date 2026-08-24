@@ -12,12 +12,16 @@ class StudentVideoPlayer extends StatefulWidget {
     required this.video,
     this.apiBaseUrl = '',
     this.compact = false,
+    this.initialPosition = Duration.zero,
+    this.autoPlay = true,
     super.key,
   });
 
   final LessonVideo video;
   final String apiBaseUrl;
   final bool compact;
+  final Duration initialPosition;
+  final bool autoPlay;
 
   @override
   State<StudentVideoPlayer> createState() => _StudentVideoPlayerState();
@@ -106,10 +110,14 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
     try {
       await controller.initialize();
+      if (widget.initialPosition > Duration.zero &&
+          widget.initialPosition < controller.value.duration) {
+        await controller.seekTo(widget.initialPosition);
+      }
       await controller.setLooping(false);
       if (!mounted) return;
       setState(() {});
-      await controller.play();
+      if (widget.autoPlay) await controller.play();
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = error.toString());
@@ -141,7 +149,11 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         else if (!_usesMediaKit &&
             networkController != null &&
             networkController.value.isInitialized)
-          _NetworkVideoSurface(controller: networkController)
+           _NetworkVideoSurface(
+             controller: networkController,
+             video: widget.video,
+             apiBaseUrl: widget.apiBaseUrl,
+           )
         else
           const ColoredBox(
             color: Colors.black,
@@ -246,10 +258,14 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 class _NetworkVideoSurface extends StatefulWidget {
   const _NetworkVideoSurface({
     required this.controller,
+    required this.video,
+    required this.apiBaseUrl,
     this.fullscreen = false,
   });
 
   final VideoPlayerController controller;
+  final LessonVideo video;
+  final String apiBaseUrl;
   final bool fullscreen;
 
   @override
@@ -270,13 +286,23 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   }
 
   Future<void> _openFullscreen() async {
+    final controller = widget.controller;
+    final wasPlaying = controller.value.isPlaying;
+    final position = controller.value.position;
+    await controller.pause();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _FullscreenNetworkVideoScreen(
-          controller: widget.controller,
+          video: widget.video,
+          apiBaseUrl: widget.apiBaseUrl,
+          initialPosition: position,
+          autoPlay: wasPlaying,
         ),
       ),
     );
+    if (!mounted) return;
+    if (wasPlaying) await controller.play();
+    setState(() => _showControls = true);
   }
 
   @override
@@ -369,9 +395,17 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
 }
 
 class _FullscreenNetworkVideoScreen extends StatelessWidget {
-  const _FullscreenNetworkVideoScreen({required this.controller});
+  const _FullscreenNetworkVideoScreen({
+    required this.video,
+    required this.apiBaseUrl,
+    required this.initialPosition,
+    required this.autoPlay,
+  });
 
-  final VideoPlayerController controller;
+  final LessonVideo video;
+  final String apiBaseUrl;
+  final Duration initialPosition;
+  final bool autoPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -380,12 +414,12 @@ class _FullscreenNetworkVideoScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: AspectRatio(
-            aspectRatio: controller.value.aspectRatio <= 0
-                ? 16 / 9
-                : controller.value.aspectRatio,
-            child: _NetworkVideoSurface(
-              controller: controller,
-              fullscreen: true,
+            aspectRatio: 16 / 9,
+            child: StudentVideoPlayer(
+              video: video,
+              apiBaseUrl: apiBaseUrl,
+              initialPosition: initialPosition,
+              autoPlay: autoPlay,
             ),
           ),
         ),
