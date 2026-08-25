@@ -650,6 +650,24 @@ class _VideoCarousel extends StatefulWidget {
 class _VideoCarouselState extends State<_VideoCarousel> {
   final _controller = PageController(viewportFraction: 0.88);
   int _activeIndex = 0;
+  late bool _lessonCompleted;
+
+  @override
+  void initState() {
+    super.initState();
+    _lessonCompleted = widget.profile.gamification.completedActivities
+        .contains('lesson:${widget.lessonId}');
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.lessonId != widget.lessonId ||
+        oldWidget.profile.id != widget.profile.id) {
+      _lessonCompleted = widget.profile.gamification.completedActivities
+          .contains('lesson:${widget.lessonId}');
+    }
+  }
 
   @override
   void dispose() {
@@ -688,7 +706,14 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                         builder: (_) => _LessonPlayerScreen(
                           video: video,
                           apiBaseUrl: widget.apiBaseUrl,
-                          onCompleted: () => _rewardVideo(video),
+                          initiallyCompleted: _lessonCompleted,
+                          onCompleted: () async {
+                            final completed = await _rewardVideo(video);
+                            if (completed && mounted) {
+                              setState(() => _lessonCompleted = true);
+                            }
+                            return completed;
+                          },
                         ),
                       ),
                     ),
@@ -719,14 +744,14 @@ class _VideoCarouselState extends State<_VideoCarousel> {
     );
   }
 
-  Future<void> _rewardVideo(LessonVideo video) async {
+  Future<bool> _rewardVideo(LessonVideo video) async {
     try {
       final lessonReward = await widget.contentService.rewardActivity(
         profile: widget.profile,
         activityType: 'lesson',
         activityId: widget.lessonId,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
           lessonReward.alreadyRewarded
@@ -734,8 +759,15 @@ class _VideoCarouselState extends State<_VideoCarousel> {
               : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام الدرس.',
         ),
       ));
+      return true;
     } catch (_) {
       // Playback remains usable if the network is temporarily unavailable.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر حفظ إتمام الدرس. حاول مرة أخرى.')),
+        );
+      }
+      return false;
     }
   }
 }
@@ -826,16 +858,43 @@ class _VideoCard extends StatelessWidget {
       MainAxisAlignment.spaceBetween;
 }
 
-class _LessonPlayerScreen extends StatelessWidget {
+class _LessonPlayerScreen extends StatefulWidget {
   const _LessonPlayerScreen({
     required this.video,
     required this.apiBaseUrl,
+    this.initiallyCompleted = false,
     this.onCompleted,
   });
 
   final LessonVideo video;
   final String apiBaseUrl;
-  final VoidCallback? onCompleted;
+  final bool initiallyCompleted;
+  final Future<bool> Function()? onCompleted;
+
+  @override
+  State<_LessonPlayerScreen> createState() => _LessonPlayerScreenState();
+}
+
+class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
+  late bool _completed;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _completed = widget.initiallyCompleted;
+  }
+
+  Future<void> _completeLesson() async {
+    if (_completed || _saving || widget.onCompleted == null) return;
+    setState(() => _saving = true);
+    final saved = await widget.onCompleted!();
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _completed = saved;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -844,7 +903,7 @@ class _LessonPlayerScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF071425),
         foregroundColor: Colors.white,
-        title: Text(video.title),
+        title: Text(widget.video.title),
       ),
       body: Column(
         children: [
@@ -853,20 +912,36 @@ class _LessonPlayerScreen extends StatelessWidget {
               child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: StudentVideoPlayer(
-                  video: video,
-                  apiBaseUrl: apiBaseUrl,
-                  onCompleted: onCompleted,
+                  video: widget.video,
+                  apiBaseUrl: widget.apiBaseUrl,
+                  onCompleted: _completeLesson,
                 ),
               ),
             ),
           ),
-          if (onCompleted != null)
+          if (widget.onCompleted != null)
             Padding(
               padding: const EdgeInsets.all(16),
               child: FilledButton.icon(
-                onPressed: onCompleted,
-                icon: const Icon(Icons.check_circle_rounded),
-                label: const Text('أنهيت مشاهدة الفيديو'),
+                onPressed: _completed || _saving ? null : _completeLesson,
+                icon: Icon(
+                  _completed
+                      ? Icons.verified_rounded
+                      : Icons.check_circle_rounded,
+                ),
+                label: Text(
+                  _completed
+                      ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا'
+                      : _saving
+                          ? 'جارٍ حفظ إتمام الدرس...'
+                          : 'أنهيت مشاهدة الدرس',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _completed
+                      ? Colors.grey.shade500
+                      : const Color(0xFF0B8693),
+                  foregroundColor: Colors.white,
+                ),
               ),
             ),
         ],
