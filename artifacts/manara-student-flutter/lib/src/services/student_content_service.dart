@@ -526,10 +526,14 @@ class StudentContentService {
       });
     }
 
-    final legacyQuestions = await _fetchLegacyQuizQuestions();
+    final quizMetadata = await Future.wait([
+      _fetchLegacyQuizQuestions(),
+      _fetchDeletedQuizIds(),
+    ]);
     return StudentAssessmentRules.selectAvailableQuizzes(
       createdQuizzes: createdQuizzes,
-      legacyQuestions: legacyQuestions,
+      legacyQuestions: quizMetadata[0] as List<Map<String, dynamic>>,
+      deletedQuizIds: quizMetadata[1] as Set<String>,
       profile: profile,
       academicContext: academicContext,
     );
@@ -704,6 +708,27 @@ class StudentContentService {
       // The modern quiz table remains usable when older installations do not
       // expose the historical app_kv key to the student role.
       return const [];
+    }
+  }
+
+  /// The web dashboard stores deleted quiz IDs separately so stale copies on
+  /// another device cannot be reintroduced during sync. Apply the same shared
+  /// tombstones in Flutter before presenting the student assessment list.
+  Future<Set<String>> _fetchDeletedQuizIds() async {
+    try {
+      final row = await client
+          .from('app_kv')
+          .select('value')
+          .eq('key', 'smartEdu_deletedQuizzes')
+          .maybeSingle()
+          .timeout(_requestTimeout);
+      return _asList(row?['value'])
+          .map(_text)
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      // A missing historical key must not block visible active assessments.
+      return const <String>{};
     }
   }
 

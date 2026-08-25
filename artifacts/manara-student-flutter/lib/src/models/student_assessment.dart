@@ -77,13 +77,26 @@ class StudentAssessmentRules {
     required Iterable<Map<String, dynamic>> legacyQuestions,
     required StudentProfile profile,
     AcademicContext? academicContext,
+    Iterable<String> deletedQuizIds = const [],
   }) {
+    final deletedIds = deletedQuizIds
+        .map(_text)
+        .where((id) => id.isNotEmpty)
+        .toSet();
     final created = createdQuizzes
         .map(normalizeQuiz)
-        .where((quiz) => _isVisibleAndInScope(quiz, profile, academicContext))
+        .where(
+          (quiz) =>
+              !deletedIds.contains(_text(quiz['id'])) &&
+              _isVisibleAndInScope(quiz, profile, academicContext),
+        )
         .toList();
     final legacy = _legacyQuizRecords(legacyQuestions)
-        .where((quiz) => _isVisibleAndInScope(quiz, profile, academicContext))
+        .where(
+          (quiz) =>
+              !deletedIds.contains(_text(quiz['id'])) &&
+              _isVisibleAndInScope(quiz, profile, academicContext),
+        )
         .toList();
 
     final quizById = <String, Map<String, dynamic>>{

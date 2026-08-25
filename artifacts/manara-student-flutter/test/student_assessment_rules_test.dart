@@ -87,6 +87,20 @@ void main() {
       expect(results.single['id'], 'admin-periodic');
     });
 
+    test('does not show an active quiz marked deleted by synchronized tombstones', () {
+      final results = StudentAssessmentRules.selectAvailableQuizzes(
+        createdQuizzes: [
+          quiz(id: 'visible-teacher-quiz', owner: 'teacher-1'),
+          quiz(id: 'stale-deleted-quiz', owner: 'teacher-1'),
+        ],
+        legacyQuestions: const [],
+        deletedQuizIds: const ['stale-deleted-quiz'],
+        profile: student,
+      );
+
+      expect(results.map((item) => item['id']), ['visible-teacher-quiz']);
+    });
+
     test('requires the selected academic scope where it is provided', () {
       final results = StudentAssessmentRules.selectAvailableQuizzes(
         createdQuizzes: [
