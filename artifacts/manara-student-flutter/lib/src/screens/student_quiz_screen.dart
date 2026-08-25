@@ -66,18 +66,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       });
     } catch (error) {
       if (!mounted) return;
-      RewardResult? reward;
-      try {
-        reward = await widget.contentService.rewardActivity(
-          profile: widget.profile,
-          activityType: 'quiz',
-          activityId: _text(quiz['id']),
-          correctAnswers: score,
-          quizTotal: _questions.length,
-        );
-      } catch (_) {
-        // A saved assessment must remain visible even if reward sync is offline.
-      }
       setState(() {
         _loading = false;
         _error = 'تعذر تحميل الاختبارات: $error';
@@ -233,6 +221,18 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
          profile: widget.profile,
          result: result,
        );
+       RewardResult? reward;
+       try {
+         reward = await widget.contentService.rewardActivity(
+           profile: widget.profile,
+           activityType: 'quiz',
+           activityId: _text(quiz['id']),
+           correctAnswers: score,
+           quizTotal: _questions.length,
+         );
+       } catch (_) {
+         // The saved assessment remains visible if reward sync is offline.
+       }
       if (!mounted) return;
       setState(() {
          _results = [savedResult, ..._results];

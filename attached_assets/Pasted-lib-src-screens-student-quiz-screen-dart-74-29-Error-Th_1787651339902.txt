@@ -1,0 +1,60 @@
+lib/src/screens/student_quiz_screen.dart:74:29: Error: The getter 'quiz' isn't defined for the type '_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'quiz'.
+          activityId: _text(quiz['id']),
+                            ^^^^
+lib/src/screens/student_quiz_screen.dart:75:27: Error: The getter 'score' isn't defined for the type '_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'score'.
+          correctAnswers: score,
+                          ^^^^^
+lib/src/screens/student_quiz_screen.dart:246:12: Error: The getter 'reward' isn't defined for the type
+'_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'reward'.
+       if (reward != null) {
+           ^^^^^^
+lib/src/screens/student_quiz_screen.dart:247:26: Error: The getter 'reward' isn't defined for the type
+'_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'reward'.
+         final message = reward.alreadyRewarded
+                         ^^^^^^
+lib/src/screens/student_quiz_screen.dart:249:27: Error: The getter 'reward' isn't defined for the type
+'_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'reward'.
+             : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة${reward.levelUp ? ' • ارتقيت إلى المستوى
+             ${reward.snapshot.level}!' : ''}';
+                          ^^^^^^
+lib/src/screens/student_quiz_screen.dart:249:46: Error: The getter 'reward' isn't defined for the type
+'_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'reward'.
+             : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة${reward.levelUp ? ' • ارتقيت إلى المستوى
+             ${reward.snapshot.level}!' : ''}';
+                                             ^^^^^^
+lib/src/screens/student_quiz_screen.dart:249:66: Error: The getter 'reward' isn't defined for the type
+'_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'reward'.
+             : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة${reward.levelUp ? ' • ارتقيت إلى المستوى
+             ${reward.snapshot.level}!' : ''}';
+                                                                 ^^^^^^
+lib/src/screens/student_quiz_screen.dart:249:108: Error: The getter 'reward' isn't defined for the type
+'_StudentQuizScreenState'.
+ - '_StudentQuizScreenState' is from 'package:manara_student/src/screens/student_quiz_screen.dart'
+ ('lib/src/screens/student_quiz_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'reward'.
+             : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة${reward.levelUp ? ' • ارتقيت إلى المستوى
+             ${reward.snapshot.level}!' : ''}';
+                                                                                                           ^^^^^^
+Waiting for connection from debug service on Chrome...             21.9s
+Failed to compile application.
