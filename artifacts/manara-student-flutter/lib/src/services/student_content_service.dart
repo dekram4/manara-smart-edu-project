@@ -44,6 +44,7 @@ class StudentContentService {
     required StudentProfile profile,
     required String activityType,
     required String activityId,
+    String? rewardId,
     int? correctAnswers,
     int? quizTotal,
   }) async {
@@ -59,8 +60,16 @@ class StudentContentService {
     if (row == null) throw StateError('لم يتم العثور على سجل الطالب.');
     final rowData = _asMap(row['data']);
     final current = StudentGamification.fromMap(rowData['gamification']);
-    final key = '${activityType.trim().toLowerCase()}:$activityId';
-    if (current.completedActivities.contains(key)) {
+    final normalizedActivityType = activityType.trim().toLowerCase();
+    final key = rewardId?.trim().isNotEmpty == true
+        ? rewardId!.trim()
+        : '$normalizedActivityType:$activityId';
+    // Older Flutter versions stored quiz rewards as quiz:<quizId>. Retain
+    // that guard while moving to the web-compatible reward ledger key.
+    final legacyQuizKey = normalizedActivityType == 'quiz' ? 'quiz:$activityId' : '';
+    if (current.completedActivities.contains(key) ||
+        (legacyQuizKey.isNotEmpty &&
+            current.completedActivities.contains(legacyQuizKey))) {
       return RewardResult(
         xp: 0,
         gems: 0,
@@ -79,7 +88,7 @@ class StudentContentService {
     var average = current.averageScore;
     var perfectQuiz = false;
     int? quizPercentage;
-    if (activityType == 'quiz') {
+    if (normalizedActivityType == 'quiz') {
       final score = ((correctAnswers ?? 0).clamp(0, quizTotal ?? 0)).toInt();
       xp = score * 5;
       gems = score;
@@ -91,14 +100,14 @@ class StudentContentService {
         average =
             ((current.averageScore * (quizzes - 1) + scorePercentage) ~/ quizzes);
       }
-    } else if (activityType == 'lesson' || activityType == 'lesson_video') {
+    } else if (normalizedActivityType == 'lesson' || normalizedActivityType == 'lesson_video') {
       xp = 25;
       gems = 5;
       lessons++;
-    } else if (activityType == 'problem') {
+    } else if (normalizedActivityType == 'problem') {
       xp = 5;
       gems = 1;
-    } else if (activityType == 'game') {
+    } else if (normalizedActivityType == 'game') {
       xp = 15;
       gems = 3;
       games++;
@@ -116,7 +125,7 @@ class StudentContentService {
         totalLessons: lessons,
         totalGames: games,
       ),
-      activityType,
+      normalizedActivityType,
       perfectQuiz: perfectQuiz,
       activityId: activityId,
     );
@@ -129,10 +138,10 @@ class StudentContentService {
       totalLessons: lessons,
       totalGames: games,
       averageScore: average,
-      lastQuizAt: activityType == 'quiz'
+      lastQuizAt: normalizedActivityType == 'quiz'
           ? DateTime.now().toIso8601String()
           : current.lastQuizAt,
-      lastQuizPercentage: activityType == 'quiz'
+      lastQuizPercentage: normalizedActivityType == 'quiz'
           ? quizPercentage
           : current.lastQuizPercentage,
       achievements: [...current.achievements, ...newAchievements],

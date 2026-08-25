@@ -227,6 +227,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
           profile: widget.profile,
           activityType: 'quiz',
           activityId: _text(quiz['id']),
+          rewardId: StudentAssessmentRules.quizRewardId(quiz),
           correctAnswers: score,
           quizTotal: _questions.length,
         );

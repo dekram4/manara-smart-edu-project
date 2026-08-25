@@ -26,6 +26,10 @@ class StudentAssessmentRules {
   static String quizTypeValue(Object? value) =>
       quizType(value) == StudentQuizType.teacher ? 'teacher' : 'periodic';
 
+  /// Matches the web quiz reward ledger key format.
+  static String quizRewardId(Map<String, dynamic> quiz) =>
+      'quiz_reward:${quizTypeValue(quiz['quizType'])}:${_normalize(quiz['id'])}';
+
   static String quizTypeLabel(Map<String, dynamic> quiz) {
     if (isTeacherQuiz(quiz)) return 'اختبار المعلم';
 

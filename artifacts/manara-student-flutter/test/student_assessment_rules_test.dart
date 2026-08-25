@@ -172,6 +172,21 @@ void main() {
   });
 
   group('StudentAssessmentRules.question and result behavior', () {
+    test('uses the same reward key format as the web quiz engine', () {
+      expect(
+        StudentAssessmentRules.quizRewardId(
+          quiz(id: 'teacher-quiz', owner: 'teacher-1', type: 'teacher'),
+        ),
+        'quiz_reward:teacher:teacher-quiz',
+      );
+      expect(
+        StudentAssessmentRules.quizRewardId(
+          quiz(id: 'periodic-quiz', owner: 'teacher-1'),
+        ),
+        'quiz_reward:periodic:periodic-quiz',
+      );
+    });
+
     test('selects a stable student-specific question set', () {
       final assessment = quiz(
         id: 'bank',
