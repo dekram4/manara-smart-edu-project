@@ -525,10 +525,16 @@ ${contentSummary}
         
         let errorMessage = '❌ فشل الاتصال بـ Gemini AI:\n\n';
         
-        if (response.status === 400) {
+        if (
+          response.status === 401 &&
+          typeof errorData?.error === 'string' &&
+          /تسجيل الدخول|جلسة/i.test(errorData.error)
+        ) {
+          errorMessage += '🔐 انتهت جلسة المعلم أو المشرف. سجّل الخروج ثم سجّل الدخول مرة أخرى، وبعدها أعد التوليد.';
+        } else if (response.status === 400) {
           errorMessage += '⚠️ طلب غير صحيح. قد يكون المحتوى طويلاً جداً.';
         } else if (response.status === 403) {
-          errorMessage += '🔒 مفتاح API غير صالح أو منتهي الصلاحية.\n\nاحصل على مفتاح جديد من:\nhttps://aistudio.google.com/apikey';
+          errorMessage += errorData?.error || '🔒 لا تملك صلاحية توليد هذا الاختبار.';
         } else if (response.status === 429) {
           errorMessage += '⏳ تجاوزت حد الاستخدام. انتظر قليلاً وحاول مرة أخرى.';
         } else if (response.status === 500 || response.status === 502) {

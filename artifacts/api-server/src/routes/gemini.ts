@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAdmin } from "../middleware/adminAuth";
+import { requireContentManager } from "../middleware/adminAuth";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
@@ -269,8 +269,9 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
   }
 });
 
-// Quiz generation is an admin operation — guard with session check
-router.post("/gemini/generate-quiz", requireAdmin, async (req, res) => {
+// Quiz generation is available to the teacher who is creating the assessment
+// and to administrators. The caller still needs a signed content session.
+router.post("/gemini/generate-quiz", requireContentManager, async (req, res) => {
   const prompt =
     typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
   const temperature = Number.isFinite(req.body?.temperature)
