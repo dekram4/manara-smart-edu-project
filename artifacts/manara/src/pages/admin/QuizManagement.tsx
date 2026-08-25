@@ -11,6 +11,18 @@ interface QuizManagementProps {
   teacherName?: string;
 }
 
+const uniqueAcademicValues = (values: unknown[]): string[] => {
+  const seen = new Set<string>();
+  return values.reduce<string[]>((unique, value) => {
+    const displayValue = String(value ?? '').trim();
+    const normalizedValue = normalizeScopeValue(displayValue);
+    if (!displayValue || seen.has(normalizedValue)) return unique;
+    seen.add(normalizedValue);
+    unique.push(displayValue);
+    return unique;
+  }, []);
+};
+
 // 📝 نموذج إضافة سؤال يدوي
 const ManualQuestionForm: React.FC<{
   onAdd: (question: string, options: string[], correctAnswer: string) => void;
@@ -268,7 +280,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     if (selectedTeacherId && selectedTeacherId !== 'admin') {
       filtered = allHierarchicalConfigs.filter((c: any) => getRecordTeacherId(c) === normalizeScopeValue(selectedTeacherId));
     }
-    const grades = filtered.map((c: any) => c.grade);
+    const grades = uniqueAcademicValues(filtered.map((c: any) => c.grade));
     setAvailableGrades(grades);
   };
 
@@ -321,7 +333,9 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === newGrade);
 
     if (gradeConfig) {
-      setAvailableAtrams(gradeConfig.atrams.map((a: any) => a.atram));
+      setAvailableAtrams(
+        uniqueAcademicValues(gradeConfig.atrams.map((a: any) => a.atram)),
+      );
     } else {
       setAvailableAtrams([]);
     }
@@ -341,7 +355,9 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     if (gradeConfig) {
       const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === newAtram);
       if (atramConfig) {
-        setAvailableSubjects(atramConfig.subjects.map((s: any) => s.subject));
+        setAvailableSubjects(
+          uniqueAcademicValues(atramConfig.subjects.map((s: any) => s.subject)),
+        );
       } else {
         setAvailableSubjects([]);
       }
@@ -363,7 +379,9 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       if (atramConfig) {
         const subjectConfig = atramConfig.subjects.find((s: any) => s.subject === newSubject);
         if (subjectConfig) {
-          setAvailableTerms(subjectConfig.terms.map((t: any) => t.term));
+          setAvailableTerms(
+            uniqueAcademicValues(subjectConfig.terms.map((t: any) => t.term)),
+          );
         } else {
           setAvailableTerms([]);
         }
@@ -387,7 +405,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
         if (subjectConfig) {
           const termConfig = subjectConfig.terms.find((t: any) => t.term === newTerm);
           if (termConfig) {
-            setAvailableUnits(termConfig.units);
+            setAvailableUnits(uniqueAcademicValues(termConfig.units));
           } else {
             setAvailableUnits([]);
           }
@@ -820,7 +838,9 @@ ${contentSummary}
       const hierarchicalConfigs = getFilteredConfigs();
       const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === quiz.grade);
       if (gradeConfig) {
-        setAvailableAtrams(gradeConfig.atrams.map((a: any) => a.atram));
+        setAvailableAtrams(
+          uniqueAcademicValues(gradeConfig.atrams.map((a: any) => a.atram)),
+        );
         const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === quiz.atram);
         if (atramConfig) {
           setAvailableSubjects(atramConfig.subjects.map((s: any) => s.subject));
@@ -999,7 +1019,7 @@ ${contentSummary}
                 required
               >
                 <option value="">🎓 الصف</option>
-                {availableGrades.map((g, i) => <option key={i} value={g}>{g}</option>)}
+                {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
 
               {/* الترم */}
@@ -1011,7 +1031,7 @@ ${contentSummary}
                 required
               >
                 <option value="">📅 الترم</option>
-                {availableAtrams.map((a, i) => <option key={i} value={a}>{a}</option>)}
+                {availableAtrams.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
 
               {/* المادة */}
@@ -1023,7 +1043,7 @@ ${contentSummary}
                 required
               >
                 <option value="">📖 المادة</option>
-                {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
+                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
 
               {/* الفصل */}
@@ -1035,7 +1055,7 @@ ${contentSummary}
                 required
               >
                 <option value="">📑 الفصل</option>
-                {availableTerms.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                {availableTerms.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
 
               {/* الوحدة */}
@@ -1047,7 +1067,7 @@ ${contentSummary}
                 required
               >
                 <option value="">📦 الوحدة</option>
-                {availableUnits.map((u, i) => <option key={i} value={u}>{u}</option>)}
+                {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
 
