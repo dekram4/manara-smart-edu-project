@@ -1076,7 +1076,6 @@ class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
                 child: StudentVideoPlayer(
                   video: widget.video,
                   apiBaseUrl: widget.apiBaseUrl,
-                  onCompleted: _completeLesson,
                 ),
               ),
             ),
