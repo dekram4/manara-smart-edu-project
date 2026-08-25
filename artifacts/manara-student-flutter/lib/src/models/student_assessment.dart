@@ -272,12 +272,7 @@ class StudentAssessmentRules {
     if (firstNumber > 0 || secondNumber > 0) {
       return firstNumber == secondNumber;
     }
-
-    final firstTitle = _normalize(first['title'] ?? first['quizTitle']);
-    final secondTitle = _normalize(second['title'] ?? second['quizTitle']);
-    return firstTitle.isEmpty ||
-        secondTitle.isEmpty ||
-        firstTitle == secondTitle;
+    return true;
   }
 
   static List<Map<String, dynamic>> _legacyQuizRecords(
