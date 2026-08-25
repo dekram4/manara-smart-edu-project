@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../models/student_content.dart';
 import '../widgets/student_video_player.dart';
@@ -24,6 +23,7 @@ class StudentTutorScreen extends StatefulWidget {
 
 class _StudentTutorScreenState extends State<StudentTutorScreen> {
   var _embedRevision = 0;
+  var _showInlineMeeting = false;
 
   String? get _avatarUrl => widget.selection.url;
   LessonContent? get _avatarLesson => widget.selection.lesson;
@@ -32,7 +32,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
       widget.selection.type == TutorExperienceType.liveMeeting;
 
   bool get _isBlockedMeetingEmbed {
-    if (!_isLiveMeeting || _avatarUrl == null) return false;
+    if (!_isLiveMeeting || _avatarUrl == null || _showInlineMeeting) return false;
     final host = Uri.tryParse(_avatarUrl!)?.host.toLowerCase() ?? '';
     return host == 'meet.google.com' ||
         host == 'zoom.us' ||
@@ -43,16 +43,12 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
         host.endsWith('.webex.com');
   }
 
-  Future<void> _joinMeeting() async {
-    final rawUrl = _avatarUrl;
-    if (rawUrl == null) return;
-    final uri = Uri.tryParse(rawUrl);
-    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر فتح رابط الاجتماع. حاول نسخ الرابط أو فتحه من جهاز آخر.')),
-      );
-    }
+  void _joinMeeting() {
+    if (_avatarUrl == null) return;
+    setState(() {
+      _showInlineMeeting = true;
+      _embedRevision++;
+    });
   }
 
   void _reload() {
@@ -282,15 +278,15 @@ class _BlockedMeetingCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  'هذا النوع من الاجتماعات يمنع التشغيل داخل إطار التطبيق. افتحه في نافذة كاملة ليعمل الصوت والكاميرا بشكل صحيح.',
+                  'اضغط للاتصال وعرض الاجتماع داخل بطاقة منارة المعرفة. قد تحتاج إلى السماح بالكاميرا والميكروفون عند طلبهما.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Color(0xFFC8D5E5), height: 1.6, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 20),
                 FilledButton.icon(
                   onPressed: onJoin,
-                  icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text('الانضمام إلى الاجتماع'),
+                  icon: const Icon(Icons.videocam_rounded),
+                  label: const Text('الاتصال بالاجتماع'),
                 ),
               ],
             ),
