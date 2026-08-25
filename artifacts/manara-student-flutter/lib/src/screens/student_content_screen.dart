@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
+import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
@@ -40,6 +41,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
   List<LessonContent> _lessons = const [];
   List<HtmlGame> _apiGames = const [];
   LessonContent? _selectedLesson;
+  late StudentGamification _gamification;
   bool _loading = true;
   String? _error;
 
@@ -51,6 +53,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
       baseUrl: widget.apiBaseUrl,
     );
     _activeModule = widget.initialModule;
+    _gamification = widget.profile.gamification;
     _loadContent();
   }
 
@@ -76,11 +79,19 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
       // is unavailable.
     }
 
+    var gamification = _gamification;
+    try {
+      gamification = await _contentService.fetchGamification(widget.profile);
+    } catch (_) {
+      // The profile snapshot keeps content usable when progress is unavailable.
+    }
+
     if (!mounted) return;
     setState(() {
       _lessons = lessons;
       _apiGames = apiGames;
       _selectedLesson = lessons.isEmpty ? null : lessons.first;
+      _gamification = gamification;
       _loading = false;
       _error = lessonError;
     });
@@ -147,7 +158,9 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           selectedLesson: _selectedLesson,
           apiBaseUrl: widget.apiBaseUrl,
           profile: widget.profile,
+          gamification: _gamification,
           contentService: _contentService,
+          onGamificationChanged: (stats) => setState(() => _gamification = stats),
           onLessonChanged: (lesson) => setState(() => _selectedLesson = lesson),
         );
       case StudentContentModule.games:
@@ -155,7 +168,9 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           games: _gamesFromLessons,
           apiBaseUrl: widget.apiBaseUrl,
           profile: widget.profile,
+          gamification: _gamification,
           contentService: _contentService,
+          onGamificationChanged: (stats) => setState(() => _gamification = stats),
         );
     }
   }
@@ -234,7 +249,9 @@ class _LessonModule extends StatelessWidget {
     required this.onLessonChanged,
     required this.apiBaseUrl,
     required this.profile,
+    required this.gamification,
     required this.contentService,
+    required this.onGamificationChanged,
   });
 
   final List<LessonContent> lessons;
@@ -242,7 +259,9 @@ class _LessonModule extends StatelessWidget {
   final ValueChanged<LessonContent> onLessonChanged;
   final String apiBaseUrl;
   final StudentProfile profile;
+  final StudentGamification gamification;
   final StudentContentService contentService;
+  final ValueChanged<StudentGamification> onGamificationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -301,10 +320,103 @@ class _LessonModule extends StatelessWidget {
              videos: lesson.videos,
              apiBaseUrl: apiBaseUrl,
              profile: profile,
+              gamification: gamification,
              lessonId: lesson.id,
              contentService: contentService,
+              onGamificationChanged: onGamificationChanged,
            ),
+        const SizedBox(height: 14),
+        _LessonCompletionButton(
+          lessonId: lesson.id,
+          profile: profile,
+          gamification: gamification,
+          contentService: contentService,
+          onGamificationChanged: onGamificationChanged,
+        ),
       ],
+    );
+  }
+}
+
+class _LessonCompletionButton extends StatefulWidget {
+  const _LessonCompletionButton({
+    required this.lessonId,
+    required this.profile,
+    required this.gamification,
+    required this.contentService,
+    required this.onGamificationChanged,
+  });
+
+  final String lessonId;
+  final StudentProfile profile;
+  final StudentGamification gamification;
+  final StudentContentService contentService;
+  final ValueChanged<StudentGamification> onGamificationChanged;
+
+  @override
+  State<_LessonCompletionButton> createState() => _LessonCompletionButtonState();
+}
+
+class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
+  bool _saving = false;
+
+  bool get _completed => widget.gamification.completedActivities
+      .contains('lesson:${widget.lessonId}');
+
+  Future<void> _completeLesson() async {
+    if (_completed || _saving) return;
+    setState(() => _saving = true);
+    try {
+      final reward = await widget.contentService.rewardActivity(
+        profile: widget.profile,
+        activityType: 'lesson',
+        activityId: widget.lessonId,
+      );
+      if (!mounted) return;
+      widget.onGamificationChanged(reward.snapshot);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            reward.alreadyRewarded
+                ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا.'
+                : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر لإتمام الدرس.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر حفظ إتمام الدرس. حاول مرة أخرى.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = _completed;
+    return FilledButton.icon(
+      onPressed: completed || _saving ? null : _completeLesson,
+      icon: Icon(
+        completed ? Icons.verified_rounded : Icons.check_circle_rounded,
+      ),
+      label: Text(
+        completed
+            ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا'
+            : _saving
+                ? 'جارٍ حفظ إتمام الدرس...'
+                : 'أنهيت الدرس — +25 XP و5 جواهر',
+      ),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(54),
+        backgroundColor: completed
+            ? Colors.grey.shade500
+            : const Color(0xFF0B8693),
+        foregroundColor: Colors.white,
+        textStyle: const TextStyle(fontWeight: FontWeight.w900),
+      ),
     );
   }
 }
@@ -314,13 +426,17 @@ class _GamesModule extends StatelessWidget {
     required this.games,
     required this.apiBaseUrl,
     required this.profile,
+    required this.gamification,
     required this.contentService,
+    required this.onGamificationChanged,
   });
 
   final List<HtmlGame> games;
   final String apiBaseUrl;
   final StudentProfile profile;
+  final StudentGamification gamification;
   final StudentContentService contentService;
+  final ValueChanged<StudentGamification> onGamificationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -353,39 +469,126 @@ class _GamesModule extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+        _GamificationSummary(stats: gamification),
+        const SizedBox(height: 16),
         ...games.map(
-          (game) => Padding(
+          (game) {
+            final locked = gamification.level < game.requiredLevel;
+            final completed = gamification.completedActivities
+                .contains('game:${game.id}');
+            return Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: _GameCard(
               game: game,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _GamePlayerScreen(
-                    game: game,
-                    apiBaseUrl: apiBaseUrl,
-                    onCompleted: () async {
-                      try {
-                        final reward = await contentService.rewardActivity(
-                          profile: profile,
-                          activityType: 'game',
-                          activityId: game.id,
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(reward.alreadyRewarded
-                                ? 'تم حفظ إكمالك للعبة؛ لا توجد مكافأة إضافية.'
-                                : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة'),
-                          ));
+              locked: locked,
+              completed: completed,
+              onPressed: () {
+                if (locked) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'هذه اللعبة تُفتح عند الوصول إلى المستوى ${game.requiredLevel}. مستواك الحالي: ${gamification.level}',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _GamePlayerScreen(
+                      game: game,
+                      apiBaseUrl: apiBaseUrl,
+                      initiallyCompleted: completed,
+                      onCompleted: () async {
+                        try {
+                          final reward = await contentService.rewardActivity(
+                            profile: profile,
+                            activityType: 'game',
+                            activityId: game.id,
+                          );
+                          onGamificationChanged(reward.snapshot);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(reward.alreadyRewarded
+                                  ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا.'
+                                  : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر'),
+                            ));
+                          }
+                          return true;
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('تعذر حفظ إتمام اللعبة. حاول مرة أخرى.')),
+                            );
+                          }
+                          return false;
                         }
-                      } catch (_) {}
-                    },
+                      },
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
-          ),
+          );
+          },
         ),
       ],
+    );
+  }
+}
+
+class _GamificationSummary extends StatelessWidget {
+  const _GamificationSummary({required this.stats});
+
+  final StudentGamification stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF312E81), Color(0xFF6D28D9)],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'المستوى ${stats.level}',
+            textAlign: TextAlign.right,
+            style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('⭐ ${stats.xp} XP', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+              Text('💎 ${stats.gems} جواهر', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+              Text('🔥 ${stats.streak} يوم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: stats.levelProgress / 100,
+              minHeight: 9,
+              backgroundColor: Colors.white24,
+              valueColor: const AlwaysStoppedAnimation(Color(0xFFFDE68A)),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            '${stats.xpToNextLevel} XP للوصول إلى المستوى التالي',
+            textAlign: TextAlign.right,
+            style: const TextStyle(color: Color(0xFFE9D5FF), fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -393,10 +596,14 @@ class _GamesModule extends StatelessWidget {
 class _GameCard extends StatelessWidget {
   const _GameCard({
     required this.game,
+    required this.locked,
+    required this.completed,
     required this.onPressed,
   });
 
   final HtmlGame game;
+  final bool locked;
+  final bool completed;
   final VoidCallback onPressed;
 
   @override
@@ -411,8 +618,10 @@ class _GameCard extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4B267F), Color(0xFF8B5CF6)],
+            gradient: LinearGradient(
+              colors: locked
+                  ? const [Color(0xFF4B5563), Color(0xFF6B7280)]
+                  : const [Color(0xFF4B267F), Color(0xFF8B5CF6)],
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
             ),
@@ -426,9 +635,9 @@ class _GameCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(
-                Icons.sports_esports_rounded,
-                color: Color(0xFFE9D5FF),
+               Icon(
+                 locked ? Icons.lock_rounded : completed ? Icons.verified_rounded : Icons.sports_esports_rounded,
+                 color: locked ? const Color(0xFFFDE68A) : const Color(0xFFE9D5FF),
                 size: 48,
               ),
               const SizedBox(width: 14),
@@ -463,11 +672,24 @@ class _GameCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Icon(
-                Icons.play_circle_fill_rounded,
-                color: Colors.white,
+               Icon(
+                 locked
+                     ? Icons.lock_rounded
+                     : completed
+                         ? Icons.verified_rounded
+                         : Icons.play_circle_fill_rounded,
+                 color: Colors.white,
                 size: 32,
               ),
+               const SizedBox(width: 6),
+               Text(
+                 locked
+                     ? 'المستوى ${game.requiredLevel}'
+                     : completed
+                         ? 'اكتملت المكافأة'
+                         : '+15 XP • 3 جواهر',
+                 style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+               ),
             ],
           ),
         ),
@@ -480,12 +702,14 @@ class _GamePlayerScreen extends StatefulWidget {
   const _GamePlayerScreen({
     required this.game,
     required this.apiBaseUrl,
+    required this.initiallyCompleted,
     required this.onCompleted,
   });
 
   final HtmlGame game;
   final String apiBaseUrl;
-  final Future<void> Function() onCompleted;
+  final bool initiallyCompleted;
+  final Future<bool> Function() onCompleted;
 
   @override
   State<_GamePlayerScreen> createState() => _GamePlayerScreenState();
@@ -496,10 +720,13 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   html.IFrameElement? _frame;
   String? _error;
   bool _loading = true;
+  late bool _completed;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
+    _completed = widget.initiallyCompleted;
     _viewId = 'manara-game-${widget.game.id}-${identityHashCode(this)}';
     _registerGameFrame();
   }
@@ -557,6 +784,17 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
         '_reload': DateTime.now().millisecondsSinceEpoch.toString(),
       },
     ).toString();
+  }
+
+  Future<void> _completeGame() async {
+    if (_completed || _saving || _loading) return;
+    setState(() => _saving = true);
+    final saved = await widget.onCompleted();
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _completed = saved;
+    });
   }
 
   @override
@@ -617,9 +855,25 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                   right: 16,
                   bottom: 16,
                   child: FilledButton.icon(
-                    onPressed: _loading ? null : widget.onCompleted,
-                    icon: const Icon(Icons.check_circle_rounded),
-                    label: const Text('أنهيت اللعبة'),
+                    onPressed: _loading || _saving || _completed ? null : _completeGame,
+                    icon: Icon(
+                      _completed
+                          ? Icons.verified_rounded
+                          : Icons.check_circle_rounded,
+                    ),
+                    label: Text(
+                      _completed
+                          ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا'
+                          : _saving
+                              ? 'جارٍ حفظ إتمام اللعبة...'
+                              : 'أنهيت اللعبة — +15 XP و3 جواهر',
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _completed
+                          ? Colors.grey.shade500
+                          : const Color(0xFF6D28D9),
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -633,15 +887,19 @@ class _VideoCarousel extends StatefulWidget {
     required this.videos,
     required this.apiBaseUrl,
     required this.profile,
+    required this.gamification,
     required this.lessonId,
     required this.contentService,
+    required this.onGamificationChanged,
   });
 
   final List<LessonVideo> videos;
   final String apiBaseUrl;
   final StudentProfile profile;
+  final StudentGamification gamification;
   final String lessonId;
   final StudentContentService contentService;
+  final ValueChanged<StudentGamification> onGamificationChanged;
 
   @override
   State<_VideoCarousel> createState() => _VideoCarouselState();
@@ -655,7 +913,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
   @override
   void initState() {
     super.initState();
-    _lessonCompleted = widget.profile.gamification.completedActivities
+    _lessonCompleted = widget.gamification.completedActivities
         .contains('lesson:${widget.lessonId}');
   }
 
@@ -663,8 +921,9 @@ class _VideoCarouselState extends State<_VideoCarousel> {
   void didUpdateWidget(covariant _VideoCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lessonId != widget.lessonId ||
-        oldWidget.profile.id != widget.profile.id) {
-      _lessonCompleted = widget.profile.gamification.completedActivities
+        oldWidget.profile.id != widget.profile.id ||
+        oldWidget.gamification.completedActivities != widget.gamification.completedActivities) {
+      _lessonCompleted = widget.gamification.completedActivities
           .contains('lesson:${widget.lessonId}');
     }
   }
@@ -759,6 +1018,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
               : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام الدرس.',
         ),
       ));
+      widget.onGamificationChanged(lessonReward.snapshot);
       return true;
     } catch (_) {
       // Playback remains usable if the network is temporarily unavailable.

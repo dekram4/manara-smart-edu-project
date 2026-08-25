@@ -47,12 +47,14 @@ class HtmlGame {
     required this.url,
     required this.title,
     required this.subtitle,
+    this.requiredLevel = 0,
   });
 
   final String id;
   final String url;
   final String title;
   final String subtitle;
+  final int requiredLevel;
 }
 
 class LessonContent {

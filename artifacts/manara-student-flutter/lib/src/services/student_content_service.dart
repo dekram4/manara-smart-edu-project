@@ -440,6 +440,7 @@ class StudentContentService {
           subtitle: _text(map['subtitle']).isEmpty
               ? 'لعبة تفاعلية داخل منارة'
               : _text(map['subtitle']),
+          requiredLevel: _gameRequiredLevel(map),
         ),
       );
     }
@@ -1085,6 +1086,7 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
           subtitle: _text(map['subtitle']).isEmpty
               ? 'لعبة HTML5 تفاعلية داخل منارة'
               : _text(map['subtitle']),
+          requiredLevel: _gameRequiredLevel(map),
         ),
       );
     }
@@ -1100,10 +1102,21 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
         url: singleGame,
         title: 'لعبة الدرس',
         subtitle: 'تحدٍ تفاعلي مرتبط بالدرس',
+        requiredLevel: _gameRequiredLevel(data),
       ),
     );
   }
   return games;
+}
+
+int _gameRequiredLevel(Map<String, dynamic> data) {
+  final raw = data['requiredLevel'] ?? data['required_level'] ?? data['level'];
+  final level = raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+  if (level == null &&
+      _text(data['id']) == '172e0bd0c40442dbae3d4adb42a98433') {
+    return 2;
+  }
+  return (level ?? 0).clamp(0, 99).toInt();
 }
 
 List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
@@ -1112,11 +1125,13 @@ List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
       id: 'd4a3629101574bc39bd8f9d1888ca58e',
       title: 'مغامرة التعلم',
       subtitle: 'لعبة تعليمية تفاعلية داخل منارة',
+      requiredLevel: 0,
     ),
     (
       id: '172e0bd0c40442dbae3d4adb42a98433',
       title: 'تحدي المعرفة',
       subtitle: 'اختبر مهاراتك بطريقة ممتعة',
+      requiredLevel: 2,
     ),
   ];
   return entries
@@ -1134,6 +1149,7 @@ List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
             url: url,
             title: entry.title,
             subtitle: entry.subtitle,
+            requiredLevel: entry.requiredLevel,
           );
         },
       )
