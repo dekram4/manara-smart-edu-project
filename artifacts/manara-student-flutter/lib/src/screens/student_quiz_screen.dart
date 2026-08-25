@@ -217,38 +217,39 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
           _results.any((item) => _text(item['quizId']) == _text(quiz['id'])),
     };
     try {
-       final savedResult = await widget.contentService.saveQuizResult(
-         profile: widget.profile,
-         result: result,
-       );
-       RewardResult? reward;
-       try {
-         reward = await widget.contentService.rewardActivity(
-           profile: widget.profile,
-           activityType: 'quiz',
-           activityId: _text(quiz['id']),
-           correctAnswers: score,
-           quizTotal: _questions.length,
-         );
-       } catch (_) {
-         // The saved assessment remains visible if reward sync is offline.
-       }
+      final savedResult = await widget.contentService.saveQuizResult(
+        profile: widget.profile,
+        result: result,
+      );
+      RewardResult? reward;
+      try {
+        reward = await widget.contentService.rewardActivity(
+          profile: widget.profile,
+          activityType: 'quiz',
+          activityId: _text(quiz['id']),
+          correctAnswers: score,
+          quizTotal: _questions.length,
+        );
+      } catch (_) {
+        // The saved assessment remains visible if reward sync is offline.
+      }
       if (!mounted) return;
       setState(() {
-         _results = [savedResult, ..._results];
-         _shownResult = savedResult;
+        _results = [savedResult, ..._results];
+        _shownResult = savedResult;
         _activeQuiz = null;
         _questions = const [];
         _answers.clear();
-         _questionIndex = 0;
+        _questionIndex = 0;
         _submitting = false;
       });
-       if (reward != null) {
-         final message = reward.alreadyRewarded
-             ? 'تم حفظ النتيجة؛ لا توجد مكافأة إضافية لإعادة الاختبار.'
-             : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة${reward.levelUp ? ' • ارتقيت إلى المستوى ${reward.snapshot.level}!' : ''}';
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-       }
+      if (reward != null) {
+        final message = reward.alreadyRewarded
+            ? 'تم حفظ النتيجة؛ لا توجد مكافأة إضافية لإعادة الاختبار.'
+            : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة'
+                '${reward.levelUp ? ' • ارتقيت إلى المستوى ${reward.snapshot.level}!' : ''}';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
     } on TeacherQuizAlreadySubmittedException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -257,16 +258,16 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         _activeQuiz = null;
         _questions = const [];
         _answers.clear();
-         _questionIndex = 0;
+        _questionIndex = 0;
         _submitting = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-       const SnackBar(
-         content: Text('تعذر حفظ النتيجة الآن. تحقق من الاتصال ثم أعد المحاولة.'),
-       ),
+        const SnackBar(
+          content: Text('تعذر حفظ النتيجة الآن. تحقق من الاتصال ثم أعد المحاولة.'),
+        ),
       );
     }
   }
