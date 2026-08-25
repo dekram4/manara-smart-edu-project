@@ -321,102 +321,10 @@ class _LessonModule extends StatelessWidget {
              apiBaseUrl: apiBaseUrl,
              profile: profile,
               gamification: gamification,
-             lessonId: lesson.id,
              contentService: contentService,
               onGamificationChanged: onGamificationChanged,
            ),
-        const SizedBox(height: 14),
-        _LessonCompletionButton(
-          lessonId: lesson.id,
-          profile: profile,
-          gamification: gamification,
-          contentService: contentService,
-          onGamificationChanged: onGamificationChanged,
-        ),
       ],
-    );
-  }
-}
-
-class _LessonCompletionButton extends StatefulWidget {
-  const _LessonCompletionButton({
-    required this.lessonId,
-    required this.profile,
-    required this.gamification,
-    required this.contentService,
-    required this.onGamificationChanged,
-  });
-
-  final String lessonId;
-  final StudentProfile profile;
-  final StudentGamification gamification;
-  final StudentContentService contentService;
-  final ValueChanged<StudentGamification> onGamificationChanged;
-
-  @override
-  State<_LessonCompletionButton> createState() => _LessonCompletionButtonState();
-}
-
-class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
-  bool _saving = false;
-
-  bool get _completed => widget.gamification.completedActivities
-      .contains('lesson:${widget.lessonId}');
-
-  Future<void> _completeLesson() async {
-    if (_completed || _saving) return;
-    setState(() => _saving = true);
-    try {
-      final reward = await widget.contentService.rewardActivity(
-        profile: widget.profile,
-        activityType: 'lesson',
-        activityId: widget.lessonId,
-      );
-      if (!mounted) return;
-      widget.onGamificationChanged(reward.snapshot);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            reward.alreadyRewarded
-                ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا.'
-                : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر لإتمام الدرس.',
-          ),
-        ),
-      );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر حفظ إتمام الدرس. حاول مرة أخرى.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final completed = _completed;
-    return FilledButton.icon(
-      onPressed: completed || _saving ? null : _completeLesson,
-      icon: Icon(
-        completed ? Icons.verified_rounded : Icons.check_circle_rounded,
-      ),
-      label: Text(
-        completed
-            ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا'
-            : _saving
-                ? 'جارٍ حفظ إتمام الدرس...'
-                : 'أنهيت الدرس — +25 XP و5 جواهر',
-      ),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(54),
-        backgroundColor: completed
-            ? Colors.grey.shade500
-            : const Color(0xFF0B8693),
-        foregroundColor: Colors.white,
-        textStyle: const TextStyle(fontWeight: FontWeight.w900),
-      ),
     );
   }
 }
@@ -888,7 +796,6 @@ class _VideoCarousel extends StatefulWidget {
     required this.apiBaseUrl,
     required this.profile,
     required this.gamification,
-    required this.lessonId,
     required this.contentService,
     required this.onGamificationChanged,
   });
@@ -897,7 +804,6 @@ class _VideoCarousel extends StatefulWidget {
   final String apiBaseUrl;
   final StudentProfile profile;
   final StudentGamification gamification;
-  final String lessonId;
   final StudentContentService contentService;
   final ValueChanged<StudentGamification> onGamificationChanged;
 
@@ -908,25 +814,10 @@ class _VideoCarousel extends StatefulWidget {
 class _VideoCarouselState extends State<_VideoCarousel> {
   final _controller = PageController(viewportFraction: 0.88);
   int _activeIndex = 0;
-  late bool _lessonCompleted;
 
-  @override
-  void initState() {
-    super.initState();
-    _lessonCompleted = widget.gamification.completedActivities
-        .contains('lesson:${widget.lessonId}');
-  }
-
-  @override
-  void didUpdateWidget(covariant _VideoCarousel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.lessonId != widget.lessonId ||
-        oldWidget.profile.id != widget.profile.id ||
-        oldWidget.gamification.completedActivities != widget.gamification.completedActivities) {
-      _lessonCompleted = widget.gamification.completedActivities
-          .contains('lesson:${widget.lessonId}');
-    }
-  }
+  bool _isVideoCompleted(LessonVideo video) => widget
+      .gamification.completedActivities
+      .contains('lesson_video:${video.id}');
 
   @override
   void dispose() {
@@ -956,23 +847,19 @@ class _VideoCarouselState extends State<_VideoCarousel> {
               onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {
                 final video = widget.videos[index];
+                final completed = _isVideoCompleted(video);
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   child: _VideoCard(
                     video: video,
+                    completed: completed,
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => _LessonPlayerScreen(
                           video: video,
                           apiBaseUrl: widget.apiBaseUrl,
-                          initiallyCompleted: _lessonCompleted,
-                          onCompleted: () async {
-                            final completed = await _rewardVideo(video);
-                            if (completed && mounted) {
-                              setState(() => _lessonCompleted = true);
-                            }
-                            return completed;
-                          },
+                          initiallyCompleted: completed,
+                          onCompleted: () => _rewardVideo(video),
                         ),
                       ),
                     ),
@@ -1007,15 +894,15 @@ class _VideoCarouselState extends State<_VideoCarousel> {
     try {
       final lessonReward = await widget.contentService.rewardActivity(
         profile: widget.profile,
-        activityType: 'lesson',
-        activityId: widget.lessonId,
+        activityType: 'lesson_video',
+        activityId: video.id,
       );
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
           lessonReward.alreadyRewarded
-              ? 'تم حفظ إكمالك للدرس؛ لا توجد مكافأة إضافية.'
-              : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام الدرس.',
+              ? 'أنهيت هذا الفيديو وحصلت على مكافأته مسبقًا.'
+              : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام هذا الفيديو.',
         ),
       ));
       widget.onGamificationChanged(lessonReward.snapshot);
@@ -1033,9 +920,14 @@ class _VideoCarouselState extends State<_VideoCarousel> {
 }
 
 class _VideoCard extends StatelessWidget {
-  const _VideoCard({required this.video, required this.onPressed});
+  const _VideoCard({
+    required this.video,
+    required this.completed,
+    required this.onPressed,
+  });
 
   final LessonVideo video;
+  final bool completed;
   final VoidCallback onPressed;
 
   @override
@@ -1068,7 +960,13 @@ class _VideoCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: dynamicPaddingAlignment(context),
                 children: [
-                  const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFBFFBFA), size: 38),
+                  Icon(
+                    completed
+                        ? Icons.verified_rounded
+                        : Icons.play_circle_fill_rounded,
+                    color: const Color(0xFFBFFBFA),
+                    size: 38,
+                  ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
@@ -1099,8 +997,12 @@ class _VideoCard extends StatelessWidget {
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: onPressed,
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('شاهد الآن'),
+                icon: Icon(
+                  completed
+                      ? Icons.verified_rounded
+                      : Icons.play_arrow_rounded,
+                ),
+                label: Text(completed ? 'تم إتمام الفيديو' : 'شاهد الآن'),
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF0B8693),

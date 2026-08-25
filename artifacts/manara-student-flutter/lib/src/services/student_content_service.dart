@@ -91,17 +91,19 @@ class StudentContentService {
         average =
             ((current.averageScore * (quizzes - 1) + scorePercentage) ~/ quizzes);
       }
-    } else if (activityType == 'lesson') {
+    } else if (activityType == 'lesson' || activityType == 'lesson_video') {
       xp = 25;
       gems = 5;
       lessons++;
-    } else if (activityType == 'video' || activityType == 'problem') {
+    } else if (activityType == 'problem') {
       xp = 5;
       gems = 1;
     } else if (activityType == 'game') {
       xp = 15;
       gems = 3;
       games++;
+    } else {
+      throw ArgumentError('نوع نشاط المكافأة غير مدعوم: $activityType');
     }
 
     final beforeLevel = current.level;
@@ -1000,6 +1002,9 @@ LessonContent parseLessonContent(
   SupabaseClient? storageClient,
 }) {
   final data = _asMap(row['data']);
+  final lessonRecordId = _text(row['id']).isEmpty
+      ? _value(data, ['lesson_id', 'lessonId', 'id'])
+      : _text(row['id']);
   final videos = <LessonVideo>[];
   final rawVideos = data['explanationVideos'];
 
@@ -1014,7 +1019,9 @@ LessonContent parseLessonContent(
       if (!_isSafeUrl(url)) continue;
       videos.add(
         LessonVideo(
-          id: _text(item['id']).isEmpty ? 'video-$index' : _text(item['id']),
+          id: _text(item['id']).isEmpty
+              ? '$lessonRecordId:video:$index'
+              : _text(item['id']),
           url: url,
           sourceType: _videoType(item['sourceType'], url),
           title: _text(item['title']).isEmpty ? 'فيديو الشرح ${index + 1}' : _text(item['title']),
@@ -1036,7 +1043,7 @@ LessonContent parseLessonContent(
     videos.insert(
       0,
       LessonVideo(
-        id: 'legacy-video',
+        id: '$lessonRecordId:legacy-video',
         url: legacyUrl,
         sourceType: _videoType(data['explanationVideoType'], legacyUrl),
         title: 'فيديو الشرح',

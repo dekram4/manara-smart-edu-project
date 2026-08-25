@@ -35,7 +35,6 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   StudentGamification _gamification = const StudentGamification();
   int _activeIndex = 0;
   bool _loading = true;
-  bool _openingVideo = false;
   String? _error;
 
   int get _unlockedVideoCount => _gamification.gems ~/ _gemsPerVideo;
@@ -86,7 +85,6 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   }
 
   Future<void> _openVideo(LessonVideo video, int index) async {
-    if (_openingVideo) return;
     if (index >= _unlockedVideoCount) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -96,27 +94,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       return;
     }
 
-    setState(() => _openingVideo = true);
-    try {
-      final reward = await _contentService.rewardActivity(
-        profile: widget.profile,
-        activityType: 'video',
-        activityId: video.id,
-      );
-      if (!mounted) return;
-      setState(() => _gamification = reward.snapshot);
-      if (!reward.alreadyRewarded) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('أحسنت! +5 XP وجوهرة واحدة مقابل هذا الفيديو.')),
-        );
-      }
-    } catch (_) {
-      // A temporary progress-sync issue must not block an already unlocked video.
-    } finally {
-      if (mounted) setState(() => _openingVideo = false);
-    }
-    if (!mounted) return;
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _CinemaPlayerScreen(
           video: video,
@@ -196,7 +174,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'كل فيديو جديد يحتاج جوهرتين، ويمنحك عند تشغيله لأول مرة 5 XP وجوهرة واحدة.',
+          'كل فيديو جديد يحتاج جوهرتين لفتحه. المشاهدة لا تمنح XP أو جواهر.',
           textAlign: TextAlign.right,
           style: TextStyle(color: Color(0xFFB3C8DE), fontSize: 12, fontWeight: FontWeight.w700),
         ),
