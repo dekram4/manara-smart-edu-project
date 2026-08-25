@@ -50,12 +50,12 @@ async function getGeminiModels(apiKey: string): Promise<string[]> {
         : [];
 
       const preferredModels = [
+        "gemini-flash-lite-latest",
+        "gemini-2.5-flash-lite",
         configuredModel,
         "gemini-flash-latest",
-        "gemini-flash-lite-latest",
-        "gemini-3.5-flash",
         "gemini-3.1-flash-lite",
-        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash",
         "gemini-2.5-flash",
       ].filter(Boolean) as string[];
 
@@ -101,25 +101,36 @@ async function callGemini(
     error.statusCode = 503;
     throw error;
   }
-  const models = await getGeminiModels(apiKey);
+  // A short ordered fallback list is more reliable than trying every model
+  // returned by discovery. In particular, the general flash model can spend
+  // a long time reporting high demand while the lite model is ready.
+  const models = (await getGeminiModels(apiKey)).slice(0, 6);
   let lastUnavailableMessage = "";
 
   for (const model of models) {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature,
-            maxOutputTokens,
-            ...(json ? { responseMimeType: "application/json" } : {}),
-          },
-        }),
-      },
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature,
+              maxOutputTokens,
+              ...(json ? { responseMimeType: "application/json" } : {}),
+            },
+          }),
+          signal: AbortSignal.timeout(18_000),
+        },
+      );
+    } catch (error: any) {
+      lastUnavailableMessage = error?.message || "Gemini request timed out";
+      logger.warn(`[gemini] model ${model} timed out or failed: ${lastUnavailableMessage}`);
+      continue;
+    }
     const data: any = await response.json().catch(() => ({}));
     if (response.ok) {
       logger.info(`[gemini] generated with ${model.replace(/^models\//, "")}`);
