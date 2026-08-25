@@ -70,7 +70,16 @@ class StudentAuthService {
   }
 
   Future<void> _createApiSession(String username, String password) async {
-    final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    var base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    // Flutter Web is served from the same proxied origin as the API. This
+    // keeps local browser previews usable without requiring a build-time
+    // API_BASE_URL, while native builds still provide their explicit URL.
+    if (base.isEmpty) {
+      final current = Uri.base;
+      if (current.scheme == 'http' || current.scheme == 'https') {
+        base = current.origin;
+      }
+    }
     if (base.isEmpty) {
       throw const StudentAuthException('لم يتم إعداد اتصال خدمة الطالب الآمنة.');
     }
