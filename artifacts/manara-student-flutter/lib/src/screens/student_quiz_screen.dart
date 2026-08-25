@@ -31,6 +31,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
   bool _submitting = false;
   String? _error;
   Map<String, dynamic>? _shownResult;
+  int _questionIndex = 0;
 
   @override
   void initState() {
@@ -52,8 +53,13 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         widget.contentService.fetchQuizResults(widget.profile),
       ]);
       if (!mounted) return;
+      var quizzes = values[0] as List<Map<String, dynamic>>;
+      if (!quizzes.any((quiz) => !StudentAssessmentRules.isTeacherQuiz(quiz))) {
+        final fallback = _periodicFallbackQuiz();
+        if (fallback != null) quizzes = [...quizzes, fallback];
+      }
       setState(() {
-        _quizzes = values[0] as List<Map<String, dynamic>>;
+        _quizzes = quizzes;
         _results = values[1] as List<Map<String, dynamic>>;
         _loading = false;
       });
@@ -64,6 +70,58 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         _error = 'تعذر تحميل الاختبارات: $error';
       });
     }
+  }
+
+  Map<String, dynamic>? _periodicFallbackQuiz() {
+    final lesson = widget.academicContext?.selectedLesson;
+    if (lesson == null) return null;
+    final text = lesson.lessonText?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final sentences = text
+        .split(RegExp(r'[.!؟?\n]+'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .take(10)
+        .toList();
+    if (sentences.isEmpty) return null;
+    final questions = sentences.asMap().entries.map((entry) {
+      final sentence = entry.value;
+      final correct = sentence.length > 80 ? '${sentence.substring(0, 80)}...' : sentence;
+      final options = <String>[
+        correct,
+        'فكرة رئيسية',
+        'معلومة إضافية',
+        'لا توجد علاقة بالموضوع',
+      ];
+      return <String, dynamic>{
+        'id': 'periodic_fallback_${lesson.id}_${entry.key}',
+        'question': 'اختر الفكرة الأكثر ملاءمة للنص الآتي: "$sentence"',
+        'options': options,
+        'correctAnswer': correct,
+        'quizType': 'periodic',
+        'quizId': 'periodic_fallback_${lesson.id}',
+        'grade': widget.academicContext?.grade ?? widget.profile.grade ?? '',
+        'atram': widget.academicContext?.atram ?? widget.profile.atram ?? '',
+        'subject': widget.academicContext?.subject ?? widget.profile.subject ?? '',
+        'term': widget.academicContext?.term ?? widget.profile.term ?? '',
+        'unit': widget.academicContext?.unit ?? widget.profile.unit ?? '',
+      };
+    }).toList();
+    return {
+      'id': 'periodic_fallback_${lesson.id}',
+      'title': 'الاختبار الدوري',
+      'quizType': 'periodic',
+      'questions': questions,
+      'questionCount': questions.length,
+      'questionsPerAttempt': questions.length,
+      'isActive': true,
+      'grade': widget.academicContext?.grade ?? widget.profile.grade ?? '',
+      'atram': widget.academicContext?.atram ?? widget.profile.atram ?? '',
+      'subject': widget.academicContext?.subject ?? widget.profile.subject ?? '',
+      'term': widget.academicContext?.term ?? widget.profile.term ?? '',
+      'unit': widget.academicContext?.unit ?? widget.profile.unit ?? '',
+      'createdBy': 'supervisor',
+    };
   }
 
   bool _isTeacherQuiz(Map<String, dynamic> quiz) =>
@@ -97,6 +155,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       _activeQuiz = quiz;
       _questions = questions;
       _answers.clear();
+      _questionIndex = 0;
       _shownResult = null;
     });
   }
@@ -168,6 +227,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         _activeQuiz = null;
         _questions = const [];
         _answers.clear();
+         _questionIndex = 0;
         _submitting = false;
       });
     } on TeacherQuizAlreadySubmittedException catch (error) {
@@ -178,6 +238,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         _activeQuiz = null;
         _questions = const [];
         _answers.clear();
+         _questionIndex = 0;
         _submitting = false;
       });
     } catch (error) {
@@ -225,8 +286,21 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
                         ? _QuestionList(
                             questions: _questions,
                             answers: _answers,
+                             questionIndex: _questionIndex,
                             submitting: _submitting,
                             onAnswer: (id, value) => setState(() => _answers[id] = value),
+                             onPrevious: _questionIndex == 0
+                                 ? null
+                                 : () => setState(() => _questionIndex--),
+                             onNext: _questionIndex >= _questions.length - 1 ||
+                                     !_answers.containsKey(
+                                       _questionId(
+                                         _questions[_questionIndex],
+                                         _questionIndex,
+                                       ),
+                                     )
+                                 ? null
+                                 : () => setState(() => _questionIndex++),
                             onSubmit: _submit,
                           )
                         : _QuizCatalog(
@@ -276,8 +350,15 @@ class _QuizCatalog extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final quiz = quizzes[index];
-        final taken = results.any((item) => _text(item['quizId']) == _text(quiz['id']));
+        final quizResults = results
+            .where((item) => _text(item['quizId']) == _text(quiz['id']))
+            .toList();
+        final taken = quizResults.isNotEmpty;
         final teacher = isTeacherQuiz(quiz);
+        final questionCount = StudentAssessmentRules.questionsForStudent(
+          quiz,
+          studentId: '',
+        ).length;
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -302,9 +383,16 @@ class _QuizCatalog extends StatelessWidget {
                 Text(
                   teacher
                       ? 'اختبار المعلم • محاولة واحدة'
-                      : StudentAssessmentRules.quizTypeLabel(quiz),
+                      : '${StudentAssessmentRules.quizTypeLabel(quiz)} • ${taken ? '${quizResults.length} محاولات' : 'يمكنك الإعادة'}',
                   style: const TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
                 ),
+                if (questionCount > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '$questionCount أسئلة',
+                    style: const TextStyle(color: Color(0xFF49617C)),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -326,60 +414,112 @@ class _QuestionList extends StatelessWidget {
   const _QuestionList({
     required this.questions,
     required this.answers,
+    required this.questionIndex,
     required this.submitting,
     required this.onAnswer,
+    required this.onPrevious,
+    required this.onNext,
     required this.onSubmit,
   });
 
   final List<Map<String, dynamic>> questions;
   final Map<String, String> answers;
+  final int questionIndex;
   final bool submitting;
   final void Function(String id, String value) onAnswer;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
   final VoidCallback onSubmit;
 
   @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ...questions.asMap().entries.map((entry) {
-            final question = entry.value;
-            final id = _questionId(question, entry.key);
-            final options = (question['options'] as List).map(_text).toList();
-            return Card(
-              margin: const EdgeInsets.only(bottom: 14),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${entry.key + 1}. ${_text(question['question'])}',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
-                    const SizedBox(height: 10),
-                    ...options.map(
-                      (option) => RadioListTile<String>(
-                        value: option,
-                        groupValue: answers[id],
-                        onChanged: submitting || option.isEmpty ? null : (value) => onAnswer(id, value!),
-                        title: Text(option),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-          const SizedBox(height: 6),
-          FilledButton.icon(
-            onPressed: submitting ? null : onSubmit,
-            icon: submitting
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.assignment_turned_in_rounded),
-            label: Text(submitting ? 'جارٍ حفظ نتيجتك...' : 'إرسال الاختبار'),
-            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+  Widget build(BuildContext context) {
+    if (questions.isEmpty) return const SizedBox.shrink();
+    final question = questions[questionIndex];
+    final id = _questionId(question, questionIndex);
+    final options = (question['options'] as List).map(_text).toList();
+    final selected = answers[id];
+    final isLast = questionIndex == questions.length - 1;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'السؤال ${questionIndex + 1} من ${questions.length}',
+          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF49617C)),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: (questionIndex + 1) / questions.length,
+            minHeight: 9,
+            color: const Color(0xFFF59E0B),
+            backgroundColor: const Color(0xFFE5EDF5),
           ),
-        ],
-      );
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _text(question['question']),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
+                ),
+                const SizedBox(height: 12),
+                ...options.map(
+                  (option) => RadioListTile<String>(
+                    value: option,
+                    groupValue: selected,
+                    onChanged: submitting || option.isEmpty
+                        ? null
+                        : (value) => onAnswer(id, value!),
+                    title: Text(option),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: submitting ? null : onPrevious,
+                icon: const Icon(Icons.arrow_back_rounded),
+                label: const Text('السابق'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: isLast
+                  ? FilledButton.icon(
+                      onPressed: submitting || selected == null ? null : onSubmit,
+                      icon: submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.assignment_turned_in_rounded),
+                      label: Text(submitting ? 'جارٍ الحفظ...' : 'تسليم الاختبار'),
+                    )
+                  : FilledButton.icon(
+                      onPressed: submitting ? null : onNext,
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      label: const Text('التالي'),
+                    ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _QuizResultView extends StatelessWidget {
