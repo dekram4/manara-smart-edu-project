@@ -464,7 +464,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     title: 'حلّ المسائل',
     subtitle: 'اسأل عن الدرس',
-    description: 'مساعد ذكي يجيبك من محتوى الدرس الذي أعده معلمك.',
+    description: 'مساعد ذكي يقدم شرحًا مباشرًا ومفيدًا لأسئلتك.',
     icon: Icons.auto_awesome_rounded,
     colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
     accent: Color(0xFFE9D5FF),

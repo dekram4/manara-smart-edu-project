@@ -187,7 +187,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'سيجيب المساعد من محتوى الدرس الذي اختاره معلمك.',
+                    'اكتب سؤالك وسيقدم لك المساعد شرحًا مباشرًا ومفيدًا.',
                     style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 18),
