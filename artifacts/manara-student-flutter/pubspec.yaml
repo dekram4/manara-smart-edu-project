@@ -12,6 +12,10 @@ dependencies:
   supabase_flutter: ^2.8.0
   flutter_animate: ^4.5.2
   audioplayers: ^6.1.0
+  confetti: ^0.8.0
+  shared_preferences: ^2.3.3
+  flame: ^1.24.0
+  flame_audio: ^2.10.6
   flutter_inappwebview: ^6.1.5
   media_kit: ^1.1.11
   media_kit_video: ^1.2.4
@@ -30,5 +34,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/manara-logo-mark-transparent.png
-    - assets/audio/manara-login-chime.mp3
-    - assets/audio/manara-arabic-student-welcome.mp3
+    - assets/audio/

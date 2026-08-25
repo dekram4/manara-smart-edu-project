@@ -11,6 +11,8 @@ import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 
 enum StudentContentModule { lesson, games }
@@ -114,6 +116,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
       backgroundColor: const Color(0xFFF3F8F9),
       appBar: AppBar(
         title: Text(_moduleTitle(_activeModule)),
+        actions: const [StudentSoundToggle()],
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'إغلاق',
@@ -125,9 +128,12 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           children: [
             _ModuleSwitcher(
               activeModule: _activeModule,
-              onChanged: (module) => setState(() => _activeModule = module),
+              onChanged: (module) {
+                StudentSoundService.instance.play(StudentSoundCue.navigation);
+                setState(() => _activeModule = module);
+              },
             ),
-            Expanded(child: _buildBody()),
+            Expanded(child: StudentEntrance(child: _buildBody())),
           ],
         ),
       ),
@@ -385,59 +391,69 @@ class _GamesModule extends StatelessWidget {
             final completed = gamification.completedActivities
                 .contains('game:${game.id}');
             return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: _GameCard(
-              game: game,
-              locked: locked,
-              completed: completed,
-              onPressed: () {
-                if (locked) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'هذه اللعبة تُفتح عند الوصول إلى المستوى ${game.requiredLevel}. مستواك الحالي: ${gamification.level}',
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _GameCard(
+                game: game,
+                locked: locked,
+                completed: completed,
+                onPressed: () {
+                  if (locked) {
+                    StudentSoundService.instance.play(StudentSoundCue.warning);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'هذه اللعبة تُفتح عند الوصول إلى المستوى ${game.requiredLevel}. مستواك الحالي: ${gamification.level}',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  StudentSoundService.instance.play(StudentSoundCue.navigation);
+                  Navigator.of(context).push(
+                    StudentPageRoute<void>(
+                      builder: (_) => _GamePlayerScreen(
+                        game: game,
+                        apiBaseUrl: apiBaseUrl,
+                        initiallyCompleted: completed,
+                        onCompleted: () async {
+                          try {
+                            final reward = await contentService.rewardActivity(
+                              profile: profile,
+                              activityType: 'game',
+                              activityId: game.id,
+                            );
+                            onGamificationChanged(reward.snapshot);
+                            StudentSoundService.instance.play(
+                              reward.alreadyRewarded
+                                  ? StudentSoundCue.navigation
+                                  : StudentSoundCue.gameReward,
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(reward.alreadyRewarded
+                                    ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا.'
+                                    : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر'),
+                              ));
+                            }
+                            return true;
+                          } catch (_) {
+                            StudentSoundService.instance.play(StudentSoundCue.warning);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تعذر حفظ إتمام اللعبة. حاول مرة أخرى.'),
+                                ),
+                              );
+                            }
+                            return false;
+                          }
+                        },
                       ),
                     ),
                   );
-                  return;
-                }
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => _GamePlayerScreen(
-                      game: game,
-                      apiBaseUrl: apiBaseUrl,
-                      initiallyCompleted: completed,
-                      onCompleted: () async {
-                        try {
-                          final reward = await contentService.rewardActivity(
-                            profile: profile,
-                            activityType: 'game',
-                            activityId: game.id,
-                          );
-                          onGamificationChanged(reward.snapshot);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(reward.alreadyRewarded
-                                  ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا.'
-                                  : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر'),
-                            ));
-                          }
-                          return true;
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('تعذر حفظ إتمام اللعبة. حاول مرة أخرى.')),
-                            );
-                          }
-                          return false;
-                        }
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
+                },
+              ),
+            );
           },
         ),
       ],
@@ -853,16 +869,19 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                   child: _VideoCard(
                     video: video,
                     completed: completed,
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _LessonPlayerScreen(
-                          video: video,
-                          apiBaseUrl: widget.apiBaseUrl,
-                          initiallyCompleted: completed,
-                          onCompleted: () => _rewardVideo(video),
+                    onPressed: () {
+                      StudentSoundService.instance.play(StudentSoundCue.navigation);
+                      Navigator.of(context).push(
+                        StudentPageRoute<void>(
+                          builder: (_) => _LessonPlayerScreen(
+                            video: video,
+                            apiBaseUrl: widget.apiBaseUrl,
+                            initiallyCompleted: completed,
+                            onCompleted: () => _rewardVideo(video),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 );
               },
@@ -898,6 +917,11 @@ class _VideoCarouselState extends State<_VideoCarousel> {
         activityId: video.id,
       );
       if (!mounted) return false;
+      StudentSoundService.instance.play(
+        lessonReward.alreadyRewarded
+            ? StudentSoundCue.navigation
+            : StudentSoundCue.success,
+      );
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
           lessonReward.alreadyRewarded
@@ -908,6 +932,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
       widget.onGamificationChanged(lessonReward.snapshot);
       return true;
     } catch (_) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       // Playback remains usable if the network is temporarily unavailable.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

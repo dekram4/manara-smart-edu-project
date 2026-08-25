@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/student_content.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 
 /// Shows the virtual teacher configured for one selected academic path.
@@ -45,6 +47,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
   void _joinMeeting() {
     if (_avatarUrl == null) return;
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     setState(() {
       _showInlineMeeting = true;
       _embedRevision++;
@@ -53,12 +56,14 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
   void _reload() {
     if (_avatarUrl == null) return;
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     setState(() => _embedRevision++);
   }
 
   void _openFullscreen() {
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      StudentPageRoute<void>(
         builder: (_) => StudentTutorScreen(
           selection: widget.selection,
           fullscreen: true,
@@ -83,6 +88,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
               foregroundColor: Colors.white,
               title: Text(_isLiveMeeting ? 'اللقاء المباشر' : 'صديقك المعلم الافتراضي'),
               actions: [
+                const StudentSoundToggle(),
                 IconButton(
                   onPressed: _avatarUrl == null ? null : _reload,
                   tooltip: 'إعادة التحميل',
@@ -103,7 +109,10 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                   child: Align(
                     alignment: Alignment.topLeft,
                     child: IconButton.filledTonal(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        StudentSoundService.instance.play(StudentSoundCue.navigation);
+                        Navigator.of(context).pop();
+                      },
                       tooltip: 'إنهاء ملء الشاشة',
                       icon: const Icon(Icons.fullscreen_exit_rounded),
                     ),
@@ -120,128 +129,140 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
       final missingContext =
           widget.selection.status == TutorExperienceStatus.missingAcademicContext;
       final unsafeUrl = widget.selection.status == TutorExperienceStatus.unsafeUrl;
-      return _TutorStateCard(
-        icon: unsafeUrl
-            ? Icons.link_off_rounded
-            : missingContext
-                ? Icons.school_outlined
-                : _isLiveMeeting
-                ? Icons.videocam_off_rounded
-                : Icons.smart_toy_outlined,
-        title: unsafeUrl
-            ? _isLiveMeeting
-                ? 'رابط اللقاء المباشر غير صالح'
-                : 'رابط المعلم الافتراضي غير صالح'
-            : missingContext
-                ? 'اختر مسارك الدراسي أولًا'
-                : _isLiveMeeting
-                ? 'لم يتم إضافة لقاء مباشر بعد'
-                : 'لم يتم إضافة رابط التفاعل بعد',
-        message: unsafeUrl
-            ? 'يجب أن يكون الرابط آمنًا ويبدأ بـ HTTPS.'
-            : missingContext
-                ? 'اختر الصف والفصل والمادة والترم والوحدة، ثم افتح التجربة الخاصة بالدرس.'
-                : _isLiveMeeting
-                ? 'سيظهر اللقاء هنا عندما يضيف المعلم رابطًا للدرس.'
-                : 'سيظهر صديقك المعلم هنا عندما يضيف المعلم رابط التفاعل للدرس.',
+      return StudentEntrance(
+        child: _TutorStateCard(
+          icon: unsafeUrl
+              ? Icons.link_off_rounded
+              : missingContext
+                  ? Icons.school_outlined
+                  : _isLiveMeeting
+                  ? Icons.videocam_off_rounded
+                  : Icons.smart_toy_outlined,
+          title: unsafeUrl
+              ? _isLiveMeeting
+                  ? 'رابط اللقاء المباشر غير صالح'
+                  : 'رابط المعلم الافتراضي غير صالح'
+              : missingContext
+                  ? 'اختر مسارك الدراسي أولًا'
+                  : _isLiveMeeting
+                  ? 'لم يتم إضافة لقاء مباشر بعد'
+                  : 'لم يتم إضافة رابط التفاعل بعد',
+          message: unsafeUrl
+              ? 'يجب أن يكون الرابط آمنًا ويبدأ بـ HTTPS.'
+              : missingContext
+                  ? 'اختر الصف والفصل والمادة والترم والوحدة، ثم افتح التجربة الخاصة بالدرس.'
+                  : _isLiveMeeting
+                  ? 'سيظهر اللقاء هنا عندما يضيف المعلم رابطًا للدرس.'
+                  : 'سيظهر صديقك المعلم هنا عندما يضيف المعلم رابط التفاعل للدرس.',
+        ),
       );
     }
 
     if (_isBlockedMeetingEmbed) {
-      return _BlockedMeetingCard(onJoin: _joinMeeting);
+      return StudentEntrance(
+        child: _BlockedMeetingCard(onJoin: _joinMeeting),
+      );
     }
 
     return Column(
       children: [
         if (!widget.fullscreen)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-            child: Row(
-              children: [
-                Icon(
-                  _isLiveMeeting
-                      ? Icons.videocam_rounded
-                      : Icons.smart_toy_rounded,
-                  color: Color(0xFFC4B5FD),
-                  size: 34,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _avatarLesson?.lessonName.trim().isNotEmpty == true
-                        ? _avatarLesson!.lessonName
-                        : _isLiveMeeting
-                            ? 'اللقاء المباشر جاهز للانضمام'
-                            : 'صديقك الذكي مستعد للعب والكلام!',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
+          StudentEntrance(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Row(
+                children: [
+                  Icon(
+                    _isLiveMeeting
+                        ? Icons.videocam_rounded
+                        : Icons.smart_toy_rounded,
+                    color: Color(0xFFC4B5FD),
+                    size: 34,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _avatarLesson?.lessonName.trim().isNotEmpty == true
+                          ? _avatarLesson!.lessonName
+                          : _isLiveMeeting
+                              ? 'اللقاء المباشر جاهز للانضمام'
+                              : 'صديقك الذكي مستعد للعب والكلام!',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         Expanded(
           child: Column(
             children: [
               Expanded(
-                child: Container(
-                  margin: EdgeInsets.fromLTRB(
-                    widget.fullscreen ? 0 : 14,
-                    0,
-                    widget.fullscreen ? 0 : 14,
-                    0,
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF101D33),
-                    borderRadius: BorderRadius.circular(widget.fullscreen ? 0 : 24),
-                    border: widget.fullscreen
-                        ? null
-                        : Border.all(color: const Color(0xFF5B3B87)),
-                  ),
-                  child: StudentVideoPlayer(
-                    key: ValueKey('${_avatarUrl!}:$_embedRevision'),
-                    video: LessonVideo(
-                      id: 'tutor-${_avatarLesson?.id ?? 'experience'}',
-                      url: _avatarUrl!,
-                      sourceType: VideoSourceType.embed,
-                      title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
+                child: StudentEntrance(
+                  delay: const Duration(milliseconds: 100),
+                  child: Container(
+                    margin: EdgeInsets.fromLTRB(
+                      widget.fullscreen ? 0 : 14,
+                      0,
+                      widget.fullscreen ? 0 : 14,
+                      0,
                     ),
-                    autoPlay: false,
-                    allowInteractivePermissions: true,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF101D33),
+                      borderRadius: BorderRadius.circular(widget.fullscreen ? 0 : 24),
+                      border: widget.fullscreen
+                          ? null
+                          : Border.all(color: const Color(0xFF5B3B87)),
+                    ),
+                    child: StudentVideoPlayer(
+                      key: ValueKey('${_avatarUrl!}:$_embedRevision'),
+                      video: LessonVideo(
+                        id: 'tutor-${_avatarLesson?.id ?? 'experience'}',
+                        url: _avatarUrl!,
+                        sourceType: VideoSourceType.embed,
+                        title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
+                      ),
+                      autoPlay: false,
+                      allowInteractivePermissions: true,
+                    ),
                   ),
                 ),
               ),
               if (_isLiveMeeting)
-                Container(
-                  margin: EdgeInsets.fromLTRB(
-                    widget.fullscreen ? 0 : 14,
-                    10,
-                    widget.fullscreen ? 0 : 14,
-                    widget.fullscreen ? 0 : 18,
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  color: const Color(0xFF0B1628),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'استخدم زر الاتصال إذا لم يعمل الاجتماع داخل الصفحة.',
-                          textAlign: TextAlign.right,
-                          style: TextStyle(color: Color(0xFFC8D5E5), fontSize: 12),
+                StudentEntrance(
+                  delay: const Duration(milliseconds: 200),
+                  child: Container(
+                    margin: EdgeInsets.fromLTRB(
+                      widget.fullscreen ? 0 : 14,
+                      10,
+                      widget.fullscreen ? 0 : 14,
+                      widget.fullscreen ? 0 : 18,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    color: const Color(0xFF0B1628),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'استخدم زر الاتصال إذا لم يعمل الاجتماع داخل الصفحة.',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(color: Color(0xFFC8D5E5), fontSize: 12),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      FilledButton(
-                        onPressed: _joinMeeting,
-                        child: const Text('اتصال بالاجتماع'),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        FilledButton(
+                          onPressed: _joinMeeting,
+                          child: const Text('اتصال بالاجتماع'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
             ],

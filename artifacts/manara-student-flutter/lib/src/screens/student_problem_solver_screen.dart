@@ -10,6 +10,8 @@ import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 
 class StudentProblemSolverScreen extends StatefulWidget {
   const StudentProblemSolverScreen({
@@ -177,6 +179,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       if (!mounted) return;
       setState(() => _answer = answer);
       if (reward != null) {
+        StudentSoundService.instance.play(StudentSoundCue.success);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -186,8 +189,11 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
             ),
           ),
         );
+      } else {
+        StudentSoundService.instance.play(StudentSoundCue.navigation);
       }
     } catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       if (!mounted) return;
        setState(() => _error = _studentSafeError(error));
     } finally {
@@ -202,62 +208,77 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F8FF),
-        appBar: AppBar(title: const Text('حلّ المسائل'), centerTitle: true),
+        appBar: AppBar(title: const Text('حلّ المسائل'), centerTitle: true, actions: const [StudentSoundToggle()]),
         body: supported.isEmpty
-            ? const _SolverEmptyState()
+            ? const StudentEntrance(child: _SolverEmptyState())
             : ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
-                  const Text(
-                    'اسأل عن درسك',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                  const StudentEntrance(
+                    child: Text(
+                      'اسأل عن درسك',
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                    ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    'اكتب سؤالك وسيقدم لك المساعد شرحًا مباشرًا ومفيدًا.',
-                    style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
+                  const StudentEntrance(
+                    delay: Duration(milliseconds: 50),
+                    child: Text(
+                      'اكتب سؤالك وسيقدم لك المساعد شرحًا مباشرًا ومفيدًا.',
+                      style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 18),
-                  TextField(
-                    controller: _questionController,
-                    enabled: !_sending,
-                    minLines: 3,
-                    maxLines: 6,
-                    maxLength: 2000,
-                    decoration: const InputDecoration(
-                      labelText: 'اكتب مسألتك أو سؤالك',
-                      hintText: 'مثال: كيف نحل هذه المسألة؟',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
+                  StudentEntrance(
+                    delay: const Duration(milliseconds: 100),
+                    child: TextField(
+                      controller: _questionController,
+                      enabled: !_sending,
+                      minLines: 3,
+                      maxLines: 6,
+                      maxLength: 2000,
+                      decoration: const InputDecoration(
+                        labelText: 'اكتب مسألتك أو سؤالك',
+                        hintText: 'مثال: كيف نحل هذه المسألة؟',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  FilledButton.icon(
-                    onPressed: _sending ? null : _ask,
-                    icon: _sending
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.auto_awesome_rounded),
-                    label: Text(_sending ? 'جارٍ التفكير...' : 'ساعدني في الحل'),
-                    style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  StudentEntrance(
+                    delay: const Duration(milliseconds: 150),
+                    child: FilledButton.icon(
+                      onPressed: _sending ? null : _ask,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome_rounded),
+                      label: Text(_sending ? 'جارٍ التفكير...' : 'ساعدني في الحل'),
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                    ),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 16),
-                    _MessageCard(
-                      icon: Icons.error_outline_rounded,
-                      color: const Color(0xFFB42318),
-                      text: _error!,
+                    StudentEntrance(
+                      child: _MessageCard(
+                        icon: Icons.error_outline_rounded,
+                        color: const Color(0xFFB42318),
+                        text: _error!,
+                      ),
                     ),
                   ],
                   if (_answer != null) ...[
                     const SizedBox(height: 16),
-                    _MessageCard(
-                      icon: Icons.lightbulb_rounded,
-                      color: const Color(0xFF0B8693),
-                      text: _answer!,
+                    StudentEntrance(
+                      child: _MessageCard(
+                        icon: Icons.lightbulb_rounded,
+                        color: const Color(0xFF0B8693),
+                        text: _answer!,
+                      ),
                     ),
                   ],
                 ],

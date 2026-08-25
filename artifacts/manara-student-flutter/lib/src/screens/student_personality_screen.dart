@@ -3,6 +3,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 
 /// A child-friendly editor for the appearance stored with a student profile.
 ///
@@ -73,11 +75,13 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       );
       if (!mounted) return;
       setState(() => _appearance = Map<String, dynamic>.from(next));
+      StudentSoundService.instance.play(StudentSoundCue.success);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('أحسنت! تم حفظ شخصيتك ✨')),
       );
     } catch (error) {
       if (!mounted) return;
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('لم نتمكن من حفظ الشخصية: $error')),
       );
@@ -101,8 +105,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
   Future<void> _openCreator() async {
     final url = _validCreatorUrl(widget.creatorUrl);
     if (url == null) return;
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     final export = await Navigator.of(context).push<_ReadyPlayerMeExport>(
-      MaterialPageRoute(
+      StudentPageRoute<_ReadyPlayerMeExport>(
         builder: (_) => _ReadyPlayerMeCreatorScreen(creatorUrl: url),
       ),
     );
@@ -121,104 +126,128 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F8FF),
-        appBar: AppBar(title: const Text('شخصيتي'), centerTitle: true),
+        appBar: AppBar(title: const Text('شخصيتي'), centerTitle: true, actions: const [StudentSoundToggle()]),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
-            const Text(
-              'اصنع بطلك الرائع!',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            const StudentEntrance(
+              child: Text(
+                'اصنع بطلك الرائع!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+              ),
             ),
             const SizedBox(height: 7),
-            const Text(
-              'اختر شارة ولونًا يعبران عنك، ثم احفظ شخصيتك.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
+            const StudentEntrance(
+              delay: Duration(milliseconds: 50),
+              child: Text(
+                'اختر شارة ولونًا يعبران عنك، ثم احفظ شخصيتك.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
+              ),
             ),
             const SizedBox(height: 22),
-            _AppearancePreview(
-              emoji: _emoji,
-              color: _color,
-              imageUrl: _avatarImageUrl,
+            StudentEntrance(
+              delay: const Duration(milliseconds: 100),
+              child: _AppearancePreview(
+                emoji: _emoji,
+                color: _color,
+                imageUrl: _avatarImageUrl,
+              ),
             ),
             const SizedBox(height: 20),
-            _EditorCard(
-              title: 'اختر شارة بطلك',
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 10,
-                runSpacing: 10,
-                children: _emojis
-                    .map(
-                      (emoji) => ChoiceChip(
-                        label: Text(emoji, style: const TextStyle(fontSize: 28)),
-                        selected: _emoji == emoji,
-                        onSelected: (_) =>
-                            setState(() => _appearance['shape'] = emoji),
-                      ),
-                    )
-                    .toList(),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 150),
+              child: _EditorCard(
+                title: 'اختر شارة بطلك',
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: _emojis
+                      .map(
+                        (emoji) => ChoiceChip(
+                          label: Text(emoji, style: const TextStyle(fontSize: 28)),
+                          selected: _emoji == emoji,
+                          onSelected: (_) {
+                            StudentSoundService.instance.play(StudentSoundCue.navigation);
+                            setState(() => _appearance['shape'] = emoji);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
             ),
             const SizedBox(height: 14),
-            _EditorCard(
-              title: 'اختر لون الملابس',
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 13,
-                runSpacing: 12,
-                children: _colors
-                    .map(
-                      (color) => InkWell(
-                        onTap: () =>
-                            setState(() => _appearance['color'] = _hex(color)),
-                        borderRadius: BorderRadius.circular(30),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _color == color
-                                  ? const Color(0xFF102A43)
-                                  : Colors.white,
-                              width: _color == color ? 4 : 2,
+            StudentEntrance(
+              delay: const Duration(milliseconds: 200),
+              child: _EditorCard(
+                title: 'اختر لون الملابس',
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 13,
+                  runSpacing: 12,
+                  children: _colors
+                      .map(
+                        (color) => InkWell(
+                          onTap: () {
+                            StudentSoundService.instance.play(StudentSoundCue.navigation);
+                            setState(() => _appearance['color'] = _hex(color));
+                          },
+                          borderRadius: BorderRadius.circular(30),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _color == color
+                                    ? const Color(0xFF102A43)
+                                    : Colors.white,
+                                width: _color == color ? 4 : 2,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    )
-                    .toList(),
+                      )
+                      .toList(),
+                ),
               ),
             ),
             const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _saving ? null : _saveLocalAppearance,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_rounded),
-              label: const Text('حفظ شخصيتي'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 250),
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _saveLocalAppearance,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_rounded),
+                label: const Text('حفظ شخصيتي'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                ),
               ),
             ),
             if (_canOpenCreator) ...[
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _openCreator,
-                icon: const Icon(Icons.view_in_ar_rounded),
-                label: const Text('صمّم أفاتار ثلاثي الأبعاد'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+              StudentEntrance(
+                delay: const Duration(milliseconds: 300),
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _openCreator,
+                  icon: const Icon(Icons.view_in_ar_rounded),
+                  label: const Text('صمّم أفاتار ثلاثي الأبعاد'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
                 ),
               ),
             ],

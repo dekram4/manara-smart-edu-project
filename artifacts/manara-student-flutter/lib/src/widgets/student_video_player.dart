@@ -6,6 +6,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:video_player/video_player.dart';
 
 import '../models/student_content.dart';
+import 'student_experience.dart';
 
 class StudentVideoPlayer extends StatefulWidget {
   const StudentVideoPlayer({
@@ -314,7 +315,7 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     final position = controller.value.position;
     await controller.pause();
     final result = await Navigator.of(context).push<_FullscreenPlaybackState>(
-      MaterialPageRoute<_FullscreenPlaybackState>(
+      StudentPageRoute<_FullscreenPlaybackState>(
         builder: (_) => _FullscreenNetworkVideoScreen(
           video: widget.video,
           apiBaseUrl: widget.apiBaseUrl,

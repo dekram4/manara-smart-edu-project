@@ -1,8 +1,9 @@
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_auth_service.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 import '../widgets/manara_logo.dart';
 import 'academic_selection_screen.dart';
 
@@ -26,8 +27,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _audioPlayer = AudioPlayer();
-
   bool _isLoading = false;
   bool _hidePassword = true;
   String? _errorMessage;
@@ -36,7 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
-    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -58,10 +56,10 @@ class _LoginScreenState extends State<LoginScreen> {
         username: _usernameController.text,
         password: _passwordController.text,
       );
-      await _audioPlayer.play(AssetSource('audio/manara-login-chime.mp3'));
+      StudentSoundService.instance.play(StudentSoundCue.loginSuccess);
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
+        StudentPageRoute<void>(
           builder: (_) => AcademicSelectionScreen(
             profile: student,
             authService: widget.authService!,
@@ -70,8 +68,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } on StudentAuthException catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       if (mounted) setState(() => _errorMessage = error.message);
     } catch (_) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       if (mounted) {
         setState(() => _errorMessage = 'تعذر إكمال تسجيل الدخول. حاول مرة أخرى.');
       }
@@ -105,6 +105,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 constraints: const BoxConstraints(maxWidth: 470),
                 child: Column(
                   children: [
+                    const Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: IconTheme(
+                        data: IconThemeData(color: Colors.white),
+                        child: StudentSoundToggle(),
+                      ),
+                    ),
                     const ManaraLogo(size: 112)
                         .animate()
                         .fadeIn(duration: 500.ms)

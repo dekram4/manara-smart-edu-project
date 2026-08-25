@@ -6,6 +6,8 @@ import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 
 class StudentCinemaScreen extends StatefulWidget {
@@ -86,6 +88,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
 
   Future<void> _openVideo(LessonVideo video, int index) async {
     if (index >= _unlockedVideoCount) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('هذا الفيديو مقفول. تحتاج جوهرتين لكل فيديو جديد.'),
@@ -94,8 +97,9 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       return;
     }
 
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      StudentPageRoute<void>(
         builder: (_) => _CinemaPlayerScreen(
           video: video,
           apiBaseUrl: widget.apiBaseUrl,
@@ -112,6 +116,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
         backgroundColor: const Color(0xFF071425),
         foregroundColor: Colors.white,
         title: const Text('سينما منارة'),
+        actions: const [StudentSoundToggle()],
       ),
       body: _buildBody(),
     );
@@ -141,7 +146,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     }
 
     final activeVideo = _videos[_activeIndex];
-    return ListView(
+    return StudentEntrance(
+      child: ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
       children: [
         const Text(
@@ -225,6 +231,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
           onPressed: () => _openVideo(activeVideo, _activeIndex),
         ),
       ],
+      ),
     );
   }
 }

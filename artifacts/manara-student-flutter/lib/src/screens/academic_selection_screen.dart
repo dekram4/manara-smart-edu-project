@@ -5,8 +5,10 @@ import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
+import '../widgets/student_experience.dart';
 import 'student_home_screen.dart';
 
 class AcademicSelectionScreen extends StatefulWidget {
@@ -289,8 +291,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null) return;
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     await Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
+      StudentPageRoute<void>(
         builder: (_) => StudentDashboardScreen(
           profile: widget.profile,
           authService: widget.authService,
@@ -345,6 +348,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 constraints: const BoxConstraints(maxWidth: 560),
                 child: Column(
                   children: [
+                    const Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: IconTheme(
+                        data: IconThemeData(color: Colors.white),
+                        child: StudentSoundToggle(),
+                      ),
+                    ),
                     const ManaraLogo(size: 84),
                     const SizedBox(height: 12),
                     const Text(

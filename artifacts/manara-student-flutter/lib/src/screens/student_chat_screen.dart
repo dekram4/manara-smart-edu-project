@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 
 class StudentChatScreen extends StatefulWidget {
   const StudentChatScreen({
@@ -119,6 +121,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   Future<void> _toggleChat() async {
     if (!widget.profile.canAccessChat || _sending) return;
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     final enabled = !_chatEnabled;
     setState(() {
       _chatEnabled = enabled;
@@ -146,9 +149,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           .timeout(const Duration(seconds: 15));
       final data = _decode(response);
       if (response.statusCode != 201) throw Exception(_responseError(data) ?? 'تعذر إرسال الرسالة.');
+      StudentSoundService.instance.play(StudentSoundCue.navigation);
       _messageController.clear();
       await _refresh();
     } catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       if (mounted) setState(() => _error = _safeError(error));
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -173,6 +178,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         appBar: AppBar(
           title: const Text('دردشة منارة'),
           actions: [
+            const StudentSoundToggle(),
             TextButton.icon(
               onPressed: widget.profile.canAccessChat && !_sending ? _toggleChat : null,
               icon: Icon(
@@ -188,7 +194,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               icon: const Icon(Icons.refresh_rounded),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                StudentSoundService.instance.play(StudentSoundCue.navigation);
+                Navigator.of(context).pop();
+              },
               child: const Text('إغلاق'),
             ),
           ],
@@ -220,13 +229,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             : ListView.builder(
                                 padding: const EdgeInsets.all(14),
                                 itemCount: _messages.length,
-                                itemBuilder: (_, index) => _MessageBubble(
-                                  message: _messages[index],
-                                  mine: _messages[index].from == widget.profile.id,
+                                itemBuilder: (_, index) => StudentEntrance(
+                                  delay: Duration(milliseconds: index < 15 ? index * 30 : 0),
+                                  child: _MessageBubble(
+                                    message: _messages[index],
+                                    mine: _messages[index].from == widget.profile.id,
+                                  ),
                                 ),
                               ),
                   ),
-                  _composer(),
+                  StudentEntrance(
+                    delay: const Duration(milliseconds: 200),
+                    child: _composer(),
+                  ),
                 ],
               ),
       ),

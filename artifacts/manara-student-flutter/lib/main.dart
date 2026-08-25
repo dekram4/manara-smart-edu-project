@@ -6,10 +6,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/config/supabase_config.dart';
 import 'src/screens/login_screen.dart';
 import 'src/services/student_auth_service.dart';
+import 'src/services/student_sound_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  await StudentSoundService.instance.initialize();
 
   const config = SupabaseConfig.fromEnvironment();
   SupabaseClient? client;
@@ -89,15 +91,16 @@ class ManaraStudentApp extends StatelessWidget {
           ),
         ),
       ),
-      home: Directionality(
+      builder: (context, child) => Directionality(
         textDirection: TextDirection.rtl,
-        child: LoginScreen(
-          authService: client == null
-              ? null
-              : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
-          initializationError: initializationError,
-          apiBaseUrl: apiBaseUrl,
-        ),
+        child: child ?? const SizedBox.shrink(),
+      ),
+      home: LoginScreen(
+        authService: client == null
+            ? null
+            : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
+        initializationError: initializationError,
+        apiBaseUrl: apiBaseUrl,
       ),
     );
   }

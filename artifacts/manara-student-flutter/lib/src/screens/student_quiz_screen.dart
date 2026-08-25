@@ -1,3 +1,4 @@
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
@@ -5,6 +6,8 @@ import '../models/student_assessment.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
+import '../services/student_sound_service.dart';
+import '../widgets/student_experience.dart';
 
 class StudentQuizScreen extends StatefulWidget {
   const StudentQuizScreen({
@@ -22,7 +25,8 @@ class StudentQuizScreen extends StatefulWidget {
   State<StudentQuizScreen> createState() => _StudentQuizScreenState();
 }
 
-class _StudentQuizScreenState extends State<StudentQuizScreen> {
+class _StudentQuizScreenState extends State<StudentQuizScreen>
+    with SingleTickerProviderStateMixin {
   List<Map<String, dynamic>> _quizzes = const [];
   List<Map<String, dynamic>> _results = const [];
   Map<String, dynamic>? _activeQuiz;
@@ -33,11 +37,21 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
   String? _error;
   Map<String, dynamic>? _shownResult;
   int _questionIndex = 0;
+  late final ConfettiController _celebrationController;
 
   @override
   void initState() {
     super.initState();
+    _celebrationController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
     _load();
+  }
+
+  @override
+  void dispose() {
+    _celebrationController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -142,11 +156,13 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       }
     }
     if (_isTeacherQuiz(quiz) && previous != null) {
+      StudentSoundService.instance.play(StudentSoundCue.navigation);
       setState(() => _shownResult = previous);
       return;
     }
     final questions = _quizQuestions(quiz);
     if (questions.isEmpty) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('لا توجد أسئلة صالحة في هذا الاختبار بعد.')),
       );
@@ -159,12 +175,14 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       _questionIndex = 0;
       _shownResult = null;
     });
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
   }
 
   Future<void> _submit() async {
     final quiz = _activeQuiz;
     if (quiz == null || _submitting) return;
     if (_answers.length != _questions.length) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('أجب عن جميع الأسئلة قبل إرسال الاختبار.')),
       );
@@ -245,6 +263,12 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         _submitting = false;
       });
       if (reward != null) {
+        if (reward.alreadyRewarded) {
+          StudentSoundService.instance.play(StudentSoundCue.navigation);
+        } else {
+          StudentSoundService.instance.play(StudentSoundCue.success);
+          if (score > 0) _celebrationController.play();
+        }
         final message = reward.alreadyRewarded
             ? 'تم حفظ النتيجة؛ لا توجد مكافأة إضافية لإعادة الاختبار.'
             : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة'
@@ -252,6 +276,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } on TeacherQuizAlreadySubmittedException catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       if (!mounted) return;
       setState(() {
         _results = [error.result, ..._results];
@@ -263,6 +288,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         _submitting = false;
       });
     } catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -282,6 +308,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
         appBar: AppBar(
           title: Text(_activeQuiz == null ? 'مركز الاختبارات' : _text(_activeQuiz!['title'])),
           actions: [
+            const StudentSoundToggle(),
             if (_activeQuiz != null)
               IconButton(
                 onPressed: () => setState(() {
@@ -294,42 +321,57 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
               ),
           ],
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? _ErrorState(message: _error!, onRetry: _load)
-                : _shownResult != null
-                    ? _QuizResultView(
-                        result: _shownResult!,
-                        onBack: () => setState(() => _shownResult = null),
-                      )
-                    : _activeQuiz != null
-                        ? _QuestionList(
-                            questions: _questions,
-                            answers: _answers,
-                             questionIndex: _questionIndex,
-                            submitting: _submitting,
-                            onAnswer: (id, value) => setState(() => _answers[id] = value),
-                             onPrevious: _questionIndex == 0
-                                 ? null
-                                 : () => setState(() => _questionIndex--),
-                             onNext: _questionIndex >= _questions.length - 1 ||
-                                     !_answers.containsKey(
-                                       _questionId(
-                                         _questions[_questionIndex],
-                                         _questionIndex,
-                                       ),
-                                     )
-                                 ? null
-                                 : () => setState(() => _questionIndex++),
-                            onSubmit: _submit,
-                          )
-                        : _QuizCatalog(
-                            quizzes: _quizzes,
-                            results: _results,
-                            onOpen: _openQuiz,
-                            isTeacherQuiz: _isTeacherQuiz,
-                          ),
+        body: Stack(
+          children: [
+            _buildBody(),
+            StudentCelebration(controller: _celebrationController),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
+    if (_shownResult != null) {
+      return StudentEntrance(
+        child: _QuizResultView(
+          result: _shownResult!,
+          onBack: () => setState(() => _shownResult = null),
+        ),
+      );
+    }
+    if (_activeQuiz != null) {
+      return _QuestionList(
+        questions: _questions,
+        answers: _answers,
+        questionIndex: _questionIndex,
+        submitting: _submitting,
+        onAnswer: (id, value) {
+          if (_answers[id] != value) {
+            StudentSoundService.instance.play(StudentSoundCue.answerSelected);
+          }
+          setState(() => _answers[id] = value);
+        },
+        onPrevious: _questionIndex == 0
+            ? null
+            : () => setState(() => _questionIndex--),
+        onNext: _questionIndex >= _questions.length - 1 ||
+                !_answers.containsKey(
+                  _questionId(_questions[_questionIndex], _questionIndex),
+                )
+            ? null
+            : () => setState(() => _questionIndex++),
+        onSubmit: _submit,
+      );
+    }
+    return StudentEntrance(
+      child: _QuizCatalog(
+        quizzes: _quizzes,
+        results: _results,
+        onOpen: _openQuiz,
+        isTeacherQuiz: _isTeacherQuiz,
       ),
     );
   }

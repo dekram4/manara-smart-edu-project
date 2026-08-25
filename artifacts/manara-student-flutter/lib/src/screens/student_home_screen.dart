@@ -1,6 +1,5 @@
 ﻿import 'dart:ui' show PointerDeviceKind;
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -11,6 +10,8 @@ import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
+import '../widgets/student_experience.dart';
+import '../services/student_sound_service.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
@@ -51,7 +52,6 @@ class StudentDashboardScreen extends StudentHomeScreen {
 
 class _StudentHomeScreenState extends State<StudentHomeScreen>
     with SingleTickerProviderStateMixin {
-  final _audioPlayer = AudioPlayer();
   final _pageController = PageController(viewportFraction: 0.86);
   late final AnimationController _ambientController;
   int _activePage = 0;
@@ -86,6 +86,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
   void _showReward(RewardResult result) {
     if (!mounted || (result.xp == 0 && result.gems == 0)) return;
+    StudentSoundService.instance.play(StudentSoundCue.success);
     final parts = <String>[];
     if (result.xp > 0) parts.add('+${result.xp} XP');
     if (result.gems > 0) parts.add('+${result.gems} جوهرة');
@@ -93,29 +94,25 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   }
 
   Future<void> _playWelcome() async {
-    try {
-      await _audioPlayer.play(
-        AssetSource('audio/manara-arabic-student-welcome.mp3'),
-      );
-    } catch (_) {}
+    StudentSoundService.instance.play(StudentSoundCue.welcome);
   }
 
   @override
   void dispose() {
-    _audioPlayer.dispose();
     _pageController.dispose();
     _ambientController.dispose();
     super.dispose();
   }
 
   Future<void> _signOut() async {
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     try {
       await widget.authService.client.auth.signOut();
     } catch (_) {}
     widget.authService.clearApiSession();
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(
+      StudentPageRoute<void>(
         builder: (_) => LoginScreen(
           authService: widget.authService,
           initializationError: null,
@@ -127,6 +124,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   }
 
   void _openModule(int index) {
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
     final modules = [
       StudentContentModule.lesson,
       StudentContentModule.games,
@@ -135,7 +133,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     if (index == 1) {
       Navigator.of(context)
           .push(
-        MaterialPageRoute<void>(
+        StudentPageRoute<void>(
           builder: (_) => StudentCinemaScreen(
             profile: widget.profile,
             authService: widget.authService,
@@ -150,7 +148,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
     if (index == 3) {
       Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        StudentPageRoute<void>(
           builder: (_) => StudentPersonalityScreen(
             profile: widget.profile,
             contentService: StudentContentService(widget.authService.client),
@@ -169,7 +167,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     if (index == 5) {
       Navigator.of(context)
           .push(
-        MaterialPageRoute<void>(
+        StudentPageRoute<void>(
           builder: (_) => StudentQuizScreen(
             profile: widget.profile,
             contentService: StudentContentService(
@@ -196,7 +194,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
     if (index == 8) {
       Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        StudentPageRoute<void>(
           builder: (_) => StudentChatScreen(
             profile: widget.profile,
             apiBaseUrl: widget.apiBaseUrl,
@@ -209,7 +207,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
     Navigator.of(context)
         .push(
-      MaterialPageRoute<void>(
+      StudentPageRoute<void>(
         builder: (_) => StudentContentScreen(
           profile: widget.profile,
           authService: widget.authService,
@@ -245,7 +243,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       );
       if (!mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        StudentPageRoute<void>(
           builder: (_) => StudentTutorScreen(
             selection: selection,
           ),
@@ -275,7 +273,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       ).fetchLessons(widget.profile, academicContext: widget.academicContext);
       if (!mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        StudentPageRoute<void>(
           builder: (_) => StudentProblemSolverScreen(
             lessons: lessons,
             apiBaseUrl: widget.apiBaseUrl,
@@ -310,6 +308,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: [
+          const StudentSoundToggle(),
           IconButton(
             onPressed: _signOut,
             tooltip: 'تسجيل الخروج',
@@ -340,11 +339,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: _ProgressCard(
                       stats: _gamification,
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => StudentProgressScreen(profile: widget.profile, stats: _gamification),
-                        ),
-                      ),
+                      onPressed: () {
+                        StudentSoundService.instance.play(StudentSoundCue.navigation);
+                        Navigator.of(context).push(
+                          StudentPageRoute<void>(
+                            builder: (_) => StudentProgressScreen(
+                              profile: widget.profile,
+                              stats: _gamification,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                   if (widget.academicContext != null) ...[

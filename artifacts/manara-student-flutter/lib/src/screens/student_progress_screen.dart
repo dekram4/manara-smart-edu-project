@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
+import '../widgets/student_experience.dart';
 
 class StudentProgressScreen extends StatelessWidget {
   const StudentProgressScreen({required this.profile, this.stats, super.key});
@@ -16,42 +17,57 @@ class StudentProgressScreen extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F8FF),
-        appBar: AppBar(title: const Text('تقدمي وإنجازاتي')),
+        appBar: AppBar(title: const Text('تقدمي وإنجازاتي'), actions: const [StudentSoundToggle()]),
         body: ListView(
           padding: const EdgeInsets.all(18),
           children: [
-            _StatsCard(stats: stats),
+            StudentEntrance(child: _StatsCard(stats: stats)),
             const SizedBox(height: 18),
-            const Text('الإنجازات المفتوحة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            const StudentEntrance(
+              delay: Duration(milliseconds: 80),
+              child: Text('الإنجازات المفتوحة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            ),
             const SizedBox(height: 10),
             if (stats.achievements.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(22),
-                  child: Text('لا توجد إنجازات بعد. أكمل درسًا أو اختبارًا لتبدأ رحلتك.', textAlign: TextAlign.center),
+              const StudentEntrance(
+                delay: Duration(milliseconds: 120),
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(22),
+                    child: Text('لا توجد إنجازات بعد. أكمل درسًا أو اختبارًا لتبدأ رحلتك.', textAlign: TextAlign.center),
+                  ),
                 ),
               )
             else
-              ...stats.achievements.map((item) => Card(
-                    child: ListTile(
-                      leading: Text(item.icon, style: const TextStyle(fontSize: 30)),
-                      title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      subtitle: Text(item.description),
+              ...stats.achievements.asMap().entries.map((entry) => StudentEntrance(
+                    delay: Duration(milliseconds: 120 + (entry.key * 40)),
+                    child: Card(
+                      child: ListTile(
+                        leading: Text(entry.value.icon, style: const TextStyle(fontSize: 30)),
+                        title: Text(entry.value.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                        subtitle: Text(entry.value.description),
+                      ),
                     ),
                   )),
             const SizedBox(height: 18),
-            const Text('ملخص التعلم', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            const StudentEntrance(
+              delay: Duration(milliseconds: 240),
+              child: Text('ملخص التعلم', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            ),
             const SizedBox(height: 10),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _SummaryRow(icon: Icons.quiz_rounded, label: 'الاختبارات المكتملة', value: '${stats.totalQuizzes}'),
-                    _SummaryRow(icon: Icons.menu_book_rounded, label: 'الدروس المكتملة', value: '${stats.totalLessons}'),
-                    _SummaryRow(icon: Icons.sports_esports_rounded, label: 'الألعاب المكتملة', value: '${stats.totalGames}'),
-                    _SummaryRow(icon: Icons.insights_rounded, label: 'متوسط الاختبارات', value: '${stats.averageScore}%'),
-                  ],
+            StudentEntrance(
+              delay: const Duration(milliseconds: 280),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _SummaryRow(icon: Icons.quiz_rounded, label: 'الاختبارات المكتملة', value: '${stats.totalQuizzes}'),
+                      _SummaryRow(icon: Icons.menu_book_rounded, label: 'الدروس المكتملة', value: '${stats.totalLessons}'),
+                      _SummaryRow(icon: Icons.sports_esports_rounded, label: 'الألعاب المكتملة', value: '${stats.totalGames}'),
+                      _SummaryRow(icon: Icons.insights_rounded, label: 'متوسط الاختبارات', value: '${stats.averageScore}%'),
+                    ],
+                  ),
                 ),
               ),
             ),
