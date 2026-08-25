@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
+import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
@@ -26,12 +27,18 @@ class StudentCinemaScreen extends StatefulWidget {
 }
 
 class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
+  static const _gemsPerVideo = 2;
+
   late final StudentContentService _contentService;
   final _pageController = PageController(viewportFraction: 0.9);
   List<LessonVideo> _videos = const [];
+  StudentGamification _gamification = const StudentGamification();
   int _activeIndex = 0;
   bool _loading = true;
+  bool _openingVideo = false;
   String? _error;
+
+  int get _unlockedVideoCount => _gamification.gems ~/ _gemsPerVideo;
 
   @override
   void initState() {
@@ -55,13 +62,17 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       _error = null;
     });
     try {
-      final videos = await _contentService.fetchCinemaVideos(
-        widget.profile,
-        academicContext: widget.academicContext,
-      );
+      final values = await Future.wait([
+        _contentService.fetchCinemaVideos(
+          widget.profile,
+          academicContext: widget.academicContext,
+        ),
+        _contentService.fetchGamification(widget.profile),
+      ]);
       if (!mounted) return;
       setState(() {
-        _videos = videos;
+        _videos = values[0] as List<LessonVideo>;
+        _gamification = values[1] as StudentGamification;
         _activeIndex = 0;
         _loading = false;
       });
@@ -74,7 +85,37 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     }
   }
 
-  void _openVideo(LessonVideo video) {
+  Future<void> _openVideo(LessonVideo video, int index) async {
+    if (_openingVideo) return;
+    if (index >= _unlockedVideoCount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('هذا الفيديو مقفول. تحتاج جوهرتين لكل فيديو جديد.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _openingVideo = true);
+    try {
+      final reward = await _contentService.rewardActivity(
+        profile: widget.profile,
+        activityType: 'video',
+        activityId: video.id,
+      );
+      if (!mounted) return;
+      setState(() => _gamification = reward.snapshot);
+      if (!reward.alreadyRewarded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('أحسنت! +5 XP وجوهرة واحدة مقابل هذا الفيديو.')),
+        );
+      }
+    } catch (_) {
+      // A temporary progress-sync issue must not block an already unlocked video.
+    } finally {
+      if (mounted) setState(() => _openingVideo = false);
+    }
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _CinemaPlayerScreen(
@@ -140,6 +181,25 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
           textAlign: TextAlign.right,
           style: TextStyle(color: Color(0xFFB3C8DE), fontWeight: FontWeight.w700),
         ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1D4ED8),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Text(
+            '💎 الجواهر: ${_gamification.gems}  |  المفتوح: $_unlockedVideoCount من ${_videos.length}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'كل فيديو جديد يحتاج جوهرتين، ويمنحك عند تشغيله لأول مرة 5 XP وجوهرة واحدة.',
+          textAlign: TextAlign.right,
+          style: TextStyle(color: Color(0xFFB3C8DE), fontSize: 12, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 18),
         SizedBox(
           height: 310,
@@ -149,11 +209,13 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             onPageChanged: (index) => setState(() => _activeIndex = index),
             itemBuilder: (context, index) {
               final video = _videos[index];
+              final locked = index >= _unlockedVideoCount;
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 5),
                 child: _CinemaVideoCard(
                   video: video,
-                  onPressed: () => _openVideo(video),
+                  locked: locked,
+                  onPressed: () => _openVideo(video, index),
                 ),
               );
             },
@@ -179,16 +241,25 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        _CinemaDetails(video: activeVideo, onPressed: () => _openVideo(activeVideo)),
+        _CinemaDetails(
+          video: activeVideo,
+          locked: _activeIndex >= _unlockedVideoCount,
+          onPressed: () => _openVideo(activeVideo, _activeIndex),
+        ),
       ],
     );
   }
 }
 
 class _CinemaVideoCard extends StatelessWidget {
-  const _CinemaVideoCard({required this.video, required this.onPressed});
+  const _CinemaVideoCard({
+    required this.video,
+    required this.locked,
+    required this.onPressed,
+  });
 
   final LessonVideo video;
+  final bool locked;
   final VoidCallback onPressed;
 
   @override
@@ -212,7 +283,9 @@ class _CinemaVideoCard extends StatelessWidget {
                     color: Color(0xFF5EEAD4),
                     size: 46,
                   ),
-                  _VideoTypeBadge(sourceType: video.sourceType),
+                  locked
+                      ? const Icon(Icons.lock_rounded, color: Color(0xFFFFD166), size: 32)
+                      : _VideoTypeBadge(sourceType: video.sourceType),
                 ],
               ),
               const Spacer(),
@@ -229,7 +302,9 @@ class _CinemaVideoCard extends StatelessWidget {
               ),
               const SizedBox(height: 7),
               Text(
-                video.description ?? 'اضغط للمشاهدة داخل التطبيق',
+                locked
+                    ? 'تحتاج جوهرتين لكل فيديو جديد لفتحه.'
+                    : video.description ?? 'اضغط للمشاهدة داخل التطبيق',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
@@ -242,11 +317,11 @@ class _CinemaVideoCard extends StatelessWidget {
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: onPressed,
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('شاهد الآن'),
+                icon: Icon(locked ? Icons.lock_rounded : Icons.play_arrow_rounded),
+                label: Text(locked ? 'مقفول — تحتاج جوهرتين' : 'شاهد الآن'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF5EEAD4),
-                  foregroundColor: const Color(0xFF071425),
+                  backgroundColor: locked ? const Color(0xFF4B5563) : const Color(0xFF5EEAD4),
+                  foregroundColor: locked ? Colors.white : const Color(0xFF071425),
                   textStyle: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -259,9 +334,14 @@ class _CinemaVideoCard extends StatelessWidget {
 }
 
 class _CinemaDetails extends StatelessWidget {
-  const _CinemaDetails({required this.video, required this.onPressed});
+  const _CinemaDetails({
+    required this.video,
+    required this.locked,
+    required this.onPressed,
+  });
 
   final LessonVideo video;
+  final bool locked;
   final VoidCallback onPressed;
 
   @override
@@ -291,7 +371,7 @@ class _CinemaDetails extends StatelessWidget {
           const SizedBox(width: 12),
           IconButton(
             onPressed: onPressed,
-            tooltip: 'فتح المشغل',
+            tooltip: locked ? 'يتطلب جوهرتين' : 'فتح المشغل',
             icon: const Icon(
               Icons.fullscreen_rounded,
               color: Color(0xFF5EEAD4),

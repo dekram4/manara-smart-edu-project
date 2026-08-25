@@ -721,22 +721,18 @@ class _VideoCarouselState extends State<_VideoCarousel> {
 
   Future<void> _rewardVideo(LessonVideo video) async {
     try {
-      final videoReward = await widget.contentService.rewardActivity(
-        profile: widget.profile,
-        activityType: 'video',
-        activityId: video.id,
-      );
       final lessonReward = await widget.contentService.rewardActivity(
         profile: widget.profile,
         activityType: 'lesson',
         activityId: widget.lessonId,
       );
       if (!mounted) return;
-      final xp = videoReward.xp + lessonReward.xp;
-      final gems = videoReward.gems + lessonReward.gems;
-      final duplicate = videoReward.alreadyRewarded && lessonReward.alreadyRewarded;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(duplicate ? 'تم حفظ إكمالك؛ لا توجد مكافأة إضافية.' : 'أحسنت! +$xp XP و +$gems جوهرة'),
+        content: Text(
+          lessonReward.alreadyRewarded
+              ? 'تم حفظ إكمالك للدرس؛ لا توجد مكافأة إضافية.'
+              : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام الدرس.',
+        ),
       ));
     } catch (_) {
       // Playback remains usable if the network is temporarily unavailable.

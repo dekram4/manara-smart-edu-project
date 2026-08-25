@@ -133,7 +133,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     ];
 
     if (index == 1) {
-      Navigator.of(context).push(
+      Navigator.of(context)
+          .push(
         MaterialPageRoute<void>(
           builder: (_) => StudentCinemaScreen(
             profile: widget.profile,
@@ -142,7 +143,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             academicContext: widget.academicContext,
           ),
         ),
-      );
+      )
+          .then((_) => _loadGamification());
       return;
     }
 
@@ -165,7 +167,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     }
 
     if (index == 5) {
-      Navigator.of(context).push(
+      Navigator.of(context)
+          .push(
         MaterialPageRoute<void>(
           builder: (_) => StudentQuizScreen(
             profile: widget.profile,
@@ -176,7 +179,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             academicContext: widget.academicContext,
           ),
         ),
-      );
+      )
+          .then((_) => _loadGamification());
       return;
     }
 
@@ -203,7 +207,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       return;
     }
 
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push(
       MaterialPageRoute<void>(
         builder: (_) => StudentContentScreen(
           profile: widget.profile,
@@ -215,7 +220,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           initialModule: modules[index == 0 ? 0 : index - 1],
         ),
       ),
-    );
+    )
+        .then((_) => _loadGamification());
   }
 
   Future<void> _openTutor({bool liveMeeting = false}) async {
@@ -245,6 +251,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           ),
         ),
       );
+      if (mounted) _loadGamification();
     } catch (_) {
       if (!mounted) return;
       messenger.showSnackBar(

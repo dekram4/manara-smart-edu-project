@@ -71,7 +71,9 @@ class StudentGamification {
     return StudentGamification(
       xp: _number(map['xp']),
       gems: _number(map['gems']),
-      level: _number(map['level']),
+      // The web dashboard derives the level from XP. Retain that invariant
+      // even when an older saved snapshot has a stale level field.
+      level: _number(map['xp']) ~/ 100,
       streak: _number(map['streak']),
       totalQuizzes: _number(map['totalQuizzes']),
       totalLessons: _number(map['totalLessons']),

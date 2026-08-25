@@ -77,14 +77,20 @@ class StudentContentService {
     var lessons = current.totalLessons;
     var games = current.totalGames;
     var average = current.averageScore;
+    var perfectQuiz = false;
+    int? quizPercentage;
     if (activityType == 'quiz') {
       final score = ((correctAnswers ?? 0).clamp(0, quizTotal ?? 0)).toInt();
       xp = score * 5;
       gems = score;
       quizzes++;
-      average = quizTotal == null || quizTotal <= 0
-          ? current.averageScore
-          : ((current.averageScore * (quizzes - 1) + (score * 100 ~/ quizTotal)) ~/ quizzes);
+      if (quizTotal != null && quizTotal > 0) {
+        final scorePercentage = score * 100 ~/ quizTotal;
+        quizPercentage = scorePercentage;
+        perfectQuiz = scorePercentage == 100;
+        average =
+            ((current.averageScore * (quizzes - 1) + scorePercentage) ~/ quizzes);
+      }
     } else if (activityType == 'lesson') {
       xp = 25;
       gems = 5;
@@ -109,6 +115,8 @@ class StudentContentService {
         totalGames: games,
       ),
       activityType,
+      perfectQuiz: perfectQuiz,
+      activityId: activityId,
     );
     final knownIds = current.achievements.map((item) => item.id).toSet();
     final newAchievements = unlocked.where((item) => !knownIds.contains(item.id)).toList();
@@ -119,6 +127,12 @@ class StudentContentService {
       totalLessons: lessons,
       totalGames: games,
       averageScore: average,
+      lastQuizAt: activityType == 'quiz'
+          ? DateTime.now().toIso8601String()
+          : current.lastQuizAt,
+      lastQuizPercentage: activityType == 'quiz'
+          ? quizPercentage
+          : current.lastQuizPercentage,
       achievements: [...current.achievements, ...newAchievements],
       completedActivities: [...current.completedActivities, key],
     );
@@ -177,17 +191,30 @@ class StudentContentService {
     return RewardResult(xp: bonus, gems: 0, alreadyRewarded: false, levelUp: next.level > current.level, newAchievements: streakAchievements, snapshot: next);
   }
 
-  List<StudentAchievement> _achievementsFor(StudentGamification stats, String type) {
+  List<StudentAchievement> _achievementsFor(
+    StudentGamification stats,
+    String type, {
+    bool perfectQuiz = false,
+    String activityId = '',
+  }) {
     final result = <StudentAchievement>[];
     void add(String id, String title, String description, String icon) {
       result.add(StudentAchievement(id: id, title: title, description: description, icon: icon));
     }
     if (type == 'quiz' && stats.totalQuizzes == 1) add('first_quiz', 'أول اختبار', 'أكمل أول اختبار', '🎯');
     if (type == 'quiz' && stats.totalQuizzes >= 10) add('quiz_warrior', 'مقاتل الاختبارات', 'أكمل 10 اختبارات', '⚔️');
+    if (type == 'quiz' && perfectQuiz) add('perfect_quiz', 'نتيجة مثالية', 'حصل على 100% في اختبار', '⭐');
     if (type == 'lesson' && stats.totalLessons == 1) add('first_lesson', 'أول درس', 'أكمل أول درس', '📚');
     if (type == 'lesson' && stats.totalLessons >= 10) add('lesson_master', 'سيد الدروس', 'أكمل 10 دروس', '🏆');
     if (type == 'problem') add('math_solver', 'حلال المسائل', 'حل أول مسألة', '🔢');
     if (type == 'game' && stats.totalGames >= 5) add('game_master', 'سيد الألعاب', 'العب 5 ألعاب', '🎮');
+    final normalizedActivity = activityId.toLowerCase();
+    if (type == 'game' && normalizedActivity.contains('memory')) {
+      add('memory_master', 'سيد الذاكرة', 'انتصر في لعبة الذاكرة', '🧠');
+    }
+    if (type == 'game' && normalizedActivity.contains('speed')) {
+      add('speed_demon', 'سريع كالبرق', 'فوز في الاختبار السريع', '⚡');
+    }
     if (stats.level >= 5) add('level_5', 'المستوى 5', 'اوصل إلى المستوى 5', '💪');
     if (stats.gems >= 50) add('gem_collector', 'جامع الجواهر', 'اجمع 50 جوهرة', '💎');
     return result;
