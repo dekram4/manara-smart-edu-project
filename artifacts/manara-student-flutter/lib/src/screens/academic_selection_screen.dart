@@ -376,13 +376,16 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                       ),
                     ),
                     const SizedBox(height: 22),
-                    Card(
-                      elevation: 18,
-                      shadowColor: Colors.black54,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Padding(
+                    StudentAnimatedCard(
+                      delay: const Duration(milliseconds: 160),
+                      child: StudentPressScale(
+                        child: Card(
+                          elevation: 18,
+                          shadowColor: Colors.black54,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -487,18 +490,22 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                             ],
                           ],
                         ),
+                          ),
+                        ),
                       ),
-                    ).animate().fadeIn(delay: 120.ms).slideY(begin: 0.1),
+                    ),
                     if (_selection != null) ...[
                       const SizedBox(height: 16),
-                      Text(
-                        '${_selection!.label}\nمعرّف الدرس: ${_selection!.lessonId}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          height: 1.5,
+                      StudentAnimatedCard(
+                        child: Text(
+                          '${_selection!.label}\nمعرّف الدرس: ${_selection!.lessonId}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ],
@@ -532,28 +539,30 @@ class _AcademicDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<String>(
-        value: value,
-        isExpanded: true,
-        onChanged: onChanged,
-        hint: Text(options.isEmpty ? 'لا توجد خيارات متاحة' : 'اختر $label'),
-        icon: const Icon(Icons.expand_more_rounded),
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: const Color(0xFF0B8693)),
-        ),
-        items: options
-            .map(
-              (option) => DropdownMenuItem<String>(
-                value: option,
-                child: Text(
-                  option,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+      child: StudentPressScale(
+        child: DropdownButtonFormField<String>(
+          value: value,
+          isExpanded: true,
+          onChanged: onChanged,
+          hint: Text(options.isEmpty ? 'لا توجد خيارات متاحة' : 'اختر $label'),
+          icon: const Icon(Icons.expand_more_rounded),
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon, color: const Color(0xFF0B8693)),
+          ),
+          items: options
+              .map(
+                (option) => DropdownMenuItem<String>(
+                  value: option,
+                  child: Text(
+                    option,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
-              ),
-            )
-            .toList(),
+              )
+              .toList(),
+        ),
       ),
     );
   }
@@ -574,28 +583,30 @@ class _LessonDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<String>(
-        value: value,
-        isExpanded: true,
-        onChanged: onChanged,
-        hint: Text(lessons.isEmpty ? 'لا توجد دروس في هذه الوحدة' : 'اختر الدرس'),
-        icon: const Icon(Icons.expand_more_rounded),
-        decoration: const InputDecoration(
-          labelText: 'الدرس الحالي',
-          prefixIcon: Icon(Icons.play_lesson_rounded, color: Color(0xFF0B8693)),
-        ),
-        items: lessons
-            .map(
-              (lesson) => DropdownMenuItem<String>(
-                value: lesson.id,
-                child: Text(
-                  lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+      child: StudentPressScale(
+        child: DropdownButtonFormField<String>(
+          value: value,
+          isExpanded: true,
+          onChanged: onChanged,
+          hint: Text(lessons.isEmpty ? 'لا توجد دروس في هذه الوحدة' : 'اختر الدرس'),
+          icon: const Icon(Icons.expand_more_rounded),
+          decoration: const InputDecoration(
+            labelText: 'الدرس الحالي',
+            prefixIcon: Icon(Icons.play_lesson_rounded, color: Color(0xFF0B8693)),
+          ),
+          items: lessons
+              .map(
+                (lesson) => DropdownMenuItem<String>(
+                  value: lesson.id,
+                  child: Text(
+                    lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
-              ),
-            )
-            .toList(),
+              )
+              .toList(),
+        ),
       ),
     );
   }
