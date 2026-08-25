@@ -126,14 +126,24 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       _answer = null;
     });
     try {
-      final response = await http.post(
-        endpoint,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'lessonId': lesson.id, 'question': question}),
-      ).timeout(const Duration(seconds: 25));
+      late http.Response response;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        response = await http.post(
+          endpoint,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'lessonId': lesson.id, 'question': question}),
+        ).timeout(const Duration(seconds: 25));
+        final transientFailure = response.statusCode == 408 ||
+            response.statusCode == 429 ||
+            response.statusCode == 500 ||
+            response.statusCode == 502 ||
+            response.statusCode == 503;
+        if (!transientFailure || attempt == 1) break;
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+      }
        Object? payload;
        try {
          payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);

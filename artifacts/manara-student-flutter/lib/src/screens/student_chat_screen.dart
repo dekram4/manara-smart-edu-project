@@ -30,6 +30,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   String? _error;
   bool _loading = true;
   bool _sending = false;
+  bool _chatEnabled = true;
 
   String? get _token {
     final token = widget.authService.apiSessionToken?.trim();
@@ -67,10 +68,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 
   Future<void> _refresh() async {
-    if (!widget.profile.canAccessChat) {
+    if (!widget.profile.canAccessChat || !_chatEnabled) {
       setState(() {
         _loading = false;
-        _error = 'الدردشة غير مفعلة لحسابك.';
+        _error = widget.profile.canAccessChat ? null : 'الدردشة غير مفعلة لحسابك.';
       });
       return;
     }
@@ -116,10 +117,25 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
   }
 
+  Future<void> _toggleChat() async {
+    if (!widget.profile.canAccessChat || _sending) return;
+    final enabled = !_chatEnabled;
+    setState(() {
+      _chatEnabled = enabled;
+      _error = null;
+      if (!enabled) {
+        _messages = const [];
+        _peers = const [];
+        _recipient = 'all';
+      }
+    });
+    if (enabled) await _refresh();
+  }
+
   Future<void> _send() async {
     final endpoint = _endpoint('messages');
     final message = _messageController.text.trim();
-    if (message.isEmpty || endpoint == null || _token == null || _sending) return;
+    if (!_chatEnabled || message.isEmpty || endpoint == null || _token == null || _sending) return;
     setState(() {
       _sending = true;
       _error = null;
@@ -156,12 +172,43 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         backgroundColor: const Color(0xFFF4F8FF),
         appBar: AppBar(
           title: const Text('دردشة منارة'),
-          actions: [IconButton(onPressed: _loading ? null : _refresh, icon: const Icon(Icons.refresh_rounded))],
+          actions: [
+            TextButton.icon(
+              onPressed: widget.profile.canAccessChat && !_sending ? _toggleChat : null,
+              icon: Icon(
+                _chatEnabled
+                    ? Icons.pause_circle_outline
+                    : Icons.play_circle_outline,
+              ),
+              label: Text(_chatEnabled ? 'مفعلة' : 'متوقفة'),
+            ),
+            IconButton(
+              tooltip: 'تحديث الرسائل',
+              onPressed: _loading || !_chatEnabled ? null : _refresh,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('إغلاق'),
+            ),
+          ],
         ),
-        body: disabled || _token == null
-            ? _ChatStatus(icon: Icons.lock_outline_rounded, message: disabled
-                ? 'الدردشة غير مفعلة لحسابك.'
-                : 'سجّل الدخول مرة أخرى لتفعيل الدردشة الآمنة.')
+        body: disabled
+            ? const _ChatStatus(
+                icon: Icons.lock_outline_rounded,
+                message: 'الدردشة غير مفعلة لحسابك.',
+              )
+            : !_chatEnabled
+                ? const _ChatStatus(
+                    icon: Icons.pause_circle_outline_rounded,
+                    message: 'الدردشة في استراحة قصيرة',
+                  )
+                : _token == null
+                    ? _ChatStatus(
+                        icon: Icons.lock_outline_rounded,
+                        message: widget.authService.apiSessionError ??
+                            'تعذر التحقق من جلسة الطالب. تحقق من الاتصال ثم أعد المحاولة.',
+                      )
             : Column(
                 children: [
                   if (_error != null) _ChatError(text: _error!),
