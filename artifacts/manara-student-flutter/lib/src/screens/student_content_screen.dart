@@ -996,7 +996,7 @@ class _VideoCard extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: onPressed,
+                onPressed: completed ? null : onPressed,
                 icon: Icon(
                   completed
                       ? Icons.verified_rounded
@@ -1006,6 +1006,8 @@ class _VideoCard extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF0B8693),
+                  disabledBackgroundColor: Colors.grey.shade500,
+                  disabledForegroundColor: Colors.white,
                   textStyle: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -1080,33 +1082,40 @@ class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
               ),
             ),
           ),
-          if (widget.onCompleted != null)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: FilledButton.icon(
-                onPressed: _completed || _saving ? null : _completeLesson,
-                icon: Icon(
-                  _completed
-                      ? Icons.verified_rounded
-                      : Icons.check_circle_rounded,
-                ),
-                label: Text(
-                  _completed
-                      ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا'
-                      : _saving
-                          ? 'جارٍ حفظ إتمام الدرس...'
-                          : 'أنهيت مشاهدة الدرس',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _completed
-                      ? Colors.grey.shade500
-                      : const Color(0xFF0B8693),
-                  foregroundColor: Colors.white,
+        ],
+      ),
+      bottomNavigationBar: widget.onCompleted == null
+          ? null
+          : SafeArea(
+              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _completed || _saving ? null : _completeLesson,
+                  icon: Icon(
+                    _completed
+                        ? Icons.verified_rounded
+                        : Icons.check_circle_rounded,
+                  ),
+                  label: Text(
+                    _completed
+                        ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا'
+                        : _saving
+                            ? 'جارٍ حفظ إتمام الدرس...'
+                            : 'أنهيت مشاهدة الدرس',
+                  ),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(54),
+                    backgroundColor: _completed
+                        ? Colors.grey.shade500
+                        : const Color(0xFF0B8693),
+                    disabledBackgroundColor: Colors.grey.shade500,
+                    disabledForegroundColor: Colors.white,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ),
             ),
-        ],
-      ),
     );
   }
 }
