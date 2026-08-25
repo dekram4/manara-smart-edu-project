@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/student_content.dart';
 import '../widgets/student_video_player.dart';
@@ -29,6 +30,30 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
   bool get _isLiveMeeting =>
       widget.selection.type == TutorExperienceType.liveMeeting;
+
+  bool get _isBlockedMeetingEmbed {
+    if (!_isLiveMeeting || _avatarUrl == null) return false;
+    final host = Uri.tryParse(_avatarUrl!)?.host.toLowerCase() ?? '';
+    return host == 'meet.google.com' ||
+        host == 'zoom.us' ||
+        host.endsWith('.zoom.us') ||
+        host == 'teams.microsoft.com' ||
+        host.endsWith('.teams.microsoft.com') ||
+        host == 'webex.com' ||
+        host.endsWith('.webex.com');
+  }
+
+  Future<void> _joinMeeting() async {
+    final rawUrl = _avatarUrl;
+    if (rawUrl == null) return;
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر فتح رابط الاجتماع. حاول نسخ الرابط أو فتحه من جهاز آخر.')),
+      );
+    }
+  }
 
   void _reload() {
     if (_avatarUrl == null) return;
@@ -126,6 +151,10 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
       );
     }
 
+    if (_isBlockedMeetingEmbed) {
+      return _BlockedMeetingCard(onJoin: _joinMeeting);
+    }
+
     return Column(
       children: [
         if (!widget.fullscreen)
@@ -161,38 +190,113 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
             ),
           ),
         Expanded(
-          child: Container(
-            margin: EdgeInsets.fromLTRB(
-              widget.fullscreen ? 0 : 14,
-              0,
-              widget.fullscreen ? 0 : 14,
-              widget.fullscreen ? 0 : 18,
-            ),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: const Color(0xFF101D33),
-              borderRadius: BorderRadius.circular(widget.fullscreen ? 0 : 24),
-              border: widget.fullscreen
-                  ? null
-                  : Border.all(color: const Color(0xFF5B3B87)),
-            ),
-            child: StudentVideoPlayer(
-              // Use the same inline-embed widget as “شرح الدرس”. It handles
-              // YouTube conversion and WebView embedding consistently across
-              // both student cards.
-              key: ValueKey('${_avatarUrl!}:$_embedRevision'),
-              video: LessonVideo(
-                id: 'tutor-${_avatarLesson?.id ?? 'experience'}',
-                url: _avatarUrl!,
-                sourceType: VideoSourceType.embed,
-                title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  margin: EdgeInsets.fromLTRB(
+                    widget.fullscreen ? 0 : 14,
+                    0,
+                    widget.fullscreen ? 0 : 14,
+                    0,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101D33),
+                    borderRadius: BorderRadius.circular(widget.fullscreen ? 0 : 24),
+                    border: widget.fullscreen
+                        ? null
+                        : Border.all(color: const Color(0xFF5B3B87)),
+                  ),
+                  child: StudentVideoPlayer(
+                    key: ValueKey('${_avatarUrl!}:$_embedRevision'),
+                    video: LessonVideo(
+                      id: 'tutor-${_avatarLesson?.id ?? 'experience'}',
+                      url: _avatarUrl!,
+                      sourceType: VideoSourceType.embed,
+                      title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
+                    ),
+                    autoPlay: false,
+                    allowInteractivePermissions: true,
+                  ),
+                ),
               ),
-              autoPlay: false,
-              allowInteractivePermissions: true,
-            ),
+              if (_isLiveMeeting)
+                Container(
+                  margin: EdgeInsets.fromLTRB(
+                    widget.fullscreen ? 0 : 14,
+                    10,
+                    widget.fullscreen ? 0 : 14,
+                    widget.fullscreen ? 0 : 18,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  color: const Color(0xFF0B1628),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'استخدم زر الاتصال إذا لم يعمل الاجتماع داخل الصفحة.',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(color: Color(0xFFC8D5E5), fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton(
+                        onPressed: _joinMeeting,
+                        child: const Text('اتصال بالاجتماع'),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BlockedMeetingCard extends StatelessWidget {
+  const _BlockedMeetingCard({required this.onJoin});
+
+  final VoidCallback onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Card(
+          color: const Color(0xFF101D33),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.videocam_rounded, color: Color(0xFFFB7185), size: 58),
+                const SizedBox(height: 14),
+                const Text(
+                  'الاجتماع جاهز للانضمام',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'هذا النوع من الاجتماعات يمنع التشغيل داخل إطار التطبيق. افتحه في نافذة كاملة ليعمل الصوت والكاميرا بشكل صحيح.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFFC8D5E5), height: 1.6, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: onJoin,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('الانضمام إلى الاجتماع'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
