@@ -89,9 +89,15 @@ export async function findStudentById(id: string): Promise<StudentActor | null> 
   const safeId = text(id);
   if (!safeId) return null;
   const rows = await readStudents(`id=eq.${encodeURIComponent(safeId)}`);
-  const direct = rows.map(fromRow).find((student): student is StudentActor =>
-    Boolean(student && student.id === safeId),
-  );
+  // Flutter's profile intentionally uses the stable table row id. Some legacy
+  // records also have a different id inside their JSON data, which becomes the
+  // canonical actor id after lookup. Either identifier must resolve this row.
+  const direct = rows.map((row) => {
+    const student = fromRow(row);
+    return student && (text(row.id) === safeId || student.id === safeId)
+      ? student
+      : null;
+  }).find((student): student is StudentActor => Boolean(student));
   if (direct) return direct;
   const dataRows = await readStudents(`data->>id=eq.${encodeURIComponent(safeId)}`);
   return dataRows.map(fromRow).find((student): student is StudentActor =>

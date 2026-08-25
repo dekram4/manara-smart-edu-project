@@ -4,18 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/student_profile.dart';
+import '../services/student_auth_service.dart';
 
 class StudentChatScreen extends StatefulWidget {
   const StudentChatScreen({
     required this.profile,
     required this.apiBaseUrl,
-    required this.studentSessionToken,
+    required this.authService,
     super.key,
   });
 
   final StudentProfile profile;
   final String apiBaseUrl;
-  final String? studentSessionToken;
+  final StudentAuthService authService;
 
   @override
   State<StudentChatScreen> createState() => _StudentChatScreenState();
@@ -31,7 +32,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   bool _sending = false;
 
   String? get _token {
-    final token = widget.studentSessionToken?.trim();
+    final token = widget.authService.apiSessionToken?.trim();
     return token == null || token.isEmpty ? null : token;
   }
 
@@ -73,7 +74,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       });
       return;
     }
-    if (_token == null || _endpoint('messages') == null) {
+    final token = await widget.authService.ensureApiSession();
+    if (token == null || _endpoint('messages') == null) {
       setState(() {
         _loading = false;
         _error = 'تعذر التحقق من جلسة الطالب. سجّل الدخول مرة أخرى.';

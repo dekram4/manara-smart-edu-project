@@ -84,6 +84,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     try {
       await widget.authService.client.auth.signOut();
     } catch (_) {}
+    widget.authService.clearApiSession();
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
@@ -167,7 +168,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           builder: (_) => StudentChatScreen(
             profile: widget.profile,
             apiBaseUrl: widget.apiBaseUrl,
-            studentSessionToken: widget.authService.apiSessionToken,
+            authService: widget.authService,
           ),
         ),
       );
@@ -248,7 +249,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               widget.authService.client,
               baseUrl: widget.apiBaseUrl,
             ),
-            studentSessionToken: widget.authService.apiSessionToken,
+            authService: widget.authService,
             academicContext: widget.academicContext,
           ),
         ),

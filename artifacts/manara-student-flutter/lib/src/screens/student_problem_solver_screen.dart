@@ -8,6 +8,7 @@ import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
+import '../services/student_auth_service.dart';
 
 class StudentProblemSolverScreen extends StatefulWidget {
   const StudentProblemSolverScreen({
@@ -15,7 +16,7 @@ class StudentProblemSolverScreen extends StatefulWidget {
     required this.apiBaseUrl,
     required this.profile,
     required this.contentService,
-    required this.studentSessionToken,
+    required this.authService,
     this.academicContext,
     super.key,
   });
@@ -24,7 +25,7 @@ class StudentProblemSolverScreen extends StatefulWidget {
   final String apiBaseUrl;
   final StudentProfile profile;
   final StudentContentService contentService;
-  final String? studentSessionToken;
+  final StudentAuthService authService;
   final AcademicContext? academicContext;
 
   @override
@@ -68,7 +69,12 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   void initState() {
     super.initState();
     final supported = _supportedLessons;
-    _selectedLesson = supported.isEmpty ? null : supported.first;
+    final activeLessonId = widget.academicContext?.selectedLesson.id;
+    final activeLessons =
+        supported.where((lesson) => lesson.id == activeLessonId).toList();
+    _selectedLesson = activeLessons.isNotEmpty
+        ? activeLessons.first
+        : (supported.isEmpty ? null : supported.first);
   }
 
   @override
@@ -106,7 +112,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       setState(() => _error = 'لم يتم إعداد اتصال خدمة المساعد في هذا التطبيق.');
       return;
     }
-    final token = widget.studentSessionToken?.trim();
+    final token = await widget.authService.ensureApiSession();
     if (token == null || token.isEmpty) {
       setState(() => _error = 'انتهت جلسة الطالب الآمنة. سجّل الدخول مرة أخرى للمتابعة.');
       return;
@@ -172,27 +178,6 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                     style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 18),
-                  DropdownButtonFormField<LessonContent>(
-                    value: _selectedLesson,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'اختر الدرس',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: supported
-                        .map(
-                          (lesson) => DropdownMenuItem(
-                            value: lesson,
-                            child: Text(
-                              lesson.lessonName.isEmpty ? 'درس منارة' : lesson.lessonName,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _sending ? null : (lesson) => setState(() => _selectedLesson = lesson),
-                  ),
-                  const SizedBox(height: 14),
                   TextField(
                     controller: _questionController,
                     enabled: !_sending,

@@ -21,7 +21,11 @@ function activeStudent(res: any): StudentActor {
 }
 
 function canUseChat(student: StudentActor): boolean {
-  return student.canAccessChat && Boolean(student.grade) && Boolean(student.teacherId);
+  // Some existing student records have not yet been assigned a teacher.
+  // They can still use the grade-scoped room with other unassigned students;
+  // `findStudentsInScope` and message visibility both require the same empty
+  // teacher scope, so this does not merge classrooms.
+  return student.canAccessChat && Boolean(student.grade);
 }
 
 async function readMessages(): Promise<Array<Record<string, unknown>>> {

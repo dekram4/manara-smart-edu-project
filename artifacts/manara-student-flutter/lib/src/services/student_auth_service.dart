@@ -23,6 +23,9 @@ class StudentAuthService {
   final SupabaseClient client;
   final String apiBaseUrl;
   String? _apiSessionToken;
+  String? _sessionUsername;
+  String? _sessionPassword;
+  String? _sessionStudentId;
 
   /// Never persist this token. It lives only for the signed-in app session.
   String? get apiSessionToken => _apiSessionToken;
@@ -49,18 +52,10 @@ class StudentAuthService {
         if (!profile.isStudent) {
           throw const StudentAuthException(studentOnlyMessage);
         }
-        try {
-          await _createApiSession(
-            username: cleanUsername,
-            password: password,
-            studentId: profile.id,
-          );
-        } catch (_) {
-          // Supabase has already authenticated this student. A temporary API
-          // outage must not lock them out of lessons and assessments; only the
-          // server-protected chat and Gemini tools stay unavailable.
-          _apiSessionToken = null;
-        }
+        _sessionUsername = cleanUsername;
+        _sessionPassword = password;
+        _sessionStudentId = profile.id;
+        await ensureApiSession();
         return profile;
       }
 
@@ -78,6 +73,35 @@ class StudentAuthService {
     } catch (error) {
       throw StudentAuthException('حدث خطأ أثناء تسجيل الدخول: $error');
     }
+  }
+
+  /// Re-establishes the short-lived API session after a temporary local-server
+  /// or network interruption. Credentials stay in memory only for this app run.
+  Future<String?> ensureApiSession() async {
+    final existing = _apiSessionToken?.trim();
+    if (existing != null && existing.isNotEmpty) return existing;
+    final username = _sessionUsername;
+    final password = _sessionPassword;
+    final studentId = _sessionStudentId;
+    if (username == null || password == null || studentId == null) return null;
+    try {
+      await _createApiSession(
+        username: username,
+        password: password,
+        studentId: studentId,
+      );
+      return _apiSessionToken;
+    } catch (_) {
+      _apiSessionToken = null;
+      return null;
+    }
+  }
+
+  void clearApiSession() {
+    _apiSessionToken = null;
+    _sessionUsername = null;
+    _sessionPassword = null;
+    _sessionStudentId = null;
   }
 
   Future<void> _createApiSession({
@@ -173,6 +197,7 @@ class StudentAuthService {
     // It can browse permitted Supabase content, but protected chat/AI remains
     // unavailable until an administrator provisions a student username.
     _apiSessionToken = null;
+    clearApiSession();
     return profile;
   }
 
