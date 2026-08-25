@@ -146,12 +146,16 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           lessons: _lessons,
           selectedLesson: _selectedLesson,
           apiBaseUrl: widget.apiBaseUrl,
+          profile: widget.profile,
+          contentService: _contentService,
           onLessonChanged: (lesson) => setState(() => _selectedLesson = lesson),
         );
       case StudentContentModule.games:
         return _GamesModule(
           games: _gamesFromLessons,
           apiBaseUrl: widget.apiBaseUrl,
+          profile: widget.profile,
+          contentService: _contentService,
         );
     }
   }
@@ -229,12 +233,16 @@ class _LessonModule extends StatelessWidget {
     required this.selectedLesson,
     required this.onLessonChanged,
     required this.apiBaseUrl,
+    required this.profile,
+    required this.contentService,
   });
 
   final List<LessonContent> lessons;
   final LessonContent? selectedLesson;
   final ValueChanged<LessonContent> onLessonChanged;
   final String apiBaseUrl;
+  final StudentProfile profile;
+  final StudentContentService contentService;
 
   @override
   Widget build(BuildContext context) {
@@ -289,7 +297,13 @@ class _LessonModule extends StatelessWidget {
             message: 'يمكن للمعلم أو المشرف إضافة رابط فيديو لهذا الدرس.',
           )
         else
-          _VideoCarousel(videos: lesson.videos, apiBaseUrl: apiBaseUrl),
+           _VideoCarousel(
+             videos: lesson.videos,
+             apiBaseUrl: apiBaseUrl,
+             profile: profile,
+             lessonId: lesson.id,
+             contentService: contentService,
+           ),
       ],
     );
   }
@@ -299,10 +313,14 @@ class _GamesModule extends StatelessWidget {
   const _GamesModule({
     required this.games,
     required this.apiBaseUrl,
+    required this.profile,
+    required this.contentService,
   });
 
   final List<HtmlGame> games;
   final String apiBaseUrl;
+  final StudentProfile profile;
+  final StudentContentService contentService;
 
   @override
   Widget build(BuildContext context) {
@@ -345,6 +363,22 @@ class _GamesModule extends StatelessWidget {
                   builder: (_) => _GamePlayerScreen(
                     game: game,
                     apiBaseUrl: apiBaseUrl,
+                    onCompleted: () async {
+                      try {
+                        final reward = await contentService.rewardActivity(
+                          profile: profile,
+                          activityType: 'game',
+                          activityId: game.id,
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(reward.alreadyRewarded
+                                ? 'تم حفظ إكمالك للعبة؛ لا توجد مكافأة إضافية.'
+                                : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة'),
+                          ));
+                        }
+                      } catch (_) {}
+                    },
                   ),
                 ),
               ),
@@ -446,10 +480,12 @@ class _GamePlayerScreen extends StatefulWidget {
   const _GamePlayerScreen({
     required this.game,
     required this.apiBaseUrl,
+    required this.onCompleted,
   });
 
   final HtmlGame game;
   final String apiBaseUrl;
+  final Future<void> Function() onCompleted;
 
   @override
   State<_GamePlayerScreen> createState() => _GamePlayerScreenState();
@@ -577,6 +613,15 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                       ),
                     ),
                   ),
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FilledButton.icon(
+                    onPressed: _loading ? null : widget.onCompleted,
+                    icon: const Icon(Icons.check_circle_rounded),
+                    label: const Text('أنهيت اللعبة'),
+                  ),
+                ),
               ],
             ),
     );
@@ -584,10 +629,19 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
 }
 
 class _VideoCarousel extends StatefulWidget {
-  const _VideoCarousel({required this.videos, required this.apiBaseUrl});
+  const _VideoCarousel({
+    required this.videos,
+    required this.apiBaseUrl,
+    required this.profile,
+    required this.lessonId,
+    required this.contentService,
+  });
 
   final List<LessonVideo> videos;
   final String apiBaseUrl;
+  final StudentProfile profile;
+  final String lessonId;
+  final StudentContentService contentService;
 
   @override
   State<_VideoCarousel> createState() => _VideoCarouselState();
@@ -634,6 +688,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                         builder: (_) => _LessonPlayerScreen(
                           video: video,
                           apiBaseUrl: widget.apiBaseUrl,
+                          onCompleted: () => _rewardVideo(video),
                         ),
                       ),
                     ),
@@ -662,6 +717,30 @@ class _VideoCarouselState extends State<_VideoCarousel> {
         ),
       ],
     );
+  }
+
+  Future<void> _rewardVideo(LessonVideo video) async {
+    try {
+      final videoReward = await widget.contentService.rewardActivity(
+        profile: widget.profile,
+        activityType: 'video',
+        activityId: video.id,
+      );
+      final lessonReward = await widget.contentService.rewardActivity(
+        profile: widget.profile,
+        activityType: 'lesson',
+        activityId: widget.lessonId,
+      );
+      if (!mounted) return;
+      final xp = videoReward.xp + lessonReward.xp;
+      final gems = videoReward.gems + lessonReward.gems;
+      final duplicate = videoReward.alreadyRewarded && lessonReward.alreadyRewarded;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(duplicate ? 'تم حفظ إكمالك؛ لا توجد مكافأة إضافية.' : 'أحسنت! +$xp XP و +$gems جوهرة'),
+      ));
+    } catch (_) {
+      // Playback remains usable if the network is temporarily unavailable.
+    }
   }
 }
 
@@ -755,10 +834,12 @@ class _LessonPlayerScreen extends StatelessWidget {
   const _LessonPlayerScreen({
     required this.video,
     required this.apiBaseUrl,
+    this.onCompleted,
   });
 
   final LessonVideo video;
   final String apiBaseUrl;
+  final VoidCallback? onCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -769,14 +850,30 @@ class _LessonPlayerScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         title: Text(video.title),
       ),
-      body: Center(
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: StudentVideoPlayer(
-            video: video,
-            apiBaseUrl: apiBaseUrl,
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: StudentVideoPlayer(
+                  video: video,
+                  apiBaseUrl: apiBaseUrl,
+                  onCompleted: onCompleted,
+                ),
+              ),
+            ),
           ),
-        ),
+          if (onCompleted != null)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: FilledButton.icon(
+                onPressed: onCompleted,
+                icon: const Icon(Icons.check_circle_rounded),
+                label: const Text('أنهيت مشاهدة الفيديو'),
+              ),
+            ),
+        ],
       ),
     );
   }

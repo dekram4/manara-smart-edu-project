@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
+import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
@@ -16,6 +17,7 @@ import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
 import 'student_personality_screen.dart';
 import 'student_problem_solver_screen.dart';
+import 'student_progress_screen.dart';
 import 'student_quiz_screen.dart';
 import 'student_tutor_screen.dart';
 
@@ -53,15 +55,41 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   final _pageController = PageController(viewportFraction: 0.86);
   late final AnimationController _ambientController;
   int _activePage = 0;
+  late StudentGamification _gamification;
+  late final StudentContentService _contentService;
 
   @override
   void initState() {
     super.initState();
+    _gamification = widget.profile.gamification;
+    _contentService = StudentContentService(widget.authService.client, baseUrl: widget.apiBaseUrl);
+    _loadGamification();
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 18),
     )..repeat();
     WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
+  }
+
+  Future<void> _loadGamification() async {
+    try {
+      final result = await _contentService.checkStreak(widget.profile);
+      if (!mounted) return;
+      setState(() => _gamification = result.snapshot);
+    } catch (_) {
+      try {
+        final snapshot = await _contentService.fetchGamification(widget.profile);
+        if (mounted) setState(() => _gamification = snapshot);
+      } catch (_) {}
+    }
+  }
+
+  void _showReward(RewardResult result) {
+    if (!mounted || (result.xp == 0 && result.gems == 0)) return;
+    final parts = <String>[];
+    if (result.xp > 0) parts.add('+${result.xp} XP');
+    if (result.gems > 0) parts.add('+${result.gems} جوهرة');
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('أحسنت! ${parts.join(' و ')}')));
   }
 
   Future<void> _playWelcome() async {
@@ -300,6 +328,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                         .fadeIn(duration: 450.ms)
                         .slideY(begin: 0.12),
                   ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: _ProgressCard(
+                      stats: _gamification,
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => StudentProgressScreen(profile: widget.profile, stats: _gamification),
+                        ),
+                      ),
+                    ),
+                  ),
                   if (widget.academicContext != null) ...[
                     const SizedBox(height: 12),
                     Padding(
@@ -410,6 +450,52 @@ class _AcademicContextSummary extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProgressCard extends StatelessWidget {
+  const _ProgressCard({required this.stats, required this.onPressed});
+  final StudentGamification stats;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded, color: Color(0xFF0B8693)),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('تقدمك ومكافآتك', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
+                    Text('المستوى ${stats.level}', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0B8693))),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Text('⭐ ${stats.xp} XP', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text('💎 ${stats.gems}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text('🔥 ${stats.streak} يوم', style: const TextStyle(fontWeight: FontWeight.w900)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(value: stats.levelProgress / 100, minHeight: 9, color: Colors.amber, backgroundColor: const Color(0xFFDCE8F2)),
+                ),
+                const SizedBox(height: 5),
+                Text('باقي ${stats.xpToNextLevel} XP للمستوى التالي • اضغط لعرض الإنجازات', style: const TextStyle(fontSize: 12, color: Color(0xFF49617C), fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 const _homeSections = <_HomeSection>[

@@ -16,6 +16,7 @@ class StudentVideoPlayer extends StatefulWidget {
     this.autoPlay = true,
     this.fullscreen = false,
     this.allowInteractivePermissions = false,
+    this.onCompleted,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class StudentVideoPlayer extends StatefulWidget {
   /// Enables only the browser permissions required by an interactive tutor
   /// embedded from another origin. Lesson videos keep this disabled.
   final bool allowInteractivePermissions;
+  final VoidCallback? onCompleted;
 
   @override
   State<StudentVideoPlayer> createState() => _StudentVideoPlayerState();
@@ -37,6 +39,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   Player? _player;
   VideoController? _videoController;
   VideoPlayerController? _networkController;
+  bool _completionReported = false;
   String? _error;
 
   String get _url => resolveStudentVideoUrl(
@@ -80,6 +83,12 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       if (!mounted) return;
       setState(() => _error = error.toString());
     });
+    player.stream.completed.listen((completed) {
+      if (completed && !_completionReported) {
+        _completionReported = true;
+        widget.onCompleted?.call();
+      }
+    });
 
     try {
       // media_kit uses the HTTP Range protocol for seeking. Supplying an
@@ -108,6 +117,13 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     _networkController = controller;
     controller.addListener(() {
       final value = controller.value;
+      if (value.isInitialized &&
+          value.duration > Duration.zero &&
+          value.position >= value.duration &&
+          !_completionReported) {
+        _completionReported = true;
+        widget.onCompleted?.call();
+      }
       if (!mounted || !value.hasError) return;
       setState(() {
         _error = value.errorDescription ?? 'تعذر تحميل مصدر الفيديو.';

@@ -7,6 +7,7 @@ import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
+import '../models/student_gamification.dart';
 
 class TeacherQuizAlreadySubmittedException implements Exception {
   const TeacherQuizAlreadySubmittedException(this.result);
@@ -26,6 +27,171 @@ class StudentContentService {
   final SupabaseClient client;
   final String baseUrl;
   static const _requestTimeout = Duration(seconds: 15);
+
+  Future<StudentGamification> fetchGamification(StudentProfile profile) async {
+    final row = await client
+        .from('students')
+        .select('id,data')
+        .eq('id', profile.id)
+        .maybeSingle()
+        .timeout(_requestTimeout);
+    return StudentGamification.fromMap(_asMap(row?['data'])['gamification']);
+  }
+
+  /// Applies one web-compatible reward and persists it in the canonical student
+  /// row. The activity ledger makes retries and retakes idempotent.
+  Future<RewardResult> rewardActivity({
+    required StudentProfile profile,
+    required String activityType,
+    required String activityId,
+    int? correctAnswers,
+    int? quizTotal,
+  }) async {
+    if (activityId.trim().isEmpty) {
+      throw ArgumentError('لا يمكن منح مكافأة بدون معرف للنشاط.');
+    }
+    final row = await client
+        .from('students')
+        .select('id,data')
+        .eq('id', profile.id)
+        .maybeSingle()
+        .timeout(_requestTimeout);
+    if (row == null) throw StateError('لم يتم العثور على سجل الطالب.');
+    final rowData = _asMap(row['data']);
+    final current = StudentGamification.fromMap(rowData['gamification']);
+    final key = '${activityType.trim().toLowerCase()}:$activityId';
+    if (current.completedActivities.contains(key)) {
+      return RewardResult(
+        xp: 0,
+        gems: 0,
+        alreadyRewarded: true,
+        levelUp: false,
+        newAchievements: const [],
+        snapshot: current,
+      );
+    }
+
+    var xp = 0;
+    var gems = 0;
+    var quizzes = current.totalQuizzes;
+    var lessons = current.totalLessons;
+    var games = current.totalGames;
+    var average = current.averageScore;
+    if (activityType == 'quiz') {
+      final score = ((correctAnswers ?? 0).clamp(0, quizTotal ?? 0)).toInt();
+      xp = score * 5;
+      gems = score;
+      quizzes++;
+      average = quizTotal == null || quizTotal <= 0
+          ? current.averageScore
+          : ((current.averageScore * (quizzes - 1) + (score * 100 ~/ quizTotal)) ~/ quizzes);
+    } else if (activityType == 'lesson') {
+      xp = 25;
+      gems = 5;
+      lessons++;
+    } else if (activityType == 'video' || activityType == 'problem') {
+      xp = 5;
+      gems = 1;
+    } else if (activityType == 'game') {
+      xp = 15;
+      gems = 3;
+      games++;
+    }
+
+    final beforeLevel = current.level;
+    final nextXp = current.xp + xp;
+    final unlocked = _achievementsFor(
+      current.copyWith(
+        xp: nextXp,
+        gems: current.gems + gems,
+        totalQuizzes: quizzes,
+        totalLessons: lessons,
+        totalGames: games,
+      ),
+      activityType,
+    );
+    final knownIds = current.achievements.map((item) => item.id).toSet();
+    final newAchievements = unlocked.where((item) => !knownIds.contains(item.id)).toList();
+    final next = current.copyWith(
+      xp: nextXp,
+      gems: current.gems + gems,
+      totalQuizzes: quizzes,
+      totalLessons: lessons,
+      totalGames: games,
+      averageScore: average,
+      achievements: [...current.achievements, ...newAchievements],
+      completedActivities: [...current.completedActivities, key],
+    );
+    await client.from('students').update({
+      'data': {...rowData, 'gamification': next.toMap(), 'lastActivity': DateTime.now().toIso8601String()},
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', profile.id).timeout(_requestTimeout);
+    return RewardResult(
+      xp: xp,
+      gems: gems,
+      alreadyRewarded: false,
+      levelUp: next.level > beforeLevel,
+      newAchievements: newAchievements,
+      snapshot: next,
+    );
+  }
+
+  Future<RewardResult> checkStreak(StudentProfile profile) async {
+    final current = await fetchGamification(profile);
+    final today = DateTime.now();
+    final dayKey = '${today.year}-${today.month}-${today.day}';
+    final marker = 'streak-day:$dayKey';
+    if (current.completedActivities.contains(marker)) {
+      return RewardResult(xp: 0, gems: 0, alreadyRewarded: true, levelUp: false, newAchievements: const [], snapshot: current);
+    }
+    // Keep a compact day ledger; consecutive days are derived from its tail.
+    final days = current.completedActivities.where((item) => item.startsWith('streak-day:')).toList();
+    var streak = 1;
+    if (days.isNotEmpty) {
+      final last = DateTime.tryParse(days.last.substring('streak-day:'.length));
+      if (last != null && today.difference(DateTime(last.year, last.month, last.day)).inDays == 1) streak = current.streak + 1;
+    }
+    final bonus = streak % 5 == 0 ? 100 : 0;
+    final row = await client.from('students').select('data').eq('id', profile.id).maybeSingle().timeout(_requestTimeout);
+    final rowData = _asMap(row?['data']);
+    final knownIds = current.achievements.map((item) => item.id).toSet();
+    final streakAchievements = <StudentAchievement>[];
+    void addAchievement(String id, String title, String description, String icon) {
+      if (!knownIds.contains(id)) {
+        streakAchievements.add(StudentAchievement(id: id, title: title, description: description, icon: icon));
+      }
+    }
+    if (streak >= 3) addAchievement('streak_3', '3 أيام متواصل', 'تعلم 3 أيام متتالية', '🔥');
+    if (streak >= 5) addAchievement('streak_5', '5 أيام متواصل', 'تعلم 5 أيام متتالية واحصل على مكافأة', '🏅');
+    if (streak >= 7) addAchievement('streak_7', 'أسبوع متواصل', 'تعلم 7 أيام متتالية', '🔥');
+    final next = current.copyWith(
+      xp: current.xp + bonus,
+      streak: streak,
+      achievements: [...current.achievements, ...streakAchievements],
+      completedActivities: [...days, marker],
+    );
+    await client.from('students').update({
+      'data': {...rowData, 'gamification': next.toMap(), 'lastActivity': DateTime.now().toIso8601String()},
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', profile.id).timeout(_requestTimeout);
+    return RewardResult(xp: bonus, gems: 0, alreadyRewarded: false, levelUp: next.level > current.level, newAchievements: streakAchievements, snapshot: next);
+  }
+
+  List<StudentAchievement> _achievementsFor(StudentGamification stats, String type) {
+    final result = <StudentAchievement>[];
+    void add(String id, String title, String description, String icon) {
+      result.add(StudentAchievement(id: id, title: title, description: description, icon: icon));
+    }
+    if (type == 'quiz' && stats.totalQuizzes == 1) add('first_quiz', 'أول اختبار', 'أكمل أول اختبار', '🎯');
+    if (type == 'quiz' && stats.totalQuizzes >= 10) add('quiz_warrior', 'مقاتل الاختبارات', 'أكمل 10 اختبارات', '⚔️');
+    if (type == 'lesson' && stats.totalLessons == 1) add('first_lesson', 'أول درس', 'أكمل أول درس', '📚');
+    if (type == 'lesson' && stats.totalLessons >= 10) add('lesson_master', 'سيد الدروس', 'أكمل 10 دروس', '🏆');
+    if (type == 'problem') add('math_solver', 'حلال المسائل', 'حل أول مسألة', '🔢');
+    if (type == 'game' && stats.totalGames >= 5) add('game_master', 'سيد الألعاب', 'العب 5 ألعاب', '🎮');
+    if (stats.level >= 5) add('level_5', 'المستوى 5', 'اوصل إلى المستوى 5', '💪');
+    if (stats.gems >= 50) add('gem_collector', 'جامع الجواهر', 'اجمع 50 جوهرة', '💎');
+    return result;
+  }
 
   Future<AcademicSelectionData> fetchAcademicSelectionData(
     StudentProfile profile,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
 import '../models/student_profile.dart';
+import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
 
 class StudentQuizScreen extends StatefulWidget {
@@ -65,6 +66,18 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
       });
     } catch (error) {
       if (!mounted) return;
+      RewardResult? reward;
+      try {
+        reward = await widget.contentService.rewardActivity(
+          profile: widget.profile,
+          activityType: 'quiz',
+          activityId: _text(quiz['id']),
+          correctAnswers: score,
+          quizTotal: _questions.length,
+        );
+      } catch (_) {
+        // A saved assessment must remain visible even if reward sync is offline.
+      }
       setState(() {
         _loading = false;
         _error = 'تعذر تحميل الاختبارات: $error';
@@ -230,6 +243,12 @@ class _StudentQuizScreenState extends State<StudentQuizScreen> {
          _questionIndex = 0;
         _submitting = false;
       });
+       if (reward != null) {
+         final message = reward.alreadyRewarded
+             ? 'تم حفظ النتيجة؛ لا توجد مكافأة إضافية لإعادة الاختبار.'
+             : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة${reward.levelUp ? ' • ارتقيت إلى المستوى ${reward.snapshot.level}!' : ''}';
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+       }
     } on TeacherQuizAlreadySubmittedException catch (error) {
       if (!mounted) return;
       setState(() {

@@ -1,4 +1,5 @@
 import 'academic_context.dart';
+import 'student_gamification.dart';
 
 class StudentProfile {
   const StudentProfile({
@@ -16,6 +17,7 @@ class StudentProfile {
     this.appearance,
     this.canAccessChat = true,
     this.canAccessLiveMeeting = true,
+    this.gamification = const StudentGamification(),
   });
 
   factory StudentProfile.fromStudentRow(Map<String, dynamic> row) {
@@ -38,6 +40,7 @@ class StudentProfile {
       appearance: _asMap(data['appearance']),
       canAccessChat: _asBool(data['canAccessChat'], fallback: true),
       canAccessLiveMeeting: _asBool(data['canAccessLiveMeeting'], fallback: true),
+      gamification: StudentGamification.fromMap(data['gamification']),
     );
   }
 
@@ -64,6 +67,7 @@ class StudentProfile {
         profile['can_access_live_meeting'] ?? profile['canAccessLiveMeeting'],
         fallback: true,
       ),
+      gamification: StudentGamification.fromMap(profile['gamification']),
     );
   }
 
@@ -81,6 +85,7 @@ class StudentProfile {
   final Map<String, dynamic>? appearance;
   final bool canAccessChat;
   final bool canAccessLiveMeeting;
+  final StudentGamification gamification;
 
   StudentAcademicValues get academicValues => StudentAcademicValues(
         grade: grade,

@@ -7,6 +7,7 @@ import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
+import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
 
@@ -158,8 +159,34 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       if (answer == null || answer.isEmpty) {
         throw Exception('لم تصل إجابة صالحة. حاول مرة أخرى.');
       }
+      RewardResult? reward;
+      try {
+        await widget.contentService.saveProblemSolverInteraction(
+          profile: widget.profile,
+          lessonId: lesson.id,
+          question: question,
+        );
+        reward = await widget.contentService.rewardActivity(
+          profile: widget.profile,
+          activityType: 'problem',
+          activityId: '${lesson.id}:${question.toLowerCase()}',
+        );
+      } catch (_) {
+        // The answer itself is still useful when progress sync is temporarily offline.
+      }
       if (!mounted) return;
       setState(() => _answer = answer);
+      if (reward != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              reward!.alreadyRewarded
+                  ? 'تم حفظ الإجابة؛ لا توجد مكافأة إضافية لهذا السؤال.'
+                  : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة',
+            ),
+          ),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
        setState(() => _error = _studentSafeError(error));
