@@ -49,11 +49,18 @@ class StudentAuthService {
         if (!profile.isStudent) {
           throw const StudentAuthException(studentOnlyMessage);
         }
-        await _createApiSession(
-          username: cleanUsername,
-          password: password,
-          studentId: profile.id,
-        );
+        try {
+          await _createApiSession(
+            username: cleanUsername,
+            password: password,
+            studentId: profile.id,
+          );
+        } catch (_) {
+          // Supabase has already authenticated this student. A temporary API
+          // outage must not lock them out of lessons and assessments; only the
+          // server-protected chat and Gemini tools stay unavailable.
+          _apiSessionToken = null;
+        }
         return profile;
       }
 
