@@ -422,8 +422,11 @@ class _QuizCatalog extends StatelessWidget {
           quiz,
           studentId: '',
         ).length;
-        return Card(
-          child: Padding(
+        return StudentAnimatedCard(
+          delay: Duration(milliseconds: 55 * index),
+          child: StudentPressScale(
+            child: Card(
+              child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,6 +468,8 @@ class _QuizCatalog extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+              ),
             ),
           ),
         );

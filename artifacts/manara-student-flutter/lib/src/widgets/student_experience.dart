@@ -52,6 +52,91 @@ class StudentEntrance extends StatelessWidget {
   }
 }
 
+/// Gives student-facing cards a clearly visible arrival motion. This is kept
+/// separate from page navigation so sections, games and reward cards feel
+/// responsive even when the user stays on the same screen.
+class StudentAnimatedCard extends StatelessWidget {
+  const StudentAnimatedCard({
+    required this.child,
+    this.delay = Duration.zero,
+    super.key,
+  });
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return child;
+    return child
+        .animate(delay: delay)
+        .fadeIn(duration: 420.ms, curve: Curves.easeOut)
+        .scale(
+          begin: const Offset(0.9, 0.9),
+          end: const Offset(1, 1),
+          duration: 520.ms,
+          curve: Curves.easeOutBack,
+        );
+  }
+}
+
+/// Adds a visible but lightweight press response without owning the tap.
+/// Existing InkWell buttons inside the child continue to receive the action.
+class StudentPressScale extends StatefulWidget {
+  const StudentPressScale({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  State<StudentPressScale> createState() => _StudentPressScaleState();
+}
+
+class _StudentPressScaleState extends State<StudentPressScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (mounted && _pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return widget.child;
+    }
+    return Listener(
+      onPointerDown: (_) => _setPressed(true),
+      onPointerUp: (_) => _setPressed(false),
+      onPointerCancel: (_) => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.965 : 1,
+        duration: const Duration(milliseconds: 120),
+        curve: _pressed ? Curves.easeOut : Curves.elasticOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// A calm continuous reward cue for XP, gems and completed achievements.
+class StudentRewardPulse extends StatelessWidget {
+  const StudentRewardPulse({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return child;
+    return child
+        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .scale(
+          begin: const Offset(0.96, 0.96),
+          end: const Offset(1.045, 1.045),
+          duration: 1400.ms,
+          curve: Curves.easeInOut,
+        );
+  }
+}
+
 class StudentSoundToggle extends StatelessWidget {
   const StudentSoundToggle({super.key});
 

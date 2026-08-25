@@ -532,10 +532,11 @@ class _GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
+    return StudentPressScale(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(24),
         child: Ink(
@@ -616,6 +617,7 @@ class _GameCard extends StatelessWidget {
                ),
             ],
           ),
+        ),
         ),
       ),
     ).animate().fadeIn(duration: 350.ms).slideX(begin: 0.08);
@@ -957,9 +959,10 @@ class _VideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
+    return StudentPressScale(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(28),
         child: Ink(
@@ -1038,6 +1041,7 @@ class _VideoCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);

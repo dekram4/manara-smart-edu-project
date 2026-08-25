@@ -249,10 +249,11 @@ class _CinemaVideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFF132337),
-      borderRadius: BorderRadius.circular(26),
-      child: InkWell(
+    return StudentPressScale(
+      child: Material(
+        color: const Color(0xFF132337),
+        borderRadius: BorderRadius.circular(26),
+        child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(26),
         child: Padding(
@@ -312,6 +313,7 @@ class _CinemaVideoCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

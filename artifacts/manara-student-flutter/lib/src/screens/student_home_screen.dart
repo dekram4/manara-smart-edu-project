@@ -329,27 +329,29 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: _WelcomeCard(profile: widget.profile)
-                        .animate()
-                        .fadeIn(duration: 450.ms)
-                        .slideY(begin: 0.12),
+                    child: StudentAnimatedCard(
+                      child: _WelcomeCard(profile: widget.profile),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: _ProgressCard(
-                      stats: _gamification,
-                      onPressed: () {
-                        StudentSoundService.instance.play(StudentSoundCue.navigation);
-                        Navigator.of(context).push(
-                          StudentPageRoute<void>(
-                            builder: (_) => StudentProgressScreen(
-                              profile: widget.profile,
-                              stats: _gamification,
+                    child: StudentAnimatedCard(
+                      delay: const Duration(milliseconds: 80),
+                      child: _ProgressCard(
+                        stats: _gamification,
+                        onPressed: () {
+                          StudentSoundService.instance.play(StudentSoundCue.navigation);
+                          Navigator.of(context).push(
+                            StudentPageRoute<void>(
+                              builder: (_) => StudentProgressScreen(
+                                profile: widget.profile,
+                                stats: _gamification,
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
                   if (widget.academicContext != null) ...[
@@ -470,15 +472,16 @@ class _ProgressCard extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => Card(
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+  Widget build(BuildContext context) => StudentPressScale(
+        child: Card(
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 Row(
                   children: [
                     const Icon(Icons.auto_awesome_rounded, color: Color(0xFF0B8693)),
@@ -492,7 +495,12 @@ class _ProgressCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     Text('⭐ ${stats.xp} XP', style: const TextStyle(fontWeight: FontWeight.w900)),
-                    Text('💎 ${stats.gems}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    StudentRewardPulse(
+                      child: Text(
+                        '💎 ${stats.gems}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
                     Text('🔥 ${stats.streak} يوم', style: const TextStyle(fontWeight: FontWeight.w900)),
                   ],
                 ),
@@ -503,7 +511,8 @@ class _ProgressCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text('باقي ${stats.xpToNextLevel} XP للمستوى التالي • اضغط لعرض الإنجازات', style: const TextStyle(fontSize: 12, color: Color(0xFF49617C), fontWeight: FontWeight.w700)),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -639,9 +648,10 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
+    return StudentPressScale(
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
         padding: const EdgeInsets.all(21),
         decoration: BoxDecoration(
@@ -685,6 +695,7 @@ class _SectionCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -730,14 +741,92 @@ class _AnimatedManaraBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Positioned.fill(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [Color(0xFFF3F8F9), Color(0xFFEAF1FA)],
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return const Positioned.fill(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+              colors: [Color(0xFFF3F8F9), Color(0xFFEAF1FA)],
+            ),
           ),
+        ),
+      );
+    }
+
+    return Positioned.fill(
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final wave = Curves.easeInOut.transform(animation.value);
+          return Stack(
+            children: [
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                      colors: [Color(0xFFF3F8F9), Color(0xFFEAF1FA)],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: -90 + (wave * 38),
+                right: -70 + (wave * 44),
+                child: _FloatingLight(
+                  size: 230,
+                  color: const Color(0x3348C6D9),
+                ),
+              ),
+              Positioned(
+                bottom: -100 + ((1 - wave) * 34),
+                left: -80 + (wave * 32),
+                child: _FloatingLight(
+                  size: 270,
+                  color: const Color(0x337C3AED),
+                ),
+              ),
+              Positioned(
+                top: 260 + ((1 - wave) * 30),
+                left: 24 + (wave * 24),
+                child: _FloatingLight(
+                  size: 86,
+                  color: const Color(0x33F59E0B),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FloatingLight extends StatelessWidget {
+  const _FloatingLight({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: color,
+              blurRadius: 55,
+              spreadRadius: 18,
+            ),
+          ],
         ),
       ),
     );
