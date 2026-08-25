@@ -114,7 +114,10 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     }
     final token = await widget.authService.ensureApiSession();
     if (token == null || token.isEmpty) {
-      setState(() => _error = 'انتهت جلسة الطالب الآمنة. سجّل الدخول مرة أخرى للمتابعة.');
+      setState(
+        () => _error = widget.authService.apiSessionError ??
+            'تعذر تأمين جلسة الطالب. تحقق من الاتصال ثم حاول مرة أخرى.',
+      );
       return;
     }
     setState(() {

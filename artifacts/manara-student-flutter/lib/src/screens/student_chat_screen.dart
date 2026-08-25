@@ -78,7 +78,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (token == null || _endpoint('messages') == null) {
       setState(() {
         _loading = false;
-        _error = 'تعذر التحقق من جلسة الطالب. سجّل الدخول مرة أخرى.';
+        _error = widget.authService.apiSessionError ??
+            'تعذر التحقق من جلسة الطالب. تحقق من الاتصال ثم أعد المحاولة.';
       });
       return;
     }

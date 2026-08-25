@@ -20,7 +20,13 @@ class SupabaseConfig {
         ),
         apiBaseUrl = const String.fromEnvironment(
           'API_BASE_URL',
-          defaultValue: '',
+          // Flutter Web's development server runs on a random localhost port,
+          // but the protected API is served by the Replit API workflow. Using
+          // its public development origin keeps chat and Gemini reachable
+          // from Chrome, while release builds can override this with
+          // --dart-define=API_BASE_URL=<their API origin>.
+          defaultValue:
+              'https://3daed49c-74e9-464a-89fa-0dd61cae7661-00-1r2hrmhp8fjuc.sisko.replit.dev',
         );
 
   final String url;

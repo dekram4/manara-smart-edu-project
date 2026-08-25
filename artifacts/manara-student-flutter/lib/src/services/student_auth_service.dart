@@ -23,12 +23,14 @@ class StudentAuthService {
   final SupabaseClient client;
   final String apiBaseUrl;
   String? _apiSessionToken;
+  String? _apiSessionError;
   String? _sessionUsername;
   String? _sessionPassword;
   String? _sessionStudentId;
 
   /// Never persist this token. It lives only for the signed-in app session.
   String? get apiSessionToken => _apiSessionToken;
+  String? get apiSessionError => _apiSessionError;
 
   Future<StudentProfile> signIn({
     required String username,
@@ -90,15 +92,20 @@ class StudentAuthService {
         password: password,
         studentId: studentId,
       );
+      _apiSessionError = null;
       return _apiSessionToken;
-    } catch (_) {
+    } catch (error) {
       _apiSessionToken = null;
+      _apiSessionError = error is StudentAuthException
+          ? error.message
+          : 'تعذر الوصول إلى خدمة الطالب الآمنة.';
       return null;
     }
   }
 
   void clearApiSession() {
     _apiSessionToken = null;
+    _apiSessionError = null;
     _sessionUsername = null;
     _sessionPassword = null;
     _sessionStudentId = null;
