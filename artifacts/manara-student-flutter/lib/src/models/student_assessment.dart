@@ -97,6 +97,15 @@ class StudentAssessmentRules {
               !deletedIds.contains(_text(quiz['id'])) &&
               _isVisibleAndInScope(quiz, profile, academicContext),
         )
+        // created_quizzes is the canonical source used by the teacher's
+        // management screen. The legacy question bank is only a fallback;
+        // otherwise the same assessment can appear twice with two different
+        // IDs (one modern record and one generated legacy group).
+        .where(
+          (legacyQuiz) => !created.any(
+            (createdQuiz) => _sameAssessmentIdentity(createdQuiz, legacyQuiz),
+          ),
+        )
         .toList();
 
     final quizById = <String, Map<String, dynamic>>{
@@ -240,6 +249,35 @@ class StudentAssessmentRules {
   static bool _isSupervisorQuiz(Map<String, dynamic> quiz) {
     final owner = ownerId(quiz);
     return owner == 'admin' || owner == 'supervisor';
+  }
+
+  static bool _sameAssessmentIdentity(
+    Map<String, dynamic> first,
+    Map<String, dynamic> second,
+  ) {
+    if (quizType(first['quizType']) != quizType(second['quizType'])) return false;
+
+    final firstOwner = ownerId(first);
+    final secondOwner = ownerId(second);
+    if (firstOwner != secondOwner) return false;
+
+    for (final field in ['grade', 'atram', 'subject', 'term', 'unit']) {
+      final left = _normalize(first[field]);
+      final right = _normalize(second[field]);
+      if (left.isNotEmpty && right.isNotEmpty && left != right) return false;
+    }
+
+    final firstNumber = _number(first['periodicNumber'], fallback: 0);
+    final secondNumber = _number(second['periodicNumber'], fallback: 0);
+    if (firstNumber > 0 || secondNumber > 0) {
+      return firstNumber == secondNumber;
+    }
+
+    final firstTitle = _normalize(first['title'] ?? first['quizTitle']);
+    final secondTitle = _normalize(second['title'] ?? second['quizTitle']);
+    return firstTitle.isEmpty ||
+        secondTitle.isEmpty ||
+        firstTitle == secondTitle;
   }
 
   static List<Map<String, dynamic>> _legacyQuizRecords(

@@ -101,6 +101,33 @@ void main() {
       expect(results.map((item) => item['id']), ['visible-teacher-quiz']);
     });
 
+    test('does not duplicate a modern quiz with its legacy question-bank group', () {
+      final results = StudentAssessmentRules.selectAvailableQuizzes(
+        createdQuizzes: [
+          quiz(id: 'modern-periodic', owner: 'teacher-1'),
+        ],
+        legacyQuestions: [
+          {
+            'question': 'سؤال قديم لنفس الاختبار',
+            'options': ['أ', 'ب'],
+            'correctAnswer': 'أ',
+            'quizTitle': 'modern-periodic',
+            'quizType': 'periodic',
+            'createdBy': 'teacher-1',
+            'grade': 'السادس',
+            'atram': 'الفصل الأول',
+            'subject': 'الرياضيات',
+            'term': 'الترم الأول',
+            'unit': 'الوحدة الأولى',
+          },
+        ],
+        profile: student,
+      );
+
+      expect(results, hasLength(1));
+      expect(results.single['id'], 'modern-periodic');
+    });
+
     test('requires the selected academic scope where it is provided', () {
       final results = StudentAssessmentRules.selectAvailableQuizzes(
         createdQuizzes: [
