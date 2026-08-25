@@ -10,3 +10,4 @@
 - [Media upload fallback](media-upload-fallback.md) — If durable Storage is unavailable, accept uploads locally with an explicit non-persistence warning.
 - [Student chat authorization](student-chat-authorization.md) — Keep Flutter chat unavailable until server-side student authorization isolates message access.
 - [Interactive tutor iframe permissions](interactive-tutor-iframe-permissions.md) — Flutter Web tutors that request media need explicit iframe camera/microphone delegation.
+- [Gemini student-answer resilience](gemini-student-answer-resilience.md) — Prefer the lite model and cap per-model latency so a busy general model does not make student answers time out.
