@@ -136,13 +136,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    Card(
-                      elevation: 18,
-                      shadowColor: Colors.black54,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Padding(
+                    StudentAnimatedCard(
+                      delay: const Duration(milliseconds: 180),
+                      child: StudentPressScale(
+                        child: Card(
+                          elevation: 18,
+                          shadowColor: Colors.black54,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Padding(
                         padding: const EdgeInsets.all(22),
                         child: Form(
                           key: _formKey,
@@ -266,8 +269,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
                           ),
                         ),
+                          ),
+                        ),
                       ),
-                    ).animate().fadeIn(delay: 220.ms).slideY(begin: 0.12),
+                    ),
                     const SizedBox(height: 16),
                     const Text(
                       'هذا التطبيق مخصص للطلاب فقط',
