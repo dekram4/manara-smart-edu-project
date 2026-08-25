@@ -112,9 +112,10 @@ export async function findStudentsInScope(
 
 export function passwordsMatch(input: string, stored: unknown): boolean {
   if (typeof stored !== "string" || !stored) return false;
-  const expected = /^[a-f0-9]{64}$/i.test(stored)
-    ? stored.toLowerCase()
-    : crypto.createHash("sha256").update(stored).digest("hex");
+  // Existing student records may use either a SHA-256 digest or the legacy
+  // plaintext format used by the original Supabase student login.
+  if (!/^[a-f0-9]{64}$/i.test(stored)) return input === stored;
+  const expected = stored.toLowerCase();
   const received = crypto.createHash("sha256").update(input).digest("hex");
   return crypto.timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(received, "utf8"));
 }

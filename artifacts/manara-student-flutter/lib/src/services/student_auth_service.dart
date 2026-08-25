@@ -77,7 +77,12 @@ class StudentAuthService {
     if (base.isEmpty) {
       final current = Uri.base;
       if (current.scheme == 'http' || current.scheme == 'https') {
-        base = current.origin;
+        // `flutter run -d chrome` uses its own random port in the browser,
+        // while the managed API workflow listens on 8080. In a hosted
+        // preview, /api is proxied on the current origin instead.
+        final isLocalBrowser = current.host == 'localhost' ||
+            current.host == '127.0.0.1';
+        base = isLocalBrowser ? 'http://localhost:8080' : current.origin;
       }
     }
     if (base.isEmpty) {
