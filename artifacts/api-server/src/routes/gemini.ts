@@ -130,10 +130,13 @@ async function callGemini(
     const modelUnavailable =
       response.status === 404 ||
       /not found|not available|not supported|new users/i.test(message);
-    if (modelUnavailable) {
+    const modelBusy = response.status === 429 ||
+      response.status >= 500 ||
+      /high demand|overloaded|resource exhausted|temporarily unavailable/i.test(message);
+    if (modelUnavailable || modelBusy) {
       lastUnavailableMessage = message;
       logger.warn(
-        `[gemini] skipping unavailable model ${model}: ${message}`,
+        `[gemini] skipping ${modelBusy ? "busy" : "unavailable"} model ${model}: ${message}`,
       );
       continue;
     }
