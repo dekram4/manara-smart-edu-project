@@ -2,6 +2,7 @@
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 import 'dart:ui' show PointerDeviceKind;
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -37,7 +38,8 @@ class StudentContentScreen extends StatefulWidget {
   State<StudentContentScreen> createState() => _StudentContentScreenState();
 }
 
-class _StudentContentScreenState extends State<StudentContentScreen> {
+class _StudentContentScreenState extends State<StudentContentScreen>
+    with SingleTickerProviderStateMixin {
   late final StudentContentService _contentService;
   late StudentContentModule _activeModule;
   List<LessonContent> _lessons = const [];
@@ -46,6 +48,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
   late StudentGamification _gamification;
   bool _loading = true;
   String? _error;
+  late final ConfettiController _rewardController;
 
   @override
   void initState() {
@@ -56,7 +59,26 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
     );
     _activeModule = widget.initialModule;
     _gamification = widget.profile.gamification;
+    _rewardController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
     _loadContent();
+  }
+
+  @override
+  void dispose() {
+    _rewardController.dispose();
+    super.dispose();
+  }
+
+  void _applyGamification(StudentGamification stats) {
+    final earnedNewReward =
+        stats.xp > _gamification.xp || stats.gems > _gamification.gems;
+    setState(() => _gamification = stats);
+    if (earnedNewReward &&
+        !(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+      _rewardController.play();
+    }
   }
 
   Future<void> _loadContent() async {
@@ -123,19 +145,24 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           icon: const Icon(Icons.close_rounded),
         ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ModuleSwitcher(
-              activeModule: _activeModule,
-              onChanged: (module) {
-                StudentSoundService.instance.play(StudentSoundCue.navigation);
-                setState(() => _activeModule = module);
-              },
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _ModuleSwitcher(
+                  activeModule: _activeModule,
+                  onChanged: (module) {
+                    StudentSoundService.instance.play(StudentSoundCue.navigation);
+                    setState(() => _activeModule = module);
+                  },
+                ),
+                Expanded(child: StudentEntrance(child: _buildBody())),
+              ],
             ),
-            Expanded(child: StudentEntrance(child: _buildBody())),
-          ],
-        ),
+          ),
+          StudentCelebration(controller: _rewardController),
+        ],
       ),
     );
   }
@@ -166,7 +193,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           profile: widget.profile,
           gamification: _gamification,
           contentService: _contentService,
-          onGamificationChanged: (stats) => setState(() => _gamification = stats),
+          onGamificationChanged: _applyGamification,
           onLessonChanged: (lesson) => setState(() => _selectedLesson = lesson),
         );
       case StudentContentModule.games:
@@ -176,7 +203,7 @@ class _StudentContentScreenState extends State<StudentContentScreen> {
           profile: widget.profile,
           gamification: _gamification,
           contentService: _contentService,
-          onGamificationChanged: (stats) => setState(() => _gamification = stats),
+          onGamificationChanged: _applyGamification,
         );
     }
   }

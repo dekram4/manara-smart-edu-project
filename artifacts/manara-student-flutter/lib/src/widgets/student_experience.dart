@@ -170,11 +170,11 @@ class StudentCelebration extends StatelessWidget {
         child: ConfettiWidget(
           confettiController: controller,
           blastDirectionality: BlastDirectionality.explosive,
-          emissionFrequency: 0.045,
-          numberOfParticles: 18,
-          maxBlastForce: 17,
-          minBlastForce: 5,
-          gravity: 0.18,
+          emissionFrequency: 0.08,
+          numberOfParticles: 42,
+          maxBlastForce: 28,
+          minBlastForce: 7,
+          gravity: 0.16,
           colors: const [
             Color(0xFF0B8693),
             Color(0xFFF59E0B),
