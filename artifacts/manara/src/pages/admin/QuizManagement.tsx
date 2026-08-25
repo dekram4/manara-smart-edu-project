@@ -259,10 +259,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     const saved = localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES);
     if (!saved) return;
     const all = JSON.parse(saved).map(normalizeCreatedQuiz);
+    const deletedQuizIds = new Set<string>(
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_QUIZZES) || '[]')
+        .filter((value: unknown) => typeof value === 'string'),
+    );
     const visible = (teacherId
       ? all.filter((quiz: CreatedQuiz) => getRecordTeacherId(quiz) === normalizeScopeValue(teacherId))
       : all
-    ).filter((quiz: CreatedQuiz) => !quiz.deleted);
+    ).filter((quiz: CreatedQuiz) => !quiz.deleted && !deletedQuizIds.has(String(quiz.id)));
     setCreatedQuizzes(visible);
     if (JSON.stringify(all) !== saved) {
       localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(all));

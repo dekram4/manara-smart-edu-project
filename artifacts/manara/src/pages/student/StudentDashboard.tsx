@@ -1132,10 +1132,14 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const startQuiz = (type: QuizType, requestedQuizId?: string): boolean => {
     playLamsaSound('pop');
     if (!student) return false;
-    const allQuestions = readStorageArray<QuizQuestion>(STORAGE_KEYS.QUIZ_QUESTIONS);
+    const deletedQuizIds = new Set(
+      readStorageArray<unknown>(STORAGE_KEYS.DELETED_QUIZZES)
+        .filter((value): value is string => typeof value === 'string'),
+    );
     const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)
       .filter((quiz): quiz is CreatedQuiz => Boolean(quiz && typeof quiz === 'object'))
-      .map(normalizeCreatedQuiz);
+      .map(normalizeCreatedQuiz)
+      .filter((quiz) => !quiz.deleted && !deletedQuizIds.has(String(quiz.id)) && quiz.isActive);
 
     const academicPath = {
       grade: selectedGrade,
@@ -1145,7 +1149,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unit: selectedUnit,
     };
     const scopedCreatedQuizzes = filterTeacherOwnedRecords(createdQuizzes, student)
-      .filter(quiz => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === type)
+      .filter(quiz => normalizeQuizType(quiz.quizType) === type)
       .filter(quiz => !requestedQuizId || quiz.id === requestedQuizId)
       .filter(quiz => matchesAcademicScope(quiz, academicPath));
     const selectedCreatedQuiz = scopedCreatedQuizzes.find((quiz) => quiz.id === requestedQuizId)
@@ -1180,17 +1184,7 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const scopedCreatedQuestions = selectedCreatedQuiz
       ? selectedCreatedQuiz.questions.filter(question => matchesAcademicScope(question, academicPath))
       : [];
-    const scopedLegacyQuestions = filterTeacherOwnedRecords(allQuestions, student)
-      .filter(question => normalizeQuizType(question.quizType) === type && matchesAcademicScope(question, academicPath));
-
-    let filtered = selectedCreatedQuiz
-      ? scopedCreatedQuestions
-      : [...scopedCreatedQuestions, ...scopedLegacyQuestions];
-
-    if (filtered.length === 0 && type === QuizType.PERIODIC) {
-      const count = 10;
-      filtered = localGenerateQuestionsFromLesson(activeLesson?.lessonContent || '', count, type);
-    }
+    const filtered = selectedCreatedQuiz ? scopedCreatedQuestions : [];
 
     if (filtered.length === 0) {
       playLamsaSound('error');
@@ -1240,13 +1234,22 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unit: selectedUnit,
     };
     try {
+      const deletedQuizIds = new Set(
+        readStorageArray<unknown>(STORAGE_KEYS.DELETED_QUIZZES)
+          .filter((value): value is string => typeof value === 'string'),
+      );
       return filterTeacherOwnedRecords(
         readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)
           .filter((quiz): quiz is CreatedQuiz => Boolean(quiz && typeof quiz === 'object'))
           .map(normalizeCreatedQuiz),
         student,
       )
-        .filter((quiz) => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.PERIODIC)
+        .filter((quiz) =>
+          !quiz.deleted &&
+          !deletedQuizIds.has(String(quiz.id)) &&
+          quiz.isActive &&
+          normalizeQuizType(quiz.quizType) === QuizType.PERIODIC,
+        )
         .filter((quiz) => matchesAcademicScope(quiz, academicPath))
         .sort((a, b) => (a.periodicNumber || 999) - (b.periodicNumber || 999));
     } catch {
@@ -1264,11 +1267,20 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unit: selectedUnit,
     };
     try {
+      const deletedQuizIds = new Set(
+        readStorageArray<unknown>(STORAGE_KEYS.DELETED_QUIZZES)
+          .filter((value): value is string => typeof value === 'string'),
+      );
       const createdQuizzes = readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)
         .filter((quiz): quiz is CreatedQuiz => Boolean(quiz && typeof quiz === 'object'))
         .map(normalizeCreatedQuiz);
       return filterTeacherOwnedRecords(createdQuizzes, student)
-        .filter((quiz) => !quiz.deleted && quiz.isActive && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
+        .filter((quiz) =>
+          !quiz.deleted &&
+          !deletedQuizIds.has(String(quiz.id)) &&
+          quiz.isActive &&
+          normalizeQuizType(quiz.quizType) === QuizType.TEACHER,
+        )
         .filter((quiz) => matchesAcademicScope(quiz, academicPath));
     } catch {
       return [];
@@ -2060,13 +2072,10 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                          {getPeriodicQuizLabel(quiz)} ⭐
                        </button>
                      ))
-                   ) : (
-                     <button
-                       onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.PERIODIC); setShowModuleCards(false); }}
-                       className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
-                     >
-                       الاختبار الدوري ⭐
-                     </button>
+                    ) : (
+                      <p className="rounded-xl bg-white/10 px-4 py-2.5 text-center text-sm font-bold text-indigo-100">
+                        لا يوجد اختبار دوري منشور حاليًا.
+                      </p>
                    )}
                   {getAvailableTeacherQuizzes().length > 0 ? (
                     getAvailableTeacherQuizzes().map((quiz) => (
@@ -2079,12 +2088,9 @@ const StudentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       </button>
                     ))
                   ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); GameAudioEngine.play('portalTransition'); startQuiz(QuizType.TEACHER); setShowModuleCards(false); }}
-                      className="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2.5 rounded-xl text-sm w-full text-center transition-all cursor-pointer active:scale-95"
-                    >
-                      اختبار المعلم 🏆
-                    </button>
+                    <p className="rounded-xl bg-white/10 px-4 py-2.5 text-center text-sm font-bold text-indigo-100">
+                      لا يوجد اختبار معلم منشور حاليًا.
+                    </p>
                   )}
                 </div>
                 </div>
