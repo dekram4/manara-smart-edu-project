@@ -7,6 +7,7 @@ import {
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
 import {
+  findStudentById,
   findStudentByUsername,
   passwordsMatch as studentPasswordsMatch,
   studentToken,
@@ -169,12 +170,18 @@ router.get("/auth/admin/session", (req, res) => {
 // signed bearer token that only identifies the verified student account.
 router.post("/auth/student/session", async (req, res) => {
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const studentId = typeof req.body?.studentId === "string" ? req.body.studentId.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!username || !password) {
+  if ((!username && !studentId) || !password) {
     return res.status(400).json({ error: "بيانات دخول الطالب مطلوبة" });
   }
   try {
-    const student = await findStudentByUsername(username);
+    // The Flutter app has already located the student record through Supabase.
+    // Re-resolve the immutable record id here, then verify the password again;
+    // never trust a client-supplied identity without that verification.
+    const student = studentId
+      ? await findStudentById(studentId)
+      : await findStudentByUsername(username);
     if (!student || !studentPasswordsMatch(password, student.password)) {
       return res.status(401).json({ error: "بيانات دخول الطالب غير صحيحة" });
     }

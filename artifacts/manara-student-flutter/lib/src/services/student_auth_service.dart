@@ -49,7 +49,11 @@ class StudentAuthService {
         if (!profile.isStudent) {
           throw const StudentAuthException(studentOnlyMessage);
         }
-        await _createApiSession(cleanUsername, password);
+        await _createApiSession(
+          username: cleanUsername,
+          password: password,
+          studentId: profile.id,
+        );
         return profile;
       }
 
@@ -69,7 +73,11 @@ class StudentAuthService {
     }
   }
 
-  Future<void> _createApiSession(String username, String password) async {
+  Future<void> _createApiSession({
+    required String username,
+    required String password,
+    required String studentId,
+  }) async {
     var base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     // Flutter Web is served from the same proxied origin as the API. This
     // keeps local browser previews usable without requiring a build-time
@@ -92,7 +100,11 @@ class StudentAuthService {
         .post(
           Uri.parse('$base/api/auth/student/session'),
           headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'username': username, 'password': password}),
+          body: jsonEncode({
+            'username': username,
+            'studentId': studentId,
+            'password': password,
+          }),
         )
         .timeout(const Duration(seconds: 12));
     final payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
