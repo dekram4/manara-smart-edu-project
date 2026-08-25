@@ -36,7 +36,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 
   Uri? _endpoint(String route) {
-    final base = widget.apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    var base = widget.apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isEmpty) {
+      final current = Uri.base;
+      if (current.scheme == 'http' || current.scheme == 'https') {
+        base = current.host == 'localhost' || current.host == '127.0.0.1'
+            ? 'http://localhost:8080'
+            : current.origin;
+      }
+    }
     return base.isEmpty ? null : Uri.tryParse('$base/api/student/chat/$route');
   }
 

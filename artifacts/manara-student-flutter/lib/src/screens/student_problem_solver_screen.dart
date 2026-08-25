@@ -78,13 +78,16 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   }
 
   Uri? get _answerEndpoint {
-    final base = widget.apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
-    if (base.isNotEmpty) return Uri.tryParse('$base/api/gemini/answer');
-    final current = Uri.base;
-    if (current.scheme == 'http' || current.scheme == 'https') {
-      return current.replace(path: '/api/gemini/answer', query: null, fragment: null);
+    var base = widget.apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isEmpty) {
+      final current = Uri.base;
+      if (current.scheme == 'http' || current.scheme == 'https') {
+        base = current.host == 'localhost' || current.host == '127.0.0.1'
+            ? 'http://localhost:8080'
+            : current.origin;
+      }
     }
-    return null;
+    return base.isEmpty ? null : Uri.tryParse('$base/api/gemini/answer');
   }
 
   Future<void> _ask() async {
