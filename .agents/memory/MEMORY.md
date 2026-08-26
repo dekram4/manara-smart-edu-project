@@ -14,3 +14,4 @@
 - [Gemini student-answer resilience](gemini-student-answer-resilience.md) — Prefer the lite model and cap per-model latency so a busy general model does not make student answers time out.
 - [Quiz deletion visibility](quiz-deletion-visibility.md) — Student quiz lists must respect synced deletion tombstones as well as each record’s active/deleted flags.
 - [GitHub push fallback](github-push-fallback.md) — When shell Git authentication is unavailable, use the attached GitHub connection’s REST API to publish a verified commit.
+- [Flutter Rive loading safety](flutter-rive-loading-safety.md) — Keep routine loading states native; reserve Rive for explicitly trusted decorative assets.

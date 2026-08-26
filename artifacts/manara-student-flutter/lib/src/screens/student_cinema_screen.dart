@@ -145,7 +145,10 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       );
     }
 
-    final activeVideo = _videos[_activeIndex];
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final activeIndex = _activeIndex.clamp(0, _videos.length - 1).toInt();
+    final activeVideo = _videos[activeIndex];
     return StudentEntrance(
       child: ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
@@ -182,7 +185,11 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
           child: PageView.builder(
             controller: _pageController,
             itemCount: _videos.length,
-            onPageChanged: (index) => setState(() => _activeIndex = index),
+            onPageChanged: (index) {
+              if (index < _videos.length) {
+                setState(() => _activeIndex = index);
+              }
+            },
             itemBuilder: (context, index) {
               final video = _videos[index];
               final locked = index >= _unlockedVideoCount;
@@ -204,7 +211,9 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
           children: List.generate(
             _videos.length,
             (index) => AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220),
               width: index == _activeIndex ? 28 : 8,
               height: 8,
               margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -220,8 +229,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
         const SizedBox(height: 20),
         _CinemaDetails(
           video: activeVideo,
-          locked: _activeIndex >= _unlockedVideoCount,
-          onPressed: () => _openVideo(activeVideo, _activeIndex),
+          locked: activeIndex >= _unlockedVideoCount,
+          onPressed: () => _openVideo(activeVideo, activeIndex),
         ),
       ],
       ),

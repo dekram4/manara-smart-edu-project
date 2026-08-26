@@ -276,7 +276,7 @@ class _LoginStoryPanel extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
-          colors: [Color(0xFF183B50), Color(0xFF174B5A), Color(0xFF0E3248)],
+          colors: [Color(0xFF102E48), Color(0xFF145B63), Color(0xFF082A43)],
         ),
       ),
       child: Stack(

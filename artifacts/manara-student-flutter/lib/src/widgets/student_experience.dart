@@ -215,8 +215,8 @@ class StudentLearningWorld extends StatelessWidget {
   }
 }
 
-/// Animated subject cards for the student login illustration. They are
-/// decorative, sit behind the login story, and honor the system motion setting.
+/// Animated, text-free educational sculptures for the student login
+/// illustration. They sit behind the login story and honor system motion.
 class StudentSubjectOrbit extends StatefulWidget {
   const StudentSubjectOrbit({
     this.compact = false,
@@ -239,7 +239,21 @@ class _StudentSubjectOrbitState extends State<StudentSubjectOrbit>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 15),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduceMotion) {
+      _controller
+        ..stop()
+        ..value = 0;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -276,7 +290,6 @@ class _SubjectOrbitLayout extends StatelessWidget {
 
   static const _subjects = <_SubjectOrbitSpec>[
     _SubjectOrbitSpec(
-      label: 'رياضيات',
       primary: Color(0xFFEAA54E),
       secondary: Color(0xFFF6D77A),
       alignment: Alignment(-0.91, -0.28),
@@ -284,7 +297,6 @@ class _SubjectOrbitLayout extends StatelessWidget {
       model: _SubjectModel.math,
     ),
     _SubjectOrbitSpec(
-      label: 'علوم',
       primary: Color(0xFF55AFA4),
       secondary: Color(0xFF9CE0D2),
       alignment: Alignment(0.9, -0.02),
@@ -292,7 +304,6 @@ class _SubjectOrbitLayout extends StatelessWidget {
       model: _SubjectModel.science,
     ),
     _SubjectOrbitSpec(
-      label: 'لغة',
       primary: Color(0xFF9684D3),
       secondary: Color(0xFFC6BAF2),
       alignment: Alignment(-0.82, 0.74),
@@ -300,7 +311,6 @@ class _SubjectOrbitLayout extends StatelessWidget {
       model: _SubjectModel.language,
     ),
     _SubjectOrbitSpec(
-      label: 'تقنية',
       primary: Color(0xFFE07D68),
       secondary: Color(0xFFF4B7A3),
       alignment: Alignment(0.88, 0.72),
@@ -315,19 +325,55 @@ class _SubjectOrbitLayout extends StatelessWidget {
       child: IgnorePointer(
         child: Stack(
           fit: StackFit.expand,
-          children: _subjects
-              .map(
-                (subject) => _AnimatedSubjectOrb(
-                  subject: subject,
-                  progress: progress,
-                  compact: compact,
-                ),
-              )
-              .toList(),
+          children: [
+            CustomPaint(
+              painter: _OrbitTrailsPainter(progress: progress),
+            ),
+            ..._subjects.map(
+              (subject) => _AnimatedSubjectOrb(
+                subject: subject,
+                progress: progress,
+                compact: compact,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _OrbitTrailsPainter extends CustomPainter {
+  const _OrbitTrailsPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final shortest = math.min(size.width, size.height);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFF8BD7D0).withOpacity(.16);
+    for (var i = 0; i < 3; i++) {
+      final rect = Rect.fromCenter(
+        center: center,
+        width: shortest * (.72 + i * .18),
+        height: shortest * (.24 + i * .11),
+      );
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate((progress * math.pi * 2) * (i.isEven ? .06 : -.04));
+      canvas.translate(-center.dx, -center.dy);
+      canvas.drawOval(rect, paint);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_OrbitTrailsPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 class _AnimatedSubjectOrb extends StatelessWidget {
@@ -364,7 +410,7 @@ class _AnimatedSubjectOrb extends StatelessWidget {
             ..scale(scale),
           child: Opacity(
             opacity: compact ? 0.82 : 0.92,
-            child: _SubjectOrbitCard(subject: subject, compact: compact),
+            child: _SubjectSculpture(subject: subject, compact: compact),
           ),
         ),
       ),
@@ -372,8 +418,8 @@ class _AnimatedSubjectOrb extends StatelessWidget {
   }
 }
 
-class _SubjectOrbitCard extends StatelessWidget {
-  const _SubjectOrbitCard({
+class _SubjectSculpture extends StatelessWidget {
+  const _SubjectSculpture({
     required this.subject,
     required this.compact,
   });
@@ -383,24 +429,23 @@ class _SubjectOrbitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = compact ? 66.0 : 82.0;
-    final height = compact ? 74.0 : 91.0;
+    final size = compact ? 58.0 : 76.0;
 
     return SizedBox(
-      width: width,
-      height: height,
+      width: size,
+      height: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            right: 8,
+            right: size * .18,
             bottom: -8,
-            left: 8,
-            height: 20,
+            left: size * .18,
+            height: 12,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: const Color(0xFF071B2E).withOpacity(0.28),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(40),
                 boxShadow: [
                   BoxShadow(
                     color: subject.primary.withOpacity(0.36),
@@ -412,82 +457,41 @@ class _SubjectOrbitCard extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 6,
+            top: 3,
             right: 3,
-            bottom: 1,
-            left: 7,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    subject.primary.withOpacity(0.64),
-                    subject.primary.withOpacity(0.96),
+            bottom: 3,
+            left: 3,
+            child: Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.002)
+                ..rotateX(.12)
+                ..rotateY(-.22),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    center: const Alignment(-.35, -.45),
+                    colors: [Colors.white.withOpacity(.98), subject.secondary, subject.primary],
+                    stops: const [.04, .48, 1],
+                  ),
+                  border: Border.all(color: Colors.white.withOpacity(.65), width: 1),
+                  boxShadow: [
+                    BoxShadow(color: subject.primary.withOpacity(.48), blurRadius: 18, offset: const Offset(0, 8)),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(compact ? 20 : 24),
-              ),
-            ),
-          ),
-          Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.0018)
-              ..rotateX(0.06)
-              ..rotateY(-0.11),
-            child: Container(
-              alignment: Alignment.center,
-              padding: EdgeInsets.fromLTRB(
-                6,
-                compact ? 7 : 9,
-                6,
-                compact ? 6 : 8,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [subject.secondary, subject.primary],
+                child: Center(
+                  child: _Subject3DMedallion(subject: subject, compact: compact),
                 ),
-                borderRadius: BorderRadius.circular(compact ? 20 : 24),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.68),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: subject.primary.withOpacity(0.46),
-                    blurRadius: 16,
-                    offset: const Offset(0, 9),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _Subject3DMedallion(subject: subject, compact: compact),
-                  SizedBox(height: compact ? 4 : 6),
-                  Text(
-                    subject.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    style: TextStyle(
-                      color: const Color(0xFF15364A),
-                      fontSize: compact ? 9 : 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
           Positioned(
-            top: compact ? 8 : 10,
-            right: compact ? 10 : 13,
+            top: 8,
+            right: 14,
             child: Container(
-              width: compact ? 13 : 16,
-              height: compact ? 5 : 6,
+              width: compact ? 11 : 15,
+              height: compact ? 4 : 5,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.38),
                 borderRadius: BorderRadius.circular(20),
@@ -601,24 +605,10 @@ class _SubjectModelSymbol extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (model) {
-      _SubjectModel.math => Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            Icon(Icons.functions_rounded, size: size, color: color),
-            Positioned(
-              top: -3,
-              right: -3,
-              child: Text(
-                'π',
-                style: TextStyle(
-                  color: const Color(0xFFE27962),
-                  fontSize: size * 0.48,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
+      _SubjectModel.math => Icon(
+          Icons.functions_rounded,
+          size: size,
+          color: color,
         ),
       _SubjectModel.science => Stack(
           clipBehavior: Clip.none,
@@ -639,16 +629,7 @@ class _SubjectModelSymbol extends StatelessWidget {
             ),
           ],
         ),
-      _SubjectModel.language => Text(
-          'أب',
-          textDirection: TextDirection.rtl,
-          style: TextStyle(
-            color: color,
-            fontSize: size * 0.58,
-            fontWeight: FontWeight.w900,
-            height: 1,
-          ),
-        ),
+      _SubjectModel.language => Icon(Icons.menu_book_rounded, size: size * .88, color: color),
       _SubjectModel.technology => Icon(
           Icons.memory_rounded,
           size: size * 0.88,
@@ -662,7 +643,6 @@ enum _SubjectModel { math, science, language, technology }
 
 class _SubjectOrbitSpec {
   const _SubjectOrbitSpec({
-    required this.label,
     required this.primary,
     required this.secondary,
     required this.alignment,
@@ -670,7 +650,6 @@ class _SubjectOrbitSpec {
     required this.model,
   });
 
-  final String label;
   final Color primary;
   final Color secondary;
   final Alignment alignment;
@@ -1252,20 +1231,21 @@ class StudentSelectionBadge extends StatelessWidget {
   }
 }
 
-/// Shared student loading animation. The bundled asset is a Rive animation,
-/// while reduced-motion users receive a quiet static placeholder.
+/// Shared student loading indicator. Rive is used only when a screen explicitly
+/// requests a trusted asset; routine loading states use a Flutter-native
+/// indicator so a malformed animation cannot block the student flow.
 class StudentRiveLoading extends StatelessWidget {
   const StudentRiveLoading({
     this.size = 118,
     this.label = 'جارٍ التحميل',
-    this.assetPath = 'assets/animations/children-loading.riv',
+    this.assetPath,
     this.liveRegion = true,
     super.key,
   });
 
   final double size;
   final String label;
-  final String assetPath;
+  final String? assetPath;
   final bool liveRegion;
 
   @override
@@ -1283,11 +1263,43 @@ class StudentRiveLoading extends StatelessWidget {
                 size: size * 0.42,
                 color: const Color(0xFF0B8693),
               )
-            : RiveAnimation.asset(
-                assetPath,
-                fit: BoxFit.contain,
-                alignment: Alignment.center,
-              ),
+            : assetPath != null
+                ? RiveAnimation.asset(
+                    assetPath!,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                  )
+                : Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: size * 0.62,
+                        height: size * 0.62,
+                        child: const CircularProgressIndicator(
+                          color: Color(0xFF0B8693),
+                          backgroundColor: Color(0xFFD7EFED),
+                          strokeWidth: 5,
+                        ),
+                      ),
+                      Container(
+                        width: size * 0.42,
+                        height: size * 0.42,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFFFFE49A), Color(0xFFF2B84B)],
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.auto_stories_rounded,
+                          size: size * 0.23,
+                          color: const Color(0xFF173B50),
+                        ),
+                      ),
+                    ],
+                  ),
       ),
     );
   }

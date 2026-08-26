@@ -841,6 +841,8 @@ class _VideoCarouselState extends State<_VideoCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Column(
       children: [
         SizedBox(
@@ -893,7 +895,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
           children: List.generate(
             widget.videos.length,
             (index) => AnimatedContainer(
-              duration: 220.ms,
+              duration: reduceMotion ? Duration.zero : 220.ms,
               width: index == _activeIndex ? 26 : 8,
               height: 8,
               margin: const EdgeInsets.symmetric(horizontal: 3),
