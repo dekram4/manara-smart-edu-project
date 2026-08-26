@@ -5,6 +5,8 @@ import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'audio_service.dart';
+
 enum StudentSoundCue {
   navigation,
   answerSelected,
@@ -44,6 +46,7 @@ class StudentSoundService {
   final StudentSoundGate _gate = StudentSoundGate();
   final AudioPlayer _effectsPlayer = AudioPlayer();
   final AudioPlayer _voicePlayer = AudioPlayer();
+  late final AudioService _feedbackAudio = AudioService(muted: muted);
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -54,6 +57,7 @@ class StudentSoundService {
       muted.value = preferences.getBool(_mutedKey) ?? false;
       await _effectsPlayer.setReleaseMode(ReleaseMode.stop);
       await _voicePlayer.setReleaseMode(ReleaseMode.stop);
+      await _feedbackAudio.initialize();
     } catch (_) {
       // The student experience remains usable if local preferences are absent.
     }
@@ -65,6 +69,7 @@ class StudentSoundService {
     if (next) {
       await _effectsPlayer.stop();
       await _voicePlayer.stop();
+      await _feedbackAudio.stop();
     }
     try {
       final preferences = await SharedPreferences.getInstance();
@@ -79,6 +84,14 @@ class StudentSoundService {
   Future<void> _play(StudentSoundCue cue) async {
     if (muted.value || !_gate.allow(cue)) return;
     try {
+      if (cue == StudentSoundCue.success) {
+        await _feedbackAudio.playSuccess();
+        return;
+      }
+      if (cue == StudentSoundCue.warning) {
+        await _feedbackAudio.playFeedback();
+        return;
+      }
       if (cue == StudentSoundCue.gameReward) {
         // Flame Audio is reserved for game moments so native Flame games can
         // use the same audio asset catalog as the surrounding student app.

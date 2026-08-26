@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   supabase_flutter: ^2.8.0
   flutter_animate: ^4.5.2
+  rive: ^0.13.20
+  lottie: ^3.2.0
   audioplayers: ^6.1.0
   confetti: ^0.8.0
   shared_preferences: ^2.3.3
@@ -35,4 +37,6 @@ flutter:
   assets:
     - assets/images/manara-logo-mark-transparent.png
     - assets/images/manara-student-login-companion-cutout.png
+    - assets/animations/
+    - assets/sounds/
     - assets/audio/
