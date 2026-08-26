@@ -98,7 +98,8 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
         ..setAttribute('data-client-key', clientKey)
         ..setAttribute('data-agent-id', agentId)
         ..setAttribute('data-target-id', rootId)
-        ..setAttribute('data-name', 'manara-did-agent')
+        // D-ID's runtime discovers its embed only through this exact marker.
+        ..setAttribute('data-name', 'did-agent')
         ..setAttribute('data-monitor', 'true')
         ..setAttribute('data-orientation', 'horizontal')
         ..setAttribute('data-open-mode', 'expanded');
