@@ -64,8 +64,8 @@ class ManaraLogo extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
