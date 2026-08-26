@@ -82,7 +82,7 @@ class StudentProgressScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         ),

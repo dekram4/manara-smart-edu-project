@@ -1,0 +1,37 @@
+lib/src/screens/student_progress_screen.dart:106:25: Error: Can't find ']' to match '['.
+              children: [
+                        ^
+lib/src/screens/student_progress_screen.dart:127:10: Error: Expected a class member, but got ','.
+        ),
+         ^
+lib/src/screens/student_progress_screen.dart:128:7: Error: Expected a class member, but got ')'.
+      );
+      ^
+lib/src/screens/student_progress_screen.dart:128:8: Error: Expected a class member, but got ';'.
+      );
+       ^
+lib/src/widgets/student_experience.dart:420:25: Error: 'LinearGradient' is imported from both
+'package:flutter/src/painting/gradient.dart' and 'package:rive/src/rive_core/shapes/paint/linear_gradient.dart'.
+              gradient: LinearGradient(
+                        ^^^^^^^^^^^^^^
+lib/src/widgets/student_experience.dart:540:24: Error: 'LinearGradient' is imported from both
+'package:flutter/src/painting/gradient.dart' and 'package:rive/src/rive_core/shapes/paint/linear_gradient.dart'.
+      ..shader = const LinearGradient(
+                       ^^^^^^^^^^^^^^
+lib/src/widgets/student_experience.dart:630:14: Error: 'Image' is imported from both 'package:flutter/src/widgets/image.dart'
+and 'package:rive/src/rive_core/shapes/image.dart'.
+      child: Image.asset(
+             ^^^^^
+lib/src/widgets/student_experience.dart:763:27: Error: 'LinearGradient' is imported from both
+'package:flutter/src/painting/gradient.dart' and 'package:rive/src/rive_core/shapes/paint/linear_gradient.dart'.
+                gradient: LinearGradient(
+                          ^^^^^^^^^^^^^^
+lib/src/widgets/student_experience.dart:847:23: Error: 'LinearGradient' is imported from both
+'package:flutter/src/painting/gradient.dart' and 'package:rive/src/rive_core/shapes/paint/linear_gradient.dart'.
+            gradient: LinearGradient(
+                      ^^^^^^^^^^^^^^
+lib/src/screens/student_progress_screen.dart:127:9: Error: Expected ';' after this.
+        ),
+        ^
+Waiting for connection from debug service on Chrome...             30.4s
+Failed to compile application.

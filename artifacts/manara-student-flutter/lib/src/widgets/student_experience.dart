@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:rive/rive.dart';
+import 'package:rive/rive.dart' hide Image, LinearGradient;
 
 import '../services/student_sound_service.dart';
 
