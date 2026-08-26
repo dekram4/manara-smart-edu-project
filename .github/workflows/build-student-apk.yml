@@ -1,0 +1,50 @@
+name: Build Student Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - artifacts/manara-student-flutter/**
+      - .github/workflows/build-student-apk.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-arm64-debug-apk:
+    name: Build arm64 debug APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: artifacts/manara-student-flutter
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          cache: true
+
+      - name: Fetch Flutter packages
+        run: flutter pub get
+
+      - name: Build installable tablet APK
+        run: flutter build apk --debug --target-platform android-arm64
+
+      - name: Publish APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: manara-student-arm64-debug-apk
+          path: artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
+          if-no-files-found: error
+          retention-days: 14
