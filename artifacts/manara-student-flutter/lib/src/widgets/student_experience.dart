@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -210,6 +212,281 @@ class StudentLearningWorld extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Animated subject cards for the student login illustration. They are
+/// decorative, sit behind the login story, and honor the system motion setting.
+class StudentSubjectOrbit extends StatefulWidget {
+  const StudentSubjectOrbit({
+    this.compact = false,
+    super.key,
+  });
+
+  final bool compact;
+
+  @override
+  State<StudentSubjectOrbit> createState() => _StudentSubjectOrbitState();
+}
+
+class _StudentSubjectOrbitState extends State<StudentSubjectOrbit>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 15),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduceMotion) {
+      return _SubjectOrbitLayout(progress: 0, compact: widget.compact);
+    }
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => _SubjectOrbitLayout(
+        progress: _controller.value,
+        compact: widget.compact,
+      ),
+    );
+  }
+}
+
+class _SubjectOrbitLayout extends StatelessWidget {
+  const _SubjectOrbitLayout({
+    required this.progress,
+    required this.compact,
+  });
+
+  final double progress;
+  final bool compact;
+
+  static const _subjects = <_SubjectOrbitSpec>[
+    _SubjectOrbitSpec(
+      label: 'رياضيات',
+      icon: Icons.calculate_rounded,
+      primary: Color(0xFFEAA54E),
+      secondary: Color(0xFFF6D77A),
+      alignment: Alignment(-0.91, -0.28),
+      phase: 0.0,
+    ),
+    _SubjectOrbitSpec(
+      label: 'علوم',
+      icon: Icons.science_rounded,
+      primary: Color(0xFF55AFA4),
+      secondary: Color(0xFF9CE0D2),
+      alignment: Alignment(0.9, -0.02),
+      phase: 0.27,
+    ),
+    _SubjectOrbitSpec(
+      label: 'لغة',
+      icon: Icons.auto_stories_rounded,
+      primary: Color(0xFF9684D3),
+      secondary: Color(0xFFC6BAF2),
+      alignment: Alignment(-0.82, 0.74),
+      phase: 0.52,
+    ),
+    _SubjectOrbitSpec(
+      label: 'تقنية',
+      icon: Icons.memory_rounded,
+      primary: Color(0xFFE07D68),
+      secondary: Color(0xFFF4B7A3),
+      alignment: Alignment(0.88, 0.72),
+      phase: 0.78,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: IgnorePointer(
+        child: Stack(
+          fit: StackFit.expand,
+          children: _subjects
+              .map(
+                (subject) => _AnimatedSubjectOrb(
+                  subject: subject,
+                  progress: progress,
+                  compact: compact,
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedSubjectOrb extends StatelessWidget {
+  const _AnimatedSubjectOrb({
+    required this.subject,
+    required this.progress,
+    required this.compact,
+  });
+
+  final _SubjectOrbitSpec subject;
+  final double progress;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final cycle = (progress + subject.phase) * math.pi * 2;
+    final rise = math.sin(cycle) * (compact ? 5.0 : 8.0);
+    final tilt = math.sin(cycle) * 0.07;
+    final turn = math.cos(cycle) * 0.18;
+
+    return Align(
+      alignment: subject.alignment,
+      child: Transform.translate(
+        offset: Offset(0, rise),
+        child: Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.0012)
+            ..rotateY(turn)
+            ..rotateZ(tilt),
+          child: Opacity(
+            opacity: compact ? 0.82 : 0.92,
+            child: _SubjectOrbitCard(subject: subject, compact: compact),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubjectOrbitCard extends StatelessWidget {
+  const _SubjectOrbitCard({
+    required this.subject,
+    required this.compact,
+  });
+
+  final _SubjectOrbitSpec subject;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = compact ? 62.0 : 76.0;
+    final height = compact ? 68.0 : 82.0;
+    final iconSize = compact ? 25.0 : 31.0;
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: 7,
+            bottom: -6,
+            left: 7,
+            height: 18,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: subject.primary.withOpacity(0.52),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            alignment: Alignment.center,
+            padding: EdgeInsets.fromLTRB(
+              6,
+              compact ? 6 : 8,
+              6,
+              compact ? 5 : 7,
+            ),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [subject.secondary, subject.primary],
+              ),
+              borderRadius: BorderRadius.circular(compact ? 19 : 22),
+              border: Border.all(color: Colors.white.withOpacity(0.64), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: subject.primary.withOpacity(0.38),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: compact ? 36 : 42,
+                  height: compact ? 36 : 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.88),
+                    shape: BoxShape.circle,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x240F2F46),
+                        blurRadius: 7,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(subject.icon, size: iconSize, color: subject.primary),
+                ),
+                SizedBox(height: compact ? 3 : 5),
+                Text(
+                  subject.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.fade,
+                  style: TextStyle(
+                    color: const Color(0xFF173B50),
+                    fontSize: compact ? 9 : 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubjectOrbitSpec {
+  const _SubjectOrbitSpec({
+    required this.label,
+    required this.icon,
+    required this.primary,
+    required this.secondary,
+    required this.alignment,
+    required this.phase,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color primary;
+  final Color secondary;
+  final Alignment alignment;
+  final double phase;
 }
 
 class _FloatingWorldBadge extends StatelessWidget {

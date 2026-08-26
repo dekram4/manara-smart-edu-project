@@ -302,6 +302,9 @@ class _LoginStoryPanel extends StatelessWidget {
               ),
             ),
           ),
+          Positioned.fill(
+            child: StudentSubjectOrbit(compact: compact),
+          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
