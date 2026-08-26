@@ -164,21 +164,24 @@ class _LoginScreenState extends State<LoginScreen> {
                           final content = isWide
                               ? Directionality(
                                   textDirection: TextDirection.ltr,
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Expanded(
-                                        flex: 9,
-                                        child: _LoginStoryPanel(compact: false),
-                                      ),
-                                      Expanded(
-                                        flex: 11,
-                                        child: Directionality(
-                                          textDirection: TextDirection.rtl,
-                                          child: credentials,
+                                  child: SizedBox(
+                                    height: 590,
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        const Expanded(
+                                          flex: 9,
+                                          child: _LoginStoryPanel(compact: false),
                                         ),
-                                      ),
-                                    ],
+                                        Expanded(
+                                          flex: 11,
+                                          child: Directionality(
+                                            textDirection: TextDirection.rtl,
+                                            child: credentials,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 )
                               : Column(
@@ -259,7 +262,6 @@ class _LoginStoryPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final horizontalPadding = compact ? 24.0 : 36.0;
     return Container(
-      height: compact ? null : 590,
       constraints: BoxConstraints(minHeight: compact ? 260 : 590),
       padding: EdgeInsets.fromLTRB(
         horizontalPadding,
