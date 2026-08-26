@@ -102,7 +102,13 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
         ..setAttribute('data-monitor', 'true')
         ..setAttribute('data-orientation', 'horizontal')
         ..setAttribute('data-open-mode', 'expanded');
-      root.append(script);
+      // A module script inserted into a detached platform-view root can be
+      // skipped by the browser. Append it on the next event-loop turn, after
+      // HtmlElementView has attached the root to the document.
+      Timer.run(() {
+        if (!root.isConnected) return;
+        root.append(script);
+      });
       return root;
     });
   }
