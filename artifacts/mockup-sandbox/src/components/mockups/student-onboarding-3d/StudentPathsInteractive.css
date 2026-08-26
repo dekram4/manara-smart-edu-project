@@ -1,0 +1,62 @@
+.paths-interactive .paths-mark,
+.paths-interactive .paths-trophy {
+  box-shadow: 0 6px 0 #0f2938, 0 16px 22px rgba(23, 59, 80, .15);
+}
+
+.paths-panel {
+  transform-style: preserve-3d;
+}
+
+.paths-sun {
+  position: absolute;
+  top: -90px;
+  left: -60px;
+  width: 230px;
+  height: 230px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(242, 184, 75, .3), rgba(242, 184, 75, 0) 68%);
+  animation: sun-breathe 5s ease-in-out infinite;
+}
+
+.paths-trophy {
+  animation: trophy-hop 4.6s ease-in-out infinite;
+}
+
+.path-card {
+  transform: translateZ(0);
+}
+
+.path-card:hover {
+  transform: translateY(-7px) rotateX(2deg) rotateZ(-.4deg);
+}
+
+.path-card-active {
+  transform: translateY(-3px);
+}
+
+.path-card-check {
+  animation: grow-in .35s ease both;
+}
+
+.paths-success {
+  animation: appear .35s ease both;
+}
+
+@keyframes trophy-hop {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-7px) rotate(2deg); }
+}
+
+@keyframes sun-breathe {
+  0%, 100% { transform: scale(.95); opacity: .72; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes grow-in {
+  from { transform: scaleX(0); transform-origin: right; opacity: .2; }
+  to { transform: scaleX(1); transform-origin: right; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paths-sun, .paths-trophy { animation: none; }
+}
