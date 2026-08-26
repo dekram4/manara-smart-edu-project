@@ -377,7 +377,16 @@ class _LoginStoryPanel extends StatelessWidget {
               if (!compact) const Spacer(),
               Align(
                 alignment: AlignmentDirectional.center,
-                child: StudentCompanion(size: compact ? 132 : 176),
+                child: SizedBox(
+                  width: compact ? 148 : 205,
+                  height: compact ? 144 : 190,
+                  child: StudentRiveLoading(
+                    size: compact ? 136 : 182,
+                    label: 'أنيميشن الكتب التعليمية',
+                    assetPath: 'assets/animations/loading-books.riv',
+                    liveRegion: false,
+                  ),
+                ),
               ),
               if (!compact) const SizedBox(height: 4),
             ],

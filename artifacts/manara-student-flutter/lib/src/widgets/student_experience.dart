@@ -277,35 +277,35 @@ class _SubjectOrbitLayout extends StatelessWidget {
   static const _subjects = <_SubjectOrbitSpec>[
     _SubjectOrbitSpec(
       label: 'رياضيات',
-      icon: Icons.calculate_rounded,
       primary: Color(0xFFEAA54E),
       secondary: Color(0xFFF6D77A),
       alignment: Alignment(-0.91, -0.28),
       phase: 0.0,
+      model: _SubjectModel.math,
     ),
     _SubjectOrbitSpec(
       label: 'علوم',
-      icon: Icons.science_rounded,
       primary: Color(0xFF55AFA4),
       secondary: Color(0xFF9CE0D2),
       alignment: Alignment(0.9, -0.02),
       phase: 0.27,
+      model: _SubjectModel.science,
     ),
     _SubjectOrbitSpec(
       label: 'لغة',
-      icon: Icons.auto_stories_rounded,
       primary: Color(0xFF9684D3),
       secondary: Color(0xFFC6BAF2),
       alignment: Alignment(-0.82, 0.74),
       phase: 0.52,
+      model: _SubjectModel.language,
     ),
     _SubjectOrbitSpec(
       label: 'تقنية',
-      icon: Icons.memory_rounded,
       primary: Color(0xFFE07D68),
       secondary: Color(0xFFF4B7A3),
       alignment: Alignment(0.88, 0.72),
       phase: 0.78,
+      model: _SubjectModel.technology,
     ),
   ];
 
@@ -379,9 +379,8 @@ class _SubjectOrbitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = compact ? 62.0 : 76.0;
-    final height = compact ? 68.0 : 82.0;
-    final iconSize = compact ? 25.0 : 31.0;
+    final width = compact ? 66.0 : 82.0;
+    final height = compact ? 74.0 : 91.0;
 
     return SizedBox(
       width: width,
@@ -390,80 +389,105 @@ class _SubjectOrbitCard extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            right: 7,
-            bottom: -6,
-            left: 7,
-            height: 18,
+            right: 8,
+            bottom: -8,
+            left: 8,
+            height: 20,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: subject.primary.withOpacity(0.52),
+                color: const Color(0xFF071B2E).withOpacity(0.28),
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 6),
+                    color: subject.primary.withOpacity(0.36),
+                    blurRadius: 14,
+                    offset: const Offset(0, 7),
                   ),
                 ],
               ),
             ),
           ),
-          Container(
-            alignment: Alignment.center,
-            padding: EdgeInsets.fromLTRB(
-              6,
-              compact ? 6 : 8,
-              6,
-              compact ? 5 : 7,
-            ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [subject.secondary, subject.primary],
+          Positioned(
+            top: 6,
+            right: 3,
+            bottom: 1,
+            left: 7,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    subject.primary.withOpacity(0.64),
+                    subject.primary.withOpacity(0.96),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(compact ? 20 : 24),
               ),
-              borderRadius: BorderRadius.circular(compact ? 19 : 22),
-              border: Border.all(color: Colors.white.withOpacity(0.64), width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: subject.primary.withOpacity(0.38),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
-                ),
-              ],
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: compact ? 36 : 42,
-                  height: compact ? 36 : 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.88),
-                    shape: BoxShape.circle,
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x240F2F46),
-                        blurRadius: 7,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Icon(subject.icon, size: iconSize, color: subject.primary),
+          ),
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0018)
+              ..rotateX(0.06)
+              ..rotateY(-0.11),
+            child: Container(
+              alignment: Alignment.center,
+              padding: EdgeInsets.fromLTRB(
+                6,
+                compact ? 7 : 9,
+                6,
+                compact ? 6 : 8,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [subject.secondary, subject.primary],
                 ),
-                SizedBox(height: compact ? 3 : 5),
-                Text(
-                  subject.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.fade,
-                  style: TextStyle(
-                    color: const Color(0xFF173B50),
-                    fontSize: compact ? 9 : 10,
-                    fontWeight: FontWeight.w900,
-                  ),
+                borderRadius: BorderRadius.circular(compact ? 20 : 24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.68),
+                  width: 1.2,
                 ),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: subject.primary.withOpacity(0.46),
+                    blurRadius: 16,
+                    offset: const Offset(0, 9),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _Subject3DMedallion(subject: subject, compact: compact),
+                  SizedBox(height: compact ? 4 : 6),
+                  Text(
+                    subject.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    style: TextStyle(
+                      color: const Color(0xFF15364A),
+                      fontSize: compact ? 9 : 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: compact ? 8 : 10,
+            right: compact ? 10 : 13,
+            child: Container(
+              width: compact ? 13 : 16,
+              height: compact ? 5 : 6,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.38),
+                borderRadius: BorderRadius.circular(20),
+              ),
             ),
           ),
         ],
@@ -472,22 +496,182 @@ class _SubjectOrbitCard extends StatelessWidget {
   }
 }
 
+class _Subject3DMedallion extends StatelessWidget {
+  const _Subject3DMedallion({
+    required this.subject,
+    required this.compact,
+  });
+
+  final _SubjectOrbitSpec subject;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 36.0 : 46.0;
+    final symbolSize = compact ? 20.0 : 25.0;
+    return SizedBox(
+      width: size + 4,
+      height: size + 5,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            bottom: 0,
+            child: Container(
+              width: size * 0.68,
+              height: size * 0.16,
+              decoration: BoxDecoration(
+                color: const Color(0xFF102E42).withOpacity(0.24),
+                borderRadius: BorderRadius.circular(30),
+              ),
+            ),
+          ),
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0022)
+              ..rotateY(-0.24)
+              ..rotateX(0.12),
+            child: Container(
+              width: size,
+              height: size,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  center: const Alignment(-0.36, -0.42),
+                  radius: 0.94,
+                  colors: [
+                    Colors.white.withOpacity(0.98),
+                    subject.secondary.withOpacity(0.84),
+                    subject.primary,
+                  ],
+                  stops: const [0.05, 0.55, 1],
+                ),
+                border: Border.all(color: Colors.white.withOpacity(0.72), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF09243A).withOpacity(0.28),
+                    blurRadius: 7,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: _SubjectModelSymbol(
+                model: subject.model,
+                color: const Color(0xFF173B50),
+                size: symbolSize,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 2,
+            left: 6,
+            child: Container(
+              width: size * 0.24,
+              height: size * 0.13,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.72),
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubjectModelSymbol extends StatelessWidget {
+  const _SubjectModelSymbol({
+    required this.model,
+    required this.color,
+    required this.size,
+  });
+
+  final _SubjectModel model;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (model) {
+      _SubjectModel.math => Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Icon(Icons.functions_rounded, size: size, color: color),
+            Positioned(
+              top: -3,
+              right: -3,
+              child: Text(
+                'π',
+                style: TextStyle(
+                  color: const Color(0xFFE27962),
+                  fontSize: size * 0.48,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      _SubjectModel.science => Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Icon(Icons.hub_rounded, size: size * 1.04, color: color),
+            Positioned(
+              top: 1,
+              right: 0,
+              child: Container(
+                width: size * 0.24,
+                height: size * 0.24,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF55AFA4),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        ),
+      _SubjectModel.language => Text(
+          'أب',
+          textDirection: TextDirection.rtl,
+          style: TextStyle(
+            color: color,
+            fontSize: size * 0.58,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
+      _SubjectModel.technology => Icon(
+          Icons.memory_rounded,
+          size: size * 0.88,
+          color: color,
+        ),
+    };
+  }
+}
+
+enum _SubjectModel { math, science, language, technology }
+
 class _SubjectOrbitSpec {
   const _SubjectOrbitSpec({
     required this.label,
-    required this.icon,
     required this.primary,
     required this.secondary,
     required this.alignment,
     required this.phase,
+    required this.model,
   });
 
   final String label;
-  final IconData icon;
   final Color primary;
   final Color secondary;
   final Alignment alignment;
   final double phase;
+  final _SubjectModel model;
 }
 
 class _FloatingWorldBadge extends StatelessWidget {
@@ -1071,19 +1255,21 @@ class StudentRiveLoading extends StatelessWidget {
     this.size = 118,
     this.label = 'جارٍ التحميل',
     this.assetPath = 'assets/animations/children-loading.riv',
+    this.liveRegion = true,
     super.key,
   });
 
   final double size;
   final String label;
   final String assetPath;
+  final bool liveRegion;
 
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Semantics(
       label: label,
-      liveRegion: true,
+      liveRegion: liveRegion,
       child: SizedBox(
         width: size,
         height: size,
