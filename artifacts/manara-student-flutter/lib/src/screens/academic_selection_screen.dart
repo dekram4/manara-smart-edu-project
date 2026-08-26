@@ -443,7 +443,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                       const SizedBox(height: 22),
                       StudentAnimatedCard(
                         delay: const Duration(milliseconds: 120),
-                        child: Container(
+                        child: Student3DCard(
+                          child: Container(
                           padding: const EdgeInsets.all(22),
                           decoration: BoxDecoration(
                             color: const Color(0xEFFFFFF8),
@@ -606,6 +607,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                               ],
                             ],
                           ),
+                        ),
                         ),
                       ),
                     ],

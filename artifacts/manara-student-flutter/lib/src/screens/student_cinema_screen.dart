@@ -325,7 +325,8 @@ class _CinemaDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Student3DCard(
+      child: Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: const Color(0xFF132337),
@@ -358,6 +359,7 @@ class _CinemaDetails extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -439,7 +441,8 @@ class _CinemaStateCard extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Container(
+        child: Student3DCard(
+          child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: const Color(0xFF132337),
@@ -482,6 +485,7 @@ class _CinemaStateCard extends StatelessWidget {
                 ),
               ],
             ],
+          ),
           ),
         ),
       ),

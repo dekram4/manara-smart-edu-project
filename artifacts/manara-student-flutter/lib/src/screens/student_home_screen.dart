@@ -437,7 +437,9 @@ class _AcademicContextSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Student3DCard(
+      maxTilt: 0.035,
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
         color: const Color(0xFFE6FFFB).withAlpha(230),
@@ -462,6 +464,7 @@ class _AcademicContextSummary extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -846,7 +849,8 @@ class _WelcomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Student3DCard(
+      child: Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
@@ -880,6 +884,7 @@ class _WelcomeCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

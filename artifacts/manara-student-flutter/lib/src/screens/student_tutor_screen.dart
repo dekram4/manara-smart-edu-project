@@ -297,7 +297,8 @@ class _BlockedMeetingCard extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
-        child: Card(
+        child: Student3DCard(
+          child: Card(
           color: const Color(0xFF101D33),
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -325,6 +326,7 @@ class _BlockedMeetingCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

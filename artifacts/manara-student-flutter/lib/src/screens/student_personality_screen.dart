@@ -261,7 +261,8 @@ class _AppearancePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Student3DCard(
+      child: Container(
       height: 244,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
@@ -276,6 +277,7 @@ class _AppearancePreview extends StatelessWidget {
                 errorBuilder: (_, __, ___) => _emojiPreview(),
               )
             : _emojiPreview(),
+      ),
       ),
     );
   }
@@ -300,7 +302,8 @@ class _EditorCard extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => Student3DCard(
+        child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -313,6 +316,7 @@ class _EditorCard extends StatelessWidget {
             const SizedBox(height: 13),
             child,
           ],
+        ),
         ),
       );
 }

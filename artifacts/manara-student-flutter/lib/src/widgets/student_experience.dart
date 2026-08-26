@@ -837,86 +837,88 @@ class StudentScreenHero extends StatelessWidget {
     final supporting = dark ? const Color(0xFFD8F4F0) : const Color(0xFF466273);
 
     return StudentAnimatedCard(
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 14, 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: AlignmentDirectional.topStart,
-            end: AlignmentDirectional.bottomEnd,
-            colors: dark
-                ? colors
-                : [colors.first.withOpacity(0.18), Colors.white],
-          ),
-          border: Border.all(
-            color: dark ? Colors.white.withOpacity(0.15) : colors.first.withOpacity(0.22),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: colors.first.withOpacity(dark ? 0.24 : 0.12),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+      child: Student3DCard(
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 14, 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: AlignmentDirectional.topStart,
+              end: AlignmentDirectional.bottomEnd,
+              colors: dark
+                  ? colors
+                  : [colors.first.withOpacity(0.18), Colors.white],
             ),
-          ],
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            PositionedDirectional(
-              top: -42,
-              end: showCompanion ? 58 : -25,
-              child: Container(
-                width: 116,
-                height: 116,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: dark ? Colors.white.withOpacity(0.10) : colors.first.withOpacity(0.08),
-                ),
+            border: Border.all(
+              color: dark ? Colors.white.withOpacity(0.15) : colors.first.withOpacity(0.22),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colors.first.withOpacity(dark ? 0.24 : 0.12),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-            ),
-            Row(
-              children: [
-                StudentCardAvatar(
-                  icon: icon,
-                  accent: dark ? const Color(0xFFBFFBFA) : colors.first,
-                  label: title,
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: foreground,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: supporting,
-                          height: 1.35,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+            ],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              PositionedDirectional(
+                top: -42,
+                end: showCompanion ? 58 : -25,
+                child: Container(
+                  width: 116,
+                  height: 116,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: dark ? Colors.white.withOpacity(0.10) : colors.first.withOpacity(0.08),
                   ),
                 ),
-                if (showCompanion) ...[
-                  const SizedBox(width: 6),
-                  const StudentCompanion(size: 68, showLabel: false),
+              ),
+              Row(
+                children: [
+                  StudentCardAvatar(
+                    icon: icon,
+                    accent: dark ? const Color(0xFFBFFBFA) : colors.first,
+                    label: title,
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: foreground,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: supporting,
+                            height: 1.35,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (showCompanion) ...[
+                    const SizedBox(width: 6),
+                    const StudentCompanion(size: 68, showLabel: false),
+                  ],
                 ],
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1115,8 +1117,10 @@ class _Student3DCardState extends State<Student3DCard>
     final size = renderObject.size;
     if (size.width <= 0 || size.height <= 0) return;
 
-    final normalizedX = (position.dx / size.width * 2 - 1).clamp(-1.0, 1.0);
-    final normalizedY = (position.dy / size.height * 2 - 1).clamp(-1.0, 1.0);
+    final normalizedX =
+        (position.dx / size.width * 2 - 1).clamp(-1.0, 1.0).toDouble();
+    final normalizedY =
+        (position.dy / size.height * 2 - 1).clamp(-1.0, 1.0).toDouble();
     _animateTo(
       Offset(
         -normalizedY * widget.maxTilt,

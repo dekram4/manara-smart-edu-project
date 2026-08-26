@@ -541,30 +541,32 @@ class _QuestionList extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _text(question['question']),
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
-                ),
-                const SizedBox(height: 12),
-                ...options.map(
-                  (option) => RadioListTile<String>(
-                    value: option,
-                    groupValue: selected,
-                    onChanged: submitting || option.isEmpty
-                        ? null
-                        : (value) => onAnswer(id, value!),
-                    title: Text(option),
-                    contentPadding: EdgeInsets.zero,
+        Student3DCard(
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _text(question['question']),
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  ...options.map(
+                    (option) => RadioListTile<String>(
+                      value: option,
+                      groupValue: selected,
+                      onChanged: submitting || option.isEmpty
+                          ? null
+                          : (value) => onAnswer(id, value!),
+                      title: Text(option),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -623,56 +625,60 @@ class _QuizResultView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Icon(
-                  percentage >= 60 ? Icons.emoji_events_rounded : Icons.menu_book_rounded,
-                  size: 62,
-                  color: percentage >= 60 ? const Color(0xFFF59E0B) : const Color(0xFF0B8693),
-                ),
-                const SizedBox(height: 12),
-                Text(_text(result['quizTitle']).isEmpty ? 'نتيجتك' : _text(result['quizTitle']),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 10),
-                Text('$percentage%', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900)),
-                Text('${result['score'] ?? 0} من ${result['total'] ?? 0} إجابات صحيحة'),
-                const SizedBox(height: 14),
-                Text(_text(result['feedback']), textAlign: TextAlign.center),
-                const SizedBox(height: 20),
-                FilledButton(onPressed: onBack, child: const Text('العودة للاختبارات')),
-              ],
+        Student3DCard(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Icon(
+                    percentage >= 60 ? Icons.emoji_events_rounded : Icons.menu_book_rounded,
+                    size: 62,
+                    color: percentage >= 60 ? const Color(0xFFF59E0B) : const Color(0xFF0B8693),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(_text(result['quizTitle']).isEmpty ? 'نتيجتك' : _text(result['quizTitle']),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 10),
+                  Text('$percentage%', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900)),
+                  Text('${result['score'] ?? 0} من ${result['total'] ?? 0} إجابات صحيحة'),
+                  const SizedBox(height: 14),
+                  Text(_text(result['feedback']), textAlign: TextAlign.center),
+                  const SizedBox(height: 20),
+                  FilledButton(onPressed: onBack, child: const Text('العودة للاختبارات')),
+                ],
+              ),
             ),
           ),
         ),
         if (details.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Card(
-            child: ExpansionTile(
-              initiallyExpanded: true,
-              title: const Text(
-                'تفاصيل الإجابات',
-                style: TextStyle(fontWeight: FontWeight.w900),
+          Student3DCard(
+            child: Card(
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                title: const Text(
+                  'تفاصيل الإجابات',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                children: details.asMap().entries.map((entry) {
+                  final detail = entry.value;
+                  final correct = detail['isCorrect'] == true;
+                  return ListTile(
+                    leading: Icon(
+                      correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                      color: correct ? const Color(0xFF0B9A67) : const Color(0xFFB42318),
+                    ),
+                    title: Text('${entry.key + 1}. ${_text(detail['question'])}'),
+                    subtitle: Text(
+                      'إجابتك: ${_text(detail['userAnswer']).isEmpty ? '—' : _text(detail['userAnswer'])}\n'
+                      'الصحيحة: ${_text(detail['correctAnswer'])}',
+                    ),
+                    isThreeLine: true,
+                  );
+                }).toList(),
               ),
-              children: details.asMap().entries.map((entry) {
-                final detail = entry.value;
-                final correct = detail['isCorrect'] == true;
-                return ListTile(
-                  leading: Icon(
-                    correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                    color: correct ? const Color(0xFF0B9A67) : const Color(0xFFB42318),
-                  ),
-                  title: Text('${entry.key + 1}. ${_text(detail['question'])}'),
-                  subtitle: Text(
-                    'إجابتك: ${_text(detail['userAnswer']).isEmpty ? '—' : _text(detail['userAnswer'])}\n'
-                    'الصحيحة: ${_text(detail['correctAnswer'])}',
-                  ),
-                  isThreeLine: true,
-                );
-              }).toList(),
             ),
           ),
         ],

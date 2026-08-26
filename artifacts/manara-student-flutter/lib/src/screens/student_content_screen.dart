@@ -510,7 +510,8 @@ class _GamificationSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Student3DCard(
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -554,6 +555,7 @@ class _GamificationSummary extends StatelessWidget {
             style: const TextStyle(color: Color(0xFFE9D5FF), fontSize: 12, fontWeight: FontWeight.w700),
           ),
         ],
+      ),
       ),
     );
   }
@@ -1354,7 +1356,8 @@ class _StateCard extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Container(
+        child: Student3DCard(
+          child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white.withAlpha(225),
@@ -1385,6 +1388,7 @@ class _StateCard extends StatelessWidget {
                 FilledButton(onPressed: onAction, child: Text(actionLabel ?? 'متابعة')),
               ],
             ],
+          ),
           ),
         ),
       ),

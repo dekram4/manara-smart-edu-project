@@ -323,16 +323,19 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Align(
     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 9),
-      padding: const EdgeInsets.all(12),
-      constraints: const BoxConstraints(maxWidth: 320),
-      decoration: BoxDecoration(color: mine ? const Color(0xFF0B8693) : Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(mine ? 'أنت' : message.name, style: TextStyle(fontWeight: FontWeight.w800, color: mine ? Colors.white : const Color(0xFF0B8693))),
-        const SizedBox(height: 4),
-        Text(message.message, style: TextStyle(height: 1.45, color: mine ? Colors.white : const Color(0xFF17233A))),
-      ]),
+    child: Student3DCard(
+      maxTilt: 0.035,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 9),
+        padding: const EdgeInsets.all(12),
+        constraints: const BoxConstraints(maxWidth: 320),
+        decoration: BoxDecoration(color: mine ? const Color(0xFF0B8693) : Colors.white, borderRadius: BorderRadius.circular(16)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(mine ? 'أنت' : message.name, style: TextStyle(fontWeight: FontWeight.w800, color: mine ? Colors.white : const Color(0xFF0B8693))),
+          const SizedBox(height: 4),
+          Text(message.message, style: TextStyle(height: 1.45, color: mine ? Colors.white : const Color(0xFF17233A))),
+        ]),
+      ),
     ),
   );
 }

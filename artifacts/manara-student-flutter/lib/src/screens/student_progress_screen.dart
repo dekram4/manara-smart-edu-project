@@ -38,21 +38,25 @@ class StudentProgressScreen extends StatelessWidget {
             if (stats.achievements.isEmpty)
               const StudentEntrance(
                 delay: Duration(milliseconds: 120),
-                child: Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(22),
-                    child: Text('لا توجد إنجازات بعد. أكمل درسًا أو اختبارًا لتبدأ رحلتك.', textAlign: TextAlign.center),
+                child: Student3DCard(
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(22),
+                      child: Text('لا توجد إنجازات بعد. أكمل درسًا أو اختبارًا لتبدأ رحلتك.', textAlign: TextAlign.center),
+                    ),
                   ),
                 ),
               )
             else
               ...stats.achievements.asMap().entries.map((entry) => StudentEntrance(
                     delay: Duration(milliseconds: 120 + (entry.key * 40)),
-                    child: Card(
-                      child: ListTile(
-                        leading: Text(entry.value.icon, style: const TextStyle(fontSize: 30)),
-                        title: Text(entry.value.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                        subtitle: Text(entry.value.description),
+                    child: Student3DCard(
+                      child: Card(
+                        child: ListTile(
+                          leading: Text(entry.value.icon, style: const TextStyle(fontSize: 30)),
+                          title: Text(entry.value.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                          subtitle: Text(entry.value.description),
+                        ),
                       ),
                     ),
                   )),
@@ -64,16 +68,18 @@ class StudentProgressScreen extends StatelessWidget {
             const SizedBox(height: 10),
             StudentEntrance(
               delay: const Duration(milliseconds: 280),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      _SummaryRow(icon: Icons.quiz_rounded, label: 'الاختبارات المكتملة', value: '${stats.totalQuizzes}'),
-                      _SummaryRow(icon: Icons.menu_book_rounded, label: 'الدروس المكتملة', value: '${stats.totalLessons}'),
-                      _SummaryRow(icon: Icons.sports_esports_rounded, label: 'الألعاب المكتملة', value: '${stats.totalGames}'),
-                      _SummaryRow(icon: Icons.insights_rounded, label: 'متوسط الاختبارات', value: '${stats.averageScore}%'),
-                    ],
+              child: Student3DCard(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _SummaryRow(icon: Icons.quiz_rounded, label: 'الاختبارات المكتملة', value: '${stats.totalQuizzes}'),
+                        _SummaryRow(icon: Icons.menu_book_rounded, label: 'الدروس المكتملة', value: '${stats.totalLessons}'),
+                        _SummaryRow(icon: Icons.sports_esports_rounded, label: 'الألعاب المكتملة', value: '${stats.totalGames}'),
+                        _SummaryRow(icon: Icons.insights_rounded, label: 'متوسط الاختبارات', value: '${stats.averageScore}%'),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -90,31 +96,33 @@ class _StatsCard extends StatelessWidget {
   final StudentGamification stats;
 
   @override
-  Widget build(BuildContext context) => Card(
-        color: const Color(0xFF0B8693),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('المستوى ${stats.level}', style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('⭐ XP ${stats.xp}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                  Text('💎 ${stats.gems}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                  Text('🔥 ${stats.streak} يوم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                ],
+  Widget build(BuildContext context) => Student3DCard(
+        child: Card(
+          color: const Color(0xFF0B8693),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('المستوى ${stats.level}', style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('⭐ XP ${stats.xp}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                    Text('💎 ${stats.gems}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                    Text('🔥 ${stats.streak} يوم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(value: stats.levelProgress / 100, minHeight: 11, backgroundColor: Colors.white30, color: Colors.amber),
+                ),
+                const SizedBox(height: 6),
+                Text('${stats.levelProgress} / 100 XP إلى المستوى التالي', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
               ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: LinearProgressIndicator(value: stats.levelProgress / 100, minHeight: 11, backgroundColor: Colors.white30, color: Colors.amber),
-              ),
-              const SizedBox(height: 6),
-              Text('${stats.levelProgress} / 100 XP إلى المستوى التالي', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-            ],
+            ),
           ),
         ),
       );

@@ -221,8 +221,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           );
 
-                          if (reduceMotion) return shell;
-                          return shell
+                          final interactiveShell = Student3DCard(child: shell);
+                          if (reduceMotion) return interactiveShell;
+                          return interactiveShell
                               .animate()
                               .fadeIn(duration: 420.ms)
                               .slideY(
