@@ -1070,11 +1070,13 @@ class StudentRiveLoading extends StatelessWidget {
   const StudentRiveLoading({
     this.size = 118,
     this.label = 'جارٍ التحميل',
+    this.assetPath = 'assets/animations/children-loading.riv',
     super.key,
   });
 
   final double size;
   final String label;
+  final String assetPath;
 
   @override
   Widget build(BuildContext context) {
@@ -1091,8 +1093,8 @@ class StudentRiveLoading extends StatelessWidget {
                 size: size * 0.42,
                 color: const Color(0xFF0B8693),
               )
-            : const RiveAnimation.asset(
-                'assets/animations/children-loading.riv',
+            : RiveAnimation.asset(
+                assetPath,
                 fit: BoxFit.contain,
                 alignment: Alignment.center,
               ),

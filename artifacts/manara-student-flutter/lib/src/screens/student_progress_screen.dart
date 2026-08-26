@@ -28,6 +28,11 @@ class StudentProgressScreen extends StatelessWidget {
               colors: [Color(0xFF0B8693), Color(0xFF274E76)],
             ),
             const SizedBox(height: 14),
+            const StudentEntrance(
+              delay: Duration(milliseconds: 40),
+              child: _ProgressAnimationCard(),
+            ),
+            const SizedBox(height: 14),
             StudentEntrance(child: _StatsCard(stats: stats)),
             const SizedBox(height: 18),
             const StudentEntrance(
@@ -89,6 +94,57 @@ class StudentProgressScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProgressAnimationCard extends StatelessWidget {
+  const _ProgressAnimationCard();
+
+  @override
+  Widget build(BuildContext context) => Student3DCard(
+        child: Card(
+          color: const Color(0xFFE8F6F5),
+          elevation: 0,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(18, 10, 12, 10),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'رفيق إنجازاتك',
+                        style: TextStyle(
+                          color: Color(0xFF0B5F69),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      SizedBox(height: 5),
+                      Text(
+                        'استمر، فأنت تبني تقدّمك خطوة بخطوة.',
+                        style: TextStyle(
+                          color: Color(0xFF365B62),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: StudentRiveLoading(
+                    size: 112,
+                    label: 'أنيميشن رفيق إنجازاتك',
+                    assetPath: 'assets/animations/loading-books.riv',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _StatsCard extends StatelessWidget {
