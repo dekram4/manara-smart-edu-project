@@ -347,6 +347,8 @@ class _AnimatedSubjectOrb extends StatelessWidget {
     final rise = math.sin(cycle) * (compact ? 5.0 : 8.0);
     final tilt = math.sin(cycle) * 0.07;
     final turn = math.cos(cycle) * 0.18;
+    final depthTilt = math.cos(cycle) * 0.045;
+    final scale = 1 + math.sin(cycle) * 0.032;
 
     return Align(
       alignment: subject.alignment,
@@ -356,8 +358,10 @@ class _AnimatedSubjectOrb extends StatelessWidget {
           alignment: Alignment.center,
           transform: Matrix4.identity()
             ..setEntry(3, 2, 0.0012)
+            ..rotateX(depthTilt)
             ..rotateY(turn)
-            ..rotateZ(tilt),
+            ..rotateZ(tilt)
+            ..scale(scale),
           child: Opacity(
             opacity: compact ? 0.82 : 0.92,
             child: _SubjectOrbitCard(subject: subject, compact: compact),

@@ -866,6 +866,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   child: _VideoCard(
                     video: video,
+                    apiBaseUrl: widget.apiBaseUrl,
                     completed: completed,
                     onPressed: () {
                       StudentSoundService.instance.play(StudentSoundCue.navigation);
@@ -945,18 +946,24 @@ class _VideoCarouselState extends State<_VideoCarousel> {
 class _VideoCard extends StatelessWidget {
   const _VideoCard({
     required this.video,
+    required this.apiBaseUrl,
     required this.completed,
     required this.onPressed,
   });
 
   final LessonVideo video;
+  final String apiBaseUrl;
   final bool completed;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return StudentPressScale(
-      child: Material(
+    return StudentVideoHoverPreview(
+      video: video,
+      apiBaseUrl: apiBaseUrl,
+      borderRadius: const BorderRadius.all(Radius.circular(28)),
+      child: StudentPressScale(
+        child: Material(
         color: Colors.transparent,
         child: InkWell(
         onTap: onPressed,
@@ -1039,6 +1046,7 @@ class _VideoCard extends StatelessWidget {
           ),
         ),
         ),
+      ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);
   }

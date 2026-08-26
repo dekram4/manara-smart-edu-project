@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -8,6 +10,135 @@ import 'package:video_player/video_player.dart';
 import '../models/student_content.dart';
 import 'student_experience.dart';
 
+/// Plays a short, muted preview only while a desktop pointer is over a card.
+/// The underlying player is mounted lazily, so scrolling a library does not
+/// open every video connection at once.
+class StudentVideoHoverPreview extends StatefulWidget {
+  const StudentVideoHoverPreview({
+    required this.video,
+    required this.apiBaseUrl,
+    required this.child,
+    this.enabled = true,
+    this.previewDuration = const Duration(seconds: 3),
+    this.borderRadius = const BorderRadius.all(Radius.circular(24)),
+    super.key,
+  });
+
+  final LessonVideo video;
+  final String apiBaseUrl;
+  final Widget child;
+  final bool enabled;
+  final Duration previewDuration;
+  final BorderRadius borderRadius;
+
+  @override
+  State<StudentVideoHoverPreview> createState() => _StudentVideoHoverPreviewState();
+}
+
+class _StudentVideoHoverPreviewState extends State<StudentVideoHoverPreview> {
+  Timer? _previewTimer;
+  bool _previewing = false;
+
+  bool get _motionEnabled =>
+      !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+
+  void _startPreview(PointerEnterEvent _) {
+    if (!widget.enabled || !_motionEnabled) return;
+    _previewTimer?.cancel();
+    if (!_previewing) setState(() => _previewing = true);
+    _previewTimer = Timer(widget.previewDuration, _finishPreview);
+  }
+
+  void _finishPreview() {
+    _previewTimer?.cancel();
+    if (mounted && _previewing) setState(() => _previewing = false);
+  }
+
+  void _stopPreview(PointerExitEvent _) => _finishPreview();
+
+  @override
+  void didUpdateWidget(covariant StudentVideoHoverPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && _previewing) _finishPreview();
+  }
+
+  @override
+  void dispose() {
+    _previewTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: widget.enabled ? _startPreview : null,
+      onExit: widget.enabled ? _stopPreview : null,
+      child: ClipRRect(
+        borderRadius: widget.borderRadius,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            widget.child,
+            if (_previewing)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: StudentVideoPlayer(
+                    key: ValueKey('hover-preview-${widget.video.id}'),
+                    video: widget.video,
+                    apiBaseUrl: widget.apiBaseUrl,
+                    compact: true,
+                    autoPlay: true,
+                    muted: true,
+                  ),
+                ),
+              ),
+            if (_previewing)
+              const PositionedDirectional(
+                top: 12,
+                end: 12,
+                child: _PreviewBadge(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewBadge extends StatelessWidget {
+  const _PreviewBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xD9071425),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF5EEAD4).withOpacity(0.7)),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.visibility_rounded, color: Color(0xFFBFFBFA), size: 15),
+            SizedBox(width: 5),
+            Text(
+              'معاينة ٣ ثوانٍ',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class StudentVideoPlayer extends StatefulWidget {
   const StudentVideoPlayer({
     required this.video,
@@ -15,6 +146,7 @@ class StudentVideoPlayer extends StatefulWidget {
     this.compact = false,
     this.initialPosition = Duration.zero,
     this.autoPlay = true,
+    this.muted = false,
     this.fullscreen = false,
     this.allowInteractivePermissions = false,
     this.onCompleted,
@@ -26,6 +158,7 @@ class StudentVideoPlayer extends StatefulWidget {
   final bool compact;
   final Duration initialPosition;
   final bool autoPlay;
+  final bool muted;
   final bool fullscreen;
   /// Enables only the browser permissions required by an interactive tutor
   /// embedded from another origin. Lesson videos keep this disabled.
@@ -50,6 +183,20 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
   bool get _isNativeVideo => isDirectVideoUrl(_url, widget.video);
   bool get _usesMediaKit => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  String get _embedUrl {
+    if (!widget.muted) return _url;
+    final uri = Uri.tryParse(_url);
+    if (uri == null) return _url;
+    return uri
+        .replace(
+          queryParameters: {
+            ...uri.queryParameters,
+            'mute': '1',
+            'controls': '0',
+          },
+        )
+        .toString();
+  }
 
   @override
   void initState() {
@@ -92,6 +239,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     });
 
     try {
+      if (widget.muted) await player.setVolume(0);
       // media_kit uses the HTTP Range protocol for seeking. Supplying an
       // initial range keeps Windows' native backend on the streaming path
       // for public Supabase Storage objects and API compatibility URLs.
@@ -133,6 +281,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
     try {
       await controller.initialize();
+      if (widget.muted) await controller.setVolume(0);
       if (widget.initialPosition > Duration.zero &&
           widget.initialPosition < controller.value.duration) {
         await controller.seekTo(widget.initialPosition);
@@ -191,13 +340,9 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   }
 
   Widget _buildInlineEmbed() {
-    final url = resolveStudentVideoUrl(
-      widget.video,
-      apiBaseUrl: widget.apiBaseUrl,
-    );
     return InAppWebView(
       initialUrlRequest: URLRequest(
-        url: WebUri(url),
+        url: WebUri(_embedUrl),
       ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,

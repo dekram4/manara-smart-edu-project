@@ -190,6 +190,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 5),
                 child: _CinemaVideoCard(
                   video: video,
+                  apiBaseUrl: widget.apiBaseUrl,
                   locked: locked,
                   onPressed: () => _openVideo(video, index),
                 ),
@@ -231,18 +232,25 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
 class _CinemaVideoCard extends StatelessWidget {
   const _CinemaVideoCard({
     required this.video,
+    required this.apiBaseUrl,
     required this.locked,
     required this.onPressed,
   });
 
   final LessonVideo video;
+  final String apiBaseUrl;
   final bool locked;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return StudentPressScale(
-      child: Material(
+    return StudentVideoHoverPreview(
+      video: video,
+      apiBaseUrl: apiBaseUrl,
+      enabled: !locked,
+      borderRadius: const BorderRadius.all(Radius.circular(26)),
+      child: StudentPressScale(
+        child: Material(
         color: const Color(0xFF132337),
         borderRadius: BorderRadius.circular(26),
         child: InkWell(
@@ -307,6 +315,7 @@ class _CinemaVideoCard extends StatelessWidget {
           ),
         ),
         ),
+      ),
       ),
     );
   }
