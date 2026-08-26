@@ -1,6 +1,3 @@
-﻿// ignore_for_file: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-import 'dart:ui_web' as ui_web;
 import 'dart:ui' show PointerDeviceKind;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +12,7 @@ import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
+import '../widgets/student_web_embed.dart';
 
 enum StudentContentModule { lesson, games }
 
@@ -638,19 +636,16 @@ class _GamePlayerScreen extends StatefulWidget {
 }
 
 class _GamePlayerScreenState extends State<_GamePlayerScreen> {
-  late final String _viewId;
-  html.IFrameElement? _frame;
   String? _error;
   bool _loading = true;
   late bool _completed;
   bool _saving = false;
+  var _reloadKey = 0;
 
   @override
   void initState() {
     super.initState();
     _completed = widget.initiallyCompleted;
-    _viewId = 'manara-game-${widget.game.id}-${identityHashCode(this)}';
-    _registerGameFrame();
   }
 
   String get _url {
@@ -664,48 +659,12 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
       RegExp(r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)')
           .hasMatch(_url);
 
-  void _registerGameFrame() {
-    ui_web.platformViewRegistry.registerViewFactory(_viewId, (int _) {
-      final frame = html.IFrameElement()
-        ..src = _url
-        ..style.border = '0'
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..allow =
-            'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write'
-        ..allowFullscreen = true;
-      frame.onLoad.listen((_) {
-        if (!mounted) return;
-        setState(() {
-          _loading = false;
-          _error = null;
-        });
-      });
-      frame.onError.listen((_) {
-        if (!mounted) return;
-        setState(() {
-          _loading = false;
-          _error = 'تعذر تحميل محتوى اللعبة من المصدر.';
-        });
-      });
-      _frame = frame;
-      return frame;
-    });
-  }
-
   void _reload() {
     setState(() {
       _error = null;
       _loading = true;
+      _reloadKey++;
     });
-    final uri = Uri.tryParse(_url);
-    if (uri == null) return;
-    _frame?.src = uri.replace(
-      queryParameters: {
-        ...uri.queryParameters,
-        '_reload': DateTime.now().millisecondsSinceEpoch.toString(),
-      },
-    ).toString();
   }
 
   Future<void> _completeGame() async {
@@ -749,7 +708,26 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
           : Stack(
               children: [
                 Positioned.fill(
-                  child: HtmlElementView(viewType: _viewId),
+                  child: StudentWebEmbed(
+                    key: ValueKey(_reloadKey),
+                    url: _url,
+                    allow:
+                        'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write',
+                    onLoaded: () {
+                      if (!mounted) return;
+                      setState(() {
+                        _loading = false;
+                        _error = null;
+                      });
+                    },
+                    onError: (message) {
+                      if (!mounted) return;
+                      setState(() {
+                        _loading = false;
+                        _error = message;
+                      });
+                    },
+                  ),
                 ),
                 if (_loading)
                   const ColoredBox(
@@ -1225,20 +1203,12 @@ class UniversalWebVideoScreen extends StatelessWidget {
     }
     final ytId = _extractYouTubeId(targetUrl);
     final isYouTube = ytId.isNotEmpty && video.sourceType != VideoSourceType.mp4;
-    final viewId = 'player-${DateTime.now().microsecondsSinceEpoch}';
-
-    ui_web.platformViewRegistry.registerViewFactory(viewId, (int id) {
-      final iframe = html.IFrameElement()
-        ..style.border = 'none'
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture'
-        ..allowFullscreen = true;
-
-      if (isYouTube) {
-        iframe.src = 'https://www.youtube-nocookie.com/embed/$ytId?autoplay=1&rel=0&playsinline=1';
-      } else {
-        iframe.srcdoc = '''
+    final embedUrl = isYouTube
+        ? 'https://www.youtube-nocookie.com/embed/$ytId?autoplay=1&rel=0&playsinline=1'
+        : targetUrl;
+    final embedHtml = isYouTube
+        ? null
+        : '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -1266,9 +1236,6 @@ class UniversalWebVideoScreen extends StatelessWidget {
 </body>
 </html>
 ''';
-      }
-      return iframe;
-    });
 
     return Scaffold(
       backgroundColor: const Color(0xFF071425),
@@ -1288,7 +1255,10 @@ class UniversalWebVideoScreen extends StatelessWidget {
             child: Center(
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: HtmlElementView(viewType: viewId),
+                child: StudentWebEmbed(
+                  url: embedUrl,
+                  htmlContent: embedHtml,
+                ),
               ),
             ),
           ),

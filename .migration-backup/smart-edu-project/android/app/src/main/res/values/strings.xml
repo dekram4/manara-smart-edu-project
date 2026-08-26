@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">منارة المعرفة</string>
-    <string name="title_activity_main">منارة المعرفة</string>
-    <string name="package_name">com.manara.edu.app</string>
-    <string name="custom_url_scheme">com.manara.edu.app</string>
-</resources>
