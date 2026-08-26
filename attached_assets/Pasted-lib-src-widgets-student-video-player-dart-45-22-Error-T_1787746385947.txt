@@ -1,0 +1,39 @@
+lib/src/widgets/student_video_player.dart:45:22: Error: Type 'PointerEnterEvent' not found.
+  void _startPreview(PointerEnterEvent _) {
+                     ^^^^^^^^^^^^^^^^^
+lib/src/widgets/student_video_player.dart:57:21: Error: Type 'PointerExitEvent' not found.
+  void _stopPreview(PointerExitEvent _) => _finishPreview();
+                    ^^^^^^^^^^^^^^^^
+lib/src/widgets/student_experience.dart:546:27: Error: 'RadialGradient' is imported from both
+'package:flutter/src/painting/gradient.dart' and 'package:rive/src/rive_core/shapes/paint/radial_gradient.dart'.
+                gradient: RadialGradient(
+                          ^^^^^^^^^^^^^^
+lib/src/widgets/student_video_player.dart:45:22: Error: 'PointerEnterEvent' isn't a type.
+  void _startPreview(PointerEnterEvent _) {
+                     ^^^^^^^^^^^^^^^^^
+lib/src/widgets/student_video_player.dart:57:21: Error: 'PointerExitEvent' isn't a type.
+  void _stopPreview(PointerExitEvent _) => _finishPreview();
+                    ^^^^^^^^^^^^^^^^
+Unhandled exception:
+Unsupported operation: Unsupported invalid type InvalidType(<invalid>) (InvalidType). Encountered while compiling
+file:///C:/project/manara-smart-edu-project/artifacts/manara-student-flutter/lib/src/widgets/student_video_player.dart, which
+contains the type: FunctionType(void Function(<invalid>)).
+#0      LibraryCompiler._typeCompilationError (package:dev_compiler/src/kernel/compiler_new.dart:4493)
+#1      LibraryCompiler._emitType (package:dev_compiler/src/kernel/compiler_new.dart:4458)
+#2      LibraryCompiler._emitClassSignature (package:dev_compiler/src/kernel/compiler_new.dart:2267)
+#3      LibraryCompiler._emitClassDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:1560)
+#4      LibraryCompiler._emitClass (package:dev_compiler/src/kernel/compiler_new.dart:1426)
+#5      List.forEach (dart:core-patch/growable_array.dart:428)
+#6      LibraryCompiler._emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:1348)
+#7      LibraryCompiler.emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:962)
+#8      LibraryBundleCompiler.emitModule (package:dev_compiler/src/kernel/compiler_new.dart:164)
+#9      IncrementalJavaScriptBundler.compile (package:frontend_server/src/javascript_bundle.dart:324)
+#10     FrontendCompiler.writeJavaScriptBundle (package:frontend_server/frontend_server.dart:922)
+<asynchronous suspension>
+#11     FrontendCompiler.compile (package:frontend_server/frontend_server.dart:728)
+<asynchronous suspension>
+#12     listenAndCompile.<anonymous closure> (package:frontend_server/frontend_server.dart:1449)
+<asynchronous suspension>
+The Dart compiler exited unexpectedly.
+Waiting for connection from debug service on Chrome...             22.8s
+Failed to compile application.
