@@ -69,7 +69,7 @@
   --text-9xl--line-height: 1;
 }
 
-/* LIGHT MODE - Default theme with placeholder values */
+/* LIGHT MODE - Manara learning world */
 :root {
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
@@ -78,43 +78,43 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary: 240 5.9% 10%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 240 5.9% 10%;
-  --chart-1: 12 76% 61%;
-  --chart-2: 173 58% 39%;
-  --chart-3: 197 37% 24%;
-  --chart-4: 43 74% 66%;
-  --chart-5: 27 87% 67%;
-  --sidebar: 0 0% 98%;
-  --sidebar-foreground: 240 5.3% 26.1%;
-  --sidebar-primary: 240 5.9% 10%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 240 4.8% 95.9%;
-  --sidebar-accent-foreground: 240 5.9% 10%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-ring: 240 5.9% 10%;
+  --background: 40 45% 96%;
+  --foreground: 213 42% 18%;
+  --card: 42 50% 99%;
+  --card-foreground: 213 42% 18%;
+  --popover: 42 50% 99%;
+  --popover-foreground: 213 42% 18%;
+  --primary: 183 76% 32%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 37 92% 92%;
+  --secondary-foreground: 27 47% 24%;
+  --muted: 39 32% 91%;
+  --muted-foreground: 214 18% 42%;
+  --accent: 258 58% 57%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 350 66% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 40 24% 83%;
+  --input: 40 24% 83%;
+  --ring: 183 76% 32%;
+  --chart-1: 183 76% 32%;
+  --chart-2: 258 58% 57%;
+  --chart-3: 35 91% 58%;
+  --chart-4: 350 66% 58%;
+  --chart-5: 146 44% 44%;
+  --sidebar: 213 42% 18%;
+  --sidebar-foreground: 40 45% 96%;
+  --sidebar-primary: 183 76% 48%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 213 35% 26%;
+  --sidebar-accent-foreground: 40 45% 96%;
+  --sidebar-border: 213 30% 28%;
+  --sidebar-ring: 183 76% 48%;
 
-  --font-sans: 'Inter', sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
-  --radius: .5rem;
+  --font-sans: 'Tajawal', 'Noto Sans Arabic', sans-serif;
+  --font-serif: 'Noto Serif Arabic', serif;
+  --font-mono: 'Space Mono', monospace;
+  --radius: 1.25rem;
   --spacing: 0.25rem;
 }
 
@@ -127,7 +127,7 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 240 10% 3.9%;
+  --background: 213 42% 18%;
   --foreground: 0 0% 98%;
   --card: 240 10% 3.9%;
   --card-foreground: 0 0% 98%;

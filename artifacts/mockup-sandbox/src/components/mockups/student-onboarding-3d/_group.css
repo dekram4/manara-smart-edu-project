@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Tajawal:wght@400;500;700;800;900&display=swap');
+
+.manara-world {
+  --ink: #183047;
+  --teal: #147d83;
+  --teal-deep: #0b5b68;
+  --cream: #fbf6e9;
+  --paper: #fffdf7;
+  --sun: #f2b84b;
+  --coral: #df6d5f;
+  --lilac: #7663c7;
+  font-family: 'Tajawal', sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 12% 6%, rgba(242,184,75,.2), transparent 26%),
+    radial-gradient(circle at 90% 92%, rgba(118,99,199,.14), transparent 30%),
+    linear-gradient(135deg, #f9f1df 0%, #f6f7f0 52%, #e9f2ef 100%);
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+}
+.manara-world::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: .22;
+  z-index: -1;
+  background-image: radial-gradient(rgba(24,48,71,.16) .65px, transparent .65px);
+  background-size: 12px 12px;
+  mix-blend-mode: multiply;
+}
+.world-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; position: relative; }
+.glass-panel {
+  background: rgba(255,253,247,.84);
+  border: 1px solid rgba(255,255,255,.8);
+  box-shadow: 0 28px 70px rgba(38,61,66,.16), 0 4px 0 rgba(20,125,131,.09), inset 0 1px 0 #fff;
+  backdrop-filter: blur(16px);
+}
+.lift { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+.lift:hover { transform: translateY(-5px) rotateX(1deg); box-shadow: 0 26px 44px rgba(38,61,66,.2), 0 5px 0 rgba(20,125,131,.11), inset 0 1px 0 #fff; }
+.world-input { transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.world-input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 4px rgba(20,125,131,.12), 0 7px 0 rgba(20,125,131,.07); transform: translateY(-1px); }
+.primary-action { transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
+.primary-action:hover { transform: translateY(-3px); box-shadow: 0 12px 0 rgba(11,91,104,.18), 0 20px 25px rgba(20,125,131,.22); }
+.primary-action:active { transform: translateY(1px); box-shadow: 0 4px 0 rgba(11,91,104,.18); }
+@keyframes drift { 0%,100%{transform:translate3d(0,0,0) rotate(-3deg)} 50%{transform:translate3d(0,-10px,0) rotate(3deg)} }
+@keyframes appear { from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none} }
+.drift { animation: drift 5s ease-in-out infinite; }
+.appear { animation: appear .5s ease both; }
+@media (prefers-reduced-motion: reduce) { .drift,.appear { animation: none; } .lift,.world-input,.primary-action { transition: none; } }
