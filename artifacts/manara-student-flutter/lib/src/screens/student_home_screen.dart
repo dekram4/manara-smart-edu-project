@@ -246,6 +246,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
         StudentPageRoute<void>(
           builder: (_) => StudentTutorScreen(
             selection: selection,
+          apiBaseUrl: widget.apiBaseUrl,
           ),
         ),
       );

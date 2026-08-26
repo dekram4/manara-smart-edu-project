@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/student_content.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/did_agent_embed.dart';
 import '../widgets/tutor_embed.dart';
 
 /// Shows the virtual teacher configured for one selected academic path.
@@ -12,11 +13,13 @@ import '../widgets/tutor_embed.dart';
 class StudentTutorScreen extends StatefulWidget {
   const StudentTutorScreen({
     required this.selection,
+    required this.apiBaseUrl,
     this.fullscreen = false,
     super.key,
   });
 
   final TutorExperienceSelection selection;
+  final String apiBaseUrl;
   final bool fullscreen;
 
   @override
@@ -75,6 +78,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
       StudentPageRoute<void>(
         builder: (_) => StudentTutorScreen(
           selection: widget.selection,
+          apiBaseUrl: widget.apiBaseUrl,
           fullscreen: true,
         ),
       ),
@@ -174,15 +178,8 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
     }
 
     if (_isDIdStudioUrl) {
-      return const StudentEntrance(
-        child: _TutorStateCard(
-          icon: Icons.link_off_rounded,
-          title: 'رابط D-ID Studio غير مناسب للطلاب',
-          message:
-              'هذا رابط استوديو إعداد المعلم ويحتاج تسجيل دخول، لذلك لا يمكن تشغيله داخل التطبيق. '
-              'من D-ID افتح Agents ثم اختر Share أو Embed للمعلم، وأضف نطاق التطبيق ضمن Allowed domains، '
-              'ثم احفظ رابط المشاركة العام أو إعداد Agent Embed بدل رابط studio.d-id.com.',
-        ),
+      return StudentEntrance(
+        child: DIdAgentEmbed(apiBaseUrl: widget.apiBaseUrl),
       );
     }
 

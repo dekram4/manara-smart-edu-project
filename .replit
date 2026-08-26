@@ -19,3 +19,8 @@ expertMode = true
 path = "scripts/post-merge.sh"
 timeoutMs = 120000
 
+[userenv]
+
+[userenv.shared]
+DID_AGENT_ID = "v2_agt_xjzPw33U"
+
