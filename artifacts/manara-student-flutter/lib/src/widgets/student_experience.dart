@@ -148,6 +148,295 @@ class StudentAmbientOrbs extends StatelessWidget {
   }
 }
 
+/// A quiet visual map for the student entry screens. The painter keeps the
+/// background light and dimensional without turning the screen into a game
+/// scene or competing with the form.
+class StudentLearningWorld extends StatelessWidget {
+  const StudentLearningWorld({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final sparkle = const Icon(
+      Icons.auto_awesome_rounded,
+      color: Color(0xFFF5C95D),
+      size: 16,
+    );
+
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const CustomPaint(painter: _LearningWorldPainter()),
+          PositionedDirectional(
+            top: 42,
+            start: 28,
+            child: _FloatingWorldBadge(
+              child: const Icon(
+                Icons.menu_book_rounded,
+                color: Color(0xFF0B6977),
+                size: 20,
+              ),
+              duration: const Duration(milliseconds: 4200),
+              delay: const Duration(milliseconds: 120),
+              reduceMotion: reduceMotion,
+            ),
+          ),
+          PositionedDirectional(
+            top: 116,
+            end: 28,
+            child: _FloatingWorldBadge(
+              child: sparkle,
+              duration: const Duration(milliseconds: 3600),
+              delay: const Duration(milliseconds: 360),
+              reduceMotion: reduceMotion,
+            ),
+          ),
+          PositionedDirectional(
+            bottom: 44,
+            end: 42,
+            child: _FloatingWorldBadge(
+              child: const Icon(
+                Icons.star_rounded,
+                color: Color(0xFFE27962),
+                size: 18,
+              ),
+              duration: const Duration(milliseconds: 3900),
+              delay: const Duration(milliseconds: 220),
+              reduceMotion: reduceMotion,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FloatingWorldBadge extends StatelessWidget {
+  const _FloatingWorldBadge({
+    required this.child,
+    required this.duration,
+    required this.delay,
+    required this.reduceMotion,
+  });
+
+  final Widget child;
+  final Duration duration;
+  final Duration delay;
+  final bool reduceMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = Container(
+      width: 42,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF3).withOpacity(0.8),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xFFE3D5A9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A274E76),
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+
+    if (reduceMotion) return badge;
+    return badge
+        .animate(delay: delay, onPlay: (controller) => controller.repeat(reverse: true))
+        .moveY(begin: 0, end: -9, duration: duration, curve: Curves.easeInOut);
+  }
+}
+
+class _LearningWorldPainter extends CustomPainter {
+  const _LearningWorldPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final wash = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [
+          Color(0xFFFFF6DD),
+          Color(0xFFF6F7F0),
+          Color(0xFFE8F3F0),
+        ],
+      ).createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, wash);
+
+    final tealRing = Paint()
+      ..color = const Color(0xFF147D83).withOpacity(0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 22;
+    canvas.drawCircle(
+      Offset(size.width * 0.02, size.height * 0.14),
+      size.shortestSide * 0.24,
+      tealRing,
+    );
+
+    final lilac = Paint()
+      ..color = const Color(0xFF7663C7).withOpacity(0.09)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(size.width * 0.96, size.height * 0.9),
+      size.shortestSide * 0.25,
+      lilac,
+    );
+
+    final dots = Paint()..color = const Color(0xFF183047).withOpacity(0.11);
+    for (var row = 0; row < 7; row++) {
+      for (var column = 0; column < 9; column++) {
+        final point = Offset(
+          size.width * 0.08 + column * 22,
+          size.height * 0.08 + row * 22,
+        );
+        canvas.drawCircle(point, 1.1, dots);
+      }
+    }
+
+    final path = Paint()
+      ..color = const Color(0xFFE2B85E).withOpacity(0.17)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    final curve = Path()
+      ..moveTo(size.width * 0.08, size.height * 0.78)
+      ..cubicTo(
+        size.width * 0.28,
+        size.height * 0.62,
+        size.width * 0.44,
+        size.height * 0.94,
+        size.width * 0.64,
+        size.height * 0.74,
+      )
+      ..cubicTo(
+        size.width * 0.77,
+        size.height * 0.6,
+        size.width * 0.87,
+        size.height * 0.68,
+        size.width * 1.04,
+        size.height * 0.52,
+      );
+    canvas.drawPath(curve, path);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// The student-facing character used as a visual anchor on entry screens.
+class StudentCompanion extends StatelessWidget {
+  const StudentCompanion({
+    this.size = 190,
+    this.showLabel = true,
+    super.key,
+  });
+
+  final double size;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageSize = size * 0.83;
+    return Semantics(
+      label: 'رفيق منارة التعليمي',
+      image: true,
+      child: SizedBox(
+        width: size,
+        height: size + (showLabel ? 34 : 0),
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              bottom: 10,
+              child: Container(
+                width: size * 0.76,
+                height: size * 0.22,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B2D3D).withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(100),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0B2D3D).withOpacity(0.14),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001)
+                ..rotateZ(-0.035),
+              child: Image.asset(
+                'assets/images/manara-student-login-companion-cutout.png',
+                width: imageSize,
+                height: imageSize,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Container(
+                  width: imageSize * 0.72,
+                  height: imageSize * 0.72,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1C664),
+                    borderRadius: BorderRadius.circular(34),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x3D0B2D3D),
+                        blurRadius: 16,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.school_rounded,
+                    color: Color(0xFF173B50),
+                    size: 58,
+                  ),
+                ),
+              ),
+            ),
+            if (showLabel)
+              Positioned(
+                bottom: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEE),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE4D39A)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x1F183047),
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    'أنا معك في الرحلة',
+                    style: TextStyle(
+                      color: Color(0xFF6F5729),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Highlights controls when they contain the current choice or own focus.
 class StudentFocusGlow extends StatefulWidget {
   const StudentFocusGlow({

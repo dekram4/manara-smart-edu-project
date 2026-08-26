@@ -34,4 +34,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/manara-logo-mark-transparent.png
+    - assets/images/manara-student-login-companion-cutout.png
     - assets/audio/
