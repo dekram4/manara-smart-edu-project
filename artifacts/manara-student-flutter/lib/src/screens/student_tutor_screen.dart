@@ -45,6 +45,15 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
         host.endsWith('.webex.com');
   }
 
+  /// D-ID Studio is the content-authoring dashboard. It depends on a creator
+  /// login session and cannot be used as the student's embedded teacher.
+  /// D-ID Agents must be shared or embedded through their dedicated Agent
+  /// Embed configuration instead.
+  bool get _isDIdStudioUrl {
+    final host = Uri.tryParse(_avatarUrl ?? '')?.host.toLowerCase() ?? '';
+    return host == 'studio.d-id.com' || host.endsWith('.studio.d-id.com');
+  }
+
   void _joinMeeting() {
     if (_avatarUrl == null) return;
     StudentSoundService.instance.play(StudentSoundCue.navigation);
@@ -161,6 +170,19 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
     if (_isBlockedMeetingEmbed) {
       return StudentEntrance(
         child: _BlockedMeetingCard(onJoin: _joinMeeting),
+      );
+    }
+
+    if (_isDIdStudioUrl) {
+      return const StudentEntrance(
+        child: _TutorStateCard(
+          icon: Icons.link_off_rounded,
+          title: 'رابط D-ID Studio غير مناسب للطلاب',
+          message:
+              'هذا رابط استوديو إعداد المعلم ويحتاج تسجيل دخول، لذلك لا يمكن تشغيله داخل التطبيق. '
+              'من D-ID افتح Agents ثم اختر Share أو Embed للمعلم، وأضف نطاق التطبيق ضمن Allowed domains، '
+              'ثم احفظ رابط المشاركة العام أو إعداد Agent Embed بدل رابط studio.d-id.com.',
+        ),
       );
     }
 
