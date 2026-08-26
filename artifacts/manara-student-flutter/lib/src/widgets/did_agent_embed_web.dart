@@ -106,7 +106,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       // skipped by the browser. Append it on the next event-loop turn, after
       // HtmlElementView has attached the root to the document.
       Timer.run(() {
-        if (!root.isConnected) return;
+        if (root.isConnected != true) return;
         root.append(script);
       });
       return root;
