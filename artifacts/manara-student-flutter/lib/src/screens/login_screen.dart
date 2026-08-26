@@ -165,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? Directionality(
                                   textDirection: TextDirection.ltr,
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Expanded(
                                         flex: 9,
@@ -259,6 +259,7 @@ class _LoginStoryPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final horizontalPadding = compact ? 24.0 : 36.0;
     return Container(
+      height: compact ? null : 590,
       constraints: BoxConstraints(minHeight: compact ? 260 : 590),
       padding: EdgeInsets.fromLTRB(
         horizontalPadding,
