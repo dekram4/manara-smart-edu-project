@@ -29,6 +29,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _hidePassword = true;
+  bool _showValidationFeedback = false;
+  bool _loginSucceeded = false;
   String? _errorMessage;
 
   @override
@@ -40,7 +42,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submit() async {
     FocusManager.instance.primaryFocus?.unfocus();
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      setState(() => _showValidationFeedback = true);
+      return;
+    }
     if (widget.authService == null) {
       setState(() => _errorMessage = widget.initializationError);
       return;
@@ -48,6 +53,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _isLoading = true;
+      _loginSucceeded = false;
+      _showValidationFeedback = false;
       _errorMessage = null;
     });
 
@@ -57,6 +64,9 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
       StudentSoundService.instance.play(StudentSoundCue.loginSuccess);
+      if (!mounted) return;
+      setState(() => _loginSucceeded = true);
+      await Future<void>.delayed(const Duration(milliseconds: 360));
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         StudentPageRoute<void>(
@@ -69,11 +79,19 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on StudentAuthException catch (error) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
-      if (mounted) setState(() => _errorMessage = error.message);
+      if (mounted) {
+        setState(() {
+          _loginSucceeded = false;
+          _errorMessage = error.message;
+        });
+      }
     } catch (_) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       if (mounted) {
-        setState(() => _errorMessage = 'تعذر إكمال تسجيل الدخول. حاول مرة أخرى.');
+        setState(() {
+          _loginSucceeded = false;
+          _errorMessage = 'تعذر إكمال تسجيل الدخول. حاول مرة أخرى.';
+        });
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -97,9 +115,12 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
+        child: Stack(
+          children: [
+            const Positioned.fill(child: StudentAmbientOrbs()),
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 470),
@@ -171,60 +192,97 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(height: 22),
-                              TextFormField(
-                                controller: _usernameController,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.username],
-                                decoration: const InputDecoration(
-                                  labelText: 'اسم المستخدم',
-                                  hintText: 'اكتب اسم المستخدم',
-                                  prefixIcon: Icon(Icons.person_rounded),
+                              StudentFocusGlow(
+                                hasError:
+                                    _showValidationFeedback &&
+                                    _usernameController.text.trim().isEmpty,
+                                child: TextFormField(
+                                  controller: _usernameController,
+                                  textInputAction: TextInputAction.next,
+                                  autofillHints: const [AutofillHints.username],
+                                  onChanged: (_) {
+                                    if (_showValidationFeedback) {
+                                      setState(() => _showValidationFeedback = false);
+                                    }
+                                  },
+                                  decoration: const InputDecoration(
+                                    labelText: 'اسم المستخدم',
+                                    hintText: 'اكتب اسم المستخدم',
+                                    prefixIcon: Icon(Icons.person_rounded),
+                                  ),
+                                  validator: (value) =>
+                                      value == null || value.trim().isEmpty
+                                          ? 'اكتب اسم المستخدم'
+                                          : null,
                                 ),
-                                validator: (value) => value == null || value.trim().isEmpty
-                                    ? 'اكتب اسم المستخدم'
-                                    : null,
                               ),
                               const SizedBox(height: 14),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _hidePassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _submit(),
-                                autofillHints: const [AutofillHints.password],
-                                decoration: InputDecoration(
-                                  labelText: 'كلمة المرور',
-                                  hintText: 'اكتب كلمة المرور',
-                                  prefixIcon: const Icon(Icons.lock_rounded),
-                                  suffixIcon: IconButton(
-                                    tooltip: _hidePassword ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
-                                    onPressed: () => setState(() => _hidePassword = !_hidePassword),
-                                    icon: Icon(
-                                      _hidePassword
-                                          ? Icons.visibility_rounded
-                                          : Icons.visibility_off_rounded,
+                              StudentFocusGlow(
+                                hasError:
+                                    _showValidationFeedback &&
+                                    _passwordController.text.isEmpty,
+                                child: TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: _hidePassword,
+                                  textInputAction: TextInputAction.done,
+                                  onFieldSubmitted: (_) => _submit(),
+                                  autofillHints: const [AutofillHints.password],
+                                  onChanged: (_) {
+                                    if (_showValidationFeedback) {
+                                      setState(() => _showValidationFeedback = false);
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'كلمة المرور',
+                                    hintText: 'اكتب كلمة المرور',
+                                    prefixIcon: const Icon(Icons.lock_rounded),
+                                    suffixIcon: IconButton(
+                                      tooltip: _hidePassword
+                                          ? 'إظهار كلمة المرور'
+                                          : 'إخفاء كلمة المرور',
+                                      onPressed: () {
+                                        StudentSoundService.instance.play(
+                                          StudentSoundCue.navigation,
+                                        );
+                                        setState(
+                                          () => _hidePassword = !_hidePassword,
+                                        );
+                                      },
+                                      icon: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 180),
+                                        child: Icon(
+                                          _hidePassword
+                                              ? Icons.visibility_rounded
+                                              : Icons.visibility_off_rounded,
+                                          key: ValueKey(_hidePassword),
+                                        ),
+                                      ),
                                     ),
                                   ),
+                                  validator: (value) => value == null || value.isEmpty
+                                      ? 'اكتب كلمة المرور'
+                                      : null,
                                 ),
-                                validator: (value) => value == null || value.isEmpty
-                                    ? 'اكتب كلمة المرور'
-                                    : null,
                               ),
                               if (_errorMessage != null) ...[
                                 const SizedBox(height: 14),
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF1F2),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFFDA4AF)),
-                                  ),
-                                  child: Text(
-                                    _errorMessage!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: Color(0xFF9F1239),
-                                      fontWeight: FontWeight.w800,
-                                      height: 1.6,
+                                StudentEntrance(
+                                  offset: 0.02,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF1F2),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: const Color(0xFFFDA4AF)),
+                                    ),
+                                    child: Text(
+                                      _errorMessage!,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Color(0xFF9F1239),
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.6,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -243,26 +301,48 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ],
                               const SizedBox(height: 20),
-                              FilledButton.icon(
-                                onPressed: _isLoading ? null : _submit,
-                                icon: _isLoading
-                                    ? const SizedBox(
-                                        width: 19,
-                                        height: 19,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.rocket_launch_rounded),
-                                label: Text(_isLoading ? 'جاري التحقق...' : 'ابدأ رحلة التعلم'),
-                                style: FilledButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(56),
-                                  backgroundColor: const Color(0xFF0B8693),
-                                  foregroundColor: Colors.white,
-                                  textStyle: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
+                              StudentPressScale(
+                                child: FilledButton.icon(
+                                  onPressed: _isLoading ? null : _submit,
+                                  icon: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 180),
+                                    child: _isLoading && !_loginSucceeded
+                                        ? const SizedBox(
+                                            key: ValueKey('loading'),
+                                            width: 19,
+                                            height: 19,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : Icon(
+                                            _loginSucceeded
+                                                ? Icons.celebration_rounded
+                                                : Icons.rocket_launch_rounded,
+                                            key: ValueKey(_loginSucceeded),
+                                          ),
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
+                                  label: Text(
+                                    _loginSucceeded
+                                        ? 'أحسنت! لنبدأ'
+                                        : _isLoading
+                                            ? 'جاري التحقق...'
+                                            : 'ابدأ رحلة التعلم',
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(56),
+                                    backgroundColor: _loginSucceeded
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFF0B8693),
+                                    foregroundColor: Colors.white,
+                                    textStyle: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -285,8 +365,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

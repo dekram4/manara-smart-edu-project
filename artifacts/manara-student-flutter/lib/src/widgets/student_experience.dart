@@ -80,6 +80,212 @@ class StudentAnimatedCard extends StatelessWidget {
   }
 }
 
+/// Subtle decorative light spots for student-facing entry screens.
+///
+/// They stay behind the content and stop animating when the device asks for
+/// reduced motion.
+class StudentAmbientOrbs extends StatelessWidget {
+  const StudentAmbientOrbs({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final topOrb = DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF5EEAD4).withOpacity(0.12),
+      ),
+    );
+    final bottomOrb = DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF818CF8).withOpacity(0.14),
+      ),
+    );
+
+    Widget animate(Widget child, {required bool reverse}) {
+      if (reduceMotion) return child;
+      return child
+          .animate(onPlay: (controller) => controller.repeat(reverse: reverse))
+          .moveY(
+            begin: reverse ? -8 : 8,
+            end: reverse ? 8 : -8,
+            duration: 3200.ms,
+            curve: Curves.easeInOut,
+          )
+          .fade(
+            begin: 0.68,
+            end: 1,
+            duration: 2400.ms,
+            curve: Curves.easeInOut,
+          );
+    }
+
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          PositionedDirectional(
+            top: -72,
+            end: -48,
+            child: SizedBox(
+              width: 210,
+              height: 210,
+              child: animate(topOrb, reverse: false),
+            ),
+          ),
+          PositionedDirectional(
+            bottom: -88,
+            start: -54,
+            child: SizedBox(
+              width: 230,
+              height: 230,
+              child: animate(bottomOrb, reverse: true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Highlights controls when they contain the current choice or own focus.
+class StudentFocusGlow extends StatefulWidget {
+  const StudentFocusGlow({
+    required this.child,
+    this.isSelected = false,
+    this.hasError = false,
+    this.borderRadius = const BorderRadius.all(Radius.circular(20)),
+    super.key,
+  });
+
+  final Widget child;
+  final bool isSelected;
+  final bool hasError;
+  final BorderRadius borderRadius;
+
+  @override
+  State<StudentFocusGlow> createState() => _StudentFocusGlowState();
+}
+
+class _StudentFocusGlowState extends State<StudentFocusGlow> {
+  var _hasFocus = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final emphasized = _hasFocus || widget.isSelected;
+    final color = widget.hasError
+        ? const Color(0xFFF43F5E)
+        : emphasized
+            ? const Color(0xFF0B8693)
+            : const Color(0xFFD7E3EF);
+
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (mounted && _hasFocus != hasFocus) setState(() => _hasFocus = hasFocus);
+      },
+      child: AnimatedScale(
+        scale: reduceMotion || !_hasFocus ? 1 : 1.012,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            borderRadius: widget.borderRadius,
+            border: Border.all(color: color, width: emphasized || widget.hasError ? 1.5 : 1),
+            boxShadow: _hasFocus || widget.hasError
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(widget.hasError ? 0.18 : 0.16),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : const [],
+          ),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// A compact selection summary that makes the current academic path obvious.
+class StudentSelectionBadge extends StatelessWidget {
+  const StudentSelectionBadge({
+    required this.label,
+    required this.subtitle,
+    super.key,
+  });
+
+  final String label;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final content = Semantics(
+      label: '$label. $subtitle',
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECFDF5),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF6EE7B7)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A059669),
+              blurRadius: 16,
+              offset: Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const CircleAvatar(
+              radius: 19,
+              backgroundColor: Color(0xFF059669),
+              child: Icon(Icons.check_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF065F46),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFF047857),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (reduceMotion) return content;
+    return content
+        .animate(key: ValueKey('$label-$subtitle'))
+        .fadeIn(duration: 220.ms)
+        .slideY(begin: 0.08, end: 0, duration: 280.ms, curve: Curves.easeOutCubic)
+        .scale(begin: const Offset(0.96, 0.96), duration: 260.ms, curve: Curves.easeOutBack);
+  }
+}
+
 /// Adds a visible but lightweight press response without owning the tap.
 /// Existing InkWell buttons inside the child continue to receive the action.
 class StudentPressScale extends StatefulWidget {

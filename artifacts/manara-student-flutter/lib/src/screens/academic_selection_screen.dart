@@ -340,9 +340,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             colors: [Color(0xFF07272E), Color(0xFF0E1B2A), Color(0xFF274E76)],
           ),
         ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
+        child: Stack(
+          children: [
+            const Positioned.fill(child: StudentAmbientOrbs()),
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
@@ -355,7 +358,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         child: StudentSoundToggle(),
                       ),
                     ),
-                    const ManaraLogo(size: 84),
+                    const ManaraLogo(size: 84)
+                        .animate()
+                        .fadeIn(duration: 360.ms)
+                        .scale(
+                          begin: const Offset(0.8, 0.8),
+                          duration: 420.ms,
+                          curve: Curves.easeOutBack,
+                        ),
                     const SizedBox(height: 12),
                     const Text(
                       'اختر رحلتك التعليمية',
@@ -470,20 +480,23 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                         ),
                               ),
                               const SizedBox(height: 8),
-                              FilledButton.icon(
-                                onPressed: _selection == null ? null : _enterDashboard,
-                                icon: const Icon(Icons.arrow_back_rounded),
-                                label: const Text('الدخول إلى لوحة الطالب'),
-                                style: FilledButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(56),
-                                  backgroundColor: const Color(0xFF0B8693),
-                                  foregroundColor: Colors.white,
-                                  textStyle: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(17),
+                              StudentPressScale(
+                                child: FilledButton.icon(
+                                  onPressed:
+                                      _selection == null ? null : _enterDashboard,
+                                  icon: const Icon(Icons.arrow_back_rounded),
+                                  label: const Text('الدخول إلى لوحة الطالب'),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(56),
+                                    backgroundColor: const Color(0xFF0B8693),
+                                    foregroundColor: Colors.white,
+                                    textStyle: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(17),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -497,23 +510,19 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     if (_selection != null) ...[
                       const SizedBox(height: 16),
                       StudentAnimatedCard(
-                        child: Text(
-                          '${_selection!.label}\nمعرّف الدرس: ${_selection!.lessonId}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            height: 1.5,
-                          ),
+                        child: StudentSelectionBadge(
+                          label: 'تم اختيار مسارك الدراسي',
+                          subtitle: _selection!.label,
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -539,29 +548,32 @@ class _AcademicDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: StudentPressScale(
-        child: DropdownButtonFormField<String>(
-          value: value,
-          isExpanded: true,
-          onChanged: onChanged,
-          hint: Text(options.isEmpty ? 'لا توجد خيارات متاحة' : 'اختر $label'),
-          icon: const Icon(Icons.expand_more_rounded),
-          decoration: InputDecoration(
-            labelText: label,
-            prefixIcon: Icon(icon, color: const Color(0xFF0B8693)),
-          ),
-          items: options
-              .map(
-                (option) => DropdownMenuItem<String>(
-                  value: option,
-                  child: Text(
-                    option,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+      child: StudentFocusGlow(
+        isSelected: value != null && value!.isNotEmpty,
+        child: StudentPressScale(
+          child: DropdownButtonFormField<String>(
+            value: value,
+            isExpanded: true,
+            onChanged: onChanged,
+            hint: Text(options.isEmpty ? 'لا توجد خيارات متاحة' : 'اختر $label'),
+            icon: const Icon(Icons.expand_more_rounded),
+            decoration: InputDecoration(
+              labelText: label,
+              prefixIcon: Icon(icon, color: const Color(0xFF0B8693)),
+            ),
+            items: options
+                .map(
+                  (option) => DropdownMenuItem<String>(
+                    value: option,
+                    child: Text(
+                      option,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+          ),
         ),
       ),
     );
@@ -583,29 +595,32 @@ class _LessonDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: StudentPressScale(
-        child: DropdownButtonFormField<String>(
-          value: value,
-          isExpanded: true,
-          onChanged: onChanged,
-          hint: Text(lessons.isEmpty ? 'لا توجد دروس في هذه الوحدة' : 'اختر الدرس'),
-          icon: const Icon(Icons.expand_more_rounded),
-          decoration: const InputDecoration(
-            labelText: 'الدرس الحالي',
-            prefixIcon: Icon(Icons.play_lesson_rounded, color: Color(0xFF0B8693)),
-          ),
-          items: lessons
-              .map(
-                (lesson) => DropdownMenuItem<String>(
-                  value: lesson.id,
-                  child: Text(
-                    lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+      child: StudentFocusGlow(
+        isSelected: value != null && value!.isNotEmpty,
+        child: StudentPressScale(
+          child: DropdownButtonFormField<String>(
+            value: value,
+            isExpanded: true,
+            onChanged: onChanged,
+            hint: Text(lessons.isEmpty ? 'لا توجد دروس في هذه الوحدة' : 'اختر الدرس'),
+            icon: const Icon(Icons.expand_more_rounded),
+            decoration: const InputDecoration(
+              labelText: 'الدرس الحالي',
+              prefixIcon: Icon(Icons.play_lesson_rounded, color: Color(0xFF0B8693)),
+            ),
+            items: lessons
+                .map(
+                  (lesson) => DropdownMenuItem<String>(
+                    value: lesson.id,
+                    child: Text(
+                      lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+          ),
         ),
       ),
     );
