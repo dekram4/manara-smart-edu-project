@@ -24,3 +24,6 @@ timeoutMs = 120000
 [userenv.shared]
 DID_AGENT_ID = "v2_agt_xjzPw33U"
 
+[nix]
+channel = "stable-25_05"
+
