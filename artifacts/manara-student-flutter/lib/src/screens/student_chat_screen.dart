@@ -233,7 +233,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   if (_error != null) _ChatError(text: _error!),
                   Expanded(
                     child: _loading
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const Center(
+                            child: StudentRiveLoading(
+                              label: 'جارٍ تحميل الدردشة',
+                            ),
+                          )
                         : _messages.isEmpty
                             ? const _ChatStatus(icon: Icons.forum_outlined, message: 'لا توجد رسائل بعد. ابدأ حديثًا لطيفًا مع زملائك.')
                             : ListView.builder(

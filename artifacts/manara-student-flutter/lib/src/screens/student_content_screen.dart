@@ -177,7 +177,9 @@ class _StudentContentScreenState extends State<StudentContentScreen>
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF0B8693)));
+      return const Center(
+        child: StudentRiveLoading(label: 'جارٍ تحميل محتوى الطالب'),
+      );
     }
     if (_error != null &&
         (_activeModule == StudentContentModule.lesson ||
@@ -753,8 +755,8 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                   const ColoredBox(
                     color: Color(0xFF160C2D),
                     child: Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFFE9D5FF),
+                      child: StudentRiveLoading(
+                        label: 'جارٍ تحميل اللعبة التعليمية',
                       ),
                     ),
                   ),

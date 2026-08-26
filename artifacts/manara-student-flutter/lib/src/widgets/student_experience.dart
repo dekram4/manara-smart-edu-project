@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:rive/rive.dart';
 
 import '../services/student_sound_service.dart';
 
@@ -1060,6 +1061,43 @@ class StudentSelectionBadge extends StatelessWidget {
         .fadeIn(duration: 220.ms)
         .slideY(begin: 0.08, end: 0, duration: 280.ms, curve: Curves.easeOutCubic)
         .scale(begin: const Offset(0.96, 0.96), duration: 260.ms, curve: Curves.easeOutBack);
+  }
+}
+
+/// Shared student loading animation. The bundled asset is a Rive animation,
+/// while reduced-motion users receive a quiet static placeholder.
+class StudentRiveLoading extends StatelessWidget {
+  const StudentRiveLoading({
+    this.size = 118,
+    this.label = 'جارٍ التحميل',
+    super.key,
+  });
+
+  final double size;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return Semantics(
+      label: label,
+      liveRegion: true,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: reduceMotion
+            ? Icon(
+                Icons.hourglass_top_rounded,
+                size: size * 0.42,
+                color: const Color(0xFF0B8693),
+              )
+            : const RiveAnimation.asset(
+                'assets/animations/children-loading.riv',
+                fit: BoxFit.contain,
+                alignment: Alignment.center,
+              ),
+      ),
+    );
   }
 }
 

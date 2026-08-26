@@ -493,8 +493,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 38),
                                   child: Center(
-                                    child: CircularProgressIndicator(
-                                      color: Color(0xFF147D83),
+                                    child: StudentRiveLoading(
+                                      size: 118,
+                                      label: 'جارٍ تحميل المسار الأكاديمي',
                                     ),
                                   ),
                                 )
