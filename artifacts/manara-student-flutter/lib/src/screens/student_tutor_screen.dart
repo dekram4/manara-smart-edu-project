@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/student_content.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/student_experience.dart';
-import '../widgets/student_video_player.dart';
+import '../widgets/tutor_embed.dart';
 
 /// Shows the virtual teacher configured for one selected academic path.
 ///
@@ -221,16 +221,10 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                           ? null
                           : Border.all(color: const Color(0xFF5B3B87)),
                     ),
-                    child: StudentVideoPlayer(
+                    child: TutorEmbed(
                       key: ValueKey('${_avatarUrl!}:$_embedRevision'),
-                      video: LessonVideo(
-                        id: 'tutor-${_avatarLesson?.id ?? 'experience'}',
-                        url: _avatarUrl!,
-                        sourceType: VideoSourceType.embed,
-                        title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
-                      ),
-                      autoPlay: false,
-                      allowInteractivePermissions: true,
+                      url: _avatarUrl!,
+                      title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
                     ),
                   ),
                 ),
