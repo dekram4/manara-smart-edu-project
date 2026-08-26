@@ -1061,6 +1061,134 @@ class StudentSelectionBadge extends StatelessWidget {
   }
 }
 
+/// Adds a restrained perspective tilt to a student-facing surface.
+///
+/// Pointer events are observed rather than claimed, so a surrounding
+/// PageView/ListView keeps ownership of scrolling and the wrapped child keeps
+/// ownership of taps, forms, and buttons.
+class Student3DCard extends StatefulWidget {
+  const Student3DCard({
+    required this.child,
+    this.maxTilt = 0.055,
+    this.enabled = true,
+    super.key,
+  });
+
+  final Widget child;
+  final double maxTilt;
+  final bool enabled;
+
+  @override
+  State<Student3DCard> createState() => _Student3DCardState();
+}
+
+class _Student3DCardState extends State<Student3DCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Offset _targetTilt = Offset.zero;
+  Animation<Offset>? _tiltAnimation;
+  bool _trackingPointer = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _motionEnabled =>
+      widget.enabled &&
+      !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+
+  void _updateFromPosition(Offset position) {
+    if (!_motionEnabled || !_trackingPointer) return;
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+    final size = renderObject.size;
+    if (size.width <= 0 || size.height <= 0) return;
+
+    final normalizedX = (position.dx / size.width * 2 - 1).clamp(-1.0, 1.0);
+    final normalizedY = (position.dy / size.height * 2 - 1).clamp(-1.0, 1.0);
+    _animateTo(
+      Offset(
+        -normalizedY * widget.maxTilt,
+        normalizedX * widget.maxTilt,
+      ),
+    );
+  }
+
+  void _animateTo(Offset next) {
+    if (!_motionEnabled) return;
+    final current = _tiltAnimation?.value ?? _targetTilt;
+    _targetTilt = next;
+    _tiltAnimation = Tween<Offset>(
+      begin: current,
+      end: next,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    _controller.forward(from: 0);
+  }
+
+  void _resetTilt() {
+    _trackingPointer = false;
+    if (_motionEnabled) _animateTo(Offset.zero);
+  }
+
+  Widget _transform(Offset tilt) {
+    final transform = Matrix4.identity()
+      ..setEntry(3, 2, 0.0014)
+      ..rotateX(tilt.dx)
+      ..rotateY(tilt.dy);
+    return Transform(
+      alignment: Alignment.center,
+      transform: transform,
+      transformHitTests: false,
+      child: widget.child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_motionEnabled) return widget.child;
+
+    return MouseRegion(
+      onEnter: (event) {
+        _trackingPointer = true;
+        _updateFromPosition(event.localPosition);
+      },
+      onHover: (event) => _updateFromPosition(event.localPosition),
+      onExit: (_) => _resetTilt(),
+      child: Listener(
+        onPointerDown: (event) {
+          _trackingPointer = true;
+          _updateFromPosition(event.localPosition);
+        },
+        onPointerMove: (event) => _updateFromPosition(event.localPosition),
+        onPointerUp: (_) => _resetTilt(),
+        onPointerCancel: (_) => _resetTilt(),
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) => _transform(
+            _tiltAnimation?.value ?? _targetTilt,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Adds a visible but lightweight press response without owning the tap.
 /// Existing InkWell buttons inside the child continue to receive the action.
 class StudentPressScale extends StatefulWidget {
@@ -1092,7 +1220,7 @@ class _StudentPressScaleState extends State<StudentPressScale> {
         scale: _pressed ? 0.965 : 1,
         duration: const Duration(milliseconds: 120),
         curve: _pressed ? Curves.easeOut : Curves.elasticOut,
-        child: widget.child,
+        child: Student3DCard(child: widget.child),
       ),
     );
   }
