@@ -343,6 +343,40 @@ class StudentCompanion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageSize = size * 0.83;
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final character = Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.001)
+        ..rotateZ(-0.035),
+      child: Image.asset(
+        'assets/images/manara-student-login-companion-cutout.png',
+        width: imageSize,
+        height: imageSize,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => Container(
+          width: imageSize * 0.72,
+          height: imageSize * 0.72,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1C664),
+            borderRadius: BorderRadius.circular(34),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x3D0B2D3D),
+                blurRadius: 16,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.school_rounded,
+            color: Color(0xFF173B50),
+            size: 58,
+          ),
+        ),
+      ),
+    );
+
     return Semantics(
       label: 'رفيق منارة التعليمي',
       image: true,
@@ -371,38 +405,18 @@ class StudentCompanion extends StatelessWidget {
                 ),
               ),
             ),
-            Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.001)
-                ..rotateZ(-0.035),
-              child: Image.asset(
-                'assets/images/manara-student-login-companion-cutout.png',
-                width: imageSize,
-                height: imageSize,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Container(
-                  width: imageSize * 0.72,
-                  height: imageSize * 0.72,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1C664),
-                    borderRadius: BorderRadius.circular(34),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x3D0B2D3D),
-                        blurRadius: 16,
-                        offset: Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    color: Color(0xFF173B50),
-                    size: 58,
-                  ),
-                ),
-              ),
-            ),
+            reduceMotion
+                ? character
+                : character
+                    .animate(
+                      onPlay: (controller) => controller.repeat(reverse: true),
+                    )
+                    .moveY(
+                      begin: 0,
+                      end: -7,
+                      duration: 2100.ms,
+                      curve: Curves.easeInOut,
+                    ),
             if (showLabel)
               Positioned(
                 bottom: -2,
