@@ -150,13 +150,6 @@ class _StudentContentScreenState extends State<StudentContentScreen>
           SafeArea(
             child: Column(
               children: [
-                _ModuleSwitcher(
-                  activeModule: _activeModule,
-                  onChanged: (module) {
-                    StudentSoundService.instance.play(StudentSoundCue.navigation);
-                    setState(() => _activeModule = module);
-                  },
-                ),
                 Padding(
                   padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 0),
                   child: StudentScreenHero(
@@ -244,49 +237,6 @@ String _moduleTitle(StudentContentModule module) {
       return 'شرح الدرس';
     case StudentContentModule.games:
       return 'الترفيه والألعاب';
-  }
-}
-
-class _ModuleSwitcher extends StatelessWidget {
-  const _ModuleSwitcher({required this.activeModule, required this.onChanged});
-
-  final StudentContentModule activeModule;
-  final ValueChanged<StudentContentModule> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (StudentContentModule.lesson, Icons.play_lesson_rounded, 'الدرس'),
-      (StudentContentModule.games, Icons.sports_esports_rounded, 'الألعاب'),
-    ];
-    return SizedBox(
-      height: 58,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final item = items[index];
-          final selected = activeModule == item.$1;
-          return ChoiceChip(
-            selected: selected,
-            onSelected: (_) => onChanged(item.$1),
-            avatar: Icon(item.$2, size: 19, color: selected ? Colors.white : const Color(0xFF0B8693)),
-            label: Text(item.$3),
-            labelStyle: TextStyle(
-              color: selected ? Colors.white : const Color(0xFF274E76),
-              fontWeight: FontWeight.w900,
-            ),
-            selectedColor: const Color(0xFF0B8693),
-            backgroundColor: Colors.white,
-            side: const BorderSide(color: Color(0xFFD7E3EF)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          );
-        },
-      ),
-    );
   }
 }
 
