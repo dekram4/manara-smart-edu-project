@@ -150,20 +150,12 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       child: ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
       children: [
-        const Text(
-          'شاهد وتعلّم',
-          textAlign: TextAlign.right,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 5),
-        const Text(
-          'فيديوهات آمنة ومطابقة لمسارك الأكاديمي',
-          textAlign: TextAlign.right,
-          style: TextStyle(color: Color(0xFFB3C8DE), fontWeight: FontWeight.w700),
+        const StudentScreenHero(
+          title: 'شاهد وتعلّم',
+          subtitle: 'فيديوهات آمنة ومطابقة لمسارك الأكاديمي.',
+          icon: Icons.movie_filter_rounded,
+          colors: [Color(0xFF0B5D66), Color(0xFF0B8693)],
+          dark: true,
         ),
         const SizedBox(height: 12),
         Container(

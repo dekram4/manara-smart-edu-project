@@ -130,21 +130,11 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
-            const StudentEntrance(
-              child: Text(
-                'اصنع بطلك الرائع!',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
-              ),
-            ),
-            const SizedBox(height: 7),
-            const StudentEntrance(
-              delay: Duration(milliseconds: 50),
-              child: Text(
-                'اختر شارة ولونًا يعبران عنك، ثم احفظ شخصيتك.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
-              ),
+            const StudentScreenHero(
+              title: 'اصنع بطلك الرائع!',
+              subtitle: 'اختر شارة ولونًا يعبران عنك، ثم احفظ شخصيتك.',
+              icon: Icons.face_retouching_natural_rounded,
+              colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
             ),
             const SizedBox(height: 22),
             StudentEntrance(

@@ -366,13 +366,28 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         onSubmit: _submit,
       );
     }
-    return StudentEntrance(
-      child: _QuizCatalog(
-        quizzes: _quizzes,
-        results: _results,
-        onOpen: _openQuiz,
-        isTeacherQuiz: _isTeacherQuiz,
-      ),
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(16, 12, 16, 0),
+          child: StudentScreenHero(
+            title: 'مركز الاختبارات',
+            subtitle: 'اختبارات ومسابقات تناسب مسارك؛ خذ وقتك وأظهر أفضل ما لديك.',
+            icon: Icons.quiz_rounded,
+            colors: [Color(0xFF165B4A), Color(0xFF16A085)],
+          ),
+        ),
+        Expanded(
+          child: StudentEntrance(
+            child: _QuizCatalog(
+              quizzes: _quizzes,
+              results: _results,
+              onOpen: _openQuiz,
+              isTeacherQuiz: _isTeacherQuiz,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

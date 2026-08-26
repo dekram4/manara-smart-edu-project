@@ -157,6 +157,21 @@ class _StudentContentScreenState extends State<StudentContentScreen>
                     setState(() => _activeModule = module);
                   },
                 ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 0),
+                  child: StudentScreenHero(
+                    title: _moduleTitle(_activeModule),
+                    subtitle: _activeModule == StudentContentModule.lesson
+                        ? 'استكشف دروسك خطوة بخطوة واحتفل بكل إنجاز.'
+                        : 'العب وتعلّم واكتشف تحديات تعليمية جديدة.',
+                    icon: _activeModule == StudentContentModule.lesson
+                        ? Icons.play_lesson_rounded
+                        : Icons.sports_esports_rounded,
+                    colors: _activeModule == StudentContentModule.lesson
+                        ? const [Color(0xFF9A5B09), Color(0xFFF59E0B)]
+                        : const [Color(0xFF4B267F), Color(0xFF8B5CF6)],
+                  ),
+                ),
                 Expanded(child: StudentEntrance(child: _buildBody())),
               ],
             ),

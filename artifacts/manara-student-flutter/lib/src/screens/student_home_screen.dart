@@ -331,7 +331,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: StudentAnimatedCard(
-                      child: _WelcomeCard(profile: widget.profile),
+                       child: _WelcomeCard(profile: widget.profile),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -675,7 +675,12 @@ class _SectionCard extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.centerRight,
-              child: Icon(section.icon, size: 48, color: Colors.white),
+              child: StudentCardAvatar(
+                icon: section.icon,
+                accent: section.accent,
+                size: 68,
+                label: section.title,
+              ),
             ),
             const Spacer(),
             Text(

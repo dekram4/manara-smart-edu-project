@@ -220,6 +220,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       )
             : Column(
                 children: [
+                  const Padding(
+                    padding: EdgeInsetsDirectional.fromSTEB(14, 12, 14, 0),
+                    child: StudentScreenHero(
+                      title: 'دردشة منارة',
+                      subtitle: 'تواصل باحترام مع زملائك داخل مساحة آمنة.',
+                      icon: Icons.forum_rounded,
+                      colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                      showCompanion: false,
+                    ),
+                  ),
                   if (_error != null) _ChatError(text: _error!),
                   Expanded(
                     child: _loading

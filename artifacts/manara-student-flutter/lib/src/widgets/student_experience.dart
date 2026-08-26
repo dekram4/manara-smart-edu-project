@@ -728,6 +728,201 @@ class StudentCompanion extends StatelessWidget {
   }
 }
 
+/// A compact animated avatar used to make student cards feel personal without
+/// needing a remote avatar or a heavyweight canvas.
+class StudentCardAvatar extends StatelessWidget {
+  const StudentCardAvatar({
+    required this.icon,
+    this.accent = const Color(0xFF0B8693),
+    this.size = 58,
+    this.label,
+    super.key,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final double size;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final avatar = Semantics(
+      label: label ?? 'رمز رحلة الطالب',
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [Colors.white, accent.withOpacity(0.24)],
+                ),
+                border: Border.all(color: Colors.white.withOpacity(0.76), width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withOpacity(0.32),
+                    blurRadius: 14,
+                    offset: const Offset(0, 7),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: Icon(icon, color: accent, size: size * 0.48),
+              ),
+            ),
+            PositionedDirectional(
+              top: -2,
+              end: -1,
+              child: Container(
+                width: size * 0.28,
+                height: size * 0.28,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF6C95D),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.auto_awesome_rounded,
+                  size: size * 0.16,
+                  color: Color(0xFF6F5729),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (reduceMotion) return avatar;
+    return avatar
+        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .moveY(begin: 0, end: -4, duration: 1900.ms, curve: Curves.easeInOut)
+        .rotate(begin: -0.012, end: 0.012, duration: 1900.ms, curve: Curves.easeInOut);
+  }
+}
+
+/// A shared visual welcome inside opened student cards. It keeps each
+/// destination recognisable while the actual lesson, quiz, or meeting content
+/// remains untouched below it.
+class StudentScreenHero extends StatelessWidget {
+  const StudentScreenHero({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    this.colors = const [Color(0xFF0B8693), Color(0xFF274E76)],
+    this.dark = false,
+    this.showCompanion = true,
+    super.key,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> colors;
+  final bool dark;
+  final bool showCompanion;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = dark ? Colors.white : const Color(0xFF183047);
+    final supporting = dark ? const Color(0xFFD8F4F0) : const Color(0xFF466273);
+
+    return StudentAnimatedCard(
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 14, 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: AlignmentDirectional.topStart,
+            end: AlignmentDirectional.bottomEnd,
+            colors: dark
+                ? colors
+                : [colors.first.withOpacity(0.18), Colors.white],
+          ),
+          border: Border.all(
+            color: dark ? Colors.white.withOpacity(0.15) : colors.first.withOpacity(0.22),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: colors.first.withOpacity(dark ? 0.24 : 0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            PositionedDirectional(
+              top: -42,
+              end: showCompanion ? 58 : -25,
+              child: Container(
+                width: 116,
+                height: 116,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: dark ? Colors.white.withOpacity(0.10) : colors.first.withOpacity(0.08),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                StudentCardAvatar(
+                  icon: icon,
+                  accent: dark ? const Color(0xFFBFFBFA) : colors.first,
+                  label: title,
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: supporting,
+                          height: 1.35,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (showCompanion) ...[
+                  const SizedBox(width: 6),
+                  const StudentCompanion(size: 68, showLabel: false),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Highlights controls when they contain the current choice or own focus.
 class StudentFocusGlow extends StatefulWidget {
   const StudentFocusGlow({

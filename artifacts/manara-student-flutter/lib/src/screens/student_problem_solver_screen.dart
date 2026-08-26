@@ -214,19 +214,11 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
             : ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
-                  const StudentEntrance(
-                    child: Text(
-                      'اسأل عن درسك',
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const StudentEntrance(
-                    delay: Duration(milliseconds: 50),
-                    child: Text(
-                      'اكتب سؤالك وسيقدم لك المساعد شرحًا مباشرًا ومفيدًا.',
-                      style: TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
-                    ),
+                   const StudentScreenHero(
+                     title: 'حلّ المسائل',
+                     subtitle: 'اسأل عن درسك وسيقدم لك المساعد شرحًا مباشرًا ومفيدًا.',
+                     icon: Icons.auto_awesome_rounded,
+                     colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
                   ),
                   const SizedBox(height: 18),
                   StudentEntrance(

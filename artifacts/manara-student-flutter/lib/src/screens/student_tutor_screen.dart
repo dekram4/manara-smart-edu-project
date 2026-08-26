@@ -191,12 +191,13 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
               child: Row(
                 children: [
-                  Icon(
-                    _isLiveMeeting
+                  StudentCardAvatar(
+                    icon: _isLiveMeeting
                         ? Icons.videocam_rounded
                         : Icons.smart_toy_rounded,
-                    color: Color(0xFFC4B5FD),
-                    size: 34,
+                    accent: const Color(0xFFC4B5FD),
+                    size: 48,
+                    label: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
                   ),
                   const SizedBox(width: 10),
                   Expanded(

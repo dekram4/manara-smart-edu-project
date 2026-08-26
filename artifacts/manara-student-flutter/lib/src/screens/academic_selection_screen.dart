@@ -167,6 +167,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       );
       _lesson = _lessonsForSelection().firstOrNull;
     });
+    _playSelectionFeedback();
   }
 
   void _selectAtram(String? atram) {
@@ -194,6 +195,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       );
       _lesson = _lessonsForSelection().firstOrNull;
     });
+    _playSelectionFeedback();
   }
 
   void _selectSubject(String? subject) {
@@ -216,6 +218,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       );
       _lesson = _lessonsForSelection().firstOrNull;
     });
+    _playSelectionFeedback();
   }
 
   void _selectTerm(String? term) {
@@ -240,6 +243,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       );
       _lesson = _lessonsForSelection().firstOrNull;
     });
+    _playSelectionFeedback();
   }
 
   void _selectUnit(String? unit) {
@@ -248,6 +252,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _unit = unit;
       _lesson = _lessonsForSelection().firstOrNull;
     });
+    _playSelectionFeedback();
+  }
+
+  void _playSelectionFeedback() {
+    StudentSoundService.instance.play(StudentSoundCue.answerSelected);
   }
 
   List<LessonContent> _lessonsForSelection() {
@@ -535,11 +544,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                   lessons: lessons,
                                   onChanged: lessons.isEmpty
                                       ? null
-                                      : (lessonId) => setState(
+                                      : (lessonId) {
+                                          setState(
                                             () => _lesson = lessons.firstWhere(
                                               (lesson) => lesson.id == lessonId,
                                             ),
-                                          ),
+                                          );
+                                          _playSelectionFeedback();
+                                        },
                                 ),
                                 if (_selection != null) ...[
                                   const SizedBox(height: 2),

@@ -21,6 +21,13 @@ class StudentProgressScreen extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.all(18),
           children: [
+            const StudentScreenHero(
+              title: 'تقدمي وإنجازاتي',
+              subtitle: 'تابع إنجازاتك وتطورك، وكل خطوة تقربك من هدفك.',
+              icon: Icons.insights_rounded,
+              colors: [Color(0xFF0B8693), Color(0xFF274E76)],
+            ),
+            const SizedBox(height: 14),
             StudentEntrance(child: _StatsCard(stats: stats)),
             const SizedBox(height: 18),
             const StudentEntrance(

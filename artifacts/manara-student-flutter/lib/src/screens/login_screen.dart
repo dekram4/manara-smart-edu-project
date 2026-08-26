@@ -43,10 +43,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     FocusManager.instance.primaryFocus?.unfocus();
     if (!_formKey.currentState!.validate()) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       setState(() => _showValidationFeedback = true);
       return;
     }
     if (widget.authService == null) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
       setState(() => _errorMessage = widget.initializationError);
       return;
     }
