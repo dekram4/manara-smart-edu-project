@@ -103,13 +103,22 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
         ..setAttribute('data-monitor', 'true')
         ..setAttribute('data-orientation', 'horizontal')
         ..setAttribute('data-open-mode', 'expanded');
-      // A module script inserted into a detached platform-view root can be
-      // skipped by the browser. Append it on the next event-loop turn, after
-      // HtmlElementView has attached the root to the document.
-      Timer.run(() {
-        if (root.isConnected != true) return;
-        root.append(script);
-      });
+      // Keep the script as a document-level element, like D-ID's official
+      // embed example. The target itself remains the platform-view root.
+      // Waiting until the root is connected also makes the target discoverable
+      // when the module starts.
+      var attempts = 0;
+      void appendScriptWhenConnected() {
+        if (root.isConnected == true) {
+          html.document.body?.append(script);
+          return;
+        }
+        if (attempts++ < 40) {
+          Timer(const Duration(milliseconds: 50), appendScriptWhenConnected);
+        }
+      }
+
+      Timer.run(appendScriptWhenConnected);
       return root;
     });
   }
