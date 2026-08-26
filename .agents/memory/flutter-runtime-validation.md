@@ -1,10 +1,10 @@
 ---
 name: Flutter runtime validation
-description: Flutter source can be prepared in the mobile artifact, but this workspace currently has no Flutter or Dart SDK for local execution.
+description: Flutter Android checks can run from a temporary SDK, but Gradle may exceed this workspace's user-storage quota.
 ---
 
-Flutter artifacts in this workspace require source-level validation until a Flutter/Dart toolchain and a mobile-capable workflow are available.
+Flutter artifacts can use a temporary official Flutter SDK and Android SDK for local analysis and Android builds, but the user-storage quota may be exhausted by Gradle's dependency cache before an APK is produced.
 
-**Why:** The Replit runtime currently exposes Node/pnpm tooling only, so `flutter pub get`, `flutter analyze`, and device builds cannot run here.
+**Why:** Gradle needs several gigabytes of Android and plugin artifacts in addition to Flutter, Pub, and the web project's existing generated dependencies. The filesystem can report free disk space while a per-user quota rejects new cache files.
 
-**How to apply:** Keep Supabase values as `--dart-define` inputs, validate package/source structure locally, and run the real Flutter checks on a machine or workflow with Flutter installed.
+**How to apply:** Keep Supabase values as `--dart-define` inputs. Before attempting an APK build, provision reusable Android build storage or explicitly free only generated dependency caches with the user's informed approval; do not delete application code, media, or uploaded data.

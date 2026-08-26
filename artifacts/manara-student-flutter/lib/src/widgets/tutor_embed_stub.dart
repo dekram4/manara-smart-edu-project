@@ -82,7 +82,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
             _timeout?.cancel();
             if (mounted) setState(() => _loading = false);
           },
-          onLoadError: (_, __, __, description) {
+          onLoadError: (_, __, error, description) {
             _timeout?.cancel();
             if (mounted) {
               setState(() {
