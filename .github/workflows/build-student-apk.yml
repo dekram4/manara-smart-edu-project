@@ -20,14 +20,14 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          flutter-version: '3.19.6'
 
       - name: Install Dependencies
         run: flutter pub get
         working-directory: artifacts/manara-student-flutter
 
       - name: Build APK
-        run: flutter build apk --release --android-skip-build-dependency-validation
+        run: flutter build apk --release
         working-directory: artifacts/manara-student-flutter
 
       - name: Upload APK Artifact
