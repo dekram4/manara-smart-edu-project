@@ -22,13 +22,14 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install Dependencies
-        run: flutter pub get
-        working-directory: .
-
-      - name: Build APK
-        run: flutter build apk --release
-        working-directory: .
+      - name: Find Flutter Project Directory & Build
+        run: |
+          # البحث عن المكان الذي يحتوي على ملف pubspec.yaml
+          PROJECT_DIR=$(find . -maxdepth 2 -name "pubspec.yaml" -exec dirname {} \;)
+          echo "Found project directory at: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+          flutter pub get
+          flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
