@@ -22,28 +22,31 @@ jobs:
         with:
           flutter-version: '3.27.2'
 
-      - name: Configure Kotlin 2.2.0 & Enforce Resolution
+      - name: Direct Fix Kotlin & Dependencies
         run: |
-          # 1. تحديث كافة إشارات Kotlin في ملفات المشروع إلى 2.2.0
-          find android -name "*.gradle" -exec sed -i 's/1\.[0-9]\+\.[0-9]\+/2.2.0/g' {} +
-          find android -name "*.gradle" -exec sed -i 's/2\.[0-1]\+\.[0-9]\+/2.2.0/g' {} +
-          find android -name "*.gradle" -exec sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "2.2.0"/' {} +
-          
-          # 2. إجبار Gradle على توهيد نسخة Kotlin Stdlib لكافة التبعيات (Resolution Strategy)
-          mkdir -p android/app
-          cat << 'EOF' >> android/build.gradle
+          # 1. التعديل المباشر والشامل لنسخة Kotlin في كافة ملفات الأندرويد
+          find android/ -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i 's/1.8.0/2.1.0/g' {} +
+          find android/ -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "2.1.0"/' {} +
+
+          # 2. إجبار Gradle على مطابقة النسخ لـ Kotlin 2.1.0
+          if [ -f android/build.gradle ]; then
+            cat << 'EOF' >> android/build.gradle
 
           allprojects {
               configurations.all {
                   resolutionStrategy {
-                      force 'org.jetbrains.kotlin:kotlin-stdlib:2.2.0'
-                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.0'
-                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.0'
-                      force 'org.jetbrains.kotlin:kotlin-reflect:2.2.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-reflect:2.1.0'
                   }
               }
           }
           EOF
+          fi
+
+          # 3. حل مشكلة package_info_plus بإلزام pub_cache باستعمال نسخة متوافقة
+          sed -i 's/package_info_plus: .*/package_info_plus: 8.0.0/g' pubspec.yaml || true
         working-directory: artifacts/manara-student-flutter
 
       - name: Install Dependencies
@@ -51,7 +54,7 @@ jobs:
         working-directory: artifacts/manara-student-flutter
 
       - name: Build APK
-        run: flutter build apk --release --extra-front-end-options="-Xskip-metadata-version-check"
+        run: flutter build apk --release
         working-directory: artifacts/manara-student-flutter
 
       - name: Upload APK Artifact
