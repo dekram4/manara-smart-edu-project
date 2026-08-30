@@ -24,8 +24,13 @@ jobs:
 
       - name: Find Flutter Project Directory & Build
         run: |
-          # البحث عن المكان الذي يحتوي على ملف pubspec.yaml
-          PROJECT_DIR=$(find . -maxdepth 2 -name "pubspec.yaml" -exec dirname {} \;)
+          PUBSPEC_PATH=$(find . -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "Error: pubspec.yaml not found in repository!"
+            ls -la
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
           echo "Found project directory at: $PROJECT_DIR"
           cd "$PROJECT_DIR"
           flutter pub get
