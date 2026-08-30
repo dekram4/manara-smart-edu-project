@@ -22,15 +22,21 @@ jobs:
         with:
           flutter-version: '3.27.2'
 
-      - name: Direct Fix Kotlin & Dependencies
+      - name: Fix Kotlin Gradle Plugin Version
         run: |
-          # 1. التعديل المباشر والشامل لنسخة Kotlin في كافة ملفات الأندرويد
-          find android/ -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i 's/1.8.0/2.1.0/g' {} +
-          find android/ -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "2.1.0"/' {} +
+          # 1. تحديث Kotlin Gradle Plugin مباشرة داخل settings.gradle (مخصص لمشاريع Flutter الحديثة)
+          if [ -f android/settings.gradle ]; then
+            sed -i -E 's/id "org.jetbrains.kotlin.android" version "[^"]+"/id "org.jetbrains.kotlin.android" version "2.1.0"/g' android/settings.gradle
+          fi
 
-          # 2. إجبار Gradle على مطابقة النسخ لـ Kotlin 2.1.0
+          # 2. تحديث ext.kotlin_version في حال وجود ملف build.gradle قديم
           if [ -f android/build.gradle ]; then
-            cat << 'EOF' >> android/build.gradle
+            sed -i -E 's/ext\.kotlin_version = .*/ext.kotlin_version = "2.1.0"/' android/build.gradle
+            sed -i -E 's/kotlin-gradle-plugin:[0-9\.]+/kotlin-gradle-plugin:2.1.0/' android/build.gradle
+          fi
+
+          # 3. إجبار كافة التبعيات على توحيد نسخة Kotlin Stdlib
+          cat << 'EOF' >> android/build.gradle
 
           allprojects {
               configurations.all {
@@ -43,10 +49,6 @@ jobs:
               }
           }
           EOF
-          fi
-
-          # 3. حل مشكلة package_info_plus بإلزام pub_cache باستعمال نسخة متوافقة
-          sed -i 's/package_info_plus: .*/package_info_plus: 8.0.0/g' pubspec.yaml || true
         working-directory: artifacts/manara-student-flutter
 
       - name: Install Dependencies
