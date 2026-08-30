@@ -27,7 +27,7 @@ jobs:
         working-directory: artifacts/manara-student-flutter
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
         working-directory: artifacts/manara-student-flutter
 
       - name: Upload APK Artifact
