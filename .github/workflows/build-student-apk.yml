@@ -22,11 +22,17 @@ jobs:
         with:
           flutter-version: '3.27.2'
 
-      - name: Force Upgrade Kotlin Version
+      - name: Fix Kotlin Version Direct
         run: |
-          # التحديث التلقائي لإصدار كوتلن في ملفات build.gradle / settings.gradle
-          find android -name "build.gradle" -o -name "settings.gradle" | xargs sed -i 's/1.8.0/2.0.0/g' || true
-          find android -name "build.gradle" -o -name "settings.gradle" | xargs sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "2.0.0"/g' || true
+          # 1. تحديث ext.kotlin_version في build.gradle الرئيسي إن وجد
+          if [ -f android/build.gradle ]; then
+            sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "2.0.0"/' android/build.gradle
+          fi
+
+          # 2. تحديث إضافة org.jetbrains.kotlin.android في settings.gradle أو build.gradle
+          find android -name "*.gradle" -exec sed -i 's/id "org.jetbrains.kotlin.android" version "[^"]*"/id "org.jetbrains.kotlin.android" version "2.0.0"/g' {} +
+          find android -name "*.gradle" -exec sed -i "s/id 'org.jetbrains.kotlin.android' version '[^']*'/id 'org.jetbrains.kotlin.android' version '2.0.0'/g" {} +
+          find android -name "*.gradle" -exec sed -i 's/kotlin-gradle-plugin:[^"]*/kotlin-gradle-plugin:2.0.0/g' {} +
         working-directory: artifacts/manara-student-flutter
 
       - name: Install Dependencies
