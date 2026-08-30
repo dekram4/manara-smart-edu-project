@@ -22,17 +22,28 @@ jobs:
         with:
           flutter-version: '3.27.2'
 
-      - name: Fix Kotlin Version Direct
+      - name: Configure Kotlin 2.2.0 & Enforce Resolution
         run: |
-          # 1. تحديث ext.kotlin_version في build.gradle الرئيسي إن وجد
-          if [ -f android/build.gradle ]; then
-            sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "2.0.0"/' android/build.gradle
-          fi
+          # 1. تحديث كافة إشارات Kotlin في ملفات المشروع إلى 2.2.0
+          find android -name "*.gradle" -exec sed -i 's/1\.[0-9]\+\.[0-9]\+/2.2.0/g' {} +
+          find android -name "*.gradle" -exec sed -i 's/2\.[0-1]\+\.[0-9]\+/2.2.0/g' {} +
+          find android -name "*.gradle" -exec sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "2.2.0"/' {} +
+          
+          # 2. إجبار Gradle على توهيد نسخة Kotlin Stdlib لكافة التبعيات (Resolution Strategy)
+          mkdir -p android/app
+          cat << 'EOF' >> android/build.gradle
 
-          # 2. تحديث إضافة org.jetbrains.kotlin.android في settings.gradle أو build.gradle
-          find android -name "*.gradle" -exec sed -i 's/id "org.jetbrains.kotlin.android" version "[^"]*"/id "org.jetbrains.kotlin.android" version "2.0.0"/g' {} +
-          find android -name "*.gradle" -exec sed -i "s/id 'org.jetbrains.kotlin.android' version '[^']*'/id 'org.jetbrains.kotlin.android' version '2.0.0'/g" {} +
-          find android -name "*.gradle" -exec sed -i 's/kotlin-gradle-plugin:[^"]*/kotlin-gradle-plugin:2.0.0/g' {} +
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force 'org.jetbrains.kotlin:kotlin-stdlib:2.2.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.0'
+                      force 'org.jetbrains.kotlin:kotlin-reflect:2.2.0'
+                  }
+              }
+          }
+          EOF
         working-directory: artifacts/manara-student-flutter
 
       - name: Install Dependencies
@@ -40,7 +51,7 @@ jobs:
         working-directory: artifacts/manara-student-flutter
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --extra-front-end-options="-Xskip-metadata-version-check"
         working-directory: artifacts/manara-student-flutter
 
       - name: Upload APK Artifact
