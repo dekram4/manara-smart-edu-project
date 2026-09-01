@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- إذن الاتصال بالإنترنت -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="manara_student"
         android:name="${applicationName}"
