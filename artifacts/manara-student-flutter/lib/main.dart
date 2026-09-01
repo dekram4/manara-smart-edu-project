@@ -10,33 +10,73 @@ import 'src/services/student_sound_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized();
-  await StudentSoundService.instance.initialize();
 
-  const config = SupabaseConfig.fromEnvironment();
+  // 1. التقاط أخطاء الـ UI والـ Flutter Framework
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
+
+  // 2. التقاط الأخطاء غير المتوقعة وعرضها على الشاشة
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: SelectionArea(
+              child: Text(
+                'تفاصيل الخطأ أثناء التشغيل:\n\n${details.exception}\n\n${details.stack}',
+                style: const TextStyle(color: Colors.red, fontSize: 13, height: 1.4),
+                textDirection: TextDirection.ltr,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  };
+
   SupabaseClient? client;
   String? initializationError;
+  String apiBaseUrl = '';
 
-  if (config.isConfigured) {
-    try {
+  // 3. محاولة تهيئة الخدمات مع التقاط الأخطاء لمنع انحيار التطبيق عند التشغيل
+  try {
+    MediaKit.ensureInitialized();
+  } catch (e) {
+    initializationError = 'خطأ في MediaKit: $e';
+  }
+
+  try {
+    await StudentSoundService.instance.initialize();
+  } catch (e) {
+    initializationError = (initializationError ?? '') + '\nخطأ في الصوت: $e';
+  }
+
+  try {
+    const config = SupabaseConfig.fromEnvironment();
+    apiBaseUrl = config.apiBaseUrl;
+
+    if (config.isConfigured) {
       await Supabase.initialize(
         url: config.url,
         anonKey: config.anonKey,
         authOptions: const FlutterAuthClientOptions(),
       );
       client = Supabase.instance.client;
-    } catch (error) {
-      initializationError = 'تعذر تهيئة اتصال Supabase: ${error.toString()}';
+    } else {
+      initializationError = (initializationError ?? '') + '\n' + config.configurationMessage;
     }
-  } else {
-    initializationError = config.configurationMessage;
+  } catch (error) {
+    initializationError = (initializationError ?? '') + '\nتعذر تهيئة Supabase: ${error.toString()}';
   }
 
   runApp(
     ManaraStudentApp(
       client: client,
       initializationError: initializationError,
-      apiBaseUrl: config.apiBaseUrl,
+      apiBaseUrl: apiBaseUrl,
     ),
   );
 }
