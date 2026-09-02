@@ -183,7 +183,10 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       );
 
   bool get _isNativeVideo => isDirectVideoUrl(_url, widget.video);
-  bool get _usesMediaKit => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  bool get _usesMediaKit =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.android);
   String get _embedUrl {
     if (!widget.muted) return _url;
     final uri = Uri.tryParse(_url);
