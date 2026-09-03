@@ -4,9 +4,15 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:media_kit/media_kit.dart';
+// `PlayerState` is defined by both media_kit and youtube_player_iframe;
+// media_kit's is never referenced by name here (only `Player`, `Media`,
+// and its streams are), so hide it and let youtube_player_iframe's
+// `PlayerState` be the unqualified name used below.
+import 'package:media_kit/media_kit.dart' hide PlayerState;
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../models/student_content.dart';
 import 'student_experience.dart';
@@ -65,6 +71,23 @@ String _refererFor(String url) {
   }
   return '${uri.scheme}://${uri.host}/';
 }
+
+/// Extracts the 11-character video id from any recognized YouTube URL
+/// shape (watch, youtu.be, embed/shorts/live), or `null` if [url] isn't a
+/// YouTube URL at all.
+String? _youtubeIdFromUrl(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  final host = uri.host.toLowerCase().replaceFirst('www.', '');
+  if (!isYoutubeHost(host)) return null;
+  final id = youtubeVideoId(uri, host);
+  return id.isEmpty ? null : id;
+}
+
+/// How long a video is given to start loading/playing before the player
+/// gives up and surfaces a retryable "connection timed out" error instead
+/// of spinning forever.
+const Duration _kLoadTimeout = Duration(seconds: 20);
 
 /// Plays a short, muted preview only while a desktop pointer is over a card.
 /// The underlying player is mounted lazily, so scrolling a library does not
@@ -232,9 +255,14 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   Player? _player;
   VideoController? _videoController;
   VideoPlayerController? _networkController;
+  YoutubePlayerController? _ytController;
+  StreamSubscription<YoutubePlayerValue>? _ytSubscription;
   bool _completionReported = false;
   String? _error;
   int _embedReloadTicket = 0;
+  int _ytReloadTicket = 0;
+  Timer? _loadTimeoutTimer;
+  bool _webViewLoading = true;
 
   String get _url => resolveStudentVideoUrl(
         widget.video,
@@ -246,6 +274,36 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
           defaultTargetPlatform == TargetPlatform.android);
+
+  /// The official `youtube_player_iframe` package correctly implements
+  /// YouTube's IFrame Player API contract (a valid `origin` + `enablejsapi`
+  /// + postMessage handshake), which is what actually prevents the
+  /// "disallowed embed" family of errors (YouTube error codes 100/101/150/
+  /// 152) — as opposed to the raw WebView navigation this app used before,
+  /// which only mimics a browser closely enough to dodge *some* of them.
+  /// It only ships an official web implementation for Android, iOS, and
+  /// Flutter Web, so Windows/desktop keeps using the WebView fallback below.
+  bool get _supportsYoutubePlayerIframe =>
+      kIsWeb ||
+      (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS));
+  bool get _isYoutube => isYoutubeVideoUrl(_url);
+  bool get _useYoutubePlayerIframe =>
+      !_isNativeVideo && _isYoutube && _supportsYoutubePlayerIframe;
+
+  /// A link to the same video on youtube.com/the YouTube app. Offered as a
+  /// last-resort fallback whenever the embedded player can't play a
+  /// YouTube video for a reason no amount of headers can fix — most
+  /// commonly the video owner disabling embedding entirely (error 101/150/
+  /// 152), or a school/ISP network blocking youtube.com inside iframes.
+  Uri? get _externalYoutubeUrl {
+    if (!_isYoutube) return null;
+    final id = _youtubeIdFromUrl(_url);
+    if (id == null) return null;
+    return Uri.https('www.youtube.com', '/watch', {'v': id});
+  }
+
   String get _embedUrl {
     if (!widget.muted) return _url;
     final uri = Uri.tryParse(_url);
@@ -262,7 +320,133 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   @override
   void initState() {
     super.initState();
-    if (_isNativeVideo) _openVideo();
+    if (_isNativeVideo) {
+      _openVideo();
+    } else if (_useYoutubePlayerIframe) {
+      _initYoutubePlayer();
+    }
+  }
+
+  void _startLoadTimeout() {
+    _loadTimeoutTimer?.cancel();
+    _loadTimeoutTimer = Timer(_kLoadTimeout, () {
+      if (!mounted || _error != null) return;
+      setState(() {
+        _error = 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.';
+      });
+    });
+  }
+
+  void _cancelLoadTimeout() {
+    _loadTimeoutTimer?.cancel();
+    _loadTimeoutTimer = null;
+  }
+
+  void _initYoutubePlayer() {
+    final videoId = _youtubeIdFromUrl(_url);
+    if (videoId == null) {
+      // Called synchronously from initState() (or synchronously from a
+      // retry action before the next build), so this runs before/outside
+      // an active build — a direct field write is picked up by the next
+      // build without needing (and safely being able to call) setState.
+      _error = 'تعذر التعرف على رابط فيديو يوتيوب.';
+      return;
+    }
+    // Uses the base constructor (not the `.fromVideoId` factory) because
+    // only it exposes `onWebResourceError` — needed to surface a WebView
+    // load failure (e.g. the underlying network request itself failing)
+    // as a player error instead of leaving the loading thumbnail up
+    // forever.
+    final controller = YoutubePlayerController(
+      params: YoutubePlayerParams(
+        mute: widget.muted,
+        showControls: !widget.compact,
+        showFullscreenButton: !widget.compact,
+        strictRelatedVideos: true,
+        privacyEnhancedMode: true,
+        // Android only; iOS/web keep the platform's own standards-compliant
+        // WebView user agent, which YouTube already accepts.
+        userAgent: _webViewUserAgent,
+      ),
+      onWebResourceError: (error) {
+        // Only a failed top-level document load is a real player error; a
+        // blocked sub-resource (ad/tracking beacon, etc.) is normal and
+        // must not hide a video that is otherwise loading fine.
+        if (error.isForMainFrame == false || !mounted) return;
+        _cancelLoadTimeout();
+        setState(
+            () => _error = 'تعذر تحميل صفحة الفيديو (${error.errorCode}).');
+      },
+    );
+    if (widget.autoPlay) {
+      controller.loadVideoById(
+        videoId: videoId,
+        startSeconds: widget.initialPosition.inSeconds.toDouble(),
+      );
+    } else {
+      controller.cueVideoById(
+        videoId: videoId,
+        startSeconds: widget.initialPosition.inSeconds.toDouble(),
+      );
+    }
+    _ytController = controller;
+    _ytSubscription = controller.stream.listen(_onYoutubeValueChanged);
+    _startLoadTimeout();
+  }
+
+  void _onYoutubeValueChanged(YoutubePlayerValue value) {
+    if (!mounted) return;
+    if (value.hasError) {
+      _cancelLoadTimeout();
+      if (_error == null) {
+        setState(() => _error = _describeYoutubeError(value.error));
+      }
+      return;
+    }
+    // Any state past "not started yet" proves the IFrame API handshake
+    // succeeded, so the load-timeout guard is no longer needed.
+    if (value.playerState != PlayerState.unknown &&
+        value.playerState != PlayerState.unStarted) {
+      _cancelLoadTimeout();
+    }
+    if (value.playerState == PlayerState.ended && !_completionReported) {
+      _completionReported = true;
+      widget.onCompleted?.call();
+    }
+  }
+
+  String _describeYoutubeError(YoutubeError error) {
+    switch (error) {
+      case YoutubeError.notEmbeddable:
+      case YoutubeError.sameAsNotEmbeddable:
+      case YoutubeError.sameAsNotEmbeddable2:
+        // YouTube error 101/150/152: the video owner disabled playback in
+        // embedded/third-party players. No header or setting fixes this —
+        // only opening the video on youtube.com itself works.
+        return 'صاحب الفيديو عطّل تشغيله داخل التطبيقات. جرّب زر "افتح في يوتيوب".';
+      case YoutubeError.videoNotFound:
+      case YoutubeError.cannotFindVideo:
+        return 'تعذر العثور على هذا الفيديو على يوتيوب.';
+      case YoutubeError.invalidParam:
+      case YoutubeError.html5Error:
+      case YoutubeError.unknown:
+      case YoutubeError.none:
+        return 'تعذر تشغيل الفيديو.';
+    }
+  }
+
+  Future<void> _retryYoutube() async {
+    _cancelLoadTimeout();
+    await _ytSubscription?.cancel();
+    await _ytController?.close();
+    if (!mounted) return;
+    setState(() {
+      _error = null;
+      _ytController = null;
+      _ytSubscription = null;
+      _ytReloadTicket++;
+    });
+    _initYoutubePlayer();
   }
 
   Future<void> _openVideo() async {
@@ -306,20 +490,26 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       // for public Supabase Storage objects and API compatibility URLs.
       // The User-Agent/Referer pair mirrors a real mobile browser request,
       // which several CDNs require before they will serve the video body.
-      await player.open(
-        Media(
-          _url,
-          httpHeaders: {
-            'Accept': 'video/*',
-            'Range': 'bytes=0-',
-            'User-Agent': _videoRequestUserAgent,
-            'Referer': _refererFor(_url),
-          },
-        ),
-      );
+      await player
+          .open(
+            Media(
+              _url,
+              httpHeaders: {
+                'Accept': 'video/*',
+                'Range': 'bytes=0-',
+                'User-Agent': _videoRequestUserAgent,
+                'Referer': _refererFor(_url),
+              },
+            ),
+          )
+          .timeout(_kLoadTimeout);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = error is TimeoutException
+            ? 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.'
+            : error.toString(),
+      );
     }
   }
 
@@ -352,7 +542,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     });
 
     try {
-      await controller.initialize();
+      await controller.initialize().timeout(_kLoadTimeout);
       if (widget.muted) await controller.setVolume(0);
       if (widget.initialPosition > Duration.zero &&
           widget.initialPosition < controller.value.duration) {
@@ -364,12 +554,19 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       if (widget.autoPlay) await controller.play();
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.toString());
+      setState(
+        () => _error = error is TimeoutException
+            ? 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.'
+            : error.toString(),
+      );
     }
   }
 
   @override
   void dispose() {
+    _loadTimeoutTimer?.cancel();
+    _ytSubscription?.cancel();
+    _ytController?.close();
     _player?.dispose();
     _networkController?.dispose();
     super.dispose();
@@ -377,6 +574,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (_useYoutubePlayerIframe) return _buildYoutubeEmbed();
     if (!_isNativeVideo) return _buildInlineEmbed();
 
     final controller = _videoController;
@@ -418,6 +616,11 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       children: [
         InAppWebView(
           key: ValueKey('embed-$_embedReloadTicket'),
+          onLoadStart: (controller, url) => _startLoadTimeout(),
+          onLoadStop: (controller, url) {
+            _cancelLoadTimeout();
+            if (mounted) setState(() => _webViewLoading = false);
+          },
           initialUrlRequest: URLRequest(
             url: WebUri(_embedUrl),
             // A same-origin Referer is what stops YouTube's embed player
@@ -466,7 +669,11 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
             // as a player error; a blocked sub-resource (analytics beacon,
             // ad request, etc.) is normal and must not hide the video.
             if (request.isForMainFrame != true || !mounted) return;
-            setState(() => _error = error.description);
+            _cancelLoadTimeout();
+            setState(() {
+              _error = error.description;
+              _webViewLoading = false;
+            });
           },
           onReceivedHttpError: (controller, request, response) {
             final statusCode = response.statusCode ?? 0;
@@ -475,11 +682,63 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                 statusCode < 400) {
               return;
             }
-            setState(() => _error = 'HTTP $statusCode');
+            _cancelLoadTimeout();
+            setState(() {
+              _error = 'HTTP $statusCode';
+              _webViewLoading = false;
+            });
           },
         ),
+        if (_webViewLoading && _error == null)
+          const IgnorePointer(
+            child: ColoredBox(
+              color: Colors.black,
+              child: Center(
+                child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
+              ),
+            ),
+          ),
         if (_error != null)
-          _buildError('تعذر تشغيل الفيديو', onRetry: _retryEmbed),
+          _buildError(
+            'تعذر تشغيل الفيديو',
+            onRetry: _retryEmbed,
+            externalUrl: _externalYoutubeUrl,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildYoutubeEmbed() {
+    final controller = _ytController;
+    if (controller == null) {
+      return _error != null
+          ? _buildError(
+              'تعذر تشغيل الفيديو',
+              onRetry: _retryYoutube,
+              externalUrl: _externalYoutubeUrl,
+            )
+          : const ColoredBox(
+              color: Colors.black,
+              child: Center(
+                child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
+              ),
+            );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        YoutubePlayer(
+          key: ValueKey('youtube-$_ytReloadTicket'),
+          controller: controller,
+          aspectRatio: 16 / 9,
+          backgroundColor: Colors.black,
+        ),
+        if (_error != null)
+          _buildError(
+            'تعذر تشغيل الفيديو',
+            onRetry: _retryYoutube,
+            externalUrl: _externalYoutubeUrl,
+          ),
       ],
     );
   }
@@ -501,6 +760,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     if (!mounted) return;
     setState(() {
       _error = null;
+      _webViewLoading = true;
       // Forces the InAppWebView below to remount with a fresh key, which
       // reloads the embed URL from scratch rather than replaying whatever
       // failed request is still cached in the existing webview instance.
@@ -508,7 +768,11 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     });
   }
 
-  Widget _buildError(String title, {required VoidCallback onRetry}) {
+  Widget _buildError(
+    String title, {
+    required VoidCallback onRetry,
+    Uri? externalUrl,
+  }) {
     return ColoredBox(
       color: const Color(0xED071425),
       child: Center(
@@ -533,14 +797,39 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                 ),
               ),
               const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('إعادة المحاولة'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFBFFBFA),
-                  side: const BorderSide(color: Color(0xFF5EEAD4)),
-                ),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('إعادة المحاولة'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFBFFBFA),
+                      side: const BorderSide(color: Color(0xFF5EEAD4)),
+                    ),
+                  ),
+                  // Some YouTube playback failures (the video owner disabled
+                  // embedding entirely — YouTube error 101/150/152) can't be
+                  // fixed by this app at all. Opening the same video in the
+                  // YouTube app/browser is the only way the student still
+                  // gets to watch the lesson in that case.
+                  if (externalUrl != null)
+                    OutlinedButton.icon(
+                      onPressed: () => launchUrl(
+                        externalUrl,
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      icon: const Icon(Icons.open_in_new_rounded),
+                      label: const Text('افتح في يوتيوب'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withOpacity(0.7)),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),

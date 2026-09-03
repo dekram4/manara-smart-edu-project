@@ -20,7 +20,10 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.2'
+          # youtube_player_iframe >=6.0 (added for reliable YouTube playback)
+          # requires Flutter >=3.38.0 / Dart SDK ^3.10.0. Bumped from 3.27.2,
+          # which can no longer resolve this app's dependencies at all.
+          flutter-version: '3.44.8'
 
       - name: Fix Kotlin Gradle Plugin Version
         run: |
