@@ -72,6 +72,34 @@ String _refererFor(String url) {
   return '${uri.scheme}://${uri.host}/';
 }
 
+/// The full set of request headers sent for a direct MP4/HLS fetch, for
+/// both the media_kit (libmpv) and video_player (ExoPlayer/AVPlayer)
+/// backends. Modeled on what a real browser/native player sends for a
+/// `<video>`/`AVPlayer` byte-range request:
+///
+/// - `User-Agent`/`Referer`: see [_videoRequestUserAgent]/[_refererFor] —
+///   without these, CDNs with hotlink protection (or a Supabase Storage
+///   bucket policy keyed on either) return 403 instead of the video body.
+/// - `Accept: */*`, not a `video/*` MIME restriction: that's what real
+///   players send, and some CDNs run content negotiation that has no
+///   `video/*` representation registered, only the file's exact type —
+///   restricting `Accept` risks a 406 on those.
+/// - `Range: bytes=0-`: establishes byte-range/seek support up front,
+///   exactly like a browser's initial `<video>` request.
+/// - `Accept-Encoding: identity`: forbids gzip/br compression. A
+///   misconfigured origin that gzips a ranged response anyway breaks the
+///   `Content-Length`/`Content-Range` contract the player relies on to
+///   seek and to know when the stream has ended — this exact mismatch is
+///   a common, otherwise-silent cause of "تعذر تشغيل الفيديو" on hosts
+///   that compress everything by default.
+Map<String, String> _videoHttpHeaders(String url) => {
+      'Accept': '*/*',
+      'Accept-Encoding': 'identity',
+      'Range': 'bytes=0-',
+      'User-Agent': _videoRequestUserAgent,
+      'Referer': _refererFor(url),
+    };
+
 /// Extracts the 11-character video id from any recognized YouTube URL
 /// shape (watch, youtu.be, embed/shorts/live), or `null` if [url] isn't a
 /// YouTube URL at all.
@@ -263,6 +291,16 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   int _ytReloadTicket = 0;
   Timer? _loadTimeoutTimer;
   bool _webViewLoading = true;
+  int _nativeRetryAttempt = 0;
+  bool _nativeRetryScheduled = false;
+  bool _triedExoPlayerFallback = false;
+
+  /// Automatic retries attempted on the *same* native backend before either
+  /// falling back to the platform's other decoder (Android) or finally
+  /// showing the error screen — mirrors how Netflix/YouTube-style players
+  /// silently ride out a transient network blip instead of immediately
+  /// bothering the viewer.
+  static const int _kMaxNativeRetries = 2;
 
   String get _url => resolveStudentVideoUrl(
         widget.video,
@@ -449,7 +487,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     _initYoutubePlayer();
   }
 
-  Future<void> _openVideo() async {
+  Future<void> _openVideo({bool forceVideoPlayer = false}) async {
     final uri = Uri.tryParse(_url);
     final isWebRelativeUrl = kIsWeb && _url.startsWith('/');
     if (uri == null ||
@@ -461,11 +499,59 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       return;
     }
 
-    if (_usesMediaKit) {
+    if (_usesMediaKit && !forceVideoPlayer) {
       await _openWithMediaKit();
     } else {
       await _openWithVideoPlayer(uri);
     }
+  }
+
+  /// Common recovery path for every native playback failure — the initial
+  /// `open()`/`initialize()` throwing, a load timeout, or an async error
+  /// reported later by the player/controller once already open.
+  ///
+  /// Tries, in order: a same-backend retry with a short backoff (up to
+  /// [_kMaxNativeRetries] times), then — on Android only, where media_kit
+  /// (libmpv) and video_player (ExoPlayer/AVFoundation-equivalent) are two
+  /// genuinely independent decoder pipelines — one attempt on the other
+  /// backend, since a failure specific to one decoder sometimes plays fine
+  /// on the other. Only after every option is exhausted does it surface the
+  /// error screen.
+  Future<void> _handleNativePlaybackError(Object error) async {
+    if (!mounted || _nativeRetryScheduled) return;
+    final message = error is TimeoutException
+        ? 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.'
+        : error.toString();
+
+    final canRetrySameBackend = _nativeRetryAttempt < _kMaxNativeRetries;
+    final canTryOtherBackend = !canRetrySameBackend &&
+        _usesMediaKit &&
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        !_triedExoPlayerFallback;
+
+    if (!canRetrySameBackend && !canTryOtherBackend) {
+      setState(() => _error = message);
+      return;
+    }
+
+    _nativeRetryScheduled = true;
+    await _player?.dispose();
+    await _networkController?.dispose();
+    _player = null;
+    _videoController = null;
+    _networkController = null;
+
+    if (canRetrySameBackend) {
+      _nativeRetryAttempt++;
+      await Future.delayed(Duration(seconds: _nativeRetryAttempt * 2));
+    } else {
+      _triedExoPlayerFallback = true;
+    }
+
+    _nativeRetryScheduled = false;
+    if (!mounted) return;
+    await _openVideo(forceVideoPlayer: canTryOtherBackend);
   }
 
   Future<void> _openWithMediaKit() async {
@@ -473,8 +559,10 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     _player = player;
     _videoController = VideoController(player);
     player.stream.error.listen((error) {
-      if (!mounted) return;
-      setState(() => _error = error.toString());
+      // Ignore late errors from a player instance this state has already
+      // moved on from (disposed as part of a retry/fallback in progress).
+      if (_player != player) return;
+      _handleNativePlaybackError(error);
     });
     player.stream.completed.listen((completed) {
       if (completed && !_completionReported) {
@@ -488,45 +576,34 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       // media_kit uses the HTTP Range protocol for seeking. Supplying an
       // initial range keeps Windows' native backend on the streaming path
       // for public Supabase Storage objects and API compatibility URLs.
-      // The User-Agent/Referer pair mirrors a real mobile browser request,
-      // which several CDNs require before they will serve the video body.
       await player
-          .open(
-            Media(
-              _url,
-              httpHeaders: {
-                'Accept': 'video/*',
-                'Range': 'bytes=0-',
-                'User-Agent': _videoRequestUserAgent,
-                'Referer': _refererFor(_url),
-              },
-            ),
-          )
-          .timeout(_kLoadTimeout);
+          .open(Media(_url, httpHeaders: _videoHttpHeaders(_url)))
+          .timeout(
+            _kLoadTimeout,
+          );
     } catch (error) {
       if (!mounted) return;
-      setState(
-        () => _error = error is TimeoutException
-            ? 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.'
-            : error.toString(),
-      );
+      await _handleNativePlaybackError(error);
     }
   }
 
   Future<void> _openWithVideoPlayer(Uri uri) async {
-    // iOS/macOS use AVFoundation through this controller, which also needs
-    // a browser-like User-Agent/Referer pair for the same reasons as the
-    // media_kit path above.
+    // iOS/macOS play this through AVFoundation (AVPlayer/AVURLAsset).
+    // `httpHeaders` is video_player's documented, officially supported way
+    // to set AVURLAsset's HTTP header fields — no extra native
+    // configuration is needed beyond passing them here. On Android this is
+    // ExoPlayer, used either as the primary backend (when media_kit isn't
+    // applicable) or as the one-time fallback from
+    // `_handleNativePlaybackError` below.
     final controller = VideoPlayerController.networkUrl(
       uri,
-      httpHeaders: {
-        'Accept': 'video/*',
-        'User-Agent': _videoRequestUserAgent,
-        'Referer': _refererFor(uri.toString()),
-      },
+      httpHeaders: _videoHttpHeaders(uri.toString()),
     );
     _networkController = controller;
     controller.addListener(() {
+      // Ignore a stale listener firing after this controller was disposed
+      // and replaced by a retry/fallback attempt already in progress.
+      if (_networkController != controller) return;
       final value = controller.value;
       if (value.isInitialized &&
           value.duration > Duration.zero &&
@@ -536,9 +613,9 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         widget.onCompleted?.call();
       }
       if (!mounted || !value.hasError) return;
-      setState(() {
-        _error = value.errorDescription ?? 'تعذر تحميل مصدر الفيديو.';
-      });
+      _handleNativePlaybackError(
+        Exception(value.errorDescription ?? 'تعذر تحميل مصدر الفيديو.'),
+      );
     });
 
     try {
@@ -554,11 +631,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       if (widget.autoPlay) await controller.play();
     } catch (error) {
       if (!mounted) return;
-      setState(
-        () => _error = error is TimeoutException
-            ? 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.'
-            : error.toString(),
-      );
+      await _handleNativePlaybackError(error);
     }
   }
 
@@ -752,6 +825,10 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       _player = null;
       _videoController = null;
       _networkController = null;
+      // A manual tap gets a fresh full cycle of automatic retries/fallback,
+      // not whatever was left over from the attempt that just failed.
+      _nativeRetryAttempt = 0;
+      _triedExoPlayerFallback = false;
     });
     await _openVideo();
   }
@@ -773,6 +850,12 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     required VoidCallback onRetry,
     Uri? externalUrl,
   }) {
+    // The friendly title is intentionally generic, but showing the raw
+    // technical reason underneath (HTTP status, timeout, decoder
+    // exception...) is what turns "video doesn't work" reports into
+    // something actually diagnosable — the previous version discarded it
+    // entirely once automatic retries were exhausted.
+    final detail = _error;
     return ColoredBox(
       color: const Color(0xED071425),
       child: Center(
@@ -796,6 +879,20 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                   fontWeight: FontWeight.w900,
                 ),
               ),
+              if (!widget.compact && detail != null && detail.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  detail,
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFB3C8DE),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Wrap(
                 alignment: WrapAlignment.center,
@@ -909,6 +1006,19 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
               aspectRatio: ratio <= 0 ? 16 / 9 : ratio,
               child: VideoPlayer(widget.controller),
             ),
+          ),
+          // ExoPlayer/AVPlayer both surface network stalls as a transient
+          // "buffering" state rather than an error. Without this, a slow
+          // connection just freezes the frame with no feedback, which reads
+          // as "the video is broken" even though it's still trying.
+          ValueListenableBuilder<VideoPlayerValue>(
+            valueListenable: widget.controller,
+            builder: (context, value, _) {
+              if (!value.isBuffering) return const SizedBox.shrink();
+              return const IgnorePointer(
+                child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
+              );
+            },
           ),
           if (_showControls)
             IgnorePointer(
