@@ -13,11 +13,14 @@ gradle.beforeProject { pluginProject ->
         configuration.resolutionStrategy.eachDependency { dependency ->
             if (dependency.requested.group == "com.android.tools.build" &&
                     dependency.requested.name == "gradle") {
-                dependency.useVersion("8.1.0")
+                // Keep in sync with the AGP version declared in settings.gradle.
+                dependency.useVersion("8.11.1")
             }
             if (dependency.requested.group == "org.jetbrains.kotlin" &&
                     dependency.requested.name == "kotlin-gradle-plugin") {
-                dependency.useVersion("1.8.22")
+                // Keep in sync with the Kotlin version settings.gradle/the CI
+                // workflow's "Fix Kotlin Gradle Plugin Version" step apply.
+                dependency.useVersion("2.1.0")
             }
         }
     }
