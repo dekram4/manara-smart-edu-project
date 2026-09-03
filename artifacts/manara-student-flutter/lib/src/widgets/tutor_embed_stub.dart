@@ -95,6 +95,15 @@ class _TutorEmbedState extends State<TutorEmbed> {
                     : null,
             mixedContentMode: MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE,
           ),
+          // Some virtual-teacher providers listen for the student's voice
+          // through getUserMedia; without granting the request here (on top
+          // of the `iframeAllow` feature-policy above) it is denied outright
+          // and the embed silently falls back to a degraded, text-only mode.
+          onPermissionRequest: (controller, request) async =>
+              PermissionResponse(
+            resources: request.resources,
+            action: PermissionResponseAction.GRANT,
+          ),
           onLoadStart: (_, __) {
             if (mounted) setState(() => _loading = true);
             _startTimeout();

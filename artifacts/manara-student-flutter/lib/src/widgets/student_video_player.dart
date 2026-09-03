@@ -298,24 +298,33 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   Timer? _videoTrackWatchdogTimer;
 
   /// Once `true`, media_kit opens with GPU/hardware-accelerated rendering
-  /// disabled. Sticky across retries within this widget's lifetime: this
-  /// only ever gets set after [_watchVideoTrackAppears] has already caught
-  /// hardware-accelerated decoding producing audio with no video frame on
-  /// this device, so retrying hardware-accelerated again would just
-  /// reproduce the same failure.
+  /// disabled — i.e. forced onto its CPU/software decoder (`--hwdec=no`),
+  /// which reliably produces a frame on every H.264 profile at some extra
+  /// CPU cost, in exchange for never leaving the picture blank. Sticky
+  /// across retries within this widget's lifetime: it only ever gets set
+  /// once a hardware-accelerated open has already failed on this device —
+  /// either explicitly ([_handleNativePlaybackError], once the same-backend
+  /// retries below are exhausted) or silently ([_watchVideoTrackAppears]
+  /// catching audio playing with no video frame) — so retrying
+  /// hardware-accelerated again would just reproduce the same failure.
   bool _mediaKitSoftwareDecode = false;
 
   /// Automatic retries attempted on the *same* native backend before either
-  /// falling back to the platform's other decoder (Android) or finally
-  /// showing the error screen — mirrors how Netflix/YouTube-style players
-  /// silently ride out a transient network blip instead of immediately
-  /// bothering the viewer.
+  /// forcing media_kit's software decoder (see [_mediaKitSoftwareDecode]),
+  /// falling back to the platform's other decoder entirely (Android), or
+  /// finally showing the error screen — mirrors how Netflix/YouTube-style
+  /// players silently ride out a transient network blip instead of
+  /// immediately bothering the viewer.
   static const int _kMaxNativeRetries = 2;
 
   /// How long media_kit gets, once audio is confirmed playing, to also
   /// report a decoded video frame size before this is treated as "audio
-  /// with no picture" rather than just a slow-starting video track.
-  static const Duration _kVideoTrackGracePeriod = Duration(seconds: 6);
+  /// with no picture" rather than just a slow-starting video track. Kept
+  /// short so a hardware-decode failure that never throws an exception —
+  /// picture silently never attaches — still gets the software-decoder
+  /// fallback (see [_mediaKitSoftwareDecode]) forced on it promptly instead
+  /// of leaving the screen black for a long, undiagnosable stretch.
+  static const Duration _kVideoTrackGracePeriod = Duration(seconds: 4);
 
   String get _url => resolveStudentVideoUrl(
         widget.video,
@@ -525,13 +534,23 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   /// `open()`/`initialize()` throwing, a load timeout, or an async error
   /// reported later by the player/controller once already open.
   ///
-  /// Tries, in order: a same-backend retry with a short backoff (up to
-  /// [_kMaxNativeRetries] times), then — on Android only, where media_kit
-  /// (libmpv) and video_player (ExoPlayer/AVFoundation-equivalent) are two
-  /// genuinely independent decoder pipelines — one attempt on the other
-  /// backend, since a failure specific to one decoder sometimes plays fine
-  /// on the other. Only after every option is exhausted does it surface the
-  /// error screen.
+  /// Tries, in order:
+  /// 1. A same-backend retry with a short backoff (up to
+  ///    [_kMaxNativeRetries] times) — rides out a transient network blip
+  ///    without bothering the viewer, exactly like it did before.
+  /// 2. If still using media_kit with hardware acceleration on, force its
+  ///    software decoder ([_mediaKitSoftwareDecode]) and reopen *before*
+  ///    giving up on media_kit entirely. A hardware-accelerated decode that
+  ///    is still failing once the same-backend retries are exhausted is a
+  ///    GPU/codec incompatibility, not a network hiccup — retrying the same
+  ///    hardware path again would just reproduce it, while forcing software
+  ///    decoding reliably produces a frame at some extra CPU cost.
+  /// 3. On Android only, where media_kit (libmpv) and video_player
+  ///    (ExoPlayer) are two genuinely independent decoder pipelines, one
+  ///    attempt on the other backend — since a failure specific to one
+  ///    decoder sometimes plays fine on the other.
+  ///
+  /// Only after every option is exhausted does it surface the error screen.
   Future<void> _handleNativePlaybackError(Object error) async {
     if (!mounted || _nativeRetryScheduled) return;
     final message = error is TimeoutException
@@ -539,13 +558,16 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         : error.toString();
 
     final canRetrySameBackend = _nativeRetryAttempt < _kMaxNativeRetries;
+    final canForceSoftwareDecode =
+        !canRetrySameBackend && _usesMediaKit && !_mediaKitSoftwareDecode;
     final canTryOtherBackend = !canRetrySameBackend &&
+        !canForceSoftwareDecode &&
         _usesMediaKit &&
         !kIsWeb &&
         defaultTargetPlatform == TargetPlatform.android &&
         !_triedExoPlayerFallback;
 
-    if (!canRetrySameBackend && !canTryOtherBackend) {
+    if (!canRetrySameBackend && !canForceSoftwareDecode && !canTryOtherBackend) {
       setState(() => _error = message);
       return;
     }
@@ -561,6 +583,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     if (canRetrySameBackend) {
       _nativeRetryAttempt++;
       await Future.delayed(Duration(seconds: _nativeRetryAttempt * 2));
+    } else if (canForceSoftwareDecode) {
+      _mediaKitSoftwareDecode = true;
     } else {
       _triedExoPlayerFallback = true;
     }
@@ -576,13 +600,17 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     _videoController = VideoController(
       player,
       // Hardware-accelerated (GPU) decoding is the default and is fine on
-      // most devices, but a known media_kit/Android failure mode on some
-      // GPU + codec combinations is: the player opens, audio decodes and
-      // plays normally, but the hardware video surface never attaches —
-      // silently, with no error — leaving picture blank forever. Once
-      // `_watchVideoTrackAppears` below has actually observed that on this
-      // device, every subsequent open forces the software decode path
-      // instead, which reliably produces a frame at some CPU cost.
+      // most devices, but on some GPU + codec combinations it fails in one
+      // of two ways: `player.open()`/the player itself throws (caught by
+      // `_handleNativePlaybackError`, which forces this after the
+      // same-backend retries are exhausted), or — a known media_kit/Android
+      // failure mode — it opens silently with audio decoding and playing
+      // normally while the hardware video surface never attaches, leaving
+      // picture blank forever (`_watchVideoTrackAppears` below). Either way,
+      // once one of those has actually observed the failure on this device,
+      // every subsequent open forces the software decode path instead,
+      // which reliably produces a frame — for any H.264 profile — at some
+      // extra CPU cost.
       configuration: VideoControllerConfiguration(
         enableHardwareAcceleration: !_mediaKitSoftwareDecode,
       ),
@@ -800,6 +828,16 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                 : null,
             iframeAllowFullscreen: widget.allowInteractivePermissions,
           ),
+          // Grants the camera/microphone access the `iframeAllow` feature
+          // policy above already opens the door for — without this, the
+          // interactive tutor's getUserMedia request is denied outright and
+          // it silently falls back to a degraded, camera/mic-less mode.
+          onPermissionRequest: widget.allowInteractivePermissions
+              ? (controller, request) async => PermissionResponse(
+                    resources: request.resources,
+                    action: PermissionResponseAction.GRANT,
+                  )
+              : null,
           shouldOverrideUrlLoading: (controller, action) async {
             final target = action.request.url;
             if (target == null) return NavigationActionPolicy.CANCEL;
