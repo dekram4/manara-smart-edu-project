@@ -1070,6 +1070,10 @@ class _NetworkVideoSurface extends StatefulWidget {
 class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   bool _showControls = true;
 
+  void _toggleControls() {
+    setState(() => _showControls = !_showControls);
+  }
+
   void _togglePlayback() {
     final controller = widget.controller;
     if (controller.value.isPlaying) {
@@ -1111,7 +1115,10 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     final ratio = widget.controller.value.aspectRatio;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _togglePlayback,
+      // Tapping the video surface only reveals/hides the controls. Playback
+      // changes are intentionally restricted to the dedicated play button so
+      // an incidental touch cannot pause a lesson or cinema video.
+      onTap: _toggleControls,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -1128,7 +1135,9 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
           ValueListenableBuilder<VideoPlayerValue>(
             valueListenable: widget.controller,
             builder: (context, value, _) {
-              if (!value.isBuffering) return const SizedBox.shrink();
+              if (!value.isBuffering || value.isPlaying) {
+                return const SizedBox.shrink();
+              }
               return const IgnorePointer(
                 child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
               );
@@ -1153,61 +1162,64 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
                 ),
               ),
             ),
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 10,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                VideoProgressIndicator(
-                  widget.controller,
-                  allowScrubbing: true,
-                  colors: const VideoProgressColors(
-                    playedColor: Color(0xFF5EEAD4),
-                    bufferedColor: Color(0x885EEAD4),
-                    backgroundColor: Color(0x66788A9F),
+          if (_showControls)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 10,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  VideoProgressIndicator(
+                    widget.controller,
+                    allowScrubbing: true,
+                    colors: const VideoProgressColors(
+                      playedColor: Color(0xFF5EEAD4),
+                      bufferedColor: Color(0x885EEAD4),
+                      backgroundColor: Color(0x66788A9F),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: widget.controller.value.isPlaying
-                          ? 'إيقاف مؤقت'
-                          : 'تشغيل',
-                      onPressed: _togglePlayback,
-                      icon: Icon(
-                        widget.controller.value.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: widget.controller.value.isPlaying
+                            ? 'إيقاف مؤقت'
+                            : 'تشغيل',
+                        onPressed: _togglePlayback,
+                        icon: Icon(
+                          widget.controller.value.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip:
-                          widget.fullscreen ? 'إغلاق ملء الشاشة' : 'ملء الشاشة',
-                      onPressed: widget.fullscreen
-                          ? () => Navigator.of(context).pop(
-                                _FullscreenPlaybackState(
-                                  position: widget.controller.value.position,
-                                  isPlaying: widget.controller.value.isPlaying,
-                                ),
-                              )
-                          : _openFullscreen,
-                      icon: Icon(
-                        widget.fullscreen
-                            ? Icons.fullscreen_exit_rounded
-                            : Icons.fullscreen_rounded,
-                        color: Colors.white,
+                      const Spacer(),
+                      IconButton(
+                        tooltip: widget.fullscreen
+                            ? 'إغلاق ملء الشاشة'
+                            : 'ملء الشاشة',
+                        onPressed: widget.fullscreen
+                            ? () => Navigator.of(context).pop(
+                                  _FullscreenPlaybackState(
+                                    position: widget.controller.value.position,
+                                    isPlaying:
+                                        widget.controller.value.isPlaying,
+                                  ),
+                                )
+                            : _openFullscreen,
+                        icon: Icon(
+                          widget.fullscreen
+                              ? Icons.fullscreen_exit_rounded
+                              : Icons.fullscreen_rounded,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

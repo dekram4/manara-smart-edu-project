@@ -1,10 +1,10 @@
 ---
 name: Flutter runtime validation
-description: Flutter Android checks can run from a temporary SDK, but Gradle may exceed this workspace's user-storage quota.
+description: GitHub Actions is the authoritative APK builder; Replit is limited to source checks that do not build an APK.
 ---
 
-Flutter artifacts can use a temporary official Flutter SDK and Android SDK for local analysis and Android builds, but the user-storage quota may be exhausted by Gradle's dependency cache before an APK is produced.
+Do not attempt to build Flutter APKs locally in Replit. The project's configured GitHub Actions CI/CD is the authoritative APK builder and publishes successful packages as workflow artifacts.
 
-**Why:** Gradle needs several gigabytes of Android and plugin artifacts in addition to Flutter, Pub, and the web project's existing generated dependencies. The filesystem can report free disk space while a per-user quota rejects new cache files.
+**Why:** The user explicitly designated GitHub Actions for APK builds after Gradle repeatedly exhausted Replit's local storage quota.
 
-**How to apply:** Keep Supabase values as `--dart-define` inputs. Before attempting an APK build, provision reusable Android build storage or explicitly free only generated dependency caches with the user's informed approval; do not delete application code, media, or uploaded data.
+**How to apply:** Make and validate source-level Flutter changes in Replit when compatible tooling is available, but rely on GitHub Actions for APK compilation and artifact delivery.

@@ -76,7 +76,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
     try {
       final response = await http
           .get(Uri.parse('$_apiBase/api/did-agent/config'))
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 5));
       final payload = response.body.isEmpty
           ? const <String, dynamic>{}
           : jsonDecode(response.body);
@@ -221,9 +221,10 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
           initialUrlRequest:
               _directFallback ? URLRequest(url: WebUri(direct!)) : null,
           initialSettings: InAppWebViewSettings(
+            // flutter_inappwebview's equivalent of
+            // JavaScriptMode.unrestricted from webview_flutter.
             javaScriptEnabled: true,
-            // Explicit even though both already default to `true` in this
-            // plugin — D-ID's runtime (like most embeds) relies on
+            // Keep DOM storage explicit: D-ID relies on
             // localStorage/IndexedDB-backed state across reloads.
             domStorageEnabled: true,
             databaseEnabled: true,
