@@ -80,10 +80,11 @@ String _refererFor(String url) {
 /// - `User-Agent`/`Referer`: see [_videoRequestUserAgent]/[_refererFor] —
 ///   without these, CDNs with hotlink protection (or a Supabase Storage
 ///   bucket policy keyed on either) return 403 instead of the video body.
-/// - `Accept: */*`, not a `video/*` MIME restriction: that's what real
-///   players send, and some CDNs run content negotiation that has no
-///   `video/*` representation registered, only the file's exact type —
-///   restricting `Accept` risks a 406 on those.
+/// - `Accept: video/mp4,video/*;q=0.9,*/*;q=0.8`: prefers the exact MP4
+///   representation while still accepting anything as a fallback, so a
+///   CDN that runs content negotiation always has a match to serve —
+///   unlike a bare `video/*`, which some origins 406 when they only
+///   register the file's exact MIME type.
 /// - `Range: bytes=0-`: establishes byte-range/seek support up front,
 ///   exactly like a browser's initial `<video>` request.
 /// - `Accept-Encoding: identity`: forbids gzip/br compression. A
@@ -93,7 +94,7 @@ String _refererFor(String url) {
 ///   a common, otherwise-silent cause of "تعذر تشغيل الفيديو" on hosts
 ///   that compress everything by default.
 Map<String, String> _videoHttpHeaders(String url) => {
-      'Accept': '*/*',
+      'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
       'Accept-Encoding': 'identity',
       'Range': 'bytes=0-',
       'User-Agent': _videoRequestUserAgent,
@@ -294,6 +295,15 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   int _nativeRetryAttempt = 0;
   bool _nativeRetryScheduled = false;
   bool _triedExoPlayerFallback = false;
+  Timer? _videoTrackWatchdogTimer;
+
+  /// Once `true`, media_kit opens with GPU/hardware-accelerated rendering
+  /// disabled. Sticky across retries within this widget's lifetime: this
+  /// only ever gets set after [_watchVideoTrackAppears] has already caught
+  /// hardware-accelerated decoding producing audio with no video frame on
+  /// this device, so retrying hardware-accelerated again would just
+  /// reproduce the same failure.
+  bool _mediaKitSoftwareDecode = false;
 
   /// Automatic retries attempted on the *same* native backend before either
   /// falling back to the platform's other decoder (Android) or finally
@@ -301,6 +311,11 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   /// silently ride out a transient network blip instead of immediately
   /// bothering the viewer.
   static const int _kMaxNativeRetries = 2;
+
+  /// How long media_kit gets, once audio is confirmed playing, to also
+  /// report a decoded video frame size before this is treated as "audio
+  /// with no picture" rather than just a slow-starting video track.
+  static const Duration _kVideoTrackGracePeriod = Duration(seconds: 6);
 
   String get _url => resolveStudentVideoUrl(
         widget.video,
@@ -536,6 +551,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     }
 
     _nativeRetryScheduled = true;
+    _videoTrackWatchdogTimer?.cancel();
     await _player?.dispose();
     await _networkController?.dispose();
     _player = null;
@@ -557,7 +573,20 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   Future<void> _openWithMediaKit() async {
     final player = Player();
     _player = player;
-    _videoController = VideoController(player);
+    _videoController = VideoController(
+      player,
+      // Hardware-accelerated (GPU) decoding is the default and is fine on
+      // most devices, but a known media_kit/Android failure mode on some
+      // GPU + codec combinations is: the player opens, audio decodes and
+      // plays normally, but the hardware video surface never attaches —
+      // silently, with no error — leaving picture blank forever. Once
+      // `_watchVideoTrackAppears` below has actually observed that on this
+      // device, every subsequent open forces the software decode path
+      // instead, which reliably produces a frame at some CPU cost.
+      configuration: VideoControllerConfiguration(
+        enableHardwareAcceleration: !_mediaKitSoftwareDecode,
+      ),
+    );
     player.stream.error.listen((error) {
       // Ignore late errors from a player instance this state has already
       // moved on from (disposed as part of a retry/fallback in progress).
@@ -581,10 +610,40 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
           .timeout(
             _kLoadTimeout,
           );
+      _watchVideoTrackAppears(player);
     } catch (error) {
       if (!mounted) return;
       await _handleNativePlaybackError(error);
     }
+  }
+
+  /// Detects "audio plays, picture never appears" — a failure that throws
+  /// no exception at all, so nothing in [_handleNativePlaybackError] would
+  /// ever catch it on its own. If audio is confirmed progressing but
+  /// media_kit still hasn't reported a decoded video frame size after
+  /// [_kVideoTrackGracePeriod], switch to software decoding and reopen.
+  void _watchVideoTrackAppears(Player player) {
+    _videoTrackWatchdogTimer?.cancel();
+    _videoTrackWatchdogTimer = Timer(_kVideoTrackGracePeriod, () {
+      if (!mounted || _player != player || _mediaKitSoftwareDecode) return;
+      final state = player.state;
+      final hasVideoFrame = (state.width ?? 0) > 0 && (state.height ?? 0) > 0;
+      final audioIsProgressing =
+          state.playing && state.position > Duration.zero;
+      if (hasVideoFrame || !audioIsProgressing) return;
+      _recoverFromMissingVideoTrack();
+    });
+  }
+
+  Future<void> _recoverFromMissingVideoTrack() async {
+    if (!mounted) return;
+    _mediaKitSoftwareDecode = true;
+    await _player?.dispose();
+    _player = null;
+    _videoController = null;
+    if (!mounted) return;
+    setState(() {}); // Show the loading spinner while it reopens.
+    await _openWithMediaKit();
   }
 
   Future<void> _openWithVideoPlayer(Uri uri) async {
@@ -638,6 +697,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   @override
   void dispose() {
     _loadTimeoutTimer?.cancel();
+    _videoTrackWatchdogTimer?.cancel();
     _ytSubscription?.cancel();
     _ytController?.close();
     _player?.dispose();
@@ -656,9 +716,19 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       fit: StackFit.expand,
       children: [
         if (_usesMediaKit && controller != null)
+          // `Video` already wraps its texture in a ClipRect+FittedBox
+          // (fit: BoxFit.contain) sized from the video's *real* reported
+          // aspect ratio — the surrounding `AspectRatio(aspectRatio: 16/9,
+          // child: StudentVideoPlayer(...))` every caller wraps this in
+          // gives it a deterministic, non-zero box to letterbox/pillarbox
+          // within. Hard-coding `Video`'s own `aspectRatio` to 16/9 here
+          // instead would stretch any non-16:9 lesson recording, since the
+          // texture itself doesn't do aspect-correct scaling — it just
+          // fills whatever box it's told to.
           Video(
             controller: controller,
             fill: Colors.black,
+            fit: BoxFit.contain,
             controls: MaterialVideoControls,
           )
         else if (!_usesMediaKit &&
@@ -817,6 +887,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   }
 
   Future<void> _retryNativePlayback() async {
+    _videoTrackWatchdogTimer?.cancel();
     await _player?.dispose();
     await _networkController?.dispose();
     if (!mounted) return;
@@ -827,6 +898,9 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       _networkController = null;
       // A manual tap gets a fresh full cycle of automatic retries/fallback,
       // not whatever was left over from the attempt that just failed.
+      // `_mediaKitSoftwareDecode` deliberately stays sticky (see its
+      // doc-comment) — a device that needed software decode once will need
+      // it again.
       _nativeRetryAttempt = 0;
       _triedExoPlayerFallback = false;
     });

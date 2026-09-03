@@ -1,7 +1,17 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+/// A normal Chrome user agent for Android's WebView. Some virtual-teacher
+/// providers (the same class of avatar/embed hosts that block plain YouTube
+/// iframes) reject the WebView's default UA — which advertises itself with
+/// a trailing " wv" (WebView) token — the same failure mode fixed for
+/// lesson-video embeds in student_video_player.dart. Keeping both in sync.
+const String _kAndroidWebViewUserAgent =
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
 
 /// Native fallback for the virtual-teacher embed. Flutter Web uses the
 /// browser-native iframe implementation in tutor_embed_web.dart instead.
@@ -41,7 +51,8 @@ class _TutorEmbedState extends State<TutorEmbed> {
     _timeout?.cancel();
     _timeout = Timer(const Duration(seconds: 12), () {
       if (mounted && _loading) {
-        setState(() => _error = 'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.');
+        setState(
+            () => _error = 'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.');
       }
     });
   }
@@ -67,12 +78,22 @@ class _TutorEmbedState extends State<TutorEmbed> {
             javaScriptEnabled: true,
             mediaPlaybackRequiresUserGesture: false,
             allowsInlineMediaPlayback: true,
+            allowsPictureInPictureMediaPlayback: true,
             transparentBackground: true,
             supportMultipleWindows: false,
             iframeAllow:
                 'camera *; microphone *; autoplay *; clipboard-write *; '
                 'encrypted-media *; fullscreen *; picture-in-picture *',
             iframeAllowFullscreen: true,
+            // Same fix as the lesson-video embed: Android's default WebView
+            // UA carries a " wv" token some avatar/embed providers reject
+            // outright, and mixed-content compatibility mode avoids a blank
+            // embed when a provider mixes http/https sub-resources.
+            userAgent:
+                (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+                    ? _kAndroidWebViewUserAgent
+                    : null,
+            mixedContentMode: MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE,
           ),
           onLoadStart: (_, __) {
             if (mounted) setState(() => _loading = true);
@@ -82,14 +103,34 @@ class _TutorEmbedState extends State<TutorEmbed> {
             _timeout?.cancel();
             if (mounted) setState(() => _loading = false);
           },
-          onLoadError: (_, __, error, description) {
+          onReceivedError: (controller, request, error) {
+            // Only a failed top-level document load counts; a blocked
+            // sub-resource (analytics, a font, an ad) is normal and must
+            // not hide an otherwise-working embed.
+            if (request.isForMainFrame != true || !mounted) return;
             _timeout?.cancel();
-            if (mounted) {
-              setState(() {
-                _loading = false;
-                _error = 'تعذر تحميل المعلم الافتراضي: $description';
-              });
+            setState(() {
+              _loading = false;
+              _error = 'تعذر تحميل المعلم الافتراضي: ${error.description}';
+            });
+          },
+          onReceivedHttpError: (controller, request, response) {
+            // Without this, a dead/expired teacher link (410, 404, a login
+            // wall returning 403...) "loads" successfully as far as
+            // onLoadStop is concerned — the loading spinner just clears
+            // and the student is left staring at a blank or broken embed
+            // with no error message and no way to retry.
+            final statusCode = response.statusCode ?? 0;
+            if (request.isForMainFrame != true ||
+                !mounted ||
+                statusCode < 400) {
+              return;
             }
+            _timeout?.cancel();
+            setState(() {
+              _loading = false;
+              _error = 'تعذر تحميل المعلم الافتراضي: HTTP $statusCode';
+            });
           },
         ),
         if (_loading && _error == null) const _TutorEmbedLoading(),
@@ -117,7 +158,8 @@ class _TutorEmbedLoading extends StatelessWidget {
               SizedBox(height: 14),
               Text(
                 'يتم تجهيز المعلم الافتراضي...',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
               ),
             ],
           ),
