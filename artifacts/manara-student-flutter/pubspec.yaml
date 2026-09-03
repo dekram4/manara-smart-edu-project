@@ -19,10 +19,15 @@ dependencies:
   flame: ^1.24.0
   flame_audio: ^2.10.6
   flutter_inappwebview: ^6.1.5
+  # media_kit is kept for Windows only now — Android/iOS/iPadOS MP4 playback
+  # goes exclusively through video_player (see student_video_player.dart's
+  # `_usesMediaKit`), so media_kit_libs_android_video is intentionally not
+  # a dependency here: it would just ship the native libmpv binaries behind
+  # the documented Android Surface/TextureView attach bug without anything
+  # in the app ever using them.
   media_kit: 1.1.11
   media_kit_video: 1.2.4
   media_kit_libs_windows_video: 1.0.9
-  media_kit_libs_android_video: 1.3.6
   google_fonts: ^8.2.1
   crypto: ^3.0.6
   http: ^1.2.2

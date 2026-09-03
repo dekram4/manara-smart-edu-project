@@ -294,27 +294,26 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   bool _webViewLoading = true;
   int _nativeRetryAttempt = 0;
   bool _nativeRetryScheduled = false;
-  bool _triedExoPlayerFallback = false;
   Timer? _videoTrackWatchdogTimer;
 
   /// Once `true`, media_kit opens with GPU/hardware-accelerated rendering
   /// disabled — i.e. forced onto its CPU/software decoder (`--hwdec=no`),
-  /// which reliably produces a frame on every H.264 profile at some extra
-  /// CPU cost, in exchange for never leaving the picture blank. Sticky
-  /// across retries within this widget's lifetime: it only ever gets set
-  /// once a hardware-accelerated open has already failed on this device —
-  /// either explicitly ([_handleNativePlaybackError], once the same-backend
-  /// retries below are exhausted) or silently ([_watchVideoTrackAppears]
-  /// catching audio playing with no video frame) — so retrying
-  /// hardware-accelerated again would just reproduce the same failure.
+  /// which reliably produces a frame at some extra CPU cost, in exchange
+  /// for never leaving the picture blank. Only reachable on Windows now
+  /// (see [_usesMediaKit]) — sticky across retries within this widget's
+  /// lifetime, since it only ever gets set once a hardware-accelerated open
+  /// has already failed on this device, either explicitly
+  /// ([_handleNativePlaybackError], once the same-backend retries below are
+  /// exhausted) or silently ([_watchVideoTrackAppears] catching audio
+  /// playing with no video frame) — so retrying hardware-accelerated again
+  /// would just reproduce the same failure.
   bool _mediaKitSoftwareDecode = false;
 
   /// Automatic retries attempted on the *same* native backend before either
-  /// forcing media_kit's software decoder (see [_mediaKitSoftwareDecode]),
-  /// falling back to the platform's other decoder entirely (Android), or
-  /// finally showing the error screen — mirrors how Netflix/YouTube-style
-  /// players silently ride out a transient network blip instead of
-  /// immediately bothering the viewer.
+  /// forcing media_kit's software decoder on Windows (see
+  /// [_mediaKitSoftwareDecode]) or finally showing the error screen —
+  /// mirrors how Netflix/YouTube-style players silently ride out a
+  /// transient network blip instead of immediately bothering the viewer.
   static const int _kMaxNativeRetries = 2;
 
   /// How long media_kit gets, once audio is confirmed playing, to also
@@ -332,10 +331,19 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       );
 
   bool get _isNativeVideo => isDirectVideoUrl(_url, widget.video);
+
+  /// media_kit (libmpv) is used **only on Windows**. Android, iOS and
+  /// iPadOS play every direct MP4/HLS source exclusively through
+  /// `video_player` — ExoPlayer on Android, AVFoundation on iOS/iPadOS —
+  /// which is Flutter's own officially maintained plugin for exactly this
+  /// and does not share the Surface/TextureView attachment bug documented
+  /// against media_kit on Android (audio decodes and plays while the
+  /// hardware video surface silently never attaches, leaving the picture
+  /// black). Using one real decoder pipeline per mobile platform, instead
+  /// of routing Android through a third-party native renderer, is what
+  /// actually eliminates that failure mode rather than working around it.
   bool get _usesMediaKit =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.windows ||
-          defaultTargetPlatform == TargetPlatform.android);
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
   /// The official `youtube_player_iframe` package correctly implements
   /// YouTube's IFrame Player API contract (a valid `origin` + `enablejsapi`
@@ -511,7 +519,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     _initYoutubePlayer();
   }
 
-  Future<void> _openVideo({bool forceVideoPlayer = false}) async {
+  Future<void> _openVideo() async {
     final uri = Uri.tryParse(_url);
     final isWebRelativeUrl = kIsWeb && _url.startsWith('/');
     if (uri == null ||
@@ -523,7 +531,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       return;
     }
 
-    if (_usesMediaKit && !forceVideoPlayer) {
+    if (_usesMediaKit) {
       await _openWithMediaKit();
     } else {
       await _openWithVideoPlayer(uri);
@@ -538,17 +546,20 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   /// 1. A same-backend retry with a short backoff (up to
   ///    [_kMaxNativeRetries] times) — rides out a transient network blip
   ///    without bothering the viewer, exactly like it did before.
-  /// 2. If still using media_kit with hardware acceleration on, force its
-  ///    software decoder ([_mediaKitSoftwareDecode]) and reopen *before*
-  ///    giving up on media_kit entirely. A hardware-accelerated decode that
-  ///    is still failing once the same-backend retries are exhausted is a
-  ///    GPU/codec incompatibility, not a network hiccup — retrying the same
-  ///    hardware path again would just reproduce it, while forcing software
-  ///    decoding reliably produces a frame at some extra CPU cost.
-  /// 3. On Android only, where media_kit (libmpv) and video_player
-  ///    (ExoPlayer) are two genuinely independent decoder pipelines, one
-  ///    attempt on the other backend — since a failure specific to one
-  ///    decoder sometimes plays fine on the other.
+  /// 2. On Windows only, where media_kit is still used (see
+  ///    [_usesMediaKit]): if hardware acceleration is still on, force its
+  ///    software decoder ([_mediaKitSoftwareDecode]) and reopen. A
+  ///    hardware-accelerated decode that is still failing once the
+  ///    same-backend retries are exhausted is a GPU/codec incompatibility,
+  ///    not a network hiccup — retrying the same hardware path again would
+  ///    just reproduce it, while forcing software decoding reliably
+  ///    produces a frame at some extra CPU cost.
+  ///
+  /// Android/iOS/iPadOS play exclusively through `video_player`
+  /// (ExoPlayer/AVFoundation), which has no separate hardware/software
+  /// decoder switch to force from here — the platform's own decoder
+  /// pipeline already handles that class of fallback internally — so step 2
+  /// never applies there and a same-backend retry failing is final.
   ///
   /// Only after every option is exhausted does it surface the error screen.
   Future<void> _handleNativePlaybackError(Object error) async {
@@ -560,14 +571,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     final canRetrySameBackend = _nativeRetryAttempt < _kMaxNativeRetries;
     final canForceSoftwareDecode =
         !canRetrySameBackend && _usesMediaKit && !_mediaKitSoftwareDecode;
-    final canTryOtherBackend = !canRetrySameBackend &&
-        !canForceSoftwareDecode &&
-        _usesMediaKit &&
-        !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android &&
-        !_triedExoPlayerFallback;
 
-    if (!canRetrySameBackend && !canForceSoftwareDecode && !canTryOtherBackend) {
+    if (!canRetrySameBackend && !canForceSoftwareDecode) {
       setState(() => _error = message);
       return;
     }
@@ -583,15 +588,13 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     if (canRetrySameBackend) {
       _nativeRetryAttempt++;
       await Future.delayed(Duration(seconds: _nativeRetryAttempt * 2));
-    } else if (canForceSoftwareDecode) {
-      _mediaKitSoftwareDecode = true;
     } else {
-      _triedExoPlayerFallback = true;
+      _mediaKitSoftwareDecode = true;
     }
 
     _nativeRetryScheduled = false;
     if (!mounted) return;
-    await _openVideo(forceVideoPlayer: canTryOtherBackend);
+    await _openVideo();
   }
 
   Future<void> _openWithMediaKit() async {
@@ -940,7 +943,6 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       // doc-comment) — a device that needed software decode once will need
       // it again.
       _nativeRetryAttempt = 0;
-      _triedExoPlayerFallback = false;
     });
     await _openVideo();
   }

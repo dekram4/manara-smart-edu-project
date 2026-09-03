@@ -9,10 +9,21 @@ import 'package:http/http.dart' as http;
 class DIdAgentEmbed extends StatefulWidget {
   const DIdAgentEmbed({
     required this.apiBaseUrl,
+    this.directUrl,
     super.key,
   });
 
   final String apiBaseUrl;
+
+  /// Accepted for API parity with did_agent_embed_stub.dart (the
+  /// native/mobile implementation), which falls back to opening this URL
+  /// directly when `/api/did-agent/config` fails. Not used on Flutter Web:
+  /// a `studio.d-id.com` URL can't be iframed cross-origin (the same
+  /// X-Frame-Options restriction is why this widget builds the Agent Embed
+  /// from clientKey/agentId instead of just embedding a link in the first
+  /// place), so there is no safe direct-URL fallback here — a failed
+  /// config fetch still surfaces the error card below.
+  final String? directUrl;
 
   @override
   State<DIdAgentEmbed> createState() => _DIdAgentEmbedState();

@@ -76,6 +76,11 @@ class _TutorEmbedState extends State<TutorEmbed> {
           initialUrlRequest: URLRequest(url: WebUri(widget.url)),
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
+            // Explicit even though both already default to `true` in this
+            // plugin — most avatar/embed providers rely on
+            // localStorage/IndexedDB-backed session state across reloads.
+            domStorageEnabled: true,
+            databaseEnabled: true,
             mediaPlaybackRequiresUserGesture: false,
             allowsInlineMediaPlayback: true,
             allowsPictureInPictureMediaPlayback: true,
@@ -104,6 +109,18 @@ class _TutorEmbedState extends State<TutorEmbed> {
             resources: request.resources,
             action: PermissionResponseAction.GRANT,
           ),
+          // Surfaces JS errors/warnings from inside the embed page to the
+          // app's own debug console — a silent in-page failure (a blocked
+          // script, a CORS rejection) otherwise looks identical to "still
+          // loading" from here.
+          onConsoleMessage: (controller, consoleMessage) {
+            if (kDebugMode) {
+              debugPrint(
+                'TutorEmbed console[${consoleMessage.messageLevel}]: '
+                '${consoleMessage.message}',
+              );
+            }
+          },
           onLoadStart: (_, __) {
             if (mounted) setState(() => _loading = true);
             _startTimeout();

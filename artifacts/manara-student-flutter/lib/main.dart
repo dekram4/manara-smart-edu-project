@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:media_kit/media_kit.dart';
@@ -42,10 +43,19 @@ Future<void> main() async {
   String apiBaseUrl = '';
 
   // 3. محاولة تهيئة الخدمات مع التقاط الأخطاء لمنع انحيار التطبيق عند التشغيل
-  try {
-    MediaKit.ensureInitialized();
-  } catch (e) {
-    initializationError = 'خطأ في MediaKit: $e';
+  // media_kit (libmpv) is only used on Windows now — student_video_player.dart
+  // plays every MP4/HLS source on Android/iOS/iPadOS through video_player
+  // instead (see its `_usesMediaKit`), and this project ships no
+  // media_kit_libs_android_video/_ios_video binaries any more. Calling
+  // MediaKit.ensureInitialized() there would eagerly try to load a libmpv
+  // shared library that was never bundled and always fail, surfacing a
+  // confusing "خطأ في MediaKit" banner on every single launch.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    try {
+      MediaKit.ensureInitialized();
+    } catch (e) {
+      initializationError = 'خطأ في MediaKit: $e';
+    }
   }
 
   try {

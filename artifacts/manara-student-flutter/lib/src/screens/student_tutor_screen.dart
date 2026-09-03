@@ -179,7 +179,10 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
     if (_isDIdStudioUrl) {
       return StudentEntrance(
-        child: DIdAgentEmbed(apiBaseUrl: widget.apiBaseUrl),
+        child: DIdAgentEmbed(
+          apiBaseUrl: widget.apiBaseUrl,
+          directUrl: _avatarUrl,
+        ),
       );
     }
 

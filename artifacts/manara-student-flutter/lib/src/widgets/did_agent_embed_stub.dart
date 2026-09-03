@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
@@ -8,20 +9,31 @@ import 'package:http/http.dart' as http;
 /// Native (Android/iOS/iPadOS) implementation of the virtual-teacher D-ID
 /// Agent Embed.
 ///
-/// Mirrors did_agent_embed_web.dart's browser implementation exactly: fetch
-/// the client key/agent id from the API, then load D-ID's official Agent
-/// Embed script (`https://agent.d-id.com/v2/index.js`) against them. The
-/// only difference is *where* that script runs — a real DOM on Flutter Web,
-/// an in-app WebView here — so the same experience now runs fully inside
-/// the app on every platform instead of requiring the web version of
-/// Manara.
+/// Mirrors did_agent_embed_web.dart's browser implementation: fetch the
+/// client key/agent id from the API, then load D-ID's official Agent Embed
+/// script (`https://agent.d-id.com/v2/index.js`) against them. The only
+/// difference is *where* that script runs — a real DOM on Flutter Web, an
+/// in-app WebView here — so the same experience now runs fully inside the
+/// app on every platform instead of requiring the web version of Manara.
+///
+/// If the API call that supplies the client key/agent id fails or times
+/// out — a blocked `/api/did-agent/config` route, a CORS/network issue —
+/// this never just sits on the loading screen forever: it falls back to
+/// opening [directUrl] (the teacher's own configured D-ID link) directly,
+/// exactly like a normal embedded link.
 class DIdAgentEmbed extends StatefulWidget {
   const DIdAgentEmbed({
     required this.apiBaseUrl,
+    this.directUrl,
     super.key,
   });
 
   final String apiBaseUrl;
+
+  /// The raw D-ID link configured for this lesson/teacher (a
+  /// `studio.d-id.com` URL). Used only as a fallback if the
+  /// `/api/did-agent/config` lookup below fails or times out.
+  final String? directUrl;
 
   @override
   State<DIdAgentEmbed> createState() => _DIdAgentEmbedState();
@@ -30,6 +42,7 @@ class DIdAgentEmbed extends StatefulWidget {
 class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
   Timer? _timeout;
   String? _html;
+  bool _directFallback = false;
   String? _error;
   var _loading = true;
   var _revision = 0;
@@ -54,18 +67,16 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       _loading = true;
       _error = null;
       _html = null;
+      _directFallback = false;
     });
     if (_apiBase.isEmpty) {
-      setState(() {
-        _loading = false;
-        _error = 'تعذر الوصول إلى إعداد المعلم الافتراضي.';
-      });
+      _fallBackToDirectUrlOrError('تعذر الوصول إلى إعداد المعلم الافتراضي.');
       return;
     }
     try {
       final response = await http
           .get(Uri.parse('$_apiBase/api/did-agent/config'))
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 10));
       final payload = response.body.isEmpty
           ? const <String, dynamic>{}
           : jsonDecode(response.body);
@@ -86,13 +97,35 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       });
       _startTimeout();
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error =
-            'تعذر تجهيز المعلم الافتراضي. تحقق من اتصالك ثم أعد المحاولة.';
-      });
+      // Covers both a timed-out/failed HTTP call and a blocked/CORS-denied
+      // one (surfaces here as a network exception either way) — in every
+      // case, don't leave the student staring at a spinner forever.
+      _fallBackToDirectUrlOrError(
+        'تعذر تجهيز المعلم الافتراضي. تحقق من اتصالك ثم أعد المحاولة.',
+      );
     }
+  }
+
+  /// Falls back to loading [directUrl] as a plain page when the
+  /// API-supplied Agent Embed can't be built, instead of leaving the
+  /// student stuck on the loading card indefinitely. Only shows the error
+  /// card outright when there is no usable fallback URL at all.
+  void _fallBackToDirectUrlOrError(String apiFailureMessage) {
+    if (!mounted) return;
+    final direct = widget.directUrl?.trim();
+    final uri = direct == null || direct.isEmpty ? null : Uri.tryParse(direct);
+    if (uri != null && uri.scheme == 'https') {
+      setState(() {
+        _directFallback = true;
+        _revision++;
+      });
+      _startTimeout();
+      return;
+    }
+    setState(() {
+      _loading = false;
+      _error = apiFailureMessage;
+    });
   }
 
   /// A minimal standalone page hosting D-ID's official Agent Embed script,
@@ -146,26 +179,17 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
   }
 
   void _retry() {
-    if (_html == null) {
-      // The API call itself never succeeded last time — re-fetch the
-      // config rather than just reloading an embed that was never built.
-      _loadConfig();
-      return;
-    }
-    setState(() {
-      _loading = true;
-      _error = null;
-      // Forces the InAppWebView below to remount with a fresh key, which
-      // reloads the D-ID script from scratch.
-      _revision++;
-    });
-    _startTimeout();
+    // Always re-attempts the proper API-driven embed first — if it's
+    // recovered since the last try, the student gets the full experience
+    // again rather than being stuck on whatever fallback kicked in before.
+    _loadConfig();
   }
 
   @override
   Widget build(BuildContext context) {
     final html = _html;
-    if (html == null) {
+    final direct = widget.directUrl?.trim();
+    if (html == null && !_directFallback) {
       return _DIdStateCard(
         title: _error != null
             ? 'تعذر تشغيل المعلم الافتراضي'
@@ -181,21 +205,32 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       children: [
         InAppWebView(
           key: ValueKey('did-agent-$_revision'),
-          initialData: InAppWebViewInitialData(
-            data: html,
-            // D-ID's Agent Embed is designed to run on arbitrary customer
-            // origins (that's the entire product); giving the page a real
-            // https origin here — rather than the WebView's default
-            // `about:blank` for injected HTML — keeps its own relative
-            // requests and any origin-sensitive checks behaving the same
-            // way they would on an actual website.
-            baseUrl: WebUri('https://agent.d-id.com/'),
-          ),
+          initialData: _directFallback
+              ? null
+              : InAppWebViewInitialData(
+                  data: html!,
+                  // D-ID's Agent Embed is designed to run on arbitrary
+                  // customer origins (that's the entire product); giving
+                  // the page a real https origin here — rather than the
+                  // WebView's default `about:blank` for injected HTML —
+                  // keeps its own relative requests and any
+                  // origin-sensitive checks behaving the same way they
+                  // would on an actual website.
+                  baseUrl: WebUri('https://agent.d-id.com/'),
+                ),
+          initialUrlRequest:
+              _directFallback ? URLRequest(url: WebUri(direct!)) : null,
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
+            // Explicit even though both already default to `true` in this
+            // plugin — D-ID's runtime (like most embeds) relies on
+            // localStorage/IndexedDB-backed state across reloads.
+            domStorageEnabled: true,
+            databaseEnabled: true,
             mediaPlaybackRequiresUserGesture: false,
-            // iOS: play/record audio in place instead of forcing a
-            // full-screen system UI.
+            // iOS/iPadOS: play/record audio in place instead of forcing a
+            // full-screen system UI — without this, video/audio inside the
+            // embed can hang instead of playing.
             allowsInlineMediaPlayback: true,
             allowsPictureInPictureMediaPlayback: true,
             allowsAirPlayForMediaPlayback: true,
@@ -216,6 +251,18 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
             resources: request.resources,
             action: PermissionResponseAction.GRANT,
           ),
+          // Surfaces JS errors/warnings from inside the embed page (a CORS
+          // rejection, a script failing to load, D-ID's own runtime
+          // logging) to the app's own debug console — otherwise a silent
+          // in-page failure looks identical to "still loading" from here.
+          onConsoleMessage: (controller, consoleMessage) {
+            if (kDebugMode) {
+              debugPrint(
+                'DIdAgentEmbed console[${consoleMessage.messageLevel}]: '
+                '${consoleMessage.message}',
+              );
+            }
+          },
           onReceivedError: (controller, request, error) {
             if (request.isForMainFrame != true || !mounted) return;
             _timeout?.cancel();
