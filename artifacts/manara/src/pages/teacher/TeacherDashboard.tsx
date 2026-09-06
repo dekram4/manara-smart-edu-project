@@ -424,9 +424,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       </aside>
 
       {/* Main Content */}
-        <main className="dashboard-main dashboard-content-area safe-area-x safe-area-bottom">
-         <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger mb-4 bg-amber-800 px-3 py-2 text-white lg:hidden" aria-label="فتح القائمة">☰ القائمة</button>
-        {renderContent()}
+        <main className="dashboard-main flex flex-col">
+          <div className="dashboard-mobile-toolbar safe-area-top safe-area-x lg:hidden">
+            <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger bg-amber-800 px-3 py-2 text-white" aria-label="فتح القائمة">☰ القائمة</button>
+          </div>
+          <div className="dashboard-content-area min-w-0 flex-1 safe-area-x safe-area-bottom">
+            {renderContent()}
+          </div>
       </main>
 
       {/* Private Chat */}

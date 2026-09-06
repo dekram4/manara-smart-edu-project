@@ -1717,9 +1717,20 @@ table {
   width: 100%;
   min-width: 0;
   min-height: 0;
-  overflow: visible;
+  overflow-x: hidden;
   padding: 1.5rem 2rem;
   background: #fdfbf7;
+}
+
+.dashboard-mobile-toolbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  flex: 0 0 auto;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: rgb(255 255 255 / 0.96);
+  backdrop-filter: blur(12px);
 }
 
 .dashboard-page {
@@ -2366,6 +2377,36 @@ table {
   flex: 0 0 auto;
 }
 
+/* Keep legacy interior pages inside the viewport. Dense data stays tabular and
+   scrolls locally rather than forcing the entire dashboard to scroll sideways. */
+.dashboard-main .dashboard-page :where(input, select, textarea) {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.dashboard-main .dashboard-page :where(.flex, .grid) > * {
+  min-width: 0;
+}
+
+.dashboard-main .dashboard-page table {
+  min-width: 100%;
+}
+
+.dashboard-main .dashboard-page :where(.overflow-x-auto, .dashboard-table-surface, .dashboard-report-table-wrap) {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-chat-overlay {
+  padding:
+    max(0.75rem, env(safe-area-inset-top))
+    max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom))
+    max(0.75rem, env(safe-area-inset-left));
+}
+
 @media (max-width: 1023px) {
   .dashboard-sidebar {
     position: fixed;
@@ -2458,9 +2499,9 @@ table {
 
   .dashboard-chat-container {
     width: 100% !important;
-    height: 100dvh !important;
-    max-height: 100dvh;
-    border-radius: 0 !important;
+    height: 100% !important;
+    max-height: 100%;
+    border-radius: 1rem !important;
   }
 
   .dashboard-chat-content {
@@ -2470,7 +2511,7 @@ table {
 
   .dashboard-chat-contacts {
     width: 100% !important;
-    max-height: 36%;
+    max-height: min(14rem, 36%);
     flex: 0 0 auto;
     overflow-y: auto;
     border-right: 0 !important;
@@ -2480,6 +2521,68 @@ table {
 
   .dashboard-chat-area {
     flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .dashboard-chat-header {
+    padding: 0.75rem 1rem !important;
+  }
+
+  .dashboard-chat-messages {
+    padding: 0.875rem !important;
+  }
+
+  .dashboard-chat-input {
+    flex-wrap: wrap;
+    gap: 0.625rem !important;
+    padding: 0.75rem !important;
+  }
+
+  .dashboard-chat-input > input {
+    flex: 1 1 12rem !important;
+    min-width: 0 !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 16px !important;
+  }
+
+  .dashboard-chat-input > button {
+    flex: 0 0 auto;
+    min-height: 2.75rem;
+    padding: 0.75rem 1rem !important;
+  }
+
+  .dashboard-main .dashboard-page table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dashboard-main .dashboard-page :where(.flex):not(.dashboard-menu-item):not(.dashboard-chat-content) {
+    max-width: 100%;
+  }
+
+  .dashboard-main .dashboard-page :where(h1, h2) {
+    font-size: clamp(1.25rem, 6vw, 1.875rem);
+  }
+
+  .dashboard-main .dashboard-page :where(.fixed.inset-0) {
+    padding:
+      max(0.75rem, env(safe-area-inset-top))
+      max(0.75rem, env(safe-area-inset-right))
+      max(0.75rem, env(safe-area-inset-bottom))
+      max(0.75rem, env(safe-area-inset-left));
+  }
+
+  .dashboard-main .dashboard-page :where(.fixed.inset-0) > * {
+    width: min(100%, 42rem);
+    max-width: 100%;
+    max-height: calc(100dvh - max(1.5rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .dashboard-stats-grid.dashboard-stats-grid-compact {
@@ -2633,6 +2736,11 @@ table {
 
   .dashboard-content-area {
     padding: 1rem;
+  }
+
+  .dashboard-sidebar {
+    width: min(20rem, 62vw);
+    max-width: 62vw;
   }
 }
 
