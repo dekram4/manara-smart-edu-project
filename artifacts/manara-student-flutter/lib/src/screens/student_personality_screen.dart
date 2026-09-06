@@ -73,12 +73,16 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
   ];
 
   late Map<String, dynamic> _appearance;
+  bool _loadingAppearance = true;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     _appearance = Map<String, dynamic>.from(widget.profile.appearance ?? {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _loadingAppearance = false);
+    });
   }
 
   String get _emoji =>
@@ -164,6 +168,27 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_loadingAppearance) {
+      return const Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: Color(0xFFF4F8FF),
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Color(0xFF9B3E68)),
+                SizedBox(height: 14),
+                Text(
+                  'نجهّز شخصيتك الرائعة...',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -443,6 +468,7 @@ class _AppearancePreviewState extends State<_AppearancePreview>
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = widget.imageUrl;
     return Student3DCard(
       child: Container(
         height: 244,
@@ -456,9 +482,9 @@ class _AppearancePreviewState extends State<_AppearancePreview>
           ],
         ),
         child: Center(
-          child: widget.imageUrl != null
+          child: imageUrl != null
               ? Image.network(
-                  widget.imageUrl!,
+                  imageUrl,
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => _emojiPreview(),
                 )
@@ -504,7 +530,8 @@ class _AppearancePreviewState extends State<_AppearancePreview>
                 right: -12,
                 child: Text(
                   _StudentPersonalityScreenState._accessories[widget
-                      .accessory]!,
+                          .accessory] ??
+                      '⭐',
                   style: const TextStyle(fontSize: 38),
                 ),
               ),
@@ -742,7 +769,7 @@ class _ReadyPlayerMeCreatorScreenState
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  _message!,
+                  _message ?? 'تعذر إكمال تصميم الشخصية.',
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
