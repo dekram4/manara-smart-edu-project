@@ -434,6 +434,102 @@ table {
   }
 }
 
+/* Dashboard drawer contract.
+   Keep this block last so legacy utilities cannot place the sidebar over
+   dashboard content on phones and tablets. */
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 1023px) {
+  .dashboard-shell {
+    position: relative;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .dashboard-shell .dashboard-sidebar {
+    position: fixed !important;
+    inset-block: 0 !important;
+    inset-inline-start: auto !important;
+    inset-inline-end: 0 !important;
+    z-index: 9999 !important;
+    width: min(280px, 80vw) !important;
+    max-width: 80vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    overflow-x: hidden;
+    overflow-y: auto;
+    transition:
+      transform 240ms ease,
+      visibility 240ms ease;
+    will-change: transform;
+  }
+
+  [dir='rtl'] .dashboard-sidebar--closed {
+    transform: translateX(110%) !important;
+  }
+
+  [dir='ltr'] .dashboard-sidebar--closed {
+    transform: translateX(-110%) !important;
+  }
+
+  .dashboard-sidebar--closed {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .dashboard-sidebar--open {
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0) !important;
+  }
+
+  .dashboard-sidebar-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9998 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: rgb(15 23 42 / 0.58) !important;
+  }
+
+  .dashboard-shell .dashboard-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding-inline: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-shell .dashboard-sidebar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 20;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: none !important;
+    flex: 0 0 16rem;
+    width: 16rem;
+  }
+
+  .dashboard-shell .dashboard-main {
+    width: calc(100% - 16rem);
+    min-width: 0;
+    margin: 0;
+  }
+}
+
 @media (orientation: landscape) and (max-width: 1024px) {
   .student-dashboard-shell {
     width: 100%;
@@ -3032,5 +3128,43 @@ table {
     max-width: calc(100vw - 1.5rem);
     overscroll-behavior-inline: contain;
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Final sidebar positioning override: physical sides are intentional here.
+   In RTL the drawer belongs on the right; logical inline-end maps to the left. */
+@media (max-width: 1023px) {
+  [dir='rtl'].dashboard-shell .dashboard-sidebar {
+    right: 0 !important;
+    left: auto !important;
+    inset-inline-start: auto !important;
+    inset-inline-end: auto !important;
+  }
+
+  [dir='ltr'].dashboard-shell .dashboard-sidebar {
+    right: auto !important;
+    left: 0 !important;
+    inset-inline-start: auto !important;
+    inset-inline-end: auto !important;
+  }
+
+  [dir='rtl'].dashboard-shell .dashboard-sidebar--closed {
+    transform: translate3d(110%, 0, 0) !important;
+  }
+
+  [dir='ltr'].dashboard-shell .dashboard-sidebar--closed {
+    transform: translate3d(-110%, 0, 0) !important;
+  }
+
+  .dashboard-shell .dashboard-sidebar--open {
+    transform: translate3d(0, 0, 0) !important;
+  }
+
+  .dashboard-shell > .dashboard-main {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding-inline: 0 !important;
   }
 }

@@ -740,7 +740,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
            aria-label="إغلاق القائمة الجانبية"
          />
        )}
-       <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+       <aside className={`dashboard-sidebar ${mobileNavOpen ? 'dashboard-sidebar--open' : 'dashboard-sidebar--closed'} flex transform flex-col bg-gradient-to-b from-rose-900 to-rose-800 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-white shadow-2xl transition-transform duration-300 lg:translate-x-0`}>
         {/* Header */}
          <div className="dashboard-sidebar-header border-rose-800">
            <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>

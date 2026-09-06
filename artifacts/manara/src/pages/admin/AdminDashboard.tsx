@@ -186,7 +186,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
            aria-label="إغلاق القائمة الجانبية"
          />
        )}
-        <aside className={`dashboard-sidebar flex transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+         <aside className={`dashboard-sidebar ${mobileNavOpen ? 'dashboard-sidebar--open' : 'dashboard-sidebar--closed'} flex transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 lg:translate-x-0`}>
          <div className="dashboard-sidebar-header">
           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
           <ManaraBrand variant="sidebar" className="text-white" />
