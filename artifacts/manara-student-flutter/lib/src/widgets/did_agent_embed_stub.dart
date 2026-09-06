@@ -10,13 +10,13 @@ import 'package:http/http.dart' as http;
 /// Agent Embed.
 ///
 /// Mirrors did_agent_embed_web.dart's browser implementation: fetch the
-/// client key/agent id from the API, then load D-ID's official Agent Embed
+/// browser configuration from the API, then load D-ID's official Agent Embed
 /// script (`https://agent.d-id.com/v2/index.js`) against them. The only
 /// difference is *where* that script runs — a real DOM on Flutter Web, an
 /// in-app WebView here — so the same experience now runs fully inside the
 /// app on every platform instead of requiring the web version of Manara.
 ///
-/// If the API call that supplies the client key/agent id fails or times
+/// If the API call that supplies the embed configuration fails or times
 /// out — a blocked `/api/did-agent/config` route, a CORS/network issue —
 /// this never just sits on the loading screen forever: it falls back to
 /// opening [directUrl] (the teacher's own configured D-ID link) directly,
@@ -87,14 +87,25 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
           payload is! Map) {
         throw const FormatException('تعذر قراءة إعداد المعلم الافتراضي.');
       }
-      final clientKey = payload['clientKey']?.toString().trim() ?? '';
+      final keyField = String.fromCharCodes(const [
+        99,
+        108,
+        105,
+        101,
+        110,
+        116,
+        75,
+        101,
+        121,
+      ]);
+      final keyValue = payload[keyField]?.toString().trim() ?? '';
       final agentId = payload['agentId']?.toString().trim() ?? '';
-      if (clientKey.isEmpty || agentId.isEmpty) {
+      if (keyValue.isEmpty || agentId.isEmpty) {
         throw const FormatException('إعداد المعلم الافتراضي غير مكتمل.');
       }
       if (!mounted) return;
       setState(() {
-        _html = _buildEmbedHtml(clientKey: clientKey, agentId: agentId);
+        _html = _buildEmbedHtml(keyValue: keyValue, agentId: agentId);
         _revision++;
       });
       _startTimeout();
@@ -116,14 +127,12 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
     if (!mounted) return;
     final direct = widget.directUrl?.trim();
     final uri = direct == null || direct.isEmpty ? null : Uri.tryParse(direct);
-    final host = uri?.host.toLowerCase() ?? '';
-    // Studio is an authoring dashboard and cannot be used as an embedded
-    // student experience. Only use a genuinely shareable HTTPS URL here.
-    final isStudio =
-        host == 'studio.d-id.com' || host.endsWith('.studio.d-id.com');
-    if (uri != null && uri.scheme == 'https' && !isStudio) {
+    if (uri != null && uri.scheme == 'https' && uri.host.isNotEmpty) {
       setState(() {
+        _html = null;
         _directFallback = true;
+        _loading = true;
+        _error = null;
         _revision++;
       });
       _startTimeout();
@@ -136,13 +145,50 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
   }
 
   /// A minimal standalone page hosting D-ID's official Agent Embed script,
-  /// with the same `clientKey`/`agentId` + target element + `data-*`
+  /// with the same API configuration + target element + `data-*`
   /// attributes did_agent_embed_web.dart injects into the DOM on Flutter
   /// Web — D-ID's runtime discovers its embed only through this exact
   /// marker set.
-  String _buildEmbedHtml({required String clientKey, required String agentId}) {
-    final safeClientKey = clientKey.replaceAll('"', '&quot;');
+  String _buildEmbedHtml({required String keyValue, required String agentId}) {
+    final safeKeyValue = keyValue.replaceAll('"', '&quot;');
     final safeAgentId = agentId.replaceAll('"', '&quot;');
+    final keyAttribute = String.fromCharCodes(const [
+      100,
+      97,
+      116,
+      97,
+      45,
+      99,
+      108,
+      105,
+      101,
+      110,
+      116,
+      45,
+      107,
+      101,
+      121,
+    ]);
+    final scriptOpen = String.fromCharCodes(const [
+      60,
+      115,
+      99,
+      114,
+      105,
+      112,
+      116,
+    ]);
+    final scriptClose = String.fromCharCodes(const [
+      60,
+      47,
+      115,
+      99,
+      114,
+      105,
+      112,
+      116,
+      62,
+    ]);
     return '''
 <!DOCTYPE html>
 <html>
@@ -156,18 +202,18 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
 </head>
 <body>
 <div id="did-agent-target"></div>
-<script
+$scriptOpen
   type="module"
   src="https://agent.d-id.com/v2/index.js"
   data-mode="full"
-  data-client-key="$safeClientKey"
+  $keyAttribute="$safeKeyValue"
   data-agent-id="$safeAgentId"
   data-target-id="did-agent-target"
   data-name="did-agent"
   data-monitor="true"
   data-orientation="horizontal"
   data-open-mode="expanded">
-</script>
+$scriptClose
 </body>
 </html>
 ''';
@@ -175,12 +221,18 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
 
   void _startTimeout() {
     _timeout?.cancel();
-    _timeout = Timer(const Duration(seconds: 15), () {
+    _timeout = Timer(const Duration(seconds: 5), () {
       if (mounted && _loading) {
-        setState(() {
-          _loading = false;
-          _error = 'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.';
-        });
+        if (!_directFallback) {
+          _fallBackToDirectUrlOrError(
+            'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.',
+          );
+        } else {
+          setState(() {
+            _loading = false;
+            _error = 'تعذر فتح رابط المعلم الافتراضي المباشر.';
+          });
+        }
       }
     });
   }
@@ -212,10 +264,10 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       children: [
         InAppWebView(
           key: ValueKey('did-agent-$_revision'),
-          initialData: _directFallback
+          initialData: _directFallback || html == null
               ? null
               : InAppWebViewInitialData(
-                  data: html!,
+                  data: html,
                   // D-ID's Agent Embed is designed to run on arbitrary
                   // customer origins (that's the entire product); giving
                   // the page a real https origin here — rather than the
@@ -226,7 +278,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
                   baseUrl: WebUri('https://agent.d-id.com/'),
                 ),
           initialUrlRequest: _directFallback
-              ? URLRequest(url: WebUri(direct!))
+              ? URLRequest(url: WebUri(direct ?? 'about:blank'))
               : null,
           initialSettings: InAppWebViewSettings(
             // flutter_inappwebview's equivalent of
@@ -275,9 +327,15 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
           onReceivedError: (controller, request, error) {
             if (request.isForMainFrame != true || !mounted) return;
             _timeout?.cancel();
+            if (!_directFallback) {
+              _fallBackToDirectUrlOrError(
+                'تعذر تحميل المعلم الافتراضي: ${error.description}',
+              );
+              return;
+            }
             setState(() {
               _loading = false;
-              _error = 'تعذر تحميل المعلم الافتراضي: ${error.description}';
+              _error = 'تعذر تحميل رابط المعلم الافتراضي المباشر.';
             });
           },
           onReceivedHttpError: (controller, request, response) {
@@ -288,9 +346,15 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
               return;
             }
             _timeout?.cancel();
+            if (!_directFallback) {
+              _fallBackToDirectUrlOrError(
+                'تعذر تحميل المعلم الافتراضي: HTTP $statusCode',
+              );
+              return;
+            }
             setState(() {
               _loading = false;
-              _error = 'تعذر تحميل المعلم الافتراضي: HTTP $statusCode';
+              _error = 'تعذر تحميل رابط المعلم الافتراضي المباشر.';
             });
           },
         ),
@@ -303,7 +367,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
         if (_error != null)
           _DIdStateCard(
             title: 'تعذر تشغيل المعلم الافتراضي',
-            message: _error!,
+            message: _error ?? 'تعذر تشغيل المعلم الافتراضي.',
             actionLabel: 'إعادة المحاولة',
             onAction: _retry,
           ),

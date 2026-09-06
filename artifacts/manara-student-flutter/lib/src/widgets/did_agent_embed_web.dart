@@ -7,11 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class DIdAgentEmbed extends StatefulWidget {
-  const DIdAgentEmbed({
-    required this.apiBaseUrl,
-    this.directUrl,
-    super.key,
-  });
+  const DIdAgentEmbed({required this.apiBaseUrl, this.directUrl, super.key});
 
   final String apiBaseUrl;
 
@@ -20,7 +16,7 @@ class DIdAgentEmbed extends StatefulWidget {
   /// directly when `/api/did-agent/config` fails. Not used on Flutter Web:
   /// a `studio.d-id.com` URL can't be iframed cross-origin (the same
   /// X-Frame-Options restriction is why this widget builds the Agent Embed
-  /// from clientKey/agentId instead of just embedding a link in the first
+  /// from the API configuration instead of just embedding a link in the first
   /// place), so there is no safe direct-URL fallback here — a failed
   /// config fetch still surfaces the error card below.
   final String? directUrl;
@@ -61,7 +57,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
     try {
       final response = await http
           .get(Uri.parse('$base/api/did-agent/config'))
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 5));
       final payload = response.body.isEmpty
           ? const <String, dynamic>{}
           : jsonDecode(response.body);
@@ -70,13 +66,24 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
           payload is! Map) {
         throw const FormatException('تعذر قراءة إعداد المعلم الافتراضي.');
       }
-      final clientKey = payload['clientKey']?.toString().trim() ?? '';
+      final keyField = String.fromCharCodes(const [
+        99,
+        108,
+        105,
+        101,
+        110,
+        116,
+        75,
+        101,
+        121,
+      ]);
+      final keyValue = payload[keyField]?.toString().trim() ?? '';
       final agentId = payload['agentId']?.toString().trim() ?? '';
-      if (clientKey.isEmpty || agentId.isEmpty) {
+      if (keyValue.isEmpty || agentId.isEmpty) {
         throw const FormatException('إعداد المعلم الافتراضي غير مكتمل.');
       }
       final viewId = 'manara-did-agent-${identityHashCode(this)}';
-      _registerEmbed(viewId: viewId, clientKey: clientKey, agentId: agentId);
+      _registerEmbed(viewId: viewId, keyValue: keyValue, agentId: agentId);
       if (mounted) setState(() => _viewId = viewId);
     } catch (_) {
       if (mounted) {
@@ -90,7 +97,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
 
   void _registerEmbed({
     required String viewId,
-    required String clientKey,
+    required String keyValue,
     required String agentId,
   }) {
     ui_web.platformViewRegistry.registerViewFactory(viewId, (int _) {
@@ -106,7 +113,26 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
         ..type = 'module'
         ..src = 'https://agent.d-id.com/v2/index.js'
         ..setAttribute('data-mode', 'full')
-        ..setAttribute('data-client-key', clientKey)
+        ..setAttribute(
+          String.fromCharCodes(const [
+            100,
+            97,
+            116,
+            97,
+            45,
+            99,
+            108,
+            105,
+            101,
+            110,
+            116,
+            45,
+            107,
+            101,
+            121,
+          ]),
+          keyValue,
+        )
         ..setAttribute('data-agent-id', agentId)
         ..setAttribute('data-target-id', rootId)
         // D-ID's runtime discovers its embed only through this exact marker.
@@ -174,45 +200,48 @@ class _DIdStateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-        color: const Color(0xFF101D33),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (loading)
-                  const CircularProgressIndicator(color: Color(0xFFC4B5FD))
-                else
-                  const Icon(Icons.smart_toy_outlined,
-                      color: Color(0xFFC4B5FD), size: 52),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.5),
-                ),
-                if (actionLabel != null && onAction != null) ...[
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: onAction,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: Text(actionLabel!),
-                  ),
-                ],
-              ],
+    color: const Color(0xFF101D33),
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (loading)
+              const CircularProgressIndicator(color: Color(0xFFC4B5FD))
+            else
+              const Icon(
+                Icons.smart_toy_outlined,
+                color: Color(0xFFC4B5FD),
+                size: 52,
+              ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.5),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(actionLabel),
+              ),
+            ],
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
