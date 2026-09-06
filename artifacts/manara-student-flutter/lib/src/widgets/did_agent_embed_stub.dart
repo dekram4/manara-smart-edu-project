@@ -22,11 +22,7 @@ import 'package:http/http.dart' as http;
 /// opening [directUrl] (the teacher's own configured D-ID link) directly,
 /// exactly like a normal embedded link.
 class DIdAgentEmbed extends StatefulWidget {
-  const DIdAgentEmbed({
-    required this.apiBaseUrl,
-    this.directUrl,
-    super.key,
-  });
+  const DIdAgentEmbed({required this.apiBaseUrl, this.directUrl, super.key});
 
   final String apiBaseUrl;
 
@@ -74,8 +70,14 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       return;
     }
     try {
+      final configuredAgentId = _agentIdFromDirectUrl(widget.directUrl);
+      final configUri = Uri.parse('$_apiBase/api/did-agent/config').replace(
+        queryParameters: configuredAgentId == null
+            ? null
+            : <String, String>{'agentId': configuredAgentId},
+      );
       final response = await http
-          .get(Uri.parse('$_apiBase/api/did-agent/config'))
+          .get(configUri)
           .timeout(const Duration(seconds: 5));
       final payload = response.body.isEmpty
           ? const <String, dynamic>{}
@@ -114,7 +116,12 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
     if (!mounted) return;
     final direct = widget.directUrl?.trim();
     final uri = direct == null || direct.isEmpty ? null : Uri.tryParse(direct);
-    if (uri != null && uri.scheme == 'https') {
+    final host = uri?.host.toLowerCase() ?? '';
+    // Studio is an authoring dashboard and cannot be used as an embedded
+    // student experience. Only use a genuinely shareable HTTPS URL here.
+    final isStudio =
+        host == 'studio.d-id.com' || host.endsWith('.studio.d-id.com');
+    if (uri != null && uri.scheme == 'https' && !isStudio) {
       setState(() {
         _directFallback = true;
         _revision++;
@@ -218,8 +225,9 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
                   // would on an actual website.
                   baseUrl: WebUri('https://agent.d-id.com/'),
                 ),
-          initialUrlRequest:
-              _directFallback ? URLRequest(url: WebUri(direct!)) : null,
+          initialUrlRequest: _directFallback
+              ? URLRequest(url: WebUri(direct!))
+              : null,
           initialSettings: InAppWebViewSettings(
             // flutter_inappwebview's equivalent of
             // JavaScriptMode.unrestricted from webview_flutter.
@@ -249,9 +257,9 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
           // outright and the agent silently falls back to text-only.
           onPermissionRequest: (controller, request) async =>
               PermissionResponse(
-            resources: request.resources,
-            action: PermissionResponseAction.GRANT,
-          ),
+                resources: request.resources,
+                action: PermissionResponseAction.GRANT,
+              ),
           // Surfaces JS errors/warnings from inside the embed page (a CORS
           // rejection, a script failing to load, D-ID's own runtime
           // logging) to the app's own debug console — otherwise a silent
@@ -304,6 +312,22 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
   }
 }
 
+String? _agentIdFromDirectUrl(String? value) {
+  final uri = Uri.tryParse(value?.trim() ?? '');
+  if (uri == null) return null;
+  for (final key in const ['agentId', 'agent_id']) {
+    final candidate = uri.queryParameters[key]?.trim();
+    if (candidate != null && candidate.isNotEmpty) return candidate;
+  }
+  final segments = uri.pathSegments;
+  final agentsIndex = segments.indexOf('agents');
+  if (agentsIndex >= 0 && agentsIndex + 1 < segments.length) {
+    final candidate = segments[agentsIndex + 1].trim();
+    if (candidate.isNotEmpty) return candidate;
+  }
+  return null;
+}
+
 class _DIdStateCard extends StatelessWidget {
   const _DIdStateCard({
     required this.title,
@@ -321,45 +345,48 @@ class _DIdStateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-        color: const Color(0xFF101D33),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (loading)
-                  const CircularProgressIndicator(color: Color(0xFFC4B5FD))
-                else
-                  const Icon(Icons.smart_toy_outlined,
-                      color: Color(0xFFC4B5FD), size: 52),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.5),
-                ),
-                if (actionLabel != null && onAction != null) ...[
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: onAction,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: Text(actionLabel!),
-                  ),
-                ],
-              ],
+    color: const Color(0xFF101D33),
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (loading)
+              const CircularProgressIndicator(color: Color(0xFFC4B5FD))
+            else
+              const Icon(
+                Icons.smart_toy_outlined,
+                color: Color(0xFFC4B5FD),
+                size: 52,
+              ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.5),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(actionLabel!),
+              ),
+            ],
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }

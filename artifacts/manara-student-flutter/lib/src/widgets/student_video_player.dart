@@ -44,13 +44,14 @@ const String _kApplePlatformUserAgent =
 /// on iOS/macOS/Windows) untouched.
 String? get _webViewUserAgent =>
     (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
-        ? _kAndroidWebViewUserAgent
-        : null;
+    ? _kAndroidWebViewUserAgent
+    : null;
 
 /// The user agent sent with direct MP4/HLS network requests. Some CDNs
 /// (and YouTube's redirect chain when a raw video URL is resolved from it)
 /// reject requests from generic HTTP clients that don't look like a browser.
-String get _videoRequestUserAgent => (!kIsWeb &&
+String get _videoRequestUserAgent =>
+    (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.macOS))
     ? _kApplePlatformUserAgent
@@ -94,12 +95,12 @@ String _refererFor(String url) {
 ///   a common, otherwise-silent cause of "تعذر تشغيل الفيديو" on hosts
 ///   that compress everything by default.
 Map<String, String> _videoHttpHeaders(String url) => {
-      'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
-      'Accept-Encoding': 'identity',
-      'Range': 'bytes=0-',
-      'User-Agent': _videoRequestUserAgent,
-      'Referer': _refererFor(url),
-    };
+  'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
+  'Accept-Encoding': 'identity',
+  'Range': 'bytes=0-',
+  'User-Agent': _videoRequestUserAgent,
+  'Referer': _refererFor(url),
+};
 
 /// Extracts the 11-character video id from any recognized YouTube URL
 /// shape (watch, youtu.be, embed/shorts/live), or `null` if [url] isn't a
@@ -180,8 +181,9 @@ class _StudentVideoHoverPreviewState extends State<StudentVideoHoverPreview> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor:
-          widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor: widget.enabled
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       onEnter: widget.enabled ? _startPreview : null,
       onExit: widget.enabled ? _stopPreview : null,
       child: ClipRRect(
@@ -325,10 +327,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   /// of leaving the screen black for a long, undiagnosable stretch.
   static const Duration _kVideoTrackGracePeriod = Duration(seconds: 4);
 
-  String get _url => resolveStudentVideoUrl(
-        widget.video,
-        apiBaseUrl: widget.apiBaseUrl,
-      );
+  String get _url =>
+      resolveStudentVideoUrl(widget.video, apiBaseUrl: widget.apiBaseUrl);
 
   bool get _isNativeVideo => isDirectVideoUrl(_url, widget.video);
 
@@ -378,13 +378,15 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     if (!widget.muted) return _url;
     final uri = Uri.tryParse(_url);
     if (uri == null) return _url;
-    return uri.replace(
-      queryParameters: {
-        ...uri.queryParameters,
-        'mute': '1',
-        'controls': '0',
-      },
-    ).toString();
+    return uri
+        .replace(
+          queryParameters: {
+            ...uri.queryParameters,
+            'mute': '1',
+            'controls': '0',
+          },
+        )
+        .toString();
   }
 
   @override
@@ -445,7 +447,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         if (error.isForMainFrame == false || !mounted) return;
         _cancelLoadTimeout();
         setState(
-            () => _error = 'تعذر تحميل صفحة الفيديو (${error.errorCode}).');
+          () => _error = 'تعذر تحميل صفحة الفيديو (${error.errorCode}).',
+        );
       },
     );
     if (widget.autoPlay) {
@@ -482,6 +485,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     if (value.playerState == PlayerState.ended && !_completionReported) {
       _completionReported = true;
       widget.onCompleted?.call();
+    } else if (value.playerState == PlayerState.playing) {
+      _completionReported = false;
     }
   }
 
@@ -638,9 +643,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       // for public Supabase Storage objects and API compatibility URLs.
       await player
           .open(Media(_url, httpHeaders: _videoHttpHeaders(_url)))
-          .timeout(
-            _kLoadTimeout,
-          );
+          .timeout(_kLoadTimeout);
       _watchVideoTrackAppears(player);
     } catch (error) {
       if (!mounted) return;
@@ -827,7 +830,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
             // microphone/camera feature policy must be delegated explicitly.
             iframeAllow: widget.allowInteractivePermissions
                 ? 'camera *; microphone *; autoplay *; clipboard-write *; '
-                    'encrypted-media *; fullscreen *; picture-in-picture *'
+                      'encrypted-media *; fullscreen *; picture-in-picture *'
                 : null,
             iframeAllowFullscreen: widget.allowInteractivePermissions,
           ),
@@ -837,9 +840,9 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
           // it silently falls back to a degraded, camera/mic-less mode.
           onPermissionRequest: widget.allowInteractivePermissions
               ? (controller, request) async => PermissionResponse(
-                    resources: request.resources,
-                    action: PermissionResponseAction.GRANT,
-                  )
+                  resources: request.resources,
+                  action: PermissionResponseAction.GRANT,
+                )
               : null,
           shouldOverrideUrlLoading: (controller, action) async {
             final target = action.request.url;
@@ -908,22 +911,51 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               ),
             );
     }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        YoutubePlayer(
-          key: ValueKey('youtube-$_ytReloadTicket'),
-          controller: controller,
-          aspectRatio: 16 / 9,
-          backgroundColor: Colors.black,
+    return YoutubeValueBuilder(
+      controller: controller,
+      buildWhen: (previous, current) =>
+          previous.fullScreenOption != current.fullScreenOption,
+      builder: (context, value) => PopScope(
+        canPop: !value.fullScreenOption.enabled,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && value.fullScreenOption.enabled) {
+            controller.exitFullScreen();
+          }
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            YoutubePlayer(
+              key: ValueKey('youtube-$_ytReloadTicket'),
+              controller: controller,
+              aspectRatio: 16 / 9,
+              backgroundColor: Colors.black,
+              controlsBuilder: (context, isFullscreen) {
+                if (!isFullscreen) return const SizedBox.shrink();
+                return SafeArea(
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: IconButton.filledTonal(
+                        onPressed: () => controller.exitFullScreen(),
+                        tooltip: 'إنهاء ملء الشاشة',
+                        icon: const Icon(Icons.fullscreen_exit_rounded),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (_error != null)
+              _buildError(
+                'تعذر تشغيل الفيديو',
+                onRetry: _retryYoutube,
+                externalUrl: _externalYoutubeUrl,
+              ),
+          ],
         ),
-        if (_error != null)
-          _buildError(
-            'تعذر تشغيل الفيديو',
-            onRetry: _retryYoutube,
-            externalUrl: _externalYoutubeUrl,
-          ),
-      ],
+      ),
     );
   }
 
@@ -1074,13 +1106,22 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     setState(() => _showControls = !_showControls);
   }
 
-  void _togglePlayback() {
+  Future<void> _togglePlayback() async {
     final controller = widget.controller;
     if (controller.value.isPlaying) {
-      controller.pause();
+      await controller.pause();
     } else {
-      controller.play();
+      final value = controller.value;
+      final ended =
+          value.isInitialized &&
+          value.duration > Duration.zero &&
+          value.position >= value.duration;
+      if (ended) {
+        await controller.seekTo(Duration.zero);
+      }
+      await controller.play();
     }
+    if (!mounted) return;
     setState(() => _showControls = true);
   }
 
@@ -1135,7 +1176,11 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
           ValueListenableBuilder<VideoPlayerValue>(
             valueListenable: widget.controller,
             builder: (context, value, _) {
-              if (!value.isBuffering || value.isPlaying) {
+              final ended =
+                  value.isInitialized &&
+                  value.duration > Duration.zero &&
+                  value.position >= value.duration;
+              if (!value.isBuffering || value.isPlaying || ended) {
                 return const SizedBox.shrink();
               }
               return const IgnorePointer(
@@ -1201,12 +1246,11 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
                             : 'ملء الشاشة',
                         onPressed: widget.fullscreen
                             ? () => Navigator.of(context).pop(
-                                  _FullscreenPlaybackState(
-                                    position: widget.controller.value.position,
-                                    isPlaying:
-                                        widget.controller.value.isPlaying,
-                                  ),
-                                )
+                                _FullscreenPlaybackState(
+                                  position: widget.controller.value.position,
+                                  isPlaying: widget.controller.value.isPlaying,
+                                ),
+                              )
                             : _openFullscreen,
                         icon: Icon(
                           widget.fullscreen
@@ -1271,10 +1315,7 @@ class _FullscreenNetworkVideoScreen extends StatelessWidget {
   }
 }
 
-String resolveStudentVideoUrl(
-  LessonVideo video, {
-  String apiBaseUrl = '',
-}) {
+String resolveStudentVideoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
   var raw = video.url.trim();
   if (raw.startsWith('/')) {
     final base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
@@ -1288,16 +1329,12 @@ String resolveStudentVideoUrl(
   if (isYoutubeHost(host)) {
     final id = youtubeVideoId(uri, host);
     if (id.isNotEmpty) {
-      return Uri.https(
-        'www.youtube.com',
-        '/embed/$id',
-        const {
-          'autoplay': '1',
-          'playsinline': '1',
-          'rel': '0',
-          'modestbranding': '1',
-        },
-      ).toString();
+      return Uri.https('www.youtube.com', '/embed/$id', const {
+        'autoplay': '1',
+        'playsinline': '1',
+        'rel': '0',
+        'modestbranding': '1',
+      }).toString();
     }
   }
   if (host == 'vimeo.com') {

@@ -19,10 +19,7 @@ class TeacherQuizAlreadySubmittedException implements Exception {
 }
 
 class StudentContentService {
-  StudentContentService(
-    this.client, {
-    this.baseUrl = '',
-  });
+  StudentContentService(this.client, {this.baseUrl = ''});
 
   final SupabaseClient client;
   final String baseUrl;
@@ -66,10 +63,18 @@ class StudentContentService {
         : '$normalizedActivityType:$activityId';
     // Older Flutter versions stored quiz rewards as quiz:<quizId>. Retain
     // that guard while moving to the web-compatible reward ledger key.
-    final legacyQuizKey = normalizedActivityType == 'quiz' ? 'quiz:$activityId' : '';
+    final legacyQuizKey = normalizedActivityType == 'quiz'
+        ? 'quiz:$activityId'
+        : '';
+    final legacyVideoKeys = normalizedActivityType == 'video'
+        ? <String>['lesson_video:$activityId']
+        : normalizedActivityType == 'lesson_video'
+        ? <String>['video:$activityId']
+        : const <String>[];
     if (current.completedActivities.contains(key) ||
         (legacyQuizKey.isNotEmpty &&
-            current.completedActivities.contains(legacyQuizKey))) {
+            current.completedActivities.contains(legacyQuizKey)) ||
+        legacyVideoKeys.any(current.completedActivities.contains)) {
       return RewardResult(
         xp: 0,
         gems: 0,
@@ -98,12 +103,19 @@ class StudentContentService {
         quizPercentage = scorePercentage;
         perfectQuiz = scorePercentage == 100;
         average =
-            ((current.averageScore * (quizzes - 1) + scorePercentage) ~/ quizzes);
+            ((current.averageScore * (quizzes - 1) + scorePercentage) ~/
+            quizzes);
       }
-    } else if (normalizedActivityType == 'lesson' || normalizedActivityType == 'lesson_video') {
+    } else if (normalizedActivityType == 'lesson') {
       xp = 25;
       gems = 5;
       lessons++;
+    } else if (normalizedActivityType == 'video' ||
+        normalizedActivityType == 'lesson_video') {
+      // Matches the web rewardVideoComplete contract. Keep accepting the
+      // legacy lesson_video name so older app builds remain compatible.
+      xp = 5;
+      gems = 1;
     } else if (normalizedActivityType == 'problem') {
       xp = 5;
       gems = 1;
@@ -130,7 +142,9 @@ class StudentContentService {
       activityId: activityId,
     );
     final knownIds = current.achievements.map((item) => item.id).toSet();
-    final newAchievements = unlocked.where((item) => !knownIds.contains(item.id)).toList();
+    final newAchievements = unlocked
+        .where((item) => !knownIds.contains(item.id))
+        .toList();
     final next = current.copyWith(
       xp: nextXp,
       gems: current.gems + gems,
@@ -147,10 +161,18 @@ class StudentContentService {
       achievements: [...current.achievements, ...newAchievements],
       completedActivities: [...current.completedActivities, key],
     );
-    await client.from('students').update({
-      'data': {...rowData, 'gamification': next.toMap(), 'lastActivity': DateTime.now().toIso8601String()},
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', profile.id).timeout(_requestTimeout);
+    await client
+        .from('students')
+        .update({
+          'data': {
+            ...rowData,
+            'gamification': next.toMap(),
+            'lastActivity': DateTime.now().toIso8601String(),
+          },
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', profile.id)
+        .timeout(_requestTimeout);
     return RewardResult(
       xp: xp,
       gems: gems,
@@ -167,39 +189,92 @@ class StudentContentService {
     final dayKey = '${today.year}-${today.month}-${today.day}';
     final marker = 'streak-day:$dayKey';
     if (current.completedActivities.contains(marker)) {
-      return RewardResult(xp: 0, gems: 0, alreadyRewarded: true, levelUp: false, newAchievements: const [], snapshot: current);
+      return RewardResult(
+        xp: 0,
+        gems: 0,
+        alreadyRewarded: true,
+        levelUp: false,
+        newAchievements: const [],
+        snapshot: current,
+      );
     }
     // Keep a compact day ledger; consecutive days are derived from its tail.
-    final days = current.completedActivities.where((item) => item.startsWith('streak-day:')).toList();
+    final days = current.completedActivities
+        .where((item) => item.startsWith('streak-day:'))
+        .toList();
     var streak = 1;
     if (days.isNotEmpty) {
       final last = DateTime.tryParse(days.last.substring('streak-day:'.length));
-      if (last != null && today.difference(DateTime(last.year, last.month, last.day)).inDays == 1) streak = current.streak + 1;
+      if (last != null &&
+          today.difference(DateTime(last.year, last.month, last.day)).inDays ==
+              1)
+        streak = current.streak + 1;
     }
     final bonus = streak % 5 == 0 ? 100 : 0;
-    final row = await client.from('students').select('data').eq('id', profile.id).maybeSingle().timeout(_requestTimeout);
+    final row = await client
+        .from('students')
+        .select('data')
+        .eq('id', profile.id)
+        .maybeSingle()
+        .timeout(_requestTimeout);
     final rowData = _asMap(row?['data']);
     final knownIds = current.achievements.map((item) => item.id).toSet();
     final streakAchievements = <StudentAchievement>[];
-    void addAchievement(String id, String title, String description, String icon) {
+    void addAchievement(
+      String id,
+      String title,
+      String description,
+      String icon,
+    ) {
       if (!knownIds.contains(id)) {
-        streakAchievements.add(StudentAchievement(id: id, title: title, description: description, icon: icon));
+        streakAchievements.add(
+          StudentAchievement(
+            id: id,
+            title: title,
+            description: description,
+            icon: icon,
+          ),
+        );
       }
     }
-    if (streak >= 3) addAchievement('streak_3', '3 أيام متواصل', 'تعلم 3 أيام متتالية', '🔥');
-    if (streak >= 5) addAchievement('streak_5', '5 أيام متواصل', 'تعلم 5 أيام متتالية واحصل على مكافأة', '🏅');
-    if (streak >= 7) addAchievement('streak_7', 'أسبوع متواصل', 'تعلم 7 أيام متتالية', '🔥');
+
+    if (streak >= 3)
+      addAchievement('streak_3', '3 أيام متواصل', 'تعلم 3 أيام متتالية', '🔥');
+    if (streak >= 5)
+      addAchievement(
+        'streak_5',
+        '5 أيام متواصل',
+        'تعلم 5 أيام متتالية واحصل على مكافأة',
+        '🏅',
+      );
+    if (streak >= 7)
+      addAchievement('streak_7', 'أسبوع متواصل', 'تعلم 7 أيام متتالية', '🔥');
     final next = current.copyWith(
       xp: current.xp + bonus,
       streak: streak,
       achievements: [...current.achievements, ...streakAchievements],
       completedActivities: [...days, marker],
     );
-    await client.from('students').update({
-      'data': {...rowData, 'gamification': next.toMap(), 'lastActivity': DateTime.now().toIso8601String()},
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', profile.id).timeout(_requestTimeout);
-    return RewardResult(xp: bonus, gems: 0, alreadyRewarded: false, levelUp: next.level > current.level, newAchievements: streakAchievements, snapshot: next);
+    await client
+        .from('students')
+        .update({
+          'data': {
+            ...rowData,
+            'gamification': next.toMap(),
+            'lastActivity': DateTime.now().toIso8601String(),
+          },
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', profile.id)
+        .timeout(_requestTimeout);
+    return RewardResult(
+      xp: bonus,
+      gems: 0,
+      alreadyRewarded: false,
+      levelUp: next.level > current.level,
+      newAchievements: streakAchievements,
+      snapshot: next,
+    );
   }
 
   List<StudentAchievement> _achievementsFor(
@@ -210,15 +285,30 @@ class StudentContentService {
   }) {
     final result = <StudentAchievement>[];
     void add(String id, String title, String description, String icon) {
-      result.add(StudentAchievement(id: id, title: title, description: description, icon: icon));
+      result.add(
+        StudentAchievement(
+          id: id,
+          title: title,
+          description: description,
+          icon: icon,
+        ),
+      );
     }
-    if (type == 'quiz' && stats.totalQuizzes == 1) add('first_quiz', 'أول اختبار', 'أكمل أول اختبار', '🎯');
-    if (type == 'quiz' && stats.totalQuizzes >= 10) add('quiz_warrior', 'مقاتل الاختبارات', 'أكمل 10 اختبارات', '⚔️');
-    if (type == 'quiz' && perfectQuiz) add('perfect_quiz', 'نتيجة مثالية', 'حصل على 100% في اختبار', '⭐');
-    if (type == 'lesson' && stats.totalLessons == 1) add('first_lesson', 'أول درس', 'أكمل أول درس', '📚');
-    if (type == 'lesson' && stats.totalLessons >= 10) add('lesson_master', 'سيد الدروس', 'أكمل 10 دروس', '🏆');
-    if (type == 'problem') add('math_solver', 'حلال المسائل', 'حل أول مسألة', '🔢');
-    if (type == 'game' && stats.totalGames >= 5) add('game_master', 'سيد الألعاب', 'العب 5 ألعاب', '🎮');
+
+    if (type == 'quiz' && stats.totalQuizzes == 1)
+      add('first_quiz', 'أول اختبار', 'أكمل أول اختبار', '🎯');
+    if (type == 'quiz' && stats.totalQuizzes >= 10)
+      add('quiz_warrior', 'مقاتل الاختبارات', 'أكمل 10 اختبارات', '⚔️');
+    if (type == 'quiz' && perfectQuiz)
+      add('perfect_quiz', 'نتيجة مثالية', 'حصل على 100% في اختبار', '⭐');
+    if (type == 'lesson' && stats.totalLessons == 1)
+      add('first_lesson', 'أول درس', 'أكمل أول درس', '📚');
+    if (type == 'lesson' && stats.totalLessons >= 10)
+      add('lesson_master', 'سيد الدروس', 'أكمل 10 دروس', '🏆');
+    if (type == 'problem')
+      add('math_solver', 'حلال المسائل', 'حل أول مسألة', '🔢');
+    if (type == 'game' && stats.totalGames >= 5)
+      add('game_master', 'سيد الألعاب', 'العب 5 ألعاب', '🎮');
     final normalizedActivity = activityId.toLowerCase();
     if (type == 'game' && normalizedActivity.contains('memory')) {
       add('memory_master', 'سيد الذاكرة', 'انتصر في لعبة الذاكرة', '🧠');
@@ -226,8 +316,10 @@ class StudentContentService {
     if (type == 'game' && normalizedActivity.contains('speed')) {
       add('speed_demon', 'سريع كالبرق', 'فوز في الاختبار السريع', '⚡');
     }
-    if (stats.level >= 5) add('level_5', 'المستوى 5', 'اوصل إلى المستوى 5', '💪');
-    if (stats.gems >= 50) add('gem_collector', 'جامع الجواهر', 'اجمع 50 جوهرة', '💎');
+    if (stats.level >= 5)
+      add('level_5', 'المستوى 5', 'اوصل إلى المستوى 5', '💪');
+    if (stats.gems >= 50)
+      add('gem_collector', 'جامع الجواهر', 'اجمع 50 جوهرة', '💎');
     return result;
   }
 
@@ -256,11 +348,8 @@ class StudentContentService {
     final matchingLessons = response
         .whereType<Map>()
         .map(
-          (row) => parseLessonContent(
-            row,
-            baseUrl: baseUrl,
-            storageClient: client,
-          ),
+          (row) =>
+              parseLessonContent(row, baseUrl: baseUrl, storageClient: client),
         )
         .where((lesson) => _matchesOwner(lesson, profile))
         .toList();
@@ -281,9 +370,8 @@ class StudentContentService {
     ];
     final paths = _uniquePaths(hierarchyPaths)
         .where(
-          (path) => matchingLessons.any(
-            (lesson) => _lessonMatchesPath(lesson, path),
-          ),
+          (path) =>
+              matchingLessons.any((lesson) => _lessonMatchesPath(lesson, path)),
         )
         .toList();
 
@@ -307,11 +395,8 @@ class StudentContentService {
     final lessons = response
         .whereType<Map>()
         .map(
-          (row) => parseLessonContent(
-            row,
-            baseUrl: baseUrl,
-            storageClient: client,
-          ),
+          (row) =>
+              parseLessonContent(row, baseUrl: baseUrl, storageClient: client),
         )
         .where(
           (lesson) => _matchesStudentPath(
@@ -350,11 +435,8 @@ class StudentContentService {
     final lessons = response
         .whereType<Map>()
         .map(
-          (row) => parseLessonContent(
-            row,
-            baseUrl: baseUrl,
-            storageClient: client,
-          ),
+          (row) =>
+              parseLessonContent(row, baseUrl: baseUrl, storageClient: client),
         )
         .toList();
 
@@ -382,16 +464,14 @@ class StudentContentService {
     }
 
     final matchingPath = lessons
-        .where(
-          (lesson) => _matchesExactTutorPath(lesson, academicContext),
-        )
+        .where((lesson) => _matchesExactTutorPath(lesson, academicContext))
         .toList();
     final studentTeacher = _normalize(profile.teacherId);
     final teacherLessons = studentTeacher.isEmpty
         ? const <LessonContent>[]
         : matchingPath
-            .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
-            .toList();
+              .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
+              .toList();
     final administratorLessons = matchingPath
         .where(_isAdministratorOrLegacyLesson)
         .toList();
@@ -400,7 +480,8 @@ class StudentContentService {
     // A configured teacher link is authoritative, even if it is malformed.
     // Falling back in that case could show a different experience than the
     // one explicitly configured for the student's teacher.
-    final selected = teacherSelection ??
+    final selected =
+        teacherSelection ??
         _latestConfiguredExperience(administratorLessons, type);
     if (selected == null) {
       return TutorExperienceSelection(
@@ -447,7 +528,9 @@ class StudentContentService {
         HtmlGame(
           id: _text(map['id']).isEmpty ? 'api-game-$index' : _text(map['id']),
           url: url,
-          title: _text(map['title']).isEmpty ? 'لعبة تعليمية' : _text(map['title']),
+          title: _text(map['title']).isEmpty
+              ? 'لعبة تعليمية'
+              : _text(map['title']),
           subtitle: _text(map['subtitle']).isEmpty
               ? 'لعبة تفاعلية داخل منارة'
               : _text(map['subtitle']),
@@ -475,10 +558,9 @@ class StudentContentService {
           .maybeSingle(),
     ]);
     final rawVideos = _asList(rows[0]?['value']);
-    final deletedIds = _asList(rows[1]?['value'])
-        .map(_text)
-        .where((id) => id.isNotEmpty)
-        .toSet();
+    final deletedIds = _asList(
+      rows[1]?['value'],
+    ).map(_text).where((id) => id.isNotEmpty).toSet();
     final videos = <LessonVideo>[];
     final seen = <String>{};
     for (final rawVideo in rawVideos) {
@@ -502,7 +584,9 @@ class StudentContentService {
           id: id,
           url: url,
           sourceType: _videoType(data['sourceType'], url),
-          title: _text(data['title']).isEmpty ? 'فيديو سينما منارة' : _text(data['title']),
+          title: _text(data['title']).isEmpty
+              ? 'فيديو سينما منارة'
+              : _text(data['title']),
           description: _nullableText(data['description']),
         ),
       );
@@ -530,7 +614,9 @@ class StudentContentService {
       if (data.isEmpty) continue;
       createdQuizzes.add(<String, dynamic>{
         ...data,
-        'id': _text(rowMap['id']).isEmpty ? _text(data['id']) : _text(rowMap['id']),
+        'id': _text(rowMap['id']).isEmpty
+            ? _text(data['id'])
+            : _text(rowMap['id']),
         'updatedAt': _text(rowMap['updated_at'] ?? data['updatedAt']),
       });
     }
@@ -559,14 +645,20 @@ class StudentContentService {
         .order('updated_at', ascending: false)
         .limit(100)
         .timeout(_requestTimeout);
-    return response.whereType<Map>().map((row) {
-      final rowMap = _asMap(row);
-      final data = _asMap(rowMap['data']);
-      return <String, dynamic>{
-        ...data,
-        'id': _text(rowMap['id']).isEmpty ? _text(data['id']) : _text(rowMap['id']),
-      };
-    }).where((result) => _text(result['studentId']) == profile.id).toList();
+    return response
+        .whereType<Map>()
+        .map((row) {
+          final rowMap = _asMap(row);
+          final data = _asMap(rowMap['data']);
+          return <String, dynamic>{
+            ...data,
+            'id': _text(rowMap['id']).isEmpty
+                ? _text(data['id'])
+                : _text(rowMap['id']),
+          };
+        })
+        .where((result) => _text(result['studentId']) == profile.id)
+        .toList();
   }
 
   Future<Map<String, dynamic>> saveQuizResult({
@@ -583,11 +675,21 @@ class StudentContentService {
       'studentId': profile.id,
       'studentName': profile.name,
       'quizType': StudentAssessmentRules.quizTypeValue(result['quizType']),
-      'grade': _text(result['grade']).isEmpty ? _text(profile.grade) : _text(result['grade']),
-      'atram': _text(result['atram']).isEmpty ? _text(profile.atram) : _text(result['atram']),
-      'subject': _text(result['subject']).isEmpty ? _text(profile.subject) : _text(result['subject']),
-      'term': _text(result['term']).isEmpty ? _text(profile.term) : _text(result['term']),
-      'unit': _text(result['unit']).isEmpty ? _text(profile.unit) : _text(result['unit']),
+      'grade': _text(result['grade']).isEmpty
+          ? _text(profile.grade)
+          : _text(result['grade']),
+      'atram': _text(result['atram']).isEmpty
+          ? _text(profile.atram)
+          : _text(result['atram']),
+      'subject': _text(result['subject']).isEmpty
+          ? _text(profile.subject)
+          : _text(result['subject']),
+      'term': _text(result['term']).isEmpty
+          ? _text(profile.term)
+          : _text(result['term']),
+      'unit': _text(result['unit']).isEmpty
+          ? _text(profile.unit)
+          : _text(result['unit']),
     };
     if (StudentAssessmentRules.isTeacherQuiz(safeResult)) {
       final existing = await client
@@ -603,16 +705,21 @@ class StudentContentService {
         if (StudentAssessmentRules.isTeacherQuiz(stored)) {
           throw TeacherQuizAlreadySubmittedException(<String, dynamic>{
             ...stored,
-            'id': _text(rowMap['id']).isEmpty ? _text(stored['id']) : _text(rowMap['id']),
+            'id': _text(rowMap['id']).isEmpty
+                ? _text(stored['id'])
+                : _text(rowMap['id']),
           });
         }
       }
     }
-    await client.from('quiz_results').upsert({
-      'id': id,
-      'data': safeResult,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).timeout(_requestTimeout);
+    await client
+        .from('quiz_results')
+        .upsert({
+          'id': id,
+          'data': safeResult,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .timeout(_requestTimeout);
     return safeResult;
   }
 
@@ -665,17 +772,20 @@ class StudentContentService {
     required String answer,
   }) async {
     final id = '${profile.id}_${DateTime.now().microsecondsSinceEpoch}';
-    await client.from('interactions').upsert({
-      'id': id,
-      'data': {
-        'studentId': profile.id,
-        'type': 'virtual_teacher',
-        'question': question,
-        'answer': answer,
-        'createdAt': DateTime.now().toIso8601String(),
-      },
-      'updated_at': DateTime.now().toIso8601String(),
-    }).timeout(_requestTimeout);
+    await client
+        .from('interactions')
+        .upsert({
+          'id': id,
+          'data': {
+            'studentId': profile.id,
+            'type': 'virtual_teacher',
+            'question': question,
+            'answer': answer,
+            'createdAt': DateTime.now().toIso8601String(),
+          },
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .timeout(_requestTimeout);
   }
 
   Future<void> saveProblemSolverInteraction({
@@ -684,24 +794,27 @@ class StudentContentService {
     required String question,
   }) async {
     final now = DateTime.now();
-    await client.from('interactions').upsert({
-      'id': '${profile.id}_solver_${now.microsecondsSinceEpoch}',
-      'data': {
-        'studentId': profile.id,
-        'studentName': profile.name,
-        'teacherId': profile.teacherId,
-        'type': 'problem_solver',
-        'lessonId': lessonId,
-        'question': question,
-        'grade': profile.grade,
-        'atram': profile.atram,
-        'subject': profile.subject,
-        'term': profile.term,
-        'unit': profile.unit,
-        'createdAt': now.toIso8601String(),
-      },
-      'updated_at': now.toIso8601String(),
-    }).timeout(_requestTimeout);
+    await client
+        .from('interactions')
+        .upsert({
+          'id': '${profile.id}_solver_${now.microsecondsSinceEpoch}',
+          'data': {
+            'studentId': profile.id,
+            'studentName': profile.name,
+            'teacherId': profile.teacherId,
+            'type': 'problem_solver',
+            'lessonId': lessonId,
+            'question': question,
+            'grade': profile.grade,
+            'atram': profile.atram,
+            'subject': profile.subject,
+            'term': profile.term,
+            'unit': profile.unit,
+            'createdAt': now.toIso8601String(),
+          },
+          'updated_at': now.toIso8601String(),
+        })
+        .timeout(_requestTimeout);
   }
 
   Future<List<Map<String, dynamic>>> _fetchLegacyQuizQuestions() async {
@@ -712,7 +825,9 @@ class StudentContentService {
           .eq('key', 'smartEdu_quizQuestions')
           .maybeSingle()
           .timeout(_requestTimeout);
-      return _asList(row?['value']).map(_asMap).where((item) => item.isNotEmpty).toList();
+      return _asList(
+        row?['value'],
+      ).map(_asMap).where((item) => item.isNotEmpty).toList();
     } catch (_) {
       // The modern quiz table remains usable when older installations do not
       // expose the historical app_kv key to the student role.
@@ -731,10 +846,9 @@ class StudentContentService {
           .eq('key', 'smartEdu_deletedQuizzes')
           .maybeSingle()
           .timeout(_requestTimeout);
-      return _asList(row?['value'])
-          .map(_text)
-          .where((id) => id.isNotEmpty)
-          .toSet();
+      return _asList(
+        row?['value'],
+      ).map(_text).where((id) => id.isNotEmpty).toSet();
     } catch (_) {
       // A missing historical key must not block visible active assessments.
       return const <String>{};
@@ -824,13 +938,14 @@ class StudentContentService {
     List<LessonContent> lessons,
     TutorExperienceType type,
   ) {
-    final configured = lessons
-        .where((lesson) => _experienceUrl(lesson, type).trim().isNotEmpty)
-        .toList()
-      ..sort((a, b) {
-        final timestamp = b.createdAt.compareTo(a.createdAt);
-        return timestamp != 0 ? timestamp : b.id.compareTo(a.id);
-      });
+    final configured =
+        lessons
+            .where((lesson) => _experienceUrl(lesson, type).trim().isNotEmpty)
+            .toList()
+          ..sort((a, b) {
+            final timestamp = b.createdAt.compareTo(a.createdAt);
+            return timestamp != 0 ? timestamp : b.id.compareTo(a.id);
+          });
     return configured.isEmpty ? null : configured.first;
   }
 
@@ -856,8 +971,8 @@ class StudentContentService {
       final teacherOwned = studentTeacher.isEmpty
           ? const <LessonContent>[]
           : candidates
-              .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
-              .toList();
+                .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
+                .toList();
       final pool = teacherOwned.isNotEmpty ? teacherOwned : candidates;
       pool.sort((a, b) {
         final timestamp = b.createdAt.compareTo(a.createdAt);
@@ -868,7 +983,6 @@ class StudentContentService {
     preferred.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return preferred;
   }
-
 }
 
 String _experienceUrl(LessonContent lesson, TutorExperienceType type) {
@@ -911,10 +1025,7 @@ bool _isDeletedVideo(Map<String, dynamic> data) {
       status == 'removed';
 }
 
-List<AcademicPath> _pathsFromHierarchy(
-  Object? value,
-  StudentProfile profile,
-) {
+List<AcademicPath> _pathsFromHierarchy(Object? value, StudentProfile profile) {
   if (value is! List) return const [];
 
   final paths = <AcademicPath>[];
@@ -1058,7 +1169,9 @@ LessonContent parseLessonContent(
               : _text(item['id']),
           url: url,
           sourceType: _videoType(item['sourceType'], url),
-          title: _text(item['title']).isEmpty ? 'فيديو الشرح ${index + 1}' : _text(item['title']),
+          title: _text(item['title']).isEmpty
+              ? 'فيديو الشرح ${index + 1}'
+              : _text(item['title']),
           description: _nullableText(item['description']),
         ),
       );
@@ -1096,12 +1209,17 @@ LessonContent parseLessonContent(
     subject: _text(data['subject']),
     term: _text(data['term']),
     unit: _text(data['unit']),
-    lessonName: _value(
-      data,
-      ['lesson', 'lessonName', 'lessonTitle', 'currentLesson', 'name'],
-    ),
+    lessonName: _value(data, [
+      'lesson',
+      'lessonName',
+      'lessonTitle',
+      'currentLesson',
+      'name',
+    ]),
     createdAt: _text(data['updatedAt'] ?? data['createdAt']),
-    ownerId: _nullableText(data['teacherId'] ?? data['teacher_id'] ?? data['createdBy']),
+    ownerId: _nullableText(
+      data['teacherId'] ?? data['teacher_id'] ?? data['createdBy'],
+    ),
     lessonText: _nullableText(data['lessonContent']),
     avatarInteractionUrl: _nullableText(data['avatarInteractionUrl']),
     liveMeetingUrl: _nullableText(data['liveMeetingUrl']),
@@ -1112,18 +1230,23 @@ LessonContent parseLessonContent(
 
 List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
   final games = <HtmlGame>[];
-  final rawGames = data['games'] ?? data['html5Games'] ?? data['entertainmentGames'];
+  final rawGames =
+      data['games'] ?? data['html5Games'] ?? data['entertainmentGames'];
   if (rawGames is List) {
     for (var index = 0; index < rawGames.length; index++) {
       final item = rawGames[index];
-      final map = item is String ? <String, dynamic>{'url': item} : _asMap(item);
+      final map = item is String
+          ? <String, dynamic>{'url': item}
+          : _asMap(item);
       final url = _resolveUrl(_text(map['url'] ?? map['gameUrl']), baseUrl);
       if (!_isSafeUrl(url)) continue;
       games.add(
         HtmlGame(
           id: _text(map['id']).isEmpty ? 'game-$index' : _text(map['id']),
           url: url,
-          title: _text(map['title']).isEmpty ? 'اللعبة ${index + 1}' : _text(map['title']),
+          title: _text(map['title']).isEmpty
+              ? 'اللعبة ${index + 1}'
+              : _text(map['title']),
           subtitle: _text(map['subtitle']).isEmpty
               ? 'لعبة HTML5 تفاعلية داخل منارة'
               : _text(map['subtitle']),
@@ -1175,32 +1298,28 @@ List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
       requiredLevel: 2,
     ),
   ];
-  return entries
-      .map(
-        (entry) {
-          final apiPath = '/api/game-embed/${entry.id}/index.html';
-          // Flutter Web can run in a browser that does not expose the local
-          // API service port. Use the public HTML5 game entry point when an
-          // API base was not explicitly supplied, so the iframe always loads.
-          final url = baseUrl.trim().isEmpty
-              ? 'https://html5.gamedistribution.com/rvvASMiM/${entry.id}/index.html'
-              : _resolveUrl(apiPath, baseUrl);
-          return HtmlGame(
-            id: entry.id,
-            url: url,
-            title: entry.title,
-            subtitle: entry.subtitle,
-            requiredLevel: entry.requiredLevel,
-          );
-        },
-      )
-      .toList();
+  return entries.map((entry) {
+    final apiPath = '/api/game-embed/${entry.id}/index.html';
+    // Flutter Web can run in a browser that does not expose the local
+    // API service port. Use the public HTML5 game entry point when an
+    // API base was not explicitly supplied, so the iframe always loads.
+    final url = baseUrl.trim().isEmpty
+        ? 'https://html5.gamedistribution.com/rvvASMiM/${entry.id}/index.html'
+        : _resolveUrl(apiPath, baseUrl);
+    return HtmlGame(
+      id: entry.id,
+      url: url,
+      title: entry.title,
+      subtitle: entry.subtitle,
+      requiredLevel: entry.requiredLevel,
+    );
+  }).toList();
 }
 
 VideoSourceType _videoType(Object? value, String url) {
   final normalizedUrl = url.toLowerCase();
-  final isDirectVideo = RegExp(r'\.(mp4|m4v|mov|webm|m3u8)(?:$|[?#])')
-          .hasMatch(normalizedUrl) ||
+  final isDirectVideo =
+      RegExp(r'\.(mp4|m4v|mov|webm|m3u8)(?:$|[?#])').hasMatch(normalizedUrl) ||
       normalizedUrl.contains('/storage/v1/object/public/');
   if (value?.toString().toLowerCase() == 'mp4' || isDirectVideo) {
     return VideoSourceType.mp4;
@@ -1208,7 +1327,8 @@ VideoSourceType _videoType(Object? value, String url) {
   return VideoSourceType.embed;
 }
 
-String _normalize(Object? value) => value?.toString().trim().toLowerCase() ?? '';
+String _normalize(Object? value) =>
+    value?.toString().trim().toLowerCase() ?? '';
 
 String _text(Object? value) => value?.toString().trim() ?? '';
 
@@ -1224,7 +1344,10 @@ List<Object?> _asList(Object? value) {
 
 bool _isSafeUrl(String value) {
   final raw = value.trim().toLowerCase();
-  if (raw.isEmpty || raw.startsWith('javascript:') || raw.startsWith('data:') || raw.startsWith('blob:')) {
+  if (raw.isEmpty ||
+      raw.startsWith('javascript:') ||
+      raw.startsWith('data:') ||
+      raw.startsWith('blob:')) {
     return false;
   }
   if (RegExp(r'^/api/media/videos/[a-z0-9-]+\.mp4$').hasMatch(raw)) {
@@ -1284,8 +1407,10 @@ String? _lessonVideoStoragePath(String raw) {
     // except for a recognizable video object key saved by older admin forms.
     if (path.startsWith('/')) {
       final candidate = path.substring(1);
-      if (!RegExp(r'\.(mp4|m4v|mov|webm|m3u8)$', caseSensitive: false)
-          .hasMatch(candidate)) {
+      if (!RegExp(
+        r'\.(mp4|m4v|mov|webm|m3u8)$',
+        caseSensitive: false,
+      ).hasMatch(candidate)) {
         return null;
       }
       path = candidate;

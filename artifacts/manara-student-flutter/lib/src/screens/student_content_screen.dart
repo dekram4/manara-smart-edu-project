@@ -278,12 +278,21 @@ class _LessonModule extends StatelessWidget {
       children: [
         Text(
           'فيديو شرح الدرس',
-          style: const TextStyle(color: Color(0xFF0E1B2A), fontSize: 24, fontWeight: FontWeight.w900),
+          style: const TextStyle(
+            color: Color(0xFF0E1B2A),
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+          ),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
         const SizedBox(height: 4),
         Text(
-          lesson.scopeLabel.isEmpty ? 'فيديوهات الشرح الخاصة بك' : lesson.scopeLabel,
-          style: const TextStyle(color: Color(0xFF5680AC), fontWeight: FontWeight.w700),
+          lesson.scopeLabel.isEmpty
+              ? 'فيديوهات الشرح الخاصة بك'
+              : lesson.scopeLabel,
+          style: const TextStyle(
+            color: Color(0xFF5680AC),
+            fontWeight: FontWeight.w700,
+          ),
         ),
         if (lessons.length > 1) ...[
           const SizedBox(height: 14),
@@ -299,7 +308,9 @@ class _LessonModule extends StatelessWidget {
                 return ChoiceChip(
                   selected: item.id == lesson.id,
                   onSelected: (_) => onLessonChanged(item),
-                  label: Text(item.lessonName.isNotEmpty ? item.lessonName : item.unit),
+                  label: Text(
+                    item.lessonName.isNotEmpty ? item.lessonName : item.unit,
+                  ),
                   selectedColor: const Color(0xFFBFEFED),
                 );
               },
@@ -314,14 +325,14 @@ class _LessonModule extends StatelessWidget {
             message: 'يمكن للمعلم أو المشرف إضافة رابط فيديو لهذا الدرس.',
           )
         else
-           _VideoCarousel(
-             videos: lesson.videos,
-             apiBaseUrl: apiBaseUrl,
-             profile: profile,
-              gamification: gamification,
-             contentService: contentService,
-              onGamificationChanged: onGamificationChanged,
-           ),
+          _VideoCarousel(
+            videos: lesson.videos,
+            apiBaseUrl: apiBaseUrl,
+            profile: profile,
+            gamification: gamification,
+            contentService: contentService,
+            onGamificationChanged: onGamificationChanged,
+          ),
       ],
     );
   }
@@ -377,77 +388,84 @@ class _GamesModule extends StatelessWidget {
         const SizedBox(height: 16),
         _GamificationSummary(stats: gamification),
         const SizedBox(height: 16),
-        ...games.map(
-          (game) {
-            final locked = gamification.level < game.requiredLevel;
-            final completed = gamification.completedActivities
-                .contains('game:${game.id}');
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _GameCard(
-                game: game,
-                locked: locked,
-                completed: completed,
-                onPressed: () {
-                  if (locked) {
-                    StudentSoundService.instance.play(StudentSoundCue.warning);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'هذه اللعبة تُفتح عند الوصول إلى المستوى ${game.requiredLevel}. مستواك الحالي: ${gamification.level}',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                  StudentSoundService.instance.play(StudentSoundCue.navigation);
-                  Navigator.of(context).push(
-                    StudentPageRoute<void>(
-                      builder: (_) => _GamePlayerScreen(
-                        game: game,
-                        apiBaseUrl: apiBaseUrl,
-                        initiallyCompleted: completed,
-                        onCompleted: () async {
-                          try {
-                            final reward = await contentService.rewardActivity(
-                              profile: profile,
-                              activityType: 'game',
-                              activityId: game.id,
-                            );
-                            onGamificationChanged(reward.snapshot);
-                            StudentSoundService.instance.play(
-                              reward.alreadyRewarded
-                                  ? StudentSoundCue.navigation
-                                  : StudentSoundCue.gameReward,
-                            );
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(reward.alreadyRewarded
-                                    ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا.'
-                                    : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر'),
-                              ));
-                            }
-                            return true;
-                          } catch (_) {
-                            StudentSoundService.instance.play(StudentSoundCue.warning);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('تعذر حفظ إتمام اللعبة. حاول مرة أخرى.'),
-                                ),
-                              );
-                            }
-                            return false;
-                          }
-                        },
+        ...games.map((game) {
+          final locked = gamification.level < game.requiredLevel;
+          final completed = gamification.completedActivities.contains(
+            'game:${game.id}',
+          );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _GameCard(
+              game: game,
+              locked: locked,
+              completed: completed,
+              onPressed: () {
+                if (locked) {
+                  StudentSoundService.instance.play(StudentSoundCue.warning);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'هذه اللعبة تُفتح عند الوصول إلى المستوى ${game.requiredLevel}. مستواك الحالي: ${gamification.level}',
                       ),
                     ),
                   );
-                },
-              ),
-            );
-          },
-        ),
+                  return;
+                }
+                StudentSoundService.instance.play(StudentSoundCue.navigation);
+                Navigator.of(context).push(
+                  StudentPageRoute<void>(
+                    builder: (_) => _GamePlayerScreen(
+                      game: game,
+                      apiBaseUrl: apiBaseUrl,
+                      initiallyCompleted: completed,
+                      onCompleted: () async {
+                        try {
+                          final reward = await contentService.rewardActivity(
+                            profile: profile,
+                            activityType: 'game',
+                            activityId: game.id,
+                          );
+                          onGamificationChanged(reward.snapshot);
+                          StudentSoundService.instance.play(
+                            reward.alreadyRewarded
+                                ? StudentSoundCue.navigation
+                                : StudentSoundCue.gameReward,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  reward.alreadyRewarded
+                                      ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا.'
+                                      : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر',
+                                ),
+                              ),
+                            );
+                          }
+                          return true;
+                        } catch (_) {
+                          StudentSoundService.instance.play(
+                            StudentSoundCue.warning,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'تعذر حفظ إتمام اللعبة. حاول مرة أخرى.',
+                                ),
+                              ),
+                            );
+                          }
+                          return false;
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        }),
       ],
     );
   }
@@ -462,50 +480,76 @@ class _GamificationSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Student3DCard(
       child: Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF312E81), Color(0xFF6D28D9)],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF312E81), Color(0xFF6D28D9)],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+          ),
+          borderRadius: BorderRadius.circular(22),
         ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'المستوى ${stats.level}',
-            textAlign: TextAlign.right,
-            style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('⭐ ${stats.xp} XP', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-              Text('💎 ${stats.gems} جواهر', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-              Text('🔥 ${stats.streak} يوم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: stats.levelProgress / 100,
-              minHeight: 9,
-              backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation(Color(0xFFFDE68A)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'المستوى ${stats.level}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            '${stats.xpToNextLevel} XP للوصول إلى المستوى التالي',
-            textAlign: TextAlign.right,
-            style: const TextStyle(color: Color(0xFFE9D5FF), fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '⭐ ${stats.xp} XP',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  '💎 ${stats.gems} جواهر',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  '🔥 ${stats.streak} يوم',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: stats.levelProgress / 100,
+                minHeight: 9,
+                backgroundColor: Colors.white24,
+                valueColor: const AlwaysStoppedAnimation(Color(0xFFFDE68A)),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              '${stats.xpToNextLevel} XP للوصول إلى المستوى التالي',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Color(0xFFE9D5FF),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -531,87 +575,97 @@ class _GameCard extends StatelessWidget {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(24),
         child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(24),
-        child: Ink(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              colors: locked
-                  ? const [Color(0xFF4B5563), Color(0xFF6B7280)]
-                  : const [Color(0xFF4B267F), Color(0xFF8B5CF6)],
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x458B5CF6),
-                blurRadius: 18,
-                offset: Offset(0, 9),
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(24),
+          child: Ink(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                colors: locked
+                    ? const [Color(0xFF4B5563), Color(0xFF6B7280)]
+                    : const [Color(0xFF4B267F), Color(0xFF8B5CF6)],
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-               Icon(
-                 locked ? Icons.lock_rounded : completed ? Icons.verified_rounded : Icons.sports_esports_rounded,
-                 color: locked ? const Color(0xFFFDE68A) : const Color(0xFFE9D5FF),
-                size: 48,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      game.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      game.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: Color(0xFFE9D5FF),
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x458B5CF6),
+                  blurRadius: 18,
+                  offset: Offset(0, 9),
                 ),
-              ),
-              const SizedBox(width: 10),
-               Icon(
-                 locked
-                     ? Icons.lock_rounded
-                     : completed
-                         ? Icons.verified_rounded
-                         : Icons.play_circle_fill_rounded,
-                 color: Colors.white,
-                size: 32,
-              ),
-               const SizedBox(width: 6),
-               Text(
-                 locked
-                     ? 'المستوى ${game.requiredLevel}'
-                     : completed
-                         ? 'اكتملت المكافأة'
-                         : '+15 XP • 3 جواهر',
-                 style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
-               ),
-            ],
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  locked
+                      ? Icons.lock_rounded
+                      : completed
+                      ? Icons.verified_rounded
+                      : Icons.sports_esports_rounded,
+                  color: locked
+                      ? const Color(0xFFFDE68A)
+                      : const Color(0xFFE9D5FF),
+                  size: 48,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        game.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        game.subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: Color(0xFFE9D5FF),
+                          height: 1.35,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  locked
+                      ? Icons.lock_rounded
+                      : completed
+                      ? Icons.verified_rounded
+                      : Icons.play_circle_fill_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  locked
+                      ? 'المستوى ${game.requiredLevel}'
+                      : completed
+                      ? 'اكتملت المكافأة'
+                      : '+15 XP • 3 جواهر',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     ).animate().fadeIn(duration: 350.ms).slideX(begin: 0.08);
@@ -655,9 +709,9 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     return base.isEmpty ? raw : '$base$raw';
   }
 
-  bool get _isRelativeApiGame =>
-      RegExp(r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)')
-          .hasMatch(_url);
+  bool get _isRelativeApiGame => RegExp(
+    r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)',
+  ).hasMatch(_url);
 
   void _reload() {
     setState(() {
@@ -681,9 +735,11 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final uri = Uri.tryParse(_url);
-    final validUrl = uri != null &&
-        (uri.scheme == 'http' || uri.scheme == 'https') &&
-        uri.host.isNotEmpty || _isRelativeApiGame;
+    final validUrl =
+        uri != null &&
+            (uri.scheme == 'http' || uri.scheme == 'https') &&
+            uri.host.isNotEmpty ||
+        _isRelativeApiGame;
 
     return Scaffold(
       backgroundColor: const Color(0xFF160C2D),
@@ -755,7 +811,9 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                   right: 16,
                   bottom: 16,
                   child: FilledButton.icon(
-                    onPressed: _loading || _saving || _completed ? null : _completeGame,
+                    onPressed: _loading || _saving || _completed
+                        ? null
+                        : _completeGame,
                     icon: Icon(
                       _completed
                           ? Icons.verified_rounded
@@ -765,8 +823,8 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                       _completed
                           ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا'
                           : _saving
-                              ? 'جارٍ حفظ إتمام اللعبة...'
-                              : 'أنهيت اللعبة — +15 XP و3 جواهر',
+                          ? 'جارٍ حفظ إتمام اللعبة...'
+                          : 'أنهيت اللعبة — +15 XP و3 جواهر',
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: _completed
@@ -807,9 +865,11 @@ class _VideoCarouselState extends State<_VideoCarousel> {
   final _controller = PageController(viewportFraction: 0.88);
   int _activeIndex = 0;
 
-  bool _isVideoCompleted(LessonVideo video) => widget
-      .gamification.completedActivities
-      .contains('lesson_video:${video.id}');
+  bool _isVideoCompleted(LessonVideo video) =>
+      widget.gamification.completedActivities.any(
+        (key) =>
+            key == 'video:${video.id}' || key == 'lesson_video:${video.id}',
+      );
 
   @override
   void dispose() {
@@ -837,19 +897,26 @@ class _VideoCarouselState extends State<_VideoCarousel> {
             child: PageView.builder(
               controller: _controller,
               itemCount: widget.videos.length,
-              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
               onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {
                 final video = widget.videos[index];
                 final completed = _isVideoCompleted(video);
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
                   child: _VideoCard(
                     video: video,
                     apiBaseUrl: widget.apiBaseUrl,
                     completed: completed,
                     onPressed: () {
-                      StudentSoundService.instance.play(StudentSoundCue.navigation);
+                      StudentSoundService.instance.play(
+                        StudentSoundCue.navigation,
+                      );
                       Navigator.of(context).push(
                         StudentPageRoute<void>(
                           builder: (_) => _LessonPlayerScreen(
@@ -878,7 +945,9 @@ class _VideoCarouselState extends State<_VideoCarousel> {
               height: 8,
               margin: const EdgeInsets.symmetric(horizontal: 3),
               decoration: BoxDecoration(
-                color: index == _activeIndex ? const Color(0xFF0B8693) : const Color(0xFFB3C8DE),
+                color: index == _activeIndex
+                    ? const Color(0xFF0B8693)
+                    : const Color(0xFFB3C8DE),
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
@@ -892,7 +961,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
     try {
       final lessonReward = await widget.contentService.rewardActivity(
         profile: widget.profile,
-        activityType: 'lesson_video',
+        activityType: 'video',
         activityId: video.id,
       );
       if (!mounted) return false;
@@ -901,13 +970,15 @@ class _VideoCarouselState extends State<_VideoCarousel> {
             ? StudentSoundCue.navigation
             : StudentSoundCue.success,
       );
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          lessonReward.alreadyRewarded
-              ? 'أنهيت هذا الفيديو وحصلت على مكافأته مسبقًا.'
-              : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام هذا الفيديو.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            lessonReward.alreadyRewarded
+                ? 'أنهيت هذا الفيديو وحصلت على مكافأته مسبقًا.'
+                : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام هذا الفيديو.',
+          ),
         ),
-      ));
+      );
       widget.onGamificationChanged(lessonReward.snapshot);
       return true;
     } catch (_) {
@@ -944,89 +1015,106 @@ class _VideoCard extends StatelessWidget {
       borderRadius: const BorderRadius.all(Radius.circular(28)),
       child: StudentPressScale(
         child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(28),
-        child: Ink(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
             borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0B8693), Color(0xFF274E76)],
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x450B8693),
-                blurRadius: 20,
-                offset: Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: dynamicPaddingAlignment(context),
-                children: [
-                  Icon(
-                    completed
-                        ? Icons.verified_rounded
-                        : Icons.play_circle_fill_rounded,
-                    color: const Color(0xFFBFFBFA),
-                    size: 38,
+            child: Ink(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0B8693), Color(0xFF274E76)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x450B8693),
+                    blurRadius: 20,
+                    offset: Offset(0, 12),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withAlpha(38),
-                      borderRadius: BorderRadius.circular(20),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: dynamicPaddingAlignment(context),
+                    children: [
+                      Icon(
+                        completed
+                            ? Icons.verified_rounded
+                            : Icons.play_circle_fill_rounded,
+                        color: const Color(0xFFBFFBFA),
+                        size: 38,
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withAlpha(38),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          video.sourceType == VideoSourceType.mp4
+                              ? 'MP4 / AI'
+                              : 'يوتيوب',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 23,
+                      fontWeight: FontWeight.w900,
                     ),
-                    child: Text(
-                      video.sourceType == VideoSourceType.mp4 ? 'MP4 / AI' : 'يوتيوب',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    video.description ?? 'اضغط للمشاهدة الفورية داخل التطبيق',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFBFFBFA),
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: completed ? null : onPressed,
+                    icon: Icon(
+                      completed
+                          ? Icons.verified_rounded
+                          : Icons.play_arrow_rounded,
+                    ),
+                    label: Text(completed ? 'تم إتمام الفيديو' : 'شاهد الآن'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF0B8693),
+                      disabledBackgroundColor: Colors.grey.shade500,
+                      disabledForegroundColor: Colors.white,
+                      textStyle: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ),
                 ],
               ),
-              const Spacer(),
-              Text(
-                video.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                video.description ?? 'اضغط للمشاهدة الفورية داخل التطبيق',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(0xFFBFFBFA), height: 1.4, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: completed ? null : onPressed,
-                icon: Icon(
-                  completed
-                      ? Icons.verified_rounded
-                      : Icons.play_arrow_rounded,
-                ),
-                label: Text(completed ? 'تم إتمام الفيديو' : 'شاهد الآن'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF0B8693),
-                  disabledBackgroundColor: Colors.grey.shade500,
-                  disabledForegroundColor: Colors.white,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-        ),
-      ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);
   }
@@ -1114,8 +1202,8 @@ class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
                     _completed
                         ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا'
                         : _saving
-                            ? 'جارٍ حفظ إتمام الدرس...'
-                            : 'أنهيت مشاهدة الدرس',
+                        ? 'جارٍ حفظ إتمام الدرس...'
+                        : 'أنهيت مشاهدة الدرس',
                   ),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(54),
@@ -1193,16 +1281,14 @@ class UniversalWebVideoScreen extends StatelessWidget {
         body: Center(
           child: AspectRatio(
             aspectRatio: 16 / 9,
-            child: StudentVideoPlayer(
-              video: video,
-              apiBaseUrl: apiBaseUrl,
-            ),
+            child: StudentVideoPlayer(video: video, apiBaseUrl: apiBaseUrl),
           ),
         ),
       );
     }
     final ytId = _extractYouTubeId(targetUrl);
-    final isYouTube = ytId.isNotEmpty && video.sourceType != VideoSourceType.mp4;
+    final isYouTube =
+        ytId.isNotEmpty && video.sourceType != VideoSourceType.mp4;
     final embedUrl = isYouTube
         ? 'https://www.youtube-nocookie.com/embed/$ytId?autoplay=1&rel=0&playsinline=1'
         : targetUrl;
@@ -1255,10 +1341,7 @@ class UniversalWebVideoScreen extends StatelessWidget {
             child: Center(
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: StudentWebEmbed(
-                  url: embedUrl,
-                  htmlContent: embedHtml,
-                ),
+                child: StudentWebEmbed(url: embedUrl, htmlContent: embedHtml),
               ),
             ),
           ),
@@ -1290,37 +1373,44 @@ class _StateCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Student3DCard(
           child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(225),
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: const Color(0xFF0B8693), size: 54),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF0E1B2A),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(225),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: const Color(0xFF0B8693), size: 54),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF0E1B2A),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF5680AC), height: 1.5, fontWeight: FontWeight.w700),
-              ),
-              if (onAction != null) ...[
-                const SizedBox(height: 14),
-                FilledButton(onPressed: onAction, child: Text(actionLabel ?? 'متابعة')),
+                const SizedBox(height: 7),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF5680AC),
+                    height: 1.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (onAction != null) ...[
+                  const SizedBox(height: 14),
+                  FilledButton(
+                    onPressed: onAction,
+                    child: Text(actionLabel ?? 'متابعة'),
+                  ),
+                ],
               ],
-            ],
-          ),
+            ),
           ),
         ),
       ),

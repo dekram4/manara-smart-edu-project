@@ -7,9 +7,14 @@ const router = Router();
  * value in Replit Secrets rather than source control and only return it at
  * runtime to the embedded student client.
  */
-router.get("/did-agent/config", (_req, res) => {
+router.get("/did-agent/config", (req, res) => {
   const clientKey = process.env.DID_CLIENT_KEY?.trim();
-  const agentId = process.env.DID_AGENT_ID?.trim();
+  const requestedAgentId =
+    typeof req.query.agentId === "string" ? req.query.agentId.trim() : "";
+  const safeRequestedAgentId = /^[a-zA-Z0-9_-]{3,128}$/.test(requestedAgentId)
+    ? requestedAgentId
+    : "";
+  const agentId = safeRequestedAgentId || process.env.DID_AGENT_ID?.trim();
   if (!clientKey || !agentId) {
     return res.status(503).json({
       error: "إعداد المعلم الافتراضي غير مكتمل حاليًا.",
