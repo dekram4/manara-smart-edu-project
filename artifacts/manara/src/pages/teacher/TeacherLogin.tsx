@@ -24,12 +24,41 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
     e.preventDefault();
     setError('');
 
+    const normalizedUsername = username.trim();
     const teachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
-    const teacher = teachers.find(t => t.username === username && passwordsMatch(password, t.password));
+    let teacher = teachers.find(
+      t => t.username === normalizedUsername && passwordsMatch(password, t.password),
+    );
 
     if (!teacher) {
-      setError('❌ اسم المستخدم أو كلمة المرور غير صحيحة');
-      return;
+      try {
+        const response = await fetch('/api/auth/teacher/login', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: normalizedUsername, password }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.teacher) {
+          setError(result.error || '❌ اسم المستخدم أو كلمة المرور غير صحيحة');
+          return;
+        }
+        teacher = {
+          ...result.teacher,
+          username: normalizedUsername,
+          password: hashPassword(password),
+        } as TeacherInfo;
+        localStorage.setItem(
+          STORAGE_KEYS.TEACHERS,
+          JSON.stringify([
+            ...teachers.filter(item => item.id !== teacher!.id),
+            teacher,
+          ]),
+        );
+      } catch {
+        setError('⚠️ تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى.');
+        return;
+      }
     }
 
     teacher.lastActivity = new Date().toISOString();
@@ -76,6 +105,27 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
 
     if (!currentTeacher) return;
 
+    try {
+      const response = await fetch('/api/auth/teacher/change-password', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: currentTeacher.username,
+          currentPassword: password,
+          newPassword,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(result.error || 'تعذر تحديث كلمة المرور الآن');
+        return;
+      }
+    } catch {
+      setError('تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى.');
+      return;
+    }
+
     const hashedPassword = hashPassword(newPassword);
     const teachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
     const updated = teachers.map(t =>
@@ -87,16 +137,6 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
     localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
 
     const updatedTeacher = { ...currentTeacher, password: hashedPassword, mustChangePassword: false };
-    try {
-      await establishTeacherMediaSession(updatedTeacher.username, newPassword);
-    } catch (sessionError) {
-      setError(
-        `⚠️ ${sessionError instanceof Error
-          ? sessionError.message
-          : 'تعذر تأكيد جلسة رفع الفيديو للمعلم'}`,
-      );
-      return;
-    }
     writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, updatedTeacher);
     onLoginSuccess(updatedTeacher);
   };
@@ -131,6 +171,8 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
               <label className="block font-bold text-gray-700 mb-2">🔑 كلمة المرور الجديدة</label>
               <input
                 type="password"
+              name="new-password"
+              autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"
@@ -143,6 +185,8 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
               <label className="block font-bold text-gray-700 mb-2">✅ تأكيد كلمة المرور</label>
               <input
                 type="password"
+              name="confirm-password"
+              autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"
@@ -198,6 +242,10 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
             <label className="block font-bold text-gray-700 mb-2">👤 اسم المستخدم</label>
             <input
               type="text"
+              name="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"
@@ -210,6 +258,8 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
             <label className="block font-bold text-gray-700 mb-2">🔐 كلمة المرور</label>
             <input
               type="password"
+              name="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"

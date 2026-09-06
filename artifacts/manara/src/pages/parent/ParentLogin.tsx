@@ -2,13 +2,28 @@ import React, { useState } from 'react';
 import ManaraBrand from '../../components/ManaraBrand';
 
 interface ParentLoginProps {
-  onLogin: (username: string, password: string) => void;
+  onLogin: (username: string, password: string) => Promise<string | null>;
   onBack?: () => void;
 }
 
 const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (submitting) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      const message = await onLogin(username.trim(), password);
+      if (message) setError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="login-shell flex items-center justify-center bg-gradient-to-br from-rose-50 via-pink-50 to-orange-50 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom sm:p-4">
@@ -32,11 +47,20 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
         <h1 className="text-2xl font-black mb-2 text-gray-800 animate-popIn sm:text-4xl">بوابة ولي الأمر</h1>
         <p className="text-rose-500 mb-6 font-bold animate-popIn sm:mb-10" style={{ animationDelay: '0.1s' }}>تابع مستوى أبنائك وتقدمهم 👨‍👩‍👧‍👦</p>
 
-        <div className="login-form space-y-5 text-right">
+        {error && (
+          <div className="mb-5 rounded-2xl border-2 border-red-200 bg-red-50 p-4 text-center font-bold text-red-700">
+            {error}
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="login-form space-y-5 text-right">
           <input
             value={username}
             onChange={e => setUsername(e.target.value)}
             type="text"
+            name="username"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             placeholder="اسم المستخدم"
             className="login-input p-5 bg-rose-50/50 border-[3px] border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 rounded-2xl outline-none transition-all font-bold text-lg hover:border-rose-300"
           />
@@ -44,16 +68,19 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
             value={password}
             onChange={e => setPassword(e.target.value)}
             type="password"
+            name="password"
+            autoComplete="current-password"
             placeholder="كلمة المرور"
             className="login-input p-5 bg-rose-50/50 border-[3px] border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 rounded-2xl outline-none transition-all font-bold text-lg hover:border-rose-300"
           />
           <button
-            onClick={() => onLogin(username, password)}
+            type="submit"
+            disabled={submitting}
             className="login-submit bg-gradient-to-r from-rose-400 to-pink-500 text-white py-5 rounded-2xl font-black text-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-2xl shadow-xl transition-all duration-200 active:scale-95 mt-4 animate-pulse-glow"
           >
-            🔐 دخول
+            {submitting ? 'جارٍ التحقق…' : '🔐 دخول'}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );

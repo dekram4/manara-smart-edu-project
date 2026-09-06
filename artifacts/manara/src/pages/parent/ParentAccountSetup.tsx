@@ -6,7 +6,7 @@ import { passwordsMatch } from '../../utils/password';
 
 interface ParentAccountSetupProps {
   parent: ParentInfo;
-  onPasswordChange: (newPassword: string) => void;
+  onPasswordChange: (currentPassword: string, newPassword: string) => Promise<string | null>;
 }
 
 const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPasswordChange }) => {
@@ -15,7 +15,9 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -36,7 +38,13 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
       return;
     }
 
-    onPasswordChange(newPassword);
+    setSaving(true);
+    const saveError = await onPasswordChange(currentPassword, newPassword);
+    setSaving(false);
+    if (saveError) {
+      setError(saveError);
+      return;
+    }
     alert('تم تحديث كلمة المرور بنجاح!');
   };
 
@@ -64,7 +72,9 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
 
           {error && <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-center font-bold border border-red-100 animate-pulse">⚠️ {error}</div>}
 
-          <button type="submit" className="w-full bg-rose-500 text-white py-5 rounded-[24px] font-black text-xl hover:bg-rose-600 shadow-xl shadow-rose-100 transition-all mt-4">🔐 تحديث ودخول النظام</button>
+          <button disabled={saving} type="submit" className="w-full bg-rose-500 text-white py-5 rounded-[24px] font-black text-xl hover:bg-rose-600 shadow-xl shadow-rose-100 transition-all mt-4 disabled:cursor-wait disabled:opacity-60">
+            {saving ? 'جارٍ الحفظ…' : '🔐 تحديث ودخول النظام'}
+          </button>
         </form>
       </div>
     </div>

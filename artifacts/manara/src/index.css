@@ -2285,6 +2285,7 @@ table {
 
 .role-selection-shell {
   isolation: isolate;
+  min-height: 100dvh;
 }
 
 .role-selection-grid {
@@ -2395,6 +2396,49 @@ table {
 }
 
 @media (max-width: 767px) {
+  .role-selection-shell {
+    justify-content: flex-start !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding:
+      max(1rem, env(safe-area-inset-top))
+      max(0.75rem, env(safe-area-inset-right))
+      max(1.5rem, env(safe-area-inset-bottom))
+      max(0.75rem, env(safe-area-inset-left)) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .role-selection-header {
+    margin-bottom: 1rem !important;
+  }
+
+  .role-selection-grid {
+    gap: 0.875rem !important;
+  }
+
+  .role-selection-card {
+    min-height: 10.5rem !important;
+  }
+
+  .login-shell {
+    align-items: flex-start !important;
+    min-height: 100dvh;
+    padding:
+      max(0.75rem, env(safe-area-inset-top))
+      max(0.75rem, env(safe-area-inset-right))
+      max(1.5rem, env(safe-area-inset-bottom))
+      max(0.75rem, env(safe-area-inset-left)) !important;
+    overscroll-behavior-y: contain;
+  }
+
+  .login-card {
+    margin-block: auto;
+  }
+
+  .login-input {
+    font-size: 16px !important;
+  }
+
   .dashboard-section-header {
     align-items: stretch;
   }

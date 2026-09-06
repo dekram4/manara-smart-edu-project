@@ -74,6 +74,63 @@ function passwordsMatch(input: string, stored: unknown): boolean {
   );
 }
 
+async function findAccountData(
+  table: "teachers" | "parents",
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !key) return null;
+  const url = new URL(`/rest/v1/${table}`, supabaseUrl);
+  url.searchParams.set("select", "id,data");
+  url.searchParams.set("id", `eq.${id}`);
+  const response = await fetch(url, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  });
+  if (!response.ok) return null;
+  const rows = (await response.json()) as Array<{
+    id?: unknown;
+    data?: Record<string, unknown>;
+  }>;
+  return rows[0]?.data ?? null;
+}
+
+async function updateAccountPassword(
+  table: "teachers" | "parents",
+  id: string,
+  data: Record<string, unknown>,
+  password: string,
+): Promise<void> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !key) {
+    throw new Error("Supabase service credentials are required");
+  }
+  const url = new URL(`/rest/v1/${table}`, supabaseUrl);
+  url.searchParams.set("id", `eq.${id}`);
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({
+      data: {
+        ...data,
+        id,
+        password: crypto.createHash("sha256").update(password).digest("hex"),
+        mustChangePassword: false,
+      },
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase ${table} password update failed (${response.status})`);
+  }
+}
+
 async function findTeacher(username: string): Promise<{
   id: string;
   username: string;
@@ -127,6 +184,69 @@ async function findTeacher(username: string): Promise<{
         mustChangePassword: row.data.mustChangePassword === true,
       }
     : null;
+}
+
+async function findParent(username: string): Promise<{
+  id: string;
+  username: string;
+  password: unknown;
+  data: Record<string, unknown>;
+} | null> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || (!serviceRoleKey && !anonKey)) {
+    throw new Error("Supabase credentials are required");
+  }
+  const url = new URL("/rest/v1/parents", supabaseUrl);
+  url.searchParams.set("select", "id,data");
+  url.searchParams.set("data->>username", `eq.${username}`);
+  const keys = [serviceRoleKey, anonKey].filter(
+    (key): key is string => Boolean(key),
+  );
+  let response: Response | null = null;
+  for (const key of keys) {
+    response = await fetch(url, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+    });
+    if (response.ok || (response.status !== 401 && response.status !== 403)) {
+      break;
+    }
+  }
+  if (!response?.ok) {
+    throw new Error(`Supabase parents lookup failed (${response?.status || 0})`);
+  }
+  const rows = (await response.json()) as Array<{
+    id?: unknown;
+    data?: Record<string, unknown>;
+  }>;
+  const row = rows.find((item) => item?.data?.username === username);
+  if (!row?.data) return null;
+  const parentId =
+    typeof row.data.id === "string" && row.data.id.trim()
+      ? row.data.id.trim()
+      : typeof row.id === "string"
+        ? row.id.trim()
+        : "";
+  return parentId
+    ? {
+        id: parentId,
+        username,
+        password: row.data.password,
+        data: row.data,
+      }
+    : null;
+}
+
+function safeAccountData(
+  data: Record<string, unknown>,
+  id: string,
+): Record<string, unknown> {
+  const { password: _password, ...safe } = data;
+  return { ...safe, id };
 }
 
 router.post("/auth/admin", (req, res) => {
@@ -226,6 +346,136 @@ router.post("/auth/teacher/session", async (req, res) => {
     return res.status(503).json({
       error: "تعذر التحقق من جلسة المعلم الآن. حاول مرة أخرى.",
     });
+  }
+});
+
+router.post("/auth/teacher/login", async (req, res) => {
+  const username =
+    typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : "";
+  if (!username || !password) {
+    return res.status(400).json({ error: "بيانات دخول المعلم مطلوبة" });
+  }
+  try {
+    const teacher = await findTeacher(username);
+    if (!teacher || !passwordsMatch(password, teacher.password)) {
+      return res.status(401).json({ error: "بيانات دخول المعلم غير صحيحة" });
+    }
+    res.setHeader(
+      "Set-Cookie",
+      `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
+        signTeacherSession(teacher.id),
+      )}; ${teacherCookieOptions()}`,
+    );
+    const fullTeacher = await findAccountData("teachers", teacher.id);
+    return res.json({
+      ok: true,
+      teacher: safeAccountData(
+        fullTeacher ?? {
+          id: teacher.id,
+          username: teacher.username,
+          mustChangePassword: teacher.mustChangePassword,
+        },
+        teacher.id,
+      ),
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Teacher login failed");
+    return res.status(503).json({
+      error: "تعذر التحقق من حساب المعلم الآن. حاول مرة أخرى.",
+    });
+  }
+});
+
+router.post("/auth/parent/login", async (req, res) => {
+  const username =
+    typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : "";
+  if (!username || !password) {
+    return res.status(400).json({ error: "بيانات دخول ولي الأمر مطلوبة" });
+  }
+  try {
+    const parent = await findParent(username);
+    if (!parent || !passwordsMatch(password, parent.password)) {
+      return res.status(401).json({ error: "بيانات دخول ولي الأمر غير صحيحة" });
+    }
+    return res.json({
+      ok: true,
+      parent: safeAccountData(parent.data, parent.id),
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Parent login failed");
+    return res.status(503).json({
+      error: "تعذر التحقق من حساب ولي الأمر الآن. حاول مرة أخرى.",
+    });
+  }
+});
+
+router.post("/auth/teacher/change-password", async (req, res) => {
+  const username =
+    typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const currentPassword =
+    typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+  const newPassword =
+    typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  if (!username || !currentPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: "بيانات تغيير كلمة المرور غير مكتملة" });
+  }
+  try {
+    const teacher = await findTeacher(username);
+    if (!teacher || !passwordsMatch(currentPassword, teacher.password)) {
+      return res.status(401).json({ error: "كلمة المرور الحالية غير صحيحة" });
+    }
+    const data = await findAccountData("teachers", teacher.id);
+    if (!data) throw new Error("Teacher account not found");
+    await updateAccountPassword("teachers", teacher.id, data, newPassword);
+    res.setHeader(
+      "Set-Cookie",
+      `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
+        signTeacherSession(teacher.id),
+      )}; ${teacherCookieOptions()}`,
+    );
+    return res.json({
+      ok: true,
+      teacher: safeAccountData(
+        { ...data, mustChangePassword: false },
+        teacher.id,
+      ),
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Teacher password change failed");
+    return res.status(503).json({ error: "تعذر تحديث كلمة المرور الآن" });
+  }
+});
+
+router.post("/auth/parent/change-password", async (req, res) => {
+  const username =
+    typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const currentPassword =
+    typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+  const newPassword =
+    typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  if (!username || !currentPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: "بيانات تغيير كلمة المرور غير مكتملة" });
+  }
+  try {
+    const parent = await findParent(username);
+    if (!parent || !passwordsMatch(currentPassword, parent.password)) {
+      return res.status(401).json({ error: "كلمة المرور الحالية غير صحيحة" });
+    }
+    await updateAccountPassword("parents", parent.id, parent.data, newPassword);
+    return res.json({
+      ok: true,
+      parent: safeAccountData(
+        { ...parent.data, mustChangePassword: false },
+        parent.id,
+      ),
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Parent password change failed");
+    return res.status(503).json({ error: "تعذر تحديث كلمة المرور الآن" });
   }
 });
 

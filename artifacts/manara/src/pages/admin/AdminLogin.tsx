@@ -15,6 +15,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
     try {
       const response = await fetch('/api/auth/admin', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),
       });
@@ -59,6 +60,10 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
             <label className="block text-sm font-bold text-gray-700 mb-2 px-1">اسم المستخدم</label>
             <input
               type="text"
+              name="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="login-input p-4 bg-purple-50/50 border-[3px] border-purple-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none rounded-2xl transition-all hover:border-purple-300"
@@ -70,6 +75,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
             <label className="block text-sm font-bold text-gray-700 mb-2 px-1">كلمة المرور</label>
             <input
               type="password"
+              name="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="login-input p-4 bg-purple-50/50 border-[3px] border-purple-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none rounded-2xl transition-all hover:border-purple-300"

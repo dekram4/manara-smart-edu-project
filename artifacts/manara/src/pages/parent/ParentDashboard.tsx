@@ -172,9 +172,40 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     }
   };
 
-  const handleLogin = (username: string, pass: string) => {
+  const handleLogin = async (username: string, pass: string): Promise<string | null> => {
     const parents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
-    const found = parents.find((p: ParentInfo) => p.username === username && passwordsMatch(pass, p.password));
+    let found = parents.find(
+      (p: ParentInfo) => p.username === username && passwordsMatch(pass, p.password),
+    );
+    if (!found) {
+      try {
+        const response = await fetch('/api/auth/parent/login', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password: pass }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.parent) {
+          return result.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
+        }
+        found = {
+          ...result.parent,
+          username,
+          password: hashPassword(pass),
+          children: Array.isArray(result.parent.children)
+            ? result.parent.children
+            : [],
+        } as ParentInfo;
+        const withoutDuplicate = parents.filter(parent => parent.id !== found!.id);
+        localStorage.setItem(
+          STORAGE_KEYS.PARENTS,
+          JSON.stringify([...withoutDuplicate, found]),
+        );
+      } catch {
+        return 'تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى.';
+      }
+    }
     if (found) {
       if (found.mustChangePassword === true) {
         setParent(found);
@@ -185,13 +216,34 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         loadData();
         playWelcomeAdult();
       }
-    } else {
-      alert('خطأ في البيانات');
+      return null;
     }
+    return 'اسم المستخدم أو كلمة المرور غير صحيحة';
   };
 
-  const handleAccountPasswordChange = (newPass: string) => {
-    if (!parent) return;
+  const handleAccountPasswordChange = async (
+    currentPass: string,
+    newPass: string,
+  ): Promise<string | null> => {
+    if (!parent) return 'تعذر تحديد حساب ولي الأمر';
+    try {
+      const response = await fetch('/api/auth/parent/change-password', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: parent.username,
+          currentPassword: currentPass,
+          newPassword: newPass,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return result.error || 'تعذر تحديث كلمة المرور الآن';
+      }
+    } catch {
+      return 'تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى.';
+    }
     const parents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
     const updated = parents.map((p: ParentInfo) => p.id === parent.id ? { ...p, password: hashPassword(newPass), mustChangePassword: false } : p);
     localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updated));
@@ -199,9 +251,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, finalParent);
     setNeedsPasswordChange(false);
     loadData();
+    return null;
   };
 
-  const handleSavePassword = (e: React.FormEvent) => {
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordSaveError('');
 
@@ -222,7 +275,14 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       return;
     }
 
-    handleAccountPasswordChange(newPasswordDraft);
+    const saveError = await handleAccountPasswordChange(
+      currentPasswordDraft,
+      newPasswordDraft,
+    );
+    if (saveError) {
+      setPasswordSaveError(saveError);
+      return;
+    }
     setCurrentPasswordDraft('');
     setNewPasswordDraft('');
     setConfirmPasswordDraft('');
