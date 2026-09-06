@@ -5,6 +5,7 @@ import 'package:lottie/lottie.dart';
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 
 /// A child-friendly editor for the appearance stored with a student profile.
@@ -231,6 +232,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 outfit: _outfit,
                 accessory: _accessory,
                 motion: _motion,
+                level: widget.profile.gamification.level,
+                gems: widget.profile.gamification.gems,
+                levelProgress: widget.profile.gamification.levelProgress,
               ),
             ),
             const SizedBox(height: 20),
@@ -436,6 +440,9 @@ class _AppearancePreview extends StatefulWidget {
     required this.outfit,
     required this.accessory,
     required this.motion,
+    required this.level,
+    required this.gems,
+    required this.levelProgress,
   });
 
   final String emoji;
@@ -444,6 +451,9 @@ class _AppearancePreview extends StatefulWidget {
   final String outfit;
   final String accessory;
   final String motion;
+  final int level;
+  final int gems;
+  final int levelProgress;
 
   @override
   State<_AppearancePreview> createState() => _AppearancePreviewState();
@@ -474,6 +484,15 @@ class _AppearancePreviewState extends State<_AppearancePreview>
     }
   }
 
+  void _playInteraction() {
+    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    _controller
+      ..stop()
+      ..forward(from: 0).whenComplete(() {
+        if (mounted) _controller.repeat(reverse: true);
+      });
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -483,23 +502,113 @@ class _AppearancePreviewState extends State<_AppearancePreview>
   @override
   Widget build(BuildContext context) {
     final imageUrl = widget.imageUrl;
-    return Student3DCard(
-      child: Container(
-        height: 244,
+    return StudentPressScale(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _playInteraction,
+        child: Container(
+        height: 330,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: LinearGradient(
-            colors: [widget.color, const Color(0xFF102A43)],
+          borderRadius: BorderRadius.circular(28),
+          gradient: const LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [
+              StudentPalette.deepIndigo,
+              StudentPalette.indigo,
+              StudentPalette.sky,
+            ],
           ),
           boxShadow: [
-            BoxShadow(color: widget.color.withAlpha(90), blurRadius: 22),
+            BoxShadow(
+              color: widget.color.withAlpha(90),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
           ],
         ),
-        child: Center(
-          child: imageUrl != null
-              ? _networkAvatar(imageUrl)
-              : _animatedAvatarPreview(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const _GameRoomBackdrop(),
+            Padding(
+              padding: const EdgeInsets.only(top: 38, bottom: 62),
+              child: Center(
+                child: imageUrl != null
+                    ? _networkAvatar(imageUrl)
+                    : _animatedAvatarPreview(),
+              ),
+            ),
+            PositionedDirectional(
+              top: 16,
+              start: 16,
+              child: _RoomBadge(
+                icon: Icons.workspace_premium_rounded,
+                label: 'المستوى ${widget.level}',
+                color: StudentPalette.orange,
+              ),
+            ),
+            PositionedDirectional(
+              top: 16,
+              end: 16,
+              child: _RoomBadge(
+                icon: Icons.diamond_rounded,
+                label: '${widget.gems}',
+                color: StudentPalette.cyan,
+              ),
+            ),
+            Positioned(
+              right: 18,
+              left: 18,
+              bottom: 18,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'تقدم البطل',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${widget.levelProgress}%',
+                        style: const TextStyle(
+                          color: Color(0xFFFFE08A),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: LinearProgressIndicator(
+                      value: widget.levelProgress / 100,
+                      minHeight: 10,
+                      color: StudentPalette.orange,
+                      backgroundColor: const Color(0x44FFFFFF),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'اضغط على بطلك ليتحرك!',
+                    style: TextStyle(
+                      color: Color(0xFFDFF8FF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
+      ),
       ),
     );
   }
@@ -555,8 +664,8 @@ class _AppearancePreviewState extends State<_AppearancePreview>
               ),
               child: Lottie.asset(
                 'assets/animations/student-avatar-hero.json',
-                width: 170,
-                height: 180,
+                width: 190,
+                height: 210,
                 fit: BoxFit.contain,
                 repeat: true,
                 animate: true,
@@ -593,13 +702,115 @@ class _AppearancePreviewState extends State<_AppearancePreview>
           ],
         ),
         const SizedBox(height: 2),
-        const Text(
-          'شخصية كاملة متحركة وجاهزة للمغامرة!',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-        ),
+        const SizedBox.shrink(),
       ],
     ),
   );
+}
+
+class _GameRoomBackdrop extends StatelessWidget {
+  const _GameRoomBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Positioned(
+            top: -55,
+            left: -35,
+            child: Container(
+              width: 170,
+              height: 170,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0x3322D3EE),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x4422D3EE),
+                    blurRadius: 50,
+                    spreadRadius: 12,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Positioned(
+            top: 78,
+            right: 28,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0xAAFFE08A),
+              size: 28,
+            ),
+          ),
+          const Positioned(
+            top: 116,
+            left: 34,
+            child: Icon(
+              Icons.sports_esports_rounded,
+              color: Color(0x887DD3FC),
+              size: 38,
+            ),
+          ),
+          Positioned(
+            right: 30,
+            left: 30,
+            bottom: 62,
+            child: Container(
+              height: 14,
+              decoration: BoxDecoration(
+                color: const Color(0x55172554),
+                borderRadius: BorderRadius.circular(50),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x99000000), blurRadius: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoomBadge extends StatelessWidget {
+  const _RoomBadge({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xCC172554),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 19),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _EditorCard extends StatelessWidget {

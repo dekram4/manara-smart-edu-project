@@ -1500,10 +1500,30 @@ class StudentSoundToggle extends StatelessWidget {
     final sound = StudentSoundService.instance;
     return ValueListenableBuilder<bool>(
       valueListenable: sound.muted,
-      builder: (context, isMuted, _) => IconButton(
-        onPressed: sound.toggleMuted,
-        tooltip: isMuted ? 'تشغيل الأصوات' : 'كتم الأصوات',
-        icon: Icon(isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded),
+      builder: (context, isMuted, _) => Padding(
+        padding: const EdgeInsetsDirectional.only(end: 6),
+        child: IconButton.filledTonal(
+          onPressed: () {
+            sound.play(StudentSoundCue.navigation);
+            sound.toggleMuted();
+          },
+          tooltip: isMuted ? 'تشغيل الأصوات' : 'كتم الأصوات',
+          style: IconButton.styleFrom(
+            backgroundColor: isMuted
+                ? const Color(0xFFFFE4E6)
+                : const Color(0xFFE0F2FE),
+            foregroundColor: isMuted
+                ? const Color(0xFFBE123C)
+                : const Color(0xFF0369A1),
+          ),
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: Icon(
+              isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+              key: ValueKey(isMuted),
+            ),
+          ),
+        ),
       ),
     );
   }

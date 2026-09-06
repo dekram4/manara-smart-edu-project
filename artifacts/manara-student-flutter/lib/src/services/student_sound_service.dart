@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -93,9 +92,11 @@ class StudentSoundService {
         return;
       }
       if (cue == StudentSoundCue.gameReward) {
-        // Flame Audio is reserved for game moments so native Flame games can
-        // use the same audio asset catalog as the surrounding student app.
-        await FlameAudio.play('success-reward.wav', volume: 0.62);
+        await _effectsPlayer.stop();
+        await _effectsPlayer.play(
+          AssetSource('audio/success-reward.wav'),
+          volume: 0.62,
+        );
         return;
       }
 

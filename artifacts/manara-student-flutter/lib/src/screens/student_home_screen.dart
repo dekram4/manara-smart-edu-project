@@ -12,6 +12,7 @@ import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
@@ -302,11 +303,56 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     final carouselHeight = (size.height * 0.38).clamp(290.0, 420.0).toDouble();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F8F9),
+      backgroundColor: StudentPalette.canvas,
       appBar: AppBar(
-        title: const Text(
-          'بوابة الطالب',
-          style: TextStyle(fontWeight: FontWeight.w900),
+        toolbarHeight: 70,
+        titleSpacing: 16,
+        title: Container(
+          padding: const EdgeInsetsDirectional.fromSTEB(9, 7, 14, 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.78),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x224F46E5),
+                blurRadius: 18,
+                offset: Offset(0, 7),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ManaraLogo(size: 38),
+              SizedBox(width: 9),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'مَنارة',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: StudentPalette.ink,
+                      height: 1,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'SMART EDU',
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                      color: StudentPalette.indigo,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
         actions: [
           const StudentSoundToggle(),
@@ -322,12 +368,21 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           _AnimatedManaraBackground(animation: _ambientController),
           SafeArea(
             top: false,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    size.width >= 700 ? 18 : 0,
+                    8,
+                    size.width >= 700 ? 18 : 0,
+                    32,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: StudentAnimatedCard(
@@ -402,7 +457,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                     count: _homeSections.length,
                     activeIndex: _activePage,
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -480,47 +537,146 @@ class _ProgressCard extends StatelessWidget {
         child: Card(
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(18),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            borderRadius: BorderRadius.circular(26),
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                gradient: const LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [Color(0xFFFFFFFF), Color(0xFFF0F4FF)],
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x224F46E5),
+                    blurRadius: 24,
+                    offset: Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Padding(
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                 Row(
                   children: [
-                    const Icon(Icons.auto_awesome_rounded, color: Color(0xFF0B8693)),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [StudentPalette.indigo, StudentPalette.sky],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     const Expanded(child: Text('تقدمك ومكافآتك', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-                    Text('المستوى ${stats.level}', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0B8693))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEDE9FE),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'المستوى ${stats.level}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: StudentPalette.deepIndigo,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                Wrap(
+                  alignment: WrapAlignment.spaceAround,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Text('⭐ ${stats.xp} XP', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    _ProgressMetric(
+                      icon: Icons.star_rounded,
+                      color: StudentPalette.orange,
+                      label: '${stats.xp} XP',
+                    ),
                     StudentRewardPulse(
-                      child: Text(
-                        '💎 ${stats.gems}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      child: _ProgressMetric(
+                        icon: Icons.diamond_rounded,
+                        color: StudentPalette.sky,
+                        label: '${stats.gems} جوهرة',
                       ),
                     ),
-                    Text('🔥 ${stats.streak} يوم', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    _ProgressMetric(
+                      icon: Icons.local_fire_department_rounded,
+                      color: Color(0xFFFB7185),
+                      label: '${stats.streak} يوم',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(value: stats.levelProgress / 100, minHeight: 9, color: Colors.amber, backgroundColor: const Color(0xFFDCE8F2)),
+                  child: LinearProgressIndicator(
+                    value: stats.levelProgress / 100,
+                    minHeight: 12,
+                    color: StudentPalette.orange,
+                    backgroundColor: const Color(0xFFDDE6FF),
+                  ),
                 ),
                 const SizedBox(height: 5),
                 Text('باقي ${stats.xpToNextLevel} XP للمستوى التالي • اضغط لعرض الإنجازات', style: const TextStyle(fontSize: 12, color: Color(0xFF49617C), fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
+            ),
           ),
         ),
       );
+}
+
+class _ProgressMetric extends StatelessWidget {
+  const _ProgressMetric({
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.11),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: StudentPalette.ink,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 const _homeSections = <_HomeSection>[
@@ -659,7 +815,7 @@ class _SectionCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
         padding: const EdgeInsets.all(21),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(28),
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
@@ -855,14 +1011,26 @@ class _WelcomeCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0B8693), Color(0xFF274E76)],
+          colors: [
+            StudentPalette.deepIndigo,
+            StudentPalette.indigo,
+            StudentPalette.sky,
+          ],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
       ),
       child: Row(
         children: [
-          const ManaraLogo(size: 64),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withOpacity(0.28)),
+            ),
+            child: const ManaraLogo(size: 56),
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

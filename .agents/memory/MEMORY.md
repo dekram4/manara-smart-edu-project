@@ -18,3 +18,4 @@
 - [Flutter Rive loading safety](flutter-rive-loading-safety.md) — Keep routine loading states native; reserve Rive for explicitly trusted decorative assets.
 - [Student reward economy](student-reward-economy.md) — Lessons and quizzes earn gems; gem milestones drive XP, cinema access, and level-gated games.
 - [Mobile role authentication](mobile-role-authentication.md) — Adult roles must authenticate against shared server data, not require a warm browser cache.
+- [Student encouragement audio](student-encouragement-audio.md) — Use licensed or owner-provided Arabic encouragement clips; do not generate synthetic child voices for the student app.

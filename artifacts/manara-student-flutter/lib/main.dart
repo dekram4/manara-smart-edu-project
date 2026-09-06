@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/config/supabase_config.dart';
 import 'src/screens/login_screen.dart';
+import 'src/screens/student_startup_screen.dart';
 import 'src/services/student_auth_service.dart';
 import 'src/services/student_sound_service.dart';
+import 'src/theme/student_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -105,52 +106,22 @@ class ManaraStudentApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTheme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF0B8693),
-        brightness: Brightness.light,
-      ),
-      scaffoldBackgroundColor: const Color(0xFFF3F8F9),
-      textTheme: GoogleFonts.tajawalTextTheme(),
-    );
-
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'منارة المعرفة',
-      theme: baseTheme.copyWith(
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: false,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(0xFFD7E3EF)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(0xFF0B8693), width: 2),
-          ),
-        ),
-      ),
+      theme: StudentTheme.light(),
       builder: (context, child) => Directionality(
         textDirection: TextDirection.rtl,
         child: child ?? const SizedBox.shrink(),
       ),
-      home: LoginScreen(
-        authService: client == null
-            ? null
-            : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
-        initializationError: initializationError,
-        apiBaseUrl: apiBaseUrl,
+      home: StudentStartupScreen(
+        nextScreen: LoginScreen(
+          authService: client == null
+              ? null
+              : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
+          initializationError: initializationError,
+          apiBaseUrl: apiBaseUrl,
+        ),
       ),
     );
   }
