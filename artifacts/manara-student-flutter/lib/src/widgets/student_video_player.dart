@@ -1011,7 +1011,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                       padding: const EdgeInsets.all(10),
                       child: IconButton.filledTonal(
                         onPressed: () async {
-                          await controller.exitFullScreen();
+                          controller.exitFullScreen();
                           await _restorePortraitOrientation();
                         },
                         tooltip: 'إنهاء ملء الشاشة',
