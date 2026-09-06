@@ -121,7 +121,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   Future<void> _toggleChat() async {
     if (!widget.profile.canAccessChat || _sending) return;
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     final enabled = !_chatEnabled;
     setState(() {
       _chatEnabled = enabled;
@@ -149,7 +149,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           .timeout(const Duration(seconds: 15));
       final data = _decode(response);
       if (response.statusCode != 201) throw Exception(_responseError(data) ?? 'تعذر إرسال الرسالة.');
-      StudentSoundService.instance.play(StudentSoundCue.navigation);
+      StudentSoundService.instance.playTap();
       _messageController.clear();
       await _refresh();
     } catch (error) {
@@ -195,7 +195,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
             TextButton(
               onPressed: () {
-                StudentSoundService.instance.play(StudentSoundCue.navigation);
+                StudentSoundService.instance.playTap();
                 Navigator.of(context).pop();
               },
               child: const Text('إغلاق'),

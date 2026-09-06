@@ -190,7 +190,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
           ),
         );
       } else {
-        StudentSoundService.instance.play(StudentSoundCue.navigation);
+        StudentSoundService.instance.playTap();
       }
     } catch (error) {
       StudentSoundService.instance.play(StudentSoundCue.warning);

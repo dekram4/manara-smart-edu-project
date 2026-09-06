@@ -172,9 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               }
                             },
                             onTogglePassword: () {
-                              StudentSoundService.instance.play(
-                                StudentSoundCue.navigation,
-                              );
+                              StudentSoundService.instance.playTap();
                               setState(() => _hidePassword = !_hidePassword);
                             },
                             onSubmit: _submit,

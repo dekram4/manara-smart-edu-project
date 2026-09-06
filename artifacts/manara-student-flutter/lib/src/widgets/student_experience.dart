@@ -1504,7 +1504,7 @@ class StudentSoundToggle extends StatelessWidget {
         padding: const EdgeInsetsDirectional.only(end: 6),
         child: IconButton.filledTonal(
           onPressed: () {
-            sound.play(StudentSoundCue.navigation);
+            sound.playTap();
             sound.toggleMuted();
           },
           tooltip: isMuted ? 'تشغيل الأصوات' : 'كتم الأصوات',

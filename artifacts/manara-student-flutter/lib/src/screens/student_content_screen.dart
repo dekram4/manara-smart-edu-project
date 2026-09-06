@@ -70,13 +70,19 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   }
 
   void _applyGamification(StudentGamification stats) {
-    final earnedNewReward =
-        stats.xp > _gamification.xp || stats.gems > _gamification.gems;
+    final previous = _gamification;
+    final earnedNewReward = stats.xp > previous.xp || stats.gems > previous.gems;
     setState(() => _gamification = stats);
-    if (earnedNewReward &&
-        !(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+    if (!earnedNewReward) return;
+    if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
       _rewardController.play();
     }
+    if (stats.level > previous.level) {
+      StudentSoundService.instance.playLevelUp();
+    } else {
+      StudentSoundService.instance.playReward();
+    }
+    StudentSoundService.instance.playEncouragementArabic();
   }
 
   Future<void> _loadContent() async {
@@ -338,6 +344,7 @@ class _LessonModule extends StatelessWidget {
           )
         else
           _VideoCarousel(
+            lesson: lesson,
             videos: lesson.videos,
             apiBaseUrl: apiBaseUrl,
             profile: profile,
@@ -521,7 +528,7 @@ class _GamesModule extends StatelessWidget {
                   );
                   return;
                 }
-                StudentSoundService.instance.play(StudentSoundCue.navigation);
+                StudentSoundService.instance.playTap();
                 Navigator.of(context).push(
                   StudentPageRoute<void>(
                     builder: (_) => _GamePlayerScreen(
@@ -952,6 +959,7 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
 
 class _VideoCarousel extends StatefulWidget {
   const _VideoCarousel({
+    required this.lesson,
     required this.videos,
     required this.apiBaseUrl,
     required this.profile,
@@ -960,6 +968,7 @@ class _VideoCarousel extends StatefulWidget {
     required this.onGamificationChanged,
   });
 
+  final LessonContent lesson;
   final List<LessonVideo> videos;
   final String apiBaseUrl;
   final StudentProfile profile;
@@ -1020,15 +1029,31 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                     apiBaseUrl: widget.apiBaseUrl,
                     completed: completed,
                     onPressed: () {
-                      StudentSoundService.instance.play(
-                        StudentSoundCue.navigation,
-                      );
+                      StudentSoundService.instance.playTap();
                       Navigator.of(context).push(
                         StudentPageRoute<void>(
                           builder: (_) => _LessonPlayerScreen(
                             video: video,
                             apiBaseUrl: widget.apiBaseUrl,
                             initiallyCompleted: completed,
+                            // Rewarding here is idempotent (rewardActivity
+                            // guards against a double grant), so finishing
+                            // the video can safely auto-complete the lesson
+                            // instead of requiring the separate button below.
+                            onCompleted: () async {
+                              try {
+                                final reward = await widget.contentService
+                                    .rewardActivity(
+                                      profile: widget.profile,
+                                      activityType: 'lesson',
+                                      activityId: widget.lesson.id,
+                                    );
+                                widget.onGamificationChanged(reward.snapshot);
+                                return true;
+                              } catch (_) {
+                                return false;
+                              }
+                            },
                           ),
                         ),
                       );
@@ -1248,6 +1273,11 @@ class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
                 child: StudentVideoPlayer(
                   video: widget.video,
                   apiBaseUrl: widget.apiBaseUrl,
+                  // Reaching the end of the video is itself "finished
+                  // watching the lesson" — grant the reward immediately
+                  // instead of waiting for the manual button below, which
+                  // stays as a fallback for a student who skipped ahead.
+                  onCompleted: _completeLesson,
                 ),
               ),
             ),

@@ -156,7 +156,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       }
     }
     if (_isTeacherQuiz(quiz) && previous != null) {
-      StudentSoundService.instance.play(StudentSoundCue.navigation);
+      StudentSoundService.instance.playTap();
       setState(() => _shownResult = previous);
       return;
     }
@@ -175,7 +175,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       _questionIndex = 0;
       _shownResult = null;
     });
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
   }
 
   Future<void> _submit() async {
@@ -264,7 +264,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       });
       if (reward != null) {
         if (reward.alreadyRewarded) {
-          StudentSoundService.instance.play(StudentSoundCue.navigation);
+          StudentSoundService.instance.playTap();
         } else {
           StudentSoundService.instance.play(StudentSoundCue.success);
           if (score > 0) _celebrationController.play();

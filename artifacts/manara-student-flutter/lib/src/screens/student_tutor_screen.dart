@@ -59,7 +59,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
   void _joinMeeting() {
     if (_avatarUrl == null) return;
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     setState(() {
       _showInlineMeeting = true;
       _embedRevision++;
@@ -68,12 +68,12 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
   void _reload() {
     if (_avatarUrl == null) return;
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     setState(() => _embedRevision++);
   }
 
   void _openFullscreen() {
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     Navigator.of(context).push(
       StudentPageRoute<void>(
         builder: (_) => StudentTutorScreen(
@@ -123,7 +123,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                     alignment: Alignment.topLeft,
                     child: IconButton.filledTonal(
                       onPressed: () {
-                        StudentSoundService.instance.play(StudentSoundCue.navigation);
+                        StudentSoundService.instance.playTap();
                         Navigator.of(context).pop();
                       },
                       tooltip: 'إنهاء ملء الشاشة',

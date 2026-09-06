@@ -302,7 +302,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null || _isEntering) return;
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     setState(() => _isEntering = true);
     try {
       await Future<void>.delayed(const Duration(milliseconds: 220));

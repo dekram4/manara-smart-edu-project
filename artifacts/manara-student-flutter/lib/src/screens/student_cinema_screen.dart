@@ -97,7 +97,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       return;
     }
 
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     await Navigator.of(context).push(
       StudentPageRoute<void>(
         builder: (_) =>

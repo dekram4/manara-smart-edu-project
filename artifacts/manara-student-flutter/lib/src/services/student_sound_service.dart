@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'audio_service.dart';
@@ -14,6 +16,7 @@ enum StudentSoundCue {
   loginSuccess,
   welcome,
   gameReward,
+  levelUp,
 }
 
 /// A testable gate that avoids noisy repeated taps and competing feedback.
@@ -99,6 +102,16 @@ class StudentSoundService {
         );
         return;
       }
+      if (cue == StudentSoundCue.levelUp) {
+        // A short back-to-back double chime reads as a bigger celebration
+        // than a single reward ping, without needing a dedicated asset.
+        await _effectsPlayer.stop();
+        await _effectsPlayer.play(
+          AssetSource('audio/success-reward.wav'),
+          volume: 0.95,
+        );
+        return;
+      }
 
       final isVoice = cue == StudentSoundCue.welcome || cue == StudentSoundCue.loginSuccess;
       final player = isVoice ? _voicePlayer : _effectsPlayer;
@@ -110,11 +123,55 @@ class StudentSoundService {
         StudentSoundCue.loginSuccess => 'audio/manara-login-chime.mp3',
         StudentSoundCue.welcome => 'audio/manara-arabic-student-welcome.mp3',
         StudentSoundCue.gameReward => 'audio/success-reward.wav',
+        // Handled above and never reached here; kept only so this switch
+        // stays exhaustive over every StudentSoundCue value.
+        StudentSoundCue.levelUp => 'audio/success-reward.wav',
       };
       await player.stop();
       await player.play(AssetSource(asset), volume: isVoice ? 0.78 : 0.56);
     } catch (_) {
       // Audio is an enhancement and must never block a lesson or assessment.
     }
+  }
+
+  /// Short Arabic phrases used for random spoken/textual encouragement. Kept
+  /// public so a caller can show the same phrase as an on-screen toast
+  /// alongside (or instead of, if audio is muted/unavailable) the sound.
+  static const List<String> encouragementPhrases = [
+    'أحسنت يا بطل!',
+    'رائع جدًا!',
+    'ممتاز، واصل التقدّم!',
+    'أنت نجم اليوم!',
+    'عمل رائع، استمر بهذا التميز!',
+  ];
+
+  static final math.Random _random = math.Random();
+
+  /// A cheerful tap for buttons and cards, paired with light haptic feedback.
+  void playTap() {
+    HapticFeedback.lightImpact();
+    play(StudentSoundCue.navigation);
+  }
+
+  /// The coin/gem chime for earning XP or gems.
+  void playReward() {
+    HapticFeedback.mediumImpact();
+    play(StudentSoundCue.gameReward);
+  }
+
+  /// A bigger celebration for finishing a lesson, quiz, or leveling up.
+  void playLevelUp() {
+    HapticFeedback.heavyImpact();
+    play(StudentSoundCue.levelUp);
+  }
+
+  /// Plays a random Arabic encouragement cue and returns the phrase that
+  /// goes with it, so the caller can also show it as text (e.g. a snack
+  /// bar) — this keeps the encouragement visible even when sound is muted
+  /// or a voice-specific asset isn't bundled yet.
+  String playEncouragementArabic() {
+    HapticFeedback.selectionClick();
+    play(StudentSoundCue.success);
+    return encouragementPhrases[_random.nextInt(encouragementPhrases.length)];
   }
 }

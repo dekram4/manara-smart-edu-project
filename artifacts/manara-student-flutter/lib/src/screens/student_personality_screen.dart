@@ -166,7 +166,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
   Future<void> _openCreator() async {
     final url = _validCreatorUrl(widget.creatorUrl);
     if (url == null) return;
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     final export = await Navigator.of(context).push<_ReadyPlayerMeExport>(
       StudentPageRoute<_ReadyPlayerMeExport>(
         builder: (_) => _ReadyPlayerMeCreatorScreen(creatorUrl: url),
@@ -255,9 +255,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                           ),
                           selected: _emoji == emoji,
                           onSelected: (_) {
-                            StudentSoundService.instance.play(
-                              StudentSoundCue.navigation,
-                            );
+                            StudentSoundService.instance.playTap();
                             setState(() => _appearance['shape'] = emoji);
                           },
                         ),
@@ -282,9 +280,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                           label: Text(entry.value.$1),
                           selected: _outfit == entry.key,
                           onSelected: (_) {
-                            StudentSoundService.instance.play(
-                              StudentSoundCue.navigation,
-                            );
+                            StudentSoundService.instance.playTap();
                             setState(() => _appearance['outfit'] = entry.key);
                           },
                         ),
@@ -306,9 +302,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                       .map(
                         (color) => InkWell(
                           onTap: () {
-                            StudentSoundService.instance.play(
-                              StudentSoundCue.navigation,
-                            );
+                            StudentSoundService.instance.playTap();
                             setState(() => _appearance['color'] = _hex(color));
                           },
                           borderRadius: BorderRadius.circular(30),
@@ -377,9 +371,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                           label: Text(entry.value.$1),
                           selected: _motion == entry.key,
                           onSelected: (_) {
-                            StudentSoundService.instance.play(
-                              StudentSoundCue.navigation,
-                            );
+                            StudentSoundService.instance.playTap();
                             setState(() => _appearance['motion'] = entry.key);
                           },
                         ),
@@ -485,7 +477,7 @@ class _AppearancePreviewState extends State<_AppearancePreview>
   }
 
   void _playInteraction() {
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     _controller
       ..stop()
       ..forward(from: 0).whenComplete(() {

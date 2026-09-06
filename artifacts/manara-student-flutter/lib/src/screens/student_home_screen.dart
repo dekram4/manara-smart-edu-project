@@ -1,5 +1,6 @@
 ﻿import 'dart:ui' show PointerDeviceKind;
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -10,6 +11,7 @@ import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
+import '../widgets/student_avatar_room.dart';
 import '../widgets/student_experience.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
@@ -58,12 +60,14 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   int _activePage = 0;
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
+  late final ConfettiController _rewardController;
 
   @override
   void initState() {
     super.initState();
     _gamification = widget.profile.gamification;
     _contentService = StudentContentService(widget.authService.client, baseUrl: widget.apiBaseUrl);
+    _rewardController = ConfettiController(duration: const Duration(seconds: 2));
     _loadGamification();
     _ambientController = AnimationController(
       vsync: this,
@@ -73,25 +77,50 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   }
 
   Future<void> _loadGamification() async {
+    final previous = _gamification;
+    StudentGamification? updated;
     try {
       final result = await _contentService.checkStreak(widget.profile);
-      if (!mounted) return;
-      setState(() => _gamification = result.snapshot);
+      updated = result.snapshot;
     } catch (_) {
       try {
-        final snapshot = await _contentService.fetchGamification(widget.profile);
-        if (mounted) setState(() => _gamification = snapshot);
+        updated = await _contentService.fetchGamification(widget.profile);
       } catch (_) {}
     }
+    if (updated == null || !mounted) return;
+    setState(() => _gamification = updated!);
+    _celebrateProgress(previous, updated);
   }
 
-  void _showReward(RewardResult result) {
-    if (!mounted || (result.xp == 0 && result.gems == 0)) return;
-    StudentSoundService.instance.play(StudentSoundCue.success);
+  /// Completes the gamification loop: whenever a lesson, video, quiz or game
+  /// closed and came back with more XP/gems than before, celebrate right
+  /// here on the home screen with confetti, a reward chime and a random
+  /// Arabic encouragement — instead of only the module screen's own toast.
+  void _celebrateProgress(
+    StudentGamification previous,
+    StudentGamification updated,
+  ) {
+    if (!mounted) return;
+    final gainedXp = updated.xp - previous.xp;
+    final gainedGems = updated.gems - previous.gems;
+    if (gainedXp <= 0 && gainedGems <= 0) return;
+
+    if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+      _rewardController.play();
+    }
+    if (updated.level > previous.level) {
+      StudentSoundService.instance.playLevelUp();
+    } else {
+      StudentSoundService.instance.playReward();
+    }
+    final phrase = StudentSoundService.instance.playEncouragementArabic();
+
     final parts = <String>[];
-    if (result.xp > 0) parts.add('+${result.xp} XP');
-    if (result.gems > 0) parts.add('+${result.gems} جوهرة');
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('أحسنت! ${parts.join(' و ')}')));
+    if (gainedXp > 0) parts.add('+$gainedXp XP');
+    if (gainedGems > 0) parts.add('+$gainedGems جوهرة');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$phrase ${parts.join(' و ')}')),
+    );
   }
 
   Future<void> _playWelcome() async {
@@ -102,11 +131,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   void dispose() {
     _pageController.dispose();
     _ambientController.dispose();
+    _rewardController.dispose();
     super.dispose();
   }
 
   Future<void> _signOut() async {
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     try {
       await widget.authService.client.auth.signOut();
     } catch (_) {}
@@ -125,7 +155,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   }
 
   void _openModule(int index) {
-    StudentSoundService.instance.play(StudentSoundCue.navigation);
+    StudentSoundService.instance.playTap();
     final modules = [
       StudentContentModule.lesson,
       StudentContentModule.games,
@@ -148,15 +178,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     }
 
     if (index == 3) {
-      Navigator.of(context).push(
-        StudentPageRoute<void>(
-          builder: (_) => StudentPersonalityScreen(
-            profile: widget.profile,
-            contentService: StudentContentService(widget.authService.client),
-            creatorUrl: const String.fromEnvironment('READY_PLAYER_ME_CREATOR_URL'),
-          ),
-        ),
-      );
+      _openPersonality();
       return;
     }
 
@@ -221,6 +243,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       ),
     )
         .then((_) => _loadGamification());
+  }
+
+  void _openPersonality() {
+    Navigator.of(context).push(
+      StudentPageRoute<void>(
+        builder: (_) => StudentPersonalityScreen(
+          profile: widget.profile,
+          contentService: StudentContentService(widget.authService.client),
+          creatorUrl: const String.fromEnvironment('READY_PLAYER_ME_CREATOR_URL'),
+        ),
+      ),
+    );
   }
 
   Future<void> _openTutor({bool liveMeeting = false}) async {
@@ -366,6 +400,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       body: Stack(
         children: [
           _AnimatedManaraBackground(animation: _ambientController),
+          StudentCelebration(controller: _rewardController),
           SafeArea(
             top: false,
             child: Align(
@@ -393,11 +428,22 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: StudentAnimatedCard(
+                      delay: const Duration(milliseconds: 60),
+                      child: StudentAvatarRoom(
+                        stats: _gamification,
+                        onCustomize: _openPersonality,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: StudentAnimatedCard(
                       delay: const Duration(milliseconds: 80),
                       child: _ProgressCard(
                         stats: _gamification,
                         onPressed: () {
-                          StudentSoundService.instance.play(StudentSoundCue.navigation);
+                          StudentSoundService.instance.playTap();
                           Navigator.of(context).push(
                             StudentPageRoute<void>(
                               builder: (_) => StudentProgressScreen(
