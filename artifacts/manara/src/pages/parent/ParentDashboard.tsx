@@ -791,6 +791,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <span>{item.label}</span>
             </button>
           ))}
+         </div>
          <div className="dashboard-sidebar-footer">
            <button
                onClick={() => { removeActiveSession(STORAGE_KEYS.ACTIVE_PARENT); onLogout(); }}
@@ -800,7 +801,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                <span>تسجيل الخروج</span>
              </button>
          </div>
-        </div>
       </aside>
 
       {/* ===== MAIN CONTENT ===== */}

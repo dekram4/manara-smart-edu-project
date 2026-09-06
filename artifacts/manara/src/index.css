@@ -626,9 +626,11 @@ table {
 .dashboard-shell {
   display: flex;
   width: 100%;
+  height: 100dvh;
   min-height: 100vh;
   min-width: 0;
   align-items: stretch;
+  overflow: hidden;
   direction: rtl;
   background: #fdfbf7;
   line-height: 1.5;
@@ -2619,6 +2621,19 @@ table {
   .dashboard-actions-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .dashboard-filter-grid,
+  .dashboard-filter-grid-wide,
+  .dashboard-card-grid.dashboard-card-grid-wide,
+  .dashboard-content-resource-grid,
+  .dashboard-academic-settings-grid,
+  .dashboard-academic-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-content-area {
+    padding: 1rem;
+  }
 }
 
 .dashboard-academic-settings-grid,
@@ -2888,5 +2903,26 @@ table {
   .dashboard-main .dashboard-page > .dashboard-section-header > button,
   .dashboard-main .dashboard-page > .dashboard-page-toolbar > button {
     width: 100%;
+  }
+}
+
+@media (max-width: 479px) {
+  .dashboard-content-area {
+    padding: 0.75rem;
+  }
+
+  .dashboard-main header {
+    padding-inline: 0.75rem;
+  }
+
+  .dashboard-page {
+    gap: 1rem;
+  }
+
+  .dashboard-table-surface,
+  .dashboard-report-table-wrap {
+    max-width: calc(100vw - 1.5rem);
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }

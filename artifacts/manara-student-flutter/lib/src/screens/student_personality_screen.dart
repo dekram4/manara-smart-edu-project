@@ -28,7 +28,41 @@ class StudentPersonalityScreen extends StatefulWidget {
 }
 
 class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
-  static const _emojis = ['🦸', '🧑‍🚀', '🧙', '🦁', '🐼', '🌟'];
+  static const _emojis = [
+    '🦸',
+    '🧑‍🚀',
+    '🧙',
+    '🥷',
+    '🧑‍🔬',
+    '🧑‍🎨',
+    '🧑‍🚒',
+    '🧑‍✈️',
+    '🦁',
+    '🐼',
+    '🦊',
+    '🌟',
+  ];
+  static const _outfits = <String, (String, String)>{
+    'hero': ('بطل', '🦸‍♂️'),
+    'space': ('فضاء', '🚀'),
+    'sport': ('رياضي', '🏅'),
+    'science': ('عالِم', '🥼'),
+    'artist': ('فنان', '🎨'),
+    'adventure': ('مغامر', '🎒'),
+  };
+  static const _accessories = <String, String>{
+    'none': 'بدون',
+    'crown': '👑',
+    'glasses': '🕶️',
+    'headphones': '🎧',
+    'cape': '🦸',
+    'star': '⭐',
+  };
+  static const _motions = <String, (String, IconData)>{
+    'bounce': ('قفزة الفرح', Icons.arrow_upward_rounded),
+    'wave': ('تلويح', Icons.waving_hand_rounded),
+    'dance': ('رقصة', Icons.music_note_rounded),
+  };
   static const _colors = [
     Color(0xFF38BDF8),
     Color(0xFFF97316),
@@ -47,7 +81,8 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     _appearance = Map<String, dynamic>.from(widget.profile.appearance ?? {});
   }
 
-  String get _emoji => _appearance['shape']?.toString().trim().isNotEmpty == true
+  String get _emoji =>
+      _appearance['shape']?.toString().trim().isNotEmpty == true
       ? _appearance['shape'].toString()
       : '🌟';
 
@@ -58,6 +93,10 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       orElse: () => _colors.first,
     );
   }
+
+  String get _outfit => _appearance['outfit']?.toString() ?? 'hero';
+  String get _accessory => _appearance['accessory']?.toString() ?? 'none';
+  String get _motion => _appearance['motion']?.toString() ?? 'bounce';
 
   String? get _avatarImageUrl {
     final value = _appearance['readyPlayerMeAvatarImageUrl']?.toString().trim();
@@ -76,9 +115,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       if (!mounted) return;
       setState(() => _appearance = Map<String, dynamic>.from(next));
       StudentSoundService.instance.play(StudentSoundCue.success);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أحسنت! تم حفظ شخصيتك ✨')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('أحسنت! تم حفظ شخصيتك ✨')));
     } catch (error) {
       if (!mounted) return;
       StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -95,6 +134,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       ..._appearance,
       'shape': _emoji,
       'color': _hex(_color),
+      'outfit': _outfit,
+      'accessory': _accessory,
+      'motion': _motion,
     };
     next.remove('readyPlayerMeAvatarUrl');
     next.remove('readyPlayerMeAvatarId');
@@ -126,7 +168,11 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F8FF),
-        appBar: AppBar(title: const Text('شخصيتي'), centerTitle: true, actions: const [StudentSoundToggle()]),
+        appBar: AppBar(
+          title: const Text('شخصيتي'),
+          centerTitle: true,
+          actions: const [StudentSoundToggle()],
+        ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
@@ -143,6 +189,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 emoji: _emoji,
                 color: _color,
                 imageUrl: _avatarImageUrl,
+                outfit: _outfit,
+                accessory: _accessory,
+                motion: _motion,
               ),
             ),
             const SizedBox(height: 20),
@@ -157,11 +206,43 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                   children: _emojis
                       .map(
                         (emoji) => ChoiceChip(
-                          label: Text(emoji, style: const TextStyle(fontSize: 28)),
+                          label: Text(
+                            emoji,
+                            style: const TextStyle(fontSize: 28),
+                          ),
                           selected: _emoji == emoji,
                           onSelected: (_) {
-                            StudentSoundService.instance.play(StudentSoundCue.navigation);
+                            StudentSoundService.instance.play(
+                              StudentSoundCue.navigation,
+                            );
                             setState(() => _appearance['shape'] = emoji);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 175),
+              child: _EditorCard(
+                title: 'اختر ملابس المغامرة',
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 9,
+                  runSpacing: 9,
+                  children: _outfits.entries
+                      .map(
+                        (entry) => ChoiceChip(
+                          avatar: Text(entry.value.$2),
+                          label: Text(entry.value.$1),
+                          selected: _outfit == entry.key,
+                          onSelected: (_) {
+                            StudentSoundService.instance.play(
+                              StudentSoundCue.navigation,
+                            );
+                            setState(() => _appearance['outfit'] = entry.key);
                           },
                         ),
                       )
@@ -182,7 +263,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                       .map(
                         (color) => InkWell(
                           onTap: () {
-                            StudentSoundService.instance.play(StudentSoundCue.navigation);
+                            StudentSoundService.instance.play(
+                              StudentSoundCue.navigation,
+                            );
                             setState(() => _appearance['color'] = _hex(color));
                           },
                           borderRadius: BorderRadius.circular(30),
@@ -207,6 +290,61 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 14),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 225),
+              child: _EditorCard(
+                title: 'أضف لمسة مرحة',
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 9,
+                  runSpacing: 9,
+                  children: _accessories.entries
+                      .map(
+                        (entry) => ChoiceChip(
+                          label: Text(
+                            entry.value,
+                            style: TextStyle(
+                              fontSize: entry.key == 'none' ? 13 : 24,
+                            ),
+                          ),
+                          selected: _accessory == entry.key,
+                          onSelected: (_) => setState(
+                            () => _appearance['accessory'] = entry.key,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 240),
+              child: _EditorCard(
+                title: 'اختر حركة شخصيتك',
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 9,
+                  runSpacing: 9,
+                  children: _motions.entries
+                      .map(
+                        (entry) => ChoiceChip(
+                          avatar: Icon(entry.value.$2, size: 18),
+                          label: Text(entry.value.$1),
+                          selected: _motion == entry.key,
+                          onSelected: (_) {
+                            StudentSoundService.instance.play(
+                              StudentSoundCue.navigation,
+                            );
+                            setState(() => _appearance['motion'] = entry.key);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
             const SizedBox(height: 18),
             StudentEntrance(
               delay: const Duration(milliseconds: 250),
@@ -222,7 +360,10 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 label: const Text('حفظ شخصيتي'),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  textStyle: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -248,51 +389,231 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
   }
 }
 
-class _AppearancePreview extends StatelessWidget {
+class _AppearancePreview extends StatefulWidget {
   const _AppearancePreview({
     required this.emoji,
     required this.color,
     required this.imageUrl,
+    required this.outfit,
+    required this.accessory,
+    required this.motion,
   });
 
   final String emoji;
   final Color color;
   final String? imageUrl;
+  final String outfit;
+  final String accessory;
+  final String motion;
+
+  @override
+  State<_AppearancePreview> createState() => _AppearancePreviewState();
+}
+
+class _AppearancePreviewState extends State<_AppearancePreview>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AppearancePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.motion != widget.motion) {
+      _controller
+        ..duration = widget.motion == 'dance'
+            ? const Duration(milliseconds: 650)
+            : const Duration(milliseconds: 1100)
+        ..repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Student3DCard(
       child: Container(
-      height: 244,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(colors: [color, const Color(0xFF102A43)]),
-        boxShadow: [BoxShadow(color: color.withAlpha(90), blurRadius: 22)],
-      ),
-      child: Center(
-        child: imageUrl != null
-            ? Image.network(
-                imageUrl!,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => _emojiPreview(),
-              )
-            : _emojiPreview(),
-      ),
+        height: 244,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            colors: [widget.color, const Color(0xFF102A43)],
+          ),
+          boxShadow: [
+            BoxShadow(color: widget.color.withAlpha(90), blurRadius: 22),
+          ],
+        ),
+        child: Center(
+          child: widget.imageUrl != null
+              ? Image.network(
+                  widget.imageUrl!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => _emojiPreview(),
+                )
+              : _emojiPreview(),
+        ),
       ),
     );
   }
 
-  Widget _emojiPreview() => Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _emojiPreview() => AnimatedBuilder(
+    animation: _controller,
+    builder: (context, child) {
+      final progress = Curves.easeInOut.transform(_controller.value);
+      final translateY = widget.motion == 'bounce' ? -10 * progress : 0.0;
+      final angle = widget.motion == 'dance'
+          ? (-0.08 + (0.16 * progress))
+          : 0.0;
+      return Transform.translate(
+        offset: Offset(0, translateY),
+        child: Transform.rotate(angle: angle, child: child),
+      );
+    },
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 55),
+              child: _FullBodyAvatar(
+                color: widget.color,
+                outfit: widget.outfit,
+                waving: widget.motion == 'wave',
+                animation: _controller,
+              ),
+            ),
+            Text(widget.emoji, style: const TextStyle(fontSize: 76)),
+            if (widget.accessory != 'none')
+              Positioned(
+                top: -18,
+                right: -12,
+                child: Text(
+                  _StudentPersonalityScreenState._accessories[widget
+                      .accessory]!,
+                  style: const TextStyle(fontSize: 38),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'حرّك بطلك واختر مظهره!',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+        ),
+      ],
+    ),
+  );
+}
+
+class _FullBodyAvatar extends StatelessWidget {
+  const _FullBodyAvatar({
+    required this.color,
+    required this.outfit,
+    required this.waving,
+    required this.animation,
+  });
+
+  final Color color;
+  final String outfit;
+  final bool waving;
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = _StudentPersonalityScreenState._outfits[outfit]?.$2 ?? '⭐';
+    return SizedBox(
+      width: 130,
+      height: 125,
+      child: Stack(
+        alignment: Alignment.topCenter,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 100)),
-          const SizedBox(height: 5),
-          const Text(
-            'هذا بطلي!',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          Positioned(
+            top: 14,
+            child: Container(
+              width: 74,
+              height: 70,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.95), color.withOpacity(0.6)],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                  bottom: Radius.circular(14),
+                ),
+                border: Border.all(color: Colors.white.withOpacity(0.7)),
+              ),
+              alignment: Alignment.center,
+              child: Text(badge, style: const TextStyle(fontSize: 28)),
+            ),
+          ),
+          Positioned(
+            top: 27,
+            left: 12,
+            child: Transform.rotate(
+              angle: -0.35,
+              child: _Limb(color: color, height: 58),
+            ),
+          ),
+          Positioned(
+            top: 21,
+            right: 12,
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) => Transform.rotate(
+                alignment: Alignment.topCenter,
+                angle: waving ? -0.7 - (0.45 * animation.value) : 0.35,
+                child: child,
+              ),
+              child: _Limb(color: color, height: 58),
+            ),
+          ),
+          Positioned(
+            top: 78,
+            left: 38,
+            child: _Limb(color: const Color(0xFF263B55), height: 45),
+          ),
+          Positioned(
+            top: 78,
+            right: 38,
+            child: _Limb(color: const Color(0xFF263B55), height: 45),
           ),
         ],
-      );
+      ),
+    );
+  }
+}
+
+class _Limb extends StatelessWidget {
+  const _Limb({required this.color, required this.height});
+
+  final Color color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 18,
+    height: height,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withOpacity(0.55)),
+    ),
+  );
 }
 
 class _EditorCard extends StatelessWidget {
@@ -303,22 +624,22 @@ class _EditorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Student3DCard(
-        child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFD9E6F5)),
-        ),
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 13),
-            child,
-          ],
-        ),
-        ),
-      );
+    child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD9E6F5)),
+      ),
+      child: Column(
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 13),
+          child,
+        ],
+      ),
+    ),
+  );
 }
 
 class _ReadyPlayerMeCreatorScreen extends StatefulWidget {
@@ -331,7 +652,8 @@ class _ReadyPlayerMeCreatorScreen extends StatefulWidget {
       _ReadyPlayerMeCreatorScreenState();
 }
 
-class _ReadyPlayerMeCreatorScreenState extends State<_ReadyPlayerMeCreatorScreen> {
+class _ReadyPlayerMeCreatorScreenState
+    extends State<_ReadyPlayerMeCreatorScreen> {
   bool _loaded = false;
   String? _message;
 
@@ -355,33 +677,34 @@ class _ReadyPlayerMeCreatorScreenState extends State<_ReadyPlayerMeCreatorScreen
 
   @override
   Widget build(BuildContext context) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(
-          backgroundColor: const Color(0xFF071425),
-          appBar: AppBar(
-            title: const Text('مصمم شخصيتي'),
-            backgroundColor: const Color(0xFF071425),
-            foregroundColor: Colors.white,
-          ),
-          body: Stack(
-            children: [
-              InAppWebView(
-                initialUrlRequest: URLRequest(
-                  url: WebUri(_creatorWithFrameApi().toString()),
-                ),
-                initialSettings: InAppWebViewSettings(
-                  javaScriptEnabled: true,
-                  supportMultipleWindows: false,
-                  javaScriptCanOpenWindowsAutomatically: false,
-                ),
-                onWebViewCreated: (controller) {
-                  controller.addJavaScriptHandler(
-                    handlerName: 'manaraReadyPlayerMe',
-                    callback: _onMessage,
-                  );
-                },
-                onLoadStop: (controller, _) async {
-                  await controller.evaluateJavascript(source: '''
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      backgroundColor: const Color(0xFF071425),
+      appBar: AppBar(
+        title: const Text('مصمم شخصيتي'),
+        backgroundColor: const Color(0xFF071425),
+        foregroundColor: Colors.white,
+      ),
+      body: Stack(
+        children: [
+          InAppWebView(
+            initialUrlRequest: URLRequest(
+              url: WebUri(_creatorWithFrameApi().toString()),
+            ),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              supportMultipleWindows: false,
+              javaScriptCanOpenWindowsAutomatically: false,
+            ),
+            onWebViewCreated: (controller) {
+              controller.addJavaScriptHandler(
+                handlerName: 'manaraReadyPlayerMe',
+                callback: _onMessage,
+              );
+            },
+            onLoadStop: (controller, _) async {
+              await controller.evaluateJavascript(
+                source: '''
                     window.addEventListener('message', function(event) {
                       var data = event.data;
                       if (typeof data === 'string') {
@@ -402,33 +725,38 @@ class _ReadyPlayerMeCreatorScreenState extends State<_ReadyPlayerMeCreatorScreen
                       target: 'readyplayerme', type: 'subscribe',
                       eventName: 'v1.avatar.exported'
                     }), '*');
-                  ''');
-                  if (mounted) setState(() => _loaded = true);
-                },
-              ),
-              if (!_loaded) const Center(child: CircularProgressIndicator()),
-              if (_message != null)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7F1D1D),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(_message!, style: const TextStyle(color: Colors.white)),
-                  ),
-                ),
-            ],
+                  ''',
+              );
+              if (mounted) setState(() => _loaded = true);
+            },
           ),
-        ),
-      );
+          if (!_loaded) const Center(child: CircularProgressIndicator()),
+          if (_message != null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7F1D1D),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  _message!,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 
   Uri _creatorWithFrameApi() {
-    final parameters = Map<String, String>.from(widget.creatorUrl.queryParameters)
-      ..['frameApi'] = ''
-      ..['source'] = 'manara';
+    final parameters =
+        Map<String, String>.from(widget.creatorUrl.queryParameters)
+          ..['frameApi'] = ''
+          ..['source'] = 'manara';
     return widget.creatorUrl.replace(queryParameters: parameters);
   }
 }
@@ -447,7 +775,9 @@ class _ReadyPlayerMeExport {
 
 Uri? _validCreatorUrl(String? value) {
   final uri = Uri.tryParse(value?.trim() ?? '');
-  return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty ? uri : null;
+  return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty
+      ? uri
+      : null;
 }
 
 _ReadyPlayerMeExport? _readyPlayerMeExport(String? value) {
@@ -464,7 +794,8 @@ _ReadyPlayerMeExport? _readyPlayerMeExport(String? value) {
   return _ReadyPlayerMeExport(
     modelUrl: uri.toString(),
     avatarId: avatarId,
-    imageUrl: 'https://models.readyplayer.me/$avatarId.png',
+    imageUrl:
+        'https://models.readyplayer.me/$avatarId.png?camera=fullbody&size=512',
   );
 }
 

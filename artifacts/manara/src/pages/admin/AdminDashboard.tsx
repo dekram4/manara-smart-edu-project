@@ -245,7 +245,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       {/* Main Area */}
       <main className="dashboard-main flex flex-col">
         <header className="bg-white border-b px-4 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-wrap justify-between items-center gap-3 shrink-0 safe-area-top">
-          <div className="flex items-center gap-6">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-6">
                <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger bg-purple-100 px-3 py-2 text-purple-800 lg:hidden" aria-label="فتح القائمة">☰</button>
              <div className="bg-purple-50 px-4 py-2 rounded-full border border-purple-100 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -262,7 +262,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <button
               type="button"
               onClick={() => alert('تتم إدارة كلمة مرور المشرف من Replit Secrets عبر ADMIN_PASSWORD.')}
-              className="px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200 whitespace-normal text-xs sm:text-sm"
+              className="w-full px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200 whitespace-normal text-xs sm:w-auto sm:text-sm"
             >
               🔐 إدارة كلمة المرور
             </button>

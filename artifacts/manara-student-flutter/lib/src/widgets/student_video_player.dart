@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 // `PlayerState` is defined by both media_kit and youtube_player_iframe;
 // media_kit's is never referenced by name here (only `Player`, `Media`,
@@ -118,6 +119,12 @@ String? _youtubeIdFromUrl(String url) {
 /// gives up and surfaces a retryable "connection timed out" error instead
 /// of spinning forever.
 const Duration _kLoadTimeout = Duration(seconds: 20);
+
+Future<void> _restorePortraitOrientation() =>
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
 
 /// Plays a short, muted preview only while a desktop pointer is over a card.
 /// The underlying player is mounted lazily, so scrolling a library does not
@@ -289,6 +296,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   YoutubePlayerController? _ytController;
   StreamSubscription<YoutubePlayerValue>? _ytSubscription;
   bool _completionReported = false;
+  bool _nativeCompleted = false;
   String? _error;
   int _embedReloadTicket = 0;
   int _ytReloadTicket = 0;
@@ -632,6 +640,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     player.stream.completed.listen((completed) {
       if (completed && !_completionReported) {
         _completionReported = true;
+        if (mounted) setState(() => _nativeCompleted = true);
         widget.onCompleted?.call();
       }
     });
@@ -703,7 +712,13 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
           value.position >= value.duration &&
           !_completionReported) {
         _completionReported = true;
+        if (mounted) setState(() => _nativeCompleted = true);
         widget.onCompleted?.call();
+      } else if (_nativeCompleted &&
+          value.isInitialized &&
+          value.position < value.duration &&
+          mounted) {
+        setState(() => _nativeCompleted = false);
       }
       if (!mounted || !value.hasError) return;
       _handleNativePlaybackError(
@@ -783,7 +798,63 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
           ),
         if (_error != null)
           _buildError('تعذر تشغيل الفيديو', onRetry: _retryNativePlayback),
+        if (_nativeCompleted && _error == null && !widget.compact)
+          Center(
+            child: FilledButton.icon(
+              onPressed: _replayNativeVideo,
+              icon: const Icon(Icons.replay_rounded, size: 34),
+              label: const Text('إعادة التشغيل'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xE60B8693),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  Future<void> _replayNativeVideo() async {
+    if (_usesMediaKit) {
+      final player = _player;
+      if (player == null) return;
+      await player.seek(Duration.zero);
+      await player.play();
+    } else {
+      final controller = _networkController;
+      if (controller == null || !controller.value.isInitialized) return;
+      await controller.seekTo(Duration.zero);
+      await controller.play();
+    }
+    if (!mounted) return;
+    setState(() {
+      _nativeCompleted = false;
+      _completionReported = false;
+    });
+  }
+
+  _FullscreenPlaybackState? get fullscreenPlaybackState {
+    if (_usesMediaKit) {
+      final player = _player;
+      if (player == null) return null;
+      return _FullscreenPlaybackState(
+        position: player.state.position,
+        isPlaying: player.state.playing,
+      );
+    }
+    final controller = _networkController;
+    if (controller == null || !controller.value.isInitialized) return null;
+    return _FullscreenPlaybackState(
+      position: controller.value.position,
+      isPlaying: controller.value.isPlaying,
     );
   }
 
@@ -919,6 +990,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         canPop: !value.fullScreenOption.enabled,
         onPopInvokedWithResult: (didPop, _) {
           if (!didPop && value.fullScreenOption.enabled) {
+            _restorePortraitOrientation();
             controller.exitFullScreen();
           }
         },
@@ -938,7 +1010,10 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                     child: Padding(
                       padding: const EdgeInsets.all(10),
                       child: IconButton.filledTonal(
-                        onPressed: () => controller.exitFullScreen(),
+                        onPressed: () async {
+                          await controller.exitFullScreen();
+                          await _restorePortraitOrientation();
+                        },
                         tooltip: 'إنهاء ملء الشاشة',
                         icon: const Icon(Icons.fullscreen_exit_rounded),
                       ),
@@ -1280,7 +1355,7 @@ class _FullscreenPlaybackState {
   final bool isPlaying;
 }
 
-class _FullscreenNetworkVideoScreen extends StatelessWidget {
+class _FullscreenNetworkVideoScreen extends StatefulWidget {
   const _FullscreenNetworkVideoScreen({
     required this.video,
     required this.apiBaseUrl,
@@ -1294,25 +1369,91 @@ class _FullscreenNetworkVideoScreen extends StatelessWidget {
   final bool autoPlay;
 
   @override
+  State<_FullscreenNetworkVideoScreen> createState() =>
+      _FullscreenNetworkVideoScreenState();
+}
+
+class _FullscreenNetworkVideoScreenState
+    extends State<_FullscreenNetworkVideoScreen> {
+  final _playerKey = GlobalKey<_StudentVideoPlayerState>();
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Center(
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: StudentVideoPlayer(
-              video: video,
-              apiBaseUrl: apiBaseUrl,
-              initialPosition: initialPosition,
-              autoPlay: autoPlay,
-              fullscreen: true,
-            ),
+    return _FullscreenOrientationScope(
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: StudentVideoPlayer(
+                    key: _playerKey,
+                    video: widget.video,
+                    apiBaseUrl: widget.apiBaseUrl,
+                    initialPosition: widget.initialPosition,
+                    autoPlay: widget.autoPlay,
+                    fullscreen: true,
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                top: 10,
+                start: 10,
+                child: IconButton.filled(
+                  onPressed: () async {
+                    final state =
+                        _playerKey.currentState?.fullscreenPlaybackState;
+                    await _restorePortraitOrientation();
+                    if (context.mounted) Navigator.of(context).pop(state);
+                  },
+                  tooltip: 'الرجوع إلى العرض داخل البطاقة',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xCC071425),
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.fullscreen_exit_rounded),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class _FullscreenOrientationScope extends StatefulWidget {
+  const _FullscreenOrientationScope({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_FullscreenOrientationScope> createState() =>
+      _FullscreenOrientationScopeState();
+}
+
+class _FullscreenOrientationScopeState
+    extends State<_FullscreenOrientationScope> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    _restorePortraitOrientation();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 String resolveStudentVideoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
