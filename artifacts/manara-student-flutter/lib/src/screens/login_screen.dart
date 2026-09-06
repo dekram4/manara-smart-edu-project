@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/manara_logo.dart';
 import 'academic_selection_screen.dart';
@@ -106,8 +107,24 @@ class _LoginScreenState extends State<LoginScreen> {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
     return Scaffold(
+      backgroundColor: StudentPalette.canvas,
       body: Stack(
         children: [
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [
+                    Color(0xFFF3F7FF),
+                    Color(0xFFEFF6FF),
+                    Color(0xFFF5F3FF),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const Positioned.fill(child: StudentLearningWorld()),
           SafeArea(
             child: Center(
@@ -196,27 +213,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           final shell = DecoratedBox(
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFFDF7),
-                              borderRadius: BorderRadius.circular(34),
+                              color: Colors.white.withOpacity(0.94),
+                              borderRadius: BorderRadius.circular(28),
                               border: Border.all(
                                 color: Colors.white.withOpacity(0.9),
                                 width: 2,
                               ),
                               boxShadow: const [
                                 BoxShadow(
-                                  color: Color(0x2D183047),
+                                  color: Color(0x334F46E5),
                                   blurRadius: 40,
                                   offset: Offset(0, 22),
                                 ),
                                 BoxShadow(
-                                  color: Color(0x1F147D83),
+                                  color: Color(0x2622D3EE),
                                   blurRadius: 4,
                                   offset: Offset(0, 6),
                                 ),
                               ],
                             ),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(32),
+                              borderRadius: BorderRadius.circular(26),
                               child: content,
                             ),
                           );
@@ -276,7 +293,11 @@ class _LoginStoryPanel extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
-          colors: [Color(0xFF102E48), Color(0xFF145B63), Color(0xFF082A43)],
+          colors: [
+            StudentPalette.deepIndigo,
+            StudentPalette.indigo,
+            StudentPalette.sky,
+          ],
         ),
       ),
       child: Stack(
@@ -323,7 +344,7 @@ class _LoginStoryPanel extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'منارة المعرفة',
+                            'مَنارة',
                           style: TextStyle(
                             color: Color(0xFFFFF9E9),
                             fontSize: 19,
@@ -332,11 +353,13 @@ class _LoginStoryPanel extends StatelessWidget {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'تعليم ذكي، معرفة، ومستقبل مشرق',
+                          'MANARA SMART EDU',
+                          textDirection: TextDirection.ltr,
                           style: TextStyle(
-                            color: Color(0xFFAEDBD6),
+                            color: Color(0xFFDFF8FF),
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
                           ),
                         ),
                       ],

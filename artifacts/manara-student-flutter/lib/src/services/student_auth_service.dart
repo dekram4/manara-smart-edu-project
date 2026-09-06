@@ -32,6 +32,36 @@ class StudentAuthService {
   String? get apiSessionToken => _apiSessionToken;
   String? get apiSessionError => _apiSessionError;
 
+  Future<StudentProfile?> restoreActiveStudentSession() async {
+    final session = client.auth.currentSession;
+    final user = session?.user ?? client.auth.currentUser;
+    if (session == null || user == null || session.isExpired) return null;
+
+    try {
+      final profileRow = await client
+          .from('profiles')
+          .select('id,role,full_name,name,grade,student_id_number')
+          .eq('id', user.id)
+          .maybeSingle();
+      final profile = StudentProfile.fromAuthProfile(
+        id: user.id,
+        profile: _asMap(profileRow),
+        username: user.email ?? '',
+      );
+      if (!profile.isStudent) {
+        await client.auth.signOut();
+        return null;
+      }
+      return profile;
+    } on AuthException {
+      return null;
+    } on PostgrestException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<StudentProfile> signIn({
     required String username,
     required String password,

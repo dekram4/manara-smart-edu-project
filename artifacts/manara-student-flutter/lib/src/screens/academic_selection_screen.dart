@@ -7,6 +7,7 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
 import 'student_home_screen.dart';
@@ -308,7 +309,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         StudentPageRoute<void>(
-          builder: (_) => StudentDashboardScreen(
+          builder: (_) => StudentHomeScreen(
             profile: widget.profile,
             authService: widget.authService,
             apiBaseUrl: widget.apiBaseUrl,
@@ -349,8 +350,24 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     final lessons = _lessonsForSelection();
 
     return Scaffold(
+      backgroundColor: StudentPalette.canvas,
       body: Stack(
         children: [
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [
+                    Color(0xFFF3F7FF),
+                    Color(0xFFEFF6FF),
+                    Color(0xFFF5F3FF),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const Positioned.fill(child: StudentLearningWorld()),
           SafeArea(
             child: Center(
@@ -366,26 +383,28 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         children: [
                           const Row(
                             children: [
-                              ManaraLogo(size: 48),
+                              ManaraLogo(size: 52),
                               SizedBox(width: 10),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'منارة المعرفة',
+                                    'مَنارة',
                                     style: TextStyle(
-                                      color: Color(0xFF183047),
+                                      color: StudentPalette.ink,
                                       fontSize: 19,
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
                                   SizedBox(height: 2),
                                   Text(
-                                    'منصة الطالب',
+                                    'MANARA SMART EDU',
+                                    textDirection: TextDirection.ltr,
                                     style: TextStyle(
-                                      color: Color(0xFF758683),
-                                      fontSize: 11,
+                                      color: StudentPalette.indigo,
+                                      fontSize: 9,
                                       fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.2,
                                     ),
                                   ),
                                 ],
@@ -411,7 +430,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                               'أهلًا ${widget.profile.name}',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                color: Color(0xFF147D83),
+                                color: StudentPalette.indigo,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -421,7 +440,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                               'اختر رحلتك التعليمية',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: Color(0xFF183047),
+                                color: StudentPalette.ink,
                                 fontSize: 31,
                                 fontWeight: FontWeight.w900,
                               ),

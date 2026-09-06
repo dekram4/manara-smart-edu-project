@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../models/student_profile.dart';
+import '../services/student_auth_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
+import 'login_screen.dart';
+import 'student_home_screen.dart';
 
 class StudentStartupScreen extends StatefulWidget {
-  const StudentStartupScreen({required this.nextScreen, super.key});
+  const StudentStartupScreen({
+    required this.authService,
+    required this.initializationError,
+    required this.apiBaseUrl,
+    super.key,
+  });
 
-  final Widget nextScreen;
+  final StudentAuthService? authService;
+  final String? initializationError;
+  final String apiBaseUrl;
 
   @override
   State<StudentStartupScreen> createState() => _StudentStartupScreenState();
@@ -18,12 +29,39 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        StudentPageRoute<void>(builder: (_) => widget.nextScreen),
-      );
-    });
+    _resolveDestination();
+  }
+
+  Future<void> _resolveDestination() async {
+    final minimumSplash = Future<void>.delayed(
+      const Duration(milliseconds: 1200),
+    );
+    final authService = widget.authService;
+    StudentProfile? profile;
+    if (authService != null) {
+      try {
+        profile = await authService.restoreActiveStudentSession();
+      } catch (_) {
+        profile = null;
+      }
+    }
+    await minimumSplash;
+    if (!mounted) return;
+
+    final destination = profile != null && authService != null
+        ? StudentHomeScreen(
+            profile: profile,
+            authService: authService,
+            apiBaseUrl: widget.apiBaseUrl,
+          )
+        : LoginScreen(
+            authService: authService,
+            initializationError: widget.initializationError,
+            apiBaseUrl: widget.apiBaseUrl,
+          );
+    await Navigator.of(context).pushReplacement(
+      StudentPageRoute<void>(builder: (_) => destination),
+    );
   }
 
   @override

@@ -4,7 +4,6 @@ import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/config/supabase_config.dart';
-import 'src/screens/login_screen.dart';
 import 'src/screens/student_startup_screen.dart';
 import 'src/services/student_auth_service.dart';
 import 'src/services/student_sound_service.dart';
@@ -115,13 +114,11 @@ class ManaraStudentApp extends StatelessWidget {
         child: child ?? const SizedBox.shrink(),
       ),
       home: StudentStartupScreen(
-        nextScreen: LoginScreen(
-          authService: client == null
-              ? null
-              : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
-          initializationError: initializationError,
-          apiBaseUrl: apiBaseUrl,
-        ),
+        authService: client == null
+            ? null
+            : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
+        initializationError: initializationError,
+        apiBaseUrl: apiBaseUrl,
       ),
     );
   }
