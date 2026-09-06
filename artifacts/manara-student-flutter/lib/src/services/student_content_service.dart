@@ -95,7 +95,6 @@ class StudentContentService {
     int? quizPercentage;
     if (normalizedActivityType == 'quiz') {
       final score = ((correctAnswers ?? 0).clamp(0, quizTotal ?? 0)).toInt();
-      xp = score * 5;
       gems = score;
       quizzes++;
       if (quizTotal != null && quizTotal > 0) {
@@ -107,20 +106,17 @@ class StudentContentService {
             quizzes);
       }
     } else if (normalizedActivityType == 'lesson') {
-      xp = 25;
       gems = 5;
       lessons++;
     } else if (normalizedActivityType == 'video' ||
         normalizedActivityType == 'lesson_video') {
-      // Matches the web rewardVideoComplete contract. Keep accepting the
-      // legacy lesson_video name so older app builds remain compatible.
-      xp = 5;
-      gems = 1;
+      // Cinema playback never grants a reward.
+      xp = 0;
+      gems = 0;
     } else if (normalizedActivityType == 'problem') {
       xp = 5;
       gems = 1;
     } else if (normalizedActivityType == 'game') {
-      xp = 15;
       gems = 3;
       games++;
     } else {
@@ -128,11 +124,14 @@ class StudentContentService {
     }
 
     final beforeLevel = current.level;
+    final nextGems = current.gems + gems;
+    final gemMilestones = (nextGems ~/ 10) - (current.gems ~/ 10);
+    xp = gemMilestones * 20;
     final nextXp = current.xp + xp;
     final unlocked = _achievementsFor(
       current.copyWith(
         xp: nextXp,
-        gems: current.gems + gems,
+        gems: nextGems,
         totalQuizzes: quizzes,
         totalLessons: lessons,
         totalGames: games,
@@ -147,7 +146,7 @@ class StudentContentService {
         .toList();
     final next = current.copyWith(
       xp: nextXp,
-      gems: current.gems + gems,
+      gems: nextGems,
       totalQuizzes: quizzes,
       totalLessons: lessons,
       totalGames: games,

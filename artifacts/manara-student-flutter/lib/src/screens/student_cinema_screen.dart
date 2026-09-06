@@ -29,7 +29,7 @@ class StudentCinemaScreen extends StatefulWidget {
 }
 
 class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
-  static const _gemsPerVideo = 2;
+  static const _gemsPerVideo = 5;
 
   late final StudentContentService _contentService;
   final _pageController = PageController(viewportFraction: 0.9);
@@ -91,7 +91,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('هذا الفيديو مقفول. تحتاج جوهرتين لكل فيديو جديد.'),
+          content: Text('هذا الفيديو مقفول. تحتاج 5 جواهر لكل فيديو جديد.'),
         ),
       );
       return;
@@ -100,53 +100,10 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     StudentSoundService.instance.play(StudentSoundCue.navigation);
     await Navigator.of(context).push(
       StudentPageRoute<void>(
-        builder: (_) => _CinemaPlayerScreen(
-          video: video,
-          apiBaseUrl: widget.apiBaseUrl,
-          initiallyCompleted: _gamification.completedActivities.any(
-            (key) =>
-                key == 'video:${video.id}' || key == 'lesson_video:${video.id}',
-          ),
-          onCompleted: () => _rewardVideo(video),
-        ),
+        builder: (_) =>
+            _CinemaPlayerScreen(video: video, apiBaseUrl: widget.apiBaseUrl),
       ),
     );
-  }
-
-  Future<bool> _rewardVideo(LessonVideo video) async {
-    try {
-      final reward = await _contentService.rewardActivity(
-        profile: widget.profile,
-        activityType: 'video',
-        activityId: video.id,
-      );
-      if (!mounted) return false;
-      setState(() => _gamification = reward.snapshot);
-      StudentSoundService.instance.play(
-        reward.alreadyRewarded
-            ? StudentSoundCue.navigation
-            : StudentSoundCue.success,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            reward.alreadyRewarded
-                ? 'حصلت على مكافأة هذا الفيديو مسبقًا.'
-                : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة.',
-          ),
-        ),
-      );
-      return true;
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر حفظ إتمام الفيديو. حاول مرة أخرى.'),
-          ),
-        );
-      }
-      return false;
-    }
   }
 
   @override
@@ -219,7 +176,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'كل فيديو جديد يحتاج جوهرتين لفتحه. إتمام الفيديو يمنح 5 XP وجوهرة واحدة.',
+            'كل 5 جواهر تفتح فيديو واحدًا. مشاهدة السينما لا تمنح مكافآت.',
             textAlign: TextAlign.right,
             style: TextStyle(
               color: Color(0xFFB3C8DE),
@@ -350,7 +307,7 @@ class _CinemaVideoCard extends StatelessWidget {
                   const SizedBox(height: 7),
                   Text(
                     locked
-                        ? 'تحتاج جوهرتين لكل فيديو جديد لفتحه.'
+                        ? 'تحتاج 5 جواهر لكل فيديو جديد لفتحه.'
                         : video.description ?? 'اضغط للمشاهدة داخل التطبيق',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -367,7 +324,7 @@ class _CinemaVideoCard extends StatelessWidget {
                     icon: Icon(
                       locked ? Icons.lock_rounded : Icons.play_arrow_rounded,
                     ),
-                    label: Text(locked ? 'مقفول — تحتاج جوهرتين' : 'شاهد الآن'),
+                    label: Text(locked ? 'مقفول — تحتاج 5 جواهر' : 'شاهد الآن'),
                     style: FilledButton.styleFrom(
                       backgroundColor: locked
                           ? const Color(0xFF4B5563)
@@ -427,7 +384,7 @@ class _CinemaDetails extends StatelessWidget {
             const SizedBox(width: 12),
             IconButton(
               onPressed: onPressed,
-              tooltip: locked ? 'يتطلب جوهرتين' : 'فتح المشغل',
+              tooltip: locked ? 'يتطلب 5 جواهر' : 'فتح المشغل',
               icon: const Icon(
                 Icons.fullscreen_rounded,
                 color: Color(0xFF5EEAD4),
@@ -467,17 +424,10 @@ class _VideoTypeBadge extends StatelessWidget {
 }
 
 class _CinemaPlayerScreen extends StatelessWidget {
-  const _CinemaPlayerScreen({
-    required this.video,
-    required this.apiBaseUrl,
-    required this.initiallyCompleted,
-    required this.onCompleted,
-  });
+  const _CinemaPlayerScreen({required this.video, required this.apiBaseUrl});
 
   final LessonVideo video;
   final String apiBaseUrl;
-  final bool initiallyCompleted;
-  final Future<bool> Function() onCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -488,92 +438,12 @@ class _CinemaPlayerScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         title: Text(video.title),
       ),
-      body: _CinemaPlayerBody(
-        video: video,
-        apiBaseUrl: apiBaseUrl,
-        initiallyCompleted: initiallyCompleted,
-        onCompleted: onCompleted,
+      body: Center(
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: StudentVideoPlayer(video: video, apiBaseUrl: apiBaseUrl),
+        ),
       ),
-    );
-  }
-}
-
-class _CinemaPlayerBody extends StatefulWidget {
-  const _CinemaPlayerBody({
-    required this.video,
-    required this.apiBaseUrl,
-    required this.initiallyCompleted,
-    required this.onCompleted,
-  });
-
-  final LessonVideo video;
-  final String apiBaseUrl;
-  final bool initiallyCompleted;
-  final Future<bool> Function() onCompleted;
-
-  @override
-  State<_CinemaPlayerBody> createState() => _CinemaPlayerBodyState();
-}
-
-class _CinemaPlayerBodyState extends State<_CinemaPlayerBody> {
-  late bool _completed;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _completed = widget.initiallyCompleted;
-  }
-
-  Future<void> _complete() async {
-    if (_completed || _saving) return;
-    setState(() => _saving = true);
-    final saved = await widget.onCompleted();
-    if (!mounted) return;
-    setState(() {
-      _saving = false;
-      _completed = saved;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: StudentVideoPlayer(
-                video: widget.video,
-                apiBaseUrl: widget.apiBaseUrl,
-                onCompleted: _complete,
-              ),
-            ),
-          ),
-        ),
-        SafeArea(
-          minimum: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _completed || _saving ? null : _complete,
-              icon: Icon(
-                _completed
-                    ? Icons.verified_rounded
-                    : Icons.check_circle_rounded,
-              ),
-              label: Text(
-                _completed
-                    ? 'حصلت على مكافأة هذا الفيديو'
-                    : _saving
-                    ? 'جارٍ حفظ الإتمام...'
-                    : 'أنهيت مشاهدة الفيديو',
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

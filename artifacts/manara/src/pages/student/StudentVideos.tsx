@@ -3,14 +3,14 @@ import { STORAGE_KEYS } from '../../constants';
 import { playLamsaSound } from '../../utils/sounds';
 import { filterTeacherOwnedRecords, matchesAcademicScope } from '../../utils/scope';
 import { StudentInfo } from '../../types';
-import { getGems, hasCompletedActivity, rewardVideoComplete } from '../../utils/gamification';
+import { getGems } from '../../utils/gamification';
 import { GameAudioEngine } from '../../utils/gameAudioEngine';
 import EducationalCardEffects from '../../components/effects/EducationalCardEffects';
 import VideoCarousel, { CarouselVideo } from '../../components/VideoCarousel';
 import { readActiveSession, readStorageArray } from '../../utils/storage';
 import { isSafeVideoUrl } from '../../utils/video';
 
-const GEMS_PER_VIDEO = 2;
+const GEMS_PER_VIDEO = 5;
 
 interface VideoRecord extends CarouselVideo {
   grade: string;
@@ -34,7 +34,6 @@ interface StudentVideosProps {
 
 const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, term, unit }) => {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
-  const [watchedVideos, setWatchedVideos] = useState<string[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [currentGems, setCurrentGems] = useState(0);
   const [lockMessage, setLockMessage] = useState('');
@@ -66,7 +65,6 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
           const nextSignature = filtered.map(video => `${video.id}:${video.url}:${video.updatedAt || video.createdAt}`).join('|');
           return currentSignature === nextSignature ? current : filtered;
         });
-        setWatchedVideos(filtered.filter(video => hasCompletedActivity('video', video.id)).map(video => video.id));
       } catch {
         setVideos([]);
         setActiveIndex(0);
@@ -98,11 +96,6 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
       return false;
     }
     GameAudioEngine.play('portalTransition');
-    const reward = rewardVideoComplete(video.id);
-    setWatchedVideos(current => current.includes(video.id) ? current : [...current, video.id]);
-    setCurrentGems(getGems());
-    if (reward.alreadyRewarded) playLamsaSound('click');
-    else GameAudioEngine.playRewardSequence({ gems: reward.gems });
     return true;
   };
 
@@ -133,7 +126,6 @@ const StudentVideos: React.FC<StudentVideosProps> = ({ grade, atram, subject, te
         subtitle="اختر فيديو لفتحه وتشغيله بكامل الشاشة"
         isLocked={(_, index) => index >= unlockedVideoCount}
         onPlay={handlePlay}
-        watchedIds={watchedVideos}
         emptyMessage="لا توجد فيديوهات مشابهة لمسارك الأكاديمي"
       />
     </div>

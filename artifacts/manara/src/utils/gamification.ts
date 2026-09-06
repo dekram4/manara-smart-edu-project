@@ -25,7 +25,8 @@ const GAMIFICATION_KEYS = {
   COMPLETED_BOSS_REWARDS: 'manara_completed_boss_rewards',
 };
 
-const XP_PER_GEM = 5;
+const GEMS_PER_XP_REWARD = 10;
+const XP_PER_GEM_REWARD = 20;
 const XP_PER_LEVEL = 100;
 export const STREAK_MILESTONE_DAYS = 5;
 
@@ -53,17 +54,17 @@ function getScopedKey(key: string) {
 
 // المكافآت
 export const REWARDS = {
-  QUIZ_CORRECT: { xp: 5, gems: 1 },
-  QUIZ_COMPLETE: { xp: 10, gems: 2 },
-  PERFECT_QUIZ: { xp: 50, gems: 10 },
-  LESSON_COMPLETE: { xp: 25, gems: 5 },
-  GAME_WIN: { xp: 15, gems: 3 },
-  GAME_PERFECT: { xp: 25, gems: 5 },
-  STREAK_BONUS: { xp: 100, gems: 0 },
+  QUIZ_CORRECT: { xp: 0, gems: 1 },
+  QUIZ_COMPLETE: { xp: 0, gems: 0 },
+  PERFECT_QUIZ: { xp: 0, gems: 0 },
+  LESSON_COMPLETE: { xp: 0, gems: 5 },
+  GAME_WIN: { xp: 0, gems: 3 },
+  GAME_PERFECT: { xp: 0, gems: 5 },
+  STREAK_BONUS: { xp: 0, gems: 0 },
   DAILY_LOGIN: { xp: 0, gems: 0 },
   CHAT_MESSAGE: { xp: 0, gems: 0 },
-  PROBLEM_SOLVED: { xp: 5, gems: 1 },
-  VIDEO_COMPLETE: { xp: 5, gems: 1 },
+  PROBLEM_SOLVED: { xp: 0, gems: 1 },
+  VIDEO_COMPLETE: { xp: 0, gems: 0 },
 };
 
 // الإنجازات
@@ -172,23 +173,29 @@ export function addGems(amount: number): number {
   const current = getGems();
   const newGems = current + amount;
   setStorage(GAMIFICATION_KEYS.GEMS, newGems);
+  const crossedMilestones =
+    Math.floor(newGems / GEMS_PER_XP_REWARD) -
+    Math.floor(current / GEMS_PER_XP_REWARD);
+  if (crossedMilestones > 0) {
+    addXP(crossedMilestones * XP_PER_GEM_REWARD);
+  }
   return newGems;
 }
 
 // Level
 export function getLevel(): number {
   const xp = getXP();
-  return Math.floor(xp / XP_PER_LEVEL);
+  return Math.floor(xp / XP_PER_LEVEL) + 1;
 }
 export function getLevelProgress(): number {
   const xp = getXP();
   const level = getLevel();
-  const base = level * XP_PER_LEVEL;
+  const base = (level - 1) * XP_PER_LEVEL;
   const next = base + XP_PER_LEVEL;
   return Math.min(100, Math.max(0, ((xp - base) / (next - base)) * 100));
 }
 function checkLevelUp() {
-  const oldLevel = getStorage(GAMIFICATION_KEYS.LEVEL, 0);
+  const oldLevel = getStorage(GAMIFICATION_KEYS.LEVEL, 1);
   const newLevel = getLevel();
   if (newLevel > oldLevel) {
     setStorage(GAMIFICATION_KEYS.LEVEL, newLevel);
@@ -300,7 +307,7 @@ export function rewardQuizCompleteWithId(score: number, total: number, rewardId?
 
   const percentage = (score / total) * 100;
   const gems = score; // Gem-per-correct-answer rule
-  const xp = gems * XP_PER_GEM;
+  const beforeXp = getXP();
 
   if (percentage === 100) {
     unlockAchievement('perfect_quiz');
@@ -308,8 +315,8 @@ export function rewardQuizCompleteWithId(score: number, total: number, rewardId?
     unlockAchievement('first_quiz');
   }
 
-  addXP(xp);
   addGems(gems);
+  const xp = getXP() - beforeXp;
   incrementStat('quiz');
 
   return { xp, gems, percentage, alreadyRewarded: false };
@@ -319,28 +326,32 @@ export function rewardLessonComplete(lessonId = 'lesson') {
   if (!markActivityComplete('lesson', lessonId)) {
     return { ...REWARDS.LESSON_COMPLETE, alreadyRewarded: true };
   }
-  addXP(REWARDS.LESSON_COMPLETE.xp);
+  const beforeXp = getXP();
   addGems(REWARDS.LESSON_COMPLETE.gems);
   incrementStat('lesson');
-  return { ...REWARDS.LESSON_COMPLETE, alreadyRewarded: false };
+  return {
+    ...REWARDS.LESSON_COMPLETE,
+    xp: getXP() - beforeXp,
+    alreadyRewarded: false,
+  };
 }
 
 export function rewardVideoComplete(videoId: string) {
   if (!markActivityComplete('video', videoId)) {
     return { ...REWARDS.VIDEO_COMPLETE, alreadyRewarded: true };
   }
-  addXP(REWARDS.VIDEO_COMPLETE.xp);
-  addGems(REWARDS.VIDEO_COMPLETE.gems);
+  // Cinema playback is intentionally reward-free. Retain this helper only
+  // for compatibility with older callers.
   return { ...REWARDS.VIDEO_COMPLETE, alreadyRewarded: false };
 }
 
 export function rewardGameWin(gameType: 'memory' | 'truefalse' | 'speed') {
-  addXP(REWARDS.GAME_WIN.xp);
+  const beforeXp = getXP();
   addGems(REWARDS.GAME_WIN.gems);
   incrementStat('game');
   if (gameType === 'memory') unlockAchievement('memory_master');
   if (gameType === 'speed') unlockAchievement('speed_demon');
-  return REWARDS.GAME_WIN;
+  return { ...REWARDS.GAME_WIN, xp: getXP() - beforeXp };
 }
 
 export function rewardGamePerformanceWithId(
@@ -365,9 +376,9 @@ export function rewardGamePerformanceWithId(
   else if (percentage >= 60) gems = 4;
   else if (percentage >= 40) gems = 2;
 
-  const xp = gems * XP_PER_GEM;
+  const beforeXp = getXP();
   addGems(gems);
-  addXP(xp);
+  const xp = getXP() - beforeXp;
   incrementStat('game');
 
   if (gameType === 'memory') unlockAchievement('memory_master');
@@ -395,9 +406,9 @@ export function rewardWeeklyBossWithId(score: number, maxScore: number, rewardId
   else if (percentage >= 55) gems = 7;
   else if (percentage >= 40) gems = 5;
 
-  const xp = gems * XP_PER_GEM;
+  const beforeXp = getXP();
   addGems(gems);
-  addXP(xp);
+  const xp = getXP() - beforeXp;
   incrementStat('game');
   unlockAchievement('game_master');
 
@@ -406,18 +417,18 @@ export function rewardWeeklyBossWithId(score: number, maxScore: number, rewardId
 }
 
 export function rewardProblemSolved() {
-  addXP(REWARDS.PROBLEM_SOLVED.xp);
+  const beforeXp = getXP();
   addGems(REWARDS.PROBLEM_SOLVED.gems);
   incrementStat('math');
-  return REWARDS.PROBLEM_SOLVED;
+  return { ...REWARDS.PROBLEM_SOLVED, xp: getXP() - beforeXp };
 }
 
 // Get full stats object
 export function getGamificationStats() {
   const storedXP = getXP();
   const effectiveXP = storedXP;
-  const effectiveLevel = Math.floor(effectiveXP / XP_PER_LEVEL);
-  const levelBaseXP = effectiveLevel * XP_PER_LEVEL;
+  const effectiveLevel = Math.floor(effectiveXP / XP_PER_LEVEL) + 1;
+  const levelBaseXP = (effectiveLevel - 1) * XP_PER_LEVEL;
   const levelProgress = Math.min(100, Math.max(0, ((effectiveXP - levelBaseXP) / XP_PER_LEVEL) * 100));
 
   return {

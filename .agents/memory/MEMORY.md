@@ -15,3 +15,4 @@
 - [Quiz deletion visibility](quiz-deletion-visibility.md) — Student quiz lists must respect synced deletion tombstones as well as each record’s active/deleted flags.
 - [GitHub push fallback](github-push-fallback.md) — When shell Git authentication is unavailable, use the attached GitHub connection’s REST API to publish a verified commit.
 - [Flutter Rive loading safety](flutter-rive-loading-safety.md) — Keep routine loading states native; reserve Rive for explicitly trusted decorative assets.
+- [Student reward economy](student-reward-economy.md) — Lessons and quizzes earn gems; gem milestones drive XP, cinema access, and level-gated games.

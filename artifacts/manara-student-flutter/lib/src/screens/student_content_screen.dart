@@ -227,7 +227,19 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     for (final game in _apiGames) {
       if (seen.add(game.url)) games.add(game);
     }
-    return games;
+    return games
+        .asMap()
+        .entries
+        .map(
+          (entry) => HtmlGame(
+            id: entry.value.id,
+            url: entry.value.url,
+            title: entry.value.title,
+            subtitle: entry.value.subtitle,
+            requiredLevel: entry.key + 1,
+          ),
+        )
+        .toList();
   }
 }
 
@@ -333,7 +345,105 @@ class _LessonModule extends StatelessWidget {
             contentService: contentService,
             onGamificationChanged: onGamificationChanged,
           ),
+        const SizedBox(height: 16),
+        _LessonCompletionButton(
+          lesson: lesson,
+          profile: profile,
+          gamification: gamification,
+          contentService: contentService,
+          onGamificationChanged: onGamificationChanged,
+        ),
       ],
+    );
+  }
+}
+
+class _LessonCompletionButton extends StatefulWidget {
+  const _LessonCompletionButton({
+    required this.lesson,
+    required this.profile,
+    required this.gamification,
+    required this.contentService,
+    required this.onGamificationChanged,
+  });
+
+  final LessonContent lesson;
+  final StudentProfile profile;
+  final StudentGamification gamification;
+  final StudentContentService contentService;
+  final ValueChanged<StudentGamification> onGamificationChanged;
+
+  @override
+  State<_LessonCompletionButton> createState() =>
+      _LessonCompletionButtonState();
+}
+
+class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
+  bool _saving = false;
+
+  bool get _completed => widget.gamification.completedActivities.contains(
+    'lesson:${widget.lesson.id}',
+  );
+
+  Future<void> _completeLesson() async {
+    if (_completed || _saving) return;
+    setState(() => _saving = true);
+    try {
+      final reward = await widget.contentService.rewardActivity(
+        profile: widget.profile,
+        activityType: 'lesson',
+        activityId: widget.lesson.id,
+      );
+      if (!mounted) return;
+      widget.onGamificationChanged(reward.snapshot);
+      StudentSoundService.instance.play(
+        reward.alreadyRewarded
+            ? StudentSoundCue.navigation
+            : StudentSoundCue.success,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            reward.alreadyRewarded
+                ? 'حصلت على مكافأة هذا الدرس مسبقًا.'
+                : 'أحسنت! +5 جواهر'
+                      '${reward.xp > 0 ? ' و +${reward.xp} XP' : ''}',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر حفظ إتمام الدرس. حاول مرة أخرى.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: _completed || _saving ? null : _completeLesson,
+      icon: Icon(
+        _completed ? Icons.verified_rounded : Icons.check_circle_rounded,
+      ),
+      label: Text(
+        _completed
+            ? 'تم استلام مكافأة هذا الدرس'
+            : _saving
+            ? 'جارٍ حفظ الإتمام...'
+            : 'أنهيت الدرس — احصل على 5 جواهر',
+      ),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(54),
+        backgroundColor: const Color(0xFF0B8693),
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: Colors.grey.shade500,
+        disabledForegroundColor: Colors.white,
+        textStyle: const TextStyle(fontWeight: FontWeight.w900),
+      ),
     );
   }
 }
@@ -865,12 +975,6 @@ class _VideoCarouselState extends State<_VideoCarousel> {
   final _controller = PageController(viewportFraction: 0.88);
   int _activeIndex = 0;
 
-  bool _isVideoCompleted(LessonVideo video) =>
-      widget.gamification.completedActivities.any(
-        (key) =>
-            key == 'video:${video.id}' || key == 'lesson_video:${video.id}',
-      );
-
   @override
   void dispose() {
     _controller.dispose();
@@ -903,7 +1007,9 @@ class _VideoCarouselState extends State<_VideoCarousel> {
               onPageChanged: (index) => setState(() => _activeIndex = index),
               itemBuilder: (context, index) {
                 final video = widget.videos[index];
-                final completed = _isVideoCompleted(video);
+                // The reward belongs to the lesson completion button, not to
+                // any individual YouTube/MP4 source inside the lesson.
+                const completed = false;
                 return Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
@@ -923,7 +1029,6 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                             video: video,
                             apiBaseUrl: widget.apiBaseUrl,
                             initiallyCompleted: completed,
-                            onCompleted: () => _rewardVideo(video),
                           ),
                         ),
                       );
@@ -955,42 +1060,6 @@ class _VideoCarouselState extends State<_VideoCarousel> {
         ),
       ],
     );
-  }
-
-  Future<bool> _rewardVideo(LessonVideo video) async {
-    try {
-      final lessonReward = await widget.contentService.rewardActivity(
-        profile: widget.profile,
-        activityType: 'video',
-        activityId: video.id,
-      );
-      if (!mounted) return false;
-      StudentSoundService.instance.play(
-        lessonReward.alreadyRewarded
-            ? StudentSoundCue.navigation
-            : StudentSoundCue.success,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            lessonReward.alreadyRewarded
-                ? 'أنهيت هذا الفيديو وحصلت على مكافأته مسبقًا.'
-                : 'أحسنت! +${lessonReward.xp} XP و +${lessonReward.gems} جواهر لإتمام هذا الفيديو.',
-          ),
-        ),
-      );
-      widget.onGamificationChanged(lessonReward.snapshot);
-      return true;
-    } catch (_) {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-      // Playback remains usable if the network is temporarily unavailable.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر حفظ إتمام الدرس. حاول مرة أخرى.')),
-        );
-      }
-      return false;
-    }
   }
 }
 

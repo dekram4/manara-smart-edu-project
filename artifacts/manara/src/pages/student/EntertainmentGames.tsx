@@ -72,7 +72,7 @@ const GAME_CARDS: Array<{
     icon: '🕹️',
     accent: '#f59e0b',
     gradient: 'from-amber-400 via-orange-500 to-red-600',
-    requiredLevel: 0,
+    requiredLevel: 1,
   },
   {
     type: 'embedded2',
@@ -90,7 +90,7 @@ const GAME_CARDS: Array<{
     icon: '🎯',
     accent: '#34d399',
     gradient: 'from-emerald-400 via-teal-500 to-cyan-700',
-    requiredLevel: 0,
+    requiredLevel: 3,
   },
   {
     type: 'embedded4',
@@ -99,7 +99,7 @@ const GAME_CARDS: Array<{
     icon: '🐾',
     accent: '#f59e0b',
     gradient: 'from-lime-400 via-emerald-500 to-teal-700',
-    requiredLevel: 0,
+    requiredLevel: 4,
   },
 ];
 
@@ -248,7 +248,7 @@ const EntertainmentGames: React.FC<EntertainmentGamesProps> = ({ grade, subject,
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.35),transparent_28%),linear-gradient(135deg,transparent,rgba(15,23,42,0.22))]" />
                 <div className="relative z-10 flex items-start justify-between">
                   <span className="rounded-full bg-slate-950/45 px-2.5 py-1 text-[10px] font-black text-white">
-                    {unlocked ? `المستوى ${game.requiredLevel || 'الأول'}` : `🔒 المستوى ${game.requiredLevel}`}
+                    {unlocked ? `المستوى ${game.requiredLevel}` : `🔒 المستوى ${game.requiredLevel}`}
                   </span>
                   <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/30 bg-white/20 text-4xl shadow-xl backdrop-blur transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                     {game.icon}
