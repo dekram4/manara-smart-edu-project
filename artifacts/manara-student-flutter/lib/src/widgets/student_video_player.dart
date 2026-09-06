@@ -1002,26 +1002,27 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               controller: controller,
               aspectRatio: 16 / 9,
               backgroundColor: Colors.black,
-              controlsBuilder: (context, isFullscreen) {
-                if (!isFullscreen) return const SizedBox.shrink();
-                return SafeArea(
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: IconButton.filledTonal(
-                        onPressed: () async {
-                          controller.exitFullScreen();
-                          await _restorePortraitOrientation();
-                        },
-                        tooltip: 'إنهاء ملء الشاشة',
-                        icon: const Icon(Icons.fullscreen_exit_rounded),
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
+            if (value.fullScreenOption.enabled)
+              PositionedDirectional(
+                top: 10,
+                start: 10,
+                child: SafeArea(
+                  child: IconButton.filled(
+                    onPressed: () async {
+                      controller.exitFullScreen();
+                      await _restorePortraitOrientation();
+                    },
+                    tooltip: 'الرجوع إلى بطاقة الفيديو',
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xE6071425),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0x66FFFFFF)),
+                    ),
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
+                ),
+              ),
             if (_error != null)
               _buildError(
                 'تعذر تشغيل الفيديو',
