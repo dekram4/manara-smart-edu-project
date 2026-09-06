@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:lottie/lottie.dart';
 
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
@@ -59,9 +60,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     'star': '⭐',
   };
   static const _motions = <String, (String, IconData)>{
-    'bounce': ('قفزة الفرح', Icons.arrow_upward_rounded),
+    'idle': ('وقفة البطل', Icons.accessibility_new_rounded),
     'wave': ('تلويح', Icons.waving_hand_rounded),
-    'dance': ('رقصة', Icons.music_note_rounded),
+    'celebrate': ('احتفال', Icons.celebration_rounded),
   };
   static const _colors = [
     Color(0xFF38BDF8),
@@ -85,10 +86,10 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     });
   }
 
-  String get _emoji =>
-      _appearance['shape']?.toString().trim().isNotEmpty == true
-      ? _appearance['shape'].toString()
-      : '🌟';
+  String get _emoji {
+    final value = _appearance['shape']?.toString().trim() ?? '';
+    return _emojis.contains(value) ? value : _emojis.first;
+  }
 
   Color get _color {
     final value = _appearance['color']?.toString() ?? '';
@@ -98,9 +99,22 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     );
   }
 
-  String get _outfit => _appearance['outfit']?.toString() ?? 'hero';
-  String get _accessory => _appearance['accessory']?.toString() ?? 'none';
-  String get _motion => _appearance['motion']?.toString() ?? 'bounce';
+  String get _outfit {
+    final value = _appearance['outfit']?.toString() ?? '';
+    return _outfits.containsKey(value) ? value : 'hero';
+  }
+
+  String get _accessory {
+    final value = _appearance['accessory']?.toString() ?? '';
+    return _accessories.containsKey(value) ? value : 'none';
+  }
+
+  String get _motion {
+    final value = _appearance['motion']?.toString() ?? '';
+    if (value == 'bounce') return 'idle';
+    if (value == 'dance') return 'celebrate';
+    return _motions.containsKey(value) ? value : 'idle';
+  }
 
   String? get _avatarImageUrl {
     final value = _appearance['readyPlayerMeAvatarImageUrl']?.toString().trim();
@@ -203,7 +217,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
           children: [
             const StudentScreenHero(
               title: 'اصنع بطلك الرائع!',
-              subtitle: 'اختر شارة ولونًا يعبران عنك، ثم احفظ شخصيتك.',
+              subtitle: 'صمّم بطلك الكامل واختر حركته، ثم احفظ شخصيتك.',
               icon: Icons.face_retouching_natural_rounded,
               colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
             ),
@@ -444,7 +458,7 @@ class _AppearancePreviewState extends State<_AppearancePreview>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
   }
 
@@ -453,9 +467,9 @@ class _AppearancePreviewState extends State<_AppearancePreview>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.motion != widget.motion) {
       _controller
-        ..duration = widget.motion == 'dance'
-            ? const Duration(milliseconds: 650)
-            : const Duration(milliseconds: 1100)
+        ..duration = widget.motion == 'celebrate'
+            ? const Duration(milliseconds: 700)
+            : const Duration(milliseconds: 1400)
         ..repeat(reverse: true);
     }
   }
@@ -483,24 +497,44 @@ class _AppearancePreviewState extends State<_AppearancePreview>
         ),
         child: Center(
           child: imageUrl != null
-              ? Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => _emojiPreview(),
-                )
-              : _emojiPreview(),
+              ? _networkAvatar(imageUrl)
+              : _animatedAvatarPreview(),
         ),
       ),
     );
   }
 
-  Widget _emojiPreview() => AnimatedBuilder(
+  Widget _networkAvatar(String imageUrl) => AnimatedBuilder(
     animation: _controller,
     builder: (context, child) {
       final progress = Curves.easeInOut.transform(_controller.value);
-      final translateY = widget.motion == 'bounce' ? -10 * progress : 0.0;
-      final angle = widget.motion == 'dance'
-          ? (-0.08 + (0.16 * progress))
+      final offset = widget.motion == 'celebrate'
+          ? -12 * progress
+          : -3 * progress;
+      final angle = widget.motion == 'wave'
+          ? -0.035 + (0.07 * progress)
+          : 0.0;
+      return Transform.translate(
+        offset: Offset(0, offset),
+        child: Transform.rotate(angle: angle, child: child),
+      );
+    },
+    child: Image.network(
+      imageUrl,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => _animatedAvatarPreview(),
+    ),
+  );
+
+  Widget _animatedAvatarPreview() => AnimatedBuilder(
+    animation: _controller,
+    builder: (context, child) {
+      final progress = Curves.easeInOut.transform(_controller.value);
+      final translateY = widget.motion == 'celebrate'
+          ? -14 * progress
+          : -3 * progress;
+      final angle = widget.motion == 'wave'
+          ? (-0.035 + (0.07 * progress))
           : 0.0;
       return Transform.translate(
         offset: Offset(0, translateY),
@@ -512,22 +546,43 @@ class _AppearancePreviewState extends State<_AppearancePreview>
       children: [
         Stack(
           clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
+          alignment: Alignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 55),
-              child: _FullBodyAvatar(
-                color: widget.color,
-                outfit: widget.outfit,
-                waving: widget.motion == 'wave',
-                animation: _controller,
+            ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                widget.color.withOpacity(0.30),
+                BlendMode.srcATop,
+              ),
+              child: Lottie.asset(
+                'assets/animations/student-avatar-hero.json',
+                width: 170,
+                height: 180,
+                fit: BoxFit.contain,
+                repeat: true,
+                animate: true,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.accessibility_new_rounded,
+                  size: 140,
+                  color: Colors.white,
+                ),
               ),
             ),
-            Text(widget.emoji, style: const TextStyle(fontSize: 76)),
+            Positioned(
+              top: 44,
+              child: Text(widget.emoji, style: const TextStyle(fontSize: 42)),
+            ),
+            Positioned(
+              bottom: 42,
+              child: Text(
+                _StudentPersonalityScreenState._outfits[widget.outfit]?.$2 ??
+                    '⭐',
+                style: const TextStyle(fontSize: 28),
+              ),
+            ),
             if (widget.accessory != 'none')
               Positioned(
-                top: -18,
-                right: -12,
+                top: 4,
+                right: 5,
                 child: Text(
                   _StudentPersonalityScreenState._accessories[widget
                           .accessory] ??
@@ -539,106 +594,10 @@ class _AppearancePreviewState extends State<_AppearancePreview>
         ),
         const SizedBox(height: 2),
         const Text(
-          'حرّك بطلك واختر مظهره!',
+          'شخصية كاملة متحركة وجاهزة للمغامرة!',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
         ),
       ],
-    ),
-  );
-}
-
-class _FullBodyAvatar extends StatelessWidget {
-  const _FullBodyAvatar({
-    required this.color,
-    required this.outfit,
-    required this.waving,
-    required this.animation,
-  });
-
-  final Color color;
-  final String outfit;
-  final bool waving;
-  final Animation<double> animation;
-
-  @override
-  Widget build(BuildContext context) {
-    final badge = _StudentPersonalityScreenState._outfits[outfit]?.$2 ?? '⭐';
-    return SizedBox(
-      width: 130,
-      height: 125,
-      child: Stack(
-        alignment: Alignment.topCenter,
-        children: [
-          Positioned(
-            top: 14,
-            child: Container(
-              width: 74,
-              height: 70,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color.withOpacity(0.95), color.withOpacity(0.6)],
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                  bottom: Radius.circular(14),
-                ),
-                border: Border.all(color: Colors.white.withOpacity(0.7)),
-              ),
-              alignment: Alignment.center,
-              child: Text(badge, style: const TextStyle(fontSize: 28)),
-            ),
-          ),
-          Positioned(
-            top: 27,
-            left: 12,
-            child: Transform.rotate(
-              angle: -0.35,
-              child: _Limb(color: color, height: 58),
-            ),
-          ),
-          Positioned(
-            top: 21,
-            right: 12,
-            child: AnimatedBuilder(
-              animation: animation,
-              builder: (context, child) => Transform.rotate(
-                alignment: Alignment.topCenter,
-                angle: waving ? -0.7 - (0.45 * animation.value) : 0.35,
-                child: child,
-              ),
-              child: _Limb(color: color, height: 58),
-            ),
-          ),
-          Positioned(
-            top: 78,
-            left: 38,
-            child: _Limb(color: const Color(0xFF263B55), height: 45),
-          ),
-          Positioned(
-            top: 78,
-            right: 38,
-            child: _Limb(color: const Color(0xFF263B55), height: 45),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Limb extends StatelessWidget {
-  const _Limb({required this.color, required this.height});
-
-  final Color color;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 18,
-    height: height,
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.55)),
     ),
   );
 }

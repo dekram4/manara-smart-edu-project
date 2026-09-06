@@ -990,8 +990,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         canPop: !value.fullScreenOption.enabled,
         onPopInvokedWithResult: (didPop, _) {
           if (!didPop && value.fullScreenOption.enabled) {
-            _restorePortraitOrientation();
-            controller.exitFullScreen();
+            _exitYoutubeFullscreen(controller);
           }
         },
         child: Stack(
@@ -1005,21 +1004,11 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
             ),
             if (value.fullScreenOption.enabled)
               PositionedDirectional(
-                top: 10,
-                start: 10,
+                top: 12,
+                start: 12,
                 child: SafeArea(
-                  child: IconButton.filled(
-                    onPressed: () async {
-                      controller.exitFullScreen();
-                      await _restorePortraitOrientation();
-                    },
-                    tooltip: 'الرجوع إلى بطاقة الفيديو',
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xE6071425),
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0x66FFFFFF)),
-                    ),
-                    icon: const Icon(Icons.arrow_back_rounded),
+                  child: _FullscreenBackButton(
+                    onPressed: () => _exitYoutubeFullscreen(controller),
                   ),
                 ),
               ),
@@ -1033,6 +1022,13 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         ),
       ),
     );
+  }
+
+  Future<void> _exitYoutubeFullscreen(
+    YoutubePlayerController controller,
+  ) async {
+    controller.exitFullScreen();
+    await _restorePortraitOrientation();
   }
 
   Future<void> _retryNativePlayback() async {
@@ -1377,48 +1373,103 @@ class _FullscreenNetworkVideoScreen extends StatefulWidget {
 class _FullscreenNetworkVideoScreenState
     extends State<_FullscreenNetworkVideoScreen> {
   final _playerKey = GlobalKey<_StudentVideoPlayerState>();
+  bool _exiting = false;
+
+  Future<void> _exitFullscreen() async {
+    if (_exiting) return;
+    _exiting = true;
+    final state = _playerKey.currentState?.fullscreenPlaybackState;
+    await _restorePortraitOrientation();
+    if (mounted) Navigator.of(context).pop(state);
+  }
 
   @override
   Widget build(BuildContext context) {
     return _FullscreenOrientationScope(
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: SafeArea(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Center(
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: StudentVideoPlayer(
-                    key: _playerKey,
-                    video: widget.video,
-                    apiBaseUrl: widget.apiBaseUrl,
-                    initialPosition: widget.initialPosition,
-                    autoPlay: widget.autoPlay,
-                    fullscreen: true,
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _exitFullscreen();
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: SafeArea(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: StudentVideoPlayer(
+                      key: _playerKey,
+                      video: widget.video,
+                      apiBaseUrl: widget.apiBaseUrl,
+                      initialPosition: widget.initialPosition,
+                      autoPlay: widget.autoPlay,
+                      fullscreen: true,
+                    ),
                   ),
                 ),
-              ),
-              PositionedDirectional(
-                top: 10,
-                start: 10,
-                child: IconButton.filled(
-                  onPressed: () async {
-                    final state =
-                        _playerKey.currentState?.fullscreenPlaybackState;
-                    await _restorePortraitOrientation();
-                    if (context.mounted) Navigator.of(context).pop(state);
-                  },
-                  tooltip: 'الرجوع إلى العرض داخل البطاقة',
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xCC071425),
-                    foregroundColor: Colors.white,
+                PositionedDirectional(
+                  top: 12,
+                  start: 12,
+                  child: _FullscreenBackButton(
+                    onPressed: _exitFullscreen,
                   ),
-                  icon: const Icon(Icons.fullscreen_exit_rounded),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FullscreenBackButton extends StatelessWidget {
+  const _FullscreenBackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'الرجوع إلى بطاقة الفيديو',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(24),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: const Color(0xED071425),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0x99FFFFFF), width: 1.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 5),
+                ),
+              ],
+            ),
+            padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 16, 10),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.arrow_back_rounded, color: Colors.white, size: 25),
+                SizedBox(width: 7),
+                Text(
+                  'رجوع',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
