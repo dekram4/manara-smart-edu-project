@@ -1,7 +1,10 @@
+import 'package:flame/game.dart' show GameWidget, Vector2;
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart' as lottie;
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
+import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
@@ -9,7 +12,29 @@ import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
+import 'game_world/academic_world_game.dart';
 import 'student_home_screen.dart';
+
+/// Theme color + Arabic label for each of the six stations in the academic
+/// path. Purely presentational — the underlying selection data always comes
+/// from [AcademicSelectionData] via the exact same getters the old dropdown
+/// UI used.
+const _stepAccents = <Color>[
+  Color(0xFF4F46E5), // grade
+  Color(0xFF0EA5E9), // atram/term
+  Color(0xFF0D9488), // subject
+  Color(0xFF8B5CF6), // chapter
+  Color(0xFFF59E0B), // unit
+  Color(0xFFE05A86), // lesson
+];
+const _stepLabels = <String>[
+  'اختر الصف الدراسي',
+  'اختر الفصل الدراسي / الترم',
+  'اختر المادة الدراسية',
+  'اختر الفصل أو الباب',
+  'اختر الوحدة التعليمية',
+  'اختر الدرس',
+];
 
 class AcademicSelectionScreen extends StatefulWidget {
   const AcademicSelectionScreen({
@@ -29,6 +54,7 @@ class AcademicSelectionScreen extends StatefulWidget {
 
 class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   late final StudentContentService _contentService;
+  late final AcademicWorldGame _game;
   AcademicSelectionData? _data;
   String? _grade;
   String? _atram;
@@ -40,6 +66,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   bool _isEntering = false;
   String? _loadError;
 
+  /// Which of the six stations (grade..lesson) the world map is currently
+  /// showing. Going back a step never clears the selections already made —
+  /// same behavior the old dropdowns had when you changed an earlier value.
+  int _stepIndex = 0;
+  StudentGamification _gamification = const StudentGamification();
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +79,19 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       widget.authService.client,
       baseUrl: widget.apiBaseUrl,
     );
+    _game = AcademicWorldGame(onStationSelected: _handleStationTap);
     _loadSelectionData();
+    _loadGamification();
+  }
+
+  Future<void> _loadGamification() async {
+    try {
+      final snapshot = await _contentService.fetchGamification(widget.profile);
+      if (mounted) setState(() => _gamification = snapshot);
+    } catch (_) {
+      // The gems HUD chip just keeps showing 0 if this is unavailable —
+      // never blocks picking an academic path.
+    }
   }
 
   Future<void> _loadSelectionData() async {
@@ -74,6 +118,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               'تعذر قراءة إعدادات الشجرة؛ تم عرض المسارات المكتملة من الدروس المتاحة فقط.';
         }
       });
+      if (!_loading) _refreshStations();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -298,6 +343,96 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
+  /// The stations (islands) to show for the current [_stepIndex], read from
+  /// exactly the same [AcademicSelectionData] getters the dropdown UI used.
+  List<WorldStation> _currentStationOptions() {
+    final data = _data;
+    if (data == null) return const [];
+    switch (_stepIndex) {
+      case 0:
+        return data.grades
+            .map((value) => WorldStation(id: value, label: value))
+            .toList();
+      case 1:
+        final options = _grade == null ? const <String>[] : data.atramsFor(_grade!);
+        return options.map((value) => WorldStation(id: value, label: value)).toList();
+      case 2:
+        final options = _grade == null || _atram == null
+            ? const <String>[]
+            : data.subjectsFor(grade: _grade!, atram: _atram!);
+        return options.map((value) => WorldStation(id: value, label: value)).toList();
+      case 3:
+        final options = _grade == null || _atram == null || _subject == null
+            ? const <String>[]
+            : data.termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
+        return options.map((value) => WorldStation(id: value, label: value)).toList();
+      case 4:
+        final options =
+            _grade == null || _atram == null || _subject == null || _term == null
+                ? const <String>[]
+                : data.unitsFor(
+                    grade: _grade!,
+                    atram: _atram!,
+                    subject: _subject!,
+                    term: _term!,
+                  );
+        return options.map((value) => WorldStation(id: value, label: value)).toList();
+      default:
+        return _lessonsForSelection()
+            .map(
+              (lesson) => WorldStation(
+                id: lesson.id,
+                label: lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
+              ),
+            )
+            .toList();
+    }
+  }
+
+  void _refreshStations() {
+    _game.showStations(
+      _currentStationOptions(),
+      stepAccent: _stepAccents[_stepIndex],
+    );
+  }
+
+  /// Applies a tapped island to the real selection state via the exact same
+  /// `_select*` methods the dropdowns called, then advances to the next
+  /// station (unless this was the last one, the lesson pick).
+  void _handleStationTap(String stationId) {
+    switch (_stepIndex) {
+      case 0:
+        _selectGrade(stationId);
+      case 1:
+        _selectAtram(stationId);
+      case 2:
+        _selectSubject(stationId);
+      case 3:
+        _selectTerm(stationId);
+      case 4:
+        _selectUnit(stationId);
+      default:
+        final match = _lessonsForSelection()
+            .where((lesson) => lesson.id == stationId)
+            .firstOrNull;
+        if (match != null) {
+          setState(() => _lesson = match);
+          _playSelectionFeedback();
+        }
+    }
+    if (_stepIndex < 5) {
+      setState(() => _stepIndex++);
+    }
+    _refreshStations();
+  }
+
+  void _goBackStep() {
+    if (_stepIndex == 0) return;
+    StudentSoundService.instance.playTap();
+    setState(() => _stepIndex--);
+    _refreshStations();
+  }
+
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null || _isEntering) return;
@@ -323,31 +458,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final data = _data;
-    final atrams = data == null || _grade == null
-        ? const <String>[]
-        : data.atramsFor(_grade!);
-    final subjects = data == null || _grade == null || _atram == null
-        ? const <String>[]
-        : data.subjectsFor(grade: _grade!, atram: _atram!);
-    final terms = data == null || _grade == null || _atram == null || _subject == null
-        ? const <String>[]
-        : data.termsFor(
-            grade: _grade!,
-            atram: _atram!,
-            subject: _subject!,
-          );
-    final units =
-        data == null || _grade == null || _atram == null || _subject == null || _term == null
-            ? const <String>[]
-            : data.unitsFor(
-                grade: _grade!,
-                atram: _atram!,
-                subject: _subject!,
-                term: _term!,
-              );
-    final lessons = _lessonsForSelection();
-
     return Scaffold(
       backgroundColor: StudentPalette.canvas,
       body: Stack(
@@ -369,289 +479,135 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           ),
           const Positioned.fill(child: StudentLearningWorld()),
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 660),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              ManaraLogo(size: 52),
-                              SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'مَنارة',
-                                    style: TextStyle(
-                                      color: StudentPalette.ink,
-                                      fontSize: 19,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'MANARA SMART EDU',
-                                    textDirection: TextDirection.ltr,
-                                    style: TextStyle(
-                                      color: StudentPalette.indigo,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Color(0xB3FFFCF3),
-                              borderRadius: BorderRadius.all(Radius.circular(16)),
-                            ),
-                            child: StudentSoundToggle(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      StudentEntrance(
-                        child: Column(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 660),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const StudentCompanion(size: 108, showLabel: false),
-                            const SizedBox(height: 6),
-                            Text(
-                              'أهلًا ${widget.profile.name}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: StudentPalette.indigo,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                              ),
+                            const Row(
+                              children: [
+                                ManaraLogo(size: 44),
+                                SizedBox(width: 10),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'مَنارة',
+                                      style: TextStyle(
+                                        color: StudentPalette.ink,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    Text(
+                                      'MANARA SMART EDU',
+                                      textDirection: TextDirection.ltr,
+                                      style: TextStyle(
+                                        color: StudentPalette.indigo,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 5),
-                            const Text(
-                              'اختر رحلتك التعليمية',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: StudentPalette.ink,
-                                fontSize: 31,
-                                fontWeight: FontWeight.w900,
+                            const DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Color(0xB3FFFCF3),
+                                borderRadius: BorderRadius.all(Radius.circular(16)),
                               ),
-                            ),
-                            const SizedBox(height: 7),
-                            const Text(
-                              'حدّد خطواتك التالية، وسنجهّز لك الدروس المناسبة.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Color(0xFF71827F),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                height: 1.5,
-                              ),
+                              child: StudentSoundToggle(),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 22),
-                      StudentAnimatedCard(
-                        delay: const Duration(milliseconds: 120),
-                        child: Student3DCard(
-                          child: Container(
-                          padding: const EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topRight,
-                              end: Alignment.bottomLeft,
-                              colors: [Color(0xFFFFFDF8), Color(0xFFEFF6FF)],
+                        const SizedBox(height: 10),
+                        if (_loading || _data == null || (_data?.isEmpty ?? true))
+                          StudentEntrance(
+                            child: Column(
+                              children: [
+                                const StudentCompanion(size: 92, showLabel: false),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'أهلًا ${widget.profile.name}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: StudentPalette.indigo,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'اختر رحلتك التعليمية',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: StudentPalette.ink,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
                             ),
-                            borderRadius: StudentShapes.playfulCard,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x29183047),
-                                blurRadius: 34,
-                                offset: Offset(0, 18),
-                              ),
-                              BoxShadow(
-                                color: Color(0x1A147D83),
-                                blurRadius: 5,
-                                offset: Offset(0, 5),
-                              ),
-                            ],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const _AcademicPathProgress(),
-                              const SizedBox(height: 22),
-                              const Text(
-                                'المسار الأكاديمي',
-                                style: TextStyle(
-                                  color: Color(0xFF183047),
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              const Text(
-                                'اختر كل خطوة لتظهر لك الخيارات التالية.',
-                                style: TextStyle(
-                                  color: Color(0xFF71827F),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if (_loadError != null) ...[
-                                const SizedBox(height: 14),
-                                _InfoBanner(message: _loadError!),
-                              ],
-                              const SizedBox(height: 18),
-                              if (_loading)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 38),
-                                  child: Center(
-                                    child: StudentRiveLoading(
-                                      size: 118,
-                                      label: 'جارٍ تحميل المسار الأكاديمي',
-                                    ),
-                                  ),
-                                )
-                              // Each stage of the world map has its own theme
-                              // color, running indigo → sky → teal → violet →
-                              // amber → rose down the path — purely
-                              // presentational; the selection state and API
-                              // calls below are untouched.
-                              else ...[
-                                _AcademicDropdown(
-                                  step: 1,
-                                  label: 'الصف الدراسي',
-                                  icon: Icons.school_rounded,
-                                  accent: const Color(0xFF4F46E5),
-                                  value: _grade,
-                                  options: data?.grades ?? const [],
-                                  onChanged: _selectGrade,
-                                ),
-                                _AcademicDropdown(
-                                  step: 2,
-                                  label: 'الفصل الدراسي / الترم',
-                                  icon: Icons.calendar_month_rounded,
-                                  accent: const Color(0xFF0EA5E9),
-                                  value: _atram,
-                                  options: atrams,
-                                  onChanged: atrams.isEmpty ? null : _selectAtram,
-                                ),
-                                _AcademicDropdown(
-                                  step: 3,
-                                  label: 'المادة الدراسية',
-                                  icon: Icons.menu_book_rounded,
-                                  accent: const Color(0xFF0D9488),
-                                  value: _subject,
-                                  options: subjects,
-                                  onChanged: subjects.isEmpty ? null : _selectSubject,
-                                ),
-                                _AcademicDropdown(
-                                  step: 4,
-                                  label: 'الفصل أو الباب',
-                                  icon: Icons.account_tree_rounded,
-                                  accent: const Color(0xFF8B5CF6),
-                                  value: _term,
-                                  options: terms,
-                                  onChanged: terms.isEmpty ? null : _selectTerm,
-                                ),
-                                _AcademicDropdown(
-                                  step: 5,
-                                  label: 'الوحدة التعليمية',
-                                  icon: Icons.view_list_rounded,
-                                  accent: const Color(0xFFF59E0B),
-                                  value: _unit,
-                                  options: units,
-                                  onChanged: units.isEmpty ? null : _selectUnit,
-                                ),
-                                _LessonDropdown(
-                                  step: 6,
-                                  accent: const Color(0xFFE05A86),
-                                  value: _lesson?.id,
-                                  lessons: lessons,
-                                  onChanged: lessons.isEmpty
-                                      ? null
-                                      : (lessonId) {
-                                          setState(
-                                            () => _lesson = lessons.firstWhere(
-                                              (lesson) => lesson.id == lessonId,
-                                            ),
-                                          );
-                                          _playSelectionFeedback();
-                                        },
-                                ),
-                                if (_selection != null) ...[
-                                  const SizedBox(height: 2),
-                                  StudentSelectionBadge(
-                                    label: 'مسارك المختار',
-                                    subtitle: _selection!.label,
-                                  ),
-                                ],
-                                const SizedBox(height: 18),
-                                StudentPressScale(
-                                  child: StudentEmbossedShell(
-                                    color: const Color(0xFF147D83),
-                                    borderRadius: 19,
-                                    child: FilledButton.icon(
-                                    onPressed: _selection == null || _isEntering
-                                        ? null
-                                        : _enterDashboard,
-                                    icon: AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 180),
-                                      child: _isEntering
-                                          ? const SizedBox(
-                                              key: ValueKey('entering'),
-                                              width: 19,
-                                              height: 19,
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.arrow_back_rounded,
-                                              key: ValueKey('continue'),
-                                            ),
-                                    ),
-                                    label: Text(
-                                      _isEntering
-                                          ? 'نجهّز رحلتك...'
-                                          : 'الدخول إلى لوحة الطالب',
-                                    ),
-                                    style: FilledButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(58),
-                                      backgroundColor: const Color(0xFF147D83),
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      textStyle: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(19),
-                                      ),
-                                    ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
+                Expanded(
+                  child: _loading
+                      ? const Center(
+                          child: StudentRiveLoading(
+                            size: 118,
+                            label: 'جارٍ تحميل المسار الأكاديمي',
+                          ),
+                        )
+                      : (_data == null || _data!.isEmpty)
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: _InfoBanner(
+                                  message: _loadError ??
+                                      'لا توجد مسارات أكاديمية متاحة حاليًا.',
+                                ),
+                              ),
+                            )
+                          // A LayoutBuilder + explicitly-sized SizedBox (rather
+                          // than a bare Center) guarantees GameWidget gets a
+                          // definite, non-zero size — Center alone would pass
+                          // it loose constraints and could collapse it.
+                          : LayoutBuilder(
+                              builder: (context, constraints) => Center(
+                                child: SizedBox(
+                                  width: constraints.maxWidth > 660
+                                      ? 660
+                                      : constraints.maxWidth,
+                                  height: constraints.maxHeight,
+                                  child: _AcademicWorldStage(
+                                    game: _game,
+                                    stepIndex: _stepIndex,
+                                    stepLabel: _stepLabels[_stepIndex],
+                                    gems: _gamification.gems,
+                                    canGoBack: _stepIndex > 0,
+                                    onBack: _goBackStep,
+                                    loadWarning: _loadError,
+                                    selection: _selection,
+                                    isEntering: _isEntering,
+                                    onEnter: _enterDashboard,
+                                  ),
+                                ),
+                              ),
+                            ),
+                ),
+              ],
             ),
           ),
         ],
@@ -660,413 +616,239 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   }
 }
 
-class _AcademicPathProgress extends StatelessWidget {
-  const _AcademicPathProgress();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF8E8),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: const Color(0xFFEAD8A0)),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.circle, size: 9, color: Color(0xFFE9AC3E)),
-              SizedBox(width: 6),
-              Text(
-                'خطوة ١ من ٢',
-                style: TextStyle(
-                  color: Color(0xFF80652C),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Spacer(),
-        const Text(
-          'رحلتك تبدأ الآن',
-          style: TextStyle(
-            color: Color(0xFF758683),
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AcademicDropdown extends StatelessWidget {
-  const _AcademicDropdown({
-    required this.step,
-    required this.label,
-    required this.icon,
-    required this.accent,
-    required this.value,
-    required this.options,
-    required this.onChanged,
+/// The game canvas plus its Flutter HUD: gems, a back button, the current
+/// step's title, a progress bar, the student's avatar animating toward the
+/// last-tapped island, and — once a full path is chosen — the "enter" CTA.
+/// The overlay is plain Flutter widgets composited via [Stack] above the
+/// [GameWidget], so it never touches the Flame render loop.
+class _AcademicWorldStage extends StatelessWidget {
+  const _AcademicWorldStage({
+    required this.game,
+    required this.stepIndex,
+    required this.stepLabel,
+    required this.gems,
+    required this.canGoBack,
+    required this.onBack,
+    required this.loadWarning,
+    required this.selection,
+    required this.isEntering,
+    required this.onEnter,
   });
 
-  final int step;
-  final String label;
-  final IconData icon;
-  final Color accent;
-  final String? value;
-  final List<String> options;
-  final ValueChanged<String?>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = value != null && value!.isNotEmpty;
-    return _AcademicStepSurface(
-      step: step,
-      label: label,
-      icon: icon,
-      accent: accent,
-      isLast: step == 6,
-      selectedValue: selected ? value : null,
-      selected: selected,
-      child: StudentPressScale(
-        child: DropdownButtonFormField<String>(
-          value: value,
-          isExpanded: true,
-          menuMaxHeight: 320,
-          onChanged: onChanged,
-          hint: Text(options.isEmpty ? 'لا توجد خيارات متاحة' : 'اختر $label'),
-          icon: const Icon(Icons.expand_more_rounded),
-          decoration: _academicDropdownDecoration,
-          items: options
-              .map(
-                (option) => DropdownMenuItem<String>(
-                  value: option,
-                  child: Text(
-                    option,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-      ),
-    );
-  }
-}
-
-class _LessonDropdown extends StatelessWidget {
-  const _LessonDropdown({
-    required this.step,
-    required this.accent,
-    required this.value,
-    required this.lessons,
-    required this.onChanged,
-  });
-
-  final int step;
-  final Color accent;
-  final String? value;
-  final List<LessonContent> lessons;
-  final ValueChanged<String?>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedLesson = lessons.where((lesson) => lesson.id == value).firstOrNull;
-    return _AcademicStepSurface(
-      step: step,
-      label: 'الدرس الحالي',
-      icon: Icons.play_lesson_rounded,
-      accent: accent,
-      isLast: true,
-      selectedValue: selectedLesson?.lessonName,
-      selected: selectedLesson != null,
-      child: StudentPressScale(
-        child: DropdownButtonFormField<String>(
-          value: value,
-          isExpanded: true,
-          menuMaxHeight: 320,
-          onChanged: onChanged,
-          hint: Text(lessons.isEmpty ? 'لا توجد دروس في هذه الوحدة' : 'اختر الدرس'),
-          icon: const Icon(Icons.expand_more_rounded),
-          decoration: _academicDropdownDecoration,
-          items: lessons
-              .map(
-                (lesson) => DropdownMenuItem<String>(
-                  value: lesson.id,
-                  child: Text(
-                    lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-      ),
-    );
-  }
-}
-
-const _academicDropdownDecoration = InputDecoration(
-  isDense: true,
-  filled: true,
-  fillColor: Color(0xFFFBFAF5),
-  contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-  border: OutlineInputBorder(
-    borderRadius: BorderRadius.all(Radius.circular(16)),
-    borderSide: BorderSide(color: Color(0xFFE1E7E1)),
-  ),
-  enabledBorder: OutlineInputBorder(
-    borderRadius: BorderRadius.all(Radius.circular(16)),
-    borderSide: BorderSide(color: Color(0xFFE1E7E1)),
-  ),
-  focusedBorder: OutlineInputBorder(
-    borderRadius: BorderRadius.all(Radius.circular(16)),
-    borderSide: BorderSide(color: Color(0xFF147D83), width: 1.8),
-  ),
-);
-
-class _AcademicStepSurface extends StatelessWidget {
-  const _AcademicStepSurface({
-    required this.step,
-    required this.label,
-    required this.icon,
-    required this.accent,
-    required this.selectedValue,
-    required this.selected,
-    required this.child,
-    this.isLast = false,
-  });
-
-  final int step;
-  final String label;
-  final IconData icon;
-  final Color accent;
-  final String? selectedValue;
-  final bool selected;
-  final bool isLast;
-  final Widget child;
+  final AcademicWorldGame game;
+  final int stepIndex;
+  final String stepLabel;
+  final int gems;
+  final bool canGoBack;
+  final VoidCallback onBack;
+  final String? loadWarning;
+  final AcademicContext? selection;
+  final bool isEntering;
+  final VoidCallback onEnter;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 12 : 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+      child: ClipRRect(
+        borderRadius: StudentShapes.playfulCard,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: StudentShapes.playfulCard,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x29183047),
+                blurRadius: 30,
+                offset: Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              StudentFocusGlow(
-                isSelected: selected,
-                borderRadius: StudentShapes.playfulCardTight,
-                child: Container(
-                  padding: const EdgeInsetsDirectional.fromSTEB(30, 13, 13, 13),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
-                      colors: [
-                        accent.withOpacity(selected ? 0.16 : 0.08),
-                        Colors.white,
-                      ],
-                    ),
-                    borderRadius: StudentShapes.playfulCardTight,
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withOpacity(0.16),
-                        blurRadius: 14,
-                        offset: const Offset(0, 7),
+              GameWidget(game: game),
+              // Avatar: travels to whichever island was last tapped.
+              ValueListenableBuilder<Vector2?>(
+                valueListenable: game.avatarTarget,
+                builder: (context, target, _) {
+                  if (target == null) return const SizedBox.shrink();
+                  return AnimatedPositioned(
+                    duration: const Duration(milliseconds: 420),
+                    curve: Curves.easeOutCubic,
+                    left: target.x - 22,
+                    top: target.y - 60,
+                    child: IgnorePointer(
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: lottie.Lottie.asset(
+                          'assets/animations/student-avatar-hero.json',
+                          fit: BoxFit.contain,
+                          repeat: true,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.emoji_people_rounded,
+                            color: Colors.white,
+                            size: 34,
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
+                    ),
+                  );
+                },
+              ),
+              // HUD: back button, step title, gems.
+              PositionedDirectional(
+                top: 12,
+                start: 12,
+                end: 12,
+                child: Row(
+                  children: [
+                    if (canGoBack)
+                      _HudChip(
+                        onTap: onBack,
+                        child: const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      )
+                    else
+                      const SizedBox(width: 40),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _HudChip(
+                        expand: true,
+                        child: Text(
+                          stepLabel,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _HudChip(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  label,
-                                  style: const TextStyle(
-                                    color: Color(0xFF284658),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                if (selectedValue != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    selectedValue!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ],
+                          const Icon(
+                            Icons.diamond_rounded,
+                            color: Color(0xFF5EEAD4),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$gems',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 11),
-                      child,
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              // Progress bar along the bottom.
+              PositionedDirectional(
+                bottom: 14,
+                start: 16,
+                end: 16,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LinearProgressIndicator(
+                    value: (stepIndex + 1) / _stepLabels.length,
+                    minHeight: 8,
+                    color: const Color(0xFFF6C95D),
+                    backgroundColor: Colors.white.withOpacity(0.22),
                   ),
                 ),
               ),
-              // The stage number/icon is now a bigger "planet" node
-              // overlapping the card's leading edge — a real level-select
-              // shape, not an inline row icon.
-              PositionedDirectional(
-                top: -14,
-                start: -12,
-                child: _StagePlanetNode(
-                  step: step,
-                  icon: icon,
-                  accent: accent,
-                  selected: selected,
+              if (loadWarning != null)
+                PositionedDirectional(
+                  top: 58,
+                  start: 12,
+                  end: 12,
+                  child: _InfoBanner(message: loadWarning!),
                 ),
-              ),
-            ],
-          ),
-          if (!isLast) _StagePathConnector(color: accent),
-        ],
-      ),
-    );
-  }
-}
-
-/// A raised, embossed circular "planet" node — the level-select marker for
-/// one stage of the world map, overlapping the stage card underneath it.
-class _StagePlanetNode extends StatelessWidget {
-  const _StagePlanetNode({
-    required this.step,
-    required this.icon,
-    required this.accent,
-    required this.selected,
-  });
-
-  final int step;
-  final IconData icon;
-  final Color accent;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    const size = 52.0;
-    final ledgeColor = HSLColor.fromColor(accent)
-        .withLightness((HSLColor.fromColor(accent).lightness - 0.16).clamp(0.0, 1.0))
-        .toColor();
-    return SizedBox(
-      width: size,
-      height: size + 4,
-      child: Stack(
-        children: [
-          Positioned(
-            top: 4,
-            left: 0,
-            right: 0,
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(color: ledgeColor, shape: BoxShape.circle),
-            ),
-          ),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            width: size,
-            height: size,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2.5),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: selected
-                    ? [accent, ledgeColor]
-                    : [Colors.white, accent.withOpacity(0.18)],
-              ),
-            ),
-            child: selected
-                ? const Icon(Icons.check_rounded, color: Colors.white, size: 24)
-                : Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(icon, color: accent, size: 20),
-                      PositionedDirectional(
-                        bottom: -2,
-                        end: -2,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: accent,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                          child: Text(
-                            '$step',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
+              if (selection != null)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 32),
+                    child: StudentPressScale(
+                      child: StudentEmbossedShell(
+                        color: const Color(0xFF16A085),
+                        borderRadius: 24,
+                        child: FilledButton.icon(
+                          onPressed: isEntering ? null : onEnter,
+                          icon: isEntering
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.celebration_rounded),
+                          label: Text(isEntering ? 'نجهّز رحلتك...' : 'ادخل رحلتك!'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF16A085),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 26,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 15,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
+                ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// A short dotted trail between two world-map stage cards, roughly under
-/// where each stage's numbered badge sits.
-class _StagePathConnector extends StatelessWidget {
-  const _StagePathConnector({required this.color});
+class _HudChip extends StatelessWidget {
+  const _HudChip({required this.child, this.onTap, this.expand = false});
 
-  final Color color;
+  final Widget child;
+  final VoidCallback? onTap;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(start: 14, top: 3, bottom: 3),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(
-          3,
-          (index) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 1.5),
-            child: Container(
-              width: 4,
-              height: 4,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.5),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ),
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      alignment: expand ? Alignment.center : null,
+      decoration: BoxDecoration(
+        color: const Color(0xB3071425),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.25)),
       ),
+      child: child,
     );
+    if (onTap == null) return chip;
+    return GestureDetector(onTap: onTap, child: chip);
   }
 }
 

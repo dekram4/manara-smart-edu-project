@@ -1,9 +1,7 @@
-﻿import 'dart:ui' show PointerDeviceKind;
+﻿import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lottie/lottie.dart' as lottie;
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -56,9 +54,7 @@ class StudentDashboardScreen extends StudentHomeScreen {
 
 class _StudentHomeScreenState extends State<StudentHomeScreen>
     with SingleTickerProviderStateMixin {
-  final _pageController = PageController(viewportFraction: 0.86);
   late final AnimationController _ambientController;
-  int _activePage = 0;
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
   late final ConfettiController _rewardController;
@@ -130,7 +126,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
   @override
   void dispose() {
-    _pageController.dispose();
     _ambientController.dispose();
     _rewardController.dispose();
     super.dispose();
@@ -335,7 +330,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final carouselHeight = (size.height * 0.38).clamp(290.0, 420.0).toDouble();
 
     return Scaffold(
       backgroundColor: StudentPalette.canvas,
@@ -470,7 +464,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   const Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Text(
-                      'اختر بوابتك واسحب البطاقات',
+                      'اختر بوابتك',
                       style: TextStyle(
                         color: Color(0xFF0E1B2A),
                         fontSize: 22,
@@ -482,7 +476,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   const Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Text(
-                      'مرّر يمينًا ويسارًا لاستكشاف رحلة التعلم',
+                      'المس أي بطاقة لتبدأ رحلتك',
                       style: TextStyle(
                         color: Color(0xFF5680AC),
                         fontWeight: FontWeight.w700,
@@ -490,19 +484,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                     ),
                   ),
                   const SizedBox(height: 13),
-                  SizedBox(
-                    height: carouselHeight,
-                    child: _HomeSectionCarousel(
-                      controller: _pageController,
-                      activePage: _activePage,
-                      onPageChanged: (page) => setState(() => _activePage = page),
-                      onSectionPressed: _openModule,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _CarouselIndicator(
-                    count: _homeSections.length,
-                    activeIndex: _activePage,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: _HomeSectionGrid(onSectionPressed: _openModule),
                   ),
                     ],
                   ),
@@ -805,71 +789,78 @@ const _homeSections = <_HomeSection>[
   ),
 ];
 
-class _HomeSectionCarousel extends StatelessWidget {
-  const _HomeSectionCarousel({
-    required this.controller,
-    required this.activePage,
-    required this.onPageChanged,
-    required this.onSectionPressed,
-  });
+/// A shelf of chunky, individually-shaped module tiles — the "لمسة"-style
+/// mechanism the student picks a destination from: a scrollable grid of big
+/// touch targets, each with its own toy-like medallion icon, rather than a
+/// single swipeable card at a time.
+class _HomeSectionGrid extends StatelessWidget {
+  const _HomeSectionGrid({required this.onSectionPressed});
 
-  final PageController controller;
-  final int activePage;
-  final ValueChanged<int> onPageChanged;
   final ValueChanged<int> onSectionPressed;
 
   @override
   Widget build(BuildContext context) {
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(
-        dragDevices: {
-          PointerDeviceKind.touch,
-          PointerDeviceKind.mouse,
-          PointerDeviceKind.trackpad,
-          PointerDeviceKind.stylus,
-        },
+    final wide = MediaQuery.sizeOf(context).width >= 700;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(top: 22),
+      itemCount: _homeSections.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: wide ? 3 : 2,
+        mainAxisSpacing: 22,
+        crossAxisSpacing: 14,
+        childAspectRatio: 0.92,
       ),
-      child: PageView.builder(
-        controller: controller,
-        itemCount: _homeSections.length,
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        onPageChanged: onPageChanged,
-        itemBuilder: (context, index) {
-          final section = _homeSections[index];
-          return _SectionCard(
-            section: section,
-            onPressed: () => onSectionPressed(index),
-          );
-        },
+      itemBuilder: (context, index) => _SectionTile(
+        section: _homeSections[index],
+        shapeVariant: index % 3,
+        onPressed: () => onSectionPressed(index),
       ),
     );
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
+/// One "توي" (toy) tile: a chunky sticker-shaped card topped with a raised
+/// medallion badge. [shapeVariant] cycles the card's corner silhouette and
+/// the medallion's own shape so neighboring tiles never look like clones of
+/// each other — only their color, icon and text change otherwise.
+class _SectionTile extends StatelessWidget {
+  const _SectionTile({
     required this.section,
+    required this.shapeVariant,
     required this.onPressed,
   });
 
   final _HomeSection section;
+  final int shapeVariant;
   final VoidCallback? onPressed;
+
+  BorderRadius get _cardRadius => switch (shapeVariant) {
+    0 => StudentShapes.playfulCard,
+    1 => const BorderRadius.only(
+      topLeft: Radius.circular(34),
+      topRight: Radius.circular(16),
+      bottomLeft: Radius.circular(16),
+      bottomRight: Radius.circular(34),
+    ),
+    _ => BorderRadius.circular(32),
+  };
 
   @override
   Widget build(BuildContext context) {
     return StudentPressScale(
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          GestureDetector(
-            onTap: onPressed,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
-              padding: const EdgeInsets.all(21),
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 26),
+              padding: const EdgeInsets.fromLTRB(10, 30, 10, 12),
               decoration: BoxDecoration(
-                borderRadius: StudentShapes.playfulCard,
+                borderRadius: _cardRadius,
                 gradient: LinearGradient(
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
@@ -878,158 +869,158 @@ class _SectionCard extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: section.colors.last.withAlpha(105),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    blurRadius: 18,
+                    offset: const Offset(0, 9),
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: StudentCardAvatar(
-                      icon: section.icon,
-                      accent: section.accent,
-                      size: 68,
-                      label: section.title,
+              child: ClipRRect(
+                borderRadius: _cardRadius,
+                child: Stack(
+                  children: [
+                    // A diagonal glossy sheen — the "candy button" bevel
+                    // that reads as a raised 3D toy rather than a flat tile.
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(0.26),
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.05),
+                            ],
+                            stops: const [0, 0.5, 1],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    section.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            section.title,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            section.subtitle,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: section.accent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    section.subtitle,
-                    style: TextStyle(
-                      color: section.accent,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          // A small peeking mascot sticker, outside the card's own tap
-          // target, ties every module card back to the student's avatar
-          // and reacts on its own light tap.
-          PositionedDirectional(
-            top: -4,
-            start: 14,
-            child: _PeekingMascot(accent: section.accent),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A small looping character sticker that peeks over the top-start corner
-/// of a card. Kept intentionally tiny/cheap (it's repeated across every
-/// module card in the carousel) with its own small bounce on tap, separate
-/// from the card's own navigation tap target underneath it.
-class _PeekingMascot extends StatefulWidget {
-  const _PeekingMascot({required this.accent});
-
-  final Color accent;
-
-  @override
-  State<_PeekingMascot> createState() => _PeekingMascotState();
-}
-
-class _PeekingMascotState extends State<_PeekingMascot> {
-  int _bounceTicket = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final mascot = Container(
-      width: 38,
-      height: 38,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: widget.accent.withOpacity(0.5), width: 2),
-        boxShadow: const [
-          BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 4)),
-        ],
-      ),
-      child: ClipOval(
-        child: lottie.Lottie.asset(
-          'assets/animations/student-avatar-hero.json',
-          fit: BoxFit.cover,
-          alignment: const Alignment(0, -0.6),
-          repeat: true,
-          errorBuilder: (_, __, ___) => Icon(
-            Icons.face_retouching_natural_rounded,
-            color: widget.accent,
-            size: 22,
-          ),
+            _ToyMedallion(
+              icon: section.icon,
+              accent: section.accent,
+              baseColor: section.colors.first,
+              shapeVariant: shapeVariant,
+            ),
+          ],
         ),
       ),
     );
-
-    return GestureDetector(
-      onTap: () {
-        StudentSoundService.instance.playTap();
-        setState(() => _bounceTicket++);
-      },
-      child: reduceMotion
-          ? mascot
-          : mascot
-              .animate(key: ValueKey(_bounceTicket))
-              .scale(
-                begin: const Offset(1, 1),
-                end: const Offset(1.18, 1.18),
-                duration: 140.ms,
-                curve: Curves.easeOut,
-              )
-              .then()
-              .scale(
-                begin: const Offset(1.18, 1.18),
-                end: const Offset(1, 1),
-                duration: 220.ms,
-                curve: Curves.elasticOut,
-              ),
-    );
   }
 }
 
-class _CarouselIndicator extends StatelessWidget {
-  const _CarouselIndicator({
-    required this.count,
-    required this.activeIndex,
+/// The raised icon badge sitting on top of a module tile — a coin (circle),
+/// an app-icon squircle, or a rotated diamond, depending on [shapeVariant].
+class _ToyMedallion extends StatelessWidget {
+  const _ToyMedallion({
+    required this.icon,
+    required this.accent,
+    required this.baseColor,
+    required this.shapeVariant,
   });
 
-  final int count;
-  final int activeIndex;
+  final IconData icon;
+  final Color accent;
+  final Color baseColor;
+  final int shapeVariant;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        count,
-        (index) => AnimatedContainer(
-          duration: 250.ms,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: index == activeIndex ? 27 : 8,
-          height: 8,
+    const size = 60.0;
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Colors.white, accent.withOpacity(0.7)],
+    );
+    final shadow = [
+      BoxShadow(
+        color: baseColor.withOpacity(0.45),
+        blurRadius: 10,
+        offset: const Offset(0, 5),
+      ),
+    ];
+    final border = Border.all(color: Colors.white, width: 3);
+
+    final Widget background = switch (shapeVariant) {
+      0 => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: gradient,
+          border: border,
+          boxShadow: shadow,
+        ),
+      ),
+      1 => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size * 0.32),
+          gradient: gradient,
+          border: border,
+          boxShadow: shadow,
+        ),
+      ),
+      _ => Transform.rotate(
+        angle: math.pi / 4,
+        child: Container(
+          width: size * 0.72,
+          height: size * 0.72,
           decoration: BoxDecoration(
-            color: index == activeIndex
-                ? const Color(0xFF0B8693)
-                : const Color(0xFFB3C8DE),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(size * 0.16),
+            gradient: gradient,
+            border: border,
+            boxShadow: shadow,
           ),
         ),
+      ),
+    };
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          background,
+          Icon(icon, color: baseColor, size: 27),
+        ],
       ),
     );
   }
