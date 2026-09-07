@@ -4,7 +4,6 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lottie/lottie.dart' as lottie;
-import 'package:rive/rive.dart' hide Image, LinearGradient, RadialGradient;
 
 import '../services/student_sound_service.dart';
 
@@ -1232,21 +1231,26 @@ class StudentSelectionBadge extends StatelessWidget {
   }
 }
 
-/// Shared student loading indicator. Rive is used only when a screen explicitly
-/// requests a trusted asset; routine loading states use a Flutter-native
-/// indicator so a malformed animation cannot block the student flow.
+/// Shared student loading indicator.
+///
+/// This used to optionally render a `.riv` (Rive) asset. Rive's Flutter
+/// runtime needs `RiveFile.initialize()` to load a native plugin
+/// (`rive_common_plugin`) before any animation can display, and this app
+/// never called it — every Rive asset silently failed to render (see the
+/// characters/graphics that never appeared). Rather than wire up native
+/// plugin initialization for a decorative loading spinner, this now always
+/// renders the dependency-free Flutter-native indicator below, which never
+/// has that failure mode.
 class StudentRiveLoading extends StatelessWidget {
   const StudentRiveLoading({
     this.size = 118,
     this.label = 'جارٍ التحميل',
-    this.assetPath,
     this.liveRegion = true,
     super.key,
   });
 
   final double size;
   final String label;
-  final String? assetPath;
   final bool liveRegion;
 
   @override
@@ -1264,43 +1268,37 @@ class StudentRiveLoading extends StatelessWidget {
                 size: size * 0.42,
                 color: const Color(0xFF0B8693),
               )
-            : assetPath != null
-                ? RiveAnimation.asset(
-                    assetPath!,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.center,
-                  )
-                : Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: size * 0.62,
-                        height: size * 0.62,
-                        child: const CircularProgressIndicator(
-                          color: Color(0xFF0B8693),
-                          backgroundColor: Color(0xFFD7EFED),
-                          strokeWidth: 5,
-                        ),
-                      ),
-                      Container(
-                        width: size * 0.42,
-                        height: size * 0.42,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFFFFE49A), Color(0xFFF2B84B)],
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.auto_stories_rounded,
-                          size: size * 0.23,
-                          color: const Color(0xFF173B50),
-                        ),
-                      ),
-                    ],
+            : Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: size * 0.62,
+                    height: size * 0.62,
+                    child: const CircularProgressIndicator(
+                      color: Color(0xFF0B8693),
+                      backgroundColor: Color(0xFFD7EFED),
+                      strokeWidth: 5,
+                    ),
                   ),
+                  Container(
+                    width: size * 0.42,
+                    height: size * 0.42,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFFFE49A), Color(0xFFF2B84B)],
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.auto_stories_rounded,
+                      size: size * 0.23,
+                      color: const Color(0xFF173B50),
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

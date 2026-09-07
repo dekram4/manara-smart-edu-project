@@ -861,102 +861,177 @@ class _AcademicStepSurface extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          StudentFocusGlow(
-            isSelected: selected,
-            borderRadius: StudentShapes.playfulCardTight,
-            child: Container(
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [
-                    accent.withOpacity(selected ? 0.16 : 0.08),
-                    Colors.white,
-                  ],
-                ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              StudentFocusGlow(
+                isSelected: selected,
                 borderRadius: StudentShapes.playfulCardTight,
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withOpacity(0.16),
-                    blurRadius: 14,
-                    offset: const Offset(0, 7),
+                child: Container(
+                  padding: const EdgeInsetsDirectional.fromSTEB(30, 13, 13, 13),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                      colors: [
+                        accent.withOpacity(selected ? 0.16 : 0.08),
+                        Colors.white,
+                      ],
+                    ),
+                    borderRadius: StudentShapes.playfulCardTight,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withOpacity(0.16),
+                        blurRadius: 14,
+                        offset: const Offset(0, 7),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
+                  child: Column(
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: 32,
-                        height: 32,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected ? accent : accent.withOpacity(0.16),
-                          shape: BoxShape.circle,
-                        ),
-                        child: selected
-                            ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
-                            : Text(
-                                '$step',
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w900,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  label,
+                                  style: const TextStyle(
+                                    color: Color(0xFF284658),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
-                              ),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        width: 38,
-                        height: 38,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: accent.withOpacity(0.13),
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                        child: Icon(icon, color: accent, size: 21),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              label,
-                              style: const TextStyle(
-                                color: Color(0xFF284658),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                              ),
+                                if (selectedValue != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    selectedValue!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: accent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            if (selectedValue != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                selectedValue!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 11),
+                      child,
+                    ],
+                  ),
+                ),
+              ),
+              // The stage number/icon is now a bigger "planet" node
+              // overlapping the card's leading edge — a real level-select
+              // shape, not an inline row icon.
+              PositionedDirectional(
+                top: -14,
+                start: -12,
+                child: _StagePlanetNode(
+                  step: step,
+                  icon: icon,
+                  accent: accent,
+                  selected: selected,
+                ),
+              ),
+            ],
+          ),
+          if (!isLast) _StagePathConnector(color: accent),
+        ],
+      ),
+    );
+  }
+}
+
+/// A raised, embossed circular "planet" node — the level-select marker for
+/// one stage of the world map, overlapping the stage card underneath it.
+class _StagePlanetNode extends StatelessWidget {
+  const _StagePlanetNode({
+    required this.step,
+    required this.icon,
+    required this.accent,
+    required this.selected,
+  });
+
+  final int step;
+  final IconData icon;
+  final Color accent;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 52.0;
+    final ledgeColor = HSLColor.fromColor(accent)
+        .withLightness((HSLColor.fromColor(accent).lightness - 0.16).clamp(0.0, 1.0))
+        .toColor();
+    return SizedBox(
+      width: size,
+      height: size + 4,
+      child: Stack(
+        children: [
+          Positioned(
+            top: 4,
+            left: 0,
+            right: 0,
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(color: ledgeColor, shape: BoxShape.circle),
+            ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: size,
+            height: size,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: selected
+                    ? [accent, ledgeColor]
+                    : [Colors.white, accent.withOpacity(0.18)],
+              ),
+            ),
+            child: selected
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 24)
+                : Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(icon, color: accent, size: 20),
+                      PositionedDirectional(
+                        bottom: -2,
+                        end: -2,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: Text(
+                            '$step',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 11),
-                  child,
-                ],
-              ),
-            ),
           ),
-          if (!isLast) _StagePathConnector(color: accent),
         ],
       ),
     );
@@ -973,7 +1048,7 @@ class _StagePathConnector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsetsDirectional.only(start: 27, top: 3, bottom: 3),
+      padding: const EdgeInsetsDirectional.only(start: 14, top: 3, bottom: 3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: List.generate(

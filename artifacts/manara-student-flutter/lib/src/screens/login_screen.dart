@@ -348,6 +348,39 @@ class _LoginStoryPanel extends StatelessWidget {
           Positioned.fill(
             child: StudentSubjectOrbit(compact: compact),
           ),
+          // Floating game-HUD badges — stars/gems drifting over the portal
+          // background, instead of the two plain empty circles this panel
+          // used to have.
+          if (!compact) ...[
+            const PositionedDirectional(
+              top: 18,
+              end: 130,
+              child: _LoginFloatingBadge(
+                icon: Icons.star_rounded,
+                color: Color(0xFFF6C95D),
+                delay: Duration.zero,
+              ),
+            ),
+            const PositionedDirectional(
+              top: 210,
+              start: -6,
+              child: _LoginFloatingBadge(
+                icon: Icons.diamond_rounded,
+                color: Color(0xFF5EEAD4),
+                delay: Duration(milliseconds: 400),
+              ),
+            ),
+            const PositionedDirectional(
+              bottom: 150,
+              end: -4,
+              child: _LoginFloatingBadge(
+                icon: Icons.emoji_events_rounded,
+                color: Color(0xFFF1C664),
+                delay: Duration(milliseconds: 200),
+                size: 30,
+              ),
+            ),
+          ],
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -424,6 +457,45 @@ class _LoginStoryPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// A small drifting game-HUD icon chip for the login portal's background.
+class _LoginFloatingBadge extends StatelessWidget {
+  const _LoginFloatingBadge({
+    required this.icon,
+    required this.color,
+    required this.delay,
+    this.size = 24,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Duration delay;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = Container(
+      width: size + 22,
+      height: size + 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.14),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.22)),
+      ),
+      child: Icon(icon, color: color, size: size),
+    );
+
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return badge;
+    return badge
+        .animate(
+          delay: delay,
+          onPlay: (controller) => controller.repeat(reverse: true),
+        )
+        .moveY(begin: -6, end: 6, duration: 2600.ms, curve: Curves.easeInOut)
+        .fade(begin: 0.8, end: 1, duration: 2600.ms);
   }
 }
 
@@ -510,7 +582,6 @@ class _LoginPortalState extends State<_LoginPortal>
               errorBuilder: (_, __, ___) => StudentRiveLoading(
                 size: characterSize * 0.9,
                 label: 'رفيق منارة التعليمي',
-                assetPath: 'assets/animations/loading-books.riv',
                 liveRegion: false,
               ),
             ),

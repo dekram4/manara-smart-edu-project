@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart' as lottie;
 
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
@@ -134,10 +135,15 @@ class _ProgressAnimationCard extends StatelessWidget {
                 SizedBox(
                   width: 120,
                   height: 120,
-                  child: StudentRiveLoading(
-                    size: 112,
-                    label: 'أنيميشن رفيق إنجازاتك',
-                    assetPath: 'assets/animations/loading-books.riv',
+                  child: Semantics(
+                    label: 'رفيق إنجازاتك',
+                    child: lottie.Lottie.asset(
+                      'assets/animations/student-avatar-hero.json',
+                      fit: BoxFit.contain,
+                      repeat: true,
+                      errorBuilder: (_, __, ___) =>
+                          const StudentRiveLoading(size: 112),
+                    ),
                   ),
                 ),
               ],
