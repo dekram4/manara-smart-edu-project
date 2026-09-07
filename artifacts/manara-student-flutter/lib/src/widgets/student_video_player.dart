@@ -1001,6 +1001,32 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               controller: controller,
               aspectRatio: 16 / 9,
               backgroundColor: Colors.black,
+              // On Android/iOS, real device fullscreen is rendered by this
+              // package through its own app-level OverlayPortal — which
+              // paints *above* this widget's own Stack, hiding the
+              // PositionedDirectional back button below entirely. Only
+              // `controlsBuilder` is actually composited inside that
+              // overlay, so it's the only reliable place to put a visible
+              // "رجوع" button while a YouTube video is fullscreen (matching
+              // the dedicated back button the direct-MP4 player shows in
+              // its own fullscreen route).
+              controlsBuilder: (context, isFullscreen) {
+                if (!isFullscreen) return const SizedBox.shrink();
+                return SafeArea(
+                  child: Align(
+                    alignment: AlignmentDirectional.topStart,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: 12,
+                        top: 12,
+                      ),
+                      child: _FullscreenBackButton(
+                        onPressed: () => _exitYoutubeFullscreen(controller),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
             if (value.fullScreenOption.enabled)
               PositionedDirectional(

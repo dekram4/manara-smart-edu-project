@@ -3,6 +3,7 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:lottie/lottie.dart' as lottie;
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -581,12 +582,16 @@ class _ProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => StudentPressScale(
         child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: StudentShapes.playfulCard,
+            side: const BorderSide(color: Color(0x1F4F46E5)),
+          ),
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: StudentShapes.playfulCard,
             child: Ink(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(26),
+                borderRadius: StudentShapes.playfulCard,
                 gradient: const LinearGradient(
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
@@ -855,60 +860,145 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StudentPressScale(
-      child: GestureDetector(
-        onTap: onPressed,
-        child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
-        padding: const EdgeInsets.all(21),
-        decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: section.colors,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onTap: onPressed,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
+              padding: const EdgeInsets.all(21),
+              decoration: BoxDecoration(
+                borderRadius: StudentShapes.playfulCard,
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: section.colors,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: section.colors.last.withAlpha(105),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: StudentCardAvatar(
+                      icon: section.icon,
+                      accent: section.accent,
+                      size: 68,
+                      label: section.title,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    section.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    section.subtitle,
+                    style: TextStyle(
+                      color: section.accent,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: section.colors.last.withAlpha(105),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: StudentCardAvatar(
-                icon: section.icon,
-                accent: section.accent,
-                size: 68,
-                label: section.title,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              section.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              section.subtitle,
-              style: TextStyle(
-                color: section.accent,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
+          // A small peeking mascot sticker, outside the card's own tap
+          // target, ties every module card back to the student's avatar
+          // and reacts on its own light tap.
+          PositionedDirectional(
+            top: -4,
+            start: 14,
+            child: _PeekingMascot(accent: section.accent),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A small looping character sticker that peeks over the top-start corner
+/// of a card. Kept intentionally tiny/cheap (it's repeated across every
+/// module card in the carousel) with its own small bounce on tap, separate
+/// from the card's own navigation tap target underneath it.
+class _PeekingMascot extends StatefulWidget {
+  const _PeekingMascot({required this.accent});
+
+  final Color accent;
+
+  @override
+  State<_PeekingMascot> createState() => _PeekingMascotState();
+}
+
+class _PeekingMascotState extends State<_PeekingMascot> {
+  int _bounceTicket = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final mascot = Container(
+      width: 38,
+      height: 38,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: widget.accent.withOpacity(0.5), width: 2),
+        boxShadow: const [
+          BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 4)),
+        ],
+      ),
+      child: ClipOval(
+        child: lottie.Lottie.asset(
+          'assets/animations/student-avatar-hero.json',
+          fit: BoxFit.cover,
+          alignment: const Alignment(0, -0.6),
+          repeat: true,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.face_retouching_natural_rounded,
+            color: widget.accent,
+            size: 22,
+          ),
         ),
       ),
+    );
+
+    return GestureDetector(
+      onTap: () {
+        StudentSoundService.instance.playTap();
+        setState(() => _bounceTicket++);
+      },
+      child: reduceMotion
+          ? mascot
+          : mascot
+              .animate(key: ValueKey(_bounceTicket))
+              .scale(
+                begin: const Offset(1, 1),
+                end: const Offset(1.18, 1.18),
+                duration: 140.ms,
+                curve: Curves.easeOut,
+              )
+              .then()
+              .scale(
+                begin: const Offset(1.18, 1.18),
+                end: const Offset(1, 1),
+                duration: 220.ms,
+                curve: Curves.elasticOut,
+              ),
     );
   }
 }

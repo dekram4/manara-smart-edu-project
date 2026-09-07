@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -466,8 +465,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           child: Container(
                           padding: const EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: const Color(0xEFFFFFF8),
-                            borderRadius: BorderRadius.circular(30),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topRight,
+                              end: Alignment.bottomLeft,
+                              colors: [Color(0xFFFFFDF8), Color(0xFFEFF6FF)],
+                            ),
+                            borderRadius: StudentShapes.playfulCard,
                             border: Border.all(color: Colors.white, width: 2),
                             boxShadow: const [
                               BoxShadow(
@@ -830,12 +833,12 @@ class _AcademicStepSurface extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: StudentFocusGlow(
         isSelected: selected,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: StudentShapes.playfulCardTight,
         child: Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFF7FFFB) : const Color(0xFFFFFDF8),
-            borderRadius: BorderRadius.circular(21),
+            color: selected ? const Color(0xFFE8FBF3) : const Color(0xFFFFF7E8),
+            borderRadius: StudentShapes.playfulCardTight,
           ),
           child: Column(
             children: [

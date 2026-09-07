@@ -14,6 +14,27 @@ abstract final class StudentPalette {
   static const surface = Color(0xFFFDFEFF);
 }
 
+/// A shared "playful sticker" silhouette used across student-facing cards
+/// instead of a plain uniform rounded rectangle — one large corner and one
+/// small corner on each edge, so cards read as friendly stickers rather than
+/// boxes. Values are RTL-resolved (the app is Arabic-only): the bigger
+/// radius sits on the visual-right/start side.
+abstract final class StudentShapes {
+  static const BorderRadius playfulCard = BorderRadius.only(
+    topRight: Radius.circular(34),
+    topLeft: Radius.circular(16),
+    bottomLeft: Radius.circular(16),
+    bottomRight: Radius.circular(34),
+  );
+
+  static const BorderRadius playfulCardTight = BorderRadius.only(
+    topRight: Radius.circular(24),
+    topLeft: Radius.circular(12),
+    bottomLeft: Radius.circular(12),
+    bottomRight: Radius.circular(24),
+  );
+}
+
 abstract final class StudentTheme {
   static ThemeData light() {
     final base = ThemeData(

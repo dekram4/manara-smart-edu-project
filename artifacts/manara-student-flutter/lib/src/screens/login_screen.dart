@@ -212,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           final shell = DecoratedBox(
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.94),
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: StudentShapes.playfulCard,
                               border: Border.all(
                                 color: Colors.white.withOpacity(0.9),
                                 width: 2,
@@ -231,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(26),
+                              borderRadius: StudentShapes.playfulCardTight,
                               child: content,
                             ),
                           );
@@ -485,22 +485,36 @@ class _LoginCredentials extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'أهلًا يا بطل!',
-              style: TextStyle(
-                color: Color(0xFF183047),
-                fontSize: 31,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'سجّل دخولك إلى بوابة الطالب واستعد لرحلتك.',
-              style: TextStyle(
-                color: Color(0xFF6C7D81),
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'أهلًا يا بطل!',
+                        style: TextStyle(
+                          color: Color(0xFF183047),
+                          fontSize: 31,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'سجّل دخولك إلى بوابة الطالب واستعد لرحلتك.',
+                        style: TextStyle(
+                          color: Color(0xFF6C7D81),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const StudentCompanion(size: 58, showLabel: false),
+              ],
             ),
             const SizedBox(height: 28),
             StudentFocusGlow(
