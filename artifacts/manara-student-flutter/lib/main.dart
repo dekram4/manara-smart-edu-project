@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,6 +12,15 @@ import 'src/theme/student_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // The whole app is designed for landscape (the academic path carousel,
+  // the game-style HUDs) — lock orientation on every device (phones,
+  // tablets, and desktop platforms that respect it) so the student is
+  // never dropped into a portrait layout mid-lesson.
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
 
   // 1. التقاط أخطاء الـ UI والـ Flutter Framework
   FlutterError.onError = (FlutterErrorDetails details) {

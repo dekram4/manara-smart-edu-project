@@ -209,22 +209,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  flame:
-    dependency: "direct main"
-    description:
-      name: flame
-      sha256: "75eb2b2814a0af2686e9f36649f72249f1921b565d11d5bf956d17f9d8cfa67f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.24.0"
-  flame_audio:
-    dependency: "direct main"
-    description:
-      name: flame_audio
-      sha256: "656433a6a448dd74c1a10ae56fc7fb389d5df89cb6a5038870c2793e1f0ddc99"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.10.6"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -504,14 +488,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.6"
-  ordered_set:
-    dependency: transitive
-    description:
-      name: ordered_set
-      sha256: fc861bb51fc863cd3e0718e21768af9586e0d5022b91a0fd4437636456cdb7d0
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.1.1"
   package_info_plus:
     dependency: transitive
     description:

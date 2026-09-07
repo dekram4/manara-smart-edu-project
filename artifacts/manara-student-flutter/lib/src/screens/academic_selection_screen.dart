@@ -1,4 +1,3 @@
-import 'package:flame/game.dart' show GameWidget, Vector2;
 import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
@@ -11,10 +10,14 @@ import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
-import 'game_world/academic_world_game.dart';
 import 'student_home_screen.dart';
 
-/// Theme color + Arabic label for each of the six stations in the academic
+/// One selectable option in the current step of the academic path (a grade,
+/// a term, a subject, a chapter, a unit, or a lesson) — rendered as a card
+/// in the horizontal carousel.
+typedef _StageOption = ({String id, String label});
+
+/// Theme color + Arabic label for each of the six steps in the academic
 /// path. Purely presentational — the underlying selection data always comes
 /// from [AcademicSelectionData] via the exact same getters the old dropdown
 /// UI used.
@@ -35,6 +38,19 @@ const _stepLabels = <String>[
   'اختر الدرس',
 ];
 
+/// A distinctive icon per card, cycled by its index within the current
+/// step's option list so neighbouring cards always look different.
+const _stageIcons = <IconData>[
+  Icons.flag_rounded,
+  Icons.star_rounded,
+  Icons.auto_awesome_rounded,
+  Icons.emoji_events_rounded,
+  Icons.rocket_launch_rounded,
+  Icons.local_fire_department_rounded,
+  Icons.favorite_rounded,
+  Icons.bolt_rounded,
+];
+
 class AcademicSelectionScreen extends StatefulWidget {
   const AcademicSelectionScreen({
     required this.profile,
@@ -53,7 +69,6 @@ class AcademicSelectionScreen extends StatefulWidget {
 
 class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   late final StudentContentService _contentService;
-  late final AcademicWorldGame _game;
   AcademicSelectionData? _data;
   String? _grade;
   String? _atram;
@@ -65,11 +80,20 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   bool _isEntering = false;
   String? _loadError;
 
-  /// Which of the six stations (grade..lesson) the world map is currently
-  /// showing. Going back a step never clears the selections already made —
-  /// same behavior the old dropdowns had when you changed an earlier value.
+  /// Which of the six steps (grade..lesson) the carousel is currently
+  /// showing. Jumping between steps (back, forward, or via the step dots)
+  /// never clears the selections already made — same behavior the old
+  /// dropdowns had when you changed an earlier value.
   int _stepIndex = 0;
   StudentGamification _gamification = const StudentGamification();
+
+  /// The current step's real options, and the carousel driving them. Built
+  /// fresh (new controller, new list) every time the step changes via
+  /// [_refreshStageOptions] — recreated rather than mutated so its
+  /// `initialPage` always lands exactly on whatever was already picked for
+  /// that step.
+  List<_StageOption> _stageOptions = const [];
+  PageController? _pageController;
 
   bool get _ready => !_loading && _data != null && !_data!.isEmpty;
 
@@ -80,9 +104,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       widget.authService.client,
       baseUrl: widget.apiBaseUrl,
     );
-    _game = AcademicWorldGame(onStationSelected: _handleStationTap);
     _loadSelectionData();
     _loadGamification();
+  }
+
+  @override
+  void dispose() {
+    _pageController?.dispose();
+    super.dispose();
   }
 
   Future<void> _loadGamification() async {
@@ -119,7 +148,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               'تعذر قراءة إعدادات الشجرة؛ تم عرض المسارات المكتملة من الدروس المتاحة فقط.';
         }
       });
-      if (_ready) _refreshStations();
+      if (_ready) _refreshStageOptions();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -344,8 +373,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
-  /// The value already picked for the current step, if any — so the world
-  /// can highlight it among this step's stations (e.g. after going back).
+  /// The value already picked for the current step, if any — so the
+  /// carousel can open on it and highlight its card (e.g. after going
+  /// back).
   String? get _currentStepSelectedId => switch (_stepIndex) {
     0 => _grade,
     1 => _atram,
@@ -355,29 +385,27 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _ => _lesson?.id,
   };
 
-  /// The stations to show for the current [_stepIndex], read from exactly
+  /// The options to show for the current [_stepIndex], read from exactly
   /// the same [AcademicSelectionData] getters the dropdown UI used.
-  List<WorldStation> _currentStationOptions() {
+  List<_StageOption> _currentStageOptions() {
     final data = _data;
     if (data == null) return const [];
     switch (_stepIndex) {
       case 0:
-        return data.grades
-            .map((value) => WorldStation(id: value, label: value))
-            .toList();
+        return data.grades.map((value) => (id: value, label: value)).toList();
       case 1:
         final options = _grade == null ? const <String>[] : data.atramsFor(_grade!);
-        return options.map((value) => WorldStation(id: value, label: value)).toList();
+        return options.map((value) => (id: value, label: value)).toList();
       case 2:
         final options = _grade == null || _atram == null
             ? const <String>[]
             : data.subjectsFor(grade: _grade!, atram: _atram!);
-        return options.map((value) => WorldStation(id: value, label: value)).toList();
+        return options.map((value) => (id: value, label: value)).toList();
       case 3:
         final options = _grade == null || _atram == null || _subject == null
             ? const <String>[]
             : data.termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
-        return options.map((value) => WorldStation(id: value, label: value)).toList();
+        return options.map((value) => (id: value, label: value)).toList();
       case 4:
         final options =
             _grade == null || _atram == null || _subject == null || _term == null
@@ -388,11 +416,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     subject: _subject!,
                     term: _term!,
                   );
-        return options.map((value) => WorldStation(id: value, label: value)).toList();
+        return options.map((value) => (id: value, label: value)).toList();
       default:
         return _lessonsForSelection()
             .map(
-              (lesson) => WorldStation(
+              (lesson) => (
                 id: lesson.id,
                 label: lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
               ),
@@ -401,33 +429,39 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
   }
 
-  void _refreshStations() {
-    _game.showStations(
-      _currentStationOptions(),
-      stepAccent: _stepAccents[_stepIndex],
-      selectedId: _currentStepSelectedId,
-    );
+  /// Rebuilds the carousel for the current step: a fresh option list and a
+  /// fresh [PageController] opened exactly on whatever was already picked
+  /// for this step (or its first option, if nothing was picked yet).
+  void _refreshStageOptions() {
+    final options = _currentStageOptions();
+    final selectedId = _currentStepSelectedId;
+    var initialPage = options.indexWhere((option) => option.id == selectedId);
+    if (initialPage < 0) initialPage = 0;
+    final oldController = _pageController;
+    setState(() {
+      _stageOptions = options;
+      _pageController = PageController(viewportFraction: 0.62, initialPage: initialPage);
+    });
+    oldController?.dispose();
   }
 
-  /// Applies a tapped station to the real selection state via the exact
+  /// Applies a chosen option to the real selection state via the exact
   /// same `_select*` methods the dropdowns called, then advances to the
-  /// next station (unless this was the last one, the lesson pick).
-  void _handleStationTap(String stationId) {
+  /// next step (unless this was the last one, the lesson pick).
+  void _commitStageOption(String optionId) {
     switch (_stepIndex) {
       case 0:
-        _selectGrade(stationId);
+        _selectGrade(optionId);
       case 1:
-        _selectAtram(stationId);
+        _selectAtram(optionId);
       case 2:
-        _selectSubject(stationId);
+        _selectSubject(optionId);
       case 3:
-        _selectTerm(stationId);
+        _selectTerm(optionId);
       case 4:
-        _selectUnit(stationId);
+        _selectUnit(optionId);
       default:
-        final match = _lessonsForSelection()
-            .where((lesson) => lesson.id == stationId)
-            .firstOrNull;
+        final match = _lessonsForSelection().where((lesson) => lesson.id == optionId).firstOrNull;
         if (match != null) {
           setState(() => _lesson = match);
           _playSelectionFeedback();
@@ -436,14 +470,55 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     if (_stepIndex < 5) {
       setState(() => _stepIndex++);
     }
-    _refreshStations();
+    _refreshStageOptions();
   }
 
-  void _goBackStep() {
-    if (_stepIndex == 0) return;
+  /// Jumps the whole screen straight to [index] — used by the back chip and
+  /// by tapping a step dot in the navigator. Safe at any time: every step
+  /// already holds a valid (if default) selection right after the data
+  /// loads, via [_applyInitialSelection].
+  void _goToStep(int index) {
+    if (index == _stepIndex || index < 0 || index > 5) return;
     StudentSoundService.instance.playTap();
-    setState(() => _stepIndex--);
-    _refreshStations();
+    setState(() => _stepIndex = index);
+    _refreshStageOptions();
+  }
+
+  /// The option index the carousel is currently settled/focused on —
+  /// tapping *that* card commits it, while tapping any other card just
+  /// centers it first.
+  int _focusedOptionIndex() {
+    final controller = _pageController;
+    if (controller == null) return 0;
+    if (controller.hasClients && controller.position.haveDimensions) {
+      return (controller.page ?? controller.initialPage.toDouble()).round();
+    }
+    return controller.initialPage;
+  }
+
+  void _onStageCardTap(int index) {
+    if (_focusedOptionIndex() == index) {
+      _commitStageOption(_stageOptions[index].id);
+      return;
+    }
+    StudentSoundService.instance.playTap();
+    _pageController?.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _nudgePage(int delta) {
+    final controller = _pageController;
+    if (controller == null || _stageOptions.isEmpty) return;
+    final target = (_focusedOptionIndex() + delta).clamp(0, _stageOptions.length - 1);
+    StudentSoundService.instance.playTap();
+    controller.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _enterDashboard() async {
@@ -471,35 +546,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = _stepAccents[_stepIndex];
     return Scaffold(
       backgroundColor: const Color(0xFF6C8CF5),
       body: Stack(
         children: [
-          // The game world (or, while it isn't ready yet, a matching
-          // gradient + Smart Edu particles) always fills the *entire*
-          // screen — no narrow bordered box stealing most of the space.
-          Positioned.fill(
-            child: _ready ? GameWidget(game: _game) : const _AcademicLoadingBackdrop(),
-          ),
-          if (_ready)
-            ValueListenableBuilder<Vector2?>(
-              valueListenable: _game.avatarTarget,
-              builder: (context, target, _) {
-                if (target == null) return const SizedBox.shrink();
-                // Standing on top of the island (its center is `target`,
-                // radius 44) rather than floating beside it, with enough
-                // overlap for the character's feet to rest on the island's
-                // surface — but shifted up clear of the label underneath.
-                const mascotSize = 58.0;
-                return AnimatedPositioned(
-                  duration: const Duration(milliseconds: 420),
-                  curve: Curves.easeOutCubic,
-                  left: target.x - mascotSize / 2,
-                  top: target.y - 104,
-                  child: const IgnorePointer(child: PathMascot(size: mascotSize)),
-                );
-              },
-            ),
+          Positioned.fill(child: _AcademicBackdrop(accent: _ready ? accent : const Color(0xFF6C8CF5))),
           SafeArea(
             child: Column(
               children: [
@@ -508,7 +560,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                   child: Row(
                     children: [
                       if (_ready && _stepIndex > 0)
-                        _HudChip(onTap: _goBackStep, child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18))
+                        _HudChip(onTap: () => _goToStep(_stepIndex - 1), child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18))
                       else
                         const SizedBox(width: 40),
                       const SizedBox(width: 8),
@@ -516,16 +568,25 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         Expanded(
                           child: _HudChip(
                             expand: true,
-                            child: Text(
-                              _stepLabels[_stepIndex],
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                              ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _StepDots(current: _stepIndex, onSelect: _goToStep),
+                                const SizedBox(width: 10),
+                                Flexible(
+                                  child: Text(
+                                    _stepLabels[_stepIndex],
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         )
@@ -580,7 +641,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const StudentMascot(size: 120),
+                                  const StudentMascot(size: 110),
                                   const SizedBox(height: 10),
                                   Text(
                                     'أهلًا ${widget.profile.name}',
@@ -607,11 +668,59 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                             ),
                     ),
                   ),
-                if (_ready) const Spacer(),
                 if (_ready && _loadError != null)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                     child: _InfoBanner(message: _loadError!),
+                  ),
+                if (_ready)
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 6),
+                        // Standing above the carousel's (always horizontally
+                        // centered) active card — normal layout flow, so it
+                        // can never clip behind the HUD or overlap a card.
+                        const PathMascot(size: 64),
+                        Expanded(
+                          child: _stageOptions.isEmpty
+                              ? const _EmptyStageMessage()
+                              : Row(
+                                  children: [
+                                    _CarouselArrow(
+                                      icon: Icons.chevron_right_rounded,
+                                      onTap: () => _nudgePage(-1),
+                                    ),
+                                    Expanded(
+                                      child: PageView.builder(
+                                        controller: _pageController,
+                                        itemCount: _stageOptions.length,
+                                        onPageChanged: (_) => StudentSoundService.instance.playTap(),
+                                        itemBuilder: (context, index) {
+                                          final option = _stageOptions[index];
+                                          return _CarouselCardSlot(
+                                            controller: _pageController!,
+                                            index: index,
+                                            onTap: () => _onStageCardTap(index),
+                                            child: _StageCard(
+                                              label: option.label,
+                                              icon: _stageIcons[index % _stageIcons.length],
+                                              accent: accent,
+                                              selected: option.id == _currentStepSelectedId,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    _CarouselArrow(
+                                      icon: Icons.chevron_left_rounded,
+                                      onTap: () => _nudgePage(1),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 if (_ready && _selection != null)
                   Padding(
@@ -633,24 +742,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF16A085),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                             textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                if (_ready)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: LinearProgressIndicator(
-                        value: (_stepIndex + 1) / _stepLabels.length,
-                        minHeight: 8,
-                        color: const Color(0xFFF6C95D),
-                        backgroundColor: Colors.white.withOpacity(0.28),
                       ),
                     ),
                   ),
@@ -663,29 +759,254 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   }
 }
 
-/// The backdrop shown while the academic path data is still loading (or
-/// failed to load) — a gradient matching the game world's own sky plus
-/// Smart Edu floating particles, so the transition into the game once it's
-/// ready doesn't jump between two unrelated looks.
-class _AcademicLoadingBackdrop extends StatelessWidget {
-  const _AcademicLoadingBackdrop();
+/// The screen's permanent backdrop — a gradient tinted by the current
+/// step's accent color plus Smart Edu floating particles. Static (no
+/// per-frame animation loop to manage), unlike the old Flame sky, but
+/// still visually continuous across steps since the tint itself changes.
+class _AcademicBackdrop extends StatelessWidget {
+  const _AcademicBackdrop({required this.accent});
+
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
+    final top = Color.lerp(const Color(0xFF6C8CF5), accent, 0.4)!;
+    final bottom = Color.lerp(const Color(0xFFB794F6), accent, 0.3)!;
     return Stack(
       fit: StackFit.expand,
-      children: const [
+      children: [
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF6C8CF5), Color(0xFFB794F6)],
+              colors: [top, bottom],
             ),
           ),
         ),
-        SmartEduFloatingBackground(),
+        const SmartEduFloatingBackground(),
       ],
+    );
+  }
+}
+
+/// A compact row of step indicators (dot — connector — dot — ...) for all
+/// six steps. The current step is enlarged and gold; earlier ones are
+/// solid white (already picked, even if only a default); later ones are
+/// dim. Tapping any dot jumps straight to that step.
+class _StepDots extends StatelessWidget {
+  const _StepDots({required this.current, required this.onSelect});
+
+  final int current;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final children = <Widget>[];
+    for (var i = 0; i < _stepLabels.length; i++) {
+      if (i > 0) {
+        final done = i <= current;
+        children.add(Container(
+          width: 8,
+          height: 2,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          color: Colors.white.withOpacity(done ? 0.85 : 0.3),
+        ));
+      }
+      final isCurrent = i == current;
+      final isDone = i < current;
+      children.add(
+        GestureDetector(
+          onTap: () => onSelect(i),
+          child: Container(
+            width: isCurrent ? 14 : 9,
+            height: isCurrent ? 14 : 9,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isCurrent
+                  ? const Color(0xFFFFE08A)
+                  : (isDone ? Colors.white : Colors.white.withOpacity(0.35)),
+              border: isCurrent ? Border.all(color: Colors.white, width: 1.6) : null,
+            ),
+          ),
+        ),
+      );
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: children);
+  }
+}
+
+/// Applies the "carousel" scale/fade/tilt treatment to [child] based on how
+/// far its [index] is from the [controller]'s current page — the card at
+/// the focused page reads full-size and flat; neighbours shrink, fade
+/// slightly, and tilt inward like a shelf of game portals.
+class _CarouselCardSlot extends StatelessWidget {
+  const _CarouselCardSlot({
+    required this.controller,
+    required this.index,
+    required this.child,
+    required this.onTap,
+  });
+
+  final PageController controller;
+  final int index;
+  final Widget child;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, cardChild) {
+        var page = controller.initialPage.toDouble();
+        if (controller.hasClients && controller.position.haveDimensions) {
+          page = controller.page ?? page;
+        }
+        final delta = (index - page).clamp(-1.0, 1.0);
+        final t = delta.abs();
+        final scale = 1 - t * 0.24;
+        return Opacity(
+          opacity: (1 - t * 0.55).clamp(0.4, 1.0),
+          child: Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0012)
+              ..rotateY(delta * 0.18),
+            child: Transform.scale(scale: scale, child: cardChild),
+          ),
+        );
+      },
+      child: GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// A single floating 3D "stage card/portal" — a glowing gradient panel with
+/// its option's icon and label, brighter and ringed with gold when it's
+/// this step's current pick.
+class _StageCard extends StatelessWidget {
+  const _StageCard({
+    required this.label,
+    required this.icon,
+    required this.accent,
+    required this.selected,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color accent;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white.withOpacity(0.95), accent],
+        ),
+        border: Border.all(
+          color: selected ? const Color(0xFFFFE08A) : Colors.white.withOpacity(0.5),
+          width: selected ? 3.5 : 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withOpacity(0.55),
+            blurRadius: selected ? 30 : 16,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          if (selected)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded, size: 16, color: Color(0xFF16A085)),
+              ),
+            ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.28),
+                      border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.4),
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 30),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      shadows: [Shadow(color: Color(0x66000000), blurRadius: 4, offset: Offset(0, 1))],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CarouselArrow extends StatelessWidget {
+  const _CarouselArrow({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: _HudChip(onTap: onTap, child: Icon(icon, color: Colors.white, size: 22)),
+    );
+  }
+}
+
+class _EmptyStageMessage extends StatelessWidget {
+  const _EmptyStageMessage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: _InfoBanner(message: 'لا توجد خيارات متاحة لهذه الخطوة بعد.'),
+      ),
     );
   }
 }

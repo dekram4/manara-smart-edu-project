@@ -14,8 +14,6 @@ dependencies:
   audioplayers: ^6.1.0
   confetti: ^0.8.0
   shared_preferences: ^2.3.3
-  flame: ^1.24.0
-  flame_audio: ^2.10.6
   flutter_inappwebview: ^6.1.5
   # media_kit is kept for Windows only now — Android/iOS/iPadOS MP4 playback
   # goes exclusively through video_player (see student_video_player.dart's
