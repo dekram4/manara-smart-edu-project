@@ -12,7 +12,7 @@ import 'package:flutter/material.dart' show Colors, TextStyle;
 
 /// One selectable option in the current step of the academic path (a grade,
 /// a term, a subject, a chapter, a unit, or a lesson) — rendered as a
-/// floating "island" the student taps.
+/// station on the road-map the student taps.
 class WorldStation {
   const WorldStation({required this.id, required this.label});
 
@@ -21,12 +21,13 @@ class WorldStation {
 }
 
 /// The interactive game world behind [AcademicSelectionScreen]'s stage
-/// picker: a breathing sky, a few drifting clouds, and — for whichever step
-/// is currently active — a set of floating island stations the student taps
-/// to advance. Flutter (not Flame) owns the actual selection state; this
-/// game only ever reports "the student tapped station X" through
-/// [onStationSelected] and shows whatever station list it's told to via
-/// [showStations].
+/// picker: a bright, cheerful breathing sky, a few drifting clouds, and —
+/// for whichever step is currently active — that step's options laid out
+/// as stations along a winding, glowing dotted road, the way an
+/// adventure/level map lays out its stages. Flutter (not Flame) owns the
+/// actual selection state; this game only ever reports "the student tapped
+/// station X" through [onStationSelected] and shows whatever station list
+/// it's told to via [showStations].
 class AcademicWorldGame extends FlameGame {
   AcademicWorldGame({required this.onStationSelected});
 
@@ -40,28 +41,30 @@ class AcademicWorldGame extends FlameGame {
   /// there. Null until the first tap.
   final ValueNotifier<Vector2?> avatarTarget = ValueNotifier(null);
 
-  /// Current step's theme color, driving both the sky and the islands.
+  /// Current step's theme color, driving both the sky and the stations.
   final ValueNotifier<Color> accent = ValueNotifier(const Color(0xFF4F46E5));
 
   double _breatheTime = 0;
   List<WorldStation> _pendingStations = const [];
+  String? _pendingSelectedId;
+  final List<Vector2> _stationPositions = [];
 
   @override
-  Color backgroundColor() => const Color(0xFF0B1B3A);
+  Color backgroundColor() => const Color(0xFF6C8CF5);
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
     // World (0,0) == the top-left pixel of the GameWidget, with no
     // zoom/pan — the simplest possible mapping, and the one the Flutter
-    // avatar overlay relies on to place itself directly from an island's
+    // avatar overlay relies on to place itself directly from a station's
     // `position` with no coordinate conversion.
     camera.viewfinder.anchor = Anchor.topLeft;
     camera.viewfinder.position = Vector2.zero();
 
-    world.add(_CloudBlob(startX: 0.15, y: 70, radius: 46, speed: 9));
-    world.add(_CloudBlob(startX: 0.72, y: 130, radius: 34, speed: -6));
-    world.add(_CloudBlob(startX: 0.42, y: 40, radius: 26, speed: 5));
+    world.add(_CloudBlob(startX: 0.12, y: 90, radius: 50, speed: 9));
+    world.add(_CloudBlob(startX: 0.75, y: 160, radius: 38, speed: -6));
+    world.add(_CloudBlob(startX: 0.4, y: 50, radius: 28, speed: 5));
   }
 
   @override
@@ -73,15 +76,15 @@ class AcademicWorldGame extends FlameGame {
   @override
   void render(Canvas canvas) {
     if (!hasLayout) return;
-    // A slow "breathing" sky wash behind everything else, before the
-    // component tree (clouds + islands) paints on top of it.
+    // A slow "breathing" sky wash — bright and cheerful, tinted by the
+    // current step's accent color — behind everything else.
     final breathe = (math.sin(_breatheTime * 0.5) + 1) / 2; // 0..1
     final top = Color.lerp(
-      const Color(0xFF0B1B3A),
-      accent.value.withOpacity(0.55),
-      0.25 + breathe * 0.15,
+      const Color(0xFF6C8CF5),
+      accent.value,
+      0.35 + breathe * 0.15,
     )!;
-    const bottom = Color(0xFF13284F);
+    final bottom = Color.lerp(const Color(0xFFB794F6), accent.value, 0.25)!;
     final paint = Paint()
       ..shader = Gradient.linear(
         const Offset(0, 0),
@@ -89,19 +92,63 @@ class AcademicWorldGame extends FlameGame {
         [top, bottom],
       );
     canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), paint);
+    _drawRoad(canvas);
     super.render(canvas);
   }
 
-  /// Clears whatever islands are currently shown and lays out a new set for
-  /// [stations], themed with [stepAccent]. Called by the screen every time
-  /// the active step changes (including going back a step) — this can
-  /// happen before the GameWidget has ever been laid out (the very first
-  /// call arrives from an async data fetch that may resolve before Flutter
-  /// has even built the widget once), so it must never touch `size`
-  /// directly; see [_applyPendingStations].
-  void showStations(List<WorldStation> stations, {required Color stepAccent}) {
+  /// The glowing dotted road connecting one station to the next, drawn
+  /// under the stations (and clouds, which is fine — clouds drift above
+  /// everything) but over the sky wash.
+  void _drawRoad(Canvas canvas) {
+    if (_stationPositions.length < 2) return;
+    final glow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withOpacity(0.25);
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withOpacity(0.85);
+    for (var i = 0; i < _stationPositions.length - 1; i++) {
+      _drawDottedSegment(canvas, _stationPositions[i], _stationPositions[i + 1], glow);
+      _drawDottedSegment(canvas, _stationPositions[i], _stationPositions[i + 1], line);
+    }
+  }
+
+  void _drawDottedSegment(Canvas canvas, Vector2 a, Vector2 b, Paint paint) {
+    final total = (b - a).length;
+    if (total <= 0) return;
+    const dashLen = 12.0;
+    const gapLen = 10.0;
+    final dir = (b - a) / total;
+    var covered = 0.0;
+    while (covered < total) {
+      final start = a + dir * covered;
+      final end = a + dir * math.min(covered + dashLen, total);
+      canvas.drawLine(Offset(start.x, start.y), Offset(end.x, end.y), paint);
+      covered += dashLen + gapLen;
+    }
+  }
+
+  /// Clears whatever stations are currently shown and lays out a new set
+  /// for [stations], themed with [stepAccent]. [selectedId] (if any of
+  /// these stations was already picked for this step, e.g. after going
+  /// back) gets a highlighted "current pick" look. Called by the screen
+  /// every time the active step changes (including going back a step) —
+  /// this can happen before the GameWidget has ever been laid out (the
+  /// very first call arrives from an async data fetch that may resolve
+  /// before Flutter has even built the widget once), so it must never
+  /// touch `size` directly; see [_applyPendingStations].
+  void showStations(
+    List<WorldStation> stations, {
+    required Color stepAccent,
+    String? selectedId,
+  }) {
     accent.value = stepAccent;
     _pendingStations = stations;
+    _pendingSelectedId = selectedId;
     _applyPendingStations();
   }
 
@@ -129,32 +176,41 @@ class AcademicWorldGame extends FlameGame {
   }
 
   void _layoutStations() {
-    if (_pendingStations.isEmpty || size.x <= 0) return;
-    const islandDiameter = 84.0;
-    const cellWidth = 116.0;
-    const cellHeight = 138.0;
-    final columns = ((size.x - 24) / cellWidth).floor().clamp(2, 4);
-    final rowWidth = columns * cellWidth;
-    final startX = (size.x - rowWidth) / 2 + cellWidth / 2;
-    const startY = 96.0;
+    _stationPositions.clear();
+    if (_pendingStations.isEmpty || size.x <= 0 || size.y <= 0) return;
+    const stationDiameter = 88.0;
+    const topMargin = 110.0;
+    const bottomMargin = 130.0;
+    final count = _pendingStations.length;
+    final usableHeight = math.max(size.y - topMargin - bottomMargin, 0.0);
+    final verticalSpacing = count > 1 ? usableHeight / (count - 1) : 0.0;
+    final centerX = size.x / 2;
+    // How far the road winds side to side — generous on a wide screen,
+    // clamped so it never pushes a station off a narrow one.
+    final amplitude = math.min(size.x * 0.28, size.x / 2 - stationDiameter);
 
-    for (var i = 0; i < _pendingStations.length; i++) {
-      final row = i ~/ columns;
-      final column = i % columns;
-      final baseX = startX + column * cellWidth;
-      final baseY = startY + row * cellHeight;
+    for (var i = 0; i < count; i++) {
+      final y = count > 1
+          ? topMargin + i * verticalSpacing
+          : topMargin + usableHeight / 2;
+      final x = centerX + math.sin(i * 0.9) * amplitude;
+      final position = Vector2(x, y);
+      _stationPositions.add(position);
+
+      final station = _pendingStations[i];
       final island = _IslandComponent(
-        station: _pendingStations[i],
+        station: station,
         accent: accent.value,
-        baseY: baseY,
+        baseY: y,
         phase: i * 0.7,
+        selected: station.id == _pendingSelectedId,
         onSelected: () {
-          avatarTarget.value = Vector2(baseX, baseY);
-          onStationSelected(_pendingStations[i].id);
+          avatarTarget.value = position.clone();
+          onStationSelected(station.id);
         },
       )
-        ..position = Vector2(baseX, baseY)
-        ..size = Vector2.all(islandDiameter)
+        ..position = position.clone()
+        ..size = Vector2.all(stationDiameter)
         ..anchor = Anchor.center;
       world.add(island);
     }
@@ -174,7 +230,7 @@ class _CloudBlob extends CircleComponent {
          radius: radius,
          anchor: Anchor.center,
          paint: Paint()
-           ..color = const Color(0x33FFFFFF)
+           ..color = const Color(0x40FFFFFF)
            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
        ) {
     position.y = y;
@@ -201,9 +257,10 @@ class _CloudBlob extends CircleComponent {
   }
 }
 
-/// One floating, tappable station. Bobs continuously on a sine wave and
-/// gives a short scale-bounce when tapped, then reports the tap upward via
-/// [onSelected].
+/// One station on the road-map. Bobs continuously on a sine wave and gives
+/// a short scale-bounce when tapped, then reports the tap upward via
+/// [onSelected]. A [selected] station (already picked for this step) gets
+/// a bright checkmark ring instead of its number-free plain look.
 class _IslandComponent extends PositionComponent with TapCallbacks {
   _IslandComponent({
     required this.station,
@@ -211,11 +268,13 @@ class _IslandComponent extends PositionComponent with TapCallbacks {
     required double baseY,
     required double phase,
     required this.onSelected,
+    this.selected = false,
   }) : _baseY = baseY,
        _phase = phase;
 
   final WorldStation station;
   final Color accent;
+  final bool selected;
   final double _baseY;
   final double _phase;
   final VoidCallback onSelected;
@@ -226,18 +285,22 @@ class _IslandComponent extends PositionComponent with TapCallbacks {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    final shortLabel = station.label.length > 14
-        ? '${station.label.substring(0, 13)}…'
+    final shortLabel = station.label.length > 16
+        ? '${station.label.substring(0, 15)}…'
         : station.label;
     _label = TextComponent(
       text: shortLabel,
       anchor: Anchor.topCenter,
-      position: Vector2(size.x / 2, size.y + 6),
+      position: Vector2(size.x / 2, size.y + 8),
       textRenderer: TextPaint(
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+          shadows: [
+            Shadow(color: Color(0xE6000000), blurRadius: 6),
+            Shadow(color: Color(0xFF000000), blurRadius: 2, offset: Offset(0, 1)),
+          ],
         ),
       ),
     );
@@ -254,6 +317,16 @@ class _IslandComponent extends PositionComponent with TapCallbacks {
   @override
   void render(Canvas canvas) {
     final rect = Rect.fromLTWH(0, 0, size.x, size.y);
+    if (selected) {
+      // A soft glow ring behind a selected station makes it read as "this
+      // is your current pick" at a glance among the rest of the stations.
+      canvas.drawOval(
+        rect.inflate(7),
+        Paint()
+          ..color = Colors.white.withOpacity(0.55)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+    }
     final gradient = Paint()
       ..shader = Gradient.radial(
         Offset(size.x * 0.35, size.y * 0.32),
@@ -265,9 +338,29 @@ class _IslandComponent extends PositionComponent with TapCallbacks {
       rect,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = Colors.white.withOpacity(0.9),
+        ..strokeWidth = selected ? 4.5 : 3
+        ..color = selected ? const Color(0xFFFFE08A) : Colors.white.withOpacity(0.9),
     );
+    if (selected) {
+      final checkPaint = Paint()
+        ..color = const Color(0xFFFFE08A)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(size.x - 12, 12), 12, Paint()..color = Colors.white);
+      canvas.drawCircle(Offset(size.x - 12, 12), 12, checkPaint..style = PaintingStyle.stroke..strokeWidth = 2);
+      final path = Path()
+        ..moveTo(size.x - 17, 12)
+        ..lineTo(size.x - 13, 16)
+        ..lineTo(size.x - 7, 8);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFF16A085)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
     super.render(canvas);
   }
 

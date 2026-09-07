@@ -163,10 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       StudentEntrance(
                         child: Column(
                           children: [
-                            StudentInteractiveMascot(
-                              size: 168,
-                              outfitColor: const Color(0xFF16A085),
-                            ),
+                            const StudentInteractiveMascot(size: 168),
                             const SizedBox(height: 4),
                             const Text(
                               'أهلًا يا بطل! 👋',
@@ -285,6 +282,7 @@ class _LoginGameBackground extends StatelessWidget {
           left: -70,
           child: _GlowBlob(size: 190, color: const Color(0xFF5EEAD4), delay: 300.ms),
         ),
+        const SmartEduFloatingBackground(),
       ],
     );
   }

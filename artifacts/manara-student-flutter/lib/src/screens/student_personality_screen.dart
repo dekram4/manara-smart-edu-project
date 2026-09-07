@@ -648,13 +648,10 @@ class _AppearancePreviewState extends State<_AppearancePreview>
         // The chosen emoji/outfit/accessory are already shown as their own
         // selected chips below — stamping them again as floating text over
         // the character just cluttered the preview without actually
-        // changing its body, so the preview only recolors the character's
-        // actual outfit (a real per-outfit visual change) and lets it move.
-        StudentMascot(
-          size: 168,
-          outfitColor: widget.color,
-          waving: widget.motion == 'wave' || widget.motion == 'celebrate',
-        ),
+        // changing its body, so the preview only washes the illustration
+        // with the chosen color (a real per-choice visual change) and lets
+        // the outer AnimatedBuilder move it.
+        StudentMascot(size: 168, tint: widget.color),
       ],
     ),
   );

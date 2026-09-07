@@ -8,7 +8,6 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
-import '../theme/student_theme.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
@@ -72,6 +71,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   int _stepIndex = 0;
   StudentGamification _gamification = const StudentGamification();
 
+  bool get _ready => !_loading && _data != null && !_data!.isEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -118,7 +119,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               'تعذر قراءة إعدادات الشجرة؛ تم عرض المسارات المكتملة من الدروس المتاحة فقط.';
         }
       });
-      if (!_loading) _refreshStations();
+      if (_ready) _refreshStations();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -343,8 +344,19 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
-  /// The stations (islands) to show for the current [_stepIndex], read from
-  /// exactly the same [AcademicSelectionData] getters the dropdown UI used.
+  /// The value already picked for the current step, if any — so the world
+  /// can highlight it among this step's stations (e.g. after going back).
+  String? get _currentStepSelectedId => switch (_stepIndex) {
+    0 => _grade,
+    1 => _atram,
+    2 => _subject,
+    3 => _term,
+    4 => _unit,
+    _ => _lesson?.id,
+  };
+
+  /// The stations to show for the current [_stepIndex], read from exactly
+  /// the same [AcademicSelectionData] getters the dropdown UI used.
   List<WorldStation> _currentStationOptions() {
     final data = _data;
     if (data == null) return const [];
@@ -393,12 +405,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _game.showStations(
       _currentStationOptions(),
       stepAccent: _stepAccents[_stepIndex],
+      selectedId: _currentStepSelectedId,
     );
   }
 
-  /// Applies a tapped island to the real selection state via the exact same
-  /// `_select*` methods the dropdowns called, then advances to the next
-  /// station (unless this was the last one, the lesson pick).
+  /// Applies a tapped station to the real selection state via the exact
+  /// same `_select*` methods the dropdowns called, then advances to the
+  /// next station (unless this was the last one, the lesson pick).
   void _handleStationTap(String stationId) {
     switch (_stepIndex) {
       case 0:
@@ -459,154 +472,183 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: StudentPalette.canvas,
+      backgroundColor: const Color(0xFF6C8CF5),
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [
-                    Color(0xFFF3F7FF),
-                    Color(0xFFEFF6FF),
-                    Color(0xFFF5F3FF),
-                  ],
-                ),
-              ),
-            ),
+          // The game world (or, while it isn't ready yet, a matching
+          // gradient + Smart Edu particles) always fills the *entire*
+          // screen — no narrow bordered box stealing most of the space.
+          Positioned.fill(
+            child: _ready ? GameWidget(game: _game) : const _AcademicLoadingBackdrop(),
           ),
-          const Positioned.fill(child: StudentLearningWorld()),
+          if (_ready)
+            ValueListenableBuilder<Vector2?>(
+              valueListenable: _game.avatarTarget,
+              builder: (context, target, _) {
+                if (target == null) return const SizedBox.shrink();
+                return AnimatedPositioned(
+                  duration: const Duration(milliseconds: 420),
+                  curve: Curves.easeOutCubic,
+                  left: target.x - 20,
+                  top: target.y - 62,
+                  child: const IgnorePointer(child: StudentMascot(size: 40)),
+                );
+              },
+            ),
           SafeArea(
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 660),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Row(
-                              children: [
-                                ManaraLogo(size: 44),
-                                SizedBox(width: 10),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'مَنارة',
-                                      style: TextStyle(
-                                        color: StudentPalette.ink,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    Text(
-                                      'MANARA SMART EDU',
-                                      textDirection: TextDirection.ltr,
-                                      style: TextStyle(
-                                        color: StudentPalette.indigo,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Color(0xB3FFFCF3),
-                                borderRadius: BorderRadius.all(Radius.circular(16)),
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                  child: Row(
+                    children: [
+                      if (_ready && _stepIndex > 0)
+                        _HudChip(onTap: _goBackStep, child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18))
+                      else
+                        const SizedBox(width: 40),
+                      const SizedBox(width: 8),
+                      if (_ready)
+                        Expanded(
+                          child: _HudChip(
+                            expand: true,
+                            child: Text(
+                              _stepLabels[_stepIndex],
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
                               ),
-                              child: StudentSoundToggle(),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        if (_loading || _data == null || (_data?.isEmpty ?? true))
-                          StudentEntrance(
-                            child: Column(
-                              children: [
-                                const StudentCompanion(size: 92, showLabel: false),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'أهلًا ${widget.profile.name}',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: StudentPalette.indigo,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'اختر رحلتك التعليمية',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: StudentPalette.ink,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: _loading
-                      ? const Center(
-                          child: StudentRiveLoading(
-                            size: 118,
-                            label: 'جارٍ تحميل المسار الأكاديمي',
                           ),
                         )
-                      : (_data == null || _data!.isEmpty)
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(20),
-                                child: _InfoBanner(
-                                  message: _loadError ??
-                                      'لا توجد مسارات أكاديمية متاحة حاليًا.',
+                      else
+                        const Expanded(
+                          child: Row(
+                            children: [
+                              ManaraLogo(size: 34),
+                              SizedBox(width: 8),
+                              Text(
+                                'مَنارة',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
                                 ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      if (_ready)
+                        _HudChip(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.diamond_rounded, color: Color(0xFF5EEAD4), size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${_gamification.gems}',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Color(0x33FFFFFF),
+                          borderRadius: BorderRadius.all(Radius.circular(16)),
+                        ),
+                        child: StudentSoundToggle(),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!_ready)
+                  Expanded(
+                    child: Center(
+                      child: _loading
+                          ? StudentEntrance(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const StudentMascot(size: 120),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'أهلًا ${widget.profile.name}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const StudentRiveLoading(
+                                    size: 84,
+                                    label: 'جارٍ تحميل المسار الأكاديمي',
+                                  ),
+                                ],
                               ),
                             )
-                          // A LayoutBuilder + explicitly-sized SizedBox (rather
-                          // than a bare Center) guarantees GameWidget gets a
-                          // definite, non-zero size — Center alone would pass
-                          // it loose constraints and could collapse it.
-                          : LayoutBuilder(
-                              builder: (context, constraints) => Center(
-                                child: SizedBox(
-                                  width: constraints.maxWidth > 660
-                                      ? 660
-                                      : constraints.maxWidth,
-                                  height: constraints.maxHeight,
-                                  child: _AcademicWorldStage(
-                                    game: _game,
-                                    stepIndex: _stepIndex,
-                                    stepLabel: _stepLabels[_stepIndex],
-                                    gems: _gamification.gems,
-                                    canGoBack: _stepIndex > 0,
-                                    onBack: _goBackStep,
-                                    loadWarning: _loadError,
-                                    selection: _selection,
-                                    isEntering: _isEntering,
-                                    onEnter: _enterDashboard,
-                                  ),
-                                ),
+                          : Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: _InfoBanner(
+                                message: _loadError ?? 'لا توجد مسارات أكاديمية متاحة حاليًا.',
                               ),
                             ),
-                ),
+                    ),
+                  ),
+                if (_ready) const Spacer(),
+                if (_ready && _loadError != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _InfoBanner(message: _loadError!),
+                  ),
+                if (_ready && _selection != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: StudentPressScale(
+                      child: StudentEmbossedShell(
+                        color: const Color(0xFF16A085),
+                        borderRadius: 24,
+                        child: FilledButton.icon(
+                          onPressed: _isEntering ? null : _enterDashboard,
+                          icon: _isEntering
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Icon(Icons.celebration_rounded),
+                          label: Text(_isEntering ? 'نجهّز رحلتك...' : 'ادخل رحلتك!'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF16A085),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_ready)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: LinearProgressIndicator(
+                        value: (_stepIndex + 1) / _stepLabels.length,
+                        minHeight: 8,
+                        color: const Color(0xFFF6C95D),
+                        backgroundColor: Colors.white.withOpacity(0.28),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -616,201 +658,29 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   }
 }
 
-/// The game canvas plus its Flutter HUD: gems, a back button, the current
-/// step's title, a progress bar, the student's avatar animating toward the
-/// last-tapped island, and — once a full path is chosen — the "enter" CTA.
-/// The overlay is plain Flutter widgets composited via [Stack] above the
-/// [GameWidget], so it never touches the Flame render loop.
-class _AcademicWorldStage extends StatelessWidget {
-  const _AcademicWorldStage({
-    required this.game,
-    required this.stepIndex,
-    required this.stepLabel,
-    required this.gems,
-    required this.canGoBack,
-    required this.onBack,
-    required this.loadWarning,
-    required this.selection,
-    required this.isEntering,
-    required this.onEnter,
-  });
-
-  final AcademicWorldGame game;
-  final int stepIndex;
-  final String stepLabel;
-  final int gems;
-  final bool canGoBack;
-  final VoidCallback onBack;
-  final String? loadWarning;
-  final AcademicContext? selection;
-  final bool isEntering;
-  final VoidCallback onEnter;
+/// The backdrop shown while the academic path data is still loading (or
+/// failed to load) — a gradient matching the game world's own sky plus
+/// Smart Edu floating particles, so the transition into the game once it's
+/// ready doesn't jump between two unrelated looks.
+class _AcademicLoadingBackdrop extends StatelessWidget {
+  const _AcademicLoadingBackdrop();
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-      child: ClipRRect(
-        borderRadius: StudentShapes.playfulCard,
-        child: Container(
+    return Stack(
+      fit: StackFit.expand,
+      children: const [
+        DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: StudentShapes.playfulCard,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x29183047),
-                blurRadius: 30,
-                offset: Offset(0, 16),
-              ),
-            ],
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              GameWidget(game: game),
-              // Avatar: travels to whichever island was last tapped.
-              ValueListenableBuilder<Vector2?>(
-                valueListenable: game.avatarTarget,
-                builder: (context, target, _) {
-                  if (target == null) return const SizedBox.shrink();
-                  return AnimatedPositioned(
-                    duration: const Duration(milliseconds: 420),
-                    curve: Curves.easeOutCubic,
-                    left: target.x - 20,
-                    top: target.y - 62,
-                    child: const IgnorePointer(
-                      child: StudentMascot(size: 40, outfitColor: Color(0xFF16A085)),
-                    ),
-                  );
-                },
-              ),
-              // HUD: back button, step title, gems.
-              PositionedDirectional(
-                top: 12,
-                start: 12,
-                end: 12,
-                child: Row(
-                  children: [
-                    if (canGoBack)
-                      _HudChip(
-                        onTap: onBack,
-                        child: const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 40),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _HudChip(
-                        expand: true,
-                        child: Text(
-                          stepLabel,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _HudChip(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.diamond_rounded,
-                            color: Color(0xFF5EEAD4),
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$gems',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Progress bar along the bottom.
-              PositionedDirectional(
-                bottom: 14,
-                start: 16,
-                end: 16,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: LinearProgressIndicator(
-                    value: (stepIndex + 1) / _stepLabels.length,
-                    minHeight: 8,
-                    color: const Color(0xFFF6C95D),
-                    backgroundColor: Colors.white.withOpacity(0.22),
-                  ),
-                ),
-              ),
-              if (loadWarning != null)
-                PositionedDirectional(
-                  top: 58,
-                  start: 12,
-                  end: 12,
-                  child: _InfoBanner(message: loadWarning!),
-                ),
-              if (selection != null)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 32),
-                    child: StudentPressScale(
-                      child: StudentEmbossedShell(
-                        color: const Color(0xFF16A085),
-                        borderRadius: 24,
-                        child: FilledButton.icon(
-                          onPressed: isEntering ? null : onEnter,
-                          icon: isEntering
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.celebration_rounded),
-                          label: Text(isEntering ? 'نجهّز رحلتك...' : 'ادخل رحلتك!'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A085),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 26,
-                              vertical: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF6C8CF5), Color(0xFFB794F6)],
+            ),
           ),
         ),
-      ),
+        SmartEduFloatingBackground(),
+      ],
     );
   }
 }

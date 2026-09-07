@@ -239,7 +239,7 @@ class _AvatarRoomScene extends StatelessWidget {
           ),
           const Positioned(
             bottom: 34,
-            child: StudentInteractiveMascot(size: 150, outfitColor: Color(0xFF9B3E68)),
+            child: StudentInteractiveMascot(size: 150),
           ),
         ],
       ),

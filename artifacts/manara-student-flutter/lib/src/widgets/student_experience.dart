@@ -83,71 +83,113 @@ class StudentAnimatedCard extends StatelessWidget {
   }
 }
 
-/// Subtle decorative light spots for student-facing entry screens.
+/// A "Smart Edu" floating-particle backdrop for student entry screens: soft
+/// glowing badges of icons that actually read as learning/intelligence
+/// (a sparkle, a brain, a digital book, a network/atom node, a star)
+/// drifting gently in cheerful, varied colors — replacing the previous
+/// pair of large grey-blue foggy circles with something that says
+/// "smart education" instead of just "decoration".
 ///
-/// They stay behind the content and stop animating when the device asks for
+/// Stays behind the content and stops animating when the device asks for
 /// reduced motion.
-class StudentAmbientOrbs extends StatelessWidget {
-  const StudentAmbientOrbs({super.key});
+class SmartEduFloatingBackground extends StatelessWidget {
+  const SmartEduFloatingBackground({super.key});
+
+  static const _particles = <_SmartEduParticleSpec>[
+    _SmartEduParticleSpec(
+      icon: Icons.auto_awesome_rounded,
+      color: Color(0xFFF6C95D),
+      alignment: Alignment(-0.86, -0.74),
+      size: 30,
+      delay: Duration.zero,
+    ),
+    _SmartEduParticleSpec(
+      icon: Icons.psychology_rounded,
+      color: Color(0xFF8B5CF6),
+      alignment: Alignment(0.84, -0.52),
+      size: 32,
+      delay: Duration(milliseconds: 300),
+    ),
+    _SmartEduParticleSpec(
+      icon: Icons.menu_book_rounded,
+      color: Color(0xFF0EA5E9),
+      alignment: Alignment(-0.8, 0.58),
+      size: 28,
+      delay: Duration(milliseconds: 650),
+    ),
+    _SmartEduParticleSpec(
+      icon: Icons.hub_rounded,
+      color: Color(0xFF16A085),
+      alignment: Alignment(0.9, 0.7),
+      size: 26,
+      delay: Duration(milliseconds: 200),
+    ),
+    _SmartEduParticleSpec(
+      icon: Icons.star_rounded,
+      color: Color(0xFFEC4899),
+      alignment: Alignment(0.08, -0.9),
+      size: 20,
+      delay: Duration(milliseconds: 480),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final topOrb = DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF5EEAD4).withOpacity(0.12),
-      ),
-    );
-    final bottomOrb = DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF818CF8).withOpacity(0.14),
-      ),
-    );
-
-    Widget animate(Widget child, {required bool reverse}) {
-      if (reduceMotion) return child;
-      return child
-          .animate(onPlay: (controller) => controller.repeat(reverse: reverse))
-          .moveY(
-            begin: reverse ? -8 : 8,
-            end: reverse ? 8 : -8,
-            duration: 3200.ms,
-            curve: Curves.easeInOut,
-          )
-          .fade(
-            begin: 0.68,
-            end: 1,
-            duration: 2400.ms,
-            curve: Curves.easeInOut,
-          );
-    }
-
     return IgnorePointer(
       child: Stack(
         children: [
-          PositionedDirectional(
-            top: -72,
-            end: -48,
-            child: SizedBox(
-              width: 210,
-              height: 210,
-              child: animate(topOrb, reverse: false),
+          for (final particle in _particles)
+            Align(
+              alignment: particle.alignment,
+              child: _SmartEduParticle(spec: particle, reduceMotion: reduceMotion),
             ),
-          ),
-          PositionedDirectional(
-            bottom: -88,
-            start: -54,
-            child: SizedBox(
-              width: 230,
-              height: 230,
-              child: animate(bottomOrb, reverse: true),
-            ),
-          ),
         ],
       ),
     );
+  }
+}
+
+class _SmartEduParticleSpec {
+  const _SmartEduParticleSpec({
+    required this.icon,
+    required this.color,
+    required this.alignment,
+    required this.size,
+    required this.delay,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Alignment alignment;
+  final double size;
+  final Duration delay;
+}
+
+class _SmartEduParticle extends StatelessWidget {
+  const _SmartEduParticle({required this.spec, required this.reduceMotion});
+
+  final _SmartEduParticleSpec spec;
+  final bool reduceMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = Container(
+      width: spec.size + 26,
+      height: spec.size + 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.16),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.28)),
+      ),
+      child: Icon(spec.icon, color: spec.color, size: spec.size),
+    );
+    if (reduceMotion) return badge;
+    return badge
+        .animate(delay: spec.delay, onPlay: (controller) => controller.repeat(reverse: true))
+        .moveY(begin: -8, end: 8, duration: 3400.ms, curve: Curves.easeInOut)
+        .fade(begin: 0.65, end: 1, duration: 2600.ms, curve: Curves.easeInOut);
   }
 }
 

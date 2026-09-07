@@ -83,7 +83,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
               ),
             ),
           ),
-          const StudentAmbientOrbs(),
+          const SmartEduFloatingBackground(),
           SafeArea(
             child: Center(
               child: Padding(
