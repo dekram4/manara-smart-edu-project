@@ -367,12 +367,14 @@ class StudentContentService {
             ),
           ),
     ];
-    final paths = _uniquePaths(hierarchyPaths)
-        .where(
-          (path) =>
-              matchingLessons.any((lesson) => _lessonMatchesPath(lesson, path)),
-        )
-        .toList();
+    // Every grade/atram/subject/term/unit the teacher has configured in the
+    // hierarchy tree is shown to the student, whether or not a lesson has
+    // been published under it yet — the tree itself is the source of truth
+    // for which options exist, not lesson_configs. A branch with no lesson
+    // yet simply shows its own "no lessons yet" state at the final step
+    // (see _EmptyStageMessage in academic_selection_screen.dart) instead of
+    // being hidden entirely upstream.
+    final paths = _uniquePaths(hierarchyPaths);
 
     return AcademicSelectionData(
       paths: paths,
@@ -1113,15 +1115,6 @@ bool _hasPathValues(AcademicPath path) {
   ].every((value) => value.trim().isNotEmpty);
 }
 
-bool _lessonMatchesPath(LessonContent lesson, AcademicPath path) {
-  return [
-    (lesson.grade, path.grade),
-    (lesson.atram, path.atram),
-    (lesson.subject, path.subject),
-    (lesson.term, path.term),
-    (lesson.unit, path.unit),
-  ].every((pair) => _normalize(pair.$1) == _normalize(pair.$2));
-}
 
 bool _matchesConfigOwner(Map<String, dynamic> config, StudentProfile profile) {
   final owner = _normalize(

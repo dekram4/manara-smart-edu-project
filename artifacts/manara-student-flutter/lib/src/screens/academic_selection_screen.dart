@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -978,9 +980,7 @@ class _CarouselCardSlot extends StatelessWidget {
       // full cross-axis extent (i.e. the entire carousel row's height, and
       // most of a wide desktop/tablet window's width) — without capping
       // the card itself here, it stretches to fill that whole slot instead
-      // of reading as a compact portal card. Center + a max-size cap fixes
-      // both the oversized card and (since the card is no longer forced to
-      // fill the Stack's full height) the content-pinned-to-a-corner look.
+      // of reading as a compact portal card.
       // No GestureDetector wraps `child` here on purpose: `_StageCard`
       // itself puts one only around its body (icon + label), as a sibling
       // of — never an ancestor of — its own "انطلق" button's GestureDetector.
@@ -988,20 +988,29 @@ class _CarouselCardSlot extends StatelessWidget {
       // lets a single physical tap fire both callbacks; keeping them as
       // non-overlapping siblings makes that impossible regardless of hit
       // order.
-      // A true landscape 4:3 portal card, capped so it never grows absurdly
-      // large on a wide desktop/tablet window. AspectRatio forces a *tight*
-      // box on `child`, which is exactly why `_StageCard`'s own Stack
-      // explicitly centers its content instead of relying on shrink-wrap.
+      // A chunky, portrait-oriented game card (~275x360, the spec'd game
+      // card proportions) — clamped down from that target size only when
+      // the actual slot is smaller, so it never hard-overflows a short
+      // window. `_StageCard` centers its own content regardless of the
+      // exact size it ends up with.
       child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 340),
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: child,
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth.isFinite
+                ? math.min(275.0, constraints.maxWidth - 16)
+                : 275.0;
+            final height = constraints.maxHeight.isFinite
+                ? math.min(360.0, constraints.maxHeight - 16)
+                : 360.0;
+            return SizedBox(
+              width: width > 0 ? width : 275,
+              height: height > 0 ? height : 360,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: child,
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1038,133 +1047,142 @@ class _StageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final frameDark = Color.lerp(accent, Colors.black, 0.4)!;
-    final frameDarker = Color.lerp(accent, Colors.black, 0.62)!;
+    // The whole card is itself a StudentEmbossedShell — the same chunky
+    // "ledge" 3D-button technique already used for "ادخل رحلتك!" below,
+    // just applied to the full card instead of just a button — which is
+    // exactly what a wide dark extrusion base under a raised board needs:
+    // a darker copy of the card offset a few px down, peeking out beneath
+    // the actual (slightly upward-shifted) face on top.
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [frameDark, frameDarker],
-        ),
-        boxShadow: [
-          if (selected)
-            BoxShadow(color: accent.withOpacity(0.75), blurRadius: 34, spreadRadius: 3),
-          BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 14, offset: const Offset(0, 10)),
-        ],
-      ),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.white.withOpacity(0.95), accent],
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      child: StudentEmbossedShell(
+        color: accent,
+        depth: 10,
+        borderRadius: 26,
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color.lerp(accent, Colors.white, 0.4)!,
+                accent,
+                Color.lerp(accent, Colors.black, 0.12)!,
+              ],
+              stops: const [0, 0.5, 1],
+            ),
+            border: Border.all(
+              color: selected ? const Color(0xFFFFE08A) : const Color(0xFFFFF3D0),
+              width: 4,
+            ),
           ),
-          border: Border.all(
-            color: selected ? const Color(0xFFFFE08A) : Colors.white.withOpacity(0.6),
-            width: selected ? 3 : 1.4,
-          ),
-        ),
-        child: Stack(
-          // Explicit, rather than relying on shrink-wrap: the card now
-          // sits inside a *tight* AspectRatio box (see _CarouselCardSlot),
-          // so without this its non-positioned content would pin to the
-          // Stack's default top-start corner instead of sitting centered.
-          alignment: Alignment.center,
-          children: [
-            // Bottom bevel shading fakes a raised, lit-from-above surface.
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 16,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.24)],
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // A soft specular highlight streak near the top fakes a
+              // glossy, lit-from-above crystal/board surface.
+              Positioned(
+                top: 8,
+                left: 20,
+                right: 20,
+                child: Container(
+                  height: 18,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [Colors.white.withOpacity(0.55), Colors.white.withOpacity(0)],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Positioned(top: 10, right: 10, child: _NumberBadge3D(number: stageNumber, color: accent)),
-            if (selected) const Positioned(top: 10, left: 10, child: _CheckBadge3D()),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 34, 12, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onBodyTap,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 54,
-                          height: 54,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.3),
-                            border: Border.all(color: Colors.white.withOpacity(0.75), width: 1.4),
+              Positioned(top: 10, right: 10, child: _NumberBadge3D(number: stageNumber, color: accent)),
+              if (selected) const Positioned(top: 10, left: 10, child: _CheckBadge3D()),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 24, 14, 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.max,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onBodyTap,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // The big floating stage icon — its own shadow and
+                          // white rim make it read as a separate 3D piece
+                          // sitting just above the card's surface.
+                          Container(
+                            width: 92,
+                            height: 92,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Colors.white, accent],
+                              ),
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 8)),
+                              ],
+                            ),
+                            child: Icon(icon, color: Colors.white, size: 50),
                           ),
-                          child: Icon(icon, color: Colors.white, size: 30),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          label,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            shadows: [Shadow(color: Color(0x66000000), blurRadius: 4, offset: Offset(0, 1))],
+                          const SizedBox(height: 16),
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              shadows: [
+                                Shadow(color: Color(0x99000000), blurRadius: 6, offset: Offset(0, 2)),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  StudentPressScale(
-                    child: StudentEmbossedShell(
-                      color: selected ? const Color(0xFF16A085) : const Color(0xFFF6C95D),
-                      depth: 3.5,
-                      borderRadius: 14,
-                      child: GestureDetector(
-                        onTap: onGo,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                selected ? Icons.check_circle_rounded : Icons.play_arrow_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                selected ? 'مُختار' : 'انطلق',
-                                style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w900),
-                              ),
-                            ],
+                    const SizedBox(height: 16),
+                    StudentPressScale(
+                      child: StudentEmbossedShell(
+                        color: selected ? const Color(0xFF16A085) : const Color(0xFFF6C95D),
+                        depth: 4,
+                        borderRadius: 16,
+                        child: GestureDetector(
+                          onTap: onGo,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  selected ? Icons.check_circle_rounded : Icons.play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  selected ? 'مُختار' : 'انطلق',
+                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

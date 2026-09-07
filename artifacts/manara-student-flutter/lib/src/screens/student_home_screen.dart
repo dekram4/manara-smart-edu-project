@@ -413,44 +413,97 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: StudentAnimatedCard(
-                       child: _WelcomeCard(profile: widget.profile),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: StudentAnimatedCard(
-                      delay: const Duration(milliseconds: 60),
-                      child: StudentAvatarRoom(
-                        stats: _gamification,
-                        onCustomize: _openPersonality,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: StudentAnimatedCard(
-                      delay: const Duration(milliseconds: 80),
-                      child: _ProgressCard(
-                        stats: _gamification,
-                        onPressed: () {
-                          StudentSoundService.instance.playTap();
-                          Navigator.of(context).push(
-                            StudentPageRoute<void>(
-                              builder: (_) => StudentProgressScreen(
-                                profile: widget.profile,
-                                stats: _gamification,
+                  // On a wide/landscape window the three summary cards sit
+                  // side by side instead of stacking full-width one after
+                  // another — a tall, narrow window still gets the original
+                  // vertical stack, since each card's own content wants
+                  // real width to read comfortably.
+                  if (size.width >= 700)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: StudentAnimatedCard(
+                                child: _WelcomeCard(profile: widget.profile),
                               ),
                             ),
-                          );
-                        },
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: StudentAnimatedCard(
+                                delay: const Duration(milliseconds: 60),
+                                child: StudentAvatarRoom(
+                                  stats: _gamification,
+                                  onCustomize: _openPersonality,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: StudentAnimatedCard(
+                                delay: const Duration(milliseconds: 80),
+                                child: _ProgressCard(
+                                  stats: _gamification,
+                                  onPressed: () {
+                                    StudentSoundService.instance.playTap();
+                                    Navigator.of(context).push(
+                                      StudentPageRoute<void>(
+                                        builder: (_) => StudentProgressScreen(
+                                          profile: widget.profile,
+                                          stats: _gamification,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: StudentAnimatedCard(
+                         child: _WelcomeCard(profile: widget.profile),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: StudentAnimatedCard(
+                        delay: const Duration(milliseconds: 60),
+                        child: StudentAvatarRoom(
+                          stats: _gamification,
+                          onCustomize: _openPersonality,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: StudentAnimatedCard(
+                        delay: const Duration(milliseconds: 80),
+                        child: _ProgressCard(
+                          stats: _gamification,
+                          onPressed: () {
+                            StudentSoundService.instance.playTap();
+                            Navigator.of(context).push(
+                              StudentPageRoute<void>(
+                                builder: (_) => StudentProgressScreen(
+                                  profile: widget.profile,
+                                  stats: _gamification,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                   if (widget.academicContext != null) ...[
                     const SizedBox(height: 12),
                     Padding(
