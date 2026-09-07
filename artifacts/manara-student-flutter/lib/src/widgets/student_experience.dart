@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:lottie/lottie.dart' as lottie;
 import 'package:rive/rive.dart' hide Image, LinearGradient, RadialGradient;
 
 import '../services/student_sound_service.dart';
@@ -789,16 +790,16 @@ class StudentCompanion extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageSize = size * 0.83;
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final character = Transform(
-      alignment: Alignment.center,
-      transform: Matrix4.identity()
-        ..setEntry(3, 2, 0.001)
-        ..rotateZ(-0.035),
-      child: Image.asset(
-        'assets/images/manara-student-login-companion-cutout.png',
-        width: imageSize,
-        height: imageSize,
+    // The student's one consistent mascot everywhere in the app — the same
+    // full-body Lottie hero character used in the home screen's avatar
+    // room, not a separate one-off illustration.
+    final character = SizedBox(
+      width: imageSize,
+      height: imageSize,
+      child: lottie.Lottie.asset(
+        'assets/animations/student-avatar-hero.json',
         fit: BoxFit.contain,
+        repeat: true,
         errorBuilder: (_, __, ___) => Container(
           width: imageSize * 0.72,
           height: imageSize * 0.72,
@@ -1431,6 +1432,50 @@ class _Student3DCardState extends State<Student3DCard>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Gives a primary button a chunky, "game menu" 3D look — a darker ledge
+/// peeking out from underneath it, like a physical arcade button — instead
+/// of the flat single-plane buttons of an admin form. Pair with
+/// [StudentPressScale] so the whole shell (button + ledge) scales together
+/// on press.
+class StudentEmbossedShell extends StatelessWidget {
+  const StudentEmbossedShell({
+    required this.child,
+    required this.color,
+    this.depth = 6,
+    this.borderRadius = 19,
+    super.key,
+  });
+
+  final Widget child;
+  final Color color;
+  final double depth;
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final ledgeColor = HSLColor.fromColor(color)
+        .withLightness((HSLColor.fromColor(color).lightness - 0.16).clamp(0.0, 1.0))
+        .toColor();
+    return Stack(
+      children: [
+        Positioned.fill(
+          top: depth,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: ledgeColor,
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.only(bottom: depth),
+          child: child,
+        ),
+      ],
     );
   }
 }

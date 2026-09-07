@@ -645,56 +645,30 @@ class _AppearancePreviewState extends State<_AppearancePreview>
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            ColorFiltered(
-              colorFilter: ColorFilter.mode(
-                widget.color.withOpacity(0.30),
-                BlendMode.srcATop,
-              ),
-              child: Lottie.asset(
-                'assets/animations/student-avatar-hero.json',
-                width: 190,
-                height: 210,
-                fit: BoxFit.contain,
-                repeat: true,
-                animate: true,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.accessibility_new_rounded,
-                  size: 140,
-                  color: Colors.white,
-                ),
-              ),
+        // The chosen emoji/outfit/accessory are already shown as their own
+        // selected chips below — stamping them again as floating text over
+        // the character just cluttered the preview without actually
+        // changing its body, so the preview now only recolors the
+        // character (a real per-outfit visual change) and lets it move.
+        ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            widget.color.withOpacity(0.30),
+            BlendMode.srcATop,
+          ),
+          child: Lottie.asset(
+            'assets/animations/student-avatar-hero.json',
+            width: 190,
+            height: 210,
+            fit: BoxFit.contain,
+            repeat: true,
+            animate: true,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.accessibility_new_rounded,
+              size: 140,
+              color: Colors.white,
             ),
-            Positioned(
-              top: 44,
-              child: Text(widget.emoji, style: const TextStyle(fontSize: 42)),
-            ),
-            Positioned(
-              bottom: 42,
-              child: Text(
-                _StudentPersonalityScreenState._outfits[widget.outfit]?.$2 ??
-                    '⭐',
-                style: const TextStyle(fontSize: 28),
-              ),
-            ),
-            if (widget.accessory != 'none')
-              Positioned(
-                top: 4,
-                right: 5,
-                child: Text(
-                  _StudentPersonalityScreenState._accessories[widget
-                          .accessory] ??
-                      '⭐',
-                  style: const TextStyle(fontSize: 38),
-                ),
-              ),
-          ],
+          ),
         ),
-        const SizedBox(height: 2),
-        const SizedBox.shrink(),
       ],
     ),
   );

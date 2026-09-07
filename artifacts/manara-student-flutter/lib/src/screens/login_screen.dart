@@ -597,7 +597,12 @@ class _LoginCredentials extends StatelessWidget {
             ],
             const SizedBox(height: 24),
             StudentPressScale(
-              child: FilledButton.icon(
+              child: StudentEmbossedShell(
+                color: loginSucceeded
+                    ? const Color(0xFF3B9C70)
+                    : const Color(0xFF147D83),
+                borderRadius: 19,
+                child: FilledButton.icon(
                 onPressed: isLoading ? null : onSubmit,
                 icon: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 180),
@@ -639,6 +644,7 @@ class _LoginCredentials extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(19),
                   ),
+                ),
                 ),
               ),
             ),

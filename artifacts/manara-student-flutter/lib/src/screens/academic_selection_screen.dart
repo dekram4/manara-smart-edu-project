@@ -586,7 +586,10 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                 ],
                                 const SizedBox(height: 18),
                                 StudentPressScale(
-                                  child: FilledButton.icon(
+                                  child: StudentEmbossedShell(
+                                    color: const Color(0xFF147D83),
+                                    borderRadius: 19,
+                                    child: FilledButton.icon(
                                     onPressed: _selection == null || _isEntering
                                         ? null
                                         : _enterDashboard,
@@ -624,6 +627,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(19),
                                       ),
+                                    ),
                                     ),
                                   ),
                                 ),

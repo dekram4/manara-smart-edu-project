@@ -265,9 +265,26 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       if (reward != null) {
         if (reward.alreadyRewarded) {
           StudentSoundService.instance.playTap();
+        } else if (percentage >= 60) {
+          // A real result to celebrate: reward chime (or the bigger
+          // level-up one) plus a random Arabic encouragement, same as
+          // finishing a lesson or game.
+          if (reward.levelUp) {
+            StudentSoundService.instance.playLevelUp();
+          } else {
+            StudentSoundService.instance.playReward();
+          }
+          StudentSoundService.instance.playEncouragementArabic();
+          if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+            _celebrationController.play();
+          }
         } else {
-          StudentSoundService.instance.play(StudentSoundCue.success);
-          if (score > 0) _celebrationController.play();
+          // A low score still deserves warmth, not a buzzer: the same
+          // gentle cue used for validation nudges, paired with an
+          // encouraging phrase instead of a discouraging silence — no
+          // confetti, since this isn't the moment to celebrate.
+          StudentSoundService.instance.play(StudentSoundCue.warning);
+          StudentSoundService.instance.playEncouragementArabic();
         }
         final message = reward.alreadyRewarded
             ? 'تم حفظ النتيجة؛ لا توجد مكافأة إضافية لإعادة الاختبار.'

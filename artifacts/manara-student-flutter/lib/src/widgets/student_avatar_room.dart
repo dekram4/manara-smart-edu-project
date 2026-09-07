@@ -160,7 +160,10 @@ class _AvatarRoomScene extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 190,
+      // Tall enough that the character (168 tall, sitting 34 up from the
+      // floor) never pokes above this box and overlaps the header row
+      // above it — keeps the room's own stacking order clean.
+      height: 210,
       child: Stack(
         alignment: Alignment.bottomCenter,
         clipBehavior: Clip.none,
@@ -393,9 +396,10 @@ class _AvatarCharacterState extends State<_AvatarCharacter>
         controller: _lottieController,
         onLoaded: _handleLoaded,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const StudentCompanion(
-          size: 140,
-          showLabel: false,
+        errorBuilder: (_, __, ___) => const Icon(
+          Icons.accessibility_new_rounded,
+          size: 120,
+          color: Color(0xFF9B3E68),
         ),
       ),
     );
