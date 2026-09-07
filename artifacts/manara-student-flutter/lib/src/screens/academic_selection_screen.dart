@@ -521,11 +521,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                     ),
                                   ),
                                 )
+                              // Each stage of the world map has its own theme
+                              // color, running indigo → sky → teal → violet →
+                              // amber → rose down the path — purely
+                              // presentational; the selection state and API
+                              // calls below are untouched.
                               else ...[
                                 _AcademicDropdown(
                                   step: 1,
                                   label: 'الصف الدراسي',
                                   icon: Icons.school_rounded,
+                                  accent: const Color(0xFF4F46E5),
                                   value: _grade,
                                   options: data?.grades ?? const [],
                                   onChanged: _selectGrade,
@@ -534,6 +540,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                   step: 2,
                                   label: 'الفصل الدراسي / الترم',
                                   icon: Icons.calendar_month_rounded,
+                                  accent: const Color(0xFF0EA5E9),
                                   value: _atram,
                                   options: atrams,
                                   onChanged: atrams.isEmpty ? null : _selectAtram,
@@ -542,6 +549,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                   step: 3,
                                   label: 'المادة الدراسية',
                                   icon: Icons.menu_book_rounded,
+                                  accent: const Color(0xFF0D9488),
                                   value: _subject,
                                   options: subjects,
                                   onChanged: subjects.isEmpty ? null : _selectSubject,
@@ -550,6 +558,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                   step: 4,
                                   label: 'الفصل أو الباب',
                                   icon: Icons.account_tree_rounded,
+                                  accent: const Color(0xFF8B5CF6),
                                   value: _term,
                                   options: terms,
                                   onChanged: terms.isEmpty ? null : _selectTerm,
@@ -558,12 +567,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                   step: 5,
                                   label: 'الوحدة التعليمية',
                                   icon: Icons.view_list_rounded,
+                                  accent: const Color(0xFFF59E0B),
                                   value: _unit,
                                   options: units,
                                   onChanged: units.isEmpty ? null : _selectUnit,
                                 ),
                                 _LessonDropdown(
                                   step: 6,
+                                  accent: const Color(0xFFE05A86),
                                   value: _lesson?.id,
                                   lessons: lessons,
                                   onChanged: lessons.isEmpty
@@ -698,6 +709,7 @@ class _AcademicDropdown extends StatelessWidget {
     required this.step,
     required this.label,
     required this.icon,
+    required this.accent,
     required this.value,
     required this.options,
     required this.onChanged,
@@ -706,6 +718,7 @@ class _AcademicDropdown extends StatelessWidget {
   final int step;
   final String label;
   final IconData icon;
+  final Color accent;
   final String? value;
   final List<String> options;
   final ValueChanged<String?>? onChanged;
@@ -717,6 +730,8 @@ class _AcademicDropdown extends StatelessWidget {
       step: step,
       label: label,
       icon: icon,
+      accent: accent,
+      isLast: step == 6,
       selectedValue: selected ? value : null,
       selected: selected,
       child: StudentPressScale(
@@ -749,12 +764,14 @@ class _AcademicDropdown extends StatelessWidget {
 class _LessonDropdown extends StatelessWidget {
   const _LessonDropdown({
     required this.step,
+    required this.accent,
     required this.value,
     required this.lessons,
     required this.onChanged,
   });
 
   final int step;
+  final Color accent;
   final String? value;
   final List<LessonContent> lessons;
   final ValueChanged<String?>? onChanged;
@@ -766,6 +783,8 @@ class _LessonDropdown extends StatelessWidget {
       step: step,
       label: 'الدرس الحالي',
       icon: Icons.play_lesson_rounded,
+      accent: accent,
+      isLast: true,
       selectedValue: selectedLesson?.lessonName,
       selected: selectedLesson != null,
       child: StudentPressScale(
@@ -819,104 +838,156 @@ class _AcademicStepSurface extends StatelessWidget {
     required this.step,
     required this.label,
     required this.icon,
+    required this.accent,
     required this.selectedValue,
     required this.selected,
     required this.child,
+    this.isLast = false,
   });
 
   final int step;
   final String label;
   final IconData icon;
+  final Color accent;
   final String? selectedValue;
   final bool selected;
+  final bool isLast;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: StudentFocusGlow(
-        isSelected: selected,
-        borderRadius: StudentShapes.playfulCardTight,
-        child: Container(
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFFE8FBF3) : const Color(0xFFFFF7E8),
+      padding: EdgeInsets.only(bottom: isLast ? 12 : 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          StudentFocusGlow(
+            isSelected: selected,
             borderRadius: StudentShapes.playfulCardTight,
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 32,
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? const Color(0xFF147D83)
-                          : const Color(0xFFF3E4A9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: selected
-                        ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
-                        : Text(
-                            '$step',
-                            style: const TextStyle(
-                              color: Color(0xFF6D572B),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 38,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? const Color(0xFFE5F4EF)
-                          : const Color(0xFFF2F4EF),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Icon(icon, color: const Color(0xFF147D83), size: 21),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            color: Color(0xFF284658),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        if (selectedValue != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            selectedValue!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF147D83),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+            child: Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [
+                    accent.withOpacity(selected ? 0.16 : 0.08),
+                    Colors.white,
+                  ],
+                ),
+                borderRadius: StudentShapes.playfulCardTight,
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withOpacity(0.16),
+                    blurRadius: 14,
+                    offset: const Offset(0, 7),
                   ),
                 ],
               ),
-              const SizedBox(height: 11),
-              child,
-            ],
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 32,
+                        height: 32,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selected ? accent : accent.withOpacity(0.16),
+                          shape: BoxShape.circle,
+                        ),
+                        child: selected
+                            ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+                            : Text(
+                                '$step',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: accent.withOpacity(0.13),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(icon, color: accent, size: 21),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              label,
+                              style: const TextStyle(
+                                color: Color(0xFF284658),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            if (selectedValue != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                selectedValue!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 11),
+                  child,
+                ],
+              ),
+            ),
+          ),
+          if (!isLast) _StagePathConnector(color: accent),
+        ],
+      ),
+    );
+  }
+}
+
+/// A short dotted trail between two world-map stage cards, roughly under
+/// where each stage's numbered badge sits.
+class _StagePathConnector extends StatelessWidget {
+  const _StagePathConnector({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 27, top: 3, bottom: 3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(
+          3,
+          (index) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1.5),
+            child: Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.5),
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
         ),
       ),

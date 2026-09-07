@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:lottie/lottie.dart' as lottie;
 
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
@@ -209,13 +212,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ],
                                 );
 
-                          final shell = DecoratedBox(
+                          // A vivid rainbow "cartridge" frame around the whole
+                          // card — the clearest single cue that this is a
+                          // game portal rather than an admin form — with the
+                          // actual login form untouched inside it.
+                          final shell = Container(
+                            padding: const EdgeInsets.all(3),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.94),
                               borderRadius: StudentShapes.playfulCard,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.9),
-                                width: 2,
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFFF59E0B),
+                                  Color(0xFF4F46E5),
+                                  Color(0xFF22D3EE),
+                                ],
                               ),
                               boxShadow: const [
                                 BoxShadow(
@@ -230,9 +242,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ],
                             ),
-                            child: ClipRRect(
-                              borderRadius: StudentShapes.playfulCardTight,
-                              child: content,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.96),
+                                borderRadius: StudentShapes.playfulCardTight,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: StudentShapes.playfulCardTight,
+                                child: content,
+                              ),
                             ),
                           );
 
@@ -398,16 +416,7 @@ class _LoginStoryPanel extends StatelessWidget {
               if (!compact) const Spacer(),
               Align(
                 alignment: AlignmentDirectional.center,
-                child: SizedBox(
-                  width: compact ? 148 : 205,
-                  height: compact ? 144 : 190,
-                  child: StudentRiveLoading(
-                    size: compact ? 136 : 182,
-                    label: 'أنيميشن الكتب التعليمية',
-                    assetPath: 'assets/animations/loading-books.riv',
-                    liveRegion: false,
-                  ),
-                ),
+                child: _LoginPortal(compact: compact),
               ),
               if (!compact) const SizedBox(height: 4),
             ],
@@ -416,6 +425,132 @@ class _LoginStoryPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A glowing, spinning "portal ring" the student's mascot stands inside —
+/// the visual anchor that turns the login screen into a game-menu gateway
+/// rather than a static illustration slot.
+class _LoginPortal extends StatefulWidget {
+  const _LoginPortal({required this.compact});
+
+  final bool compact;
+
+  @override
+  State<_LoginPortal> createState() => _LoginPortalState();
+}
+
+class _LoginPortalState extends State<_LoginPortal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin;
+
+  @override
+  void initState() {
+    super.initState();
+    _spin = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final size = widget.compact ? 168.0 : 210.0;
+    final ringSize = size * 0.92;
+    final characterSize = size * 0.7;
+
+    final ring = CustomPaint(
+      size: Size.square(ringSize),
+      painter: const _PortalRingPainter(),
+    );
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  const Color(0xFF5EEAD4).withOpacity(0.30),
+                  const Color(0xFFF1C664).withOpacity(0.12),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+          reduceMotion
+              ? ring
+              : AnimatedBuilder(
+                  animation: _spin,
+                  builder: (context, child) => Transform.rotate(
+                    angle: _spin.value * 2 * math.pi,
+                    child: child,
+                  ),
+                  child: ring,
+                ),
+          SizedBox(
+            width: characterSize,
+            height: characterSize,
+            child: lottie.Lottie.asset(
+              'assets/animations/student-avatar-hero.json',
+              fit: BoxFit.contain,
+              repeat: true,
+              errorBuilder: (_, __, ___) => StudentRiveLoading(
+                size: characterSize * 0.9,
+                label: 'رفيق منارة التعليمي',
+                assetPath: 'assets/animations/loading-books.riv',
+                liveRegion: false,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Draws the portal's dashed ring — the same custom-painter technique the
+/// login/selection background decorations already use elsewhere.
+class _PortalRingPainter extends CustomPainter {
+  const _PortalRingPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFF1C664).withOpacity(0.85);
+    const dashCount = 18;
+    const dashFraction = 0.45;
+    final sweepPerDash = (2 * math.pi) / dashCount;
+    for (var i = 0; i < dashCount; i++) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        i * sweepPerDash,
+        sweepPerDash * dashFraction,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PortalRingPainter oldDelegate) => false;
 }
 
 class _LoginCredentials extends StatelessWidget {
