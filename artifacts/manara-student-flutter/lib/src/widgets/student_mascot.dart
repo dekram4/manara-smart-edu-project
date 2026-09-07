@@ -71,6 +71,63 @@ class StudentMascot extends StatelessWidget {
   }
 }
 
+/// The student's traveling guide on the academic path road-map —
+/// `assets/images/path_mascot.png` — always rendered with [BoxFit.contain]
+/// so it's never cropped, with a light ground shadow and a continuous
+/// breathing/floating animation. Deliberately small and non-interactive: it
+/// sits beside a station to show "you are here", it never covers a
+/// station's label, and it never intercepts taps meant for the station
+/// underneath it (see [IgnorePointer] at the call site).
+class PathMascot extends StatelessWidget {
+  const PathMascot({this.size = 54, super.key});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = Image.asset(
+      'assets/images/path_mascot.png',
+      width: size,
+      fit: BoxFit.contain,
+      cacheWidth: 220,
+      errorBuilder: (_, __, ___) => Icon(
+        Icons.emoji_people_rounded,
+        size: size * 0.6,
+        color: const Color(0xFF16A085),
+      ),
+    );
+
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final content = SizedBox(
+      width: size,
+      height: size * 1.15,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            bottom: 2,
+            child: Container(
+              width: size * 0.55,
+              height: size * 0.08,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.22),
+                borderRadius: BorderRadius.circular(40),
+              ),
+            ),
+          ),
+          Padding(padding: EdgeInsets.only(bottom: size * 0.1), child: image),
+        ],
+      ),
+    );
+
+    if (reduceMotion) return content;
+    return content
+        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .moveY(begin: 0, end: -8, duration: 1500.ms, curve: Curves.easeInOut);
+  }
+}
+
 /// The animated, tappable version of [StudentMascot] used wherever the
 /// student can actually interact with their character: a gentle idle bob,
 /// and a squash-bounce (plus [StudentSoundService.playTap]) on tap.

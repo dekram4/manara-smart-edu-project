@@ -189,6 +189,12 @@ class AcademicWorldGame extends FlameGame {
     // clamped so it never pushes a station off a narrow one.
     final amplitude = math.min(size.x * 0.28, size.x / 2 - stationDiameter);
 
+    // Where the traveling guide (the Flutter-side avatar overlay) should
+    // sit for this layout — the already-picked station, if any, so the
+    // guide is visible "standing" at the student's current spot on the
+    // path from the moment it loads, not only after their first tap.
+    Vector2? selectedPosition;
+
     for (var i = 0; i < count; i++) {
       final y = count > 1
           ? topMargin + i * verticalSpacing
@@ -198,6 +204,9 @@ class AcademicWorldGame extends FlameGame {
       _stationPositions.add(position);
 
       final station = _pendingStations[i];
+      if (station.id == _pendingSelectedId) {
+        selectedPosition = position.clone();
+      }
       final island = _IslandComponent(
         station: station,
         accent: accent.value,
@@ -213,6 +222,10 @@ class AcademicWorldGame extends FlameGame {
         ..size = Vector2.all(stationDiameter)
         ..anchor = Anchor.center;
       world.add(island);
+    }
+
+    if (selectedPosition != null) {
+      avatarTarget.value = selectedPosition;
     }
   }
 }

@@ -486,12 +486,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               valueListenable: _game.avatarTarget,
               builder: (context, target, _) {
                 if (target == null) return const SizedBox.shrink();
+                // Anchored beside (not on top of) the station, so it never
+                // covers the station's own label underneath it.
                 return AnimatedPositioned(
                   duration: const Duration(milliseconds: 420),
                   curve: Curves.easeOutCubic,
-                  left: target.x - 20,
-                  top: target.y - 62,
-                  child: const IgnorePointer(child: StudentMascot(size: 40)),
+                  left: target.x - 60,
+                  top: target.y - 30,
+                  child: const IgnorePointer(child: PathMascot(size: 54)),
                 );
               },
             ),
