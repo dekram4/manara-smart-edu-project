@@ -387,17 +387,16 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _ => _lesson?.id,
   };
 
-  /// The real, already-picked (if only by default) value for every one of
-  /// the six steps — drives the breadcrumb trail. Every entry is non-null
-  /// as soon as the screen is [_ready], via [_applyInitialSelection].
-  List<String?> get _breadcrumbValues => [
-    _grade,
-    _atram,
-    _subject,
-    _term,
-    _unit,
-    _lesson?.lessonName,
-  ];
+  /// Drives the breadcrumb trail — but only for steps the student has
+  /// actually reached (`index <= _stepIndex`); later steps show as pending
+  /// ("…") even though [_applyInitialSelection] already picked smart
+  /// defaults for them internally (so "ادخل رحلتك!" can work immediately).
+  /// The breadcrumb must read as the student's real progress, not a form
+  /// pre-filled ahead of anything they chose.
+  List<String?> get _breadcrumbValues {
+    final actual = [_grade, _atram, _subject, _term, _unit, _lesson?.lessonName];
+    return [for (var i = 0; i < actual.length; i++) i <= _stepIndex ? actual[i] : null];
+  }
 
   /// The options to show for the current [_stepIndex], read from exactly
   /// the same [AcademicSelectionData] getters the dropdown UI used — the
@@ -525,12 +524,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
     );
-  }
-
-  void _nudgePage(int delta) {
-    if (_stageOptions.isEmpty) return;
-    final target = (_focusedOptionIndex() + delta).clamp(0, _stageOptions.length - 1);
-    _centerCard(target);
   }
 
   Future<void> _enterDashboard() async {
@@ -717,12 +710,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                     ),
                                   ),
                                   Expanded(
-                                    child: Row(
+                                    child: Column(
                                       children: [
-                                        _CarouselArrow(
-                                          icon: Icons.chevron_right_rounded,
-                                          onTap: () => _nudgePage(-1),
-                                        ),
+                                        // Free drag/swipe only — no side arrows — plus each
+                                        // card's own body tap to center it or the mascot/"Go"
+                                        // button to pick it.
                                         Expanded(
                                           child: PageView.builder(
                                             controller: _pageController,
@@ -746,10 +738,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                             },
                                           ),
                                         ),
-                                        _CarouselArrow(
-                                          icon: Icons.chevron_left_rounded,
-                                          onTap: () => _nudgePage(1),
-                                        ),
+                                        if (_stageOptions.length > 1)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4, bottom: 8),
+                                            child: _PageDots(controller: _pageController!, count: _stageOptions.length),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -995,12 +988,19 @@ class _CarouselCardSlot extends StatelessWidget {
       // lets a single physical tap fire both callbacks; keeping them as
       // non-overlapping siblings makes that impossible regardless of hit
       // order.
+      // A true landscape 4:3 portal card, capped so it never grows absurdly
+      // large on a wide desktop/tablet window. AspectRatio forces a *tight*
+      // box on `child`, which is exactly why `_StageCard`'s own Stack
+      // explicitly centers its content instead of relying on shrink-wrap.
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 300, maxHeight: 300),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: child,
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: child,
+            ),
           ),
         ),
       ),
@@ -1071,6 +1071,11 @@ class _StageCard extends StatelessWidget {
           ),
         ),
         child: Stack(
+          // Explicit, rather than relying on shrink-wrap: the card now
+          // sits inside a *tight* AspectRatio box (see _CarouselCardSlot),
+          // so without this its non-positioned content would pin to the
+          // Stack's default top-start corner instead of sitting centered.
+          alignment: Alignment.center,
           children: [
             // Bottom bevel shading fakes a raised, lit-from-above surface.
             Positioned(
@@ -1211,17 +1216,45 @@ class _CheckBadge3D extends StatelessWidget {
   }
 }
 
-class _CarouselArrow extends StatelessWidget {
-  const _CarouselArrow({required this.icon, required this.onTap});
+/// A small "game level" page-dot strip under the carousel — no side
+/// arrows, just free drag/swipe plus this readout of which of the step's
+/// options is currently centered. The active dot is enlarged and gold.
+class _PageDots extends StatelessWidget {
+  const _PageDots({required this.controller, required this.count});
 
-  final IconData icon;
-  final VoidCallback onTap;
+  final PageController controller;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: _HudChip(onTap: onTap, child: Icon(icon, color: Colors.white, size: 22)),
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        var page = controller.initialPage.toDouble();
+        if (controller.hasClients && controller.position.haveDimensions) {
+          page = controller.page ?? page;
+        }
+        final active = page.round().clamp(0, count - 1);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < count; i++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: i == active ? 18 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: i == active ? const Color(0xFFFFE08A) : Colors.white.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: i == active
+                      ? const [BoxShadow(color: Colors.black38, blurRadius: 3, offset: Offset(0, 1))]
+                      : null,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
