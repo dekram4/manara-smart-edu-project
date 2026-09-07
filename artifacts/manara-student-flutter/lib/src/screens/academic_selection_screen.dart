@@ -705,7 +705,15 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                   SizedBox(
                                     width: 108,
                                     child: Center(
-                                      child: _PathMascotGuide(size: 104, bounceTicket: _mascotBounceTicket),
+                                      child: _PathMascotGuide(
+                                        size: 104,
+                                        bounceTicket: _mascotBounceTicket,
+                                        onTap: _stageOptions.isEmpty
+                                            ? null
+                                            : () => _commitStageOption(
+                                                _stageOptions[_focusedOptionIndex()].id,
+                                              ),
+                                      ),
                                     ),
                                   ),
                                   Expanded(
@@ -725,13 +733,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                               return _CarouselCardSlot(
                                                 controller: _pageController!,
                                                 index: index,
-                                                onTap: () => _centerCard(index),
                                                 child: _StageCard(
                                                   label: option.label,
                                                   icon: _stageIcons[index % _stageIcons.length],
                                                   accent: accent,
                                                   selected: option.id == _currentStepSelectedId,
                                                   stageNumber: index + 1,
+                                                  onBodyTap: () => _centerCard(index),
                                                   onGo: () => _commitStageOption(option.id),
                                                 ),
                                               );
@@ -895,26 +903,40 @@ class _BreadcrumbChip extends StatelessWidget {
 /// idle float plus a short celebratory bounce every time [bounceTicket]
 /// changes (i.e. every time the student commits a pick).
 class _PathMascotGuide extends StatelessWidget {
-  const _PathMascotGuide({required this.size, required this.bounceTicket});
+  const _PathMascotGuide({required this.size, required this.bounceTicket, this.onTap});
 
   final double size;
   final int bounceTicket;
+
+  /// Tapping the character herself commits whichever card is currently
+  /// centered in the carousel — she is the one who makes the pick, not
+  /// just a decoration standing beside it. Null while there is nothing to
+  /// pick (the step's option list is empty).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final mascot = PathMascot(size: size);
-    if (reduceMotion) return mascot;
+    final idle = reduceMotion
+        ? mascot
+        : mascot
+            .animate(onPlay: (controller) => controller.repeat(reverse: true))
+            .moveY(begin: 0, end: -8, duration: 1500.ms, curve: Curves.easeInOut);
 
-    final idle = mascot
-        .animate(onPlay: (controller) => controller.repeat(reverse: true))
-        .moveY(begin: 0, end: -8, duration: 1500.ms, curve: Curves.easeInOut);
+    final withBounce = reduceMotion
+        ? idle
+        : idle
+            .animate(key: ValueKey(bounceTicket))
+            .scaleXY(begin: 1, end: 1.16, duration: 140.ms, curve: Curves.easeOut)
+            .then()
+            .scaleXY(end: 1, duration: 240.ms, curve: Curves.elasticOut);
 
-    return idle
-        .animate(key: ValueKey(bounceTicket))
-        .scaleXY(begin: 1, end: 1.16, duration: 140.ms, curve: Curves.easeOut)
-        .then()
-        .scaleXY(end: 1, duration: 240.ms, curve: Curves.elasticOut);
+    return Semantics(
+      button: true,
+      label: 'اضغط على شخصيتك لتختار البطاقة الحالية',
+      child: GestureDetector(onTap: onTap, child: withBounce),
+    );
   }
 }
 
@@ -928,13 +950,11 @@ class _CarouselCardSlot extends StatelessWidget {
     required this.controller,
     required this.index,
     required this.child,
-    required this.onTap,
   });
 
   final PageController controller;
   final int index;
   final Widget child;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -961,11 +981,27 @@ class _CarouselCardSlot extends StatelessWidget {
           ),
         );
       },
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: child,
+      // PageView always hands each page tight constraints matching its own
+      // full cross-axis extent (i.e. the entire carousel row's height, and
+      // most of a wide desktop/tablet window's width) — without capping
+      // the card itself here, it stretches to fill that whole slot instead
+      // of reading as a compact portal card. Center + a max-size cap fixes
+      // both the oversized card and (since the card is no longer forced to
+      // fill the Stack's full height) the content-pinned-to-a-corner look.
+      // No GestureDetector wraps `child` here on purpose: `_StageCard`
+      // itself puts one only around its body (icon + label), as a sibling
+      // of — never an ancestor of — its own "انطلق" button's GestureDetector.
+      // Nesting a tap detector around one that's already inside another
+      // lets a single physical tap fire both callbacks; keeping them as
+      // non-overlapping siblings makes that impossible regardless of hit
+      // order.
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300, maxHeight: 300),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: child,
+          ),
         ),
       ),
     );
@@ -983,6 +1019,7 @@ class _StageCard extends StatelessWidget {
     required this.accent,
     required this.selected,
     required this.stageNumber,
+    required this.onBodyTap,
     required this.onGo,
   });
 
@@ -991,6 +1028,12 @@ class _StageCard extends StatelessWidget {
   final Color accent;
   final bool selected;
   final int stageNumber;
+
+  /// Tapping the icon/label area (anywhere on the card except the "انطلق"
+  /// button) just centers this card in the carousel — a sibling
+  /// GestureDetector to the button's own, never its ancestor, so a single
+  /// tap can never fire both.
+  final VoidCallback onBodyTap;
   final VoidCallback onGo;
 
   @override
@@ -1052,27 +1095,36 @@ class _StageCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.3),
-                      border: Border.all(color: Colors.white.withOpacity(0.75), width: 1.4),
-                    ),
-                    child: Icon(icon, color: Colors.white, size: 30),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      shadows: [Shadow(color: Color(0x66000000), blurRadius: 4, offset: Offset(0, 1))],
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onBodyTap,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.3),
+                            border: Border.all(color: Colors.white.withOpacity(0.75), width: 1.4),
+                          ),
+                          child: Icon(icon, color: Colors.white, size: 30),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            shadows: [Shadow(color: Color(0x66000000), blurRadius: 4, offset: Offset(0, 1))],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
