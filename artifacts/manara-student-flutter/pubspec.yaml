@@ -11,7 +11,6 @@ dependencies:
     sdk: flutter
   supabase_flutter: ^2.8.0
   flutter_animate: ^4.5.2
-  lottie: ^3.2.0
   audioplayers: ^6.1.0
   confetti: ^0.8.0
   shared_preferences: ^2.3.3

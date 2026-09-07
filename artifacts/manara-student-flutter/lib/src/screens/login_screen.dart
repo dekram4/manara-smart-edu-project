@@ -1,14 +1,12 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lottie/lottie.dart' as lottie;
 
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
-import '../widgets/student_experience.dart';
 import '../widgets/manara_logo.dart';
+import '../widgets/student_experience.dart';
+import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -107,53 +105,96 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isConfigured = widget.authService != null;
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
     return Scaffold(
-      backgroundColor: StudentPalette.canvas,
+      backgroundColor: const Color(0xFF2E1065),
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [
-                    Color(0xFFF3F7FF),
-                    Color(0xFFEFF6FF),
-                    Color(0xFFF5F3FF),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const Positioned.fill(child: StudentLearningWorld()),
+          const Positioned.fill(child: _LoginGameBackground()),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 980),
+                  constraints: const BoxConstraints(maxWidth: 460),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Color(0xB3FFFCF3),
-                            borderRadius: BorderRadius.all(Radius.circular(16)),
+                      Row(
+                        children: [
+                          const ManaraLogo(size: 44),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'مَنارة',
+                                  style: TextStyle(
+                                    color: Color(0xFFFFF9E9),
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                Text(
+                                  'MANARA SMART EDU',
+                                  textDirection: TextDirection.ltr,
+                                  style: TextStyle(
+                                    color: Color(0xFFBFE8FF),
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          child: StudentSoundToggle(),
+                          const DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Color(0x33FFFFFF),
+                              borderRadius: BorderRadius.all(Radius.circular(16)),
+                            ),
+                            child: StudentSoundToggle(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      StudentEntrance(
+                        child: Column(
+                          children: [
+                            StudentInteractiveMascot(
+                              size: 168,
+                              outfitColor: const Color(0xFF16A085),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'أهلًا يا بطل! 👋',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFFFF9E9),
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'سجّل دخولك إلى بوابة الطالب واستعد لرحلتك',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFDCD3F7),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isWide = constraints.maxWidth >= 720;
-                          final credentials = _LoginCredentials(
+                      const SizedBox(height: 18),
+                      StudentAnimatedCard(
+                        child: Student3DCard(
+                          maxTilt: 0.045,
+                          child: _LoginCredentialsCard(
                             formKey: _formKey,
                             isConfigured: isConfigured,
                             initializationError: widget.initializationError,
@@ -179,100 +220,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               setState(() => _hidePassword = !_hidePassword);
                             },
                             onSubmit: _submit,
-                          );
-
-                          final content = isWide
-                              ? Directionality(
-                                  textDirection: TextDirection.ltr,
-                                  child: SizedBox(
-                                    height: 590,
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      children: [
-                                        const Expanded(
-                                          flex: 9,
-                                          child: _LoginStoryPanel(compact: false),
-                                        ),
-                                        Expanded(
-                                          flex: 11,
-                                          child: Directionality(
-                                            textDirection: TextDirection.rtl,
-                                            child: credentials,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              : Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const _LoginStoryPanel(compact: true),
-                                    credentials,
-                                  ],
-                                );
-
-                          // A vivid rainbow "cartridge" frame around the whole
-                          // card — the clearest single cue that this is a
-                          // game portal rather than an admin form — with the
-                          // actual login form untouched inside it.
-                          final shell = Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              borderRadius: StudentShapes.playfulCard,
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFFF59E0B),
-                                  Color(0xFF4F46E5),
-                                  Color(0xFF22D3EE),
-                                ],
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x334F46E5),
-                                  blurRadius: 40,
-                                  offset: Offset(0, 22),
-                                ),
-                                BoxShadow(
-                                  color: Color(0x2622D3EE),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.96),
-                                borderRadius: StudentShapes.playfulCardTight,
-                              ),
-                              child: ClipRRect(
-                                borderRadius: StudentShapes.playfulCardTight,
-                                child: content,
-                              ),
-                            ),
-                          );
-
-                          final interactiveShell = Student3DCard(child: shell);
-                          if (reduceMotion) return interactiveShell;
-                          return interactiveShell
-                              .animate()
-                              .fadeIn(duration: 420.ms)
-                              .slideY(
-                                begin: 0.035,
-                                end: 0,
-                                duration: 520.ms,
-                                curve: Curves.easeOutCubic,
-                              );
-                        },
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
                       const Text(
                         'مساحة مخصصة للطلاب • كل خطوة تقرّبك من إنجاز جديد',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Color(0xFF647A7B),
+                          color: Color(0xFFC9BEF0),
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -289,343 +245,79 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _LoginStoryPanel extends StatelessWidget {
-  const _LoginStoryPanel({required this.compact});
-
-  final bool compact;
+/// A rich, colorful game-menu backdrop — a warm diagonal gradient with a few
+/// large, soft glowing color blobs breathing slowly, instead of the flat
+/// pale background and scattered empty circles/icon chips this screen used
+/// to have.
+class _LoginGameBackground extends StatelessWidget {
+  const _LoginGameBackground();
 
   @override
   Widget build(BuildContext context) {
-    final horizontalPadding = compact ? 24.0 : 36.0;
-    return Container(
-      constraints: BoxConstraints(minHeight: compact ? 260 : 590),
-      padding: EdgeInsets.fromLTRB(
-        horizontalPadding,
-        compact ? 22 : 34,
-        horizontalPadding,
-        compact ? 18 : 34,
-      ),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: [
-            StudentPalette.deepIndigo,
-            StudentPalette.indigo,
-            StudentPalette.sky,
-          ],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF2E1065),
+                Color(0xFF4F46E5),
+                Color(0xFF0B8693),
+              ],
+            ),
+          ),
         ),
-      ),
-      child: Stack(
-        children: [
-          PositionedDirectional(
-            bottom: -96,
-            start: -92,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFF75C8C5).withOpacity(0.25),
-                  width: 24,
-                ),
-              ),
-            ),
-          ),
-          PositionedDirectional(
-            top: 86,
-            end: -70,
-            child: Container(
-              width: 190,
-              height: 190,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFF1C664).withOpacity(0.10),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: StudentSubjectOrbit(compact: compact),
-          ),
-          // Floating game-HUD badges — stars/gems drifting over the portal
-          // background, instead of the two plain empty circles this panel
-          // used to have.
-          if (!compact) ...[
-            const PositionedDirectional(
-              top: 18,
-              end: 130,
-              child: _LoginFloatingBadge(
-                icon: Icons.star_rounded,
-                color: Color(0xFFF6C95D),
-                delay: Duration.zero,
-              ),
-            ),
-            const PositionedDirectional(
-              top: 210,
-              start: -6,
-              child: _LoginFloatingBadge(
-                icon: Icons.diamond_rounded,
-                color: Color(0xFF5EEAD4),
-                delay: Duration(milliseconds: 400),
-              ),
-            ),
-            const PositionedDirectional(
-              bottom: 150,
-              end: -4,
-              child: _LoginFloatingBadge(
-                icon: Icons.emoji_events_rounded,
-                color: Color(0xFFF1C664),
-                delay: Duration(milliseconds: 200),
-                size: 30,
-              ),
-            ),
-          ],
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const ManaraLogo(size: 48),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                            'مَنارة',
-                          style: TextStyle(
-                            color: Color(0xFFFFF9E9),
-                            fontSize: 19,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'MANARA SMART EDU',
-                          textDirection: TextDirection.ltr,
-                          style: TextStyle(
-                            color: Color(0xFFDFF8FF),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (!compact) const Spacer(),
-              const SizedBox(height: 20),
-              const Text(
-                'بوابتك تبدأ من هنا',
-                style: TextStyle(
-                  color: Color(0xFF9BE0D8),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                compact ? 'افتح بابك للتعلّم' : 'افتح بابك\nللتعلّم',
-                style: const TextStyle(
-                  color: Color(0xFFFFF9E9),
-                  fontSize: 37,
-                  height: 1.05,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'كل يوم في منارة يحمل سؤالًا جديدًا ومهارة تجعلك أقوى.',
-                style: TextStyle(
-                  color: Color(0xFFC5DEDA),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  height: 1.6,
-                ),
-              ),
-              if (!compact) const Spacer(),
-              Align(
-                alignment: AlignmentDirectional.center,
-                child: _LoginPortal(compact: compact),
-              ),
-              if (!compact) const SizedBox(height: 4),
-            ],
-          ),
-        ],
-      ),
+        Positioned(
+          top: -90,
+          right: -70,
+          child: _GlowBlob(size: 260, color: const Color(0xFFF6C95D), delay: 0.ms),
+        ),
+        Positioned(
+          bottom: -110,
+          left: -90,
+          child: _GlowBlob(size: 300, color: const Color(0xFFEC4899), delay: 600.ms),
+        ),
+        Positioned(
+          top: 260,
+          left: -70,
+          child: _GlowBlob(size: 190, color: const Color(0xFF5EEAD4), delay: 300.ms),
+        ),
+      ],
     );
   }
 }
 
-/// A small drifting game-HUD icon chip for the login portal's background.
-class _LoginFloatingBadge extends StatelessWidget {
-  const _LoginFloatingBadge({
-    required this.icon,
-    required this.color,
-    required this.delay,
-    this.size = 24,
-  });
+class _GlowBlob extends StatelessWidget {
+  const _GlowBlob({required this.size, required this.color, required this.delay});
 
-  final IconData icon;
+  final double size;
   final Color color;
   final Duration delay;
-  final double size;
 
   @override
   Widget build(BuildContext context) {
-    final badge = Container(
-      width: size + 22,
-      height: size + 22,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.14),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.22)),
-      ),
-      child: Icon(icon, color: color, size: size),
-    );
-
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return badge;
-    return badge
-        .animate(
-          delay: delay,
-          onPlay: (controller) => controller.repeat(reverse: true),
-        )
-        .moveY(begin: -6, end: 6, duration: 2600.ms, curve: Curves.easeInOut)
-        .fade(begin: 0.8, end: 1, duration: 2600.ms);
-  }
-}
-
-/// A glowing, spinning "portal ring" the student's mascot stands inside —
-/// the visual anchor that turns the login screen into a game-menu gateway
-/// rather than a static illustration slot.
-class _LoginPortal extends StatefulWidget {
-  const _LoginPortal({required this.compact});
-
-  final bool compact;
-
-  @override
-  State<_LoginPortal> createState() => _LoginPortalState();
-}
-
-class _LoginPortalState extends State<_LoginPortal>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _spin;
-
-  @override
-  void initState() {
-    super.initState();
-    _spin = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 14),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _spin.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final size = widget.compact ? 168.0 : 210.0;
-    final ringSize = size * 0.92;
-    final characterSize = size * 0.7;
-
-    final ring = CustomPaint(
-      size: Size.square(ringSize),
-      painter: const _PortalRingPainter(),
-    );
-
-    return SizedBox(
+    final blob = Container(
       width: size,
       height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  const Color(0xFF5EEAD4).withOpacity(0.30),
-                  const Color(0xFFF1C664).withOpacity(0.12),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-          reduceMotion
-              ? ring
-              : AnimatedBuilder(
-                  animation: _spin,
-                  builder: (context, child) => Transform.rotate(
-                    angle: _spin.value * 2 * math.pi,
-                    child: child,
-                  ),
-                  child: ring,
-                ),
-          SizedBox(
-            width: characterSize,
-            height: characterSize,
-            child: lottie.Lottie.asset(
-              'assets/animations/student-avatar-hero.json',
-              fit: BoxFit.contain,
-              repeat: true,
-              errorBuilder: (_, __, ___) => StudentRiveLoading(
-                size: characterSize * 0.9,
-                label: 'رفيق منارة التعليمي',
-                liveRegion: false,
-              ),
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.30)),
+    );
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return IgnorePointer(child: blob);
+    }
+    return IgnorePointer(
+      child: blob
+          .animate(delay: delay, onPlay: (controller) => controller.repeat(reverse: true))
+          .scaleXY(begin: 1, end: 1.08, duration: 4200.ms, curve: Curves.easeInOut)
+          .fade(begin: 0.75, end: 1, duration: 4200.ms),
     );
   }
 }
 
-/// Draws the portal's dashed ring — the same custom-painter technique the
-/// login/selection background decorations already use elsewhere.
-class _PortalRingPainter extends CustomPainter {
-  const _PortalRingPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFF1C664).withOpacity(0.85);
-    const dashCount = 18;
-    const dashFraction = 0.45;
-    final sweepPerDash = (2 * math.pi) / dashCount;
-    for (var i = 0; i < dashCount; i++) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        i * sweepPerDash,
-        sweepPerDash * dashFraction,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PortalRingPainter oldDelegate) => false;
-}
-
-class _LoginCredentials extends StatelessWidget {
-  const _LoginCredentials({
+class _LoginCredentialsCard extends StatelessWidget {
+  const _LoginCredentialsCard({
     required this.formKey,
     required this.isConfigured,
     required this.initializationError,
@@ -659,91 +351,48 @@ class _LoginCredentials extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(28),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF5),
+        borderRadius: StudentShapes.playfulCard,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.28),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
       child: Form(
         key: formKey,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 138,
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEAF4EF),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.circle, size: 9, color: Color(0xFFE9AC3E)),
-                  SizedBox(width: 6),
-                  Text(
-                    'دخول الطالب',
-                    style: TextStyle(
-                      color: Color(0xFF147D83),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'أهلًا يا بطل!',
-                        style: TextStyle(
-                          color: Color(0xFF183047),
-                          fontSize: 31,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'سجّل دخولك إلى بوابة الطالب واستعد لرحلتك.',
-                        style: TextStyle(
-                          color: Color(0xFF6C7D81),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const StudentCompanion(size: 58, showLabel: false),
-              ],
-            ),
-            const SizedBox(height: 28),
             StudentFocusGlow(
               hasError:
                   showValidationFeedback && usernameController.text.trim().isEmpty,
+              borderRadius: BorderRadius.circular(30),
               child: TextFormField(
                 controller: usernameController,
                 textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.username],
                 onChanged: onUsernameChanged,
-                decoration: const InputDecoration(
-                  labelText: 'اسم المستخدم',
-                  hintText: 'اكتب اسم المستخدم',
-                  prefixIcon: Icon(Icons.person_rounded, color: Color(0xFF147D83)),
+                decoration: _pillDecoration(
+                  label: 'اسم المستخدم',
+                  hint: 'اكتب اسم المستخدم',
+                  icon: Icons.person_rounded,
                 ),
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'اكتب اسم المستخدم'
                     : null,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             StudentFocusGlow(
               hasError: showValidationFeedback && passwordController.text.isEmpty,
+              borderRadius: BorderRadius.circular(30),
               child: TextFormField(
                 controller: passwordController,
                 obscureText: hidePassword,
@@ -751,17 +400,12 @@ class _LoginCredentials extends StatelessWidget {
                 onFieldSubmitted: (_) => onSubmit(),
                 autofillHints: const [AutofillHints.password],
                 onChanged: onPasswordChanged,
-                decoration: InputDecoration(
-                  labelText: 'كلمة المرور',
-                  hintText: 'اكتب كلمة المرور',
-                  prefixIcon: const Icon(
-                    Icons.lock_rounded,
-                    color: Color(0xFF147D83),
-                  ),
+                decoration: _pillDecoration(
+                  label: 'كلمة المرور',
+                  hint: 'اكتب كلمة المرور',
+                  icon: Icons.lock_rounded,
                   suffixIcon: IconButton(
-                    tooltip: hidePassword
-                        ? 'إظهار كلمة المرور'
-                        : 'إخفاء كلمة المرور',
+                    tooltip: hidePassword ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
                     onPressed: onTogglePassword,
                     icon: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
@@ -770,6 +414,7 @@ class _LoginCredentials extends StatelessWidget {
                             ? Icons.visibility_rounded
                             : Icons.visibility_off_rounded,
                         key: ValueKey(hidePassword),
+                        color: const Color(0xFFB45309),
                       ),
                     ),
                   ),
@@ -801,65 +446,59 @@ class _LoginCredentials extends StatelessWidget {
                 icon: Icons.cloud_off_rounded,
               ),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
             StudentPressScale(
               child: StudentEmbossedShell(
-                color: loginSucceeded
-                    ? const Color(0xFF3B9C70)
-                    : const Color(0xFF147D83),
-                borderRadius: 19,
+                color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFF147D83),
+                borderRadius: 26,
                 child: FilledButton.icon(
-                onPressed: isLoading ? null : onSubmit,
-                icon: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  child: isLoading && !loginSucceeded
-                      ? const SizedBox(
-                          key: ValueKey('loading'),
-                          width: 19,
-                          height: 19,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                  onPressed: isLoading ? null : onSubmit,
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: isLoading && !loginSucceeded
+                        ? const SizedBox(
+                            key: ValueKey('loading'),
+                            width: 19,
+                            height: 19,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(
+                            loginSucceeded
+                                ? Icons.celebration_rounded
+                                : Icons.arrow_back_rounded,
+                            key: ValueKey(loginSucceeded),
                           ),
-                        )
-                      : Icon(
-                          loginSucceeded
-                              ? Icons.celebration_rounded
-                              : Icons.arrow_back_rounded,
-                          key: ValueKey(loginSucceeded),
-                        ),
-                ),
-                label: Text(
-                  loginSucceeded
-                      ? 'أحسنت! لنبدأ'
-                      : isLoading
-                          ? 'جاري التحقق...'
-                          : 'ابدأ رحلة التعلّم',
-                ),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(58),
-                  backgroundColor: loginSucceeded
-                      ? const Color(0xFF3B9C70)
-                      : const Color(0xFF147D83),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(19),
+                  label: Text(
+                    loginSucceeded
+                        ? 'أحسنت! لنبدأ'
+                        : isLoading
+                            ? 'جاري التحقق...'
+                            : 'ابدأ رحلة التعلّم',
                   ),
-                ),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(58),
+                    backgroundColor:
+                        loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFF147D83),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             const Text(
               'هذا التطبيق مخصص للطلاب فقط',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Color(0xFF879694),
+                color: Color(0xFF9A8F86),
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
@@ -869,6 +508,44 @@ class _LoginCredentials extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A warm, soft-rounded "gaming pill" input decoration — no sharp corners,
+/// a cream fill, and a circular icon badge instead of a bare Material icon.
+InputDecoration _pillDecoration({
+  required String label,
+  required String hint,
+  required IconData icon,
+  Widget? suffixIcon,
+}) {
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    filled: true,
+    fillColor: const Color(0xFFFFF3DE),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+    prefixIcon: Padding(
+      padding: const EdgeInsets.all(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(color: Color(0xFFFFE0A6), shape: BoxShape.circle),
+        child: Icon(icon, color: const Color(0xFFB45309), size: 18),
+      ),
+    ),
+    suffixIcon: suffixIcon,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: const BorderSide(color: Color(0xFFFFDFA0), width: 2),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2.5),
+    ),
+  );
 }
 
 class _LoginFeedback extends StatelessWidget {

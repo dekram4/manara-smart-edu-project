@@ -1,6 +1,5 @@
 import 'package:flame/game.dart' show GameWidget, Vector2;
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart' as lottie;
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -12,6 +11,7 @@ import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_mascot.dart';
 import 'game_world/academic_world_game.dart';
 import 'student_home_screen.dart';
 
@@ -676,23 +676,10 @@ class _AcademicWorldStage extends StatelessWidget {
                   return AnimatedPositioned(
                     duration: const Duration(milliseconds: 420),
                     curve: Curves.easeOutCubic,
-                    left: target.x - 22,
-                    top: target.y - 60,
-                    child: IgnorePointer(
-                      child: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: lottie.Lottie.asset(
-                          'assets/animations/student-avatar-hero.json',
-                          fit: BoxFit.contain,
-                          repeat: true,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.emoji_people_rounded,
-                            color: Colors.white,
-                            size: 34,
-                          ),
-                        ),
-                      ),
+                    left: target.x - 20,
+                    top: target.y - 62,
+                    child: const IgnorePointer(
+                      child: StudentMascot(size: 40, outfitColor: Color(0xFF16A085)),
                     ),
                   );
                 },

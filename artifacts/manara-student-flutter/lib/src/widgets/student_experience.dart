@@ -3,9 +3,9 @@ import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lottie/lottie.dart' as lottie;
 
 import '../services/student_sound_service.dart';
+import 'student_mascot.dart';
 
 class StudentPageRoute<T> extends PageRouteBuilder<T> {
   StudentPageRoute({
@@ -789,38 +789,11 @@ class StudentCompanion extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageSize = size * 0.83;
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    // The student's one consistent mascot everywhere in the app — the same
-    // full-body Lottie hero character used in the home screen's avatar
-    // room, not a separate one-off illustration.
-    final character = SizedBox(
-      width: imageSize,
-      height: imageSize,
-      child: lottie.Lottie.asset(
-        'assets/animations/student-avatar-hero.json',
-        fit: BoxFit.contain,
-        repeat: true,
-        errorBuilder: (_, __, ___) => Container(
-          width: imageSize * 0.72,
-          height: imageSize * 0.72,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1C664),
-            borderRadius: BorderRadius.circular(34),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x3D0B2D3D),
-                blurRadius: 16,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.school_rounded,
-            color: Color(0xFF173B50),
-            size: 58,
-          ),
-        ),
-      ),
-    );
+    // The student's one consistent mascot everywhere in the app — a plain
+    // Flutter-drawn character (see StudentMascot) rather than an external
+    // animation file, so it always renders complete, front-facing, and
+    // uncropped.
+    final character = StudentMascot(size: imageSize);
 
     return Semantics(
       label: 'رفيق منارة التعليمي',
@@ -832,24 +805,6 @@ class StudentCompanion extends StatelessWidget {
           alignment: Alignment.center,
           clipBehavior: Clip.none,
           children: [
-            Positioned(
-              bottom: 10,
-              child: Container(
-                width: size * 0.76,
-                height: size * 0.22,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0B2D3D).withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(100),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0B2D3D).withOpacity(0.14),
-                      blurRadius: 18,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-              ),
-            ),
             reduceMotion
                 ? character
                 : character

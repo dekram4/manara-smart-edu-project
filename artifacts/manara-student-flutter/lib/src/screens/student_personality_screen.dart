@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:lottie/lottie.dart';
 
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_mascot.dart';
 
 /// A child-friendly editor for the appearance stored with a student profile.
 ///
@@ -648,26 +648,12 @@ class _AppearancePreviewState extends State<_AppearancePreview>
         // The chosen emoji/outfit/accessory are already shown as their own
         // selected chips below — stamping them again as floating text over
         // the character just cluttered the preview without actually
-        // changing its body, so the preview now only recolors the
-        // character (a real per-outfit visual change) and lets it move.
-        ColorFiltered(
-          colorFilter: ColorFilter.mode(
-            widget.color.withOpacity(0.30),
-            BlendMode.srcATop,
-          ),
-          child: Lottie.asset(
-            'assets/animations/student-avatar-hero.json',
-            width: 190,
-            height: 210,
-            fit: BoxFit.contain,
-            repeat: true,
-            animate: true,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.accessibility_new_rounded,
-              size: 140,
-              color: Colors.white,
-            ),
-          ),
+        // changing its body, so the preview only recolors the character's
+        // actual outfit (a real per-outfit visual change) and lets it move.
+        StudentMascot(
+          size: 168,
+          outfitColor: widget.color,
+          waving: widget.motion == 'wave' || widget.motion == 'celebrate',
         ),
       ],
     ),

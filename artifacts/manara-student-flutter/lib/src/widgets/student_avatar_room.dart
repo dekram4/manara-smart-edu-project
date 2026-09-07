@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lottie/lottie.dart' as lottie;
 
 import '../models/student_gamification.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import 'student_experience.dart';
+import 'student_mascot.dart';
 
 /// The student home screen's playful centerpiece: a small pseudo-3D room
 /// (tilted back wall + floor meeting at a horizon, like the corner of a
 /// bedroom) with an animated character the student can tap to celebrate,
 /// sitting above a childish XP progress bar, gems count and daily streak.
-class StudentAvatarRoom extends StatefulWidget {
+class StudentAvatarRoom extends StatelessWidget {
   const StudentAvatarRoom({
     required this.stats,
     this.onCustomize,
@@ -20,18 +20,6 @@ class StudentAvatarRoom extends StatefulWidget {
 
   final StudentGamification stats;
   final VoidCallback? onCustomize;
-
-  @override
-  State<StudentAvatarRoom> createState() => _StudentAvatarRoomState();
-}
-
-class _StudentAvatarRoomState extends State<StudentAvatarRoom> {
-  int _celebrateTicket = 0;
-
-  void _onTapAvatar() {
-    StudentSoundService.instance.playTap();
-    setState(() => _celebrateTicket++);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,12 +80,12 @@ class _StudentAvatarRoomState extends State<StudentAvatarRoom> {
                   ),
                 ),
                 const Spacer(),
-                if (widget.onCustomize != null)
+                if (onCustomize != null)
                   StudentPressScale(
                     child: TextButton.icon(
                       onPressed: () {
                         StudentSoundService.instance.playTap();
-                        widget.onCustomize!();
+                        onCustomize!();
                       },
                       icon: const Icon(Icons.brush_rounded, size: 16),
                       label: const Text('تخصيص'),
@@ -113,17 +101,7 @@ class _StudentAvatarRoomState extends State<StudentAvatarRoom> {
               ],
             ),
             const SizedBox(height: 6),
-            GestureDetector(
-              onTap: _onTapAvatar,
-              child: Semantics(
-                button: true,
-                label: 'اضغط لتحية شخصيتك والاحتفال معها',
-                child: _AvatarRoomScene(
-                  celebrateTicket: _celebrateTicket,
-                  reduceMotion: reduceMotion,
-                ),
-              ),
-            ),
+            _AvatarRoomScene(reduceMotion: reduceMotion),
             const SizedBox(height: 6),
             const Text(
               'اضغط على شخصيتك لتحيّيك وتحتفل معك!',
@@ -135,7 +113,7 @@ class _StudentAvatarRoomState extends State<StudentAvatarRoom> {
               ),
             ),
             const SizedBox(height: 14),
-            _ChildishStatRow(stats: widget.stats),
+            _ChildishStatRow(stats: stats),
           ],
         ),
       ),
@@ -149,12 +127,8 @@ class _StudentAvatarRoomState extends State<StudentAvatarRoom> {
 /// gradient rectangle — this is what actually reads as a "room" instead of
 /// just another card.
 class _AvatarRoomScene extends StatelessWidget {
-  const _AvatarRoomScene({
-    required this.celebrateTicket,
-    required this.reduceMotion,
-  });
+  const _AvatarRoomScene({required this.reduceMotion});
 
-  final int celebrateTicket;
   final bool reduceMotion;
 
   @override
@@ -263,12 +237,9 @@ class _AvatarRoomScene extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
+          const Positioned(
             bottom: 34,
-            child: _AvatarCharacter(
-              celebrateTicket: celebrateTicket,
-              reduceMotion: reduceMotion,
-            ),
+            child: StudentInteractiveMascot(size: 150, outfitColor: Color(0xFF9B3E68)),
           ),
         ],
       ),
@@ -313,121 +284,6 @@ class _RoomSticker extends StatelessWidget {
           onPlay: (controller) => controller.repeat(reverse: true),
         )
         .moveY(begin: 0, end: -5, duration: 2200.ms, curve: Curves.easeInOut);
-  }
-}
-
-class _AvatarCharacter extends StatefulWidget {
-  const _AvatarCharacter({
-    required this.celebrateTicket,
-    required this.reduceMotion,
-  });
-
-  final int celebrateTicket;
-  final bool reduceMotion;
-
-  @override
-  State<_AvatarCharacter> createState() => _AvatarCharacterState();
-}
-
-class _AvatarCharacterState extends State<_AvatarCharacter>
-    with SingleTickerProviderStateMixin {
-  AnimationController? _lottieController;
-
-  // assets/animations/student-avatar-hero.json marks three named segments
-  // across its 120-frame (4s @ 30fps) timeline: "idle" (frames 0-40), "wave"
-  // (40-80) and "celebrate" (80-120). These are that timeline expressed as
-  // the Lottie AnimationController's normalized [0, 1] playback position.
-  static const double _idleStart = 0;
-  static const double _idleEnd = 40 / 120;
-  static const double _celebrateEnd = 1;
-
-  void _handleLoaded(lottie.LottieComposition composition) {
-    _lottieController?.dispose();
-    final controller = AnimationController(
-      vsync: this,
-      duration: composition.duration,
-    );
-    _lottieController = controller;
-    if (!widget.reduceMotion) {
-      controller.repeat(min: _idleStart, max: _idleEnd);
-    }
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void didUpdateWidget(covariant _AvatarCharacter oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.celebrateTicket != oldWidget.celebrateTicket &&
-        !widget.reduceMotion) {
-      _playCelebrateSegment();
-    }
-  }
-
-  Future<void> _playCelebrateSegment() async {
-    final controller = _lottieController;
-    if (controller == null) return;
-    // Play forward from wherever the idle loop currently sits, through the
-    // file's own wave + celebrate keyframes, all the way to the end — the
-    // actual authored celebration, not a synthetic tween — then resume
-    // idling from the start.
-    controller.stop();
-    await controller.animateTo(
-      _celebrateEnd,
-      duration: const Duration(milliseconds: 1400),
-      curve: Curves.easeInOut,
-    );
-    if (!mounted) return;
-    controller.repeat(min: _idleStart, max: _idleEnd);
-  }
-
-  @override
-  void dispose() {
-    _lottieController?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final character = SizedBox(
-      width: 148,
-      height: 168,
-      child: lottie.Lottie.asset(
-        'assets/animations/student-avatar-hero.json',
-        controller: _lottieController,
-        onLoaded: _handleLoaded,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Icon(
-          Icons.accessibility_new_rounded,
-          size: 120,
-          color: Color(0xFF9B3E68),
-        ),
-      ),
-    );
-
-    if (widget.reduceMotion) return character;
-    // A short squash-and-shimmer on top of the Lottie's own celebration
-    // keeps the tap feeling instant and punchy even before the (slightly
-    // slower) authored animation catches up.
-    return character
-        .animate(key: ValueKey(widget.celebrateTicket))
-        .scale(
-          begin: const Offset(1, 1),
-          end: const Offset(1.1, 0.9),
-          duration: 110.ms,
-          curve: Curves.easeOut,
-        )
-        .then()
-        .scale(
-          begin: const Offset(1.1, 0.9),
-          end: const Offset(1, 1),
-          duration: 220.ms,
-          curve: Curves.elasticOut,
-        )
-        .shimmer(
-          delay: 200.ms,
-          duration: 420.ms,
-          color: const Color(0x66FFE08A),
-        );
   }
 }
 

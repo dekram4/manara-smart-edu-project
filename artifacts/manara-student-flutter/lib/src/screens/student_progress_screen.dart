@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart' as lottie;
 
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_mascot.dart';
 
 class StudentProgressScreen extends StatelessWidget {
   const StudentProgressScreen({required this.profile, this.stats, super.key});
@@ -132,19 +132,9 @@ class _ProgressAnimationCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: Semantics(
-                    label: 'رفيق إنجازاتك',
-                    child: lottie.Lottie.asset(
-                      'assets/animations/student-avatar-hero.json',
-                      fit: BoxFit.contain,
-                      repeat: true,
-                      errorBuilder: (_, __, ___) =>
-                          const StudentRiveLoading(size: 112),
-                    ),
-                  ),
+                Semantics(
+                  label: 'رفيق إنجازاتك',
+                  child: const StudentMascot(size: 100),
                 ),
               ],
             ),

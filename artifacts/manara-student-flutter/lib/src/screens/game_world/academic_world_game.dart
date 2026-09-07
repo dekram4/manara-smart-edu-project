@@ -72,6 +72,7 @@ class AcademicWorldGame extends FlameGame {
 
   @override
   void render(Canvas canvas) {
+    if (!hasLayout) return;
     // A slow "breathing" sky wash behind everything else, before the
     // component tree (clouds + islands) paints on top of it.
     final breathe = (math.sin(_breatheTime * 0.5) + 1) / 2; // 0..1
@@ -93,24 +94,38 @@ class AcademicWorldGame extends FlameGame {
 
   /// Clears whatever islands are currently shown and lays out a new set for
   /// [stations], themed with [stepAccent]. Called by the screen every time
-  /// the active step changes (including going back a step).
+  /// the active step changes (including going back a step) — this can
+  /// happen before the GameWidget has ever been laid out (the very first
+  /// call arrives from an async data fetch that may resolve before Flutter
+  /// has even built the widget once), so it must never touch `size`
+  /// directly; see [_applyPendingStations].
   void showStations(List<WorldStation> stations, {required Color stepAccent}) {
     accent.value = stepAccent;
     _pendingStations = stations;
-    world.removeWhere((component) => component is _IslandComponent);
-    _layoutStations();
+    _applyPendingStations();
   }
 
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    // Only re-layout if islands were already showing — avoids doing work
-    // (and avoids acting before onLoad has set up the camera) on the very
-    // first resize callback that arrives before showStations is ever called.
-    if (world.children.any((component) => component is _IslandComponent)) {
-      world.removeWhere((component) => component is _IslandComponent);
-      _layoutStations();
-    }
+    // The first resize callback is exactly what makes `hasLayout` true, so
+    // this is also where an earlier showStations() call that arrived too
+    // early finally gets to actually lay itself out. A later, genuine
+    // resize re-flows the same (still-current) stations for the new size.
+    _applyPendingStations();
+  }
+
+  /// Safe to call at any time, including before the game has a layout yet
+  /// (`hasLayout` is false right up until Flame calls [onGameResize] for
+  /// the first time) — in that case it's a no-op and [onGameResize] will
+  /// call it again once a real size is available. Never accesses `size`
+  /// (which asserts `hasLayout` internally) except behind that guard, so
+  /// the student is never left looking at a debug assertion instead of
+  /// their academic path.
+  void _applyPendingStations() {
+    if (!hasLayout) return;
+    world.removeWhere((component) => component is _IslandComponent);
+    _layoutStations();
   }
 
   void _layoutStations() {
@@ -172,8 +187,10 @@ class _CloudBlob extends CircleComponent {
   @override
   void update(double dt) {
     super.update(dt);
-    final gameSize = findGame()?.size;
-    if (gameSize == null || gameSize.x <= 0) return;
+    final game = findGame();
+    if (game == null || !game.hasLayout) return;
+    final gameSize = game.size;
+    if (gameSize.x <= 0) return;
     if (!_initialized) {
       position.x = gameSize.x * _startXFraction;
       _initialized = true;
