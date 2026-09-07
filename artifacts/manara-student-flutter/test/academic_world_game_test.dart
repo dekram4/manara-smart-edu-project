@@ -29,7 +29,10 @@ void main() {
       // (here, synchronously) before the widget tree below has been pumped
       // even once, i.e. before Flame's own onGameResize has ever fired and
       // `hasLayout` is still false. It must be a safe no-op, not a
-      // `'size' is not ready yet` assertion failure.
+      // `'size' is not ready yet` assertion failure. `selectedId: 'g2'` is
+      // also load-bearing here: it's what makes _layoutStations() compute
+      // a non-null avatarTarget, which is the second real crash this
+      // reproduces — see the next comment.
       expect(
         () => game.showStations(
           const [
@@ -38,12 +41,24 @@ void main() {
             WorldStation(id: 'g3', label: 'الصف الثالث'),
           ],
           stepAccent: const Color(0xFF4F46E5),
+          selectedId: 'g2',
         ),
         returnsNormally,
       );
 
+      // A second, distinct real crash this reproduces: the very first
+      // onGameResize (which is what pumping the widget below triggers)
+      // fires from *inside* GameWidget's own LayoutBuilder, i.e. while
+      // Flutter is still in the build phase. _layoutStations() found a
+      // selected station above, so it now has a non-null avatarTarget to
+      // publish — if it wrote that ValueNotifier's `.value` synchronously
+      // right there, the ValueListenableBuilder overlay listening to it
+      // would call setState() mid-build and throw
+      // "setState() or markNeedsBuild() called during build.". It must be
+      // deferred (a post-frame callback) instead.
       await tester.pumpWidget(MaterialApp(home: GameWidget(game: game)));
-      // Let Flame's own load/layout/first-frame cycle run.
+      // Let Flame's own load/layout/first-frame cycle run, plus the
+      // deferred avatarTarget publish scheduled during that layout.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
@@ -51,6 +66,11 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(game.hasLayout, isTrue);
       expect(game.size, Vector2(400, 700));
+      // And the deferred publish actually happened (not just "didn't
+      // crash") — 'g2' is real station index 1, unaffected by the locked
+      // placeholder AcademicWorldGame pads on after it to reach its
+      // minimum of 4 visual stops.
+      expect(game.avatarTarget.value, isNotNull);
 
       // A genuine resize after layout is established must also stay safe.
       // (Not pumpAndSettle: the sky/clouds/islands animate continuously,
@@ -89,9 +109,11 @@ void main() {
       expect(game.hasLayout, isTrue);
       expect(game.size, Vector2(400, 700));
 
-      // A single station lays out deterministically: horizontally centered
-      // (sin(0) == 0) and vertically centered in the usable band between
-      // AcademicWorldGame's fixed top/bottom margins — see _layoutStations.
+      // A single real station is padded with locked "قريباً" placeholders
+      // up to AcademicWorldGame's minimum of 4 visual stops, so it lands in
+      // slot 0 of 4 — horizontally centered (sin(0) == 0) and vertically at
+      // the very first stop of the usable band, not centered — see
+      // _layoutStations.
       game.showStations(
         const [WorldStation(id: 'grade-1', label: 'الصف الأول')],
         stepAccent: const Color(0xFF4F46E5),
@@ -105,8 +127,10 @@ void main() {
       expect(tester.takeException(), isNull);
 
       const topMargin = 110.0;
-      const bottomMargin = 130.0;
-      const expectedCenter = Offset(400 / 2, topMargin + (700 - topMargin - bottomMargin) / 2);
+      // With only 1 real station, AcademicWorldGame pads the map to its
+      // minimum of 4 visual stops; the real one is slot 0, i.e. sitting
+      // right at topMargin (not centered in the usable band).
+      const expectedCenter = Offset(400 / 2, topMargin);
 
       // This is the same gesture a student's finger/mouse click sends —
       // routed through Flutter's normal hit-testing into the GameWidget,

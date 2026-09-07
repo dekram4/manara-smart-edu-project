@@ -486,14 +486,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               valueListenable: _game.avatarTarget,
               builder: (context, target, _) {
                 if (target == null) return const SizedBox.shrink();
-                // Anchored beside (not on top of) the station, so it never
-                // covers the station's own label underneath it.
+                // Standing on top of the island (its center is `target`,
+                // radius 44) rather than floating beside it, with enough
+                // overlap for the character's feet to rest on the island's
+                // surface — but shifted up clear of the label underneath.
+                const mascotSize = 58.0;
                 return AnimatedPositioned(
                   duration: const Duration(milliseconds: 420),
                   curve: Curves.easeOutCubic,
-                  left: target.x - 60,
-                  top: target.y - 30,
-                  child: const IgnorePointer(child: PathMascot(size: 54)),
+                  left: target.x - mascotSize / 2,
+                  top: target.y - 104,
+                  child: const IgnorePointer(child: PathMascot(size: mascotSize)),
                 );
               },
             ),
