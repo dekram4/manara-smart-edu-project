@@ -1,6 +1,4 @@
-﻿import 'dart:math' as math;
-
-import 'package:confetti/confetti.dart';
+﻿import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
@@ -413,97 +411,44 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                  // On a wide/landscape window the three summary cards sit
-                  // side by side instead of stacking full-width one after
-                  // another — a tall, narrow window still gets the original
-                  // vertical stack, since each card's own content wants
-                  // real width to read comfortably.
-                  if (size.width >= 700)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: StudentAnimatedCard(
-                                child: _WelcomeCard(profile: widget.profile),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: StudentAnimatedCard(
-                                delay: const Duration(milliseconds: 60),
-                                child: StudentAvatarRoom(
-                                  stats: _gamification,
-                                  onCustomize: _openPersonality,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: StudentAnimatedCard(
-                                delay: const Duration(milliseconds: 80),
-                                child: _ProgressCard(
-                                  stats: _gamification,
-                                  onPressed: () {
-                                    StudentSoundService.instance.playTap();
-                                    Navigator.of(context).push(
-                                      StudentPageRoute<void>(
-                                        builder: (_) => StudentProgressScreen(
-                                          profile: widget.profile,
-                                          stats: _gamification,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: StudentAnimatedCard(
-                         child: _WelcomeCard(profile: widget.profile),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: StudentAnimatedCard(
+                       child: _WelcomeCard(profile: widget.profile),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: StudentAnimatedCard(
+                      delay: const Duration(milliseconds: 60),
+                      child: StudentAvatarRoom(
+                        stats: _gamification,
+                        onCustomize: _openPersonality,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: StudentAnimatedCard(
-                        delay: const Duration(milliseconds: 60),
-                        child: StudentAvatarRoom(
-                          stats: _gamification,
-                          onCustomize: _openPersonality,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: StudentAnimatedCard(
-                        delay: const Duration(milliseconds: 80),
-                        child: _ProgressCard(
-                          stats: _gamification,
-                          onPressed: () {
-                            StudentSoundService.instance.playTap();
-                            Navigator.of(context).push(
-                              StudentPageRoute<void>(
-                                builder: (_) => StudentProgressScreen(
-                                  profile: widget.profile,
-                                  stats: _gamification,
-                                ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: StudentAnimatedCard(
+                      delay: const Duration(milliseconds: 80),
+                      child: _ProgressCard(
+                        stats: _gamification,
+                        onPressed: () {
+                          StudentSoundService.instance.playTap();
+                          Navigator.of(context).push(
+                            StudentPageRoute<void>(
+                              builder: (_) => StudentProgressScreen(
+                                profile: widget.profile,
+                                stats: _gamification,
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ],
+                  ),
                   if (widget.academicContext != null) ...[
                     const SizedBox(height: 12),
                     Padding(
@@ -842,10 +787,11 @@ const _homeSections = <_HomeSection>[
   ),
 ];
 
-/// A shelf of chunky, individually-shaped module tiles — the "لمسة"-style
-/// mechanism the student picks a destination from: a scrollable grid of big
-/// touch targets, each with its own toy-like medallion icon, rather than a
-/// single swipeable card at a time.
+/// A shelf of wide 3D game-portal tiles — the module grid the student picks
+/// a destination from. `SliverGridDelegateWithMaxCrossAxisExtent` sizes each
+/// tile toward the target ~230x170 game-card proportions and fits as many
+/// columns as the available (landscape-favoring) width allows, rather than
+/// a fixed 2/3-column breakpoint.
 class _HomeSectionGrid extends StatelessWidget {
   const _HomeSectionGrid({required this.onSectionPressed});
 
@@ -853,227 +799,128 @@ class _HomeSectionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= 700;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 22),
       itemCount: _homeSections.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: wide ? 3 : 2,
-        mainAxisSpacing: 22,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 240,
+        mainAxisSpacing: 16,
         crossAxisSpacing: 14,
-        childAspectRatio: 0.92,
+        childAspectRatio: 230 / 170,
       ),
       itemBuilder: (context, index) => _SectionTile(
         section: _homeSections[index],
-        shapeVariant: index % 3,
         onPressed: () => onSectionPressed(index),
       ),
     );
   }
 }
 
-/// One "توي" (toy) tile: a chunky sticker-shaped card topped with a raised
-/// medallion badge. [shapeVariant] cycles the card's corner silhouette and
-/// the medallion's own shape so neighboring tiles never look like clones of
-/// each other — only their color, icon and text change otherwise.
+/// One wide 3D game-portal card: a dark extrusion base under a beveled,
+/// bright board, a big icon medallion centered above the bold title — a
+/// single consistent shape for every tile, no tall/narrow capsule and no
+/// dead vertical space above or below the content.
 class _SectionTile extends StatelessWidget {
-  const _SectionTile({
-    required this.section,
-    required this.shapeVariant,
-    required this.onPressed,
-  });
+  const _SectionTile({required this.section, required this.onPressed});
 
   final _HomeSection section;
-  final int shapeVariant;
   final VoidCallback? onPressed;
-
-  BorderRadius get _cardRadius => switch (shapeVariant) {
-    0 => StudentShapes.playfulCard,
-    1 => const BorderRadius.only(
-      topLeft: Radius.circular(34),
-      topRight: Radius.circular(16),
-      bottomLeft: Radius.circular(16),
-      bottomRight: Radius.circular(34),
-    ),
-    _ => BorderRadius.circular(32),
-  };
 
   @override
   Widget build(BuildContext context) {
+    final base = section.colors.first;
+    final top = section.colors.last;
+    final extrusion = Color.lerp(base, Colors.black, 0.32)!;
+    const radius = 22.0;
     return StudentPressScale(
       child: GestureDetector(
         onTap: onPressed,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 26),
-              padding: const EdgeInsets.fromLTRB(10, 30, 10, 12),
-              decoration: BoxDecoration(
-                borderRadius: _cardRadius,
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: section.colors,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: section.colors.last.withAlpha(105),
-                    blurRadius: 18,
-                    offset: const Offset(0, 9),
-                  ),
-                ],
+        child: Container(
+          padding: const EdgeInsets.only(bottom: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            color: extrusion,
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 8)),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [top, base],
               ),
-              child: ClipRRect(
-                borderRadius: _cardRadius,
-                child: Stack(
-                  children: [
-                    // A diagonal glossy sheen — the "candy button" bevel
-                    // that reads as a raised 3D toy rather than a flat tile.
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.white.withOpacity(0.26),
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.05),
-                            ],
-                            stops: const [0, 0.5, 1],
-                          ),
+              border: Border.all(color: Colors.white.withOpacity(0.55), width: 2.5),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: Stack(
+                children: [
+                  // A diagonal glossy sheen — the same raised-3D-toy bevel
+                  // the rest of the app's cards use.
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(0.22),
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.06),
+                          ],
+                          stops: const [0, 0.5, 1],
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            section.title,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w900,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Colors.white, section.accent.withOpacity(0.75)],
                             ),
+                            border: Border.all(color: Colors.white, width: 2.5),
+                            boxShadow: [
+                              BoxShadow(color: base.withOpacity(0.45), blurRadius: 8, offset: const Offset(0, 4)),
+                            ],
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            section.subtitle,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: section.accent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          child: Icon(section.icon, color: base, size: 30),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          section.title,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w900,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            _ToyMedallion(
-              icon: section.icon,
-              accent: section.accent,
-              baseColor: section.colors.first,
-              shapeVariant: shapeVariant,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The raised icon badge sitting on top of a module tile — a coin (circle),
-/// an app-icon squircle, or a rotated diamond, depending on [shapeVariant].
-class _ToyMedallion extends StatelessWidget {
-  const _ToyMedallion({
-    required this.icon,
-    required this.accent,
-    required this.baseColor,
-    required this.shapeVariant,
-  });
-
-  final IconData icon;
-  final Color accent;
-  final Color baseColor;
-  final int shapeVariant;
-
-  @override
-  Widget build(BuildContext context) {
-    const size = 60.0;
-    final gradient = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Colors.white, accent.withOpacity(0.7)],
-    );
-    final shadow = [
-      BoxShadow(
-        color: baseColor.withOpacity(0.45),
-        blurRadius: 10,
-        offset: const Offset(0, 5),
-      ),
-    ];
-    final border = Border.all(color: Colors.white, width: 3);
-
-    final Widget background = switch (shapeVariant) {
-      0 => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: gradient,
-          border: border,
-          boxShadow: shadow,
-        ),
-      ),
-      1 => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(size * 0.32),
-          gradient: gradient,
-          border: border,
-          boxShadow: shadow,
-        ),
-      ),
-      _ => Transform.rotate(
-        angle: math.pi / 4,
-        child: Container(
-          width: size * 0.72,
-          height: size * 0.72,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(size * 0.16),
-            gradient: gradient,
-            border: border,
-            boxShadow: shadow,
           ),
         ),
-      ),
-    };
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          background,
-          Icon(icon, color: baseColor, size: 27),
-        ],
       ),
     );
   }
