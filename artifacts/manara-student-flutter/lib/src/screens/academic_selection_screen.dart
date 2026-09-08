@@ -549,22 +549,23 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // The reading pair balances the right gutter against the
                 // guide on the left, and is only drawn if it fits under the
                 // HUD row without reaching the floating pencil below it.
-                final readersWidth =
-                    math.min(150.0, sideMargin - 24).toDouble();
-                // Nudged in towards the stack, but never so far that the
-                // pair would overlap the illustration: the inset can grow
-                // only as far as the gutter still has room for it.
-                final readersInset =
-                    math.max(8.0, math.min(26.0, sideMargin - readersWidth - 8))
+                // The two top blocks are anchored to the illustration's own
+                // silhouette rather than to the screen edge. The books do
+                // not fill their canvas: above y=0.13 the artwork stops at
+                // x=0.70 on the right and starts at x=0.22 on the left, and
+                // that empty wedge is where these blocks belong. The
+                // fractions below are the tightest the traced silhouette
+                // allows over each block's own vertical span.
+                final readersLeft = imageRect.left + imageRect.width * 0.82;
+                final readersSize =
+                    math.min(188.0, areaSize.width - readersLeft - 10)
                         .toDouble();
-                final showReaders = readersWidth >= 110 &&
-                    areaSize.height - 104 - readersWidth - pencilWidth > 8;
-                // The brand block moves in and down by the same reasoning.
-                final brandWidth =
-                    math.min(170.0, sideMargin - 34).toDouble();
-                final brandInset =
-                    math.max(8.0, math.min(24.0, sideMargin - brandWidth - 8))
-                        .toDouble();
+                final showReaders = readersSize >= 120;
+                final brandRight = imageRect.left + imageRect.width * 0.158;
+                final brandWidth = math.min(190.0, brandRight - 6).toDouble();
+                final logoHeight =
+                    math.min(120.0, brandWidth * 0.92).toDouble();
+                final showBrand = brandWidth >= 90;
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -603,26 +604,25 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         ),
                       ),
                     if (showReaders)
-                      // Pulled down and in from the corner so the pair
-                      // hovers over the stack rather than clinging to the
-                      // top edge. `readersInset` keeps them clear of the
-                      // illustration at every window width.
+                      // Tucked into the empty wedge right of the teal book,
+                      // so the pair floats alongside the first and second
+                      // books instead of sitting off in the gutter.
                       Positioned(
-                        top: 104,
-                        right: readersInset,
+                        left: readersLeft,
+                        top: imageRect.top + imageRect.height * 0.015,
                         child: _FloatingArt(
                           asset: 'assets/images/student_mascot.png',
-                          size: readersWidth,
-                          bob: 7,
+                          size: readersSize,
+                          bob: 8,
                           period: const Duration(milliseconds: 2900),
                         ),
                       ),
-                    if (sideMargin >= 120)
+                    if (showBrand)
                       Positioned(
-                        top: 18,
-                        left: brandInset,
+                        top: imageRect.top + 24,
+                        left: brandRight - brandWidth,
                         width: brandWidth,
-                        child: const _BrandMark(),
+                        child: _BrandMark(logoHeight: logoHeight),
                       ),
                     Positioned(
                       top: 4,
@@ -1011,7 +1011,9 @@ class _StartAdventureButton extends StatelessWidget {
 /// The Manara mark with the app's name set under it, in the top-left
 /// corner above the guide.
 class _BrandMark extends StatelessWidget {
-  const _BrandMark();
+  const _BrandMark({required this.logoHeight});
+
+  final double logoHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -1020,11 +1022,11 @@ class _BrandMark extends StatelessWidget {
       children: [
         Image.asset(
           'assets/images/manara-logo-mark-transparent.png',
-          height: 86,
+          height: logoHeight,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         // The name is scaled to whatever width the gutter grants, so it
         // reads at full size on a wide window and shrinks rather than
         // wrapping or spilling over the books on a narrow one.
@@ -1035,7 +1037,7 @@ class _BrandMark extends StatelessWidget {
             maxLines: 1,
             style: TextStyle(
               color: Color(0xFF0E5F6B),
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.w900,
               letterSpacing: 0.3,
               shadows: [

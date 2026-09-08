@@ -236,7 +236,9 @@ class _DIdStateCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onAction,
                 icon: const Icon(Icons.refresh_rounded),
-                label: Text(actionLabel),
+                // Instance fields are never promoted by the null check on
+                // the enclosing `if`, so this has to assert explicitly.
+                label: Text(actionLabel!),
               ),
             ],
           ],
