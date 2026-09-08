@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
-import '../theme/student_theme.dart';
 import '../widgets/manara_logo.dart';
-import '../widgets/space_game_theme.dart';
 import '../widgets/student_experience.dart';
-import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -107,153 +104,117 @@ class _LoginScreenState extends State<LoginScreen> {
     final isConfigured = widget.authService != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1B0A33),
+      backgroundColor: const Color(0xFF16241B),
       body: Stack(
         children: [
-          const Positioned.fill(child: SpaceGameBackdrop()),
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF16241B), Color(0xFF23140C), Color(0xFF12291D)],
+                ),
+              ),
+            ),
+          ),
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 460),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          const StudentEmbossedShell(
-                            color: Color(0xFFF6B93B),
-                            depth: 5,
-                            borderRadius: 16,
-                            child: Padding(
-                              padding: EdgeInsets.all(6),
-                              child: ManaraLogo(size: 32),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'مَنارة',
-                                  style: TextStyle(
-                                    color: Color(0xFFFFF9E9),
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                Text(
-                                  'MANARA SMART EDU',
-                                  textDirection: TextDirection.ltr,
-                                  style: TextStyle(
-                                    color: Color(0xFFBFE8FF),
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Color(0x33FFFFFF),
-                              borderRadius: BorderRadius.all(Radius.circular(16)),
-                            ),
-                            child: StudentSoundToggle(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      StudentEntrance(
-                        child: Column(
-                          children: [
-                            // The heroes stand on their own little floating
-                            // island, like the rest of the space-game world.
-                            Stack(
-                              alignment: Alignment.bottomCenter,
-                              clipBehavior: Clip.none,
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(bottom: 6),
-                                  child: SpaceFloatingRock(size: 150, delay: 0),
-                                ),
-                                const StudentInteractiveMascot(size: 168),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'أهلًا يا بطل! 👋',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Color(0xFFFFF9E9),
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'سجّل دخولك إلى بوابة الطالب واستعد لرحلتك',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Color(0xFFDCD3F7),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                      const StudentEmbossedShell(
+                        color: Color(0xFFF6B93B),
+                        depth: 5,
+                        borderRadius: 16,
+                        child: Padding(
+                          padding: EdgeInsets.all(6),
+                          child: ManaraLogo(size: 28),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      StudentAnimatedCard(
-                        child: Student3DCard(
-                          maxTilt: 0.045,
-                          child: _LoginCredentialsCard(
-                            formKey: _formKey,
-                            isConfigured: isConfigured,
-                            initializationError: widget.initializationError,
-                            usernameController: _usernameController,
-                            passwordController: _passwordController,
-                            hidePassword: _hidePassword,
-                            isLoading: _isLoading,
-                            loginSucceeded: _loginSucceeded,
-                            showValidationFeedback: _showValidationFeedback,
-                            errorMessage: _errorMessage,
-                            onUsernameChanged: (_) {
-                              if (_showValidationFeedback) {
-                                setState(() => _showValidationFeedback = false);
-                              }
-                            },
-                            onPasswordChanged: (_) {
-                              if (_showValidationFeedback) {
-                                setState(() => _showValidationFeedback = false);
-                              }
-                            },
-                            onTogglePassword: () {
-                              StudentSoundService.instance.playTap();
-                              setState(() => _hidePassword = !_hidePassword);
-                            },
-                            onSubmit: _submit,
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'مَنارة',
+                          style: TextStyle(
+                            color: Color(0xFFFFF3DE),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'مساحة مخصصة للطلاب • كل خطوة تقرّبك من إنجاز جديد',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFFC9BEF0),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Color(0x26FFFFFF),
+                          borderRadius: BorderRadius.all(Radius.circular(16)),
                         ),
+                        child: StudentSoundToggle(),
                       ),
                     ],
                   ),
                 ),
-              ),
+                // The board image is placed via BoxFit.contain over the full
+                // remaining area, and the form is placed in a second
+                // Positioned computed from the *same* rect math — so it
+                // always lands exactly on the green writing surface no
+                // matter the window's aspect ratio, never on the wood frame
+                // or the books/globe beside it.
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final areaSize = constraints.biggest;
+                      final imageRect = _containRect(areaSize, 1.0);
+                      final boardRect = _boardRectFromImageRect(imageRect);
+                      final formRect = boardRect.deflate(boardRect.width * 0.055);
+                      return Stack(
+                        children: [
+                          Positioned.fromRect(
+                            rect: imageRect,
+                            child: Image.asset(
+                              'assets/images/board_login_bg.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                            ),
+                          ),
+                          Positioned.fromRect(
+                            rect: formRect,
+                            child: _BoardLoginForm(
+                              formKey: _formKey,
+                              isConfigured: isConfigured,
+                              initializationError: widget.initializationError,
+                              usernameController: _usernameController,
+                              passwordController: _passwordController,
+                              hidePassword: _hidePassword,
+                              isLoading: _isLoading,
+                              loginSucceeded: _loginSucceeded,
+                              showValidationFeedback: _showValidationFeedback,
+                              errorMessage: _errorMessage,
+                              boardHeight: formRect.height,
+                              onUsernameChanged: (_) {
+                                if (_showValidationFeedback) {
+                                  setState(() => _showValidationFeedback = false);
+                                }
+                              },
+                              onPasswordChanged: (_) {
+                                if (_showValidationFeedback) {
+                                  setState(() => _showValidationFeedback = false);
+                                }
+                              },
+                              onTogglePassword: () {
+                                StudentSoundService.instance.playTap();
+                                setState(() => _hidePassword = !_hidePassword);
+                              },
+                              onSubmit: _submit,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -262,8 +223,54 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _LoginCredentialsCard extends StatelessWidget {
-  const _LoginCredentialsCard({
+/// The rect an image with [aspectRatio] (width / height) actually renders
+/// into under `BoxFit.contain` inside [container] — used to place the
+/// login form precisely on top of the chalkboard's green surface, wherever
+/// that ends up once the (square) `board_login_bg.png` is fit into
+/// whatever the current landscape window's aspect ratio happens to be.
+Rect _containRect(Size container, double aspectRatio) {
+  final containerAspect = container.width / container.height;
+  double width;
+  double height;
+  if (containerAspect > aspectRatio) {
+    height = container.height;
+    width = height * aspectRatio;
+  } else {
+    width = container.width;
+    height = width / aspectRatio;
+  }
+  return Rect.fromLTWH(
+    (container.width - width) / 2,
+    (container.height - height) / 2,
+    width,
+    height,
+  );
+}
+
+/// The green writing surface's bounding box within `board_login_bg.png`,
+/// as fractions of the whole (square) source image — measured directly
+/// against the asset. Converts [imageRect] (where that image actually
+/// renders on screen) into the matching screen rect for the board itself.
+Rect _boardRectFromImageRect(Rect imageRect) {
+  const left = 0.24;
+  const top = 0.27;
+  const right = 0.865;
+  const bottom = 0.605;
+  return Rect.fromLTRB(
+    imageRect.left + left * imageRect.width,
+    imageRect.top + top * imageRect.height,
+    imageRect.left + right * imageRect.width,
+    imageRect.top + bottom * imageRect.height,
+  );
+}
+
+/// The login form itself, chalk-on-blackboard styled (translucent white
+/// fields, warm gold 3D button) and sized so it fits inside whatever the
+/// computed board rect turns out to be — [boardHeight] drives a single
+/// scale factor for every font size/padding, and the whole thing scrolls
+/// as a safety net rather than ever hard-overflowing a short board.
+class _BoardLoginForm extends StatelessWidget {
+  const _BoardLoginForm({
     required this.formKey,
     required this.isConfigured,
     required this.initializationError,
@@ -274,6 +281,7 @@ class _LoginCredentialsCard extends StatelessWidget {
     required this.loginSucceeded,
     required this.showValidationFeedback,
     required this.errorMessage,
+    required this.boardHeight,
     required this.onUsernameChanged,
     required this.onPasswordChanged,
     required this.onTogglePassword,
@@ -290,6 +298,7 @@ class _LoginCredentialsCard extends StatelessWidget {
   final bool loginSucceeded;
   final bool showValidationFeedback;
   final String? errorMessage;
+  final double boardHeight;
   final ValueChanged<String> onUsernameChanged;
   final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePassword;
@@ -297,126 +306,109 @@ class _LoginCredentialsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFCF5),
-        borderRadius: StudentShapes.playfulCard,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.28),
-            blurRadius: 30,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
+    final double scale = (boardHeight / 260).clamp(0.6, 1.3).toDouble();
+    return SingleChildScrollView(
       child: Form(
         key: formKey,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            StudentFocusGlow(
-              hasError:
-                  showValidationFeedback && usernameController.text.trim().isEmpty,
-              borderRadius: BorderRadius.circular(30),
-              child: TextFormField(
-                controller: usernameController,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.username],
-                onChanged: onUsernameChanged,
-                decoration: _pillDecoration(
-                  label: 'اسم المستخدم',
-                  hint: 'اكتب اسم المستخدم',
-                  icon: Icons.person_rounded,
-                ),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'اكتب اسم المستخدم'
-                    : null,
+            Text(
+              'أهلاً بك يا بطل! 🎒',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 19 * scale,
+                fontWeight: FontWeight.w900,
+                shadows: const [Shadow(color: Colors.black54, blurRadius: 5, offset: Offset(0, 2))],
               ),
             ),
-            const SizedBox(height: 14),
-            StudentFocusGlow(
+            SizedBox(height: 9 * scale),
+            _ChalkField(
+              controller: usernameController,
+              hint: 'اسم المستخدم',
+              icon: Icons.person_rounded,
+              scale: scale,
+              hasError: showValidationFeedback && usernameController.text.trim().isEmpty,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.username],
+              onChanged: onUsernameChanged,
+              validator: (value) =>
+                  value == null || value.trim().isEmpty ? 'اكتب اسم المستخدم' : null,
+            ),
+            SizedBox(height: 8 * scale),
+            _ChalkField(
+              controller: passwordController,
+              hint: 'كلمة المرور',
+              icon: Icons.lock_rounded,
+              scale: scale,
+              obscureText: hidePassword,
               hasError: showValidationFeedback && passwordController.text.isEmpty,
-              borderRadius: BorderRadius.circular(30),
-              child: TextFormField(
-                controller: passwordController,
-                obscureText: hidePassword,
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => onSubmit(),
-                autofillHints: const [AutofillHints.password],
-                onChanged: onPasswordChanged,
-                decoration: _pillDecoration(
-                  label: 'كلمة المرور',
-                  hint: 'اكتب كلمة المرور',
-                  icon: Icons.lock_rounded,
-                  suffixIcon: IconButton(
-                    tooltip: hidePassword ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
-                    onPressed: onTogglePassword,
-                    icon: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      child: Icon(
-                        hidePassword
-                            ? Icons.visibility_rounded
-                            : Icons.visibility_off_rounded,
-                        key: ValueKey(hidePassword),
-                        color: const Color(0xFFB45309),
-                      ),
-                    ),
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              onChanged: onPasswordChanged,
+              onFieldSubmitted: (_) => onSubmit(),
+              validator: (value) => value == null || value.isEmpty ? 'اكتب كلمة المرور' : null,
+              suffixIcon: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(minWidth: 30 * scale, minHeight: 30 * scale),
+                tooltip: hidePassword ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
+                onPressed: onTogglePassword,
+                icon: Icon(
+                  hidePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                  color: Colors.white70,
+                  size: 16 * scale,
+                ),
+              ),
+            ),
+            if (errorMessage != null)
+              Padding(
+                padding: EdgeInsets.only(top: 6 * scale),
+                child: Text(
+                  errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: const Color(0xFFFCA5A5),
+                    fontSize: 11 * scale,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'اكتب كلمة المرور' : null,
               ),
-            ),
-            if (errorMessage != null) ...[
-              const SizedBox(height: 14),
-              StudentEntrance(
-                offset: 0.02,
-                child: _LoginFeedback(
-                  message: errorMessage!,
-                  color: const Color(0xFF9F1239),
-                  surface: const Color(0xFFFFF1F2),
-                  border: const Color(0xFFFDA4AF),
-                  icon: Icons.info_outline_rounded,
+            if (!isConfigured && initializationError != null)
+              Padding(
+                padding: EdgeInsets.only(top: 6 * scale),
+                child: Text(
+                  initializationError!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: const Color(0xFFFCD34D),
+                    fontSize: 11 * scale,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-            ],
-            if (!isConfigured && initializationError != null) ...[
-              const SizedBox(height: 12),
-              _LoginFeedback(
-                message: initializationError!,
-                color: const Color(0xFF92400E),
-                surface: const Color(0xFFFFFBEB),
-                border: const Color(0xFFFCD34D),
-                icon: Icons.cloud_off_rounded,
-              ),
-            ],
-            const SizedBox(height: 22),
+            SizedBox(height: 10 * scale),
             StudentPressScale(
               child: StudentEmbossedShell(
-                color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFF147D83),
-                depth: 7,
-                borderRadius: 32,
+                color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFEA8A3D),
+                depth: 5 * scale,
+                borderRadius: 14,
                 child: FilledButton.icon(
                   onPressed: isLoading ? null : onSubmit,
                   icon: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 180),
                     child: isLoading && !loginSucceeded
-                        ? const SizedBox(
-                            key: ValueKey('loading'),
-                            width: 19,
-                            height: 19,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
+                        ? SizedBox(
+                            key: const ValueKey('loading'),
+                            width: 15 * scale,
+                            height: 15 * scale,
+                            child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
                         : Icon(
-                            loginSucceeded
-                                ? Icons.celebration_rounded
-                                : Icons.arrow_back_rounded,
+                            loginSucceeded ? Icons.celebration_rounded : Icons.arrow_back_rounded,
                             key: ValueKey(loginSucceeded),
+                            size: 16 * scale,
                           ),
                   ),
                   label: Text(
@@ -424,28 +416,18 @@ class _LoginCredentialsCard extends StatelessWidget {
                         ? 'أحسنت! لنبدأ'
                         : isLoading
                             ? 'جاري التحقق...'
-                            : 'ابدأ رحلة التعلّم',
+                            : 'تسجيل الدخول',
                   ),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(58),
+                    minimumSize: Size.fromHeight(38 * scale),
                     backgroundColor:
-                        loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFF147D83),
+                        loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFEA8A3D),
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                    shape: const StadiumBorder(),
+                    textStyle: TextStyle(fontSize: 12.5 * scale, fontWeight: FontWeight.w900),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'هذا التطبيق مخصص للطلاب فقط',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFF9A8F86),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
               ),
             ),
           ],
@@ -455,79 +437,79 @@ class _LoginCredentialsCard extends StatelessWidget {
   }
 }
 
-/// A warm, soft-rounded "gaming pill" input decoration — no sharp corners,
-/// a cream fill, and a circular icon badge instead of a bare Material icon.
-InputDecoration _pillDecoration({
-  required String label,
-  required String hint,
-  required IconData icon,
-  Widget? suffixIcon,
-}) {
-  return InputDecoration(
-    labelText: label,
-    hintText: hint,
-    filled: true,
-    fillColor: const Color(0xFFFFF3DE),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-    prefixIcon: Padding(
-      padding: const EdgeInsets.all(8),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(color: Color(0xFFFFE0A6), shape: BoxShape.circle),
-        child: Icon(icon, color: const Color(0xFFB45309), size: 18),
-      ),
-    ),
-    suffixIcon: suffixIcon,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: BorderSide.none,
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: const BorderSide(color: Color(0xFFFFDFA0), width: 2),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2.5),
-    ),
-  );
-}
-
-class _LoginFeedback extends StatelessWidget {
-  const _LoginFeedback({
-    required this.message,
-    required this.color,
-    required this.surface,
-    required this.border,
+/// A compact, semi-transparent "written in chalk" input field — a light
+/// wash over the board's own green rather than an opaque card, so the
+/// board texture keeps showing through around the text.
+class _ChalkField extends StatelessWidget {
+  const _ChalkField({
+    required this.controller,
+    required this.hint,
     required this.icon,
+    required this.scale,
+    this.obscureText = false,
+    this.hasError = false,
+    this.textInputAction,
+    this.autofillHints,
+    this.suffixIcon,
+    this.onChanged,
+    this.onFieldSubmitted,
+    this.validator,
   });
 
-  final String message;
-  final Color color;
-  final Color surface;
-  final Color border;
+  final TextEditingController controller;
+  final String hint;
   final IconData icon;
+  final double scale;
+  final bool obscureText;
+  final bool hasError;
+  final TextInputAction? textInputAction;
+  final Iterable<String>? autofillHints;
+  final Widget? suffixIcon;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onFieldSubmitted;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 19),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
+    final borderColor = hasError ? const Color(0xFFFCA5A5) : Colors.white.withOpacity(0.45);
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      textInputAction: textInputAction,
+      autofillHints: autofillHints,
+      onChanged: onChanged,
+      onFieldSubmitted: onFieldSubmitted,
+      validator: validator,
+      cursorColor: Colors.white,
+      style: TextStyle(color: Colors.white, fontSize: 13 * scale, fontWeight: FontWeight.w700),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: Colors.white.withOpacity(0.62),
+          fontSize: 12.5 * scale,
+          fontWeight: FontWeight.w600,
+        ),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.14),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10 * scale, vertical: 9 * scale),
+        prefixIcon: Icon(icon, color: Colors.white70, size: 15 * scale),
+        prefixIconConstraints: BoxConstraints(minWidth: 28 * scale, minHeight: 0),
+        suffixIcon: suffixIcon,
+        suffixIconConstraints: BoxConstraints(minWidth: 28 * scale, minHeight: 0),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: borderColor, width: 1.2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: borderColor, width: 1.2),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+          borderSide: BorderSide(color: Color(0xFFF6B93B), width: 2),
+        ),
+        errorStyle: const TextStyle(height: 0, fontSize: 0),
       ),
     );
   }
