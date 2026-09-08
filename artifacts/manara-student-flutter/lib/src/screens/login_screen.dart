@@ -125,13 +125,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 // A fixed, literal size — screen height * 0.85 — capped so
                 // it never exceeds the available width either. The (square)
                 // board is centered in the remaining space.
-                final boardSize = (areaSize.height * 0.85).clamp(0.0, areaSize.width * 0.92);
+                final boardSize = (areaSize.height * 0.95).clamp(0.0, areaSize.width * 0.92);
                 final imageRect = Rect.fromCenter(
                   center: areaSize.center(Offset.zero),
                   width: boardSize,
                   height: boardSize,
                 );
                 final boardRect = _boardRectFromImageRect(imageRect);
+                const logoSize = 88.0;
+                const mascotSize = 140.0;
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -144,25 +146,30 @@ class _LoginScreenState extends State<LoginScreen> {
                         errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
                     ),
-                    // The recolored mark alone — a clean gold silhouette,
-                    // no circular badge — centered directly above the
-                    // board at a fixed, comfortable height.
+                    // The mark in its true official colors (no tint) —
+                    // just a soft drop shadow behind its circular
+                    // silhouette — centered directly above the board.
                     Positioned(
-                      left: imageRect.center.dx - 32.5,
-                      top: (boardRect.top - 65 - 10).clamp(0.0, double.infinity),
-                      child: ColorFiltered(
-                        colorFilter: const ColorFilter.mode(Color(0xFFF6B93B), BlendMode.srcIn),
+                      left: imageRect.center.dx - logoSize / 2,
+                      top: (boardRect.top - logoSize - 8).clamp(0.0, double.infinity),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.22), blurRadius: 12, offset: const Offset(0, 5)),
+                          ],
+                        ),
                         child: Image.asset(
                           'assets/images/manara-logo-mark-transparent.png',
-                          width: 65,
-                          height: 65,
+                          width: logoSize,
+                          height: logoSize,
                           fit: BoxFit.contain,
                           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                         ),
                       ),
                     ),
                     // The form is centered *inside* the green rect at a
-                    // hard-capped 340px width — never stretched to fill
+                    // hard-capped 320px width — never stretched to fill
                     // it — so it can never reach the wooden frame even if
                     // the green rect's measured bounds are slightly off.
                     Positioned.fromRect(
@@ -170,8 +177,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Center(
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
-                            maxWidth: 340,
-                            maxHeight: boardRect.height - 16,
+                            maxWidth: 320,
+                            maxHeight: boardRect.height - 20,
                           ),
                           child: _BoardLoginForm(
                             formKey: _formKey,
@@ -203,19 +210,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    // The two heroes stand on the LEFT, beside the board's
-                    // own globe-and-books prop — a fixed, prominent size,
-                    // never in a cramped corner. Only shown when there is
-                    // genuinely enough margin left of the board for it,
-                    // so it can never overlap the board on a narrower
-                    // landscape window — geometrically guaranteed, not a
-                    // guess.
-                    if (imageRect.left > 204)
-                      Positioned(
-                        left: 8,
-                        bottom: (areaSize.height - boardSize) / 2,
-                        child: const StudentInteractiveMascot(size: 180),
-                      ),
+                    // The two heroes now sit centered at the foot of the
+                    // easel, as if in front of the classroom board —
+                    // overlapping the bottom of the board image slightly
+                    // (where its own stand is) rather than needing extra
+                    // screen space below it, which a board this large
+                    // rarely has.
+                    Positioned(
+                      left: imageRect.center.dx - mascotSize / 2,
+                      top: imageRect.bottom - mascotSize * 0.62,
+                      child: const StudentInteractiveMascot(size: mascotSize),
+                    ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -246,7 +251,10 @@ Rect _boardRectFromImageRect(Rect imageRect) {
   const left = 0.230;
   const top = 0.2725;
   const right = 0.8675;
-  const bottom = 0.605;
+  // Kept a bit shy of the measured 0.605 on purpose — a small safety
+  // margin so the form's content never reaches the wooden frame even
+  // where it's tallest (the button), confirmed against a live screenshot.
+  const bottom = 0.585;
   return Rect.fromLTRB(
     imageRect.left + left * imageRect.width,
     imageRect.top + top * imageRect.height,
@@ -306,12 +314,12 @@ class _BoardLoginForm extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 15,
                 fontWeight: FontWeight.w900,
                 shadows: [Shadow(color: Colors.black54, blurRadius: 5, offset: Offset(0, 2))],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             _SolidField(
               controller: usernameController,
               hint: 'اسم المستخدم',
@@ -323,7 +331,7 @@ class _BoardLoginForm extends StatelessWidget {
               validator: (value) =>
                   value == null || value.trim().isEmpty ? 'اكتب اسم المستخدم' : null,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             _SolidField(
               controller: passwordController,
               hint: 'كلمة المرور',
@@ -341,7 +349,7 @@ class _BoardLoginForm extends StatelessWidget {
                 icon: Icon(
                   hidePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
                   color: Colors.black54,
-                  size: 19,
+                  size: 18,
                 ),
               ),
             ),
@@ -363,7 +371,7 @@ class _BoardLoginForm extends StatelessWidget {
                   style: const TextStyle(color: Color(0xFFFCD34D), fontSize: 11, fontWeight: FontWeight.w800),
                 ),
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             StudentPressScale(
               child: StudentEmbossedShell(
                 color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
@@ -393,7 +401,7 @@ class _BoardLoginForm extends StatelessWidget {
                             : 'تسجيل الدخول',
                   ),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
+                    minimumSize: const Size.fromHeight(44),
                     backgroundColor:
                         loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
                     foregroundColor: Colors.white,
@@ -467,7 +475,7 @@ class _SolidField extends StatelessWidget {
           hintStyle: const TextStyle(color: Colors.black54, fontSize: 13.5, fontWeight: FontWeight.w600),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           prefixIcon: Padding(
             padding: const EdgeInsets.all(8),
             child: Container(
