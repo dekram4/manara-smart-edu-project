@@ -70,50 +70,60 @@ class _BookSlot {
 /// One slot per book, top to bottom, each measured against the white page
 /// block of that book — never its coloured cover — so every control lands
 /// on paper the way the login fields sit inside the green board.
+/// Each band was then walked column by column along its own slope until
+/// the white ran out, which gives the page's true usable length. Every
+/// control below is centred on its band's midpoint and set to 85% of that
+/// length — the top of the range that still leaves clear paper at both
+/// ends. The bands are very different lengths (the top book's page is
+/// barely a quarter of the illustration wide, the bottom book's is over
+/// half), which is why these widths are not uniform.
 const _gradeSlot = _BookSlot(
-  centerX: 0.3750,
-  centerY: 0.1163,
-  width: 0.225,
+  centerX: 0.3773,
+  centerY: 0.1164,
+  width: 0.2138,
   height: 0.077,
   angle: 0.035,
   color: Color(0xFF2FA8BE), // teal, top book
 );
 const _atramSlot = _BookSlot(
-  centerX: 0.6350,
-  centerY: 0.2619,
-  width: 0.243,
+  centerX: 0.6239,
+  centerY: 0.2640,
+  width: 0.2636,
   height: 0.066,
   angle: -0.155,
   color: Color(0xFFE8930C), // orange
 );
 const _subjectSlot = _BookSlot(
-  centerX: 0.6716,
-  centerY: 0.4372,
-  width: 0.310,
+  centerX: 0.6667,
+  centerY: 0.4381,
+  width: 0.3321,
   height: 0.077,
   angle: -0.155,
   color: Color(0xFFA974BE), // purple
 );
+// The red book is the one exception to the flat 85%: the purple book's
+// bottom corner dips into its page around x=0.47, so this field is set to
+// 81% and dropped ~20px to pass under that corner.
 const _unitSlot = _BookSlot(
-  centerX: 0.2808,
-  centerY: 0.5966,
-  width: 0.268,
+  centerX: 0.3626,
+  centerY: 0.6130,
+  width: 0.3720,
   height: 0.064,
   angle: 0.089,
   color: Color(0xFFC0392B), // red
 );
 const _lessonSlot = _BookSlot(
-  centerX: 0.3321,
-  centerY: 0.7370,
-  width: 0.325,
+  centerX: 0.3578,
+  centerY: 0.7398,
+  width: 0.3923,
   height: 0.064,
   angle: 0.089,
   color: Color(0xFF2E7D4F), // green
 );
 const _startSlot = _BookSlot(
-  centerX: 0.3297,
-  centerY: 0.8915,
-  width: 0.382,
+  centerX: 0.3419,
+  centerY: 0.8928,
+  width: 0.4400,
   height: 0.075,
   angle: 0.089,
   color: Color(0xFF12406B), // navy, bottom book
@@ -541,8 +551,20 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // HUD row without reaching the floating pencil below it.
                 final readersWidth =
                     math.min(150.0, sideMargin - 24).toDouble();
+                // Nudged in towards the stack, but never so far that the
+                // pair would overlap the illustration: the inset can grow
+                // only as far as the gutter still has room for it.
+                final readersInset =
+                    math.max(8.0, math.min(26.0, sideMargin - readersWidth - 8))
+                        .toDouble();
                 final showReaders = readersWidth >= 110 &&
-                    areaSize.height - 52 - readersWidth - pencilWidth > 8;
+                    areaSize.height - 104 - readersWidth - pencilWidth > 8;
+                // The brand block moves in and down by the same reasoning.
+                final brandWidth =
+                    math.min(170.0, sideMargin - 34).toDouble();
+                final brandInset =
+                    math.max(8.0, math.min(24.0, sideMargin - brandWidth - 8))
+                        .toDouble();
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -572,21 +594,36 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                       Positioned(
                         right: 8,
                         bottom: 4,
-                        child: _FloatingPencil(size: pencilWidth),
-                      ),
-                    if (showReaders)
-                      Positioned(
-                        top: 52,
-                        right: 10,
-                        child: Image.asset(
-                          'assets/images/student_mascot.png',
-                          width: readersWidth,
-                          height: readersWidth,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        child: _FloatingArt(
+                          asset: 'assets/images/winter_fun.png',
+                          size: pencilWidth,
+                          baseAngle: -0.14,
+                          bob: 9,
+                          sway: 0.045,
                         ),
                       ),
-                    const Positioned(top: 6, left: 10, child: _BrandMark()),
+                    if (showReaders)
+                      // Pulled down and in from the corner so the pair
+                      // hovers over the stack rather than clinging to the
+                      // top edge. `readersInset` keeps them clear of the
+                      // illustration at every window width.
+                      Positioned(
+                        top: 104,
+                        right: readersInset,
+                        child: _FloatingArt(
+                          asset: 'assets/images/student_mascot.png',
+                          size: readersWidth,
+                          bob: 7,
+                          period: const Duration(milliseconds: 2900),
+                        ),
+                      ),
+                    if (sideMargin >= 120)
+                      Positioned(
+                        top: 18,
+                        left: brandInset,
+                        width: brandWidth,
+                        child: const _BrandMark(),
+                      ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -988,20 +1025,27 @@ class _BrandMark extends StatelessWidget {
           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         ),
         const SizedBox(height: 2),
-        const Text(
-          'مَنارة',
-          style: TextStyle(
-            color: Color(0xFF0E5F6B),
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
-            shadows: [
-              Shadow(
-                color: Color(0x33000000),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
+        // The name is scaled to whatever width the gutter grants, so it
+        // reads at full size on a wide window and shrinks rather than
+        // wrapping or spilling over the books on a narrow one.
+        const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            'منارة المعرفة التعليمية',
+            maxLines: 1,
+            style: TextStyle(
+              color: Color(0xFF0E5F6B),
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+              shadows: [
+                Shadow(
+                  color: Color(0x33000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1009,24 +1053,36 @@ class _BrandMark extends StatelessWidget {
   }
 }
 
-/// The kids riding the pencil, kept aloft by a continuous bob-and-sway so
-/// they read as flying beside the stack rather than resting on the corner.
-/// One controller drives both the vertical drift and the tilt, a quarter
-/// cycle apart, which is what stops the motion looking mechanical.
-class _FloatingPencil extends StatefulWidget {
-  const _FloatingPencil({required this.size});
+/// A piece of side art kept aloft by a continuous bob, optionally with a
+/// tilt sway a quarter cycle behind it — that offset is what stops the
+/// motion looking mechanical. Used for the pencil crew and the reading
+/// pair, with different periods so the two never drift in lockstep.
+class _FloatingArt extends StatefulWidget {
+  const _FloatingArt({
+    required this.asset,
+    required this.size,
+    this.baseAngle = 0,
+    this.bob = 9,
+    this.sway = 0,
+    this.period = const Duration(milliseconds: 3400),
+  });
 
+  final String asset;
   final double size;
+  final double baseAngle;
+  final double bob;
+  final double sway;
+  final Duration period;
 
   @override
-  State<_FloatingPencil> createState() => _FloatingPencilState();
+  State<_FloatingArt> createState() => _FloatingArtState();
 }
 
-class _FloatingPencilState extends State<_FloatingPencil>
+class _FloatingArtState extends State<_FloatingArt>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 3400),
+    duration: widget.period,
   );
 
   @override
@@ -1044,7 +1100,7 @@ class _FloatingPencilState extends State<_FloatingPencil>
   @override
   Widget build(BuildContext context) {
     final image = Image.asset(
-      'assets/images/winter_fun.png',
+      widget.asset,
       width: widget.size,
       height: widget.size,
       fit: BoxFit.contain,
@@ -1052,7 +1108,7 @@ class _FloatingPencilState extends State<_FloatingPencil>
     );
 
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      return Transform.rotate(angle: -0.14, child: image);
+      return Transform.rotate(angle: widget.baseAngle, child: image);
     }
 
     return AnimatedBuilder(
@@ -1060,9 +1116,10 @@ class _FloatingPencilState extends State<_FloatingPencil>
       builder: (context, child) {
         final phase = _controller.value * 2 * math.pi;
         return Transform.translate(
-          offset: Offset(0, math.sin(phase) * 9),
+          offset: Offset(0, math.sin(phase) * widget.bob),
           child: Transform.rotate(
-            angle: -0.14 + math.sin(phase - math.pi / 2) * 0.045,
+            angle: widget.baseAngle +
+                math.sin(phase - math.pi / 2) * widget.sway,
             child: child,
           ),
         );
