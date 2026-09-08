@@ -1,4 +1,6 @@
-﻿import 'package:confetti/confetti.dart';
+﻿import 'dart:math' as math;
+
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
@@ -8,8 +10,8 @@ import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
-import '../widgets/student_avatar_room.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_floating_character.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import 'login_screen.dart';
@@ -50,9 +52,7 @@ class StudentDashboardScreen extends StudentHomeScreen {
   });
 }
 
-class _StudentHomeScreenState extends State<StudentHomeScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ambientController;
+class _StudentHomeScreenState extends State<StudentHomeScreen> {
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
   late final ConfettiController _rewardController;
@@ -64,10 +64,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     _contentService = StudentContentService(widget.authService.client, baseUrl: widget.apiBaseUrl);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
     _loadGamification();
-    _ambientController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 18),
-    )..repeat();
     WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
   }
 
@@ -124,7 +120,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
   @override
   void dispose() {
-    _ambientController.dispose();
     _rewardController.dispose();
     super.dispose();
   }
@@ -328,6 +323,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    final characterSize =
+        (math.min(size.width, size.height) * 0.30).clamp(96.0, 190.0).toDouble();
 
     return Scaffold(
       backgroundColor: StudentPalette.canvas,
@@ -389,11 +386,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             icon: const Icon(Icons.logout_rounded),
           ),
         ],
+        // Level, XP and gems live here and nowhere else — they used to be
+        // printed three times over (avatar room, progress card, and the
+        // card's own level pill).
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: _TopStatsBar(stats: _gamification),
+        ),
       ),
       body: Stack(
         children: [
-          _AnimatedManaraBackground(animation: _ambientController),
-          const _LighthouseWatermark(),
+          const _LighthouseBackdrop(),
           StudentCelebration(controller: _rewardController),
           SafeArea(
             top: false,
@@ -422,14 +425,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                        child: _WelcomeCard(profile: widget.profile),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: StudentAnimatedCard(
-                      delay: const Duration(milliseconds: 60),
-                      child: StudentAvatarRoom(
-                        stats: _gamification,
-                        onCustomize: _openPersonality,
+                  // The selected character alone, floating over the
+                  // backdrop — no card, no duplicated stats. Its size comes
+                  // from the screen's shorter edge so it stays in
+                  // proportion in both orientations.
+                  SizedBox(
+                    height: characterSize * 1.28,
+                    child: Center(
+                      child: StudentFloatingCharacter(
+                        appearance: widget.profile.appearance,
+                        size: characterSize,
+                        onTap: _openPersonality,
                       ),
                     ),
                   ),
@@ -533,9 +539,9 @@ class _AcademicContextSummary extends StatelessWidget {
       child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
-        color: const Color(0xFFE6FFFB).withAlpha(230),
+        color: Colors.white.withOpacity(0.75),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF99F6E4)),
+        border: Border.all(color: const Color(0x8099F6E4), width: 1.4),
       ),
       child: Row(
         children: [
@@ -567,114 +573,66 @@ class _ProgressCard extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => StudentPressScale(
-        child: Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: StudentShapes.playfulCard,
-            side: const BorderSide(color: Color(0x1F4F46E5)),
-          ),
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: StudentShapes.playfulCard,
-            child: Ink(
-              decoration: BoxDecoration(
-                borderRadius: StudentShapes.playfulCard,
-                gradient: const LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [Color(0xFFFFFFFF), Color(0xFFF0F4FF)],
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x224F46E5),
-                    blurRadius: 24,
-                    offset: Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) => _GlassCard(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [StudentPalette.indigo, StudentPalette.sky],
-                        ),
-                        shape: BoxShape.circle,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [StudentPalette.indigo, StudentPalette.sky],
                       ),
-                      child: const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: Colors.white,
-                      ),
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(width: 8),
-                    const Expanded(child: Text('تقدمك ومكافآتك', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEDE9FE),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'المستوى ${stats.level}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: StudentPalette.deepIndigo,
-                        ),
-                      ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  alignment: WrapAlignment.spaceAround,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _ProgressMetric(
-                      icon: Icons.star_rounded,
-                      color: StudentPalette.orange,
-                      label: '${stats.xp} XP',
-                    ),
-                    StudentRewardPulse(
-                      child: _ProgressMetric(
-                        icon: Icons.diamond_rounded,
-                        color: StudentPalette.sky,
-                        label: '${stats.gems} جوهرة',
-                      ),
-                    ),
-                    _ProgressMetric(
-                      icon: Icons.local_fire_department_rounded,
-                      color: Color(0xFFFB7185),
-                      label: '${stats.streak} يوم',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: stats.levelProgress / 100,
-                    minHeight: 12,
-                    color: StudentPalette.orange,
-                    backgroundColor: const Color(0xFFDDE6FF),
                   ),
-                ),
-                const SizedBox(height: 5),
-                Text('باقي ${stats.xpToNextLevel} XP للمستوى التالي • اضغط لعرض الإنجازات', style: const TextStyle(fontSize: 12, color: Color(0xFF49617C), fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'تقدمك ومكافآتك',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  // The level, XP and gems that used to be repeated here
+                  // now live in the top bar. Only the streak, which is not
+                  // shown there, stays.
+                  _ProgressMetric(
+                    icon: Icons.local_fire_department_rounded,
+                    color: const Color(0xFFFB7185),
+                    label: '${stats.streak} يوم',
+                  ),
                 ],
               ),
-            ),
-            ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: stats.levelProgress / 100,
+                  minHeight: 12,
+                  color: StudentPalette.orange,
+                  backgroundColor: const Color(0x33DDE6FF),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'باقي ${stats.xpToNextLevel} XP للمستوى التالي • اضغط لعرض الإنجازات',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF49617C),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -846,20 +804,24 @@ class _SectionTile extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: extrusion,
+            color: extrusion.withOpacity(0.80),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 8)),
+              BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 12, offset: const Offset(0, 8)),
             ],
           ),
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius),
+              // Translucent so the lighthouse reads through the grid too,
+              // but still each portal's own colour and 3D ledge — turning
+              // these plain white would have thrown away the chunky toy
+              // cards the dashboard is built around.
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [top, base],
+                colors: [top.withOpacity(0.82), base.withOpacity(0.82)],
               ),
-              border: Border.all(color: Colors.white.withOpacity(0.55), width: 2.5),
+              border: Border.all(color: Colors.white.withOpacity(0.65), width: 2.5),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(radius),
@@ -931,16 +893,18 @@ class _SectionTile extends StatelessWidget {
   }
 }
 
-/// The Manara lighthouse sitting behind the whole dashboard as a faint
-/// watermark, under a warm light wash.
+/// The dashboard's one and only background: the Manara lighthouse over a
+/// warm light wash.
 ///
-/// It is drawn at 18% over the existing ambient background rather than
-/// replacing it, and the wash is translucent for the same reason — the
-/// lesson content that lands on top has to stay perfectly readable. It is
-/// also `BoxFit.contain` and wrapped in [IgnorePointer], so it scales with
-/// the screen in either orientation and never intercepts a tap.
-class _LighthouseWatermark extends StatelessWidget {
-  const _LighthouseWatermark();
+/// This replaced a separate animated layer of coloured blobs that used to
+/// sit underneath — two competing backgrounds read as clutter, and the
+/// blobs were what showed at the screen edges. The lighthouse is drawn at
+/// 55% so its own colours and detail actually read, which is only legible
+/// because the cards on top of it are glass. `BoxFit.contain` keeps the
+/// tower whole in either orientation (covering would crop the lantern off
+/// a landscape screen), and [IgnorePointer] keeps it from eating taps.
+class _LighthouseBackdrop extends StatelessWidget {
+  const _LighthouseBackdrop();
 
   @override
   Widget build(BuildContext context) {
@@ -954,15 +918,15 @@ class _LighthouseWatermark extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0x3DFFE9C9),
-                  Color(0x1FFFF6E8),
-                  Color(0x00FFFFFF),
+                  Color(0xFFFFF6E7),
+                  Color(0xFFFDF3EA),
+                  Color(0xFFEFF5FB),
                 ],
               ),
             ),
           ),
           Opacity(
-            opacity: 0.18,
+            opacity: 0.55,
             child: Image(
               image: AssetImage('assets/images/lighthouse_main_bg.png'),
               fit: BoxFit.contain,
@@ -975,99 +939,128 @@ class _LighthouseWatermark extends StatelessWidget {
   }
 }
 
-class _AnimatedManaraBackground extends StatelessWidget {
-  const _AnimatedManaraBackground({required this.animation});
+/// Level, XP and gems, shown once, in the top bar.
+///
+/// The row is wrapped in a [FittedBox] so a narrow phone scales it down
+/// instead of overflowing.
+class _TopStatsBar extends StatelessWidget {
+  const _TopStatsBar({required this.stats});
 
-  final Animation<double> animation;
+  final StudentGamification stats;
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      return const Positioned.fill(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-              colors: [Color(0xFFF3F8F9), Color(0xFFEAF1FA)],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.75),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.9)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A4F46E5),
+              blurRadius: 14,
+              offset: Offset(0, 6),
             ),
-          ),
+          ],
         ),
-      );
-    }
-
-    return Positioned.fill(
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          final wave = Curves.easeInOut.transform(animation.value);
-          return Stack(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
-                      colors: [Color(0xFFF3F8F9), Color(0xFFEAF1FA)],
-                    ),
-                  ),
-                ),
+              _TopStat(
+                icon: Icons.workspace_premium_rounded,
+                color: StudentPalette.indigo,
+                label: 'المستوى ${stats.level}',
               ),
-              Positioned(
-                top: -90 + (wave * 38),
-                right: -70 + (wave * 44),
-                child: _FloatingLight(
-                  size: 230,
-                  color: const Color(0x3348C6D9),
-                ),
+              const SizedBox(width: 14),
+              _TopStat(
+                icon: Icons.star_rounded,
+                color: StudentPalette.orange,
+                label: '${stats.xp} XP',
               ),
-              Positioned(
-                bottom: -100 + ((1 - wave) * 34),
-                left: -80 + (wave * 32),
-                child: _FloatingLight(
-                  size: 270,
-                  color: const Color(0x337C3AED),
-                ),
-              ),
-              Positioned(
-                top: 260 + ((1 - wave) * 30),
-                left: 24 + (wave * 24),
-                child: _FloatingLight(
-                  size: 86,
-                  color: const Color(0x33F59E0B),
+              const SizedBox(width: 14),
+              StudentRewardPulse(
+                child: _TopStat(
+                  icon: Icons.diamond_rounded,
+                  color: StudentPalette.sky,
+                  label: '${stats.gems} جوهرة',
                 ),
               ),
             ],
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 }
 
-class _FloatingLight extends StatelessWidget {
-  const _FloatingLight({required this.size, required this.color});
+class _TopStat extends StatelessWidget {
+  const _TopStat({
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
 
-  final double size;
+  final IconData icon;
   final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: color,
-              blurRadius: 55,
-              spreadRadius: 18,
-            ),
-          ],
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF0E1B2A),
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A translucent card, so the lighthouse behind it stays visible.
+class _GlassCard extends StatelessWidget {
+  const _GlassCard({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.75),
+        borderRadius: StudentShapes.playfulCard,
+        border: Border.all(color: Colors.white.withOpacity(0.85), width: 1.4),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A4F46E5),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
+    );
+    if (onTap == null) return card;
+    return StudentPressScale(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: StudentShapes.playfulCard,
+          child: card,
         ),
       ),
     );
