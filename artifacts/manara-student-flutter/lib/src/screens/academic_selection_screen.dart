@@ -22,12 +22,23 @@ const double _booksAspect = 4095 / 3374;
 /// Where a control sits inside that illustration, as fractions of its
 /// width/height — measured off the asset. A control pinned with these
 /// lands on its book no matter how large the window is.
+///
+/// [angle] is the slope of that book's page band in radians, read straight
+/// off the artwork: for every book the top and bottom edges of the white
+/// block were traced across 21 sample columns and a line fitted through
+/// them. The books do not share one slope — the top book is almost flat,
+/// the two the reader sees edge-on rise to the right, and the three at the
+/// base fall to the right — so each control carries its own book's angle
+/// and ends up sitting along the printed page lines instead of across them.
+/// Because the illustration is scaled uniformly by `BoxFit.contain`, an
+/// angle measured in source pixels is exactly the angle on screen.
 class _BookSlot {
   const _BookSlot({
     required this.centerX,
     required this.centerY,
     required this.width,
     required this.height,
+    required this.angle,
     required this.color,
   });
 
@@ -35,6 +46,7 @@ class _BookSlot {
   final double centerY;
   final double width;
   final double height;
+  final double angle;
   final Color color;
 
   Rect resolve(Rect imageRect) => Rect.fromCenter(
@@ -45,51 +57,65 @@ class _BookSlot {
     width: width * imageRect.width,
     height: height * imageRect.height,
   );
+
+  /// Pins [child] onto this book and tilts it to the page's own slope.
+  /// `Transform.rotate` is paint-only, so the tilt can never change the
+  /// laid-out size and can never produce an overflow.
+  Widget place(Rect imageRect, Widget child) => Positioned.fromRect(
+    rect: resolve(imageRect),
+    child: Transform.rotate(angle: angle, child: child),
+  );
 }
 
 /// One slot per book, top to bottom, each measured against the white page
 /// block of that book — never its coloured cover — so every control lands
 /// on paper the way the login fields sit inside the green board.
 const _gradeSlot = _BookSlot(
-  centerX: 0.355,
-  centerY: 0.118,
-  width: 0.27,
-  height: 0.090,
+  centerX: 0.3750,
+  centerY: 0.1163,
+  width: 0.225,
+  height: 0.077,
+  angle: 0.035,
   color: Color(0xFF2FA8BE), // teal, top book
 );
 const _atramSlot = _BookSlot(
-  centerX: 0.680,
-  centerY: 0.248,
-  width: 0.26,
-  height: 0.075,
+  centerX: 0.6350,
+  centerY: 0.2619,
+  width: 0.243,
+  height: 0.066,
+  angle: -0.155,
   color: Color(0xFFE8930C), // orange
 );
 const _subjectSlot = _BookSlot(
-  centerX: 0.690,
-  centerY: 0.447,
-  width: 0.33,
-  height: 0.072,
+  centerX: 0.6716,
+  centerY: 0.4372,
+  width: 0.310,
+  height: 0.077,
+  angle: -0.155,
   color: Color(0xFFA974BE), // purple
 );
 const _unitSlot = _BookSlot(
-  centerX: 0.345,
-  centerY: 0.612,
-  width: 0.42,
-  height: 0.072,
+  centerX: 0.2808,
+  centerY: 0.5966,
+  width: 0.268,
+  height: 0.064,
+  angle: 0.089,
   color: Color(0xFFC0392B), // red
 );
 const _lessonSlot = _BookSlot(
-  centerX: 0.300,
-  centerY: 0.752,
-  width: 0.32,
-  height: 0.060,
+  centerX: 0.3321,
+  centerY: 0.7370,
+  width: 0.325,
+  height: 0.064,
+  angle: 0.089,
   color: Color(0xFF2E7D4F), // green
 );
 const _startSlot = _BookSlot(
-  centerX: 0.310,
-  centerY: 0.900,
-  width: 0.40,
-  height: 0.090,
+  centerX: 0.3297,
+  centerY: 0.8915,
+  width: 0.382,
+  height: 0.075,
+  angle: 0.089,
   color: Color(0xFF12406B), // navy, bottom book
 );
 
@@ -509,7 +535,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     math.min(200.0, sideMargin - 16).toDouble();
                 final showMascot = _ready && mascotHeight >= 180;
                 final pencilWidth =
-                    math.min(230.0, sideMargin - 20).toDouble();
+                    math.min(210.0, sideMargin - 20).toDouble();
+                // The reading pair balances the right gutter against the
+                // guide on the left, and is only drawn if it fits under the
+                // HUD row without reaching the floating pencil below it.
+                final readersWidth =
+                    math.min(150.0, sideMargin - 24).toDouble();
+                final showReaders = readersWidth >= 110 &&
+                    areaSize.height - 52 - readersWidth - pencilWidth > 8;
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -535,31 +568,25 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         width: sideMargin - 12,
                         child: _MascotGuide(height: mascotHeight),
                       ),
-                    if (pencilWidth >= 150)
+                    if (pencilWidth >= 140)
                       Positioned(
                         right: 8,
                         bottom: 4,
-                        child: Transform.rotate(
-                          angle: -0.14,
-                          child: Image.asset(
-                            'assets/images/winter_fun.png',
-                            width: pencilWidth,
-                            height: pencilWidth,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                          ),
+                        child: _FloatingPencil(size: pencilWidth),
+                      ),
+                    if (showReaders)
+                      Positioned(
+                        top: 52,
+                        right: 10,
+                        child: Image.asset(
+                          'assets/images/student_mascot.png',
+                          width: readersWidth,
+                          height: readersWidth,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                         ),
                       ),
-                    Positioned(
-                      top: 6,
-                      left: 10,
-                      child: Image.asset(
-                        'assets/images/manara-logo-mark-transparent.png',
-                        height: 70,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ),
+                    const Positioned(top: 6, left: 10, child: _BrandMark()),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -654,9 +681,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
 
     return [
-      Positioned.fromRect(
-        rect: _gradeSlot.resolve(imageRect),
-        child: _BookDropdown(
+      _gradeSlot.place(
+        imageRect,
+        _BookDropdown(
           label: 'الصف الدراسي',
           icon: Icons.school_rounded,
           color: _gradeSlot.color,
@@ -665,9 +692,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           onSelected: _selectGrade,
         ),
       ),
-      Positioned.fromRect(
-        rect: _atramSlot.resolve(imageRect),
-        child: _BookDropdown(
+      _atramSlot.place(
+        imageRect,
+        _BookDropdown(
           label: 'الفصل الدراسي / الترم',
           icon: Icons.calendar_month_rounded,
           color: _atramSlot.color,
@@ -676,9 +703,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           onSelected: _selectAtram,
         ),
       ),
-      Positioned.fromRect(
-        rect: _subjectSlot.resolve(imageRect),
-        child: _BookDropdown(
+      _subjectSlot.place(
+        imageRect,
+        _BookDropdown(
           label: 'المادة التعليمية',
           icon: Icons.menu_book_rounded,
           color: _subjectSlot.color,
@@ -687,9 +714,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           onSelected: _selectSubject,
         ),
       ),
-      Positioned.fromRect(
-        rect: _unitSlot.resolve(imageRect),
-        child: chapters.length > 1
+      _unitSlot.place(
+        imageRect,
+        chapters.length > 1
             ? Row(
                 children: [
                   Expanded(
@@ -703,15 +730,15 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                       onSelected: _selectTerm,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(flex: 6, child: unitControl),
                 ],
               )
             : unitControl,
       ),
-      Positioned.fromRect(
-        rect: _lessonSlot.resolve(imageRect),
-        child: _BookDropdown(
+      _lessonSlot.place(
+        imageRect,
+        _BookDropdown(
           label: 'الدرس',
           icon: Icons.play_lesson_rounded,
           color: _lessonSlot.color,
@@ -720,9 +747,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           onSelected: _selectLessonNamed,
         ),
       ),
-      Positioned.fromRect(
-        rect: _startSlot.resolve(imageRect),
-        child: _StartAdventureButton(
+      _startSlot.place(
+        imageRect,
+        _StartAdventureButton(
           enabled: canStart && !_isEntering,
           busy: _isEntering,
           onPressed: _enterDashboard,
@@ -786,9 +813,7 @@ class _BookDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = options.isNotEmpty;
     final dark = Color.lerp(color, Colors.black, 0.34)!;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return PopupMenuButton<String>(
+    return PopupMenuButton<String>(
           enabled: enabled,
           // The label is already printed on the control, so a hover
           // tooltip would just repeat it over the artwork.
@@ -826,28 +851,15 @@ class _BookDropdown extends StatelessWidget {
               ),
           ],
           child: Container(
-            // A slim ledge in the book's own colour under the card is the
-            // whole 3D effect — light, so it never fights the artwork.
-            padding: EdgeInsets.only(
-              bottom: math.min(5.0, constraints.maxHeight * 0.09),
-            ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(13),
-              color: dark,
-              boxShadow: [
-                BoxShadow(
-                  color: dark.withOpacity(0.30),
-                  blurRadius: 9,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 9),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(13),
-                color: const Color(0xFFFDFDFD),
-                border: Border.all(color: color.withOpacity(0.85), width: 1.8),
+                borderRadius: BorderRadius.circular(11),
+                // Slightly translucent white so the page lines still read
+                // faintly underneath — the field looks printed on the
+                // paper rather than dropped on top of it. No drop shadow
+                // for the same reason; the rim alone gives it its edge.
+                color: Colors.white.withOpacity(0.86),
+                border: Border.all(color: color.withOpacity(0.55), width: 1.3),
               ),
               child: Row(
                 children: [
@@ -901,9 +913,6 @@ class _BookDropdown extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        );
-      },
     );
   }
 }
@@ -958,6 +967,107 @@ class _StartAdventureButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The Manara mark with the app's name set under it, in the top-left
+/// corner above the guide.
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/images/manara-logo-mark-transparent.png',
+          height: 86,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'مَنارة',
+          style: TextStyle(
+            color: Color(0xFF0E5F6B),
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+            shadows: [
+              Shadow(
+                color: Color(0x33000000),
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The kids riding the pencil, kept aloft by a continuous bob-and-sway so
+/// they read as flying beside the stack rather than resting on the corner.
+/// One controller drives both the vertical drift and the tilt, a quarter
+/// cycle apart, which is what stops the motion looking mechanical.
+class _FloatingPencil extends StatefulWidget {
+  const _FloatingPencil({required this.size});
+
+  final double size;
+
+  @override
+  State<_FloatingPencil> createState() => _FloatingPencilState();
+}
+
+class _FloatingPencilState extends State<_FloatingPencil>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3400),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final image = Image.asset(
+      'assets/images/winter_fun.png',
+      width: widget.size,
+      height: widget.size,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+    );
+
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return Transform.rotate(angle: -0.14, child: image);
+    }
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final phase = _controller.value * 2 * math.pi;
+        return Transform.translate(
+          offset: Offset(0, math.sin(phase) * 9),
+          child: Transform.rotate(
+            angle: -0.14 + math.sin(phase - math.pi / 2) * 0.045,
+            child: child,
+          ),
+        );
+      },
+      child: image,
     );
   }
 }
