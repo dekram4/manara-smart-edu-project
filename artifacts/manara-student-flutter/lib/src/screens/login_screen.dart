@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../services/student_auth_service.dart';
@@ -122,18 +124,22 @@ class _LoginScreenState extends State<LoginScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final areaSize = constraints.biggest;
-                // A fixed, literal size — screen height * 0.85 — capped so
-                // it never exceeds the available width either. The (square)
-                // board is centered in the remaining space.
-                final boardSize = (areaSize.height * 0.95).clamp(0.0, areaSize.width * 0.92);
+                // 92% of the screen height, capped so it never exceeds the
+                // available width either. The (square) board is centered.
+                final boardSize = (areaSize.height * 0.92).clamp(0.0, areaSize.width * 0.92);
                 final imageRect = Rect.fromCenter(
                   center: areaSize.center(Offset.zero),
                   width: boardSize,
                   height: boardSize,
                 );
                 final boardRect = _boardRectFromImageRect(imageRect);
-                const logoSize = 88.0;
+                const logoSize = 75.0;
                 const mascotSize = 140.0;
+                // 280px is the *target* block width, but never wider than
+                // the green area actually is at this window size — that
+                // absolute-cap-only mistake is exactly what let the block
+                // spill past the wooden frame on a smaller window.
+                final formWidth = math.min(280.0, boardRect.width - 26);
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -146,17 +152,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
                     ),
-                    // The mark in its true official colors (no tint) —
-                    // just a soft drop shadow behind its circular
-                    // silhouette — centered directly above the board.
+                    // The mark in its true official colors, resting on top
+                    // of the board's wooden frame, lifted by a soft white
+                    // glow (not a dark shadow) so it reads cleanly against
+                    // the light background.
                     Positioned(
                       left: imageRect.center.dx - logoSize / 2,
-                      top: (boardRect.top - logoSize - 8).clamp(0.0, double.infinity),
+                      top: (imageRect.top + _frameTopFraction * imageRect.height - logoSize)
+                          .clamp(0.0, double.infinity),
                       child: DecoratedBox(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.22), blurRadius: 12, offset: const Offset(0, 5)),
+                            BoxShadow(color: Colors.white, blurRadius: 18, spreadRadius: 2),
+                            BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
                           ],
                         ),
                         child: Image.asset(
@@ -164,21 +173,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: logoSize,
                           height: logoSize,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          errorBuilder: _emptyImageFallback,
                         ),
                       ),
                     ),
-                    // The form is centered *inside* the green rect at a
-                    // hard-capped 320px width — never stretched to fill
-                    // it — so it can never reach the wooden frame even if
-                    // the green rect's measured bounds are slightly off.
+                    // The form block is centered on the green area and can
+                    // never be wider than that area actually is — see
+                    // formWidth above.
                     Positioned.fromRect(
                       rect: boardRect,
                       child: Center(
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
-                            maxWidth: 320,
-                            maxHeight: boardRect.height - 20,
+                            maxWidth: formWidth,
+                            maxHeight: boardRect.height - 18,
                           ),
                           child: _BoardLoginForm(
                             formKey: _formKey,
@@ -210,15 +218,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    // The two heroes now sit centered at the foot of the
-                    // easel, as if in front of the classroom board —
-                    // overlapping the bottom of the board image slightly
-                    // (where its own stand is) rather than needing extra
-                    // screen space below it, which a board this large
-                    // rarely has.
+                    // The heroes sit right at the foot of the easel. They
+                    // are anchored to where the *artwork* actually ends
+                    // (its legs/books line), NOT to the square PNG's
+                    // bottom edge — that edge is ~20% transparent padding,
+                    // which is what pushed them far down the screen.
                     Positioned(
                       left: imageRect.center.dx - mascotSize / 2,
-                      top: imageRect.bottom - mascotSize * 0.62,
+                      top: imageRect.top + _artworkBottomFraction * imageRect.height - mascotSize,
                       child: const StudentInteractiveMascot(size: mascotSize),
                     ),
                     Positioned(
@@ -247,14 +254,27 @@ class _LoginScreenState extends State<LoginScreen> {
 /// as fractions of the whole (square) source image — measured directly
 /// against the asset. Converts [imageRect] (where that image actually
 /// renders on screen) into the matching screen rect for the board itself.
+/// Where the board's wooden frame starts, and where the drawn artwork
+/// (easel legs, books, globe) actually ends — both as fractions of the
+/// square source image's height. The PNG has roughly 20% transparent
+/// padding below the artwork, so anything anchored to `imageRect.bottom`
+/// lands far below the scene; these fractions anchor to the art itself.
+const double _frameTopFraction = 0.235;
+const double _artworkBottomFraction = 0.80;
+
+Widget _emptyImageFallback(BuildContext _, Object __, StackTrace? ___) =>
+    const SizedBox.shrink();
+
 Rect _boardRectFromImageRect(Rect imageRect) {
-  const left = 0.230;
-  const top = 0.2725;
-  const right = 0.8675;
-  // Kept a bit shy of the measured 0.605 on purpose — a small safety
-  // margin so the form's content never reaches the wooden frame even
-  // where it's tallest (the button), confirmed against a live screenshot.
-  const bottom = 0.585;
+  // Re-measured against a live render, not eyeballed from the raw asset:
+  // the board is drawn in perspective, so its right edge sits far closer
+  // to the middle than the flat artwork suggests. The old 0.8675 right
+  // fraction was ~13% too wide, which is precisely what pushed the whole
+  // input block rightwards and over the wooden frame.
+  const left = 0.245;
+  const top = 0.275;
+  const right = 0.735;
+  const bottom = 0.590;
   return Rect.fromLTRB(
     imageRect.left + left * imageRect.width,
     imageRect.top + top * imageRect.height,
@@ -344,6 +364,11 @@ class _BoardLoginForm extends StatelessWidget {
               onFieldSubmitted: (_) => onSubmit(),
               validator: (value) => value == null || value.isEmpty ? 'اكتب كلمة المرور' : null,
               suffixIcon: IconButton(
+                // Default IconButton wants 48x48, which would blow past a
+                // 42px field — constrain it explicitly.
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                visualDensity: VisualDensity.compact,
                 tooltip: hidePassword ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
                 onPressed: onTogglePassword,
                 icon: Icon(
@@ -401,7 +426,7 @@ class _BoardLoginForm extends StatelessWidget {
                             : 'تسجيل الدخول',
                   ),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(44),
+                    minimumSize: const Size.fromHeight(40),
                     backgroundColor:
                         loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
                     foregroundColor: Colors.white,
@@ -453,6 +478,9 @@ class _SolidField extends StatelessWidget {
   Widget build(BuildContext context) {
     final borderColor = hasError ? const Color(0xFFDC2626) : const Color(0xFFD8DEE3);
     return Container(
+      // An exact 42px field, so the whole block's height is predictable
+      // and provably fits inside the green area.
+      height: 42,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
@@ -475,16 +503,18 @@ class _SolidField extends StatelessWidget {
           hintStyle: const TextStyle(color: Colors.black54, fontSize: 13.5, fontWeight: FontWeight.w600),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           prefixIcon: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             child: Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(5),
               decoration: const BoxDecoration(color: Color(0xFFFFE9CC), shape: BoxShape.circle),
-              child: Icon(icon, color: const Color(0xFFC2650A), size: 16),
+              child: Icon(icon, color: const Color(0xFFC2650A), size: 15),
             ),
           ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 38, minHeight: 0),
           suffixIcon: suffixIcon,
+          suffixIconConstraints: const BoxConstraints(minWidth: 38, minHeight: 0),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide(color: borderColor, width: 1.3),
