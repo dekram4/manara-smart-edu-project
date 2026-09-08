@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 
 import 'package:flutter/material.dart';
 
@@ -127,26 +129,68 @@ class _LoginScreenState extends State<LoginScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final areaSize = constraints.biggest;
-                // 92% of the screen height, capped so it never exceeds the
-                // available width either. The (square) board is centered.
-                final boardSize = (areaSize.height * 0.92).clamp(0.0, areaSize.width * 0.92);
-                final imageRect = Rect.fromCenter(
-                  center: areaSize.center(Offset.zero),
-                  width: boardSize,
-                  height: boardSize,
+                final portrait = areaSize.height > areaSize.width;
+
+                // The board asset is a 3000x3000 square, but the drawing
+                // inside it is not: tracing its alpha shows the artwork
+                // spans x 0.025-0.967 and y 0.220-0.859 of that canvas, so
+                // 36% of the square's height is transparent padding.
+                // Sizing the *square* to 92% of the screen — which is what
+                // this did — therefore drew a board only 59% as tall as the
+                // screen, surrounded by the empty margins that were
+                // reported. Everything below sizes the artwork itself.
+                final artW = _artRightF - _artLeftF; // 0.942
+                final artH = _artBottomF - _artTopF; // 0.639
+
+                final double boardSize;
+                if (portrait) {
+                  // Fill the width, but leave the vertical room the logo
+                  // above and the heroes below need.
+                  boardSize = math.min(
+                    areaSize.width * 0.94 / artW,
+                    areaSize.height * 0.52 / artH,
+                  );
+                } else {
+                  // Fill the height, but keep side gutters wide enough to
+                  // hold the logo and the heroes — in landscape they move
+                  // out beside the board, which is what closes the wide
+                  // side gaps instead of just moving them.
+                  boardSize = math.min(
+                    areaSize.height * 0.92 / artH,
+                    areaSize.width * 0.72 / artW,
+                  );
+                }
+
+                final artworkWidth = boardSize * artW;
+                final artworkHeight = boardSize * artH;
+                // Centre the artwork — not the square, whose padding is
+                // lopsided (22% above the drawing, 14% below).
+                final artworkLeft = (areaSize.width - artworkWidth) / 2;
+                final artworkTop = (areaSize.height - artworkHeight) / 2;
+                final imageRect = Rect.fromLTWH(
+                  artworkLeft - _artLeftF * boardSize,
+                  artworkTop - _artTopF * boardSize,
+                  boardSize,
+                  boardSize,
                 );
                 final boardRect = _boardRectFromImageRect(imageRect);
-                // Everything around the board is a percentage of the board
-                // itself, capped at the sizes a desktop window already
-                // used. On a large screen these clamp to exactly the old
-                // 95 / 30 / 140, so the desktop layout is unchanged; on a
-                // phone in landscape they shrink with the board instead of
-                // spilling over it.
-                final logoSize = (boardSize * 0.145).clamp(44.0, 95.0);
+                final gutter = artworkLeft;
+
+                final logoSize = (boardSize * 0.145).clamp(44.0, 130.0);
                 const logoNameGap = 2.0;
-                final logoNameHeight = (boardSize * 0.045).clamp(14.0, 30.0);
+                final logoNameHeight = (boardSize * 0.045).clamp(14.0, 34.0);
                 final logoBlockHeight = logoSize + logoNameGap + logoNameHeight;
-                final mascotSize = (boardSize * 0.212).clamp(60.0, 140.0);
+                // In landscape the heroes stand in the side gutter, so they
+                // are capped by it as well as by the board.
+                final mascotSize = portrait
+                    ? (boardSize * 0.212).clamp(60.0, 200.0).toDouble()
+                    : math.min(
+                        (boardSize * 0.212).clamp(60.0, 200.0).toDouble(),
+                        math.max(60.0, gutter - 18),
+                      );
+                final brandWidth = portrait
+                    ? math.min(areaSize.width * 0.7, 360.0)
+                    : math.max(120.0, gutter - 16);
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -165,13 +209,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     // name beneath it in the same colour. The pair rests
                     // on top of the board's wooden frame, lifted by a soft
                     // white glow.
+                    // Portrait keeps the mark above the frame, where there
+                    // is vertical room. Landscape moves it into the left
+                    // gutter: with the board now filling the height there
+                    // is no band above it, and the gutter is the space
+                    // that was empty.
                     Positioned(
-                      left: imageRect.center.dx - 180,
-                      width: 360,
-                      top: (imageRect.top +
-                              _frameTopFraction * imageRect.height -
-                              logoBlockHeight)
-                          .clamp(0.0, double.infinity),
+                      left: portrait
+                          ? imageRect.center.dx - brandWidth / 2
+                          : 8,
+                      width: brandWidth,
+                      top: portrait
+                          ? (imageRect.top +
+                                  _frameTopFraction * imageRect.height -
+                                  logoBlockHeight -
+                                  6)
+                              .clamp(0.0, double.infinity)
+                          : 14,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -237,10 +291,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         // view: the form can no longer be taller than its
                         // box, so there is nothing left to scroll, and it
                         // cannot overflow at any resolution either.
+                        // The block is authored at a width taken from the
+                        // green area itself — 70% of it, bounded so it
+                        // neither crowds the wooden frame on a big tablet
+                        // nor shrinks to a ribbon on a phone. It used to be
+                        // a flat 280 regardless, which looked stranded now
+                        // that the board is much larger.
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: SizedBox(
-                            width: 280,
+                            width: (boardRect.width * 0.70)
+                                .clamp(240.0, 340.0)
+                                .toDouble(),
                             child: _BoardLoginForm(
                             formKey: _formKey,
                             isConfigured: isConfigured,
@@ -278,13 +340,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     // bottom edge — that edge is ~20% transparent padding,
                     // which is what pushed them far down the screen.
                     Positioned(
-                      // Nudged left of the image's centre so the pair reads
-                      // as centred under the *board* itself, whose drawn
-                      // mass leans left of the square PNG's midpoint.
-                      left: imageRect.center.dx -
-                          mascotSize / 2 -
-                          imageRect.width * _mascotLeftNudgeFraction,
-                      top: imageRect.top + _artworkBottomFraction * imageRect.height - mascotSize,
+                      // Portrait: nudged left of the image's centre so the
+                      // pair reads as centred under the *board* itself,
+                      // whose drawn mass leans left of the square PNG's
+                      // midpoint. Landscape: the right gutter, resting on
+                      // the same line the easel's feet sit on.
+                      left: portrait
+                          ? imageRect.center.dx -
+                              mascotSize / 2 -
+                              imageRect.width * _mascotLeftNudgeFraction
+                          : areaSize.width - mascotSize - 10,
+                      top: portrait
+                          ? imageRect.top +
+                              _artworkBottomFraction * imageRect.height -
+                              mascotSize
+                          : (artworkTop + artworkHeight - mascotSize)
+                              .clamp(0.0, math.max(0.0, areaSize.height - mascotSize)),
                       child: StudentInteractiveMascot(size: mascotSize),
                     ),
                     Positioned(
@@ -325,6 +396,15 @@ const Color _brandTeal = Color(0xFF0E5F6B);
 
 const double _frameTopFraction = 0.235;
 const double _artworkBottomFraction = 0.80;
+
+/// The drawing's own bounds inside the square canvas, traced from the
+/// asset's alpha channel. The square is 3000x3000 but the art only fills
+/// x 0.025-0.967 and y 0.220-0.859 of it, so sizing the square is not the
+/// same as sizing the board — see the layout builder.
+const double _artLeftF = 0.025;
+const double _artTopF = 0.220;
+const double _artRightF = 0.967;
+const double _artBottomF = 0.859;
 
 /// How far left of the square image's centre the heroes sit, as a fraction
 /// of the image width — the drawn board leans left of that midpoint, so
