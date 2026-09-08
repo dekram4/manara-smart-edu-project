@@ -4,6 +4,7 @@ import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -104,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final isConfigured = widget.authService != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF16241B),
+      backgroundColor: const Color(0xFFEFF3F6),
       body: Stack(
         children: [
           const Positioned.fill(
@@ -113,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF16241B), Color(0xFF23140C), Color(0xFF12291D)],
+                  colors: [Color(0xFFE3EEF7), Color(0xFFF7F1E6), Color(0xFFE9F1F5)],
                 ),
               ),
             ),
@@ -124,30 +125,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      const StudentEmbossedShell(
-                        color: Color(0xFFF6B93B),
-                        depth: 5,
-                        borderRadius: 16,
-                        child: Padding(
-                          padding: EdgeInsets.all(6),
-                          child: ManaraLogo(size: 28),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'مَنارة',
-                          style: TextStyle(
-                            color: Color(0xFFFFF3DE),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
                       const DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Color(0x26FFFFFF),
+                          color: Color(0x14000000),
                           borderRadius: BorderRadius.all(Radius.circular(16)),
                         ),
                         child: StudentSoundToggle(),
@@ -156,11 +138,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 // The board image is placed via BoxFit.contain over the full
-                // remaining area, and the form is placed in a second
-                // Positioned computed from the *same* rect math — so it
-                // always lands exactly on the green writing surface no
-                // matter the window's aspect ratio, never on the wood frame
-                // or the books/globe beside it.
+                // remaining area, and everything else (the logo above it,
+                // the form on it, the heroes beside it) is positioned from
+                // that *same* rect math — so it all always lands correctly
+                // no matter the window's aspect ratio, never on the wood
+                // frame, the books/globe, or covering any of it up.
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -168,7 +150,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       final imageRect = _containRect(areaSize, 1.0);
                       final boardRect = _boardRectFromImageRect(imageRect);
                       final formRect = boardRect.deflate(boardRect.width * 0.055);
+                      // Whatever horizontal margin is left beside the
+                      // (square) board image on a wide landscape window is
+                      // exactly where the heroes can stand without ever
+                      // overlapping any of the illustrated school supplies.
+                      final sideMargin = (areaSize.width - imageRect.width) / 2;
+                      final mascotSize = (sideMargin * 0.85).clamp(0.0, 118.0);
+                      final logoSize = (imageRect.width * 0.11).clamp(30.0, 52.0);
                       return Stack(
+                        clipBehavior: Clip.none,
                         children: [
                           Positioned.fromRect(
                             rect: imageRect,
@@ -209,6 +199,30 @@ class _LoginScreenState extends State<LoginScreen> {
                               onSubmit: _submit,
                             ),
                           ),
+                          // The Manara logo, centered directly above the
+                          // board, in a soft raised badge.
+                          Positioned(
+                            left: imageRect.center.dx - (logoSize + 16) / 2,
+                            top: boardRect.top - logoSize - 4,
+                            child: StudentEmbossedShell(
+                              color: const Color(0xFFF6B93B),
+                              depth: 4,
+                              borderRadius: (logoSize + 16) / 3,
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: ManaraLogo(size: logoSize),
+                              ),
+                            ),
+                          ),
+                          // The two heroes, welcoming the student from
+                          // beside the board — placed in the screen's own
+                          // side margin, never over the board's tools.
+                          if (mascotSize > 46)
+                            Positioned(
+                              right: 4,
+                              bottom: 6,
+                              child: StudentInteractiveMascot(size: mascotSize),
+                            ),
                         ],
                       );
                     },
@@ -357,7 +371,7 @@ class _BoardLoginForm extends StatelessWidget {
                 onPressed: onTogglePassword,
                 icon: Icon(
                   hidePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-                  color: Colors.white70,
+                  color: const Color(0xFF3B2A1A),
                   size: 16 * scale,
                 ),
               ),
@@ -391,8 +405,8 @@ class _BoardLoginForm extends StatelessWidget {
             SizedBox(height: 10 * scale),
             StudentPressScale(
               child: StudentEmbossedShell(
-                color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFEA8A3D),
-                depth: 5 * scale,
+                color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
+                depth: (5.5 * scale).clamp(5.0, 6.0).toDouble(),
                 borderRadius: 14,
                 child: FilledButton.icon(
                   onPressed: isLoading ? null : onSubmit,
@@ -421,7 +435,7 @@ class _BoardLoginForm extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     minimumSize: Size.fromHeight(38 * scale),
                     backgroundColor:
-                        loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFEA8A3D),
+                        loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     textStyle: TextStyle(fontSize: 12.5 * scale, fontWeight: FontWeight.w900),
@@ -437,9 +451,11 @@ class _BoardLoginForm extends StatelessWidget {
   }
 }
 
-/// A compact, semi-transparent "written in chalk" input field — a light
-/// wash over the board's own green rather than an opaque card, so the
-/// board texture keeps showing through around the text.
+/// A bright, clearly-raised input field — bright white (85% opacity) over
+/// the board's green, a thick warm embossed border, and a soft ledge/shadow
+/// beneath it (via [StudentEmbossedShell]) so it reads as a distinct 3D
+/// plate sitting on the board rather than chalk marks on it. Dark text and
+/// icons for maximum contrast against the white fill.
 class _ChalkField extends StatelessWidget {
   const _ChalkField({
     required this.controller,
@@ -469,47 +485,54 @@ class _ChalkField extends StatelessWidget {
   final ValueChanged<String>? onFieldSubmitted;
   final String? Function(String?)? validator;
 
+  static const _ink = Color(0xFF3B2A1A);
+
   @override
   Widget build(BuildContext context) {
-    final borderColor = hasError ? const Color(0xFFFCA5A5) : Colors.white.withOpacity(0.45);
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      textInputAction: textInputAction,
-      autofillHints: autofillHints,
-      onChanged: onChanged,
-      onFieldSubmitted: onFieldSubmitted,
-      validator: validator,
-      cursorColor: Colors.white,
-      style: TextStyle(color: Colors.white, fontSize: 13 * scale, fontWeight: FontWeight.w700),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: hint,
-        hintStyle: TextStyle(
-          color: Colors.white.withOpacity(0.62),
-          fontSize: 12.5 * scale,
-          fontWeight: FontWeight.w600,
+    final borderColor = hasError ? const Color(0xFFDC2626) : const Color(0xFFE0A94A);
+    return StudentEmbossedShell(
+      color: Colors.white,
+      depth: (2.6 * scale).clamp(2.0, 3.4).toDouble(),
+      borderRadius: 10,
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        textInputAction: textInputAction,
+        autofillHints: autofillHints,
+        onChanged: onChanged,
+        onFieldSubmitted: onFieldSubmitted,
+        validator: validator,
+        cursorColor: _ink,
+        style: TextStyle(color: _ink, fontSize: 13 * scale, fontWeight: FontWeight.w800),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: hint,
+          hintStyle: TextStyle(
+            color: _ink.withOpacity(0.55),
+            fontSize: 12.5 * scale,
+            fontWeight: FontWeight.w600,
+          ),
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.85),
+          contentPadding: EdgeInsets.symmetric(horizontal: 10 * scale, vertical: 9 * scale),
+          prefixIcon: Icon(icon, color: _ink, size: 15 * scale),
+          prefixIconConstraints: BoxConstraints(minWidth: 28 * scale, minHeight: 0),
+          suffixIcon: suffixIcon,
+          suffixIconConstraints: BoxConstraints(minWidth: 28 * scale, minHeight: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: borderColor, width: 2.2),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: borderColor, width: 2.2),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+            borderSide: BorderSide(color: Color(0xFFFF9F1C), width: 2.6),
+          ),
+          errorStyle: const TextStyle(height: 0, fontSize: 0),
         ),
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.14),
-        contentPadding: EdgeInsets.symmetric(horizontal: 10 * scale, vertical: 9 * scale),
-        prefixIcon: Icon(icon, color: Colors.white70, size: 15 * scale),
-        prefixIconConstraints: BoxConstraints(minWidth: 28 * scale, minHeight: 0),
-        suffixIcon: suffixIcon,
-        suffixIconConstraints: BoxConstraints(minWidth: 28 * scale, minHeight: 0),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: borderColor, width: 1.2),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: borderColor, width: 1.2),
-        ),
-        focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(10)),
-          borderSide: BorderSide(color: Color(0xFFF6B93B), width: 2),
-        ),
-        errorStyle: const TextStyle(height: 0, fontSize: 0),
       ),
     );
   }
