@@ -16,6 +16,7 @@ import 'package:video_player/video_player.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../models/student_content.dart';
+import '../utils/student_orientation.dart';
 import 'student_experience.dart';
 
 /// A realistic, up to date mobile-Chrome user agent.
@@ -120,11 +121,10 @@ String? _youtubeIdFromUrl(String url) {
 /// of spinning forever.
 const Duration _kLoadTimeout = Duration(seconds: 20);
 
-Future<void> _restorePortraitOrientation() =>
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+/// Hands the orientation back to the app's own policy after a fullscreen
+/// video. This used to force portrait, which is the bug that left the app
+/// stuck in portrait for the rest of the session once a video had played.
+Future<void> _restoreAppOrientation() => StudentOrientation.apply();
 
 /// Plays a short, muted preview only while a desktop pointer is over a card.
 /// The underlying player is mounted lazily, so scrolling a library does not
@@ -1054,7 +1054,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     YoutubePlayerController controller,
   ) async {
     controller.exitFullScreen();
-    await _restorePortraitOrientation();
+    await _restoreAppOrientation();
   }
 
   Future<void> _retryNativePlayback() async {
@@ -1405,7 +1405,7 @@ class _FullscreenNetworkVideoScreenState
     if (_exiting) return;
     _exiting = true;
     final state = _playerKey.currentState?.fullscreenPlaybackState;
-    await _restorePortraitOrientation();
+    await _restoreAppOrientation();
     if (mounted) Navigator.of(context).pop(state);
   }
 
@@ -1526,12 +1526,25 @@ class _FullscreenOrientationScopeState
 
   @override
   void dispose() {
-    _restorePortraitOrientation();
+    _restoreAppOrientation();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    // The restore also runs from `dispose`, but a pop is the moment the
+    // student actually leaves the video, and `dispose` can land a frame or
+    // more later (or not at all, if this route is kept alive). Restoring on
+    // the pop itself closes that window, so the app can never be observed
+    // in the fullscreen player's narrowed orientation after leaving it.
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) _restoreAppOrientation();
+      },
+      child: widget.child,
+    );
+  }
 }
 
 String resolveStudentVideoUrl(LessonVideo video, {String apiBaseUrl = ''}) {

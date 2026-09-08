@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,14 +8,16 @@ import 'src/screens/student_startup_screen.dart';
 import 'src/services/student_auth_service.dart';
 import 'src/services/student_sound_service.dart';
 import 'src/theme/student_theme.dart';
+import 'src/utils/student_orientation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Orientation is deliberately NOT locked. Every screen lays itself out
-  // from its own constraints and rearranges between landscape and portrait,
-  // so a student on a phone or an iPad can hold the device either way.
-  await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+  // The app's orientation policy lives in exactly one place — see
+  // StudentOrientation. Screens that narrow it temporarily (the fullscreen
+  // video player) hand it back through the same call, so no screen can
+  // leave the app pinned to an orientation the app did not choose.
+  await StudentOrientation.apply();
 
   // 1. التقاط أخطاء الـ UI والـ Flutter Framework
   FlutterError.onError = (FlutterErrorDetails details) {
