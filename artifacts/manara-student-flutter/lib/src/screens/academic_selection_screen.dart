@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -11,13 +10,14 @@ import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
+import '../widgets/space_game_theme.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
 import 'student_home_screen.dart';
 
 /// One selectable option in the current step of the academic path (a grade,
-/// a term, a subject, a chapter, a unit, or a lesson) — rendered as a card
-/// in the horizontal carousel.
+/// a term, a subject, a chapter, a unit, or a lesson) — rendered as a
+/// floating rock-island station along the zig-zag mission path.
 typedef _StageOption = ({String id, String label});
 
 /// Theme color + Arabic label for each of the six steps in the academic
@@ -83,21 +83,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   bool _isEntering = false;
   String? _loadError;
 
-  /// Which of the six steps (grade..lesson) the carousel is currently
+  /// Which of the six steps (grade..lesson) the mission path is currently
   /// showing. Jumping between steps (back, forward, or via a breadcrumb
   /// chip) never clears the selections already made — same behavior the
   /// old dropdowns had when you changed an earlier value.
   int _stepIndex = 0;
   StudentGamification _gamification = const StudentGamification();
-  int _mascotBounceTicket = 0;
 
-  /// The current step's real options, and the carousel driving them. Built
-  /// fresh (new controller, new list) every time the step changes via
-  /// [_refreshStageOptions] — recreated rather than mutated so its
-  /// `initialPage` always lands exactly on whatever was already picked for
-  /// that step.
+  /// The current step's real options, rendered as stations along the
+  /// zig-zag path. Rebuilt fresh every time the step changes, via
+  /// [_refreshStageOptions].
   List<_StageOption> _stageOptions = const [];
-  PageController? _pageController;
 
   bool get _ready => !_loading && _data != null && !_data!.isEmpty;
 
@@ -110,12 +106,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
     _loadSelectionData();
     _loadGamification();
-  }
-
-  @override
-  void dispose() {
-    _pageController?.dispose();
-    super.dispose();
   }
 
   Future<void> _loadGamification() async {
@@ -446,28 +436,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
   }
 
-  /// Rebuilds the carousel for the current step: a fresh option list and a
-  /// fresh [PageController] opened exactly on whatever was already picked
-  /// for this step (or its first option, if nothing was picked yet).
+  /// Rebuilds the current step's station list from exactly the same
+  /// [AcademicSelectionData] getters the dropdown UI used.
   void _refreshStageOptions() {
-    final options = _currentStageOptions();
-    final selectedId = _currentStepSelectedId;
-    var initialPage = options.indexWhere((option) => option.id == selectedId);
-    if (initialPage < 0) initialPage = 0;
-    final oldController = _pageController;
-    setState(() {
-      _stageOptions = options;
-      _pageController = PageController(viewportFraction: 0.62, initialPage: initialPage);
-    });
-    oldController?.dispose();
+    setState(() => _stageOptions = _currentStageOptions());
   }
 
-  /// Applies a chosen option to the real selection state via the exact
+  /// Applies a chosen station to the real selection state via the exact
   /// same `_select*` methods the dropdowns called — passing on exactly the
   /// id the student picked, unchanged, so it reaches [StudentAuthService]
   /// / [AcademicContext] downstream precisely as before — then advances to
-  /// the next step (unless this was the last one, the lesson pick), with a
-  /// zoom transition and a small mascot bounce celebrating the pick.
+  /// the next step (unless this was the last one, the lesson pick).
   void _commitStageOption(String optionId) {
     switch (_stepIndex) {
       case 0:
@@ -487,7 +466,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           _playSelectionFeedback();
         }
     }
-    setState(() => _mascotBounceTicket++);
     if (_stepIndex < 5) {
       setState(() => _stepIndex++);
     }
@@ -503,29 +481,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     StudentSoundService.instance.playTap();
     setState(() => _stepIndex = index);
     _refreshStageOptions();
-  }
-
-  /// The option index the carousel is currently settled/focused on — used
-  /// only to decide the arrow buttons' start point; picking an option now
-  /// always goes through each card's own "انطلق" button instead of an
-  /// implicit "tap when centered" rule, so a child can never select a card
-  /// by mistake while just browsing past it.
-  int _focusedOptionIndex() {
-    final controller = _pageController;
-    if (controller == null) return 0;
-    if (controller.hasClients && controller.position.haveDimensions) {
-      return (controller.page ?? controller.initialPage.toDouble()).round();
-    }
-    return controller.initialPage;
-  }
-
-  void _centerCard(int index) {
-    StudentSoundService.instance.playTap();
-    _pageController?.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-    );
   }
 
   Future<void> _enterDashboard() async {
@@ -555,10 +510,10 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   Widget build(BuildContext context) {
     final accent = _stepAccents[_stepIndex];
     return Scaffold(
-      backgroundColor: const Color(0xFF6C8CF5),
+      backgroundColor: const Color(0xFF1B0A33),
       body: Stack(
         children: [
-          Positioned.fill(child: _AcademicBackdrop(accent: _ready ? accent : const Color(0xFF6C8CF5))),
+          const Positioned.fill(child: SpaceGameBackdrop(rocks: false)),
           SafeArea(
             child: Column(
               children: [
@@ -695,60 +650,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           ? const _EmptyStageMessage(key: ValueKey('empty'))
                           : KeyedSubtree(
                               key: ValueKey(_stepIndex),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: 108,
-                                    child: Center(
-                                      child: _PathMascotGuide(
-                                        size: 104,
-                                        bounceTicket: _mascotBounceTicket,
-                                        onTap: _stageOptions.isEmpty
-                                            ? null
-                                            : () => _commitStageOption(
-                                                _stageOptions[_focusedOptionIndex()].id,
-                                              ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Column(
-                                      children: [
-                                        // Free drag/swipe only — no side arrows — plus each
-                                        // card's own body tap to center it or the mascot/"Go"
-                                        // button to pick it.
-                                        Expanded(
-                                          child: PageView.builder(
-                                            controller: _pageController,
-                                            itemCount: _stageOptions.length,
-                                            onPageChanged: (_) => StudentSoundService.instance.playTap(),
-                                            itemBuilder: (context, index) {
-                                              final option = _stageOptions[index];
-                                              return _CarouselCardSlot(
-                                                controller: _pageController!,
-                                                index: index,
-                                                child: _StageCard(
-                                                  label: option.label,
-                                                  icon: _stageIcons[index % _stageIcons.length],
-                                                  accent: accent,
-                                                  selected: option.id == _currentStepSelectedId,
-                                                  stageNumber: index + 1,
-                                                  onBodyTap: () => _centerCard(index),
-                                                  onGo: () => _commitStageOption(option.id),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                        if (_stageOptions.length > 1)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 4, bottom: 8),
-                                            child: _PageDots(controller: _pageController!, count: _stageOptions.length),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                              child: _ZigzagStationPath(
+                                options: _stageOptions,
+                                accent: accent,
+                                selectedId: _currentStepSelectedId,
+                                onSelect: _commitStageOption,
                               ),
                             ),
                     ),
@@ -786,35 +692,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// The screen's permanent backdrop — a gradient tinted by the current
-/// step's accent color plus Smart Edu floating particles.
-class _AcademicBackdrop extends StatelessWidget {
-  const _AcademicBackdrop({required this.accent});
-
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final top = Color.lerp(const Color(0xFF6C8CF5), accent, 0.4)!;
-    final bottom = Color.lerp(const Color(0xFFB794F6), accent, 0.3)!;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [top, bottom],
-            ),
-          ),
-        ),
-        const SmartEduFloatingBackground(),
-      ],
     );
   }
 }
@@ -893,384 +770,90 @@ class _BreadcrumbChip extends StatelessWidget {
   }
 }
 
-/// The traveling guide standing beside the carousel — full-size, never
-/// cropped (see [PathMascot]'s own `BoxFit.contain`) — with a continuous
-/// idle float plus a short celebratory bounce every time [bounceTicket]
-/// changes (i.e. every time the student commits a pick).
-class _PathMascotGuide extends StatelessWidget {
-  const _PathMascotGuide({required this.size, required this.bounceTicket, this.onTap});
-
-  final double size;
-  final int bounceTicket;
-
-  /// Tapping the character herself commits whichever card is currently
-  /// centered in the carousel — she is the one who makes the pick, not
-  /// just a decoration standing beside it. Null while there is nothing to
-  /// pick (the step's option list is empty).
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final mascot = PathMascot(size: size);
-    final idle = reduceMotion
-        ? mascot
-        : mascot
-            .animate(onPlay: (controller) => controller.repeat(reverse: true))
-            .moveY(begin: 0, end: -8, duration: 1500.ms, curve: Curves.easeInOut);
-
-    final withBounce = reduceMotion
-        ? idle
-        : idle
-            .animate(key: ValueKey(bounceTicket))
-            .scaleXY(begin: 1, end: 1.16, duration: 140.ms, curve: Curves.easeOut)
-            .then()
-            .scaleXY(end: 1, duration: 240.ms, curve: Curves.elasticOut);
-
-    return Semantics(
-      button: true,
-      label: 'اضغط على شخصيتك لتختار البطاقة الحالية',
-      child: GestureDetector(onTap: onTap, child: withBounce),
-    );
-  }
-}
-
-/// Applies the "carousel" scale/fade/tilt treatment to [child] based on how
-/// far its [index] is from the [controller]'s current page — the card at
-/// the focused page reads full-size (scaled up slightly for emphasis) and
-/// flat; neighbours shrink, fade slightly, and tilt inward in perspective
-/// like a shelf of game portals.
-class _CarouselCardSlot extends StatelessWidget {
-  const _CarouselCardSlot({
-    required this.controller,
-    required this.index,
-    required this.child,
-  });
-
-  final PageController controller;
-  final int index;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, cardChild) {
-        var page = controller.initialPage.toDouble();
-        if (controller.hasClients && controller.position.haveDimensions) {
-          page = controller.page ?? page;
-        }
-        final delta = (index - page).clamp(-1.0, 1.0);
-        final t = delta.abs();
-        // The focused card (t == 0) reads noticeably bigger than its
-        // resting size, per the "portal" look; side cards shrink instead.
-        final scale = 1.15 - t * 0.39;
-        return Opacity(
-          opacity: (1 - t * 0.55).clamp(0.4, 1.0),
-          child: Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.0014)
-              ..rotateY(delta * 0.22),
-            child: Transform.scale(scale: scale, child: cardChild),
-          ),
-        );
-      },
-      // PageView always hands each page tight constraints matching its own
-      // full cross-axis extent (i.e. the entire carousel row's height, and
-      // most of a wide desktop/tablet window's width) — without capping
-      // the card itself here, it stretches to fill that whole slot instead
-      // of reading as a compact portal card.
-      // No GestureDetector wraps `child` here on purpose: `_StageCard`
-      // itself puts one only around its body (icon + label), as a sibling
-      // of — never an ancestor of — its own "انطلق" button's GestureDetector.
-      // Nesting a tap detector around one that's already inside another
-      // lets a single physical tap fire both callbacks; keeping them as
-      // non-overlapping siblings makes that impossible regardless of hit
-      // order.
-      // A chunky, portrait-oriented game card (~275x360, the spec'd game
-      // card proportions) — clamped down from that target size only when
-      // the actual slot is smaller, so it never hard-overflows a short
-      // window. `_StageCard` centers its own content regardless of the
-      // exact size it ends up with.
-      child: Center(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth.isFinite
-                ? math.min(275.0, constraints.maxWidth - 16)
-                : 275.0;
-            final height = constraints.maxHeight.isFinite
-                ? math.min(360.0, constraints.maxHeight - 16)
-                : 360.0;
-            return SizedBox(
-              width: width > 0 ? width : 275,
-              height: height > 0 ? height : 360,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: child,
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-/// A floating 3D "game portal" card — a thick beveled crystal/stone frame
-/// around a glowing gradient face, a numbered badge, a big icon, the
-/// option's label, and its own embossed "انطلق" button so picking it never
-/// depends on it happening to be the centered card.
-class _StageCard extends StatelessWidget {
-  const _StageCard({
-    required this.label,
-    required this.icon,
+/// The zig-zag mission path for the current step: its options laid out as
+/// floating rock islands connected by a glowing dashed line, with the path
+/// mascot (the girl cutout, [PathMascot]) standing on whichever station is
+/// currently selected and gliding smoothly to a new one as the student
+/// progresses. A single tap on any station selects it directly — there is
+/// no separate "go" button and nothing needs to be centered first.
+class _ZigzagStationPath extends StatelessWidget {
+  const _ZigzagStationPath({
+    required this.options,
     required this.accent,
-    required this.selected,
-    required this.stageNumber,
-    required this.onBodyTap,
-    required this.onGo,
+    required this.selectedId,
+    required this.onSelect,
   });
 
-  final String label;
-  final IconData icon;
+  final List<_StageOption> options;
   final Color accent;
-  final bool selected;
-  final int stageNumber;
+  final String? selectedId;
+  final ValueChanged<String> onSelect;
 
-  /// Tapping the icon/label area (anywhere on the card except the "انطلق"
-  /// button) just centers this card in the carousel — a sibling
-  /// GestureDetector to the button's own, never its ancestor, so a single
-  /// tap can never fire both.
-  final VoidCallback onBodyTap;
-  final VoidCallback onGo;
+  static const _stationSize = 88.0;
+  static const _stationSpacing = 180.0;
+  static const _horizontalMargin = 90.0;
+  static const _amplitude = 55.0;
+
+  List<Offset> _stationCenters(double height) {
+    final centerY = height / 2;
+    return [
+      for (var i = 0; i < options.length; i++)
+        Offset(
+          _horizontalMargin + i * _stationSpacing,
+          centerY + (i.isEven ? -_amplitude : _amplitude),
+        ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    // The whole card is itself a StudentEmbossedShell — the same chunky
-    // "ledge" 3D-button technique already used for "ادخل رحلتك!" below,
-    // just applied to the full card instead of just a button — which is
-    // exactly what a wide dark extrusion base under a raised board needs:
-    // a darker copy of the card offset a few px down, peeking out beneath
-    // the actual (slightly upward-shifted) face on top.
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      child: StudentEmbossedShell(
-        color: accent,
-        depth: 10,
-        borderRadius: 26,
-        child: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color.lerp(accent, Colors.white, 0.4)!,
-                accent,
-                Color.lerp(accent, Colors.black, 0.12)!,
-              ],
-              stops: const [0, 0.5, 1],
-            ),
-            border: Border.all(
-              color: selected ? const Color(0xFFFFE08A) : const Color(0xFFFFF3D0),
-              width: 4,
-            ),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // A soft specular highlight streak near the top fakes a
-              // glossy, lit-from-above crystal/board surface.
-              Positioned(
-                top: 8,
-                left: 20,
-                right: 20,
-                child: Container(
-                  height: 18,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      colors: [Colors.white.withOpacity(0.55), Colors.white.withOpacity(0)],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight.isFinite ? constraints.maxHeight : 260.0;
+        final centers = _stationCenters(height);
+        final contentWidth = math.max(
+          constraints.maxWidth.isFinite ? constraints.maxWidth : 0.0,
+          options.isEmpty ? 0.0 : centers.last.dx + _horizontalMargin,
+        );
+        final selectedIndex = options.indexWhere((option) => option.id == selectedId);
+        final mascotCenter = centers[selectedIndex >= 0 ? selectedIndex : 0];
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: contentWidth,
+            height: height,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(painter: ZigzagPathPainter(centers)),
+                ),
+                for (var i = 0; i < options.length; i++)
+                  Positioned(
+                    left: centers[i].dx - _stationSize / 2,
+                    top: centers[i].dy - _stationSize * 0.9,
+                    child: SpaceIslandStation(
+                      size: _stationSize,
+                      label: options[i].label,
+                      icon: _stageIcons[i % _stageIcons.length],
+                      selected: options[i].id == selectedId,
+                      phaseMs: i * 220,
+                      onTap: () => onSelect(options[i].id),
                     ),
                   ),
+                // The heroine stands on the current station, gliding to a
+                // new one whenever the selection changes.
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 420),
+                  curve: Curves.easeOutCubic,
+                  left: mascotCenter.dx - 34,
+                  top: mascotCenter.dy - _stationSize * 1.55,
+                  child: const IgnorePointer(child: PathMascot(size: 76)),
                 ),
-              ),
-              Positioned(top: 10, right: 10, child: _NumberBadge3D(number: stageNumber, color: accent)),
-              if (selected) const Positioned(top: 10, left: 10, child: _CheckBadge3D()),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 24, 14, 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: onBodyTap,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // The big floating stage icon — its own shadow and
-                          // white rim make it read as a separate 3D piece
-                          // sitting just above the card's surface.
-                          Container(
-                            width: 92,
-                            height: 92,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Colors.white, accent],
-                              ),
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 8)),
-                              ],
-                            ),
-                            child: Icon(icon, color: Colors.white, size: 50),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            label,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              shadows: [
-                                Shadow(color: Color(0x99000000), blurRadius: 6, offset: Offset(0, 2)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    StudentPressScale(
-                      child: StudentEmbossedShell(
-                        color: selected ? const Color(0xFF16A085) : const Color(0xFFF6C95D),
-                        depth: 4,
-                        borderRadius: 16,
-                        child: GestureDetector(
-                          onTap: onGo,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  selected ? Icons.check_circle_rounded : Icons.play_arrow_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  selected ? 'مُختار' : 'انطلق',
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NumberBadge3D extends StatelessWidget {
-  const _NumberBadge3D({required this.number, required this.color});
-
-  final int number;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 25,
-      height: 25,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.white, color]),
-        border: Border.all(color: Colors.white, width: 1.2),
-        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
-      ),
-      child: Text(
-        '$number',
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900),
-      ),
-    );
-  }
-}
-
-class _CheckBadge3D extends StatelessWidget {
-  const _CheckBadge3D();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 25,
-      height: 25,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
-      ),
-      child: const Icon(Icons.check_rounded, size: 16, color: Color(0xFF16A085)),
-    );
-  }
-}
-
-/// A small "game level" page-dot strip under the carousel — no side
-/// arrows, just free drag/swipe plus this readout of which of the step's
-/// options is currently centered. The active dot is enlarged and gold.
-class _PageDots extends StatelessWidget {
-  const _PageDots({required this.controller, required this.count});
-
-  final PageController controller;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        var page = controller.initialPage.toDouble();
-        if (controller.hasClients && controller.position.haveDimensions) {
-          page = controller.page ?? page;
-        }
-        final active = page.round().clamp(0, count - 1);
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < count; i++)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: i == active ? 18 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: i == active ? const Color(0xFFFFE08A) : Colors.white.withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(4),
-                  boxShadow: i == active
-                      ? const [BoxShadow(color: Colors.black38, blurRadius: 3, offset: Offset(0, 1))]
-                      : null,
-                ),
-              ),
-          ],
         );
       },
     );

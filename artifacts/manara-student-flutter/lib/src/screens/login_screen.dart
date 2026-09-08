@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/manara_logo.dart';
+import '../widgets/space_game_theme.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
@@ -107,10 +107,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final isConfigured = widget.authService != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF2E1065),
+      backgroundColor: const Color(0xFF1B0A33),
       body: Stack(
         children: [
-          const Positioned.fill(child: _LoginGameBackground()),
+          const Positioned.fill(child: SpaceGameBackdrop()),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -123,7 +123,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Row(
                         children: [
-                          const ManaraLogo(size: 44),
+                          const StudentEmbossedShell(
+                            color: Color(0xFFF6B93B),
+                            depth: 5,
+                            borderRadius: 16,
+                            child: Padding(
+                              padding: EdgeInsets.all(6),
+                              child: ManaraLogo(size: 32),
+                            ),
+                          ),
                           const SizedBox(width: 10),
                           const Expanded(
                             child: Column(
@@ -163,7 +171,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       StudentEntrance(
                         child: Column(
                           children: [
-                            const StudentInteractiveMascot(size: 168),
+                            // The heroes stand on their own little floating
+                            // island, like the rest of the space-game world.
+                            Stack(
+                              alignment: Alignment.bottomCenter,
+                              clipBehavior: Clip.none,
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 6),
+                                  child: SpaceFloatingRock(size: 150, delay: 0),
+                                ),
+                                const StudentInteractiveMascot(size: 168),
+                              ],
+                            ),
                             const SizedBox(height: 4),
                             const Text(
                               'أهلًا يا بطل! 👋',
@@ -238,78 +258,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// A rich, colorful game-menu backdrop — a warm diagonal gradient with a few
-/// large, soft glowing color blobs breathing slowly, instead of the flat
-/// pale background and scattered empty circles/icon chips this screen used
-/// to have.
-class _LoginGameBackground extends StatelessWidget {
-  const _LoginGameBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF2E1065),
-                Color(0xFF4F46E5),
-                Color(0xFF0B8693),
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          top: -90,
-          right: -70,
-          child: _GlowBlob(size: 260, color: const Color(0xFFF6C95D), delay: 0.ms),
-        ),
-        Positioned(
-          bottom: -110,
-          left: -90,
-          child: _GlowBlob(size: 300, color: const Color(0xFFEC4899), delay: 600.ms),
-        ),
-        Positioned(
-          top: 260,
-          left: -70,
-          child: _GlowBlob(size: 190, color: const Color(0xFF5EEAD4), delay: 300.ms),
-        ),
-        const SmartEduFloatingBackground(),
-      ],
-    );
-  }
-}
-
-class _GlowBlob extends StatelessWidget {
-  const _GlowBlob({required this.size, required this.color, required this.delay});
-
-  final double size;
-  final Color color;
-  final Duration delay;
-
-  @override
-  Widget build(BuildContext context) {
-    final blob = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.30)),
-    );
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      return IgnorePointer(child: blob);
-    }
-    return IgnorePointer(
-      child: blob
-          .animate(delay: delay, onPlay: (controller) => controller.repeat(reverse: true))
-          .scaleXY(begin: 1, end: 1.08, duration: 4200.ms, curve: Curves.easeInOut)
-          .fade(begin: 0.75, end: 1, duration: 4200.ms),
     );
   }
 }
@@ -448,7 +396,8 @@ class _LoginCredentialsCard extends StatelessWidget {
             StudentPressScale(
               child: StudentEmbossedShell(
                 color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFF147D83),
-                borderRadius: 26,
+                depth: 7,
+                borderRadius: 32,
                 child: FilledButton.icon(
                   onPressed: isLoading ? null : onSubmit,
                   icon: AnimatedSwitcher(
@@ -484,9 +433,7 @@ class _LoginCredentialsCard extends StatelessWidget {
                     foregroundColor: Colors.white,
                     elevation: 0,
                     textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26),
-                    ),
+                    shape: const StadiumBorder(),
                   ),
                 ),
               ),
