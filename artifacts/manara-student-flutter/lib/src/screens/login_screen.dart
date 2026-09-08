@@ -133,7 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: boardSize,
                 );
                 final boardRect = _boardRectFromImageRect(imageRect);
-                const logoSize = 75.0;
+                const logoSize = 95.0;
+                const logoNameGap = 2.0;
+                const logoNameHeight = 30.0;
+                const logoBlockHeight = logoSize + logoNameGap + logoNameHeight;
                 const mascotSize = 140.0;
                 // 280px is the *target* block width, but never wider than
                 // the green area actually is at this window size — that
@@ -152,29 +155,57 @@ class _LoginScreenState extends State<LoginScreen> {
                         errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
                     ),
-                    // The mark in its true official colors, resting on top
-                    // of the board's wooden frame, lifted by a soft white
-                    // glow (not a dark shadow) so it reads cleanly against
-                    // the light background.
+                    // The mark in its true official colors with the app's
+                    // name beneath it, the pair resting on top of the
+                    // board's wooden frame and lifted by a soft white glow
+                    // so it reads cleanly against the light background.
                     Positioned(
-                      left: imageRect.center.dx - logoSize / 2,
-                      top: (imageRect.top + _frameTopFraction * imageRect.height - logoSize)
+                      left: imageRect.center.dx - 150,
+                      width: 300,
+                      top: (imageRect.top +
+                              _frameTopFraction * imageRect.height -
+                              logoBlockHeight)
                           .clamp(0.0, double.infinity),
-                      child: DecoratedBox(
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: Colors.white, blurRadius: 18, spreadRadius: 2),
-                            BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
-                          ],
-                        ),
-                        child: Image.asset(
-                          'assets/images/manara-logo-mark-transparent.png',
-                          width: logoSize,
-                          height: logoSize,
-                          fit: BoxFit.contain,
-                          errorBuilder: _emptyImageFallback,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          DecoratedBox(
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(color: Colors.white, blurRadius: 18, spreadRadius: 2),
+                                BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/images/manara-logo-mark-transparent.png',
+                              width: logoSize,
+                              height: logoSize,
+                              fit: BoxFit.contain,
+                              errorBuilder: _emptyImageFallback,
+                            ),
+                          ),
+                          const SizedBox(height: logoNameGap),
+                          const SizedBox(
+                            height: logoNameHeight,
+                            child: Text(
+                              'مَنارة',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                // Picked from the mark's own teal-green
+                                // gradient so it sits naturally on the
+                                // light blue/cream backdrop.
+                                color: Color(0xFF1B6C74),
+                                fontSize: 23,
+                                height: 1.15,
+                                fontWeight: FontWeight.w900,
+                                shadows: [
+                                  Shadow(color: Colors.white, blurRadius: 8),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     // The form block is centered on the green area and can
@@ -224,7 +255,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     // bottom edge — that edge is ~20% transparent padding,
                     // which is what pushed them far down the screen.
                     Positioned(
-                      left: imageRect.center.dx - mascotSize / 2,
+                      // Nudged left of the image's centre so the pair reads
+                      // as centred under the *board* itself, whose drawn
+                      // mass leans left of the square PNG's midpoint.
+                      left: imageRect.center.dx -
+                          mascotSize / 2 -
+                          imageRect.width * _mascotLeftNudgeFraction,
                       top: imageRect.top + _artworkBottomFraction * imageRect.height - mascotSize,
                       child: const StudentInteractiveMascot(size: mascotSize),
                     ),
@@ -261,6 +297,11 @@ class _LoginScreenState extends State<LoginScreen> {
 /// lands far below the scene; these fractions anchor to the art itself.
 const double _frameTopFraction = 0.235;
 const double _artworkBottomFraction = 0.80;
+
+/// How far left of the square image's centre the heroes sit, as a fraction
+/// of the image width — the drawn board leans left of that midpoint, so
+/// centring on the raw image centre reads as slightly right of the board.
+const double _mascotLeftNudgeFraction = 0.045;
 
 Widget _emptyImageFallback(BuildContext _, Object __, StackTrace? ___) =>
     const SizedBox.shrink();
