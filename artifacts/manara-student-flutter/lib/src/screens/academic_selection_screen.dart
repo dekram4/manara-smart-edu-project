@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -45,35 +47,50 @@ class _BookSlot {
   );
 }
 
-/// Top teal book, middle orange book, lower purple book, and the red/green
-/// pair at the base that carries the "start" button.
+/// One slot per book, top to bottom, each measured against the white page
+/// block of that book — never its coloured cover — so every control lands
+/// on paper the way the login fields sit inside the green board.
 const _gradeSlot = _BookSlot(
-  centerX: 0.445,
-  centerY: 0.105,
-  width: 0.35,
-  height: 0.105,
-  color: Color(0xFF2FA8BE),
+  centerX: 0.355,
+  centerY: 0.118,
+  width: 0.27,
+  height: 0.090,
+  color: Color(0xFF2FA8BE), // teal, top book
 );
-const _termSlot = _BookSlot(
-  centerX: 0.505,
-  centerY: 0.265,
-  width: 0.40,
-  height: 0.105,
-  color: Color(0xFFE8930C),
+const _atramSlot = _BookSlot(
+  centerX: 0.680,
+  centerY: 0.248,
+  width: 0.26,
+  height: 0.075,
+  color: Color(0xFFE8930C), // orange
 );
 const _subjectSlot = _BookSlot(
-  centerX: 0.520,
-  centerY: 0.430,
-  width: 0.43,
-  height: 0.105,
-  color: Color(0xFFA974BE),
+  centerX: 0.690,
+  centerY: 0.447,
+  width: 0.33,
+  height: 0.072,
+  color: Color(0xFFA974BE), // purple
+);
+const _unitSlot = _BookSlot(
+  centerX: 0.345,
+  centerY: 0.612,
+  width: 0.42,
+  height: 0.072,
+  color: Color(0xFFC0392B), // red
+);
+const _lessonSlot = _BookSlot(
+  centerX: 0.300,
+  centerY: 0.752,
+  width: 0.32,
+  height: 0.060,
+  color: Color(0xFF2E7D4F), // green
 );
 const _startSlot = _BookSlot(
-  centerX: 0.515,
-  centerY: 0.645,
-  width: 0.44,
-  height: 0.12,
-  color: Color(0xFFC0392B),
+  centerX: 0.310,
+  centerY: 0.900,
+  width: 0.40,
+  height: 0.090,
+  color: Color(0xFF12406B), // navy, bottom book
 );
 
 class AcademicSelectionScreen extends StatefulWidget {
@@ -300,6 +317,52 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _playSelectionFeedback();
   }
 
+  void _selectTerm(String? term) {
+    final data = _data;
+    if (data == null ||
+        _grade == null ||
+        _atram == null ||
+        _subject == null ||
+        term == null) {
+      return;
+    }
+    setState(() {
+      _term = term;
+      _unit = _pick(
+        data.unitsFor(
+          grade: _grade!,
+          atram: _atram!,
+          subject: _subject!,
+          term: _term!,
+        ),
+        null,
+      );
+      _lesson = _lessonsForSelection().firstOrNull;
+    });
+    _playSelectionFeedback();
+  }
+
+  void _selectUnit(String? unit) {
+    if (_data == null || unit == null) return;
+    setState(() {
+      _unit = unit;
+      _lesson = _lessonsForSelection().firstOrNull;
+    });
+    _playSelectionFeedback();
+  }
+
+  /// The lesson dropdown deals in names, so the pick is resolved back to the
+  /// real [LessonContent] the rest of the app navigates with.
+  void _selectLessonNamed(String? lessonName) {
+    if (lessonName == null) return;
+    final matches = _lessonsForSelection().where(
+      (lesson) => _normalized(lesson.lessonName) == _normalized(lessonName),
+    );
+    if (matches.isEmpty) return;
+    setState(() => _lesson = matches.first);
+    _playSelectionFeedback();
+  }
+
   void _playSelectionFeedback() {
     StudentSoundService.instance.play(StudentSoundCue.answerSelected);
   }
@@ -361,6 +424,34 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     return data.subjectsFor(grade: _grade!, atram: _atram!);
   }
 
+  List<String> get _termOptions {
+    final data = _data;
+    if (data == null || _grade == null || _atram == null || _subject == null) {
+      return const [];
+    }
+    return data.termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
+  }
+
+  List<String> get _unitOptions {
+    final data = _data;
+    if (data == null ||
+        _grade == null ||
+        _atram == null ||
+        _subject == null ||
+        _term == null) {
+      return const [];
+    }
+    return data.unitsFor(
+      grade: _grade!,
+      atram: _atram!,
+      subject: _subject!,
+      term: _term!,
+    );
+  }
+
+  List<String> get _lessonOptions =>
+      _lessonsForSelection().map((lesson) => lesson.lessonName).toList();
+
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null || _isEntering) return;
@@ -410,7 +501,15 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // sides is where the guide stands — she never covers the
                 // books or their controls.
                 final sideMargin = (areaSize.width - imageRect.width) / 2;
-                final mascotHeight = sideMargin > 230 ? 220.0 : 190.0;
+                // Both side characters are capped by the gutter they stand
+                // in, so neither can ever be laid out wider than its own
+                // slot — the guide is simply hidden below the width that
+                // would shrink her under the 180px she is meant to have.
+                final mascotHeight =
+                    math.min(200.0, sideMargin - 16).toDouble();
+                final showMascot = _ready && mascotHeight >= 180;
+                final pencilWidth =
+                    math.min(230.0, sideMargin - 20).toDouble();
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -429,13 +528,38 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         rect: imageRect,
                         child: Center(child: _buildLoadingOrError()),
                       ),
-                    if (_ready && sideMargin > 150)
+                    if (showMascot)
                       Positioned(
                         left: 6,
                         bottom: 6,
                         width: sideMargin - 12,
                         child: _MascotGuide(height: mascotHeight),
                       ),
+                    if (pencilWidth >= 150)
+                      Positioned(
+                        right: 8,
+                        bottom: 4,
+                        child: Transform.rotate(
+                          angle: -0.14,
+                          child: Image.asset(
+                            'assets/images/winter_fun.png',
+                            width: pencilWidth,
+                            height: pencilWidth,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      top: 6,
+                      left: 10,
+                      child: Image.asset(
+                        'assets/images/manara-logo-mark-transparent.png',
+                        height: 70,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -511,10 +635,23 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
-  /// The three book dropdowns plus the "start" button, each pinned onto its
-  /// own book via that book's measured slot.
+  /// One control per book, in hierarchy order, each pinned onto that book's
+  /// page area via its measured slot.
   List<Widget> _buildBookControls(Rect imageRect) {
     final canStart = _selection != null;
+    // The tree has a chapter level between subject and unit. It shares the
+    // red book with the unit — and only claims room there when the teacher
+    // actually configured more than one chapter, so the six-book layout
+    // stays exactly as designed for the usual single-chapter subject.
+    final chapters = _termOptions;
+    final unitControl = _BookDropdown(
+      label: 'الوحدة التعليمية',
+      icon: Icons.category_rounded,
+      color: _unitSlot.color,
+      value: _unit,
+      options: _unitOptions,
+      onSelected: _selectUnit,
+    );
 
     return [
       Positioned.fromRect(
@@ -529,11 +666,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
         ),
       ),
       Positioned.fromRect(
-        rect: _termSlot.resolve(imageRect),
+        rect: _atramSlot.resolve(imageRect),
         child: _BookDropdown(
-          label: 'الفصل الدراسي',
+          label: 'الفصل الدراسي / الترم',
           icon: Icons.calendar_month_rounded,
-          color: _termSlot.color,
+          color: _atramSlot.color,
           value: _atram,
           options: _atramOptions,
           onSelected: _selectAtram,
@@ -548,6 +685,39 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           value: _subject,
           options: _subjectOptions,
           onSelected: _selectSubject,
+        ),
+      ),
+      Positioned.fromRect(
+        rect: _unitSlot.resolve(imageRect),
+        child: chapters.length > 1
+            ? Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: _BookDropdown(
+                      label: 'الفصل',
+                      icon: Icons.bookmarks_rounded,
+                      color: _unitSlot.color,
+                      value: _term,
+                      options: chapters,
+                      onSelected: _selectTerm,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 6, child: unitControl),
+                ],
+              )
+            : unitControl,
+      ),
+      Positioned.fromRect(
+        rect: _lessonSlot.resolve(imageRect),
+        child: _BookDropdown(
+          label: 'الدرس',
+          icon: Icons.play_lesson_rounded,
+          color: _lessonSlot.color,
+          value: _lesson?.lessonName,
+          options: _lessonOptions,
+          onSelected: _selectLessonNamed,
         ),
       ),
       Positioned.fromRect(
@@ -591,10 +761,10 @@ Rect _containRect(Size container, double aspectRatio) {
   );
 }
 
-/// A raised, glassy dropdown that sits on a book: the book's own colour,
-/// slightly translucent so the illustration still reads through it, a
-/// chunky 3D edge, and a real popup menu of the options the teacher
-/// configured.
+/// A dropdown that sits on a book's page area: a near-white card so the
+/// text stays black-on-paper legible for young readers, a soft rim and a
+/// light 3D shadow in that book's own colour, and a real popup menu of the
+/// options the teacher configured.
 class _BookDropdown extends StatelessWidget {
   const _BookDropdown({
     required this.label,
@@ -656,30 +826,39 @@ class _BookDropdown extends StatelessWidget {
               ),
           ],
           child: Container(
-            // A darker copy of the book's colour peeking out below the
-            // face gives the control its chunky 3D edge.
-            padding: EdgeInsets.only(bottom: constraints.maxHeight * 0.13),
+            // A slim ledge in the book's own colour under the card is the
+            // whole 3D effect — light, so it never fights the artwork.
+            padding: EdgeInsets.only(
+              bottom: math.min(5.0, constraints.maxHeight * 0.09),
+            ),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(13),
               color: dark,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.28),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
+                  color: dark.withOpacity(0.30),
+                  blurRadius: 9,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 9),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                color: color.withOpacity(0.86),
-                border: Border.all(color: Colors.white.withOpacity(0.75), width: 1.6),
+                borderRadius: BorderRadius.circular(13),
+                color: const Color(0xFFFDFDFD),
+                border: Border.all(color: color.withOpacity(0.85), width: 1.8),
               ),
               child: Row(
                 children: [
-                  Icon(icon, color: Colors.white, size: 17),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Icon(icon, color: dark, size: 16),
+                  ),
                   const SizedBox(width: 7),
                   Expanded(
                     child: Column(
@@ -693,7 +872,7 @@ class _BookDropdown extends StatelessWidget {
                             child: Text(
                               label,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
+                                color: dark.withOpacity(0.85),
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -708,12 +887,9 @@ class _BookDropdown extends StatelessWidget {
                               enabled ? (value ?? 'اختر') : 'غير متاح',
                               maxLines: 1,
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: Color(0xFF1B2733),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
-                                shadows: [
-                                  Shadow(color: Color(0x66000000), blurRadius: 3),
-                                ],
                               ),
                             ),
                           ),
@@ -721,7 +897,7 @@ class _BookDropdown extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.expand_more_rounded, color: Colors.white, size: 20),
+                  Icon(Icons.expand_more_rounded, color: dark, size: 20),
                 ],
               ),
             ),
@@ -800,7 +976,7 @@ class _MascotGuide extends StatelessWidget {
       children: [
         const _SpeechBubble(text: 'اختر صفك لنبدأ الرحلة يا بطل! ✨'),
         const SizedBox(height: 2),
-        PathMascot(size: height / 1.15),
+        PathMascot(size: height),
       ],
     );
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return content;
