@@ -16,6 +16,8 @@ class StudentFloatingCharacter extends StatefulWidget {
     required this.appearance,
     required this.size,
     this.onTap,
+    this.showLabel = true,
+    this.bob = 9,
     super.key,
   });
 
@@ -23,6 +25,13 @@ class StudentFloatingCharacter extends StatefulWidget {
   final Map<String, dynamic>? appearance;
   final double size;
   final VoidCallback? onTap;
+
+  /// Whether to print the character's name under it. Off when the widget
+  /// sits inline beside text that already names the student.
+  final bool showLabel;
+
+  /// How far the drift travels, in logical pixels.
+  final double bob;
 
   @override
   State<StudentFloatingCharacter> createState() =>
@@ -105,7 +114,9 @@ class _StudentFloatingCharacterState extends State<StudentFloatingCharacter>
       ),
     );
 
-    final labelled = Column(
+    final labelled = !widget.showLabel
+        ? medallion
+        : Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         medallion,
@@ -147,7 +158,8 @@ class _StudentFloatingCharacterState extends State<StudentFloatingCharacter>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) => Transform.translate(
-        offset: Offset(0, math.sin(_controller.value * 2 * math.pi) * 9),
+        offset:
+            Offset(0, math.sin(_controller.value * 2 * math.pi) * widget.bob),
         child: child,
       ),
       child: tappable,

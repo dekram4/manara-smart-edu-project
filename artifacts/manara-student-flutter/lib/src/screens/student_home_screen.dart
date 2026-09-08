@@ -323,13 +323,14 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final characterSize =
-        (math.min(size.width, size.height) * 0.30).clamp(96.0, 190.0).toDouble();
 
     return Scaffold(
       backgroundColor: StudentPalette.canvas,
       appBar: AppBar(
-        toolbarHeight: 70,
+        // The enlarged mark is 54px and its pill adds 14px of padding, so
+        // 70 left only 2px of slack — raised so the bigger logo cannot
+        // press against the bar.
+        toolbarHeight: 82,
         titleSpacing: 16,
         title: Container(
           padding: const EdgeInsetsDirectional.fromSTEB(9, 7, 14, 7),
@@ -345,35 +346,29 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               ),
             ],
           ),
+          // The mark is bigger and the old tiny "SMART EDU" line is
+          // replaced by the app's full Arabic name. FittedBox keeps that
+          // longer name from ever widening the bar past its room.
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ManaraLogo(size: 38),
-              SizedBox(width: 9),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'مَنارة',
+              ManaraLogo(size: 54),
+              SizedBox(width: 10),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    'منارة المعرفة التعليمية',
+                    maxLines: 1,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
-                      color: StudentPalette.ink,
-                      height: 1,
+                      color: Color(0xFF0E5F6B),
+                      height: 1.1,
                     ),
                   ),
-                  SizedBox(height: 3),
-                  Text(
-                    'SMART EDU',
-                    textDirection: TextDirection.ltr,
-                    style: TextStyle(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                      color: StudentPalette.indigo,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
@@ -422,20 +417,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: StudentAnimatedCard(
-                       child: _WelcomeCard(profile: widget.profile),
-                    ),
-                  ),
-                  // The selected character alone, floating over the
-                  // backdrop — no card, no duplicated stats. Its size comes
-                  // from the screen's shorter edge so it stays in
-                  // proportion in both orientations.
-                  SizedBox(
-                    height: characterSize * 1.28,
-                    child: Center(
-                      child: StudentFloatingCharacter(
-                        appearance: widget.profile.appearance,
-                        size: characterSize,
-                        onTap: _openPersonality,
+                      child: _WelcomeCard(
+                        profile: widget.profile,
+                        onCharacterTap: _openPersonality,
                       ),
                     ),
                   ),
@@ -755,6 +739,16 @@ const _homeSections = <_HomeSection>[
 /// tile toward the target ~230x170 game-card proportions and fits as many
 /// columns as the available (landscape-favoring) width allows, rather than
 /// a fixed 2/3-column breakpoint.
+/// The eight portals as a single horizontal rail instead of a vertical
+/// grid.
+///
+/// The grid stacked into four rows and covered the whole lighthouse; one
+/// row that scrolls sideways leaves the backdrop visible and reads as a
+/// shelf of toys to swipe through. Indices are passed through untouched,
+/// so every portal still opens exactly what it did before, and a future
+/// bespoke design per portal only has to change [_SectionTile] — the rail
+/// itself makes no assumption about what a card looks like beyond its
+/// height.
 class _HomeSectionGrid extends StatelessWidget {
   const _HomeSectionGrid({required this.onSectionPressed});
 
@@ -762,20 +756,28 @@ class _HomeSectionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: 22),
-      itemCount: _homeSections.length,
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 240,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 14,
-        childAspectRatio: 230 / 170,
-      ),
-      itemBuilder: (context, index) => _SectionTile(
-        section: _homeSections[index],
-        onPressed: () => onSectionPressed(index),
+    final size = MediaQuery.sizeOf(context);
+    // The rail is sized from the screen's shorter edge so a phone in
+    // landscape gets a shorter rail rather than one that eats the view.
+    final shortest = math.min(size.width, size.height);
+    final cardHeight = (shortest * 0.34).clamp(132.0, 178.0).toDouble();
+    final cardWidth = (cardHeight * 1.32).clamp(150.0, 235.0).toDouble();
+
+    return SizedBox(
+      height: cardHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const ClampingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        itemCount: _homeSections.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) => SizedBox(
+          width: cardWidth,
+          child: _SectionTile(
+            section: _homeSections[index],
+            onPressed: () => onSectionPressed(index),
+          ),
+        ),
       ),
     );
   }
@@ -1067,61 +1069,77 @@ class _GlassCard extends StatelessWidget {
   }
 }
 
+/// The greeting banner. Deliberately pale rather than the old deep-indigo
+/// slab: the lighthouse behind it is now a full-strength background, and a
+/// dark band across the top fought it. The student's own character stands
+/// where the logo medallion used to be, floating beside their name.
 class _WelcomeCard extends StatelessWidget {
-  const _WelcomeCard({required this.profile});
+  const _WelcomeCard({
+    required this.profile,
+    required this.onCharacterTap,
+  });
 
   final StudentProfile profile;
+  final VoidCallback onCharacterTap;
 
   @override
   Widget build(BuildContext context) {
     return Student3DCard(
       child: Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [
-            StudentPalette.deepIndigo,
-            StudentPalette.indigo,
-            StudentPalette.sky,
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          color: Colors.white.withOpacity(0.85),
+          border: Border.all(color: Colors.white, width: 1.6),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A4F46E5),
+              blurRadius: 22,
+              offset: Offset(0, 10),
+            ),
           ],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withOpacity(0.28)),
+        child: Row(
+          children: [
+            StudentFloatingCharacter(
+              appearance: profile.appearance,
+              size: 60,
+              showLabel: false,
+              bob: 5,
+              onTap: onCharacterTap,
             ),
-            child: const ManaraLogo(size: 56),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'أهلًا بك في منارة المعرفة',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                Text(
-                  profile.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'أهلًا بك في منارة المعرفة',
+                    style: TextStyle(
+                      color: Color(0xFF5680AC),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      profile.name,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: Color(0xFF0E1B2A),
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
