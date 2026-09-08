@@ -155,13 +155,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
                     ),
-                    // The mark in its true official colors with the app's
-                    // name beneath it, the pair resting on top of the
-                    // board's wooden frame and lifted by a soft white glow
-                    // so it reads cleanly against the light background.
+                    // The mark, recoloured to a single deep teal so it
+                    // reads crisply on the light backdrop instead of the
+                    // washed-out original gradient, with the app's full
+                    // name beneath it in the same colour. The pair rests
+                    // on top of the board's wooden frame, lifted by a soft
+                    // white glow.
                     Positioned(
-                      left: imageRect.center.dx - 150,
-                      width: 300,
+                      left: imageRect.center.dx - 180,
+                      width: 360,
                       top: (imageRect.top +
                               _frameTopFraction * imageRect.height -
                               logoBlockHeight)
@@ -177,31 +179,36 @@ class _LoginScreenState extends State<LoginScreen> {
                                 BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
                               ],
                             ),
-                            child: Image.asset(
-                              'assets/images/manara-logo-mark-transparent.png',
-                              width: logoSize,
-                              height: logoSize,
-                              fit: BoxFit.contain,
-                              errorBuilder: _emptyImageFallback,
+                            child: ColorFiltered(
+                              colorFilter: const ColorFilter.mode(_brandTeal, BlendMode.srcIn),
+                              child: Image.asset(
+                                'assets/images/manara-logo-mark-transparent.png',
+                                width: logoSize,
+                                height: logoSize,
+                                fit: BoxFit.contain,
+                                errorBuilder: _emptyImageFallback,
+                              ),
                             ),
                           ),
                           const SizedBox(height: logoNameGap),
                           const SizedBox(
                             height: logoNameHeight,
-                            child: Text(
-                              'مَنارة',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                // Picked from the mark's own teal-green
-                                // gradient so it sits naturally on the
-                                // light blue/cream backdrop.
-                                color: Color(0xFF1B6C74),
-                                fontSize: 23,
-                                height: 1.15,
-                                fontWeight: FontWeight.w900,
-                                shadows: [
-                                  Shadow(color: Colors.white, blurRadius: 8),
-                                ],
+                            // Scales itself down rather than overflowing if
+                            // the window ever gets narrow.
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'منارة المعرفة التعليمية',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: _brandTeal,
+                                  fontSize: 21,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.w900,
+                                  shadows: [
+                                    Shadow(color: Colors.white, blurRadius: 8),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -295,6 +302,11 @@ class _LoginScreenState extends State<LoginScreen> {
 /// square source image's height. The PNG has roughly 20% transparent
 /// padding below the artwork, so anything anchored to `imageRect.bottom`
 /// lands far below the scene; these fractions anchor to the art itself.
+/// The brand teal both the logo mark and the app name are painted in — a
+/// deeper, fully saturated version of the mark's own gradient, so it holds
+/// up against the light blue/cream backdrop instead of washing into it.
+const Color _brandTeal = Color(0xFF0E5F6B);
+
 const double _frameTopFraction = 0.235;
 const double _artworkBottomFraction = 0.80;
 
