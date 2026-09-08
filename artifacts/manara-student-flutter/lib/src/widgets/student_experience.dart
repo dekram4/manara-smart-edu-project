@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
 import 'student_mascot.dart';
+import 'student_orientation_guard.dart';
 
 class StudentPageRoute<T> extends PageRouteBuilder<T> {
   StudentPageRoute({
@@ -15,7 +16,13 @@ class StudentPageRoute<T> extends PageRouteBuilder<T> {
           settings: settings,
           transitionDuration: const Duration(milliseconds: 320),
           reverseTransitionDuration: const Duration(milliseconds: 240),
-          pageBuilder: (context, animation, secondaryAnimation) => builder(context),
+          // Every screen in the app is pushed through this route, so
+          // wrapping here is what makes the orientation release universal:
+          // the cinema, the lesson player, the live meeting, the avatar
+          // creator's WebView and every other portal are covered without
+          // each screen having to remember to clean up after its embeds.
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              StudentOrientationGuard(child: builder(context)),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return child;
             final curve = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
