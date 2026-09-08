@@ -319,7 +319,7 @@ class _BoardLoginForm extends StatelessWidget {
                 shadows: [Shadow(color: Colors.black54, blurRadius: 5, offset: Offset(0, 2))],
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             _SolidField(
               controller: usernameController,
               hint: 'اسم المستخدم',
@@ -331,7 +331,7 @@ class _BoardLoginForm extends StatelessWidget {
               validator: (value) =>
                   value == null || value.trim().isEmpty ? 'اكتب اسم المستخدم' : null,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             _SolidField(
               controller: passwordController,
               hint: 'كلمة المرور',
