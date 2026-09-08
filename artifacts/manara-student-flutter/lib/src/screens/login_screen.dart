@@ -129,7 +129,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final areaSize = constraints.biggest;
-                final portrait = areaSize.height > areaSize.width;
 
                 // The board asset is a 3000x3000 square, but the drawing
                 // inside it is not: tracing its alpha shows the artwork
@@ -138,59 +137,69 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Sizing the *square* to 92% of the screen — which is what
                 // this did — therefore drew a board only 59% as tall as the
                 // screen, surrounded by the empty margins that were
-                // reported. Everything below sizes the artwork itself.
+                // reported. Everything below sizes the drawing itself.
                 final artW = _artRightF - _artLeftF; // 0.942
-                final artH = _artBottomF - _artTopF; // 0.639
 
-                final double boardSize;
-                if (portrait) {
-                  // Fill the width, but leave the vertical room the logo
-                  // above and the heroes below need.
+                // The composition is a single centred stack in every
+                // orientation: logo above the frame, board, heroes at the
+                // easel's foot. So the board is grown until that whole
+                // stack fills the screen — not until the board alone does.
+                //
+                // The stack runs from the top of the logo block down to the
+                // bottom of the drawing, which is
+                //   logoBlock + gap + (artBottom - frameTop) * boardSize
+                // and `frameTop` (0.235) is just below the drawing's own top
+                // (0.220), so that span is 0.624 of the square.
+                const stackSpan = _artBottomF - _frameTopFraction; // 0.624
+                const logoNameGap = 2.0;
+                const logoGap = 6.0;
+
+                // logoBlock depends on boardSize and boardSize depends on
+                // logoBlock, and both are clamped — so solve it by
+                // iterating a few times rather than algebraically, which
+                // the clamps would make wrong at the extremes.
+                double boardSize = math.min(
+                  areaSize.height * 0.97 / (stackSpan + 0.19),
+                  areaSize.width * 0.96 / artW,
+                );
+                double logoSize = 0;
+                double logoNameHeight = 0;
+                double logoBlockHeight = 0;
+                for (var pass = 0; pass < 3; pass++) {
+                  logoSize = (boardSize * 0.145).clamp(44.0, 130.0).toDouble();
+                  logoNameHeight =
+                      (boardSize * 0.045).clamp(14.0, 34.0).toDouble();
+                  logoBlockHeight = logoSize + logoNameGap + logoNameHeight;
                   boardSize = math.min(
-                    areaSize.width * 0.94 / artW,
-                    areaSize.height * 0.52 / artH,
-                  );
-                } else {
-                  // Fill the height, but keep side gutters wide enough to
-                  // hold the logo and the heroes — in landscape they move
-                  // out beside the board, which is what closes the wide
-                  // side gaps instead of just moving them.
-                  boardSize = math.min(
-                    areaSize.height * 0.92 / artH,
-                    areaSize.width * 0.72 / artW,
+                    (areaSize.height * 0.97 - logoBlockHeight - logoGap) /
+                        stackSpan,
+                    areaSize.width * 0.96 / artW,
                   );
                 }
+                boardSize = math.max(boardSize, 1.0);
 
                 final artworkWidth = boardSize * artW;
-                final artworkHeight = boardSize * artH;
-                // Centre the artwork — not the square, whose padding is
-                // lopsided (22% above the drawing, 14% below).
-                final artworkLeft = (areaSize.width - artworkWidth) / 2;
-                final artworkTop = (areaSize.height - artworkHeight) / 2;
+                // Centre the whole stack vertically, and the drawing
+                // horizontally — the square's own padding is lopsided
+                // (22% above the drawing, 14% below), so centring the
+                // square would not centre what the student sees.
+                final stackHeight =
+                    logoBlockHeight + logoGap + stackSpan * boardSize;
+                final stackTop = (areaSize.height - stackHeight) / 2;
                 final imageRect = Rect.fromLTWH(
-                  artworkLeft - _artLeftF * boardSize,
-                  artworkTop - _artTopF * boardSize,
+                  (areaSize.width - artworkWidth) / 2 - _artLeftF * boardSize,
+                  stackTop +
+                      logoBlockHeight +
+                      logoGap -
+                      _frameTopFraction * boardSize,
                   boardSize,
                   boardSize,
                 );
                 final boardRect = _boardRectFromImageRect(imageRect);
-                final gutter = artworkLeft;
 
-                final logoSize = (boardSize * 0.145).clamp(44.0, 130.0);
-                const logoNameGap = 2.0;
-                final logoNameHeight = (boardSize * 0.045).clamp(14.0, 34.0);
-                final logoBlockHeight = logoSize + logoNameGap + logoNameHeight;
-                // In landscape the heroes stand in the side gutter, so they
-                // are capped by it as well as by the board.
-                final mascotSize = portrait
-                    ? (boardSize * 0.212).clamp(60.0, 200.0).toDouble()
-                    : math.min(
-                        (boardSize * 0.212).clamp(60.0, 200.0).toDouble(),
-                        math.max(60.0, gutter - 18),
-                      );
-                final brandWidth = portrait
-                    ? math.min(areaSize.width * 0.7, 360.0)
-                    : math.max(120.0, gutter - 16);
+                final mascotSize =
+                    (boardSize * 0.212).clamp(60.0, 200.0).toDouble();
+                final brandWidth = math.min(areaSize.width * 0.92, 380.0);
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -209,23 +218,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     // name beneath it in the same colour. The pair rests
                     // on top of the board's wooden frame, lifted by a soft
                     // white glow.
-                    // Portrait keeps the mark above the frame, where there
-                    // is vertical room. Landscape moves it into the left
-                    // gutter: with the board now filling the height there
-                    // is no band above it, and the gutter is the space
-                    // that was empty.
+                    // Centred directly above the board's top frame, in
+                    // every orientation. The vertical budget above already
+                    // reserved this block's height, so it always has its
+                    // band and never needs to be moved aside.
                     Positioned(
-                      left: portrait
-                          ? imageRect.center.dx - brandWidth / 2
-                          : 8,
+                      left: imageRect.center.dx - brandWidth / 2,
                       width: brandWidth,
-                      top: portrait
-                          ? (imageRect.top +
-                                  _frameTopFraction * imageRect.height -
-                                  logoBlockHeight -
-                                  6)
-                              .clamp(0.0, double.infinity)
-                          : 14,
+                      top: imageRect.top +
+                          _frameTopFraction * imageRect.height -
+                          logoBlockHeight -
+                          logoGap,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -340,22 +343,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     // bottom edge — that edge is ~20% transparent padding,
                     // which is what pushed them far down the screen.
                     Positioned(
-                      // Portrait: nudged left of the image's centre so the
-                      // pair reads as centred under the *board* itself,
-                      // whose drawn mass leans left of the square PNG's
-                      // midpoint. Landscape: the right gutter, resting on
-                      // the same line the easel's feet sit on.
-                      left: portrait
-                          ? imageRect.center.dx -
-                              mascotSize / 2 -
-                              imageRect.width * _mascotLeftNudgeFraction
-                          : areaSize.width - mascotSize - 10,
-                      top: portrait
-                          ? imageRect.top +
-                              _artworkBottomFraction * imageRect.height -
-                              mascotSize
-                          : (artworkTop + artworkHeight - mascotSize)
-                              .clamp(0.0, math.max(0.0, areaSize.height - mascotSize)),
+                      // Centred under the easel in every orientation,
+                      // nudged left of the image's centre so the pair reads
+                      // as centred under the *board* itself — the drawn
+                      // board leans left of the square PNG's midpoint.
+                      left: imageRect.center.dx -
+                          mascotSize / 2 -
+                          imageRect.width * _mascotLeftNudgeFraction,
+                      top: imageRect.top +
+                          _artworkBottomFraction * imageRect.height -
+                          mascotSize,
                       child: StudentInteractiveMascot(size: mascotSize),
                     ),
                     Positioned(
