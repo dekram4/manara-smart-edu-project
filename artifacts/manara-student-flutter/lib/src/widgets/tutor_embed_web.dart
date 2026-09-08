@@ -26,7 +26,6 @@ class _TutorEmbedState extends State<TutorEmbed> {
   html.ButtonElement? _retryButton;
   Timer? _timeout;
   var _loading = true;
-  String? _error;
 
   @override
   void initState() {
@@ -81,7 +80,6 @@ class _TutorEmbedState extends State<TutorEmbed> {
         if (mounted) {
           setState(() {
             _loading = false;
-            _error = null;
           });
         }
       });
@@ -92,7 +90,6 @@ class _TutorEmbedState extends State<TutorEmbed> {
         if (mounted) {
           setState(() {
             _loading = false;
-            _error = message;
           });
         }
       });
@@ -199,7 +196,6 @@ class _TutorEmbedState extends State<TutorEmbed> {
         _updateDomState(loading: false, error: message);
         setState(() {
           _loading = false;
-          _error = message;
         });
       }
     });
@@ -210,7 +206,6 @@ class _TutorEmbedState extends State<TutorEmbed> {
     if (uri == null) return;
     setState(() {
       _loading = true;
-      _error = null;
     });
     _updateDomState(loading: true);
     _startTimeout();

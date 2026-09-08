@@ -532,40 +532,54 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final areaSize = constraints.biggest;
-                final imageRect = _containRect(areaSize, _booksAspect);
-                // Whatever margin the (wide) illustration leaves at the
-                // sides is where the guide stands — she never covers the
-                // books or their controls.
-                final sideMargin = (areaSize.width - imageRect.width) / 2;
-                // Both side characters are capped by the gutter they stand
-                // in, so neither can ever be laid out wider than its own
-                // slot — the guide is simply hidden below the width that
-                // would shrink her under the 180px she is meant to have.
-                final mascotHeight =
-                    math.min(200.0, sideMargin - 16).toDouble();
-                final showMascot = _ready && mascotHeight >= 180;
-                final pencilWidth =
-                    math.min(210.0, sideMargin - 20).toDouble();
-                // The reading pair balances the right gutter against the
-                // guide on the left, and is only drawn if it fits under the
-                // HUD row without reaching the floating pencil below it.
-                // The two top blocks are anchored to the illustration's own
-                // silhouette rather than to the screen edge. The books do
-                // not fill their canvas: above y=0.13 the artwork stops at
-                // x=0.70 on the right and starts at x=0.22 on the left, and
-                // that empty wedge is where these blocks belong. The
-                // fractions below are the tightest the traced silhouette
-                // allows over each block's own vertical span.
-                final readersLeft = imageRect.left + imageRect.width * 0.82;
-                final readersSize =
-                    math.min(188.0, areaSize.width - readersLeft - 10)
-                        .toDouble();
-                final showReaders = readersSize >= 120;
-                final brandRight = imageRect.left + imageRect.width * 0.158;
-                final brandWidth = math.min(190.0, brandRight - 6).toDouble();
-                final logoHeight =
-                    math.min(120.0, brandWidth * 0.92).toDouble();
-                final showBrand = brandWidth >= 90;
+                // The side art is sized from the screen, not from whatever
+                // margin the illustration happens to leave over. On a
+                // 16:9 desktop window the books are much narrower than the
+                // screen so there was margin to spare, but a 4:3 tablet in
+                // landscape leaves almost none — which is why the guide and
+                // the pencil vanished there. So the reserve is decided
+                // first and the illustration is laid out inside what is
+                // left, which means the characters always have their place
+                // and simply scale down instead of disappearing.
+                final portrait = areaSize.height > areaSize.width;
+                // The four characters are sized off the screen's shorter
+                // edge, so they stay in proportion whichever way the device
+                // is held, and they are never hidden — only scaled.
+                final artSize = (math.min(areaSize.width, areaSize.height) *
+                        (portrait ? 0.24 : 0.30))
+                    .clamp(56.0, 200.0)
+                    .toDouble();
+                final mascotHeight = artSize;
+                final pencilWidth = artSize;
+                final readersSize = artSize * 0.91;
+
+                // Landscape keeps the characters in side gutters; portrait
+                // moves them into bands above and below the books, which is
+                // the rearrangement that keeps a tall screen balanced
+                // instead of squeezing the illustration to a sliver. The
+                // 20px of slack absorbs the pencil's rotation, which paints
+                // a little outside its own box, and the extra 46 on a
+                // portrait top band clears the HUD row.
+                final sideReserve = portrait ? 0.0 : artSize + 20;
+                final topReserve = portrait ? artSize + 46 : 0.0;
+                // The guide is 1.15x her own width tall and carries a
+                // speech bubble above her head, so the bottom band has to
+                // allow for both — sizing it to her height alone would let
+                // the bubble ride up over the lowest books.
+                final bottomReserve = portrait ? artSize * 1.15 + 92 : 0.0;
+                final content = Size(
+                  math.max(0.0, areaSize.width - sideReserve * 2),
+                  math.max(0.0, areaSize.height - topReserve - bottomReserve),
+                );
+                final imageRect = _containRect(content, _booksAspect)
+                    .translate(sideReserve, topReserve);
+
+                // The brand block owns the top-left corner in both
+                // orientations, sized to the band it sits in.
+                final brandWidth = portrait
+                    ? math.min(areaSize.width * 0.42, 190.0)
+                    : sideReserve - 24;
+                final logoHeight = (artSize * 0.72).clamp(44.0, 120.0).toDouble();
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -584,46 +598,44 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         rect: imageRect,
                         child: Center(child: _buildLoadingOrError()),
                       ),
-                    if (showMascot)
-                      Positioned(
-                        left: 6,
-                        bottom: 6,
-                        width: sideMargin - 12,
-                        child: _MascotGuide(height: mascotHeight),
+                    // The guide, the pencil and the reading pair are never
+                    // gated on anything: they own reserved space in both
+                    // orientations, so they are always drawn and only ever
+                    // change size.
+                    Positioned(
+                      left: 10,
+                      bottom: 6,
+                      width: mascotHeight,
+                      child: _MascotGuide(height: mascotHeight),
+                    ),
+                    Positioned(
+                      right: 10,
+                      bottom: 4,
+                      child: _FloatingArt(
+                        asset: 'assets/images/winter_fun.png',
+                        size: pencilWidth,
+                        baseAngle: -0.14,
+                        bob: 9,
+                        sway: 0.045,
                       ),
-                    if (pencilWidth >= 140)
-                      Positioned(
-                        right: 8,
-                        bottom: 4,
-                        child: _FloatingArt(
-                          asset: 'assets/images/winter_fun.png',
-                          size: pencilWidth,
-                          baseAngle: -0.14,
-                          bob: 9,
-                          sway: 0.045,
-                        ),
+                    ),
+                    // Top-right in both orientations, below the HUD row.
+                    Positioned(
+                      right: 10,
+                      top: 48,
+                      child: _FloatingArt(
+                        asset: 'assets/images/student_mascot.png',
+                        size: readersSize,
+                        bob: 8,
+                        period: const Duration(milliseconds: 2900),
                       ),
-                    if (showReaders)
-                      // Tucked into the empty wedge right of the teal book,
-                      // so the pair floats alongside the first and second
-                      // books instead of sitting off in the gutter.
-                      Positioned(
-                        left: readersLeft,
-                        top: imageRect.top + imageRect.height * 0.015,
-                        child: _FloatingArt(
-                          asset: 'assets/images/student_mascot.png',
-                          size: readersSize,
-                          bob: 8,
-                          period: const Duration(milliseconds: 2900),
-                        ),
-                      ),
-                    if (showBrand)
-                      Positioned(
-                        top: imageRect.top + 24,
-                        left: brandRight - brandWidth,
-                        width: brandWidth,
-                        child: _BrandMark(logoHeight: logoHeight),
-                      ),
+                    ),
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      width: brandWidth,
+                      child: _BrandMark(logoHeight: logoHeight),
+                    ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -850,7 +862,22 @@ class _BookDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = options.isNotEmpty;
     final dark = Color.lerp(color, Colors.black, 0.34)!;
-    return PopupMenuButton<String>(
+    return LayoutBuilder(
+      builder: (context, box) {
+        // On a small screen a book's page — and therefore this control —
+        // can get very narrow. The icon badge and the chevron are fixed
+        // width, so they are dropped in that order once they no longer fit
+        // alongside the value: the label text always wins the space. This
+        // is what the runtime caught as a RIGHT OVERFLOWED error on a
+        // narrow window, and dropping ornaments keeps the control legible
+        // instead of hiding it.
+        final showIcon = box.maxWidth >= 128;
+        final showChevron = box.maxWidth >= 78;
+        final pad = box.maxWidth >= 110 ? 9.0 : 5.0;
+        final iconSize = (box.maxHeight * 0.34).clamp(11.0, 17.0).toDouble();
+        final chevronSize =
+            (box.maxHeight * 0.42).clamp(13.0, 20.0).toDouble();
+        return PopupMenuButton<String>(
           enabled: enabled,
           // The label is already printed on the control, so a hover
           // tooltip would just repeat it over the artwork.
@@ -888,7 +915,7 @@ class _BookDropdown extends StatelessWidget {
               ),
           ],
           child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9),
+              padding: EdgeInsets.symmetric(horizontal: pad),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(11),
                 // Slightly translucent white so the page lines still read
@@ -900,15 +927,17 @@ class _BookDropdown extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.16),
-                      borderRadius: BorderRadius.circular(9),
+                  if (showIcon) ...[
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(icon, color: dark, size: iconSize),
                     ),
-                    child: Icon(icon, color: dark, size: 16),
-                  ),
-                  const SizedBox(width: 7),
+                    const SizedBox(width: 7),
+                  ],
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -946,10 +975,14 @@ class _BookDropdown extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.expand_more_rounded, color: dark, size: 20),
+                  if (showChevron)
+                    Icon(Icons.expand_more_rounded,
+                        color: dark, size: chevronSize),
                 ],
               ),
             ),
+        );
+      },
     );
   }
 }

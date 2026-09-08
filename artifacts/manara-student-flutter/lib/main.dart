@@ -13,14 +13,10 @@ import 'src/theme/student_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // The whole app is designed for landscape (the academic path carousel,
-  // the game-style HUDs) — lock orientation on every device (phones,
-  // tablets, and desktop platforms that respect it) so the student is
-  // never dropped into a portrait layout mid-lesson.
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  // Orientation is deliberately NOT locked. Every screen lays itself out
+  // from its own constraints and rearranges between landscape and portrait,
+  // so a student on a phone or an iPad can hold the device either way.
+  await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
 
   // 1. التقاط أخطاء الـ UI والـ Flutter Framework
   FlutterError.onError = (FlutterErrorDetails details) {

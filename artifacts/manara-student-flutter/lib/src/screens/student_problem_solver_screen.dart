@@ -183,7 +183,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              reward!.alreadyRewarded
+              reward.alreadyRewarded
                   ? 'تم حفظ الإجابة؛ لا توجد مكافأة إضافية لهذا السؤال.'
                   : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة',
             ),

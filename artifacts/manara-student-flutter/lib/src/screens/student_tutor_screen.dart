@@ -342,15 +342,11 @@ class _TutorStateCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
-    this.actionLabel,
-    this.onAction,
   });
 
   final IconData icon;
   final String title;
   final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -381,19 +377,6 @@ class _TutorStateCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            if (onAction != null) ...[
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: onAction,
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(actionLabel ?? 'إعادة المحاولة'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFC4B5FD),
-                  foregroundColor: const Color(0xFF1D1035),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-            ],
           ],
         ),
       ),

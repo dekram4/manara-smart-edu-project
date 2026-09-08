@@ -68,14 +68,14 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         widget.contentService.fetchQuizResults(widget.profile),
       ]);
       if (!mounted) return;
-      var quizzes = values[0] as List<Map<String, dynamic>>;
+      var quizzes = values[0];
       if (!quizzes.any((quiz) => !StudentAssessmentRules.isTeacherQuiz(quiz))) {
         final fallback = _periodicFallbackQuiz();
         if (fallback != null) quizzes = [...quizzes, fallback];
       }
       setState(() {
         _quizzes = quizzes;
-        _results = values[1] as List<Map<String, dynamic>>;
+        _results = values[1];
         _loading = false;
       });
     } catch (error) {

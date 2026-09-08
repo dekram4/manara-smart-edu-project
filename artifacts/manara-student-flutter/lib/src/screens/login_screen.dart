@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -107,6 +106,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFEFF3F6),
+      // The scene is sized to the window, so letting the soft keyboard
+      // shrink that window would shrink the board with it. Overlaying the
+      // keyboard instead keeps the board steady on phones and tablets.
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           const Positioned.fill(
@@ -133,16 +136,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: boardSize,
                 );
                 final boardRect = _boardRectFromImageRect(imageRect);
-                const logoSize = 95.0;
+                // Everything around the board is a percentage of the board
+                // itself, capped at the sizes a desktop window already
+                // used. On a large screen these clamp to exactly the old
+                // 95 / 30 / 140, so the desktop layout is unchanged; on a
+                // phone in landscape they shrink with the board instead of
+                // spilling over it.
+                final logoSize = (boardSize * 0.145).clamp(44.0, 95.0);
                 const logoNameGap = 2.0;
-                const logoNameHeight = 30.0;
-                const logoBlockHeight = logoSize + logoNameGap + logoNameHeight;
-                const mascotSize = 140.0;
-                // 280px is the *target* block width, but never wider than
-                // the green area actually is at this window size — that
-                // absolute-cap-only mistake is exactly what let the block
-                // spill past the wooden frame on a smaller window.
-                final formWidth = math.min(280.0, boardRect.width - 26);
+                final logoNameHeight = (boardSize * 0.045).clamp(14.0, 30.0);
+                final logoBlockHeight = logoSize + logoNameGap + logoNameHeight;
+                final mascotSize = (boardSize * 0.212).clamp(60.0, 140.0);
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -191,11 +195,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: logoNameGap),
-                          const SizedBox(
+                          SizedBox(
                             height: logoNameHeight,
                             // Scales itself down rather than overflowing if
                             // the window ever gets narrow.
-                            child: FittedBox(
+                            child: const FittedBox(
                               fit: BoxFit.scaleDown,
                               child: Text(
                                 'منارة المعرفة التعليمية',
@@ -220,13 +224,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     // formWidth above.
                     Positioned.fromRect(
                       rect: boardRect,
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: formWidth,
-                            maxHeight: boardRect.height - 18,
-                          ),
-                          child: _BoardLoginForm(
+                      child: Padding(
+                        // A margin proportional to the green area, so the
+                        // block keeps the same visual inset at any size.
+                        padding: EdgeInsets.symmetric(
+                          horizontal: boardRect.width * 0.05,
+                          vertical: boardRect.height * 0.06,
+                        ),
+                        // The block is authored once at its 280px design
+                        // size and then scaled to whatever the green area
+                        // actually is. That is what removes the scroll
+                        // view: the form can no longer be taller than its
+                        // box, so there is nothing left to scroll, and it
+                        // cannot overflow at any resolution either.
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: SizedBox(
+                            width: 280,
+                            child: _BoardLoginForm(
                             formKey: _formKey,
                             isConfigured: isConfigured,
                             initializationError: widget.initializationError,
@@ -252,6 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               setState(() => _hidePassword = !_hidePassword);
                             },
                             onSubmit: _submit,
+                            ),
                           ),
                         ),
                       ),
@@ -269,7 +285,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           mascotSize / 2 -
                           imageRect.width * _mascotLeftNudgeFraction,
                       top: imageRect.top + _artworkBottomFraction * imageRect.height - mascotSize,
-                      child: const StudentInteractiveMascot(size: mascotSize),
+                      child: StudentInteractiveMascot(size: mascotSize),
                     ),
                     Positioned(
                       top: 4,
@@ -375,8 +391,10 @@ class _BoardLoginForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Form(
+    // Deliberately not wrapped in a scroll view: the caller scales this
+    // block to fit its box, so a scroll view would only ever produce the
+    // stray vertical drag that showed up on tablets.
+    return Form(
         key: formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -492,7 +510,6 @@ class _BoardLoginForm extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

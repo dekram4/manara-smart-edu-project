@@ -393,6 +393,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       body: Stack(
         children: [
           _AnimatedManaraBackground(animation: _ambientController),
+          const _LighthouseWatermark(),
           StudentCelebration(controller: _rewardController),
           SafeArea(
             top: false,
@@ -401,7 +402,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 920),
                 child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
+                  // The dashboard is the one place a scroll is legitimate —
+                  // it genuinely has more content than any phone screen
+                  // holds. Clamping rather than bouncing so it does not
+                  // read as a stray drag on a screen that nearly fits.
+                  physics: const ClampingScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(
                     size.width >= 700 ? 18 : 0,
                     8,
@@ -921,6 +926,50 @@ class _SectionTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The Manara lighthouse sitting behind the whole dashboard as a faint
+/// watermark, under a warm light wash.
+///
+/// It is drawn at 18% over the existing ambient background rather than
+/// replacing it, and the wash is translucent for the same reason — the
+/// lesson content that lands on top has to stay perfectly readable. It is
+/// also `BoxFit.contain` and wrapped in [IgnorePointer], so it scales with
+/// the screen in either orientation and never intercepts a tap.
+class _LighthouseWatermark extends StatelessWidget {
+  const _LighthouseWatermark();
+
+  @override
+  Widget build(BuildContext context) {
+    return const IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x3DFFE9C9),
+                  Color(0x1FFFF6E8),
+                  Color(0x00FFFFFF),
+                ],
+              ),
+            ),
+          ),
+          Opacity(
+            opacity: 0.18,
+            child: Image(
+              image: AssetImage('assets/images/lighthouse_main_bg.png'),
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+            ),
+          ),
+        ],
       ),
     );
   }
