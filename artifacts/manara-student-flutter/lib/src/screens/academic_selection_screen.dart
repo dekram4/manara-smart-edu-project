@@ -1,6 +1,5 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -9,50 +8,73 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
-import '../widgets/manara_logo.dart';
-import '../widgets/space_game_theme.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
 import 'student_home_screen.dart';
 
-/// One selectable option in the current step of the academic path (a grade,
-/// a term, a subject, a chapter, a unit, or a lesson) — rendered as a
-/// floating rock-island station along the zig-zag mission path.
-typedef _StageOption = ({String id, String label});
+/// The books illustration's own aspect ratio (4095 x 3374), used to work
+/// out exactly where it renders under `BoxFit.contain` so every control can
+/// be pinned onto the right book at any window size.
+const double _booksAspect = 4095 / 3374;
 
-/// Theme color + Arabic label for each of the six steps in the academic
-/// path. Purely presentational — the underlying selection data always comes
-/// from [AcademicSelectionData] via the exact same getters the old dropdown
-/// UI used.
-const _stepAccents = <Color>[
-  Color(0xFF4F46E5), // grade
-  Color(0xFF0EA5E9), // atram/term
-  Color(0xFF0D9488), // subject
-  Color(0xFF8B5CF6), // chapter
-  Color(0xFFF59E0B), // unit
-  Color(0xFFE05A86), // lesson
-];
-const _stepLabels = <String>[
-  'اختر الصف الدراسي',
-  'اختر الفصل الدراسي / الترم',
-  'اختر المادة الدراسية',
-  'اختر الفصل أو الباب',
-  'اختر الوحدة التعليمية',
-  'اختر الدرس',
-];
+/// Where a control sits inside that illustration, as fractions of its
+/// width/height — measured off the asset. A control pinned with these
+/// lands on its book no matter how large the window is.
+class _BookSlot {
+  const _BookSlot({
+    required this.centerX,
+    required this.centerY,
+    required this.width,
+    required this.height,
+    required this.color,
+  });
 
-/// A distinctive icon per card, cycled by its index within the current
-/// step's option list so neighbouring cards always look different.
-const _stageIcons = <IconData>[
-  Icons.flag_rounded,
-  Icons.star_rounded,
-  Icons.auto_awesome_rounded,
-  Icons.emoji_events_rounded,
-  Icons.rocket_launch_rounded,
-  Icons.local_fire_department_rounded,
-  Icons.favorite_rounded,
-  Icons.bolt_rounded,
-];
+  final double centerX;
+  final double centerY;
+  final double width;
+  final double height;
+  final Color color;
+
+  Rect resolve(Rect imageRect) => Rect.fromCenter(
+    center: Offset(
+      imageRect.left + centerX * imageRect.width,
+      imageRect.top + centerY * imageRect.height,
+    ),
+    width: width * imageRect.width,
+    height: height * imageRect.height,
+  );
+}
+
+/// Top teal book, middle orange book, lower purple book, and the red/green
+/// pair at the base that carries the "start" button.
+const _gradeSlot = _BookSlot(
+  centerX: 0.445,
+  centerY: 0.105,
+  width: 0.35,
+  height: 0.105,
+  color: Color(0xFF2FA8BE),
+);
+const _termSlot = _BookSlot(
+  centerX: 0.505,
+  centerY: 0.265,
+  width: 0.40,
+  height: 0.105,
+  color: Color(0xFFE8930C),
+);
+const _subjectSlot = _BookSlot(
+  centerX: 0.520,
+  centerY: 0.430,
+  width: 0.43,
+  height: 0.105,
+  color: Color(0xFFA974BE),
+);
+const _startSlot = _BookSlot(
+  centerX: 0.515,
+  centerY: 0.645,
+  width: 0.44,
+  height: 0.12,
+  color: Color(0xFFC0392B),
+);
 
 class AcademicSelectionScreen extends StatefulWidget {
   const AcademicSelectionScreen({
@@ -82,18 +104,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   bool _loading = true;
   bool _isEntering = false;
   String? _loadError;
-
-  /// Which of the six steps (grade..lesson) the mission path is currently
-  /// showing. Jumping between steps (back, forward, or via a breadcrumb
-  /// chip) never clears the selections already made — same behavior the
-  /// old dropdowns had when you changed an earlier value.
-  int _stepIndex = 0;
   StudentGamification _gamification = const StudentGamification();
-
-  /// The current step's real options, rendered as stations along the
-  /// zig-zag path. Rebuilt fresh every time the step changes, via
-  /// [_refreshStageOptions].
-  List<_StageOption> _stageOptions = const [];
 
   bool get _ready => !_loading && _data != null && !_data!.isEmpty;
 
@@ -142,7 +153,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               'تعذر قراءة إعدادات الشجرة؛ تم عرض المسارات المكتملة من الدروس المتاحة فقط.';
         }
       });
-      if (_ready) _refreshStageOptions();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -290,40 +300,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _playSelectionFeedback();
   }
 
-  void _selectTerm(String? term) {
-    final data = _data;
-    if (data == null ||
-        _grade == null ||
-        _atram == null ||
-        _subject == null ||
-        term == null) {
-      return;
-    }
-    setState(() {
-      _term = term;
-      _unit = _pick(
-        data.unitsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-          term: term,
-        ),
-        null,
-      );
-      _lesson = _lessonsForSelection().firstOrNull;
-    });
-    _playSelectionFeedback();
-  }
-
-  void _selectUnit(String? unit) {
-    if (unit == null) return;
-    setState(() {
-      _unit = unit;
-      _lesson = _lessonsForSelection().firstOrNull;
-    });
-    _playSelectionFeedback();
-  }
-
   void _playSelectionFeedback() {
     StudentSoundService.instance.play(StudentSoundCue.answerSelected);
   }
@@ -367,120 +343,22 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
-  /// The value already picked for the current step, if any — so the
-  /// carousel can open on it and highlight its card (e.g. after going
-  /// back).
-  String? get _currentStepSelectedId => switch (_stepIndex) {
-    0 => _grade,
-    1 => _atram,
-    2 => _subject,
-    3 => _term,
-    4 => _unit,
-    _ => _lesson?.id,
-  };
+  /// The options behind each of the three books, read from exactly the same
+  /// [AcademicSelectionData] getters the original dropdown UI used — the
+  /// real hierarchy the teacher configured, each level filtered by what is
+  /// picked above it.
+  List<String> get _gradeOptions => _data?.grades ?? const [];
 
-  /// Drives the breadcrumb trail — but only for steps the student has
-  /// actually reached (`index <= _stepIndex`); later steps show as pending
-  /// ("…") even though [_applyInitialSelection] already picked smart
-  /// defaults for them internally (so "ادخل رحلتك!" can work immediately).
-  /// The breadcrumb must read as the student's real progress, not a form
-  /// pre-filled ahead of anything they chose.
-  List<String?> get _breadcrumbValues {
-    final actual = [_grade, _atram, _subject, _term, _unit, _lesson?.lessonName];
-    return [for (var i = 0; i < actual.length; i++) i <= _stepIndex ? actual[i] : null];
-  }
-
-  /// The options to show for the current [_stepIndex], read from exactly
-  /// the same [AcademicSelectionData] getters the dropdown UI used — the
-  /// real academic hierarchy (grade -> atram -> subject -> term -> unit ->
-  /// lesson), never a flat/blind list.
-  List<_StageOption> _currentStageOptions() {
+  List<String> get _atramOptions {
     final data = _data;
-    if (data == null) return const [];
-    switch (_stepIndex) {
-      case 0:
-        return data.grades.map((value) => (id: value, label: value)).toList();
-      case 1:
-        final options = _grade == null ? const <String>[] : data.atramsFor(_grade!);
-        return options.map((value) => (id: value, label: value)).toList();
-      case 2:
-        final options = _grade == null || _atram == null
-            ? const <String>[]
-            : data.subjectsFor(grade: _grade!, atram: _atram!);
-        return options.map((value) => (id: value, label: value)).toList();
-      case 3:
-        final options = _grade == null || _atram == null || _subject == null
-            ? const <String>[]
-            : data.termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
-        return options.map((value) => (id: value, label: value)).toList();
-      case 4:
-        final options =
-            _grade == null || _atram == null || _subject == null || _term == null
-                ? const <String>[]
-                : data.unitsFor(
-                    grade: _grade!,
-                    atram: _atram!,
-                    subject: _subject!,
-                    term: _term!,
-                  );
-        return options.map((value) => (id: value, label: value)).toList();
-      default:
-        return _lessonsForSelection()
-            .map(
-              (lesson) => (
-                id: lesson.id,
-                label: lesson.lessonName.isEmpty ? 'درس بدون عنوان' : lesson.lessonName,
-              ),
-            )
-            .toList();
-    }
+    if (data == null || _grade == null) return const [];
+    return data.atramsFor(_grade!);
   }
 
-  /// Rebuilds the current step's station list from exactly the same
-  /// [AcademicSelectionData] getters the dropdown UI used.
-  void _refreshStageOptions() {
-    setState(() => _stageOptions = _currentStageOptions());
-  }
-
-  /// Applies a chosen station to the real selection state via the exact
-  /// same `_select*` methods the dropdowns called — passing on exactly the
-  /// id the student picked, unchanged, so it reaches [StudentAuthService]
-  /// / [AcademicContext] downstream precisely as before — then advances to
-  /// the next step (unless this was the last one, the lesson pick).
-  void _commitStageOption(String optionId) {
-    switch (_stepIndex) {
-      case 0:
-        _selectGrade(optionId);
-      case 1:
-        _selectAtram(optionId);
-      case 2:
-        _selectSubject(optionId);
-      case 3:
-        _selectTerm(optionId);
-      case 4:
-        _selectUnit(optionId);
-      default:
-        final match = _lessonsForSelection().where((lesson) => lesson.id == optionId).firstOrNull;
-        if (match != null) {
-          setState(() => _lesson = match);
-          _playSelectionFeedback();
-        }
-    }
-    if (_stepIndex < 5) {
-      setState(() => _stepIndex++);
-    }
-    _refreshStageOptions();
-  }
-
-  /// Jumps the whole screen straight to [index] — used by the back chip and
-  /// by tapping a breadcrumb chip. Safe at any time: every step already
-  /// holds a valid (if default) selection right after the data loads, via
-  /// [_applyInitialSelection].
-  void _goToStep(int index) {
-    if (index == _stepIndex || index < 0 || index > 5) return;
-    StudentSoundService.instance.playTap();
-    setState(() => _stepIndex = index);
-    _refreshStageOptions();
+  List<String> get _subjectOptions {
+    final data = _data;
+    if (data == null || _grade == null || _atram == null) return const [];
+    return data.subjectsFor(grade: _grade!, atram: _atram!);
   }
 
   Future<void> _enterDashboard() async {
@@ -508,350 +386,344 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _stepAccents[_stepIndex];
     return Scaffold(
-      backgroundColor: const Color(0xFF1B0A33),
+      backgroundColor: const Color(0xFFEFF3F6),
       body: Stack(
         children: [
-          const Positioned.fill(child: SpaceGameBackdrop(rocks: false)),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-                  child: Row(
-                    children: [
-                      if (_ready && _stepIndex > 0)
-                        _HudChip(onTap: () => _goToStep(_stepIndex - 1), child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18))
-                      else
-                        const SizedBox(width: 40),
-                      const SizedBox(width: 8),
-                      if (_ready)
-                        Expanded(
-                          child: Text(
-                            _stepLabels[_stepIndex],
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              shadows: [Shadow(color: Color(0x66000000), blurRadius: 3, offset: Offset(0, 1))],
-                            ),
-                          ),
-                        )
-                      else
-                        const Expanded(
-                          child: Row(
-                            children: [
-                              ManaraLogo(size: 34),
-                              SizedBox(width: 8),
-                              Text(
-                                'مَنارة',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(width: 8),
-                      if (_ready)
-                        _HudChip(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.diamond_rounded, color: Color(0xFF5EEAD4), size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${_gamification.gems}',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(width: 8),
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Color(0x33FFFFFF),
-                          borderRadius: BorderRadius.all(Radius.circular(16)),
-                        ),
-                        child: StudentSoundToggle(),
-                      ),
-                    ],
-                  ),
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFE3EEF7), Color(0xFFF7F1E6), Color(0xFFE9F1F5)],
                 ),
-                if (_ready)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-                    child: _BreadcrumbTrail(
-                      values: _breadcrumbValues,
-                      current: _stepIndex,
-                      onSelect: _goToStep,
+              ),
+            ),
+          ),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final areaSize = constraints.biggest;
+                final imageRect = _containRect(areaSize, _booksAspect);
+                // Whatever margin the (wide) illustration leaves at the
+                // sides is where the guide stands — she never covers the
+                // books or their controls.
+                final sideMargin = (areaSize.width - imageRect.width) / 2;
+                final mascotHeight = sideMargin > 230 ? 220.0 : 190.0;
+
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fromRect(
+                      rect: imageRect,
+                      child: Image.asset(
+                        'assets/images/learning_path_bg.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                     ),
-                  ),
-                if (!_ready)
-                  Expanded(
-                    child: Center(
-                      child: _loading
-                          ? StudentEntrance(
-                              child: Column(
+                    if (_ready) ..._buildBookControls(imageRect),
+                    if (!_ready)
+                      Positioned.fromRect(
+                        rect: imageRect,
+                        child: Center(child: _buildLoadingOrError()),
+                      ),
+                    if (_ready && sideMargin > 150)
+                      Positioned(
+                        left: 6,
+                        bottom: 6,
+                        width: sideMargin - 12,
+                        child: _MascotGuide(height: mascotHeight),
+                      ),
+                    Positioned(
+                      top: 4,
+                      right: 8,
+                      child: Row(
+                        children: [
+                          if (_ready)
+                            _HudChip(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const StudentMascot(size: 110),
-                                  const SizedBox(height: 10),
+                                  const Icon(Icons.diamond_rounded,
+                                      color: Color(0xFF0EA5A5), size: 16),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'أهلًا ${widget.profile.name}',
-                                    textAlign: TextAlign.center,
+                                    '${_gamification.gems}',
                                     style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
+                                      color: Color(0xFF22303A),
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  const StudentRiveLoading(
-                                    size: 84,
-                                    label: 'جارٍ تحميل المسار الأكاديمي',
-                                  ),
                                 ],
                               ),
-                            )
-                          : Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: _InfoBanner(
-                                message: _loadError ?? 'لا توجد مسارات أكاديمية متاحة حاليًا.',
-                              ),
                             ),
-                    ),
-                  ),
-                if (_ready && _loadError != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: _InfoBanner(message: _loadError!),
-                  ),
-                if (_ready)
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 380),
-                      switchInCurve: Curves.easeOutBack,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: ScaleTransition(
-                          scale: Tween<double>(begin: 0.86, end: 1).animate(animation),
-                          child: child,
-                        ),
-                      ),
-                      child: _stageOptions.isEmpty
-                          ? const _EmptyStageMessage(key: ValueKey('empty'))
-                          : KeyedSubtree(
-                              key: ValueKey(_stepIndex),
-                              child: _ZigzagStationPath(
-                                options: _stageOptions,
-                                accent: accent,
-                                selectedId: _currentStepSelectedId,
-                                onSelect: _commitStageOption,
-                              ),
+                          const SizedBox(width: 8),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0x14000000),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                    ),
-                  ),
-                if (_ready && _selection != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: StudentPressScale(
-                      child: StudentEmbossedShell(
-                        color: const Color(0xFF16A085),
-                        borderRadius: 24,
-                        child: FilledButton.icon(
-                          onPressed: _isEntering ? null : _enterDashboard,
-                          icon: _isEntering
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Icon(Icons.celebration_rounded),
-                          label: Text(_isEntering ? 'نجهّز رحلتك...' : 'ادخل رحلتك!'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A085),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                            child: const StudentSoundToggle(),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                  ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
     );
   }
-}
 
-/// The interactive breadcrumb: one chip per step (الصف > الترم > المادة >
-/// الوحدة/الباب > الدرس), each showing the value already picked for it
-/// (every step already has one, even if only a default, as soon as the
-/// screen is ready). The current step's chip is enlarged and gold; tapping
-/// any chip jumps straight to that step. Horizontally scrollable so it
-/// never clips on a narrow tablet even with long Arabic labels.
-class _BreadcrumbTrail extends StatelessWidget {
-  const _BreadcrumbTrail({required this.values, required this.current, required this.onSelect});
-
-  final List<String?> values;
-  final int current;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: values.length,
-        separatorBuilder: (context, _) => const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(Icons.chevron_left_rounded, color: Colors.white54, size: 16),
+  Widget _buildLoadingOrError() {
+    if (_loading) {
+      return StudentEntrance(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const PathMascot(size: 120),
+            const SizedBox(height: 10),
+            Text(
+              'أهلًا ${widget.profile.name}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF22303A),
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const StudentRiveLoading(size: 84, label: 'جارٍ تحميل المسار الأكاديمي'),
+          ],
         ),
-        itemBuilder: (context, index) {
-          final value = values[index];
-          final label = (value == null || value.isEmpty) ? '…' : value;
-          return _BreadcrumbChip(
-            label: label,
-            active: index == current,
-            onTap: () => onSelect(index),
-          );
-        },
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: _InfoBanner(
+        message: _loadError ?? 'لا توجد مسارات أكاديمية متاحة حاليًا.',
       ),
     );
   }
-}
 
-class _BreadcrumbChip extends StatelessWidget {
-  const _BreadcrumbChip({required this.label, required this.active, required this.onTap});
+  /// The three book dropdowns plus the "start" button, each pinned onto its
+  /// own book via that book's measured slot.
+  List<Widget> _buildBookControls(Rect imageRect) {
+    final canStart = _selection != null;
 
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        constraints: const BoxConstraints(maxWidth: 130),
-        decoration: BoxDecoration(
-          color: active ? const Color(0xFFFFE08A) : Colors.white.withOpacity(0.14),
-          borderRadius: BorderRadius.circular(12),
-          border: active ? Border.all(color: Colors.white, width: 1.4) : null,
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: active ? const Color(0xFF1F2937) : Colors.white,
-            fontSize: 11.5,
-            fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The zig-zag mission path for the current step: its options laid out as
-/// floating rock islands connected by a glowing dashed line, with the path
-/// mascot (the girl cutout, [PathMascot]) standing on whichever station is
-/// currently selected and gliding smoothly to a new one as the student
-/// progresses. A single tap on any station selects it directly — there is
-/// no separate "go" button and nothing needs to be centered first.
-class _ZigzagStationPath extends StatelessWidget {
-  const _ZigzagStationPath({
-    required this.options,
-    required this.accent,
-    required this.selectedId,
-    required this.onSelect,
-  });
-
-  final List<_StageOption> options;
-  final Color accent;
-  final String? selectedId;
-  final ValueChanged<String> onSelect;
-
-  static const _stationSize = 88.0;
-  static const _stationSpacing = 180.0;
-  static const _horizontalMargin = 90.0;
-  static const _amplitude = 55.0;
-
-  List<Offset> _stationCenters(double height) {
-    final centerY = height / 2;
     return [
-      for (var i = 0; i < options.length; i++)
-        Offset(
-          _horizontalMargin + i * _stationSpacing,
-          centerY + (i.isEven ? -_amplitude : _amplitude),
+      Positioned.fromRect(
+        rect: _gradeSlot.resolve(imageRect),
+        child: _BookDropdown(
+          label: 'الصف الدراسي',
+          icon: Icons.school_rounded,
+          color: _gradeSlot.color,
+          value: _grade,
+          options: _gradeOptions,
+          onSelected: _selectGrade,
+        ),
+      ),
+      Positioned.fromRect(
+        rect: _termSlot.resolve(imageRect),
+        child: _BookDropdown(
+          label: 'الفصل الدراسي',
+          icon: Icons.calendar_month_rounded,
+          color: _termSlot.color,
+          value: _atram,
+          options: _atramOptions,
+          onSelected: _selectAtram,
+        ),
+      ),
+      Positioned.fromRect(
+        rect: _subjectSlot.resolve(imageRect),
+        child: _BookDropdown(
+          label: 'المادة التعليمية',
+          icon: Icons.menu_book_rounded,
+          color: _subjectSlot.color,
+          value: _subject,
+          options: _subjectOptions,
+          onSelected: _selectSubject,
+        ),
+      ),
+      Positioned.fromRect(
+        rect: _startSlot.resolve(imageRect),
+        child: _StartAdventureButton(
+          enabled: canStart && !_isEntering,
+          busy: _isEntering,
+          onPressed: _enterDashboard,
+        ),
+      ),
+      if (_loadError != null)
+        Positioned(
+          left: imageRect.left + imageRect.width * 0.12,
+          width: imageRect.width * 0.76,
+          bottom: 4,
+          child: _InfoBanner(message: _loadError!),
         ),
     ];
   }
+}
+
+/// The rect an image with [aspectRatio] (width / height) actually renders
+/// into under `BoxFit.contain` inside [container] — the anchor every book
+/// control is positioned from.
+Rect _containRect(Size container, double aspectRatio) {
+  final containerAspect = container.width / container.height;
+  double width;
+  double height;
+  if (containerAspect > aspectRatio) {
+    height = container.height;
+    width = height * aspectRatio;
+  } else {
+    width = container.width;
+    height = width / aspectRatio;
+  }
+  return Rect.fromLTWH(
+    (container.width - width) / 2,
+    (container.height - height) / 2,
+    width,
+    height,
+  );
+}
+
+/// A raised, glassy dropdown that sits on a book: the book's own colour,
+/// slightly translucent so the illustration still reads through it, a
+/// chunky 3D edge, and a real popup menu of the options the teacher
+/// configured.
+class _BookDropdown extends StatelessWidget {
+  const _BookDropdown({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.options,
+    required this.onSelected,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = options.isNotEmpty;
+    final dark = Color.lerp(color, Colors.black, 0.34)!;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final height = constraints.maxHeight.isFinite ? constraints.maxHeight : 260.0;
-        final centers = _stationCenters(height);
-        final contentWidth = math.max(
-          constraints.maxWidth.isFinite ? constraints.maxWidth : 0.0,
-          options.isEmpty ? 0.0 : centers.last.dx + _horizontalMargin,
-        );
-        final selectedIndex = options.indexWhere((option) => option.id == selectedId);
-        final mascotCenter = centers[selectedIndex >= 0 ? selectedIndex : 0];
-
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: contentWidth,
-            height: height,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(painter: ZigzagPathPainter(centers)),
-                ),
-                for (var i = 0; i < options.length; i++)
-                  Positioned(
-                    left: centers[i].dx - _stationSize / 2,
-                    top: centers[i].dy - _stationSize * 0.9,
-                    child: SpaceIslandStation(
-                      size: _stationSize,
-                      label: options[i].label,
-                      icon: _stageIcons[i % _stageIcons.length],
-                      selected: options[i].id == selectedId,
-                      phaseMs: i * 220,
-                      onTap: () => onSelect(options[i].id),
+        return PopupMenuButton<String>(
+          enabled: enabled,
+          // The label is already printed on the control, so a hover
+          // tooltip would just repeat it over the artwork.
+          tooltip: '',
+          offset: const Offset(0, 8),
+          constraints: const BoxConstraints(minWidth: 200, maxHeight: 320),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          onSelected: onSelected,
+          itemBuilder: (context) => [
+            for (final option in options)
+              PopupMenuItem<String>(
+                value: option,
+                child: Row(
+                  children: [
+                    Icon(
+                      option == value
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
+                      size: 18,
+                      color: option == value ? color : Colors.black26,
                     ),
-                  ),
-                // The heroine stands on the current station, gliding to a
-                // new one whenever the selection changes.
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 420),
-                  curve: Curves.easeOutCubic,
-                  left: mascotCenter.dx - 34,
-                  top: mascotCenter.dy - _stationSize * 1.55,
-                  child: const IgnorePointer(child: PathMascot(size: 76)),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        option,
+                        style: TextStyle(
+                          fontWeight:
+                              option == value ? FontWeight.w900 : FontWeight.w700,
+                          color: const Color(0xFF22303A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          child: Container(
+            // A darker copy of the book's colour peeking out below the
+            // face gives the control its chunky 3D edge.
+            padding: EdgeInsets.only(bottom: constraints.maxHeight * 0.13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              color: dark,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.28),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
                 ),
               ],
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: color.withOpacity(0.86),
+                border: Border.all(color: Colors.white.withOpacity(0.75), width: 1.6),
+              ),
+              child: Row(
+                children: [
+                  Icon(icon, color: Colors.white, size: 17),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              enabled ? (value ?? 'اختر') : 'غير متاح',
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                shadows: [
+                                  Shadow(color: Color(0x66000000), blurRadius: 3),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.expand_more_rounded, color: Colors.white, size: 20),
+                ],
+              ),
             ),
           ),
         );
@@ -860,39 +732,165 @@ class _ZigzagStationPath extends StatelessWidget {
   }
 }
 
-class _EmptyStageMessage extends StatelessWidget {
-  const _EmptyStageMessage({super.key});
+/// The chunky 3D "start the adventure" button on the lower books.
+class _StartAdventureButton extends StatelessWidget {
+  const _StartAdventureButton({
+    required this.enabled,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final bool busy;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: _InfoBanner(message: 'لا توجد خيارات متاحة لهذه الخطوة بعد.'),
+    final color = enabled ? const Color(0xFFFF9F1C) : const Color(0xFFB6BEC6);
+    return StudentPressScale(
+      child: StudentEmbossedShell(
+        color: color,
+        depth: 6,
+        borderRadius: 24,
+        // Expands so the button's face covers the whole shell — without
+        // this the button sizes to its label and leaves the darker 3D
+        // ledge showing beside it.
+        child: SizedBox.expand(
+          child: FilledButton.icon(
+            onPressed: enabled ? onPressed : null,
+            icon: busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                  )
+                : const Icon(Icons.rocket_launch_rounded),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(busy ? 'نجهّز رحلتك...' : 'ابدأ المغامرة!'),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: const Color(0xFFB6BEC6),
+              disabledForegroundColor: Colors.white70,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _HudChip extends StatelessWidget {
-  const _HudChip({required this.child, this.onTap});
+/// The girl guide standing beside the books with a speech bubble above her
+/// head, both drifting gently up and down together.
+class _MascotGuide extends StatelessWidget {
+  const _MascotGuide({required this.height});
 
-  final Widget child;
-  final VoidCallback? onTap;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    final chip = Container(
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _SpeechBubble(text: 'اختر صفك لنبدأ الرحلة يا بطل! ✨'),
+        const SizedBox(height: 2),
+        PathMascot(size: height / 1.15),
+      ],
+    );
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return content;
+    return content
+        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .moveY(begin: 0, end: -9, duration: 1800.ms, curve: Curves.easeInOut);
+  }
+}
+
+/// A soft cartoon speech bubble with a little tail pointing down at the
+/// guide's head.
+class _SpeechBubble extends StatelessWidget {
+  const _SpeechBubble({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFFFD9A0), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.14),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF22303A),
+              fontSize: 12.5,
+              height: 1.35,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        CustomPaint(size: const Size(18, 9), painter: _BubbleTailPainter()),
+      ],
+    );
+  }
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width * 0.42, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFFFFD9A0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _HudChip extends StatelessWidget {
+  const _HudChip({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xB3071425),
+        color: Colors.white.withOpacity(0.8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.25)),
+        border: Border.all(color: Colors.white),
       ),
       child: child,
     );
-    if (onTap == null) return chip;
-    return GestureDetector(onTap: onTap, child: chip);
   }
 }
 
