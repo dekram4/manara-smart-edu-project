@@ -7,6 +7,7 @@ import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
 class StudentQuizScreen extends StatefulWidget {
@@ -321,7 +322,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4F8FF),
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: Text(_activeQuiz == null ? 'مركز الاختبارات' : _text(_activeQuiz!['title'])),
           actions: [
@@ -340,6 +341,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         ),
         body: Stack(
           children: [
+            const PortalWatermark(asset: PortalBackgrounds.quiz),
             _buildBody(),
             StudentCelebration(controller: _celebrationController),
           ],

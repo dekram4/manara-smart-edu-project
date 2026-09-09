@@ -11,6 +11,7 @@ import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
 class StudentProblemSolverScreen extends StatefulWidget {
@@ -207,9 +208,12 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4F8FF),
+        backgroundColor: Colors.transparent,
         appBar: AppBar(title: const Text('حلّ المسائل'), centerTitle: true, actions: const [StudentSoundToggle()]),
-        body: supported.isEmpty
+        body: Stack(
+          children: [
+            const PortalWatermark(asset: PortalBackgrounds.problemSolver),
+            supported.isEmpty
             ? const StudentEntrance(child: _SolverEmptyState())
             : ListView(
                 padding: const EdgeInsets.all(18),
@@ -275,6 +279,8 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   ],
                 ],
               ),
+          ],
+        ),
       ),
     );
   }

@@ -39,10 +39,14 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   /// bounce does, not before, so the greeting lands with the movement.
   static const _entrance = Duration(milliseconds: 900);
 
-  /// Backstop if the audio never reports completion — a missing asset, a
-  /// muted device or a platform that swallows the event must not strand
-  /// the student on the splash.
-  static const _maxDwell = Duration(seconds: 9);
+  /// The greeting lasts exactly this long unless the student skips it.
+  ///
+  /// It is a fixed timer rather than "however long the voice runs" on
+  /// purpose: the audio finishing is not a reliable signal (a missing
+  /// asset, a muted device, or a platform that never reports completion
+  /// would leave a child sitting on the splash), and a predictable five
+  /// seconds is what the app should cost on every launch.
+  static const _dwell = Duration(seconds: 5);
 
   // Created only when the voice is actually played. Constructing an
   // AudioPlayer talks to the platform, so building it eagerly would make
@@ -60,7 +64,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
     super.initState();
     _resolveDestination();
     _voiceTimer = Timer(_entrance, _playWelcomeVoice);
-    _dwellTimer = Timer(_maxDwell, _leave);
+    _dwellTimer = Timer(_dwell, _leave);
   }
 
   @override
@@ -78,7 +82,6 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   Future<void> _playWelcomeVoice() async {
     try {
       final player = _player ??= AudioPlayer();
-      _completionSub = player.onPlayerComplete.listen((_) => _leave());
       await player.setReleaseMode(ReleaseMode.stop);
       await player.play(AssetSource('audio/welcome.mp3'), volume: 0.85);
     } catch (_) {

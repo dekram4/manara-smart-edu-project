@@ -5,6 +5,7 @@ import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
 
@@ -207,13 +208,16 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4F8FF),
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('شخصيتي'),
           centerTitle: true,
           actions: const [StudentSoundToggle()],
         ),
-        body: ListView(
+        body: Stack(
+          children: [
+            const PortalWatermark(asset: PortalBackgrounds.personality),
+            ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
             const StudentScreenHero(
@@ -417,6 +421,8 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 ),
               ),
             ],
+          ],
+            ),
           ],
         ),
       ),
@@ -825,7 +831,7 @@ class _ReadyPlayerMeCreatorScreenState
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      backgroundColor: const Color(0xFF071425),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('مصمم شخصيتي'),
         backgroundColor: const Color(0xFF071425),

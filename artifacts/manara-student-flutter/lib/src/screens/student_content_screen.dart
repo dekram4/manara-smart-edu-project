@@ -10,6 +10,8 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
+import '../widgets/video_thumbnail_card.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 import '../widgets/student_web_embed.dart';
@@ -139,7 +141,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F8F9),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(_moduleTitle(_activeModule)),
         actions: const [StudentSoundToggle()],
@@ -151,6 +153,13 @@ class _StudentContentScreenState extends State<StudentContentScreen>
       ),
       body: Stack(
         children: [
+          // The lesson and the games share this screen, so the background
+          // follows whichever module is actually open.
+          PortalWatermark(
+            asset: _activeModule == StudentContentModule.games
+                ? PortalBackgrounds.games
+                : PortalBackgrounds.lesson,
+          ),
           SafeArea(
             child: Column(
               children: [
@@ -996,8 +1005,13 @@ class _VideoCarouselState extends State<_VideoCarousel> {
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Column(
       children: [
+        // Sized for a 16:9 cover plus its two lines of text, and derived
+        // from the page's own width so the card keeps that shape on a
+        // phone and on a tablet instead of being cropped or padded.
         SizedBox(
-          height: 285,
+          height: (MediaQuery.sizeOf(context).width * 0.86 * 9 / 16 + 62)
+              .clamp(150.0, 320.0)
+              .toDouble(),
           child: ScrollConfiguration(
             behavior: ScrollConfiguration.of(context).copyWith(
               dragDevices: {
@@ -1106,115 +1120,21 @@ class _VideoCard extends StatelessWidget {
     return StudentVideoHoverPreview(
       video: video,
       apiBaseUrl: apiBaseUrl,
-      borderRadius: const BorderRadius.all(Radius.circular(28)),
+      borderRadius: const BorderRadius.all(Radius.circular(16)),
       child: StudentPressScale(
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(28),
-            child: Ink(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0B8693), Color(0xFF274E76)],
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x450B8693),
-                    blurRadius: 20,
-                    offset: Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: dynamicPaddingAlignment(context),
-                    children: [
-                      Icon(
-                        completed
-                            ? Icons.verified_rounded
-                            : Icons.play_circle_fill_rounded,
-                        color: const Color(0xFFBFFBFA),
-                        size: 38,
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withAlpha(38),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          video.sourceType == VideoSourceType.mp4
-                              ? 'MP4 / AI'
-                              : 'يوتيوب',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 23,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    video.description ?? 'اضغط للمشاهدة الفورية داخل التطبيق',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFFBFFBFA),
-                      height: 1.4,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: completed ? null : onPressed,
-                    icon: Icon(
-                      completed
-                          ? Icons.verified_rounded
-                          : Icons.play_arrow_rounded,
-                    ),
-                    label: Text(completed ? 'تم إتمام الفيديو' : 'شاهد الآن'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF0B8693),
-                      disabledBackgroundColor: Colors.grey.shade500,
-                      disabledForegroundColor: Colors.white,
-                      textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        child: VideoThumbnailCard(
+          video: video,
+          onTap: onPressed,
+          // A finished lesson video shows a full bar, the way a watched
+          // clip does, instead of a separate "completed" chip.
+          progress: completed ? 1 : null,
+          subtitle: completed
+              ? 'تمت المشاهدة ✓'
+              : video.description ?? 'اضغط للمشاهدة',
         ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);
   }
-
-  MainAxisAlignment dynamicPaddingAlignment(BuildContext context) =>
-      MainAxisAlignment.spaceBetween;
 }
 
 class _LessonPlayerScreen extends StatefulWidget {

@@ -7,6 +7,8 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
+import '../widgets/video_thumbnail_card.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 
@@ -32,10 +34,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   static const _gemsPerVideo = 5;
 
   late final StudentContentService _contentService;
-  final _pageController = PageController(viewportFraction: 0.9);
   List<LessonVideo> _videos = const [];
   StudentGamification _gamification = const StudentGamification();
-  int _activeIndex = 0;
   bool _loading = true;
   String? _error;
 
@@ -53,7 +53,6 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
 
   @override
   void dispose() {
-    _pageController.dispose();
     super.dispose();
   }
 
@@ -74,7 +73,6 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       setState(() {
         _videos = values[0] as List<LessonVideo>;
         _gamification = values[1] as StudentGamification;
-        _activeIndex = 0;
         _loading = false;
       });
     } catch (error) {
@@ -109,14 +107,19 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF071425),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF071425),
         foregroundColor: Colors.white,
         title: const Text('سينما منارة'),
         actions: const [StudentSoundToggle()],
       ),
-      body: _buildBody(),
+      body: Stack(
+        children: [
+          const PortalWatermark(asset: PortalBackgrounds.cinema, dark: true),
+          _buildBody(),
+        ],
+      ),
     );
   }
 
@@ -143,10 +146,6 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       );
     }
 
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final activeIndex = _activeIndex.clamp(0, _videos.length - 1).toInt();
-    final activeVideo = _videos[activeIndex];
     return StudentEntrance(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
@@ -185,57 +184,29 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          SizedBox(
-            height: 310,
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _videos.length,
-              onPageChanged: (index) {
-                if (index < _videos.length) {
-                  setState(() => _activeIndex = index);
-                }
-              },
-              itemBuilder: (context, index) {
-                final video = _videos[index];
-                final locked = index >= _unlockedVideoCount;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: _CinemaVideoCard(
-                    video: video,
-                    apiBaseUrl: widget.apiBaseUrl,
-                    locked: locked,
-                    onPressed: () => _openVideo(video, index),
-                  ),
-                );
-              },
+          // A grid of covers, the way a video library reads — one column on
+          // a phone, more as the screen widens, so it adapts to tablets and
+          // to either orientation without a breakpoint list.
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _videos.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 330,
+              mainAxisSpacing: 18,
+              crossAxisSpacing: 14,
+              // Cover (16:9) plus the two lines of text under it.
+              childAspectRatio: 1.30,
             ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              _videos.length,
-              (index) => AnimatedContainer(
-                duration: reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 220),
-                width: index == _activeIndex ? 28 : 8,
-                height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: index == _activeIndex
-                      ? const Color(0xFF5EEAD4)
-                      : const Color(0xFF49617C),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          _CinemaDetails(
-            video: activeVideo,
-            locked: activeIndex >= _unlockedVideoCount,
-            onPressed: () => _openVideo(activeVideo, activeIndex),
+            itemBuilder: (context, index) {
+              final video = _videos[index];
+              return _CinemaVideoCard(
+                video: video,
+                apiBaseUrl: widget.apiBaseUrl,
+                locked: index >= _unlockedVideoCount,
+                onPressed: () => _openVideo(video, index),
+              );
+            },
           ),
         ],
       ),
@@ -262,166 +233,22 @@ class _CinemaVideoCard extends StatelessWidget {
       video: video,
       apiBaseUrl: apiBaseUrl,
       enabled: !locked,
-      borderRadius: const BorderRadius.all(Radius.circular(26)),
+      borderRadius: const BorderRadius.all(Radius.circular(16)),
       child: StudentPressScale(
-        child: Material(
-          color: const Color(0xFF132337),
-          borderRadius: BorderRadius.circular(26),
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(26),
-            child: Padding(
-              padding: const EdgeInsets.all(22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Icon(
-                        Icons.movie_filter_rounded,
-                        color: Color(0xFF5EEAD4),
-                        size: 46,
-                      ),
-                      locked
-                          ? const Icon(
-                              Icons.lock_rounded,
-                              color: Color(0xFFFFD166),
-                              size: 32,
-                            )
-                          : _VideoTypeBadge(sourceType: video.sourceType),
-                    ],
-                  ),
-                  const Spacer(),
-                  Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 23,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    locked
-                        ? 'تحتاج 5 جواهر لكل فيديو جديد لفتحه.'
-                        : video.description ?? 'اضغط للمشاهدة داخل التطبيق',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      color: Color(0xFFB3C8DE),
-                      height: 1.4,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: onPressed,
-                    icon: Icon(
-                      locked ? Icons.lock_rounded : Icons.play_arrow_rounded,
-                    ),
-                    label: Text(locked ? 'مقفول — تحتاج 5 جواهر' : 'شاهد الآن'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: locked
-                          ? const Color(0xFF4B5563)
-                          : const Color(0xFF5EEAD4),
-                      foregroundColor: locked
-                          ? Colors.white
-                          : const Color(0xFF071425),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        child: VideoThumbnailCard(
+          video: video,
+          dark: true,
+          locked: locked,
+          onTap: onPressed,
+          subtitle: locked
+              ? 'مقفول — تحتاج 5 جواهر لفتحه'
+              : video.description ?? 'اضغط للمشاهدة داخل التطبيق',
         ),
       ),
     );
   }
 }
 
-class _CinemaDetails extends StatelessWidget {
-  const _CinemaDetails({
-    required this.video,
-    required this.locked,
-    required this.onPressed,
-  });
-
-  final LessonVideo video;
-  final bool locked;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Student3DCard(
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF132337),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFF274E76)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                video.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            IconButton(
-              onPressed: onPressed,
-              tooltip: locked ? 'يتطلب 5 جواهر' : 'فتح المشغل',
-              icon: const Icon(
-                Icons.fullscreen_rounded,
-                color: Color(0xFF5EEAD4),
-                size: 30,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _VideoTypeBadge extends StatelessWidget {
-  const _VideoTypeBadge({required this.sourceType});
-
-  final VideoSourceType sourceType;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.black.withAlpha(55),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Text(
-        sourceType == VideoSourceType.mp4 ? 'MP4' : 'يوتيوب',
-        style: const TextStyle(
-          color: Color(0xFFBFFBFA),
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
 
 class _CinemaPlayerScreen extends StatelessWidget {
   const _CinemaPlayerScreen({required this.video, required this.apiBaseUrl});
@@ -432,7 +259,7 @@ class _CinemaPlayerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF071425),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0xFF071425),
         foregroundColor: Colors.white,

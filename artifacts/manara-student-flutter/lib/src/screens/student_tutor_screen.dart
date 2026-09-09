@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/student_content.dart';
 import '../services/student_sound_service.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/did_agent_embed.dart';
 import '../widgets/tutor_embed.dart';
@@ -93,7 +94,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF071425),
+      backgroundColor: Colors.transparent,
       appBar: widget.fullscreen
           ? null
           : AppBar(
@@ -114,9 +115,17 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                 ),
               ],
             ),
+      // The virtual teacher and the live meeting are the same screen with
+      // different content, so the background follows the experience type.
       body: widget.fullscreen
           ? Stack(
               children: [
+                PortalWatermark(
+                  asset: _isLiveMeeting
+                      ? PortalBackgrounds.liveMeeting
+                      : PortalBackgrounds.tutor,
+                  dark: true,
+                ),
                 Positioned.fill(child: body),
                 SafeArea(
                   child: Align(
@@ -133,7 +142,17 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                 ),
               ],
             )
-          : body,
+          : Stack(
+              children: [
+                PortalWatermark(
+                  asset: _isLiveMeeting
+                      ? PortalBackgrounds.liveMeeting
+                      : PortalBackgrounds.tutor,
+                  dark: true,
+                ),
+                body,
+              ],
+            ),
     );
   }
 

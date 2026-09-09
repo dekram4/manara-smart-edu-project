@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
 class StudentChatScreen extends StatefulWidget {
@@ -174,7 +175,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4F8FF),
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('دردشة منارة'),
           actions: [
@@ -202,7 +203,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
           ],
         ),
-        body: disabled
+        body: Stack(
+          children: [
+            const PortalWatermark(asset: PortalBackgrounds.chat),
+            disabled
             ? const _ChatStatus(
                 icon: Icons.lock_outline_rounded,
                 message: 'الدردشة غير مفعلة لحسابك.',
@@ -258,6 +262,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   ),
                 ],
               ),
+          ],
+        ),
       ),
     );
   }
