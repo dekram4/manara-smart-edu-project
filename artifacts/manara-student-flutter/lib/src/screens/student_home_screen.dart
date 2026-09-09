@@ -498,7 +498,7 @@ class _HomeSection {
     required this.title,
     required this.subtitle,
     required this.description,
-    required this.icon,
+    required this.image,
     required this.colors,
     required this.accent,
   });
@@ -506,7 +506,11 @@ class _HomeSection {
   final String title;
   final String subtitle;
   final String description;
-  final IconData icon;
+
+  /// The portal's own 3D artwork. Each card is now a distinct illustration
+  /// rather than a stock glyph on a coloured square, so adding a portal
+  /// means adding an entry here with its asset — no per-card widget.
+  final String image;
   final List<Color> colors;
   final Color accent;
 }
@@ -566,21 +570,22 @@ class _ProgressCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [StudentPalette.indigo, StudentPalette.sky],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.white,
+                  // The trophy replaces the blue gradient disc that used to
+                  // sit here — the reward is the point of the card, so it
+                  // is drawn rather than symbolised.
+                  Image.asset(
+                    'assets/images/icon_kaas.png',
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.medium,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.emoji_events_rounded,
+                      color: StudentPalette.orange,
+                      size: 40,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
                       'تقدمك ومكافآتك',
@@ -664,7 +669,7 @@ const _homeSections = <_HomeSection>[
     title: 'شرح الدرس',
     subtitle: 'تعلم بطريقة ممتعة',
     description: 'افتح الدرس وشاهد الشرح خطوة بخطوة.',
-    icon: Icons.play_lesson_rounded,
+    image: 'assets/images/icon_teacher.png',
     colors: [Color(0xFF9A5B09), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE08A),
   ),
@@ -672,7 +677,7 @@ const _homeSections = <_HomeSection>[
     title: 'سينما منارة',
     subtitle: 'فيديوهات المعلم والمشرف',
     description: 'اسحب بين الفيديوهات وشاهد الشروحات بجودة عالية.',
-    icon: Icons.movie_filter_rounded,
+    image: 'assets/images/icon_cinema.png',
     colors: [Color(0xFF0B5D66), Color(0xFF0B8693)],
     accent: Color(0xFF9EEBEA),
   ),
@@ -680,7 +685,7 @@ const _homeSections = <_HomeSection>[
     title: 'عالم الترفيه',
     subtitle: 'ألعاب تعليمية',
     description: 'تعلّم والعب واكسب مكافآت جديدة.',
-    icon: Icons.sports_esports_rounded,
+    image: 'assets/images/icon_game.png',
     colors: [Color(0xFF4B267F), Color(0xFF8B5CF6)],
     accent: Color(0xFFE9D5FF),
   ),
@@ -688,7 +693,7 @@ const _homeSections = <_HomeSection>[
     title: 'شخصيتي',
     subtitle: 'أصنع بطلي',
     description: 'غيّر شعرك وملابسك واحفظ شخصيتك.',
-    icon: Icons.face_retouching_natural_rounded,
+    image: 'assets/images/icon_prof.png',
     colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
     accent: Color(0xFFFFD0DF),
   ),
@@ -696,7 +701,7 @@ const _homeSections = <_HomeSection>[
     title: 'المعلم الافتراضي',
     subtitle: 'صديقك الذكي',
     description: 'اسأل واستكشف أفكارًا تساعدك في رحلتك.',
-    icon: Icons.smart_toy_rounded,
+    image: 'assets/images/icon_avatar.png',
     colors: [Color(0xFF274E76), Color(0xFF1394D2)],
     accent: Color(0xFFBAE6FD),
   ),
@@ -704,7 +709,7 @@ const _homeSections = <_HomeSection>[
     title: 'مركز الاختبارات',
     subtitle: 'اختبارات المعلم والدورية',
     description: 'أجب عن أسئلتك وشاهد نتيجتك المحفوظة بأمان.',
-    icon: Icons.quiz_rounded,
+    image: 'assets/images/icon_quez.png',
     colors: [Color(0xFF165B4A), Color(0xFF16A085)],
     accent: Color(0xFFB7F7DD),
   ),
@@ -712,7 +717,7 @@ const _homeSections = <_HomeSection>[
     title: 'حلّ المسائل',
     subtitle: 'اسأل عن الدرس',
     description: 'مساعد ذكي يقدم شرحًا مباشرًا ومفيدًا لأسئلتك.',
-    icon: Icons.auto_awesome_rounded,
+    image: 'assets/images/icon_ai.png',
     colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
     accent: Color(0xFFE9D5FF),
   ),
@@ -720,7 +725,7 @@ const _homeSections = <_HomeSection>[
     title: 'اللقاء المباشر',
     subtitle: 'انضم داخل منارة',
     description: 'ادخل لقاء الدرس من دون مغادرة التطبيق.',
-    icon: Icons.videocam_rounded,
+    image: 'assets/images/icon_meet.png',
     colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE4A3),
   ),
@@ -728,7 +733,7 @@ const _homeSections = <_HomeSection>[
     title: 'دردشة منارة',
     subtitle: 'تواصل آمن',
     description: 'نتحقق من الخصوصية قبل عرض أي رسالة أو زميل.',
-    icon: Icons.forum_rounded,
+    image: 'assets/images/icon_chat.png',
     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
     accent: Color(0xFFBFDBFE),
   ),
@@ -783,10 +788,14 @@ class _HomeSectionGrid extends StatelessWidget {
   }
 }
 
-/// One wide 3D game-portal card: a dark extrusion base under a beveled,
-/// bright board, a big icon medallion centered above the bold title — a
-/// single consistent shape for every tile, no tall/narrow capsule and no
-/// dead vertical space above or below the content.
+/// One portal in the rail: its own 3D illustration above the portal's name.
+///
+/// This replaced a gradient square with a white circular medallion and a
+/// stock Material glyph inside it. Nine identical coloured boxes told a
+/// child nothing about what each one opened; the illustrations do. The
+/// card behind them is deliberately quiet — a soft translucent panel with
+/// a rim tinted in the portal's own colour — so the artwork is what reads
+/// and the lighthouse still shows through the rail.
 class _SectionTile extends StatelessWidget {
   const _SectionTile({required this.section, required this.onPressed});
 
@@ -795,99 +804,59 @@ class _SectionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = section.colors.first;
-    final top = section.colors.last;
-    final extrusion = Color.lerp(base, Colors.black, 0.32)!;
-    const radius = 22.0;
+    final tint = section.colors.first;
+    const radius = 24.0;
     return StudentPressScale(
       child: GestureDetector(
         onTap: onPressed,
+        behavior: HitTestBehavior.opaque,
         child: Container(
-          padding: const EdgeInsets.only(bottom: 7),
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: extrusion.withOpacity(0.80),
+            color: Colors.white.withOpacity(0.72),
+            border: Border.all(color: tint.withOpacity(0.45), width: 1.6),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 12, offset: const Offset(0, 8)),
+              BoxShadow(
+                color: tint.withOpacity(0.22),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
             ],
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(radius),
-              // Translucent so the lighthouse reads through the grid too,
-              // but still each portal's own colour and 3D ledge — turning
-              // these plain white would have thrown away the chunky toy
-              // cards the dashboard is built around.
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [top.withOpacity(0.82), base.withOpacity(0.82)],
-              ),
-              border: Border.all(color: Colors.white.withOpacity(0.65), width: 2.5),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(radius),
-              child: Stack(
-                children: [
-                  // A diagonal glossy sheen — the same raised-3D-toy bevel
-                  // the rest of the app's cards use.
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.white.withOpacity(0.22),
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.06),
-                          ],
-                          stops: const [0, 0.5, 1],
-                        ),
-                      ),
-                    ),
+          child: Column(
+            children: [
+              // The illustration takes whatever height the rail gives the
+              // card after the label, and `contain` keeps every one of the
+              // nine at its own aspect — none is stretched to fit.
+              Expanded(
+                child: Image.asset(
+                  section.image,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (_, __, ___) => Icon(
+                    Icons.image_not_supported_rounded,
+                    color: tint.withOpacity(0.5),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Colors.white, section.accent.withOpacity(0.75)],
-                            ),
-                            border: Border.all(color: Colors.white, width: 2.5),
-                            boxShadow: [
-                              BoxShadow(color: base.withOpacity(0.45), blurRadius: 8, offset: const Offset(0, 4)),
-                            ],
-                          ),
-                          child: Icon(section.icon, color: base, size: 30),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          section.title,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 6),
+              // Scales down rather than wrapping or clipping, so a long
+              // portal name cannot change the card's height.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  section.title,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color.lerp(tint, Colors.black, 0.35),
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

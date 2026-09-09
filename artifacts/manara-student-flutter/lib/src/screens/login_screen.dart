@@ -398,8 +398,11 @@ const double _artworkBottomFraction = 0.80;
 /// asset's alpha channel. The square is 3000x3000 but the art only fills
 /// x 0.025-0.967 and y 0.220-0.859 of it, so sizing the square is not the
 /// same as sizing the board — see the layout builder.
+///
+/// The measured top (0.220) has no constant of its own because the stack
+/// is anchored to [_frameTopFraction] (0.235) instead, which sits just
+/// below it and is where the logo actually has to clear.
 const double _artLeftF = 0.025;
-const double _artTopF = 0.220;
 const double _artRightF = 0.967;
 const double _artBottomF = 0.859;
 
