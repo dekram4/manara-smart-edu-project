@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../models/student_content.dart';
 import 'student_video_player.dart' show isYoutubeHost, youtubeVideoId;
@@ -7,9 +9,9 @@ import 'student_video_player.dart' show isYoutubeHost, youtubeVideoId;
 ///
 /// YouTube publishes a still for every video at a predictable URL, so the
 /// real frame is fetched straight from the id — no API key, no extra
-/// request to our own backend. Anything else (an MP4 in storage, a Vimeo
-/// link) has no such endpoint, so those fall back to a themed cover with
-/// the play affordance on it rather than a broken image box.
+/// request to our own backend. Anything else has no such endpoint, and is
+/// handled by decoding a frame out of the clip itself; see
+/// [_Mp4FrameCover].
 String? youtubeThumbnailUrl(String url) {
   final uri = Uri.tryParse(url);
   if (uri == null) return null;
@@ -199,8 +201,8 @@ class VideoThumbnailCard extends StatelessWidget {
 }
 
 /// The cover image itself: the real YouTube still when there is one, a
-/// themed placeholder otherwise, and the placeholder again if the network
-/// image fails — a cover must never render as a broken box.
+/// frame grabbed from the clip when it is an MP4, and a themed placeholder
+/// otherwise — a cover must never render as a broken box.
 class _Cover extends StatelessWidget {
   const _Cover({required this.video});
 
@@ -209,13 +211,100 @@ class _Cover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final thumbnail = youtubeThumbnailUrl(video.url);
-    if (thumbnail == null) return const _CoverPlaceholder();
-    return Image.network(
-      thumbnail,
+    if (thumbnail != null) {
+      return Image.network(
+        thumbnail,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const _CoverPlaceholder(),
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : const _CoverPlaceholder(),
+      );
+    }
+    return _Mp4FrameCover(url: video.url);
+  }
+}
+
+/// Grabs the first frame of a non-YouTube clip.
+///
+/// `video_thumbnail` is an Android/iOS plugin — it has no desktop or web
+/// implementation — so everywhere else this degrades to the themed cover
+/// rather than throwing a MissingPluginException at a child.
+///
+/// Extraction decodes part of the clip, so results are memoised by URL for
+/// the process: a grid that scrolls back and forth, or a rebuild from any
+/// unrelated setState, must not re-decode the same video.
+class _Mp4FrameCover extends StatefulWidget {
+  const _Mp4FrameCover({required this.url});
+
+  final String url;
+
+  static final Map<String, Uint8List?> _cache = <String, Uint8List?>{};
+
+  static bool get isSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  @override
+  State<_Mp4FrameCover> createState() => _Mp4FrameCoverState();
+}
+
+class _Mp4FrameCoverState extends State<_Mp4FrameCover> {
+  Uint8List? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _Mp4FrameCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _resolve();
+  }
+
+  Future<void> _resolve() async {
+    if (!_Mp4FrameCover.isSupported) return;
+    final url = widget.url;
+    if (url.trim().isEmpty) return;
+
+    if (_Mp4FrameCover._cache.containsKey(url)) {
+      final cached = _Mp4FrameCover._cache[url];
+      if (cached != null && mounted) setState(() => _bytes = cached);
+      return;
+    }
+
+    Uint8List? data;
+    try {
+      data = await VideoThumbnail.thumbnailData(
+        video: url,
+        imageFormat: ImageFormat.JPEG,
+        // Wide enough for a card cover on any phone, small enough that
+        // decoding stays cheap.
+        maxWidth: 640,
+        quality: 60,
+      );
+    } catch (_) {
+      // A clip the device cannot decode, or an unreachable URL — the
+      // placeholder is a perfectly good cover.
+      data = null;
+    }
+    // Negative results are cached too, so an undecodable clip is attempted
+    // once rather than on every rebuild.
+    _Mp4FrameCover._cache[url] = data;
+    if (data != null && mounted) setState(() => _bytes = data);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = _bytes;
+    if (bytes == null) return const _CoverPlaceholder();
+    return Image.memory(
+      bytes,
       fit: BoxFit.cover,
+      gaplessPlayback: true,
       errorBuilder: (_, __, ___) => const _CoverPlaceholder(),
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : const _CoverPlaceholder(),
     );
   }
 }
