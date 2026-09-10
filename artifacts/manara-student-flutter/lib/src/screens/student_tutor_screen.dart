@@ -98,7 +98,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
       appBar: widget.fullscreen
           ? null
           : AppBar(
-              backgroundColor: const Color(0xFF071425),
+              backgroundColor: const Color(0xFF17364F),
               foregroundColor: Colors.white,
               title: Text(_isLiveMeeting ? 'اللقاء المباشر' : 'صديقك المعلم الافتراضي'),
               actions: [
@@ -257,7 +257,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF101D33),
+                      color: const Color(0xFF1D3B55),
                       borderRadius: BorderRadius.circular(widget.fullscreen ? 0 : 24),
                       border: widget.fullscreen
                           ? null
@@ -321,7 +321,7 @@ class _BlockedMeetingCard extends StatelessWidget {
         padding: const EdgeInsets.all(28),
         child: Student3DCard(
           child: Card(
-          color: const Color(0xFF101D33),
+          color: const Color(0xFF1D3B55),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(

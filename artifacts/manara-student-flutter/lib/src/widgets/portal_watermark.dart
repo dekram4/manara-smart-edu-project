@@ -45,9 +45,9 @@ class PortalWatermark extends StatelessWidget {
                 end: Alignment.bottomLeft,
                 colors: dark
                     ? const [
-                        Color(0xFF0A1A2C),
-                        Color(0xFF071425),
-                        Color(0xFF0B1F33),
+                        Color(0xFF19384F),
+                        Color(0xFF17364F),
+                        Color(0xFF1C4059),
                       ]
                     : const [
                         Color(0xFFFFF6E7),

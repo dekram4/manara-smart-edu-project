@@ -409,7 +409,7 @@ class _DIdStateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: const Color(0xFF101D33),
+    color: const Color(0xFF1D3B55),
     child: Center(
       child: Padding(
         padding: const EdgeInsets.all(24),

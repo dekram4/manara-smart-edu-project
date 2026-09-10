@@ -594,7 +594,7 @@ class _ReadyPlayerMeCreatorScreenState
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('مصمم شخصيتي'),
-        backgroundColor: const Color(0xFF071425),
+        backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
       ),
       body: Stack(

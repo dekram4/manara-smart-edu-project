@@ -577,8 +577,18 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                   math.max(0.0, areaSize.width - sideReserve * 2),
                   math.max(0.0, areaSize.height - topReserve - bottomReserve),
                 );
-                final imageRect = _containRect(content, _booksAspect)
-                    .translate(sideReserve, topReserve);
+                // Eased back from filling its content box so the stack sits
+                // among the other elements rather than crowding them. The
+                // shrink is applied about the box's own centre, so the
+                // illustration — and every field measured against it —
+                // stays exactly centred.
+                const booksScale = 0.93;
+                final fitted = _containRect(content, _booksAspect);
+                final imageRect = Rect.fromCenter(
+                  center: fitted.center,
+                  width: fitted.width * booksScale,
+                  height: fitted.height * booksScale,
+                ).translate(sideReserve, topReserve);
 
                 // The brand block owns the top-left corner in both
                 // orientations, sized to the band it sits in.
@@ -617,12 +627,16 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     Positioned(
                       right: 10,
                       bottom: 4,
+                      // The pencil crew rocks in the air rather than
+                      // hopping — they are flying, not standing.
                       child: _FloatingArt(
                         asset: 'assets/images/winter_fun.png',
                         size: pencilWidth,
                         baseAngle: -0.14,
-                        bob: 11,
-                        sway: 0.055,
+                        motion: _Motion.wiggle,
+                        amount: 1.1,
+                        period: const Duration(milliseconds: 3100),
+                        phase: 0.35,
                       ),
                     ),
                     // Top-right in both orientations, below the HUD row.
@@ -632,10 +646,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     Positioned(
                       right: 10,
                       top: 48,
+                      // The student's own character hops, on its own beat
+                      // and offset from the pencil crew so the two never
+                      // move together.
                       child: _FloatingAvatar(
                         size: readersSize,
-                        bob: 8,
-                        period: const Duration(milliseconds: 2900),
+                        motion: _Motion.bounce,
+                        period: const Duration(milliseconds: 2300),
                       ),
                     ),
                     Positioned(
@@ -1100,23 +1117,50 @@ class _BrandMark extends StatelessWidget {
 /// tilt sway a quarter cycle behind it — that offset is what stops the
 /// motion looking mechanical. Used for the pencil crew and the reading
 /// pair, with different periods so the two never drift in lockstep.
+/// How a character on the path moves.
+///
+/// The screen used to give every character the same sine drift, which read
+/// as one lifeless motion repeated. Each style below has its own shape and
+/// its own beat, so the characters look like separate creatures reacting
+/// rather than parts of one mechanism.
+enum _Motion {
+  /// A hop with squash-and-stretch: stretched tall leaving the ground,
+  /// squashed wide on landing, with a hang at the top.
+  bounce,
+
+  /// Stays put and rocks side to side, like a wave.
+  wiggle,
+
+  /// Breathes — a slow scale pulse with the faintest lift.
+  pulse,
+}
+
 class _FloatingArt extends StatefulWidget {
   const _FloatingArt({
     required this.asset,
     required this.size,
     this.baseAngle = 0,
-    this.bob = 9,
-    this.sway = 0,
+    this.motion = _Motion.bounce,
+    this.amount = 1,
     this.period = const Duration(milliseconds: 3400),
+    this.phase = 0,
     super.key,
   });
 
   final String asset;
   final double size;
   final double baseAngle;
-  final double bob;
-  final double sway;
+  final _Motion motion;
+
+  /// Scales the whole movement, so one character can be livelier than
+  /// another without needing its own style.
+  final double amount;
+
   final Duration period;
+
+  /// 0..1 offset into the cycle. Staggering the characters is what stops
+  /// them moving in lockstep.
+  final double phase;
 
   @override
   State<_FloatingArt> createState() => _FloatingArtState();
@@ -1158,13 +1202,49 @@ class _FloatingArtState extends State<_FloatingArt>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final phase = _controller.value * 2 * math.pi;
+        final t = (_controller.value + widget.phase) % 1.0;
+        final turn = t * 2 * math.pi;
+        final k = widget.amount;
+        final s = widget.size;
+
+        double dy = 0;
+        double scaleX = 1;
+        double scaleY = 1;
+        double tilt = 0;
+
+        switch (widget.motion) {
+          case _Motion.bounce:
+            // `sin` raised to a power spends longer near zero and peaks
+            // sharply — a hop with a hang at the top, rather than the
+            // even glide a plain sine gives.
+            final hop = math.pow(math.sin(turn).abs(), 0.65).toDouble();
+            dy = -hop * s * 0.16 * k;
+            // Squash on the ground, stretch in the air.
+            scaleY = 1 + (hop - 0.35) * 0.10 * k;
+            scaleX = 1 - (hop - 0.35) * 0.10 * k;
+            tilt = math.sin(turn * 2) * 0.03 * k;
+          case _Motion.wiggle:
+            tilt = math.sin(turn) * 0.13 * k;
+            // A small counter-lift on the swing, so the rock has weight.
+            dy = -math.sin(turn * 2).abs() * s * 0.03 * k;
+          case _Motion.pulse:
+            final breath = (math.sin(turn) + 1) / 2;
+            scaleX = scaleY = 1 + breath * 0.07 * k;
+            dy = -breath * s * 0.05 * k;
+            tilt = math.sin(turn) * 0.02 * k;
+        }
+
         return Transform.translate(
-          offset: Offset(0, math.sin(phase) * widget.bob),
+          offset: Offset(0, dy),
           child: Transform.rotate(
-            angle: widget.baseAngle +
-                math.sin(phase - math.pi / 2) * widget.sway,
-            child: child,
+            angle: widget.baseAngle + tilt,
+            // Anchored to the feet so a character deforms without
+            // sinking through the floor it stands on.
+            child: Transform(
+              alignment: Alignment.bottomCenter,
+              transform: Matrix4.diagonal3Values(scaleX, scaleY, 1),
+              child: child,
+            ),
           ),
         );
       },
@@ -1182,18 +1262,34 @@ class _MascotGuide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const _SpeechBubble(text: 'اختر صفك لنبدأ الرحلة يا بطل! ✨'),
+        // The bubble breathes on its own, slower than the guide, so the
+        // pair no longer moves as one rigid block.
+        reduceMotion
+            ? const _SpeechBubble(text: 'اختر صفك لنبدأ الرحلة يا بطل! ✨')
+            : const _SpeechBubble(text: 'اختر صفك لنبدأ الرحلة يا بطل! ✨')
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .scaleXY(
+                  begin: 1,
+                  end: 1.035,
+                  duration: 2600.ms,
+                  curve: Curves.easeInOut,
+                ),
         const SizedBox(height: 2),
-        PathMascot(size: height),
+        // The guide waves rather than drifting.
+        _FloatingArt(
+          asset: 'assets/images/path_mascot.png',
+          size: height,
+          motion: _Motion.wiggle,
+          amount: 0.85,
+          period: const Duration(milliseconds: 2700),
+        ),
       ],
     );
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return content;
-    return content
-        .animate(onPlay: (controller) => controller.repeat(reverse: true))
-        .moveY(begin: 0, end: -9, duration: 1800.ms, curve: Curves.easeInOut);
   }
 }
 
@@ -1321,12 +1417,12 @@ String _normalized(Object? value) => value?.toString().trim().toLowerCase() ?? '
 class _FloatingAvatar extends StatelessWidget {
   const _FloatingAvatar({
     required this.size,
-    required this.bob,
+    required this.motion,
     required this.period,
   });
 
   final double size;
-  final double bob;
+  final _Motion motion;
   final Duration period;
 
   @override
@@ -1339,8 +1435,10 @@ class _FloatingAvatar extends StatelessWidget {
         key: ValueKey(avatar.id),
         asset: avatar.asset,
         size: size,
-        bob: bob,
+        motion: motion,
+
         period: period,
+
       ),
     );
   }

@@ -1305,9 +1305,9 @@ class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF071425),
+      backgroundColor: const Color(0xFF17364F),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF071425),
+        backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
         title: Text(widget.video.title),
       ),
@@ -1389,9 +1389,9 @@ class UniversalWebVideoScreen extends StatelessWidget {
     final targetUrl = _getFinalUrl(video.url);
     if (video.sourceType == VideoSourceType.mp4) {
       return Scaffold(
-        backgroundColor: const Color(0xFF071425),
+        backgroundColor: const Color(0xFF17364F),
         appBar: AppBar(
-          backgroundColor: const Color(0xFF071425),
+          backgroundColor: const Color(0xFF17364F),
           foregroundColor: Colors.white,
           title: Text(video.title),
         ),
@@ -1441,9 +1441,9 @@ class UniversalWebVideoScreen extends StatelessWidget {
 ''';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF071425),
+      backgroundColor: const Color(0xFF17364F),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF071425),
+        backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
         title: Text(video.title),
         leading: IconButton(

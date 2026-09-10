@@ -175,7 +175,7 @@ class _TutorEmbedLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const ColoredBox(
-        color: Color(0xFF101D33),
+        color: Color(0xFF1D3B55),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,

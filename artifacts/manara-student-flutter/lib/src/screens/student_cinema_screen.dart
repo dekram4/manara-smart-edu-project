@@ -109,7 +109,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF071425),
+        backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
         title: const Text('سينما منارة'),
         actions: const [StudentSoundToggle()],
@@ -354,7 +354,7 @@ class _CinemaPlayerScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF071425),
+        backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
         title: Text(video.title),
       ),
@@ -392,7 +392,7 @@ class _CinemaStateCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF132337),
+              color: const Color(0xFF224863),
               borderRadius: BorderRadius.circular(26),
             ),
             child: Column(
