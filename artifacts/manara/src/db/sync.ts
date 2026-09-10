@@ -1,4 +1,4 @@
-import { RemoteRequestError, supabase } from './remoteSupabase';
+﻿import { RemoteRequestError, supabase } from './remoteSupabase';
 
 // ============================================================
 // طبقة المزامنة بين localStorage و Supabase
@@ -207,6 +207,94 @@ function recordBelongsToContext(record: any, context: SyncContext, table: string
 
 function shouldRetry(error: unknown): boolean {
   return !(error instanceof RemoteRequestError) || error.retryable;
+}
+
+// ------------------------------------------------------------
+// حالة المزامنة المرئية للمستخدم
+//
+// كان كل فشل يُكتب في الكونسول فقط، فيظن المعلم أن تعديله حُفظ بينما لم
+// يصل إلى Supabase إطلاقاً — والطالب يبقى يرى القديم. الآن كل فشل يُبلَّغ
+// للواجهة لتعرضه، ويُفرَّق بين نوعين:
+//
+//   queued  : فشل مؤقت (شبكة). العملية محفوظة وستُعاد.
+//   dropped : فشل غير قابل للإعادة (صلاحية/RLS/بيانات مرفوضة). هذه كانت
+//             تُهمَل بصمت تماماً — لا تُحفظ ولا تُعرض — فيضيع التعديل نهائياً
+//             دون أن يعلم أحد. وهي الأخطر، ولذلك تُعرض بلهجة أشد.
+// ------------------------------------------------------------
+export type SyncFailureKind = 'queued' | 'dropped';
+
+export type SyncStatus = {
+  /** عدد العمليات المنتظرة في الطابور. */
+  pending: number;
+  /** آخر فشل حدث، أو null إن كان كل شيء سليماً. */
+  lastFailure: { kind: SyncFailureKind; label: string; message: string } | null;
+  /** true أثناء تفريغ الطابور يدوياً. */
+  retrying: boolean;
+};
+
+let syncStatus: SyncStatus = { pending: 0, lastFailure: null, retrying: false };
+const statusListeners = new Set<(status: SyncStatus) => void>();
+
+function emitStatus(patch: Partial<SyncStatus>): void {
+  syncStatus = { ...syncStatus, ...patch, pending: patch.pending ?? loadPending().length };
+  for (const listener of statusListeners) {
+    try {
+      listener(syncStatus);
+    } catch {
+      // مستمع معطوب يجب ألا يوقف المزامنة نفسها.
+    }
+  }
+}
+
+/** يشترك في حالة المزامنة ويستقبلها فوراً، ويعيد دالة لإلغاء الاشتراك. */
+export function onSyncStatus(listener: (status: SyncStatus) => void): () => void {
+  statusListeners.add(listener);
+  listener(syncStatus);
+  return () => statusListeners.delete(listener);
+}
+
+export function getSyncStatus(): SyncStatus {
+  return syncStatus;
+}
+
+function reportFailure(kind: SyncFailureKind, label: string, error: any): void {
+  const message = String(error?.message ?? error ?? '').slice(0, 300);
+  console.error(`[sync] ${kind === 'dropped' ? 'فشل نهائي' : 'فشل مؤقت'} — ${label}:`, message);
+  emitStatus({ lastFailure: { kind, label, message } });
+}
+
+/**
+ * يعيد إرسال كل ما في الطابور الآن، بدل انتظار الإقلاع التالي.
+ *
+ * هذا ما يربطه زر "إعادة محاولة المزامنة": الطابور كان لا يُفرَّغ إلا عند
+ * بدء التطبيق، فمعلّم فقد الاتصال لحظةً كان عليه إغلاق اللوحة وفتحها.
+ */
+export async function retryPendingSync(): Promise<SyncStatus> {
+  const context = activeSyncContext;
+  if (!context) {
+    emitStatus({
+      lastFailure: {
+        kind: 'dropped',
+        label: 'المزامنة',
+        message: 'لم تبدأ جلسة مزامنة بعد. سجّل الدخول ثم أعد المحاولة.',
+      },
+    });
+    return syncStatus;
+  }
+  emitStatus({ retrying: true });
+  try {
+    await flushPending(context);
+    const left = loadPending().filter((op) => op.scope === context.scope).length;
+    emitStatus({
+      retrying: false,
+      // لا تُمسح رسالة الفشل إلا إذا خرج الطابور فارغاً فعلاً.
+      lastFailure: left === 0 ? null : syncStatus.lastFailure,
+    });
+  } catch (error) {
+    emitStatus({ retrying: false });
+    reportFailure('queued', 'إعادة المحاولة', error);
+  }
+  return syncStatus;
 }
 
 function canCurrentActorWriteKv(key: string): boolean {
@@ -512,16 +600,27 @@ async function syncRowTable(table: string, oldArr: any[], newArr: any[]): Promis
     const res = await withRetry(`حفظ ${table}`, () =>
       supabase.from(table).upsert(upserts, { onConflict: 'id' })
     );
-    if (res.error && shouldRetry(res.error)) {
-      appendPending({ type: 'row_upsert', table, rows: upserts, scope: currentScope() });
+    if (res.error) {
+      if (shouldRetry(res.error)) {
+        appendPending({ type: 'row_upsert', table, rows: upserts, scope: currentScope() });
+        reportFailure('queued', `حفظ ${table}`, res.error);
+      } else {
+        // غير قابل للإعادة: كان يُهمَل بصمت هنا فيضيع التعديل نهائياً.
+        reportFailure('dropped', `حفظ ${table}`, res.error);
+      }
     }
   }
   if (deletes.length) {
     const res = await withRetry(`حذف من ${table}`, () =>
       supabase.from(table).delete().in('id', deletes)
     );
-    if (res.error && shouldRetry(res.error)) {
-      appendPending({ type: 'row_delete', table, ids: deletes, scope: currentScope() });
+    if (res.error) {
+      if (shouldRetry(res.error)) {
+        appendPending({ type: 'row_delete', table, ids: deletes, scope: currentScope() });
+        reportFailure('queued', `حذف من ${table}`, res.error);
+      } else {
+        reportFailure('dropped', `حذف من ${table}`, res.error);
+      }
     }
   }
 }
@@ -531,8 +630,13 @@ async function syncKv(key: string, value: any): Promise<void> {
   const res = await withRetry(`حفظ ${key}`, () =>
     supabase.from('app_kv').upsert({ key, value }, { onConflict: 'key' })
   );
-  if (res.error && shouldRetry(res.error)) {
-    appendPending({ type: 'kv', key, value, scope: currentScope() });
+  if (res.error) {
+    if (shouldRetry(res.error)) {
+      appendPending({ type: 'kv', key, value, scope: currentScope() });
+      reportFailure('queued', `حفظ ${key}`, res.error);
+    } else {
+      reportFailure('dropped', `حفظ ${key}`, res.error);
+    }
   }
 }
 

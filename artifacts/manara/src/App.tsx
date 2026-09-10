@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode, useState, useEffect, useRef, Suspense } from 'react';
+﻿import React, { Component, ErrorInfo, ReactNode, useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import Spline from '@splinetool/react-spline';
 import { gsap } from 'gsap';
@@ -10,6 +10,7 @@ import { STORAGE_KEYS } from './constants';
 import { initSupabaseSync } from './db/sync';
 import { migratePasswordsToHash } from './db/migratePasswords';
 import { GameControls } from './components/GameControls';
+import { SyncStatusBanner } from './components/SyncStatusBanner';
 import {
   readSessionValue,
   removeSessionValue,
@@ -326,6 +327,10 @@ const App: React.FC = () => {
     <div className="min-h-screen font-tajawal">
       <ScrollDownButton />
       <GameControls />
+      {/* يظهر فشل المزامنة على الشاشة بدل الكونسول، ومعه زر إعادة
+          المحاولة. بدونه كان المعلم يرى تعديله محفوظاً بينما لم يصل
+          إلى الخادم، والطالب يبقى على المحتوى القديم بلا تفسير. */}
+      <SyncStatusBanner />
       <DashboardErrorBoundary key={mainView}>
         {renderView()}
       </DashboardErrorBoundary>
