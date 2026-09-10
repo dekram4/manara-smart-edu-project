@@ -440,25 +440,92 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
 
   @override
   Widget build(BuildContext context) {
-    return FilledButton.icon(
-      onPressed: _completed || _saving ? null : _completeLesson,
-      icon: Icon(
-        _completed ? Icons.verified_rounded : Icons.check_circle_rounded,
-      ),
-      label: Text(
-        _completed
-            ? 'تم استلام مكافأة هذا الدرس'
-            : _saving
-            ? 'جارٍ حفظ الإتمام...'
-            : 'أنهيت الدرس — احصل على 5 جواهر',
-      ),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(54),
-        backgroundColor: const Color(0xFF0B8693),
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: Colors.grey.shade500,
-        disabledForegroundColor: Colors.white,
-        textStyle: const TextStyle(fontWeight: FontWeight.w900),
+    final enabled = !_completed && !_saving;
+    // Gold while the reward is still to be claimed, emerald once it has
+    // been — the colour carries the state, so the label does not have to
+    // work alone.
+    final gradient = _completed
+        ? const [Color(0xFF0E9F6E), Color(0xFF067A54)]
+        : const [Color(0xFFFFC542), Color(0xFFF08C1E)];
+    final ledge = _completed ? const Color(0xFF04543A) : const Color(0xFFB4630C);
+
+    return StudentPressScale(
+      child: GestureDetector(
+        onTap: enabled ? _completeLesson : null,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          // The darker ledge under the face gives the capsule its depth.
+          padding: const EdgeInsets.only(bottom: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            color: ledge,
+            boxShadow: [
+              BoxShadow(
+                color: ledge.withOpacity(0.42),
+                blurRadius: 18,
+                offset: const Offset(0, 9),
+              ),
+            ],
+          ),
+          child: Container(
+            height: 56,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: gradient,
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.6),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.26),
+                    border: Border.all(color: Colors.white.withOpacity(0.7)),
+                  ),
+                  child: Icon(
+                    _completed
+                        ? Icons.verified_rounded
+                        : Icons.diamond_rounded,
+                    color: Colors.white,
+                    size: 19,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _completed
+                          ? 'تم استلام مكافأة هذا الدرس'
+                          : _saving
+                              ? 'جارٍ حفظ الإتمام...'
+                              : 'أنهيت الدرس — احصل على 5 جواهر',
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        shadows: [
+                          Shadow(color: Color(0x55000000), blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -606,14 +673,24 @@ class _GamificationSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Student3DCard(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
+          // A cartoon violet-to-magenta sweep with a bright rim and a
+          // coloured glow, in place of the flat indigo block.
           gradient: const LinearGradient(
-            colors: [Color(0xFF312E81), Color(0xFF6D28D9)],
+            colors: [Color(0xFF7C3AED), Color(0xFFA855F7), Color(0xFFEC4899)],
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
           ),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withOpacity(0.45), width: 1.6),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7C3AED).withOpacity(0.42),
+              blurRadius: 22,
+              offset: const Offset(0, 12),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -704,21 +781,35 @@ class _GameCard extends StatelessWidget {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(24),
           child: Ink(
-            padding: const EdgeInsets.all(18),
+            // Roomier padding and a three-stop cartoon sweep with a bright
+            // rim; a locked card stays grey but keeps the same shape so the
+            // two read as one family.
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               gradient: LinearGradient(
                 colors: locked
-                    ? const [Color(0xFF4B5563), Color(0xFF6B7280)]
-                    : const [Color(0xFF4B267F), Color(0xFF8B5CF6)],
+                    ? const [Color(0xFF525C6B), Color(0xFF79839A)]
+                    : const [
+                        Color(0xFF6D28D9),
+                        Color(0xFF8B5CF6),
+                        Color(0xFF38BDF8),
+                      ],
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
               ),
-              boxShadow: const [
+              border: Border.all(
+                color: Colors.white.withOpacity(locked ? 0.28 : 0.5),
+                width: 1.6,
+              ),
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x458B5CF6),
-                  blurRadius: 18,
-                  offset: Offset(0, 9),
+                  color: (locked
+                          ? const Color(0xFF525C6B)
+                          : const Color(0xFF8B5CF6))
+                      .withOpacity(0.42),
+                  blurRadius: 20,
+                  offset: const Offset(0, 11),
                 ),
               ],
             ),
@@ -1204,38 +1295,9 @@ class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: widget.onCompleted == null
-          ? null
-          : SafeArea(
-              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _completed || _saving ? null : _completeLesson,
-                  icon: Icon(
-                    _completed
-                        ? Icons.verified_rounded
-                        : Icons.check_circle_rounded,
-                  ),
-                  label: Text(
-                    _completed
-                        ? 'أنهيت الدرس وحصلت على المكافأة مسبقًا'
-                        : _saving
-                        ? 'جارٍ حفظ إتمام الدرس...'
-                        : 'أنهيت مشاهدة الدرس',
-                  ),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                    backgroundColor: _completed
-                        ? Colors.grey.shade500
-                        : const Color(0xFF0B8693),
-                    disabledBackgroundColor: Colors.grey.shade500,
-                    disabledForegroundColor: Colors.white,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
-            ),
+      // No completion bar here on purpose: the player screen shows the
+      // video and nothing else. The reward button lives once, under the
+      // video in the lesson card, so the clip is never framed by chrome.
     );
   }
 }

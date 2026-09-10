@@ -545,9 +545,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // The four characters are sized off the screen's shorter
                 // edge, so they stay in proportion whichever way the device
                 // is held, and they are never hidden — only scaled.
+                // The side characters were taking 30% of the shorter edge in
+                // landscape, which on a 4:3 tablet squeezed the book stack
+                // into the middle third. Trimming their share gives the
+                // illustration the room, and the clamp still keeps them
+                // legible on a phone.
                 final artSize = (math.min(areaSize.width, areaSize.height) *
-                        (portrait ? 0.24 : 0.30))
-                    .clamp(56.0, 200.0)
+                        (portrait ? 0.22 : 0.25))
+                    .clamp(56.0, 180.0)
                     .toDouble();
                 final mascotHeight = artSize;
                 final pencilWidth = artSize;
@@ -615,8 +620,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         asset: 'assets/images/winter_fun.png',
                         size: pencilWidth,
                         baseAngle: -0.14,
-                        bob: 9,
-                        sway: 0.045,
+                        bob: 11,
+                        sway: 0.055,
                       ),
                     ),
                     // Top-right in both orientations, below the HUD row.

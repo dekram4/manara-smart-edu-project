@@ -177,30 +177,81 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: const Text('دردشة منارة'),
+          // Stated explicitly so the bar never inherits a colour that
+          // leaves its own title and buttons hard to read.
+          backgroundColor: const Color(0xFF1B3A6B),
+          foregroundColor: Colors.white,
+          title: const Text(
+            'دردشة منارة',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          ),
           actions: [
             const StudentSoundToggle(),
-            TextButton.icon(
-              onPressed: widget.profile.canAccessChat && !_sending ? _toggleChat : null,
-              icon: Icon(
-                _chatEnabled
-                    ? Icons.pause_circle_outline
-                    : Icons.play_circle_outline,
+            // These were plain TextButtons, so they inherited the theme's
+            // primary blue — which is what disappeared against the bar.
+            // Each now states its own colours and carries a visible rim.
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: TextButton.icon(
+                onPressed:
+                    widget.profile.canAccessChat && !_sending ? _toggleChat : null,
+                icon: Icon(
+                  _chatEnabled
+                      ? Icons.pause_circle_outline
+                      : Icons.play_circle_outline,
+                  size: 18,
+                ),
+                label: Text(_chatEnabled ? 'مفعلة' : 'متوقفة'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  disabledForegroundColor: Colors.white54,
+                  backgroundColor: _chatEnabled
+                      ? const Color(0xFF15803D)
+                      : const Color(0xFF9A3412),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(color: Colors.white.withOpacity(0.75)),
+                  ),
+                ),
               ),
-              label: Text(_chatEnabled ? 'مفعلة' : 'متوقفة'),
             ),
+            const SizedBox(width: 6),
             IconButton(
               tooltip: 'تحديث الرسائل',
               onPressed: _loading || !_chatEnabled ? null : _refresh,
               icon: const Icon(Icons.refresh_rounded),
+              style: IconButton.styleFrom(
+                foregroundColor: Colors.white,
+                disabledForegroundColor: Colors.white38,
+                backgroundColor: Colors.white.withOpacity(0.16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(color: Colors.white.withOpacity(0.6)),
+                ),
+              ),
             ),
-            TextButton(
-              onPressed: () {
-                StudentSoundService.instance.playTap();
-                Navigator.of(context).pop();
-              },
-              child: const Text('إغلاق'),
+            const SizedBox(width: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: TextButton(
+                onPressed: () {
+                  StudentSoundService.instance.playTap();
+                  Navigator.of(context).pop();
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF17233A),
+                  backgroundColor: const Color(0xFFFFE9A8),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Colors.white),
+                  ),
+                ),
+                child: const Text('إغلاق'),
+              ),
             ),
+            const SizedBox(width: 8),
           ],
         ),
         body: Stack(
@@ -355,7 +406,7 @@ class _ChatStatus extends StatelessWidget {
   final IconData icon;
   final String message;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 58, color: const Color(0xFF0B8693)), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.6))])));
+  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 58, color: const Color(0xFF0B8693)), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, height: 1.6, color: Color(0xFF17233A)))])));
 }
 
 class _ChatError extends StatelessWidget {

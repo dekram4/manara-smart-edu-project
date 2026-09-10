@@ -386,7 +386,23 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         // card's own level pill).
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
-          child: _TopStatsBar(stats: _gamification),
+          child: _TopStatsBar(
+            stats: _gamification,
+            // The "تقدمك ومكافآتك" panel was the only way into the
+            // achievements screen, so the badges inherit that route
+            // rather than the screen becoming unreachable with it.
+            onPressed: () {
+              StudentSoundService.instance.playTap();
+              Navigator.of(context).push(
+                StudentPageRoute<void>(
+                  builder: (_) => StudentProgressScreen(
+                    profile: widget.profile,
+                    stats: _gamification,
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
       body: Stack(
@@ -420,27 +436,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                       child: _WelcomeCard(
                         profile: widget.profile,
                         onCharacterTap: _openPersonality,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: StudentAnimatedCard(
-                      delay: const Duration(milliseconds: 80),
-                      child: _ProgressCard(
-                        stats: _gamification,
-                        onPressed: () {
-                          StudentSoundService.instance.playTap();
-                          Navigator.of(context).push(
-                            StudentPageRoute<void>(
-                              builder: (_) => StudentProgressScreen(
-                                profile: widget.profile,
-                                stats: _gamification,
-                              ),
-                            ),
-                          );
-                        },
                       ),
                     ),
                   ),
@@ -555,114 +550,6 @@ class _AcademicContextSummary extends StatelessWidget {
   }
 }
 
-class _ProgressCard extends StatelessWidget {
-  const _ProgressCard({required this.stats, required this.onPressed});
-  final StudentGamification stats;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => _GlassCard(
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  // The trophy replaces the blue gradient disc that used to
-                  // sit here — the reward is the point of the card, so it
-                  // is drawn rather than symbolised.
-                  Image.asset(
-                    'assets/images/icon_kaas.png',
-                    width: 52,
-                    height: 52,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.medium,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.emoji_events_rounded,
-                      color: StudentPalette.orange,
-                      size: 40,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'تقدمك ومكافآتك',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  // The level, XP and gems that used to be repeated here
-                  // now live in the top bar. Only the streak, which is not
-                  // shown there, stays.
-                  _ProgressMetric(
-                    icon: Icons.local_fire_department_rounded,
-                    color: const Color(0xFFFB7185),
-                    label: '${stats.streak} يوم',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: stats.levelProgress / 100,
-                  minHeight: 12,
-                  color: StudentPalette.orange,
-                  backgroundColor: const Color(0x33DDE6FF),
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                'باقي ${stats.xpToNextLevel} XP للمستوى التالي • اضغط لعرض الإنجازات',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF49617C),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-}
-
-class _ProgressMetric extends StatelessWidget {
-  const _ProgressMetric({
-    required this.icon,
-    required this.color,
-    required this.label,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.11),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(
-              color: StudentPalette.ink,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 const _homeSections = <_HomeSection>[
   _HomeSection(
@@ -910,55 +797,52 @@ class _LighthouseBackdrop extends StatelessWidget {
   }
 }
 
-/// Level, XP and gems, shown once, in the top bar.
+/// Level, XP and gems as three raised glass badges, centred in the top
+/// bar — the panel that used to carry them is gone.
 ///
-/// The row is wrapped in a [FittedBox] so a narrow phone scales it down
-/// instead of overflowing.
+/// Each badge is a rounded capsule with a tinted 3D ledge under it, a
+/// coloured icon disc, the count and its label. The row sits in a
+/// [FittedBox] so a narrow phone scales the trio down rather than
+/// overflowing or wrapping them.
 class _TopStatsBar extends StatelessWidget {
-  const _TopStatsBar({required this.stats});
+  const _TopStatsBar({required this.stats, this.onPressed});
 
   final StudentGamification stats;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.75),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.9)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1A4F46E5),
-              blurRadius: 14,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Center(
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _TopStat(
+              _StatBadge(
                 icon: Icons.workspace_premium_rounded,
-                color: StudentPalette.indigo,
-                label: 'المستوى ${stats.level}',
+                tint: const Color(0xFF6D5AE6),
+                value: '${stats.level}',
+                label: 'المستوى',
+                onPressed: onPressed,
               ),
-              const SizedBox(width: 14),
-              _TopStat(
+              const SizedBox(width: 10),
+              _StatBadge(
                 icon: Icons.star_rounded,
-                color: StudentPalette.orange,
-                label: '${stats.xp} XP',
+                tint: const Color(0xFFF59E0B),
+                value: '${stats.xp}',
+                label: 'XP',
+                onPressed: onPressed,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               StudentRewardPulse(
-                child: _TopStat(
+                child: _StatBadge(
                   icon: Icons.diamond_rounded,
-                  color: StudentPalette.sky,
-                  label: '${stats.gems} جوهرة',
+                  tint: const Color(0xFF0EA5A5),
+                  value: '${stats.gems}',
+                  label: 'جوهرة',
+                  onPressed: onPressed,
                 ),
               ),
             ],
@@ -969,74 +853,115 @@ class _TopStatsBar extends StatelessWidget {
   }
 }
 
-class _TopStat extends StatelessWidget {
-  const _TopStat({
+class _StatBadge extends StatelessWidget {
+  const _StatBadge({
     required this.icon,
-    required this.color,
+    required this.tint,
+    required this.value,
     required this.label,
+    this.onPressed,
   });
 
   final IconData icon;
-  final Color color;
+  final Color tint;
+  final String value;
   final String label;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF0E1B2A),
-            fontWeight: FontWeight.w900,
-            fontSize: 13,
+    final deep = Color.lerp(tint, Colors.black, 0.38)!;
+    return StudentPressScale(
+      child: GestureDetector(
+        onTap: onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          // The darker copy of the tint peeking out below the face is the
+          // whole 3D effect — the same trick the book dropdowns use.
+          padding: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            color: deep.withOpacity(0.55),
+            boxShadow: [
+              BoxShadow(
+                color: deep.withOpacity(0.34),
+                blurRadius: 14,
+                offset: const Offset(0, 7),
+              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(7, 6, 13, 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.94),
+                  Colors.white.withOpacity(0.74),
+                ],
+              ),
+              border: Border.all(color: Colors.white, width: 1.4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [tint, deep],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: tint.withOpacity(0.5),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 17),
+                ),
+                const SizedBox(width: 7),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        color: deep,
+                        fontSize: 15,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Color(0xFF5A7286),
+                        fontSize: 9.5,
+                        height: 1.3,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
 /// A translucent card, so the lighthouse behind it stays visible.
-class _GlassCard extends StatelessWidget {
-  const _GlassCard({required this.child, this.onTap});
-
-  final Widget child;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final card = Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.75),
-        borderRadius: StudentShapes.playfulCard,
-        border: Border.all(color: Colors.white.withOpacity(0.85), width: 1.4),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A4F46E5),
-            blurRadius: 20,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: child,
-    );
-    if (onTap == null) return card;
-    return StudentPressScale(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: StudentShapes.playfulCard,
-          child: card,
-        ),
-      ),
-    );
-  }
-}
 
 /// The greeting banner. Deliberately pale rather than the old deep-indigo
 /// slab: the lighthouse behind it is now a full-strength background, and a

@@ -41,8 +41,11 @@ void main() {
 
       // The looping bounce would keep pumpAndSettle spinning forever, so
       // leave the screen on a discrete pump instead.
+      // Skipping now plays a fly-up-and-fade before the route is
+      // replaced, so leave time for that as well as the transition.
       await tester.tap(find.byType(StudentStartupScreen));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
       await tester.pump(const Duration(milliseconds: 600));
       expect(tester.takeException(), isNull);
     });
@@ -63,7 +66,9 @@ void main() {
 
     await tester.tap(find.byType(StudentStartupScreen));
     await tester.pump();
+    // Past the fly-up exit, then past the route transition.
     await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump(const Duration(milliseconds: 600));
 
     // With no auth service the destination is the login screen, and the
     // splash must be gone rather than stacked behind it.

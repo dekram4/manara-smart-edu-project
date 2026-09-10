@@ -158,18 +158,28 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             dark: true,
           ),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1D4ED8),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Text(
-              '💎 الجواهر: ${_gamification.gems}  |  المفتوح: $_unlockedVideoCount من ${_videos.length}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
+          // Two translucent capsules instead of one solid blue slab, so
+          // the gem count and the unlock count read as separate facts.
+          Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _CinemaBadge(
+                    icon: Icons.diamond_rounded,
+                    tint: const Color(0xFF5EEAD4),
+                    label: 'الجواهر',
+                    value: '${_gamification.gems}',
+                  ),
+                  const SizedBox(width: 10),
+                  _CinemaBadge(
+                    icon: Icons.lock_open_rounded,
+                    tint: const Color(0xFFFFD166),
+                    label: 'المفتوح',
+                    value: '$_unlockedVideoCount / ${_videos.length}',
+                  ),
+                ],
               ),
             ),
           ),
@@ -209,6 +219,89 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A translucent capsule for one cinema statistic: a tinted icon disc, the
+/// number, and its label. Deliberately semi-transparent with a bright rim
+/// so it sits on the dark room without becoming another solid block.
+class _CinemaBadge extends StatelessWidget {
+  const _CinemaBadge({
+    required this.icon,
+    required this.tint,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final Color tint;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        color: Colors.black.withOpacity(0.45),
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(7, 6, 14, 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withOpacity(0.20),
+              Colors.white.withOpacity(0.07),
+            ],
+          ),
+          border: Border.all(color: tint.withOpacity(0.55), width: 1.4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: tint.withOpacity(0.22),
+                border: Border.all(color: tint.withOpacity(0.8)),
+              ),
+              child: Icon(icon, color: tint, size: 17),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: tint.withOpacity(0.9),
+                    fontSize: 9.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

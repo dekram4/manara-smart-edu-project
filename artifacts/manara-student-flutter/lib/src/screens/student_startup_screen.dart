@@ -57,7 +57,15 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   StreamSubscription<void>? _completionSub;
   Timer? _voiceTimer;
   Timer? _dwellTimer;
+  Timer? _exitTimer;
   bool _leaving = false;
+
+  /// How long the fly-up-and-fade runs before the route is replaced. The
+  /// navigation waits for it so the exit is seen rather than cut off.
+  static const _exit = Duration(milliseconds: 520);
+
+  /// Drives the exit. Set once, on the way out.
+  bool _flyingAway = false;
 
   @override
   void initState() {
@@ -71,6 +79,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   void dispose() {
     _voiceTimer?.cancel();
     _dwellTimer?.cancel();
+    _exitTimer?.cancel();
     _completionSub?.cancel();
     // Releases the platform player as well as the Dart object; without
     // this the decoder stays alive for the rest of the session.
@@ -120,9 +129,12 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
 
   /// Called by the voice finishing, by a tap to skip, or by the dwell
   /// backstop — whichever comes first, and only ever once.
-  Future<void> _leave() async {
+  void _leave() {
     if (_leaving || !mounted) return;
     _leaving = true;
+    // Play the exit first: the crew flies up and fades, then the route is
+    // replaced, so the transition reads as one movement instead of a cut.
+    setState(() => _flyingAway = true);
     // Deliberately not awaited. Skipping is a direct response to a tap and
     // must not wait on the audio backend to acknowledge a stop — if that
     // call is slow, or never answers on a platform without the plugin, the
@@ -130,6 +142,14 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
     // player regardless.
     final stopping = _player?.stop();
     if (stopping != null) unawaited(stopping.catchError((_) {}));
+    // A cancellable Timer, not Future.delayed: this one has to be torn
+    // down with the screen. An uncancellable delay would outlive the
+    // widget whenever the route is closed mid-exit.
+    _exitTimer = Timer(_exit, _completeExit);
+  }
+
+  Future<void> _completeExit() async {
+    if (!mounted) return;
     final destination = await _destination.future;
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
@@ -196,29 +216,14 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
                             titleSize: titleSize,
                           ),
                           SizedBox(height: shortest * 0.045),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              _GreetingCharacter(
-                                asset: 'assets/images/path_mascot.png',
-                                height: characterHeight,
-                                entrance: _entrance,
-                                popDelay: Duration.zero,
-                                tilt: -0.035,
-                              ),
-                              SizedBox(width: shortest * 0.035),
-                              _GreetingCharacter(
-                                asset: 'assets/images/student_mascot.png',
-                                height: characterHeight * 0.94,
-                                entrance: _entrance,
-                                // A beat apart, so the two read as
-                                // greeting the child rather than as one
-                                // rigid object moving.
-                                popDelay: const Duration(milliseconds: 160),
-                                tilt: 0.035,
-                              ),
-                            ],
+                          // One illustration now, instead of the guide and
+                          // the reading pair side by side.
+                          _GreetingCharacter(
+                            asset: 'assets/images/start.png',
+                            height: characterHeight * 1.35,
+                            entrance: _entrance,
+                            leaving: _flyingAway,
+                            exitDuration: _exit,
                           ),
                           SizedBox(height: shortest * 0.05),
                           Text(
@@ -302,15 +307,17 @@ class _GreetingCharacter extends StatelessWidget {
     required this.asset,
     required this.height,
     required this.entrance,
-    required this.popDelay,
-    required this.tilt,
+    required this.leaving,
+    required this.exitDuration,
   });
 
   final String asset;
   final double height;
   final Duration entrance;
-  final Duration popDelay;
-  final double tilt;
+
+  /// Flipped once, when the screen is on its way out.
+  final bool leaving;
+  final Duration exitDuration;
 
   @override
   Widget build(BuildContext context) {
@@ -323,9 +330,24 @@ class _GreetingCharacter extends StatelessWidget {
 
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return image;
 
+    // The exit takes over from the idle bounce: the crew lifts off the top
+    // of the screen and fades as it goes.
+    if (leaving) {
+      return image
+          .animate()
+          .moveY(
+            begin: 0,
+            end: -height * 2.2,
+            duration: exitDuration,
+            curve: Curves.easeInBack,
+          )
+          .fadeOut(duration: exitDuration, curve: Curves.easeIn)
+          .scaleXY(begin: 1, end: 0.7, duration: exitDuration);
+    }
+
     final bouncing = Animate(
       onPlay: (controller) => controller.repeat(reverse: true),
-      delay: entrance + popDelay,
+      delay: entrance,
       effects: [
         MoveEffect(
           begin: Offset.zero,
@@ -342,7 +364,7 @@ class _GreetingCharacter extends StatelessWidget {
         ),
         RotateEffect(
           begin: 0,
-          end: tilt,
+          end: 0.03,
           duration: 620.ms,
           curve: Curves.easeInOut,
         ),
@@ -351,7 +373,7 @@ class _GreetingCharacter extends StatelessWidget {
     );
 
     return Animate(
-      delay: popDelay,
+      delay: Duration.zero,
       effects: [
         FadeEffect(duration: 320.ms),
         ScaleEffect(

@@ -244,18 +244,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   const SizedBox(height: 4),
                   StudentEntrance(
                     delay: const Duration(milliseconds: 150),
-                    child: FilledButton.icon(
-                      onPressed: _sending ? null : _ask,
-                      icon: _sending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.auto_awesome_rounded),
-                      label: Text(_sending ? 'جارٍ التفكير...' : 'ساعدني في الحل'),
-                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                    ),
+                    child: _AskButton(sending: _sending, onPressed: _ask),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 16),
@@ -280,6 +269,96 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                 ],
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The assistant's call to action, as a raised capsule in Manara's teal
+/// rather than a flat default button — it is the one thing on this screen
+/// the student is meant to press.
+class _AskButton extends StatelessWidget {
+  const _AskButton({required this.sending, required this.onPressed});
+
+  final bool sending;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    const ledge = Color(0xFF075A63);
+    return StudentPressScale(
+      child: GestureDetector(
+        onTap: sending ? null : onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.only(bottom: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            color: sending ? const Color(0xFF6B7280) : ledge,
+            boxShadow: [
+              BoxShadow(
+                color: (sending ? const Color(0xFF6B7280) : ledge)
+                    .withOpacity(0.42),
+                blurRadius: 18,
+                offset: const Offset(0, 9),
+              ),
+            ],
+          ),
+          child: Container(
+            height: 54,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: sending
+                    ? const [Color(0xFF9CA3AF), Color(0xFF6B7280)]
+                    : const [Color(0xFF22D3EE), Color(0xFF0B8693)],
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.55), width: 1.6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (sending)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.24),
+                      border: Border.all(color: Colors.white.withOpacity(0.7)),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 19,
+                    ),
+                  ),
+                const SizedBox(width: 10),
+                Text(
+                  sending ? 'جارٍ التفكير...' : 'ساعدني في الحل',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    shadows: [Shadow(color: Color(0x55000000), blurRadius: 4)],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
