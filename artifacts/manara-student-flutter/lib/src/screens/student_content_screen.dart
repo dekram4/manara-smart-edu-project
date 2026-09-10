@@ -964,20 +964,19 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     super.dispose();
   }
 
-  /// Hides the phone's own back/home/recents bar for the duration of the
-  /// game. It used to sit on top of the game's own bottom controls, so a
-  /// tap aimed at the game hit the system bar instead and the student
-  /// simply could not play. "Sticky" is the right variant here: a swipe
-  /// from the edge still brings the bar back for a moment when the student
-  /// actually wants it, then it hides itself again.
+  /// The whole card already runs immersive through [StudentImmersive] on
+  /// its route, but the game is pushed as a screen of its own on top of
+  /// it, so it re-asserts the mode here: without this, entering the game
+  /// would inherit whatever the platform had drifted back to.
   void _enterImmersive() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  /// Every exit path leads here, so the bars are never left hidden for the
-  /// rest of the app: leaving the screen, the back button, and disposal.
+  /// Returning to the games list stays immersive — the card around it is
+  /// still open — so this puts the mode back rather than restoring the
+  /// bars, which would flash them over the list on the way out.
   void _restoreSystemBars() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   String get _url {

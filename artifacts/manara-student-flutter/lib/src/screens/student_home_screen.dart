@@ -156,6 +156,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       Navigator.of(context)
           .push(
         StudentPageRoute<void>(
+          immersive: true,
           builder: (_) => StudentCinemaScreen(
             profile: widget.profile,
             authService: widget.authService,
@@ -182,6 +183,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       Navigator.of(context)
           .push(
         StudentPageRoute<void>(
+          immersive: true,
           builder: (_) => StudentQuizScreen(
             profile: widget.profile,
             contentService: StudentContentService(
@@ -209,6 +211,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     if (index == 8) {
       Navigator.of(context).push(
         StudentPageRoute<void>(
+          immersive: true,
           builder: (_) => StudentChatScreen(
             profile: widget.profile,
             apiBaseUrl: widget.apiBaseUrl,
@@ -222,6 +225,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     Navigator.of(context)
         .push(
       StudentPageRoute<void>(
+        immersive: true,
         builder: (_) => StudentContentScreen(
           profile: widget.profile,
           authService: widget.authService,
@@ -239,6 +243,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   void _openPersonality() {
     Navigator.of(context).push(
       StudentPageRoute<void>(
+        immersive: true,
         builder: (_) => StudentPersonalityScreen(
           profile: widget.profile,
           contentService: StudentContentService(widget.authService.client),
@@ -275,6 +280,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       if (!mounted) return;
       await Navigator.of(context).push(
         StudentPageRoute<void>(
+          immersive: true,
           builder: (_) => StudentTutorScreen(
             selection: selection,
           apiBaseUrl: widget.apiBaseUrl,
@@ -310,6 +316,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       if (!mounted) return;
       await Navigator.of(context).push(
         StudentPageRoute<void>(
+          immersive: true,
           builder: (_) => StudentProblemSolverScreen(
             lessons: lessons,
             apiBaseUrl: widget.apiBaseUrl,
@@ -412,6 +419,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               StudentSoundService.instance.playTap();
               Navigator.of(context).push(
                 StudentPageRoute<void>(
+                  immersive: true,
                   builder: (_) => StudentProgressScreen(
                     profile: widget.profile,
                     stats: _gamification,
@@ -684,6 +692,9 @@ class _HomeSectionGrid extends StatelessWidget {
           width: cardWidth,
           child: _SectionTile(
             section: _homeSections[index],
+            // Staggers each card's float so the rail breathes rather than
+            // pulsing as one block.
+            index: index,
             onPressed: () => onSectionPressed(index),
           ),
         ),
@@ -700,71 +711,186 @@ class _HomeSectionGrid extends StatelessWidget {
 /// card behind them is deliberately quiet — a soft translucent panel with
 /// a rim tinted in the portal's own colour — so the artwork is what reads
 /// and the lighthouse still shows through the rail.
-class _SectionTile extends StatelessWidget {
-  const _SectionTile({required this.section, required this.onPressed});
+class _SectionTile extends StatefulWidget {
+  const _SectionTile({
+    required this.section,
+    required this.index,
+    required this.onPressed,
+  });
 
   final _HomeSection section;
+  final int index;
   final VoidCallback? onPressed;
 
   @override
+  State<_SectionTile> createState() => _SectionTileState();
+}
+
+class _SectionTileState extends State<_SectionTile>
+    with TickerProviderStateMixin {
+  /// The idle float. Each card gets its own slightly different period, so
+  /// nine cards drifting together never lock into one rhythm.
+  late final AnimationController _drift = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: 2900 + (widget.index % 5) * 170),
+  );
+
+  /// The reaction to a finger or a pointer. Rises quickly and settles back
+  /// more slowly, which is what makes it feel sprung rather than switched.
+  late final AnimationController _lift = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    reverseDuration: const Duration(milliseconds: 420),
+  );
+
+  late final Animation<double> _liftCurve = CurvedAnimation(
+    parent: _lift,
+    curve: Curves.easeOutBack,
+    reverseCurve: Curves.easeOutCubic,
+  );
+
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _drift.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    _lift.dispose();
+    super.dispose();
+  }
+
+  /// Hover and press are tracked apart and combined here: on a desktop the
+  /// pointer is still over the card after the click, so clearing the state
+  /// on tap-up alone would drop the card while the mouse still rests on it.
+  void _sync() {
+    final engaged = _hovered || _pressed;
+    if (engaged) {
+      _lift.forward();
+    } else {
+      _lift.reverse();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final tint = section.colors.first;
+    final tint = widget.section.colors.first;
     const radius = 24.0;
-    return StudentPressScale(
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    final contents = Column(
+      children: [
+        // The illustration takes whatever height the rail gives the
+        // card after the label, and `contain` keeps every one of the
+        // nine at its own aspect — none is stretched to fit.
+        Expanded(
+          child: Image.asset(
+            widget.section.image,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, __, ___) => Icon(
+              Icons.image_not_supported_rounded,
+              color: tint.withOpacity(0.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // Scales down rather than wrapping or clipping, so a long
+        // portal name cannot change the card's height.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            widget.section.title,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color.lerp(tint, Colors.black, 0.35),
+              fontSize: 15.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final interactive = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        _hovered = true;
+        _sync();
+      },
+      onExit: (_) {
+        _hovered = false;
+        _sync();
+      },
       child: GestureDetector(
-        onTap: onPressed,
         behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            color: Colors.white.withOpacity(0.72),
-            border: Border.all(color: tint.withOpacity(0.45), width: 1.6),
-            boxShadow: [
-              BoxShadow(
-                color: tint.withOpacity(0.22),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // The illustration takes whatever height the rail gives the
-              // card after the label, and `contain` keeps every one of the
-              // nine at its own aspect — none is stretched to fit.
-              Expanded(
-                child: Image.asset(
-                  section.image,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.medium,
-                  errorBuilder: (_, __, ___) => Icon(
-                    Icons.image_not_supported_rounded,
-                    color: tint.withOpacity(0.5),
+        onTapDown: (_) {
+          _pressed = true;
+          _sync();
+        },
+        onTapUp: (_) {
+          _pressed = false;
+          _sync();
+        },
+        onTapCancel: () {
+          _pressed = false;
+          _sync();
+        },
+        onTap: widget.onPressed,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_drift, _liftCurve]),
+          builder: (context, child) {
+            // A plain sine over a controller that already reverses would
+            // ease twice and stall at the ends; the raw value mapped
+            // through a cosine gives one clean rise and fall.
+            final drift = reduceMotion
+                ? 0.0
+                : (1 - math.cos(_drift.value * math.pi)) / 2 - 0.5;
+            final lift = reduceMotion ? 0.0 : _liftCurve.value.clamp(0.0, 1.4);
+
+            return Transform.translate(
+              offset: Offset(0, drift * 5 - lift * 9),
+              child: Transform.scale(
+                scale: 1 + lift * 0.05,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(radius),
+                    color: Colors.white.withOpacity(0.72 + lift * 0.16),
+                    // The rim brightens into the portal's own colour as
+                    // the card comes up, so each one glows as itself
+                    // rather than every card glowing the same white.
+                    border: Border.all(
+                      color: tint.withOpacity(0.45 + lift * 0.45),
+                      width: 1.6 + lift * 0.9,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: tint.withOpacity(0.22 + lift * 0.30),
+                        blurRadius: 16 + lift * 22,
+                        spreadRadius: lift * 2,
+                        offset: Offset(0, 8 + lift * 4),
+                      ),
+                    ],
                   ),
+                  child: child,
                 ),
               ),
-              const SizedBox(height: 6),
-              // Scales down rather than wrapping or clipping, so a long
-              // portal name cannot change the card's height.
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  section.title,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color.lerp(tint, Colors.black, 0.35),
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
+          child: contents,
         ),
       ),
     );
+
+    return Semantics(button: true, label: widget.section.title, child: interactive);
   }
 }
 

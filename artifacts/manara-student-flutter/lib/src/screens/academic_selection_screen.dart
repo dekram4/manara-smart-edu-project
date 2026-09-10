@@ -564,23 +564,25 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     .clamp(56.0, 180.0)
                     .toDouble();
                 final mascotHeight = artSize;
-                // The pencil illustration carries a lot of transparent
-                // padding, so at the shared art size it read as the
-                // smallest thing on screen. Drawn 35% larger to sit level
-                // with the guide; its box grows, not the reserve, and it
-                // sits in the gutter where there is room for it.
-                final pencilWidth = artSize * 1.35;
-                final readersSize = artSize * 0.91;
+                final logoHeight = (artSize * 0.72).clamp(44.0, 120.0).toDouble();
 
-                // Landscape keeps the characters in side gutters; portrait
-                // moves them into bands above and below the books, which is
-                // the rearrangement that keeps a tall screen balanced
-                // instead of squeezing the illustration to a sliver. The
-                // 20px of slack absorbs the pencil's rotation, which paints
-                // a little outside its own box, and the extra 46 on a
-                // portrait top band clears the HUD row.
+                // Three things share the screen now: the brand at the top,
+                // the guide, and the books. The reserves are decided first
+                // and the books are laid out inside what is left, so the
+                // guide and the brand always have their place and the
+                // illustration scales to fit rather than anything being
+                // pushed off or hidden.
+                //
+                // Landscape gives the guide a side gutter, kept equal on
+                // both sides so the books stay centred on the screen
+                // itself. Portrait gives her a band under the books and
+                // the brand a band above them.
                 final sideReserve = portrait ? 0.0 : artSize + 20;
-                final topReserve = portrait ? artSize + 46 : 0.0;
+                // Only the brand and the HUD chips live in the portrait top
+                // band now, so it is sized to the brand rather than to a
+                // character — which is what gives the books back the height
+                // they were losing.
+                final topReserve = portrait ? logoHeight + 58 : 0.0;
                 // The guide is 1.15x her own width tall and carries a
                 // speech bubble above her head, so the bottom band has to
                 // allow for both — sizing it to her height alone would let
@@ -594,8 +596,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // among the other elements rather than crowding them. The
                 // shrink is applied about the box's own centre, so the
                 // illustration — and every field measured against it —
-                // stays exactly centred.
-                const booksScale = 0.93;
+                // stays exactly centred. Raised from 0.93 now that nothing
+                // shares the space with it but the guide.
+                const booksScale = 0.97;
                 final fitted = _containRect(content, _booksAspect);
                 final imageRect = Rect.fromCenter(
                   center: fitted.center,
@@ -608,7 +611,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 final brandWidth = portrait
                     ? math.min(areaSize.width * 0.42, 190.0)
                     : sideReserve - 24;
-                final logoHeight = (artSize * 0.72).clamp(44.0, 120.0).toDouble();
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -641,43 +643,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         rect: imageRect,
                         child: Center(child: _buildLoadingOrError()),
                       ),
-                    // The pencil crew and the student's character stay in
-                    // front of the books; only the guide sits behind.
-                    Positioned(
-                      right: 10,
-                      bottom: 4,
-                      // The pencil crew rocks in the air rather than
-                      // hopping — they are flying, not standing.
-                      child: _FlyAway(
-                        away: _leaving,
-                        angle: 0.28,
-                        child: _FloatingArt(
-                          asset: 'assets/images/winter_fun.png',
-                          size: pencilWidth,
-                          baseAngle: -0.14,
-                          motion: _Motion.wiggle,
-                          amount: 1.1,
-                          period: const Duration(milliseconds: 3100),
-                          phase: 0.35,
-                        ),
-                      ),
-                    ),
-                    // Top-right in both orientations, below the HUD row.
-                    // The reading pair used to float here; it is the
-                    // student's own chosen character now, so the screen
-                    // shows them rather than a generic illustration.
-                    Positioned(
-                      right: 10,
-                      top: 48,
-                      // The student's own character hops, on its own beat
-                      // and offset from the pencil crew so the two never
-                      // move together.
-                      child: _FloatingAvatar(
-                        size: readersSize,
-                        motion: _Motion.bounce,
-                        period: const Duration(milliseconds: 2300),
-                      ),
-                    ),
                     Positioned(
                       top: 12,
                       left: 12,
@@ -1154,6 +1119,11 @@ enum _Motion {
 
   /// Breathes — a slow scale pulse with the faintest lift.
   pulse,
+
+  /// Hovers: a slow, even rise and fall with no squash and the barest
+  /// tilt. The quietest of the four, for a character that should feel
+  /// alive without drawing the eye away from what it is pointing at.
+  float,
 }
 
 class _FloatingArt extends StatefulWidget {
@@ -1253,6 +1223,11 @@ class _FloatingArtState extends State<_FloatingArt>
             scaleX = scaleY = 1 + breath * 0.07 * k;
             dy = -breath * s * 0.05 * k;
             tilt = math.sin(turn) * 0.02 * k;
+          case _Motion.float:
+            // A plain sine, so the rise and the fall take the same time
+            // and neither end snaps — the character simply hovers.
+            dy = math.sin(turn) * s * 0.045 * k;
+            tilt = math.sin(turn) * 0.012 * k;
         }
 
         return Transform.translate(
@@ -1301,13 +1276,14 @@ class _MascotGuide extends StatelessWidget {
                   curve: Curves.easeInOut,
                 ),
         const SizedBox(height: 2),
-        // The guide waves rather than drifting.
+        // She is the only character left in the scene, so she hovers
+        // rather than waves: a slow even rise and fall that reads as calm
+        // next to the books instead of competing with them.
         _FloatingArt(
           asset: 'assets/images/path_mascot.png',
           size: height,
-          motion: _Motion.wiggle,
-          amount: 0.85,
-          period: const Duration(milliseconds: 2700),
+          motion: _Motion.float,
+          period: const Duration(milliseconds: 3600),
         ),
       ],
     );
@@ -1432,44 +1408,9 @@ extension _FirstOrNull<T> on List<T> {
 
 String _normalized(Object? value) => value?.toString().trim().toLowerCase() ?? '';
 
-/// The student's chosen character, floating where the reading pair used
-/// to. It reuses [_FloatingArt]'s motion but takes its image from the
-/// app-wide selection, so picking a new character updates this screen too.
-class _FloatingAvatar extends StatelessWidget {
-  const _FloatingAvatar({
-    required this.size,
-    required this.motion,
-    required this.period,
-  });
-
-  final double size;
-  final _Motion motion;
-  final Duration period;
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<StudentAvatar>(
-      valueListenable: StudentAvatars.selected,
-      builder: (context, avatar, _) => _FloatingArt(
-        // Keyed by the character so switching rebuilds the animation with
-        // the new image instead of reusing the previous element's state.
-        key: ValueKey(avatar.id),
-        asset: avatar.asset,
-        size: size,
-        motion: motion,
-
-        period: period,
-
-      ),
-    );
-  }
-}
-
-/// Sends a character flying off-screen on a diagonal and fades it out.
-///
-/// Used when the student starts the adventure: the guide and the pencil
-/// crew leave in different directions and a beat apart, so the exit reads
-/// as two characters heading off rather than one layer being switched off.
+/// Sends the guide flying off-screen on a diagonal and fades her out when
+/// the student starts the adventure, so the exit reads as her heading off
+/// rather than a layer being switched off.
 class _FlyAway extends StatelessWidget {
   const _FlyAway({
     required this.away,

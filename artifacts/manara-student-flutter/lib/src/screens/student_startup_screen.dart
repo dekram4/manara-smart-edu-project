@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -44,9 +45,17 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   /// It is a fixed timer rather than "however long the voice runs" on
   /// purpose: the audio finishing is not a reliable signal (a missing
   /// asset, a muted device, or a platform that never reports completion
-  /// would leave a child sitting on the splash), and a predictable five
+  /// would leave a child sitting on the splash), and a predictable seven
   /// seconds is what the app should cost on every launch.
-  static const _dwell = Duration(seconds: 5);
+  static const _dwell = Duration(seconds: 7);
+
+  /// The screen runs in two halves. For the first two seconds the
+  /// character simply hovers in place; at this mark it begins to spin
+  /// away, and the spin is timed to land exactly on [_dwell] so the
+  /// composition is gone at the moment the route changes rather than
+  /// being cut off mid-movement.
+  static const _spinAt = Duration(seconds: 2);
+  static const _spinFor = Duration(seconds: 5);
 
   // Created only when the voice is actually played. Constructing an
   // AudioPlayer talks to the platform, so building it eagerly would make
@@ -57,21 +66,21 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   StreamSubscription<void>? _completionSub;
   Timer? _voiceTimer;
   Timer? _dwellTimer;
-  Timer? _exitTimer;
+  Timer? _spinTimer;
   bool _leaving = false;
 
-  /// How long the fly-up-and-fade runs before the route is replaced. The
-  /// navigation waits for it so the exit is seen rather than cut off.
-  static const _exit = Duration(milliseconds: 520);
-
-  /// Drives the exit. Set once, on the way out.
-  bool _flyingAway = false;
+  /// Flipped once, two seconds in: the hover stops and the spin-out
+  /// begins. A tap skips straight past it.
+  bool _spinningOut = false;
 
   @override
   void initState() {
     super.initState();
     _resolveDestination();
     _voiceTimer = Timer(_entrance, _playWelcomeVoice);
+    _spinTimer = Timer(_spinAt, () {
+      if (mounted) setState(() => _spinningOut = true);
+    });
     _dwellTimer = Timer(_dwell, _leave);
   }
 
@@ -79,7 +88,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   void dispose() {
     _voiceTimer?.cancel();
     _dwellTimer?.cancel();
-    _exitTimer?.cancel();
+    _spinTimer?.cancel();
     _completionSub?.cancel();
     // Releases the platform player as well as the Dart object; without
     // this the decoder stays alive for the rest of the session.
@@ -127,14 +136,18 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
     );
   }
 
-  /// Called by the voice finishing, by a tap to skip, or by the dwell
-  /// backstop — whichever comes first, and only ever once.
-  void _leave() {
+  /// Called by the seven-second mark or by a tap to skip — whichever comes
+  /// first, and only ever once.
+  ///
+  /// Unlike the old exit, this does not schedule another animation before
+  /// navigating. By the time the dwell timer fires the spin-out has
+  /// already finished on screen; and a tap is meant to be immediate, so
+  /// making it wait for a farewell animation is the opposite of skipping.
+  Future<void> _leave() async {
     if (_leaving || !mounted) return;
     _leaving = true;
-    // Play the exit first: the crew flies up and fades, then the route is
-    // replaced, so the transition reads as one movement instead of a cut.
-    setState(() => _flyingAway = true);
+    _spinTimer?.cancel();
+    _dwellTimer?.cancel();
     // Deliberately not awaited. Skipping is a direct response to a tap and
     // must not wait on the audio backend to acknowledge a stop — if that
     // call is slow, or never answers on a platform without the plugin, the
@@ -142,14 +155,6 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
     // player regardless.
     final stopping = _player?.stop();
     if (stopping != null) unawaited(stopping.catchError((_) {}));
-    // A cancellable Timer, not Future.delayed: this one has to be torn
-    // down with the screen. An uncancellable delay would outlive the
-    // widget whenever the route is closed mid-exit.
-    _exitTimer = Timer(_exit, _completeExit);
-  }
-
-  Future<void> _completeExit() async {
-    if (!mounted) return;
     final destination = await _destination.future;
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
@@ -208,33 +213,39 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
                     ),
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _WelcomeBrand(
-                            logoSize: logoSize,
-                            titleSize: titleSize,
-                          ),
-                          SizedBox(height: shortest * 0.045),
-                          // One illustration now, instead of the guide and
-                          // the reading pair side by side.
-                          _GreetingCharacter(
-                            asset: 'assets/images/start.png',
-                            height: characterHeight * 1.35,
-                            entrance: _entrance,
-                            leaving: _flyingAway,
-                            exitDuration: _exit,
-                          ),
-                          SizedBox(height: shortest * 0.05),
-                          Text(
-                            'اضغط في أي مكان للتخطي',
-                            style: TextStyle(
-                              color: const Color(0xFF7B8B99),
-                              fontSize: titleSize * 0.46,
-                              fontWeight: FontWeight.w700,
+                      // The character and the greeting leave together —
+                      // the character spinning, the words simply shrinking
+                      // and fading with it — so the screen empties as one
+                      // composition rather than in pieces.
+                      child: _SpinAway(
+                        away: _spinningOut,
+                        duration: _spinFor,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _WelcomeBrand(
+                              logoSize: logoSize,
+                              titleSize: titleSize,
                             ),
-                          ).animate(delay: 1400.ms).fadeIn(duration: 600.ms),
-                        ],
+                            SizedBox(height: shortest * 0.045),
+                            _GreetingCharacter(
+                              asset: 'assets/images/start.png',
+                              height: characterHeight * 1.35,
+                              entrance: _entrance,
+                              spinning: _spinningOut,
+                              spinDuration: _spinFor,
+                            ),
+                            SizedBox(height: shortest * 0.05),
+                            Text(
+                              'اضغط في أي مكان للتخطي',
+                              style: TextStyle(
+                                color: const Color(0xFF7B8B99),
+                                fontSize: titleSize * 0.46,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ).animate(delay: 1400.ms).fadeIn(duration: 600.ms),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -298,29 +309,29 @@ class _WelcomeBrand extends StatelessWidget {
   }
 }
 
-/// One character: an elastic pop-in, then a continuous joyful bounce with
-/// squash-and-stretch and a slight tilt.
+/// One character: an elastic pop-in, then a soft hover in place, and
+/// finally a spin as it leaves.
 ///
-/// The squash is what makes it read as cartoon rather than as a widget
-/// sliding: the character stretches tall as it leaves the ground and
-/// squashes wide as it lands, which is the classic pairing. Scale is
-/// anchored to the bottom so the feet stay on the floor while it deforms.
+/// The hover is deliberately quieter than the old bounce — a slow, even
+/// rise and fall with no squash — because it now has to hold the screen
+/// on its own for two seconds before anything else happens, and a
+/// character hopping that long reads as restless rather than alive.
 class _GreetingCharacter extends StatelessWidget {
   const _GreetingCharacter({
     required this.asset,
     required this.height,
     required this.entrance,
-    required this.leaving,
-    required this.exitDuration,
+    required this.spinning,
+    required this.spinDuration,
   });
 
   final String asset;
   final double height;
   final Duration entrance;
 
-  /// Flipped once, when the screen is on its way out.
-  final bool leaving;
-  final Duration exitDuration;
+  /// Flipped once, at the two-second mark.
+  final bool spinning;
+  final Duration spinDuration;
 
   @override
   Widget build(BuildContext context) {
@@ -333,42 +344,26 @@ class _GreetingCharacter extends StatelessWidget {
 
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return image;
 
-    // The exit takes over from the idle bounce: the crew lifts off the top
-    // of the screen and fades as it goes.
-    if (leaving) {
-      return image
-          .animate()
-          .moveY(
-            begin: 0,
-            end: -height * 2.2,
-            duration: exitDuration,
-            curve: Curves.easeInBack,
-          )
-          .fadeOut(duration: exitDuration, curve: Curves.easeIn)
-          .scaleXY(begin: 1, end: 0.7, duration: exitDuration);
-    }
+    // Once the spin starts the hover stops: leaving both running would
+    // have the character bobbing while it turns, which reads as a glitch
+    // rather than a flourish. _SpinAway above handles the shrink and the
+    // fade for the whole composition; this adds only the rotation.
+    if (spinning) return _Spin(duration: spinDuration, child: image);
 
-    final bouncing = Animate(
+    final hovering = Animate(
       onPlay: (controller) => controller.repeat(reverse: true),
       delay: entrance,
       effects: [
         MoveEffect(
           begin: Offset.zero,
-          end: Offset(0, -height * 0.11),
-          duration: 620.ms,
-          curve: Curves.easeOutQuad,
-        ),
-        ScaleEffect(
-          begin: const Offset(1.05, 0.95),
-          end: const Offset(0.95, 1.06),
-          alignment: Alignment.bottomCenter,
-          duration: 620.ms,
-          curve: Curves.easeOutQuad,
+          end: Offset(0, -height * 0.055),
+          duration: 1500.ms,
+          curve: Curves.easeInOut,
         ),
         RotateEffect(
-          begin: 0,
-          end: 0.03,
-          duration: 620.ms,
+          begin: -0.008,
+          end: 0.008,
+          duration: 1500.ms,
           curve: Curves.easeInOut,
         ),
       ],
@@ -387,7 +382,80 @@ class _GreetingCharacter extends StatelessWidget {
           curve: Curves.elasticOut,
         ),
       ],
-      child: bouncing,
+      child: hovering,
     );
+  }
+}
+
+/// Turns its child a full three times about its vertical axis, with a
+/// perspective entry in the matrix so it reads as a figure rotating in
+/// space rather than a flat picture being squeezed side to side.
+class _Spin extends StatefulWidget {
+  const _Spin({required this.duration, required this.child});
+
+  final Duration duration;
+  final Widget child;
+
+  @override
+  State<_Spin> createState() => _SpinState();
+}
+
+class _SpinState extends State<_Spin> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        // Eased in rather than linear: the character drifts into the turn
+        // and is at its fastest as it disappears, which is what stops the
+        // spin looking mechanical.
+        final t = Curves.easeInCubic.transform(_controller.value);
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.0012)
+            ..rotateY(t * 3 * 2 * math.pi),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Shrinks and fades whatever it wraps once [away] flips, over exactly
+/// [duration], and holds it steady before then.
+class _SpinAway extends StatelessWidget {
+  const _SpinAway({
+    required this.away,
+    required this.duration,
+    required this.child,
+  });
+
+  final bool away;
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!away) return child;
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return const SizedBox.shrink();
+    }
+    return child
+        .animate()
+        .scaleXY(begin: 1, end: 0.04, duration: duration, curve: Curves.easeInCubic)
+        .fadeOut(duration: duration, curve: Curves.easeInCubic);
   }
 }

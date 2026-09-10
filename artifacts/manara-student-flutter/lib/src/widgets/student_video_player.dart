@@ -1001,6 +1001,19 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               controller: controller,
               aspectRatio: 16 / 9,
               backgroundColor: Colors.black,
+              // THE fix for "the shrink button does nothing and Back is
+              // dead". Left on (its default), the player re-enters
+              // fullscreen from didChangeMetrics whenever the device is
+              // physically landscape and fullscreen is off — and unlike
+              // its auto-*exit*, that auto-*enter* does not check whether
+              // the state was locked deliberately. So on a tablet held in
+              // landscape every exit was undone within a frame: the button
+              // looked broken, and Back could never pop because the
+              // package's own PopScope saw fullscreen switched straight
+              // back on. Fullscreen is now entered only when someone asks
+              // for it — the player's own button still works, since that
+              // arrives as a controller event, not through rotation.
+              autoFullScreen: false,
               // On Android/iOS, real device fullscreen is rendered by this
               // package through its own app-level OverlayPortal — which
               // paints *above* this widget's own Stack, hiding the
@@ -1021,7 +1034,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                         top: 12,
                       ),
                       child: _FullscreenBackButton(
-                        onPressed: () => _exitYoutubeFullscreen(controller),
+                        onPressed: () => _handleYoutubeBack(controller),
                       ),
                     ),
                   ),
@@ -1034,7 +1047,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                 start: 12,
                 child: SafeArea(
                   child: _FullscreenBackButton(
-                    onPressed: () => _exitYoutubeFullscreen(controller),
+                    onPressed: () => _handleYoutubeBack(controller),
                   ),
                 ),
               ),
@@ -1050,23 +1063,30 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     );
   }
 
-  /// Leaves the YouTube player's own fullscreen. Deliberately synchronous
-  /// for the same reason as [_exitFullscreen]: the caller is a Back press,
-  /// and it must not wait on a platform orientation change that only
-  /// settles once the device is physically turned.
+  /// Leaves the YouTube player's own fullscreen.
+  ///
+  /// This used to also force the device to portrait, on the theory that
+  /// the exit could not be seen otherwise. That was treating the symptom.
+  /// The real reason a tablet held in landscape appeared to ignore both
+  /// the shrink button and Back is [YoutubePlayer.autoFullScreen], which
+  /// is now off — see the comment at the widget. With that loop gone the
+  /// exit simply holds, and there is no reason to spin the student's
+  /// tablet around against their wishes.
   void _exitYoutubeFullscreen(YoutubePlayerController controller) {
     controller.exitFullScreen();
-    unawaited(
-      SystemChrome.setPreferredOrientations(
-        const [DeviceOrientation.portraitUp],
-      ).catchError((_) {}),
-    );
-    // Hands the device straight back to the app's own policy, so the
-    // portrait nudge above never becomes a lock the student is stuck in.
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 350))
-          .then((_) => _restoreAppOrientation()),
-    );
+  }
+
+  /// The back button drawn over the video, and the device's own Back key,
+  /// both follow the same two steps: the first press leaves fullscreen,
+  /// and a press with the video already at its normal size closes the
+  /// screen. Nothing here waits on the platform, so both act on the frame
+  /// they are pressed.
+  void _handleYoutubeBack(YoutubePlayerController controller) {
+    if (controller.value.fullScreenOption.enabled) {
+      _exitYoutubeFullscreen(controller);
+      return;
+    }
+    Navigator.of(context).maybePop();
   }
 
   Future<void> _retryNativePlayback() async {

@@ -6,12 +6,14 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
 import 'student_avatar_view.dart';
+import 'student_immersive.dart';
 import 'student_orientation_guard.dart';
 
 class StudentPageRoute<T> extends PageRouteBuilder<T> {
   StudentPageRoute({
     required WidgetBuilder builder,
     RouteSettings? settings,
+    bool immersive = false,
   }) : super(
           settings: settings,
           transitionDuration: const Duration(milliseconds: 320),
@@ -21,8 +23,16 @@ class StudentPageRoute<T> extends PageRouteBuilder<T> {
           // the cinema, the lesson player, the live meeting, the avatar
           // creator's WebView and every other portal are covered without
           // each screen having to remember to clean up after its embeds.
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              StudentOrientationGuard(child: builder(context)),
+          //
+          // The same argument applies to hiding the system bars inside a
+          // portal card, so that rides along here too — opted into per
+          // route rather than applied to all, because the splash, the
+          // login board and the path screen are not cards and should keep
+          // the phone's own bars.
+          pageBuilder: (context, animation, secondaryAnimation) {
+            final page = StudentOrientationGuard(child: builder(context));
+            return immersive ? StudentImmersive(child: page) : page;
+          },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return child;
             final curve = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);

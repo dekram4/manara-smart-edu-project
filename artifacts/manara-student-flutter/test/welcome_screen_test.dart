@@ -75,4 +75,32 @@ void main() {
     expect(find.byType(StudentStartupScreen), findsNothing);
     expect(find.text('تسجيل الدخول'), findsOneWidget);
   });
+
+  testWidgets('the splash holds for seven seconds, then leaves on its own',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app());
+
+    // Through the hover half and well into the spin, with a beat to spare
+    // before the seven-second mark: the splash is still the screen.
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byType(StudentStartupScreen), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 4800));
+    expect(
+      find.byType(StudentStartupScreen),
+      findsOneWidget,
+      reason: 'the splash must not leave early — it owns the full 7s',
+    );
+
+    // Past the mark, then past the route transition.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(StudentStartupScreen), findsNothing);
+    expect(find.text('تسجيل الدخول'), findsOneWidget);
+  });
 }
