@@ -50,6 +50,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -58,3 +59,30 @@ flutter:
     - assets/animations/
     - assets/sounds/
     - assets/audio/
+
+# The launcher icon: the Manara mark beside the app's own character, so
+# what a child taps on the home screen is the same pair that greets them
+# inside it.
+#
+# Regenerate with `dart run flutter_launcher_icons` after changing either
+# image; the generated mipmap/Assets.xcassets output is committed, so the
+# APK build does not need this step.
+flutter_launcher_icons:
+  image_path: "assets/images/app_launcher_icon.png"
+  android: true
+  # This project has no ios/ runner — only android, web and windows — so
+  # there is no Assets.xcassets to write into and the generator fails
+  # outright on `ios: true`. Everything else here is already correct for
+  # iOS and iPadOS: add the platform with
+  # `flutter create --platforms=ios .`, flip this to true, and re-run
+  # `dart run flutter_launcher_icons`. `remove_alpha_ios` is kept ready
+  # because the App Store rejects icons with an alpha channel.
+  ios: false
+  remove_alpha_ios: true
+  # Android 8+ draws the foreground on its own background and then applies
+  # the launcher's mask — a circle, a squircle, a rounded square — which
+  # crops anything outside the middle 61%. The foreground image is drawn
+  # with the artwork inside 60% of the canvas for exactly that reason, so
+  # no launcher shape clips the character or the mark.
+  adaptive_icon_background: "#FFF4DF"
+  adaptive_icon_foreground: "assets/images/app_launcher_icon_foreground.png"
