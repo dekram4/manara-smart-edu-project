@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -75,5 +77,62 @@ void main() {
     await tester.pump();
 
     expect(find.byType(StudentAvatarView), findsNothing);
+  });
+
+  // The widget tests above prove the shared header is right. This one
+  // guards the other direction: that no card file quietly grows its own
+  // copy of the old illustration again, in a place no test happens to
+  // pump. The image is allowed to exist only in the widget that defines
+  // it, which today only the login scene reaches.
+  test('no card or screen file reaches for the old two-children image', () {
+    const allowed = 'lib/src/widgets/student_mascot.dart';
+    final offenders = <String>[];
+
+    for (final entity in Directory('lib').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final path = entity.path.replaceAll(r'\', '/');
+      if (path == allowed) continue;
+      if (entity.readAsStringSync().contains('student_mascot.png')) {
+        offenders.add(path);
+      }
+    }
+
+    expect(
+      offenders,
+      isEmpty,
+      reason: 'these files render the old illustration directly; they '
+          'should use StudentAvatarView so the student sees their own '
+          'character',
+    );
+  });
+
+  test('every screen that opens a card carries the student character', () {
+    // Each of these is reached by tapping a portal card, so each has a
+    // header the student sees. The entry scenes — the splash, the login
+    // board, the path — are deliberately not in this list: they are
+    // compositions, and the path screen already floats the chosen
+    // character on its own.
+    const cardScreens = [
+      'student_cinema_screen',
+      'student_content_screen',
+      'student_chat_screen',
+      'student_personality_screen',
+      'student_problem_solver_screen',
+      'student_progress_screen',
+      'student_quiz_screen',
+      'student_tutor_screen',
+    ];
+
+    for (final name in cardScreens) {
+      final source = File('lib/src/screens/$name.dart').readAsStringSync();
+      final carriesCharacter = source.contains('StudentAvatarView(') ||
+          (source.contains('StudentScreenHero(') &&
+              !source.contains('showCompanion: false'));
+      expect(
+        carriesCharacter,
+        isTrue,
+        reason: '$name shows no student character in its header',
+      );
+    }
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/student_content.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
+import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/did_agent_embed.dart';
 import '../widgets/tutor_embed.dart';
@@ -238,6 +239,12 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  // This screen builds its own header rather than using
+                  // StudentScreenHero, so it needs the student's character
+                  // added explicitly — otherwise the teacher and the live
+                  // meeting would be the only cards without it.
+                  const StudentAvatarView(size: 48),
                 ],
               ),
             ),
