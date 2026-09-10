@@ -583,55 +583,86 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // and simply scale down instead of disappearing.
                 final portrait = areaSize.height > areaSize.width;
 
-                // The scene is a left/right pair in both orientations: the
-                // guide holds a column on the left, the books take what is
-                // left on the right. Splitting it the same way whichever
-                // way the device is held is what keeps the balance from
-                // rearranging itself when a student turns the tablet.
-                //
-                // Portrait gives her a wider share because the screen is
-                // narrower there, so an equal fraction would leave her too
-                // small to read.
                 const edge = 12.0;
                 // The HUD chips sit top-right; everything keeps clear of
                 // them.
                 const topReserve = 52.0;
 
-                final girlColumn = (areaSize.width * (portrait ? 0.34 : 0.28))
-                    .clamp(96.0, 460.0)
-                    .toDouble();
-                // Sized to her column, then capped against the height so
-                // she and the bubble above her head always fit — she is
-                // drawn much larger than before, and without this cap a
-                // short landscape window would run her off the top.
-                final mascotHeight = math.min(
-                  girlColumn * 1.02,
-                  (areaSize.height - topReserve - edge) * (portrait ? 0.42 : 0.66),
-                );
+                // The two orientations get genuinely different layouts,
+                // because the same one cannot serve both.
+                //
+                // Landscape is a left/right pair: the guide holds a column
+                // on the left and the books take the rest.
+                //
+                // Portrait used to do the same, and that was the bug — on
+                // a tall narrow screen a third of the width went to her,
+                // leaving the books a strip too small to read or tap. So
+                // portrait stacks instead: she stands in a band across the
+                // top as a greeter, and the books get almost the whole
+                // width beneath her, which is where they belong on a phone
+                // held upright.
+                final double girlColumn;
+                final double mascotHeight;
+                final Rect imageRect;
 
-                final content = Size(
-                  math.max(0.0, areaSize.width - girlColumn - edge * 2),
-                  math.max(0.0, areaSize.height - topReserve - edge),
-                );
-                // Eased further back than before, so the stack reads as one
-                // object in the right half rather than filling it. The
-                // shrink is about the box's own centre, so the illustration
-                // — and every field measured against it — stays centred on
-                // whatever room it has.
-                const booksScale = 0.90;
-                final fitted = _containRect(content, _booksAspect);
-                final booksRect = Rect.fromCenter(
-                  center: fitted.center,
-                  width: fitted.width * booksScale,
-                  height: fitted.height * booksScale,
-                );
-                // A nudge further right, bounded by the slack the contain
-                // fit actually left over — so it can never push the stack
-                // off its own half.
-                final slackX = math.max(0.0, content.width - booksRect.width);
-                final nudge = math.min(areaSize.width * 0.02, slackX / 2);
-                final imageRect =
-                    booksRect.translate(girlColumn + edge + nudge, topReserve);
+                if (portrait) {
+                  // She is sized off the width so she reads at a glance,
+                  // then capped against the height so the band she stands
+                  // in — her plus the bubble over her head — never eats
+                  // the room the books need.
+                  mascotHeight = math.min(
+                    areaSize.width * 0.30,
+                    (areaSize.height - topReserve - edge) * 0.26,
+                  );
+                  girlColumn = 0;
+                  // Her band: her own height plus the speech bubble above
+                  // her, which is roughly half as tall again.
+                  final greeterBand = mascotHeight * 1.62 + 10;
+                  final content = Size(
+                    math.max(0.0, areaSize.width - edge * 2),
+                    math.max(
+                      0.0,
+                      areaSize.height - topReserve - greeterBand - edge,
+                    ),
+                  );
+                  // Drawn to 88% of the width it is offered, inside the
+                  // 85-90% the design calls for — big enough to read the
+                  // printed fields on, with just enough margin that it
+                  // does not touch the screen edges.
+                  final fitted = _containRect(content, _booksAspect);
+                  final booksRect = Rect.fromCenter(
+                    center: fitted.center,
+                    width: fitted.width * 0.88,
+                    height: fitted.height * 0.88,
+                  );
+                  imageRect =
+                      booksRect.translate(edge, topReserve + greeterBand);
+                } else {
+                  girlColumn = (areaSize.width * 0.28)
+                      .clamp(96.0, 460.0)
+                      .toDouble();
+                  mascotHeight = math.min(
+                    girlColumn * 1.02,
+                    (areaSize.height - topReserve - edge) * 0.66,
+                  );
+                  final content = Size(
+                    math.max(0.0, areaSize.width - girlColumn - edge * 2),
+                    math.max(0.0, areaSize.height - topReserve - edge),
+                  );
+                  final fitted = _containRect(content, _booksAspect);
+                  final booksRect = Rect.fromCenter(
+                    center: fitted.center,
+                    width: fitted.width * 0.90,
+                    height: fitted.height * 0.90,
+                  );
+                  // A nudge further right, bounded by the slack the
+                  // contain fit actually left over — so it can never push
+                  // the stack off its own half.
+                  final slackX = math.max(0.0, content.width - booksRect.width);
+                  final nudge = math.min(areaSize.width * 0.02, slackX / 2);
+                  imageRect =
+                      booksRect.translate(girlColumn + edge + nudge, topReserve);
+                }
 
                 return Stack(
                   clipBehavior: Clip.none,
@@ -639,17 +670,32 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     // The guide is painted BEFORE the books, so if she ever
                     // overlaps the stack she passes behind it instead of
                     // covering a book's face and its field.
-                    Positioned(
-                      left: edge,
-                      bottom: edge,
-                      width: math.max(0.0, girlColumn - edge),
-                      child: _FlyAway(
-                        away: _leaving,
-                        angle: -0.32,
-                        delay: const Duration(milliseconds: 120),
-                        child: _MascotGuide(height: mascotHeight),
+                    if (portrait)
+                      Positioned(
+                        top: topReserve,
+                        left: edge,
+                        right: edge,
+                        child: Center(
+                          child: _FlyAway(
+                            away: _leaving,
+                            angle: -0.32,
+                            delay: const Duration(milliseconds: 120),
+                            child: _MascotGuide(height: mascotHeight),
+                          ),
+                        ),
+                      )
+                    else
+                      Positioned(
+                        left: edge,
+                        bottom: edge,
+                        width: math.max(0.0, girlColumn - edge),
+                        child: _FlyAway(
+                          away: _leaving,
+                          angle: -0.32,
+                          delay: const Duration(milliseconds: 120),
+                          child: _MascotGuide(height: mascotHeight),
+                        ),
                       ),
-                    ),
                     Positioned.fromRect(
                       rect: imageRect,
                       child: Image.asset(

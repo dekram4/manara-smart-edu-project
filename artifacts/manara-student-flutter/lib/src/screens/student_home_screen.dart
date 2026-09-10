@@ -10,6 +10,7 @@ import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
+import '../widgets/lesson_scope_sheet.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_avatar_view.dart';
@@ -295,12 +296,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       return;
     }
 
-    final chosen = await showDialog<AcademicContext>(
-      context: context,
-      builder: (_) => _LessonSwitcherDialog(
-        data: data,
-        current: _academicContext,
-      ),
+    final chosen = await LessonScopeSheet.show(
+      context,
+      data: data,
+      current: _academicContext,
     );
     if (chosen == null || !mounted) return;
     setState(() => _academicContext = chosen);
@@ -466,21 +465,47 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           // Every card reads the hub's lesson when it opens, so one
           // change here reaches the explanation, the cinema, the teacher
           // and the reading challenge together.
-          Tooltip(
-            message: 'تغيير الدرس أو المسار',
+          // A labelled button rather than a bare glyph. This is the one
+          // control that changes what every other card shows, so it says
+          // what it does instead of leaving a student to guess at an
+          // icon. It collapses to just the icon on a narrow bar.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: _loadingSelection
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      ),
                     ),
                   )
-                : IconButton(
-                    onPressed: _changeLesson,
-                    icon: const Icon(Icons.swap_horiz_rounded),
-                    color: const Color(0xFF0E5F6B),
+                : Tooltip(
+                    message: 'تغيير الدرس أو المسار',
+                    child: FilledButton.icon(
+                      onPressed: _changeLesson,
+                      icon: const Icon(Icons.alt_route_rounded, size: 20),
+                      label: const Text(
+                        'تغيير الدرس',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF0E5F6B),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                      ),
+                    ),
                   ),
           ),
           // The profile icon is the chosen character too, so the bar and
@@ -599,201 +624,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Picks a lesson by walking down the same hierarchy the path screen
-/// uses: subject, term, unit, then the lesson itself.
-///
-/// Each level clears the levels under it when it changes, so a student
-/// can never confirm a combination that does not exist — the confirm
-/// button stays disabled until an actual lesson has been reached. Grade
-/// and class come from the student's own current path and are not
-/// offered: those are who the student is, not what they are studying.
-class _LessonSwitcherDialog extends StatefulWidget {
-  const _LessonSwitcherDialog({required this.data, required this.current});
-
-  final AcademicSelectionData data;
-  final AcademicContext? current;
-
-  @override
-  State<_LessonSwitcherDialog> createState() => _LessonSwitcherDialogState();
-}
-
-class _LessonSwitcherDialogState extends State<_LessonSwitcherDialog> {
-  String? _grade;
-  String? _atram;
-  String? _subject;
-  String? _term;
-  String? _unit;
-  LessonContent? _lesson;
-
-  @override
-  void initState() {
-    super.initState();
-    final current = widget.current;
-    // Opens on what the student already has, so changing one level does
-    // not mean re-picking all of them.
-    _grade = current?.grade ?? widget.data.grades.firstOrNull;
-    if (_grade != null) {
-      _atram = current?.atram ?? widget.data.atramsFor(_grade!).firstOrNull;
-    }
-    _subject = current?.subject;
-    _term = current?.term;
-    _unit = current?.unit;
-    _lesson = current?.selectedLesson;
-  }
-
-  List<String> get _subjects => (_grade == null || _atram == null)
-      ? const []
-      : widget.data.subjectsFor(grade: _grade!, atram: _atram!);
-
-  List<String> get _terms => (_grade == null || _atram == null || _subject == null)
-      ? const []
-      : widget.data
-          .termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
-
-  List<String> get _units =>
-      (_grade == null || _atram == null || _subject == null || _term == null)
-          ? const []
-          : widget.data.unitsFor(
-              grade: _grade!,
-              atram: _atram!,
-              subject: _subject!,
-              term: _term!,
-            );
-
-  List<LessonContent> get _lessons => (_grade == null ||
-          _atram == null ||
-          _subject == null ||
-          _term == null ||
-          _unit == null)
-      ? const []
-      : widget.data.lessonsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-          term: _term!,
-          unit: _unit!,
-        );
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: AlertDialog(
-        title: const Text(
-          'تغيير الدرس',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
-        content: SizedBox(
-          width: 380,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _picker<String>(
-                  label: 'المادة',
-                  value: _subject,
-                  items: _subjects,
-                  labelOf: (value) => value,
-                  onChanged: (value) => setState(() {
-                    _subject = value;
-                    _term = null;
-                    _unit = null;
-                    _lesson = null;
-                  }),
-                ),
-                _picker<String>(
-                  label: 'الترم',
-                  value: _term,
-                  items: _terms,
-                  labelOf: (value) => value,
-                  onChanged: (value) => setState(() {
-                    _term = value;
-                    _unit = null;
-                    _lesson = null;
-                  }),
-                ),
-                _picker<String>(
-                  label: 'الوحدة',
-                  value: _unit,
-                  items: _units,
-                  labelOf: (value) => value,
-                  onChanged: (value) => setState(() {
-                    _unit = value;
-                    _lesson = null;
-                  }),
-                ),
-                _picker<LessonContent>(
-                  label: 'الدرس',
-                  value: _lessons.any((item) => item.id == _lesson?.id)
-                      ? _lessons.firstWhere((item) => item.id == _lesson!.id)
-                      : null,
-                  items: _lessons,
-                  labelOf: (value) => value.lessonName,
-                  onChanged: (value) => setState(() => _lesson = value),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            // Disabled until a real lesson has been reached, so the hub
-            // can never be handed a half-built path.
-            onPressed: _lesson == null
-                ? null
-                : () => Navigator.of(context).pop(
-                      AcademicContext(
-                        grade: _grade!,
-                        atram: _atram!,
-                        subject: _subject!,
-                        term: _term!,
-                        unit: _unit!,
-                        selectedLesson: _lesson!,
-                      ),
-                    ),
-            child: const Text('تأكيد'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _picker<T>({
-    required String label,
-    required T? value,
-    required List<T> items,
-    required String Function(T) labelOf,
-    required ValueChanged<T?> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: DropdownButtonFormField<T>(
-        value: items.contains(value) ? value : null,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          isDense: true,
-        ),
-        items: [
-          for (final item in items)
-            DropdownMenuItem<T>(
-              value: item,
-              child: Text(labelOf(item), overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        // An empty level is disabled rather than shown as an open menu
-        // with nothing in it.
-        onChanged: items.isEmpty ? null : onChanged,
       ),
     );
   }

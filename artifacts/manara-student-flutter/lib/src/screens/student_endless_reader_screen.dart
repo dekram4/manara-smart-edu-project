@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -135,6 +135,12 @@ class _StudentEndlessReaderScreenState
   List<int> _blanks = const [];
   List<String> _tiles = const [];
 
+  /// How many words this lesson's round runs for. Every word is a stage,
+  /// so the student can see the end of the run rather than playing an
+  /// unmarked stream.
+  int get _stageCount => _words.length;
+  bool get _onLastStage => _wordIndex >= _stageCount - 1;
+
   /// Position in the word -> the letter dropped there. A position missing
   /// from this map is still an empty slot.
   final Map<int, String> _placed = {};
@@ -147,7 +153,7 @@ class _StudentEndlessReaderScreenState
   /// what stops a second tap racing the next word in.
   bool _celebrating = false;
 
-  String get _word => _words[_wordIndex % _words.length];
+  String get _word => _words[_wordIndex.clamp(0, _words.length - 1)];
 
   @override
   void initState() {
@@ -195,9 +201,21 @@ class _StudentEndlessReaderScreenState
   }
 
   void _nextWord() {
-    if (!_celebrating) return;
+    if (!_celebrating || _onLastStage) return;
+    StudentSoundService.instance.playTap();
     setState(() {
       _wordIndex++;
+      _startRound();
+    });
+  }
+
+  /// Starts the whole run again from the first word. Offered at the end
+  /// of a lesson's words, and at any point through the bar, because a
+  /// child who wants another go should not have to leave and come back.
+  void _restart() {
+    StudentSoundService.instance.playTap();
+    setState(() {
+      _wordIndex = 0;
       _startRound();
     });
   }
@@ -213,7 +231,15 @@ class _StudentEndlessReaderScreenState
           foregroundColor: Colors.white,
           title: const Text('تحدي القراءة والكلمات'),
           centerTitle: true,
-          actions: const [StudentSoundToggle()],
+          actions: [
+            if (_words.isNotEmpty)
+              IconButton(
+                onPressed: _restart,
+                tooltip: "إعادة المرحلة من البداية",
+                icon: const Icon(Icons.replay_rounded),
+              ),
+            const StudentSoundToggle(),
+          ],
         ),
         body: Stack(
           children: [
@@ -294,50 +320,133 @@ class _StudentEndlessReaderScreenState
             .clamp(34.0, 74.0)
             .toDouble();
 
-        return Column(
-          children: [
-            const SizedBox(height: 10),
-            Text(
-              _celebrating ? 'أحسنت! كلمة صحيحة 🎉' : 'اسحب الحروف إلى مكانها',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: _celebrating
-                    ? const Color(0xFF15803D)
-                    : const Color(0xFF3B2A6B),
-              ),
+        // The whole arena is centred rather than spread to the edges: the
+        // word, its tiles and the progress above them read as one panel
+        // in the middle of the screen with the artwork around it.
+        return Center(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _progress(),
+                const SizedBox(height: 14),
+                Text(
+                  _celebrating
+                      ? 'أحسنت! كلمة صحيحة 🎉'
+                      : 'اسحب الحروف إلى مكانها',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: _celebrating
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFF3B2A6B),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _wordRow(slot),
+                const SizedBox(height: 24),
+                if (_celebrating) _afterWordActions() else _tileTray(slot),
+              ],
             ),
-            const Spacer(),
-            _wordRow(slot),
-            const SizedBox(height: 22),
-            if (_celebrating)
-              FilledButton.icon(
-                onPressed: _nextWord,
-                icon: const Icon(Icons.arrow_back_rounded),
-                label: const Text(
-                  'الكلمة التالية',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF6D28D9),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 15,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-              )
-            else
-              _tileTray(slot),
-            const Spacer(),
-          ],
+          ),
         );
       },
     );
   }
+
+  /// "الكلمة ٢ من ٥", with a bar under it. A child playing through a
+  /// lesson's words should be able to see how far along they are and that
+  /// the run actually ends.
+  Widget _progress() {
+    final done = _celebrating ? _wordIndex + 1 : _wordIndex;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.88),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF6D28D9), width: 1.6),
+          ),
+          child: Text(
+            'الكلمة ${_wordIndex + 1} من $_stageCount',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF3B2A6B),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 220,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: _stageCount == 0 ? 0 : done / _stageCount,
+              minHeight: 8,
+              backgroundColor: Colors.white.withOpacity(0.7),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(Color(0xFF15803D)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// What is offered once a word is finished: the next one, or — on the
+  /// last word — the chance to run the lesson again.
+  Widget _afterWordActions() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        if (!_onLastStage)
+          FilledButton.icon(
+            onPressed: _nextWord,
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text(
+              'الكلمة التالية',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            style: _actionStyle(const Color(0xFF6D28D9)),
+          )
+        else ...[
+          const Text(
+            'أنهيت كل كلمات الدرس! 🌟',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF15803D),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: _restart,
+            icon: const Icon(Icons.replay_rounded),
+            label: const Text(
+              'إعادة المرحلة',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            style: _actionStyle(const Color(0xFF15803D)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  ButtonStyle _actionStyle(Color background) => FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 15),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+        ),
+      );
 
   Widget _wordRow(double slot) {
     return Wrap(
