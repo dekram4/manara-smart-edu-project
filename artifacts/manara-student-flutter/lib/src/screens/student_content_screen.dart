@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -259,10 +259,6 @@ class _StudentContentScreenState extends State<StudentContentScreen>
         return _GamesModule(
           games: _gamesFromLessons,
           apiBaseUrl: widget.apiBaseUrl,
-          profile: widget.profile,
-          gamification: _gamification,
-          contentService: _contentService,
-          onGamificationChanged: _applyGamification,
         );
     }
   }
@@ -569,22 +565,17 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
   }
 }
 
+/// The arcade. It no longer needs the student's profile, their progress
+/// or the content service: nothing here is scored, unlocked or saved, so
+/// the list only needs the games themselves and where to load them from.
 class _GamesModule extends StatelessWidget {
   const _GamesModule({
     required this.games,
     required this.apiBaseUrl,
-    required this.profile,
-    required this.gamification,
-    required this.contentService,
-    required this.onGamificationChanged,
   });
 
   final List<HtmlGame> games;
   final String apiBaseUrl;
-  final StudentProfile profile;
-  final StudentGamification gamification;
-  final StudentContentService contentService;
-  final ValueChanged<StudentGamification> onGamificationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -617,79 +608,24 @@ class _GamesModule extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _GamificationSummary(stats: gamification),
-        const SizedBox(height: 16),
+        // The gems/XP banner and the per-game level gate are both gone.
+        // The arcade is open: every game opens on a tap, nothing is
+        // locked behind a level, nothing is spent, and finishing one is
+        // its own reward rather than a transaction. The gamification the
+        // rest of the app runs on is untouched — lessons, videos and
+        // quizzes still earn — this is only the games card.
         ...games.map((game) {
-          final locked = gamification.level < game.requiredLevel;
-          final completed = gamification.completedActivities.contains(
-            'game:${game.id}',
-          );
           return Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: _GameCard(
               game: game,
-              locked: locked,
-              completed: completed,
               onPressed: () {
-                if (locked) {
-                  StudentSoundService.instance.play(StudentSoundCue.warning);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'هذه اللعبة تُفتح عند الوصول إلى المستوى ${game.requiredLevel}. مستواك الحالي: ${gamification.level}',
-                      ),
-                    ),
-                  );
-                  return;
-                }
                 StudentSoundService.instance.playTap();
                 Navigator.of(context).push(
                   StudentPageRoute<void>(
                     builder: (_) => _GamePlayerScreen(
                       game: game,
                       apiBaseUrl: apiBaseUrl,
-                      initiallyCompleted: completed,
-                      onCompleted: () async {
-                        try {
-                          final reward = await contentService.rewardActivity(
-                            profile: profile,
-                            activityType: 'game',
-                            activityId: game.id,
-                          );
-                          onGamificationChanged(reward.snapshot);
-                          StudentSoundService.instance.play(
-                            reward.alreadyRewarded
-                                ? StudentSoundCue.navigation
-                                : StudentSoundCue.gameReward,
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  reward.alreadyRewarded
-                                      ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا.'
-                                      : 'أحسنت! +${reward.xp} XP و +${reward.gems} جواهر',
-                                ),
-                              ),
-                            );
-                          }
-                          return true;
-                        } catch (_) {
-                          StudentSoundService.instance.play(
-                            StudentSoundCue.warning,
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'تعذر حفظ إتمام اللعبة. حاول مرة أخرى.',
-                                ),
-                              ),
-                            );
-                          }
-                          return false;
-                        }
-                      },
                     ),
                   ),
                 );
@@ -702,111 +638,13 @@ class _GamesModule extends StatelessWidget {
   }
 }
 
-class _GamificationSummary extends StatelessWidget {
-  const _GamificationSummary({required this.stats});
-
-  final StudentGamification stats;
-
-  @override
-  Widget build(BuildContext context) {
-    return Student3DCard(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          // A cartoon violet-to-magenta sweep with a bright rim and a
-          // coloured glow, in place of the flat indigo block.
-          gradient: const LinearGradient(
-            colors: [Color(0xFF7C3AED), Color(0xFFA855F7), Color(0xFFEC4899)],
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withOpacity(0.45), width: 1.6),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF7C3AED).withOpacity(0.42),
-              blurRadius: 22,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'المستوى ${stats.level}',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '⭐ ${stats.xp} XP',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  '💎 ${stats.gems} جواهر',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  '🔥 ${stats.streak} يوم',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: stats.levelProgress / 100,
-                minHeight: 9,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation(Color(0xFFFDE68A)),
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              '${stats.xpToNextLevel} XP للوصول إلى المستوى التالي',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: Color(0xFFE9D5FF),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _GameCard extends StatelessWidget {
   const _GameCard({
     required this.game,
-    required this.locked,
-    required this.completed,
     required this.onPressed,
   });
 
   final HtmlGame game;
-  final bool locked;
-  final bool completed;
   final VoidCallback onPressed;
 
   @override
@@ -826,26 +664,21 @@ class _GameCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               gradient: LinearGradient(
-                colors: locked
-                    ? const [Color(0xFF525C6B), Color(0xFF79839A)]
-                    : const [
-                        Color(0xFF6D28D9),
-                        Color(0xFF8B5CF6),
-                        Color(0xFF38BDF8),
-                      ],
+                colors: const [
+                  Color(0xFF6D28D9),
+                  Color(0xFF8B5CF6),
+                  Color(0xFF38BDF8),
+                ],
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
               ),
               border: Border.all(
-                color: Colors.white.withOpacity(locked ? 0.28 : 0.5),
+                color: Colors.white.withOpacity(0.5),
                 width: 1.6,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: (locked
-                          ? const Color(0xFF525C6B)
-                          : const Color(0xFF8B5CF6))
-                      .withOpacity(0.42),
+                  color: const Color(0xFF8B5CF6).withOpacity(0.42),
                   blurRadius: 20,
                   offset: const Offset(0, 11),
                 ),
@@ -853,15 +686,9 @@ class _GameCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  locked
-                      ? Icons.lock_rounded
-                      : completed
-                      ? Icons.verified_rounded
-                      : Icons.sports_esports_rounded,
-                  color: locked
-                      ? const Color(0xFFFDE68A)
-                      : const Color(0xFFE9D5FF),
+                const Icon(
+                  Icons.sports_esports_rounded,
+                  color: Color(0xFFE9D5FF),
                   size: 48,
                 ),
                 const SizedBox(width: 14),
@@ -896,27 +723,13 @@ class _GameCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Icon(
-                  locked
-                      ? Icons.lock_rounded
-                      : completed
-                      ? Icons.verified_rounded
-                      : Icons.play_circle_fill_rounded,
+                // Just "play". The reward line that used to sit here
+                // advertised a price and a payout for something that is
+                // now simply open.
+                const Icon(
+                  Icons.play_circle_fill_rounded,
                   color: Colors.white,
-                  size: 32,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  locked
-                      ? 'المستوى ${game.requiredLevel}'
-                      : completed
-                      ? 'اكتملت المكافأة'
-                      : '+15 XP • 3 جواهر',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  size: 34,
                 ),
               ],
             ),
@@ -927,18 +740,17 @@ class _GameCard extends StatelessWidget {
   }
 }
 
+/// The game itself, full-screen. It reports nothing back: there is no
+/// completion to record and no reward to claim, so a student can start
+/// one, play for a minute and leave without the app keeping score.
 class _GamePlayerScreen extends StatefulWidget {
   const _GamePlayerScreen({
     required this.game,
     required this.apiBaseUrl,
-    required this.initiallyCompleted,
-    required this.onCompleted,
   });
 
   final HtmlGame game;
   final String apiBaseUrl;
-  final bool initiallyCompleted;
-  final Future<bool> Function() onCompleted;
 
   @override
   State<_GamePlayerScreen> createState() => _GamePlayerScreenState();
@@ -947,14 +759,11 @@ class _GamePlayerScreen extends StatefulWidget {
 class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   String? _error;
   bool _loading = true;
-  late bool _completed;
-  bool _saving = false;
   var _reloadKey = 0;
 
   @override
   void initState() {
     super.initState();
-    _completed = widget.initiallyCompleted;
     _enterImmersive();
   }
 
@@ -998,16 +807,6 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     });
   }
 
-  Future<void> _completeGame() async {
-    if (_completed || _saving || _loading) return;
-    setState(() => _saving = true);
-    final saved = await widget.onCompleted();
-    if (!mounted) return;
-    setState(() {
-      _saving = false;
-      _completed = saved;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1096,33 +895,10 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                       ),
                     ),
                   ),
-                Positioned(
-                  right: 16,
-                  bottom: bottomInset,
-                  child: FilledButton.icon(
-                    onPressed: _loading || _saving || _completed
-                        ? null
-                        : _completeGame,
-                    icon: Icon(
-                      _completed
-                          ? Icons.verified_rounded
-                          : Icons.check_circle_rounded,
-                    ),
-                    label: Text(
-                      _completed
-                          ? 'أنهيت اللعبة وحصلت على المكافأة مسبقًا'
-                          : _saving
-                          ? 'جارٍ حفظ إتمام اللعبة...'
-                          : 'أنهيت اللعبة — +15 XP و3 جواهر',
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _completed
-                          ? Colors.grey.shade500
-                          : const Color(0xFF6D28D9),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
+                // The "I finished — collect your XP and gems" button is
+                // gone with the rest of the arcade's bookkeeping. A game
+                // ends when the student is done with it, and they leave
+                // with the app's own back control.
               ],
             ),
       ),

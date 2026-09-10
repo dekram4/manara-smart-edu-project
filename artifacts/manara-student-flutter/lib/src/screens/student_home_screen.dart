@@ -19,6 +19,7 @@ import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
+import 'student_endless_reader_screen.dart';
 import 'student_personality_screen.dart';
 import 'student_problem_solver_screen.dart';
 import 'student_progress_screen.dart';
@@ -59,9 +60,21 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   late final ConfettiController _rewardController;
   bool _openingTutor = false;
 
+  /// The lesson every card opens against. It starts as whatever the path
+  /// screen chose and can be changed from the bar without leaving the hub
+  /// — the cards read it at the moment they are opened, so a change
+  /// reaches all of them at once rather than each holding its own copy.
+  AcademicContext? _academicContext;
+
+  /// Cached so reopening the switcher is instant; the hierarchy does not
+  /// change while a student is looking at it.
+  AcademicSelectionData? _selectionData;
+  bool _loadingSelection = false;
+
   @override
   void initState() {
     super.initState();
+    _academicContext = widget.academicContext;
     _gamification = widget.profile.gamification;
     _contentService = StudentContentService(widget.authService.client, baseUrl: widget.apiBaseUrl);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
@@ -161,7 +174,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             profile: widget.profile,
             authService: widget.authService,
             apiBaseUrl: widget.apiBaseUrl,
-            academicContext: widget.academicContext,
+            academicContext: _academicContext,
           ),
         ),
       )
@@ -190,7 +203,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               widget.authService.client,
               baseUrl: widget.apiBaseUrl,
             ),
-            academicContext: widget.academicContext,
+            academicContext: _academicContext,
           ),
         ),
       )
@@ -222,6 +235,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       return;
     }
 
+    if (index == 9) {
+      Navigator.of(context).push(
+        StudentPageRoute<void>(
+          immersive: true,
+          builder: (_) => StudentEndlessReaderScreen(
+            academicContext: _academicContext,
+          ),
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context)
         .push(
       StudentPageRoute<void>(
@@ -230,7 +255,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           profile: widget.profile,
           authService: widget.authService,
           apiBaseUrl: widget.apiBaseUrl,
-          academicContext: widget.academicContext,
+          academicContext: _academicContext,
           // The first card is "شرح الدرس"; the cinema card is handled above.
           // Subtracting one here made the first card access modules[-1].
           initialModule: modules[index == 0 ? 0 : index - 1],
@@ -238,6 +263,51 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       ),
     )
         .then((_) => _loadGamification());
+  }
+
+  /// Opens the lesson switcher and, if the student confirms, swaps the
+  /// lesson every card works against.
+  ///
+  /// The hierarchy is fetched once and kept: it does not change while a
+  /// student is looking at it, and re-fetching on every open would put a
+  /// spinner in front of a menu.
+  Future<void> _changeLesson() async {
+    StudentSoundService.instance.playTap();
+    final messenger = ScaffoldMessenger.of(context);
+    if (_selectionData == null) {
+      if (_loadingSelection) return;
+      setState(() => _loadingSelection = true);
+      try {
+        _selectionData =
+            await _contentService.fetchAcademicSelectionData(widget.profile);
+      } catch (_) {
+        _selectionData = null;
+      } finally {
+        if (mounted) setState(() => _loadingSelection = false);
+      }
+    }
+    if (!mounted) return;
+    final data = _selectionData;
+    if (data == null || data.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('تعذر تحميل المسارات. حاول مرة أخرى.')),
+      );
+      return;
+    }
+
+    final chosen = await showDialog<AcademicContext>(
+      context: context,
+      builder: (_) => _LessonSwitcherDialog(
+        data: data,
+        current: _academicContext,
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    setState(() => _academicContext = chosen);
+    StudentSoundService.instance.play(StudentSoundCue.success);
+    messenger.showSnackBar(
+      SnackBar(content: Text('تم اختيار: ${chosen.lesson}')),
+    );
   }
 
   void _openPersonality() {
@@ -272,7 +342,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         baseUrl: widget.apiBaseUrl,
       ).fetchTutorExperience(
         widget.profile,
-        academicContext: widget.academicContext,
+        academicContext: _academicContext,
         type: liveMeeting
             ? TutorExperienceType.liveMeeting
             : TutorExperienceType.virtualTeacher,
@@ -312,7 +382,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       final lessons = await StudentContentService(
         widget.authService.client,
         baseUrl: widget.apiBaseUrl,
-      ).fetchLessons(widget.profile, academicContext: widget.academicContext);
+      ).fetchLessons(widget.profile, academicContext: _academicContext);
       if (!mounted) return;
       await Navigator.of(context).push(
         StudentPageRoute<void>(
@@ -326,7 +396,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               baseUrl: widget.apiBaseUrl,
             ),
             authService: widget.authService,
-            academicContext: widget.academicContext,
+            academicContext: _academicContext,
           ),
         ),
       );
@@ -392,6 +462,27 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           ),
         ),
         actions: [
+          // Changing the lesson without going back to the path screen.
+          // Every card reads the hub's lesson when it opens, so one
+          // change here reaches the explanation, the cinema, the teacher
+          // and the reading challenge together.
+          Tooltip(
+            message: 'تغيير الدرس أو المسار',
+            child: _loadingSelection
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    ),
+                  )
+                : IconButton(
+                    onPressed: _changeLesson,
+                    icon: const Icon(Icons.swap_horiz_rounded),
+                    color: const Color(0xFF0E5F6B),
+                  ),
+          ),
           // The profile icon is the chosen character too, so the bar and
           // the card always agree.
           Padding(
@@ -464,12 +555,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                       ),
                     ),
                   ),
-                  if (widget.academicContext != null) ...[
+                  if (_academicContext != null) ...[
                     const SizedBox(height: 12),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       child: _AcademicContextSummary(
-                        academicContext: widget.academicContext!,
+                        academicContext: _academicContext!,
                       ),
                     ),
                   ],
@@ -508,6 +599,201 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Picks a lesson by walking down the same hierarchy the path screen
+/// uses: subject, term, unit, then the lesson itself.
+///
+/// Each level clears the levels under it when it changes, so a student
+/// can never confirm a combination that does not exist — the confirm
+/// button stays disabled until an actual lesson has been reached. Grade
+/// and class come from the student's own current path and are not
+/// offered: those are who the student is, not what they are studying.
+class _LessonSwitcherDialog extends StatefulWidget {
+  const _LessonSwitcherDialog({required this.data, required this.current});
+
+  final AcademicSelectionData data;
+  final AcademicContext? current;
+
+  @override
+  State<_LessonSwitcherDialog> createState() => _LessonSwitcherDialogState();
+}
+
+class _LessonSwitcherDialogState extends State<_LessonSwitcherDialog> {
+  String? _grade;
+  String? _atram;
+  String? _subject;
+  String? _term;
+  String? _unit;
+  LessonContent? _lesson;
+
+  @override
+  void initState() {
+    super.initState();
+    final current = widget.current;
+    // Opens on what the student already has, so changing one level does
+    // not mean re-picking all of them.
+    _grade = current?.grade ?? widget.data.grades.firstOrNull;
+    if (_grade != null) {
+      _atram = current?.atram ?? widget.data.atramsFor(_grade!).firstOrNull;
+    }
+    _subject = current?.subject;
+    _term = current?.term;
+    _unit = current?.unit;
+    _lesson = current?.selectedLesson;
+  }
+
+  List<String> get _subjects => (_grade == null || _atram == null)
+      ? const []
+      : widget.data.subjectsFor(grade: _grade!, atram: _atram!);
+
+  List<String> get _terms => (_grade == null || _atram == null || _subject == null)
+      ? const []
+      : widget.data
+          .termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
+
+  List<String> get _units =>
+      (_grade == null || _atram == null || _subject == null || _term == null)
+          ? const []
+          : widget.data.unitsFor(
+              grade: _grade!,
+              atram: _atram!,
+              subject: _subject!,
+              term: _term!,
+            );
+
+  List<LessonContent> get _lessons => (_grade == null ||
+          _atram == null ||
+          _subject == null ||
+          _term == null ||
+          _unit == null)
+      ? const []
+      : widget.data.lessonsFor(
+          grade: _grade!,
+          atram: _atram!,
+          subject: _subject!,
+          term: _term!,
+          unit: _unit!,
+        );
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: AlertDialog(
+        title: const Text(
+          'تغيير الدرس',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
+        content: SizedBox(
+          width: 380,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _picker<String>(
+                  label: 'المادة',
+                  value: _subject,
+                  items: _subjects,
+                  labelOf: (value) => value,
+                  onChanged: (value) => setState(() {
+                    _subject = value;
+                    _term = null;
+                    _unit = null;
+                    _lesson = null;
+                  }),
+                ),
+                _picker<String>(
+                  label: 'الترم',
+                  value: _term,
+                  items: _terms,
+                  labelOf: (value) => value,
+                  onChanged: (value) => setState(() {
+                    _term = value;
+                    _unit = null;
+                    _lesson = null;
+                  }),
+                ),
+                _picker<String>(
+                  label: 'الوحدة',
+                  value: _unit,
+                  items: _units,
+                  labelOf: (value) => value,
+                  onChanged: (value) => setState(() {
+                    _unit = value;
+                    _lesson = null;
+                  }),
+                ),
+                _picker<LessonContent>(
+                  label: 'الدرس',
+                  value: _lessons.any((item) => item.id == _lesson?.id)
+                      ? _lessons.firstWhere((item) => item.id == _lesson!.id)
+                      : null,
+                  items: _lessons,
+                  labelOf: (value) => value.lessonName,
+                  onChanged: (value) => setState(() => _lesson = value),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            // Disabled until a real lesson has been reached, so the hub
+            // can never be handed a half-built path.
+            onPressed: _lesson == null
+                ? null
+                : () => Navigator.of(context).pop(
+                      AcademicContext(
+                        grade: _grade!,
+                        atram: _atram!,
+                        subject: _subject!,
+                        term: _term!,
+                        unit: _unit!,
+                        selectedLesson: _lesson!,
+                      ),
+                    ),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _picker<T>({
+    required String label,
+    required T? value,
+    required List<T> items,
+    required String Function(T) labelOf,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: DropdownButtonFormField<T>(
+        value: items.contains(value) ? value : null,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: [
+          for (final item in items)
+            DropdownMenuItem<T>(
+              value: item,
+              child: Text(labelOf(item), overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        // An empty level is disabled rather than shown as an open menu
+        // with nothing in it.
+        onChanged: items.isEmpty ? null : onChanged,
       ),
     );
   }
@@ -648,6 +934,17 @@ const _homeSections = <_HomeSection>[
     image: 'assets/images/icon_chat.png',
     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
     accent: Color(0xFFBFDBFE),
+  ),
+  // Index 9. Added at the end so every portal before it keeps the index
+  // it already had — _openModule dispatches on position, and inserting
+  // anywhere else would silently send a student to the wrong card.
+  _HomeSection(
+    title: 'تحدي القراءة',
+    subtitle: 'كوّن الكلمات',
+    description: 'اسحب الحروف الناقصة وأكمل كلمات درسك.',
+    image: 'assets/images/icon_endless.png',
+    colors: [Color(0xFF3B2A6B), Color(0xFF6D28D9)],
+    accent: Color(0xFFDDD6FE),
   ),
 ];
 
