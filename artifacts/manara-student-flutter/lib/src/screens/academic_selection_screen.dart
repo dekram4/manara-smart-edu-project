@@ -9,6 +9,7 @@ import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
+import '../services/student_avatar_store.dart';
 import '../services/student_content_service.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
@@ -625,11 +626,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                       ),
                     ),
                     // Top-right in both orientations, below the HUD row.
+                    // The reading pair used to float here; it is the
+                    // student's own chosen character now, so the screen
+                    // shows them rather than a generic illustration.
                     Positioned(
                       right: 10,
                       top: 48,
-                      child: _FloatingArt(
-                        asset: 'assets/images/student_mascot.png',
+                      child: _FloatingAvatar(
                         size: readersSize,
                         bob: 8,
                         period: const Duration(milliseconds: 2900),
@@ -1105,6 +1108,7 @@ class _FloatingArt extends StatefulWidget {
     this.bob = 9,
     this.sway = 0,
     this.period = const Duration(milliseconds: 3400),
+    super.key,
   });
 
   final String asset;
@@ -1310,3 +1314,34 @@ extension _FirstOrNull<T> on List<T> {
 }
 
 String _normalized(Object? value) => value?.toString().trim().toLowerCase() ?? '';
+
+/// The student's chosen character, floating where the reading pair used
+/// to. It reuses [_FloatingArt]'s motion but takes its image from the
+/// app-wide selection, so picking a new character updates this screen too.
+class _FloatingAvatar extends StatelessWidget {
+  const _FloatingAvatar({
+    required this.size,
+    required this.bob,
+    required this.period,
+  });
+
+  final double size;
+  final double bob;
+  final Duration period;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<StudentAvatar>(
+      valueListenable: StudentAvatars.selected,
+      builder: (context, avatar, _) => _FloatingArt(
+        // Keyed by the character so switching rebuilds the animation with
+        // the new image instead of reusing the previous element's state.
+        key: ValueKey(avatar.id),
+        asset: avatar.asset,
+        size: size,
+        bob: bob,
+        period: period,
+      ),
+    );
+  }
+}

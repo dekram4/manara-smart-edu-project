@@ -37,6 +37,26 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
   bool _loadingAppearance = true;
   bool _saving = false;
 
+  /// The character the student has marked but not yet saved. Starts at
+  /// whatever is currently in force, so opening the screen and leaving
+  /// changes nothing.
+  StudentAvatar _staged = StudentAvatars.selected.value;
+
+  Future<void> _saveAvatar() async {
+    StudentSoundService.instance.play(StudentSoundCue.success);
+    await StudentAvatars.select(_staged);
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('تم حفظ شخصيتك: ${_staged.label} ✨'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF0E9F6E),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -136,33 +156,39 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
               colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
             ),
             const SizedBox(height: 20),
-            // The nine characters. The chosen one is marked in place —
-            // there is no save step, because the choice applies the moment
-            // it is tapped and is what every other screen already reads.
-            ValueListenableBuilder<StudentAvatar>(
-              valueListenable: StudentAvatars.selected,
-              builder: (context, selected, _) => GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: StudentAvatars.all.length,
-                gridDelegate:
-                    const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 170,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: 0.82,
-                ),
-                itemBuilder: (context, index) {
-                  final avatar = StudentAvatars.all[index];
-                  return _AvatarTile(
-                    avatar: avatar,
-                    selected: avatar.id == selected.id,
-                    onTap: () {
-                      StudentSoundService.instance.playTap();
-                      StudentAvatars.select(avatar);
-                    },
-                  );
-                },
+            // Tapping marks a character; the save button below is what
+            // commits it. Keeping the two steps apart means a child can
+            // browse the nine without their picture changing under them
+            // on every tap.
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: StudentAvatars.all.length,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 170,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.82,
+              ),
+              itemBuilder: (context, index) {
+                final avatar = StudentAvatars.all[index];
+                return _AvatarTile(
+                  avatar: avatar,
+                  selected: avatar.id == _staged.id,
+                  onTap: () {
+                    StudentSoundService.instance.playTap();
+                    setState(() => _staged = avatar);
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 18),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 200),
+              child: _SaveAvatarButton(
+                label: _staged.label,
+                dirty: _staged.id != StudentAvatars.selected.value.id,
+                onPressed: _saveAvatar,
               ),
             ),
             if (_canOpenCreator) ...[
@@ -769,6 +795,101 @@ class _AvatarTile extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Commits the marked character. Prominent while there is an unsaved
+/// change, and visibly settled once there is not — so the student can tell
+/// whether their pick is in force without reading anything.
+class _SaveAvatarButton extends StatelessWidget {
+  const _SaveAvatarButton({
+    required this.label,
+    required this.dirty,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool dirty;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final ledge = dirty ? const Color(0xFF7A2247) : const Color(0xFF04543A);
+    final face = dirty
+        ? const [Color(0xFFE05A86), Color(0xFF9B3E68)]
+        : const [Color(0xFF34D399), Color(0xFF0E9F6E)];
+    return StudentPressScale(
+      child: GestureDetector(
+        onTap: onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.only(bottom: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            color: ledge,
+            boxShadow: [
+              BoxShadow(
+                color: ledge.withOpacity(0.42),
+                blurRadius: 18,
+                offset: const Offset(0, 9),
+              ),
+            ],
+          ),
+          child: Container(
+            height: 56,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: face,
+              ),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.6), width: 1.6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.26),
+                    border: Border.all(color: Colors.white.withOpacity(0.7)),
+                  ),
+                  child: Icon(
+                    dirty ? Icons.save_rounded : Icons.verified_rounded,
+                    color: Colors.white,
+                    size: 19,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      dirty ? 'حفظ الشخصية' : 'شخصيتك الحالية: $label',
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        shadows: [
+                          Shadow(color: Color(0x55000000), blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

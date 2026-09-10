@@ -165,8 +165,8 @@ class StudentSoundService {
     play(StudentSoundCue.levelUp);
   }
 
-  /// Applause, as two clips played back to back: `clap.mp3` and then
-  /// `clap2.mp3` the moment the first reports completion.
+  /// Applause, as two clips played back to back: `clap2.mp3` and then
+  /// `clap.mp3` the moment the first reports completion.
   ///
   /// Chained on the completion event rather than on a timer, so the two
   /// meet exactly however long the first clip runs — a fixed delay would
@@ -189,7 +189,7 @@ class StudentSoundService {
         if (muted.value) return;
         try {
           await _effectsPlayer.play(
-            AssetSource('audio/clap2.mp3'),
+            AssetSource('audio/clap.mp3'),
             volume: 0.7,
           );
         } catch (_) {
@@ -198,7 +198,7 @@ class StudentSoundService {
         }
       });
       await _effectsPlayer.stop();
-      await _effectsPlayer.play(AssetSource('audio/clap.mp3'), volume: 0.7);
+      await _effectsPlayer.play(AssetSource('audio/clap2.mp3'), volume: 0.7);
     } catch (_) {
       // Celebration audio is decoration — never let it break the flow
       // that triggered it.

@@ -143,12 +143,46 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text(_moduleTitle(_activeModule)),
+        // Stated rather than inherited: the theme's bar rendered near-black
+        // here, which is what made the title and the close button read as
+        // a dark slab over a cream screen. A soft Manara blue-to-cream
+        // sweep with deep ink on top instead.
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFF0E3A52),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+              colors: [
+                Color(0xFFDCEFF7),
+                Color(0xFFEFF6FA),
+                Color(0xFFFFF6E7),
+              ],
+            ),
+          ),
+        ),
+        title: Text(
+          _moduleTitle(_activeModule),
+          style: const TextStyle(
+            color: Color(0xFF0E3A52),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
         actions: const [StudentSoundToggle()],
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'إغلاق',
           icon: const Icon(Icons.close_rounded),
+          style: IconButton.styleFrom(
+            foregroundColor: const Color(0xFF0E3A52),
+            backgroundColor: Colors.white.withOpacity(0.7),
+            shape: const CircleBorder(
+              side: BorderSide(color: Colors.white),
+            ),
+          ),
         ),
       ),
       body: Stack(
