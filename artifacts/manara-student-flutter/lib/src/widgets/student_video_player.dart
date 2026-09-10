@@ -1050,11 +1050,23 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     );
   }
 
-  Future<void> _exitYoutubeFullscreen(
-    YoutubePlayerController controller,
-  ) async {
+  /// Leaves the YouTube player's own fullscreen. Deliberately synchronous
+  /// for the same reason as [_exitFullscreen]: the caller is a Back press,
+  /// and it must not wait on a platform orientation change that only
+  /// settles once the device is physically turned.
+  void _exitYoutubeFullscreen(YoutubePlayerController controller) {
     controller.exitFullScreen();
-    await _restoreAppOrientation();
+    unawaited(
+      SystemChrome.setPreferredOrientations(
+        const [DeviceOrientation.portraitUp],
+      ).catchError((_) {}),
+    );
+    // Hands the device straight back to the app's own policy, so the
+    // portrait nudge above never becomes a lock the student is stuck in.
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 350))
+          .then((_) => _restoreAppOrientation()),
+    );
   }
 
   Future<void> _retryNativePlayback() async {
@@ -1401,11 +1413,21 @@ class _FullscreenNetworkVideoScreenState
   final _playerKey = GlobalKey<_StudentVideoPlayerState>();
   bool _exiting = false;
 
-  Future<void> _exitFullscreen() async {
+  void _exitFullscreen() {
     if (_exiting) return;
     _exiting = true;
     final state = _playerKey.currentState?.fullscreenPlaybackState;
-    await _restoreAppOrientation();
+    // This is the landscape Back bug. The pop used to sit behind
+    // `await setPreferredOrientations(...)`, and on a tablet held in
+    // landscape that call does not settle until the device is physically
+    // rotated — so Back looked dead until the student turned the tablet in
+    // their hands. Nudging the device towards portrait is fired and
+    // forgotten, and the route closes on the same frame as the press.
+    unawaited(
+      SystemChrome.setPreferredOrientations(
+        const [DeviceOrientation.portraitUp],
+      ).catchError((_) {}),
+    );
     if (mounted) Navigator.of(context).pop(state);
   }
 

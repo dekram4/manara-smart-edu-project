@@ -157,6 +157,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   LessonContent? _lesson;
   bool _loading = true;
   bool _isEntering = false;
+  /// Set once, when the student starts the adventure: the characters fly
+  /// off and fade before the route is replaced.
+  bool _leaving = false;
   String? _loadError;
   StudentGamification _gamification = const StudentGamification();
 
@@ -493,9 +496,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     final selection = _selection;
     if (selection == null || _isEntering) return;
     StudentSoundService.instance.playTap();
-    setState(() => _isEntering = true);
+    // The characters fly off before the route changes, so starting the
+    // adventure reads as them leading the way rather than as a cut.
+    setState(() {
+      _isEntering = true;
+      _leaving = true;
+    });
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 220));
+      await Future<void>.delayed(const Duration(milliseconds: 620));
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         StudentPageRoute<void>(
@@ -556,7 +564,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     .clamp(56.0, 180.0)
                     .toDouble();
                 final mascotHeight = artSize;
-                final pencilWidth = artSize;
+                // The pencil illustration carries a lot of transparent
+                // padding, so at the shared art size it read as the
+                // smallest thing on screen. Drawn 35% larger to sit level
+                // with the guide; its box grows, not the reserve, and it
+                // sits in the gutter where there is room for it.
+                final pencilWidth = artSize * 1.35;
                 final readersSize = artSize * 0.91;
 
                 // Landscape keeps the characters in side gutters; portrait
@@ -600,6 +613,20 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
+                    // The guide is painted BEFORE the books, so when she
+                    // overlaps the stack she passes behind it instead of
+                    // covering a book's face and its field.
+                    Positioned(
+                      left: 10,
+                      bottom: 6,
+                      width: mascotHeight,
+                      child: _FlyAway(
+                        away: _leaving,
+                        angle: -0.32,
+                        delay: const Duration(milliseconds: 120),
+                        child: _MascotGuide(height: mascotHeight),
+                      ),
+                    ),
                     Positioned.fromRect(
                       rect: imageRect,
                       child: Image.asset(
@@ -614,29 +641,25 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         rect: imageRect,
                         child: Center(child: _buildLoadingOrError()),
                       ),
-                    // The guide, the pencil and the reading pair are never
-                    // gated on anything: they own reserved space in both
-                    // orientations, so they are always drawn and only ever
-                    // change size.
-                    Positioned(
-                      left: 10,
-                      bottom: 6,
-                      width: mascotHeight,
-                      child: _MascotGuide(height: mascotHeight),
-                    ),
+                    // The pencil crew and the student's character stay in
+                    // front of the books; only the guide sits behind.
                     Positioned(
                       right: 10,
                       bottom: 4,
                       // The pencil crew rocks in the air rather than
                       // hopping — they are flying, not standing.
-                      child: _FloatingArt(
-                        asset: 'assets/images/winter_fun.png',
-                        size: pencilWidth,
-                        baseAngle: -0.14,
-                        motion: _Motion.wiggle,
-                        amount: 1.1,
-                        period: const Duration(milliseconds: 3100),
-                        phase: 0.35,
+                      child: _FlyAway(
+                        away: _leaving,
+                        angle: 0.28,
+                        child: _FloatingArt(
+                          asset: 'assets/images/winter_fun.png',
+                          size: pencilWidth,
+                          baseAngle: -0.14,
+                          motion: _Motion.wiggle,
+                          amount: 1.1,
+                          period: const Duration(milliseconds: 3100),
+                          phase: 0.35,
+                        ),
                       ),
                     ),
                     // Top-right in both orientations, below the HUD row.
@@ -1441,5 +1464,54 @@ class _FloatingAvatar extends StatelessWidget {
 
       ),
     );
+  }
+}
+
+/// Sends a character flying off-screen on a diagonal and fades it out.
+///
+/// Used when the student starts the adventure: the guide and the pencil
+/// crew leave in different directions and a beat apart, so the exit reads
+/// as two characters heading off rather than one layer being switched off.
+class _FlyAway extends StatelessWidget {
+  const _FlyAway({
+    required this.away,
+    required this.child,
+    this.angle = 0,
+    this.delay = Duration.zero,
+  });
+
+  /// Flipped once. While false the child is drawn untouched, so the idle
+  /// motion underneath is unaffected.
+  final bool away;
+
+  final Widget child;
+
+  /// Direction of travel, in radians from straight up — the guide and the
+  /// pencil lean opposite ways.
+  final double angle;
+
+  final Duration delay;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!away) return child;
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return const SizedBox.shrink();
+    }
+    const travel = Duration(milliseconds: 520);
+    // Up and out along `angle`, shrinking and fading as it goes.
+    final dx = math.sin(angle) * 420;
+    final dy = -math.cos(angle) * 420;
+    return child
+        .animate(delay: delay)
+        .move(
+          begin: Offset.zero,
+          end: Offset(dx, dy),
+          duration: travel,
+          curve: Curves.easeInBack,
+        )
+        .fadeOut(duration: travel, curve: Curves.easeIn)
+        .scaleXY(begin: 1, end: 0.72, duration: travel)
+        .rotate(begin: 0, end: angle * 0.5, duration: travel);
   }
 }
