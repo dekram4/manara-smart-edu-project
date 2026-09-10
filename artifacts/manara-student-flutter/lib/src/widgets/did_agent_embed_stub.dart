@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -43,19 +43,66 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
   var _loading = true;
   var _revision = 0;
 
+  /// Kept so the page can be torn down deliberately on the way out — see
+  /// [_endProviderSession].
+  InAppWebViewController? _controller;
+
   String get _apiBase =>
       widget.apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
 
   @override
   void initState() {
     super.initState();
-    _loadConfig();
+    // Anything left over from a previous visit goes before a new agent is
+    // asked for. The provider counts concurrent streams per account, and a
+    // session this app opened and never closed — a screen killed by the
+    // OS, a crash, a student who switched apps mid-sentence — is still
+    // counted. That is what leaves the next visit waiting on a stream the
+    // provider will not grant.
+    _startFreshSession();
   }
 
   @override
   void dispose() {
     _timeout?.cancel();
+    // Closes the stream on the way out rather than leaving it to time out
+    // on the provider's side, which is what made a second visit — or a
+    // second device — collide with the first.
+    _endProviderSession();
     super.dispose();
+  }
+
+  /// Drops the provider's own session state for this device, so the next
+  /// load negotiates a new stream instead of resuming one that may already
+  /// be counted against the account.
+  ///
+  /// Scoped to the agent's own origin on purpose: clearing everything
+  /// would take the lesson embeds' state with it.
+  Future<void> _startFreshSession() async {
+    try {
+      await CookieManager.instance()
+          .deleteCookies(url: WebUri('https://agent.d-id.com'));
+    } catch (_) {
+      // A platform without a cookie manager is not a reason to refuse to
+      // open the teacher; the load below still gets its chance.
+    }
+    if (!mounted) return;
+    await _loadConfig();
+  }
+
+  /// Navigates the page away before the widget goes, which runs the
+  /// embed's own teardown and closes its peer connection. Simply dropping
+  /// the WebView leaves that to the provider's inactivity timeout.
+  void _endProviderSession() {
+    final controller = _controller;
+    _controller = null;
+    if (controller == null) return;
+    unawaited(controller.stopLoading().catchError((_) {}));
+    unawaited(
+      controller
+          .loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')))
+          .catchError((_) {}),
+    );
   }
 
   Future<void> _loadConfig() async {
@@ -114,7 +161,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       // one (surfaces here as a network exception either way) — in every
       // case, don't leave the student staring at a spinner forever.
       _fallBackToDirectUrlOrError(
-        'تعذر تجهيز المعلم الافتراضي. تحقق من اتصالك ثم أعد المحاولة.',
+        'لم نستطع تجهيز صديقك المعلم الآن. تأكد من الإنترنت واضغط إعادة المحاولة.',
       );
     }
   }
@@ -240,12 +287,12 @@ $scriptClose
       if (mounted && _loading) {
         if (!_directFallback) {
           _fallBackToDirectUrlOrError(
-            'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.',
+            'صديقك المعلم تأخر أكثر من المعتاد. قد يكون مشغولًا في جهاز آخر — اضغط إعادة المحاولة لنجرب من جديد.',
           );
         } else {
           setState(() {
             _loading = false;
-            _error = 'تعذر فتح رابط المعلم الافتراضي المباشر.';
+            _error = 'لم يفتح صديقك المعلم هذه المرة. اضغط إعادة المحاولة ليبدأ من جديد.';
           });
         }
       }
@@ -253,10 +300,16 @@ $scriptClose
   }
 
   void _retry() {
-    // Always re-attempts the proper API-driven embed first — if it's
-    // recovered since the last try, the student gets the full experience
-    // again rather than being stuck on whatever fallback kicked in before.
-    _loadConfig();
+    // Closes whatever the failed attempt left open, drops the provider's
+    // session state, and only then asks again — so this is a genuinely new
+    // session rather than another attempt to resume the one that just
+    // failed or was refused as a duplicate.
+    //
+    // It also always re-attempts the proper API-driven embed first: if
+    // that has recovered since the last try, the student gets the full
+    // experience back rather than staying on whatever fallback kicked in.
+    _endProviderSession();
+    unawaited(_startFreshSession());
   }
 
   @override
@@ -266,7 +319,7 @@ $scriptClose
     if (html == null && !_directFallback) {
       return _DIdStateCard(
         title: _error != null
-            ? 'تعذر تشغيل المعلم الافتراضي'
+            ? 'صديقك المعلم غير جاهز الآن'
             : 'يتم تجهيز المعلم الافتراضي',
         message: _error ?? 'لحظات قليلة، يجري الاتصال بصديقك الذكي.',
         loading: _error == null,
@@ -279,6 +332,19 @@ $scriptClose
       children: [
         InAppWebView(
           key: ValueKey('did-agent-$_revision'),
+          onWebViewCreated: (controller) => _controller = controller,
+          // The teacher is the card, and it never hands the child off to a
+          // browser. Anything the page tries to open elsewhere — a
+          // target=_blank, a mailto:, a store link — is either loaded here
+          // or dropped; nothing leaves the app.
+          shouldOverrideUrlLoading: (controller, action) async {
+            final url = action.request.url;
+            if (url == null) return NavigationActionPolicy.ALLOW;
+            const webSchemes = {'http', 'https', 'about', 'data', 'blob'};
+            return webSchemes.contains(url.scheme.toLowerCase())
+                ? NavigationActionPolicy.ALLOW
+                : NavigationActionPolicy.CANCEL;
+          },
           initialData: _directFallback || html == null
               ? null
               : InAppWebViewInitialData(
@@ -382,8 +448,8 @@ $scriptClose
           ),
         if (_error != null)
           _DIdStateCard(
-            title: 'تعذر تشغيل المعلم الافتراضي',
-            message: _error ?? 'تعذر تشغيل المعلم الافتراضي.',
+            title: 'صديقك المعلم غير جاهز الآن',
+            message: _error ?? 'صديقك المعلم غير جاهز الآن.',
             actionLabel: 'إعادة المحاولة',
             onAction: _retry,
           ),
@@ -457,11 +523,32 @@ class _DIdStateCard extends StatelessWidget {
               style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.5),
             ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
+              const SizedBox(height: 20),
+              // Big, filled and unmissable. When a child is looking at a
+              // screen that did not work, the way out should be the most
+              // obvious thing on it — not an outlined button they have to
+              // find.
+              FilledButton.icon(
                 onPressed: onAction,
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(actionLabel!),
+                icon: const Icon(Icons.refresh_rounded, size: 26),
+                label: Text(
+                  actionLabel!,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF6D28D9),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
               ),
             ],
           ],

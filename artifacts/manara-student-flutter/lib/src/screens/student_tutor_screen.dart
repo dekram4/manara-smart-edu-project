@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/student_content.dart';
+import '../services/student_media_permissions.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_avatar_view.dart';
@@ -31,6 +34,17 @@ class StudentTutorScreen extends StatefulWidget {
 class _StudentTutorScreenState extends State<StudentTutorScreen> {
   var _embedRevision = 0;
   var _showInlineMeeting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Asked for here, before the page loads, rather than left to the
+    // WebView. The embed grants its own getUserMedia request, but on
+    // Android that only works if the app already holds RECORD_AUDIO — and
+    // when it does not, the failure surfaces inside the page as "open this
+    // in a browser", which is the last thing to show a child.
+    unawaited(StudentMediaPermissions.requestForTutor());
+  }
 
   String? get _avatarUrl => widget.selection.url;
   LessonContent? get _avatarLesson => widget.selection.lesson;

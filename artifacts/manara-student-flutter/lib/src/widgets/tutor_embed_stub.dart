@@ -13,6 +13,16 @@ const String _kAndroidWebViewUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
 
+/// The longest a child is ever asked to watch a spinner here.
+///
+/// It caps both the per-navigation timer and the per-attempt deadline, so
+/// twelve seconds is the real worst case rather than the two adding up.
+/// Past it the wait is abandoned in favour of something the student can
+/// act on, because a teacher that has not arrived in twelve seconds is
+/// usually not coming — the account's stream is busy elsewhere, or the
+/// handshake failed silently.
+const Duration _kMaxWait = Duration(seconds: 12);
+
 /// Native fallback for the virtual-teacher embed. Flutter Web uses the
 /// browser-native iframe implementation in tutor_embed_web.dart instead.
 class TutorEmbed extends StatefulWidget {
@@ -53,6 +63,10 @@ class _TutorEmbedState extends State<TutorEmbed> {
 
   String? _error;
 
+  /// Kept so the page can be closed deliberately rather than left for the
+  /// provider to time out — see [_endProviderSession].
+  InAppWebViewController? _controller;
+
   @override
   void initState() {
     super.initState();
@@ -64,17 +78,35 @@ class _TutorEmbedState extends State<TutorEmbed> {
   void dispose() {
     _timeout?.cancel();
     _deadline?.cancel();
+    _endProviderSession();
     super.dispose();
+  }
+
+  /// Navigates the page away before the widget goes, so the embed runs its
+  /// own teardown and drops any stream it holds. Left to itself, that
+  /// stream stays counted against the account until the provider expires
+  /// it — which is what makes the next visit, or a second device, wait on
+  /// a session that will not be granted.
+  void _endProviderSession() {
+    final controller = _controller;
+    _controller = null;
+    if (controller == null) return;
+    unawaited(controller.stopLoading().catchError((_) {}));
+    unawaited(
+      controller
+          .loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')))
+          .catchError((_) {}),
+    );
   }
 
   void _startTimeout() {
     _timeout?.cancel();
-    _timeout = Timer(const Duration(seconds: 12), _giveUp);
+    _timeout = Timer(_kMaxWait, _giveUp);
   }
 
   void _startDeadline() {
     _deadline?.cancel();
-    _deadline = Timer(const Duration(seconds: 25), _giveUp);
+    _deadline = Timer(_kMaxWait, _giveUp);
   }
 
   void _giveUp() {
@@ -83,7 +115,8 @@ class _TutorEmbedState extends State<TutorEmbed> {
     _deadline?.cancel();
     setState(() {
       _loading = false;
-      _error = 'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.';
+      _error = 'صديقك المعلم تأخر أكثر من المعتاد. قد يكون مشغولًا في جهاز '
+          'آخر — اضغط إعادة المحاولة لنجرب من جديد.';
     });
   }
 
@@ -100,6 +133,10 @@ class _TutorEmbedState extends State<TutorEmbed> {
   }
 
   void _reload() {
+    // Closes the attempt that failed before opening another, so this is a
+    // new session rather than a second try at resuming the one that was
+    // refused or never arrived.
+    _endProviderSession();
     setState(() {
       _loading = true;
       _error = null;
@@ -116,6 +153,18 @@ class _TutorEmbedState extends State<TutorEmbed> {
       children: [
         InAppWebView(
           key: ValueKey('tutor-embed-$_revision'),
+          onWebViewCreated: (controller) => _controller = controller,
+          // The teacher lives in this card and never hands the child off
+          // to a browser: web navigations load here, and anything asking
+          // for another app is dropped.
+          shouldOverrideUrlLoading: (controller, action) async {
+            final url = action.request.url;
+            if (url == null) return NavigationActionPolicy.ALLOW;
+            const webSchemes = {'http', 'https', 'about', 'data', 'blob'};
+            return webSchemes.contains(url.scheme.toLowerCase())
+                ? NavigationActionPolicy.ALLOW
+                : NavigationActionPolicy.CANCEL;
+          },
           initialUrlRequest: URLRequest(url: WebUri(widget.url)),
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
@@ -262,7 +311,7 @@ class _TutorEmbedFailure extends StatelessWidget {
                     color: Color(0xFFC4B5FD), size: 52),
                 const SizedBox(height: 12),
                 const Text(
-                  'تعذر تجهيز المعلم الافتراضي',
+                  'صديقك المعلم غير جاهز الآن',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
@@ -277,10 +326,30 @@ class _TutorEmbedFailure extends StatelessWidget {
                   style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.5),
                 ),
                 const SizedBox(height: 16),
-                OutlinedButton.icon(
+                // Big, filled and unmissable: when a child is looking at a
+                // screen that did not work, the way out should be the most
+                // obvious thing on it.
+                FilledButton.icon(
                   onPressed: onRetry,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('إعادة المحاولة'),
+                  icon: const Icon(Icons.refresh_rounded, size: 26),
+                  label: const Text(
+                    'إعادة المحاولة',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF6D28D9),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
                 ),
               ],
             ),

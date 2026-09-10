@@ -5,6 +5,11 @@
          والتفاعل المدمج (WebView getUserMedia) بدل الاكتفاء بوضع نصي فقط. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- WebRTC inside the WebView switches the device into communication
+         audio mode to run echo cancellation. Without this the capture can
+         start and then produce silence or feed the speaker back into the
+         microphone. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
