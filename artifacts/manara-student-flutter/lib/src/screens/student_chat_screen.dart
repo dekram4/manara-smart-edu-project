@@ -175,7 +175,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFDF3EA),
         appBar: AppBar(
           // Stated explicitly so the bar never inherits a colour that
           // leaves its own title and buttons hard to read.

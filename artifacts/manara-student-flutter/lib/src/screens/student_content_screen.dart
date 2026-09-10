@@ -1,4 +1,3 @@
-import 'dart:ui' show PointerDeviceKind;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -141,7 +140,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFFDF3EA),
       appBar: AppBar(
         // Stated rather than inherited: the theme's bar rendered near-black
         // here, which is what made the title and the close button read as
@@ -1117,114 +1116,64 @@ class _VideoCarousel extends StatefulWidget {
 }
 
 class _VideoCarouselState extends State<_VideoCarousel> {
-  final _controller = PageController(viewportFraction: 0.88);
-  int _activeIndex = 0;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    return Column(
-      children: [
-        // Sized for a 16:9 cover plus its two lines of text, and derived
-        // from the page's own width so the card keeps that shape on a
-        // phone and on a tablet instead of being cropped or padded.
-        SizedBox(
-          height: (MediaQuery.sizeOf(context).width * 0.86 * 9 / 16 + 62)
-              .clamp(150.0, 320.0)
-              .toDouble(),
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(
-              dragDevices: {
-                PointerDeviceKind.touch,
-                PointerDeviceKind.mouse,
-                PointerDeviceKind.trackpad,
-                PointerDeviceKind.stylus,
-              },
-            ),
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: widget.videos.length,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              onPageChanged: (index) => setState(() => _activeIndex = index),
-              itemBuilder: (context, index) {
-                final video = widget.videos[index];
-                // The reward belongs to the lesson completion button, not to
-                // any individual YouTube/MP4 source inside the lesson.
-                const completed = false;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
-                  ),
-                  child: _VideoCard(
-                    video: video,
-                    apiBaseUrl: widget.apiBaseUrl,
-                    completed: completed,
-                    onPressed: () {
-                      StudentSoundService.instance.playTap();
-                      Navigator.of(context).push(
-                        StudentPageRoute<void>(
-                          builder: (_) => _LessonPlayerScreen(
-                            video: video,
-                            apiBaseUrl: widget.apiBaseUrl,
-                            initiallyCompleted: completed,
-                            // Rewarding here is idempotent (rewardActivity
-                            // guards against a double grant), so finishing
-                            // the video can safely auto-complete the lesson
-                            // instead of requiring the separate button below.
-                            onCompleted: () async {
-                              try {
-                                final reward = await widget.contentService
-                                    .rewardActivity(
-                                      profile: widget.profile,
-                                      activityType: 'lesson',
-                                      activityId: widget.lesson.id,
-                                    );
-                                widget.onGamificationChanged(reward.snapshot);
-                                return true;
-                              } catch (_) {
-                                return false;
-                              }
-                            },
-                          ),
-                        ),
+    // The same grid the cinema uses — identical maxCrossAxisExtent,
+    // spacing and aspect ratio — so a lesson's clips are the size a
+    // student already knows from there, instead of one huge page-wide
+    // card at a time. The pager and its dots are gone with it.
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      itemCount: widget.videos.length,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 330,
+        mainAxisSpacing: 18,
+        crossAxisSpacing: 14,
+        childAspectRatio: 1.30,
+      ),
+      itemBuilder: (context, index) {
+        final video = widget.videos[index];
+        // The reward belongs to the lesson completion button, not to any
+        // individual YouTube/MP4 source inside the lesson.
+        const completed = false;
+        return _VideoCard(
+          video: video,
+          apiBaseUrl: widget.apiBaseUrl,
+          completed: completed,
+          onPressed: () {
+            StudentSoundService.instance.playTap();
+            Navigator.of(context).push(
+              StudentPageRoute<void>(
+                builder: (_) => _LessonPlayerScreen(
+                  video: video,
+                  apiBaseUrl: widget.apiBaseUrl,
+                  initiallyCompleted: completed,
+                  // Rewarding here is idempotent (rewardActivity guards
+                  // against a double grant), so finishing the video can
+                  // safely auto-complete the lesson instead of requiring
+                  // the separate button below.
+                  onCompleted: () async {
+                    try {
+                      final reward =
+                          await widget.contentService.rewardActivity(
+                        profile: widget.profile,
+                        activityType: 'lesson',
+                        activityId: widget.lesson.id,
                       );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            widget.videos.length,
-            (index) => AnimatedContainer(
-              duration: reduceMotion ? Duration.zero : 220.ms,
-              width: index == _activeIndex ? 26 : 8,
-              height: 8,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                color: index == _activeIndex
-                    ? const Color(0xFF0B8693)
-                    : const Color(0xFFB3C8DE),
-                borderRadius: BorderRadius.circular(20),
+                      widget.onGamificationChanged(reward.snapshot);
+                      return true;
+                    } catch (_) {
+                      return false;
+                    }
+                  },
+                ),
               ),
-            ),
-          ),
-        ),
-      ],
+            );
+          },
+        );
+      },
     );
   }
 }

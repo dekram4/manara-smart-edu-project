@@ -208,7 +208,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFDF3EA),
         appBar: AppBar(title: const Text('حلّ المسائل'), centerTitle: true, actions: const [StudentSoundToggle()]),
         body: Stack(
           children: [

@@ -320,7 +320,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFDF3EA),
         appBar: AppBar(
           title: Text(_activeQuiz == null ? 'مركز الاختبارات' : _text(_activeQuiz!['title'])),
           actions: [

@@ -137,7 +137,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFDF3EA),
         appBar: AppBar(
           title: const Text('شخصيتي'),
           centerTitle: true,
@@ -591,7 +591,7 @@ class _ReadyPlayerMeCreatorScreenState
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFFDF3EA),
       appBar: AppBar(
         title: const Text('مصمم شخصيتي'),
         backgroundColor: const Color(0xFF17364F),

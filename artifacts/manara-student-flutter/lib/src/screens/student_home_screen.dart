@@ -2,6 +2,7 @@
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -11,7 +12,7 @@ import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_experience.dart';
-import '../widgets/student_floating_character.dart';
+import '../widgets/student_avatar_view.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import 'login_screen.dart';
@@ -374,6 +375,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           ),
         ),
         actions: [
+          // The profile icon is the chosen character too, so the bar and
+          // the card always agree.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: StudentAvatarView(size: 38, onTap: _openPersonality),
+          ),
           const StudentSoundToggle(),
           IconButton(
             onPressed: _signOut,
@@ -995,13 +1002,12 @@ class _WelcomeCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            StudentFloatingCharacter(
-              appearance: profile.appearance,
-              size: 60,
-              showLabel: false,
-              bob: 5,
-              onTap: onCharacterTap,
-            ),
+            // The saved character itself, not the emoji stand-in it used
+            // to route through — that path could still prefer a Ready
+            // Player Me portrait and hide the chosen picture.
+            StudentAvatarView(size: 62, onTap: onCharacterTap)
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .moveY(begin: 0, end: -5, duration: 2200.ms, curve: Curves.easeInOut),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

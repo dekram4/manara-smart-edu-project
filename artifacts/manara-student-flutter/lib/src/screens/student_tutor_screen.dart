@@ -94,7 +94,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF17364F),
       appBar: widget.fullscreen
           ? null
           : AppBar(

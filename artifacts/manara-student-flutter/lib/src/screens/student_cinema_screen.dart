@@ -107,7 +107,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF17364F),
       appBar: AppBar(
         backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
@@ -352,7 +352,7 @@ class _CinemaPlayerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF17364F),
       appBar: AppBar(
         backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
