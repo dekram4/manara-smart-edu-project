@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
+import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
-import '../widgets/student_mascot.dart';
 
 class StudentProgressScreen extends StatelessWidget {
   const StudentProgressScreen({required this.profile, this.stats, super.key});
@@ -133,8 +133,8 @@ class _ProgressAnimationCard extends StatelessWidget {
                   ),
                 ),
                 Semantics(
-                  label: 'رفيق إنجازاتك',
-                  child: const StudentMascot(size: 100),
+                  label: 'شخصيتك',
+                  child: const StudentAvatarView(size: 100),
                 ),
               ],
             ),

@@ -8,7 +8,6 @@ import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
-import '../widgets/student_mascot.dart';
 
 /// A child-friendly editor for the appearance stored with a student profile.
 ///
@@ -433,19 +432,48 @@ class _AppearancePreviewState extends State<_AppearancePreview>
         child: Transform.rotate(angle: angle, child: child),
       );
     },
-    child: Column(
+    child: const Column(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // The chosen emoji/outfit/accessory are already shown as their own
-        // selected chips below — stamping them again as floating text over
-        // the character just cluttered the preview without actually
-        // changing its body, so the preview only washes the illustration
-        // with the chosen color (a real per-choice visual change) and lets
-        // the outer AnimatedBuilder move it.
-        StudentMascot(size: 168, tint: widget.color),
-      ],
+      children: [_SelectedAvatarPreview(size: 168)],
     ),
   );
+}
+
+/// The preview on this screen used to show a fixed illustration, which sat
+/// oddly next to the nine characters the student picks from just below it —
+/// two different "you" on one screen. It now previews the character the
+/// student actually chose, and follows a new pick immediately.
+///
+/// The colour wash is deliberately gone with it: it was there to give the
+/// colour choices *some* visible effect on a generic figure, and tinting
+/// the student's own character only muddies it. The chosen emoji, outfit,
+/// accessory and colour are all still shown as their own selected chips
+/// below.
+class _SelectedAvatarPreview extends StatelessWidget {
+  const _SelectedAvatarPreview({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<StudentAvatar>(
+      valueListenable: StudentAvatars.selected,
+      builder: (context, avatar, _) => SizedBox(
+        width: size,
+        height: size,
+        child: Image.asset(
+          avatar.asset,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.person_rounded,
+            size: size * 0.6,
+            color: const Color(0xFF0B8693),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _GameRoomBackdrop extends StatelessWidget {

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
-import 'student_mascot.dart';
+import 'student_avatar_view.dart';
 import 'student_orientation_guard.dart';
 
 class StudentPageRoute<T> extends PageRouteBuilder<T> {
@@ -823,82 +823,12 @@ class _LearningWorldPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// The student-facing character used as a visual anchor on entry screens.
-class StudentCompanion extends StatelessWidget {
-  const StudentCompanion({
-    this.size = 190,
-    this.showLabel = true,
-    super.key,
-  });
-
-  final double size;
-  final bool showLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final imageSize = size * 0.83;
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    // The student's one consistent mascot everywhere in the app — a plain
-    // Flutter-drawn character (see StudentMascot) rather than an external
-    // animation file, so it always renders complete, front-facing, and
-    // uncropped.
-    final character = StudentMascot(size: imageSize);
-
-    return Semantics(
-      label: 'رفيق منارة التعليمي',
-      image: true,
-      child: SizedBox(
-        width: size,
-        height: size + (showLabel ? 34 : 0),
-        child: Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
-            reduceMotion
-                ? character
-                : character
-                    .animate(
-                      onPlay: (controller) => controller.repeat(reverse: true),
-                    )
-                    .moveY(
-                      begin: 0,
-                      end: -7,
-                      duration: 2100.ms,
-                      curve: Curves.easeInOut,
-                    ),
-            if (showLabel)
-              Positioned(
-                bottom: -2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEE),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE4D39A)),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x1F183047),
-                        blurRadius: 12,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: const Text(
-                    'أنا معك في الرحلة',
-                    style: TextStyle(
-                      color: Color(0xFF6F5729),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// StudentCompanion — a fixed illustration of two children — used to live
+// here and was what every card header showed. It is deliberately gone
+// rather than merely unused: leaving it in reach is how it kept finding
+// its way back into headers after the student's own character was
+// introduced. Anywhere the student should see themselves, use
+// StudentAvatarView.
 
 /// A compact animated avatar used to make student cards feel personal without
 /// needing a remote avatar or a heavyweight canvas.
@@ -1085,7 +1015,12 @@ class StudentScreenHero extends StatelessWidget {
                   ),
                   if (showCompanion) ...[
                     const SizedBox(width: 6),
-                    const StudentCompanion(size: 68, showLabel: false),
+                    // The student's own chosen character, not a fixed
+                    // illustration. This one widget is the header of every
+                    // opened card — cinema, lesson, games, quizzes, the
+                    // solver, progress — so binding it here is what makes
+                    // the character follow the student through all of them.
+                    const StudentAvatarView(size: 68),
                   ],
                 ],
               ),
