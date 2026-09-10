@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
@@ -952,6 +955,29 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   void initState() {
     super.initState();
     _completed = widget.initiallyCompleted;
+    _enterImmersive();
+  }
+
+  @override
+  void dispose() {
+    _restoreSystemBars();
+    super.dispose();
+  }
+
+  /// Hides the phone's own back/home/recents bar for the duration of the
+  /// game. It used to sit on top of the game's own bottom controls, so a
+  /// tap aimed at the game hit the system bar instead and the student
+  /// simply could not play. "Sticky" is the right variant here: a swipe
+  /// from the edge still brings the bar back for a moment when the student
+  /// actually wants it, then it hides itself again.
+  void _enterImmersive() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  /// Every exit path leads here, so the bars are never left hidden for the
+  /// rest of the app: leaving the screen, the back button, and disposal.
+  void _restoreSystemBars() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   String get _url {
@@ -993,7 +1019,19 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
             uri.host.isNotEmpty ||
         _isRelativeApiGame;
 
-    return Scaffold(
+    // The system bar is hidden while the game runs, but the strip of
+    // screen it lived in is still the phone's gesture area. Anything the
+    // student has to tap stays clear of it by this much.
+    final double bottomInset =
+        16.0 + math.max(MediaQuery.viewPaddingOf(context).bottom, 24.0);
+
+    return PopScope(
+      // Back out of the game and the phone's own buttons come straight
+      // back, without waiting on dispose.
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) _restoreSystemBars();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF160C2D),
       appBar: AppBar(
         backgroundColor: const Color(0xFF160C2D),
@@ -1061,7 +1099,7 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                   ),
                 Positioned(
                   right: 16,
-                  bottom: 16,
+                  bottom: bottomInset,
                   child: FilledButton.icon(
                     onPressed: _loading || _saving || _completed
                         ? null
@@ -1088,6 +1126,7 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                 ),
               ],
             ),
+      ),
     );
   }
 }

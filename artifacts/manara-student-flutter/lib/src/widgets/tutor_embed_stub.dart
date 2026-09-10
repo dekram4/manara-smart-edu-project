@@ -30,40 +30,83 @@ class TutorEmbed extends StatefulWidget {
 }
 
 class _TutorEmbedState extends State<TutorEmbed> {
+  /// Restarted on every navigation the page makes. Catches the ordinary
+  /// "this one request is taking too long" case.
   Timer? _timeout;
-  InAppWebViewController? _controller;
+
+  /// Started once per attempt and *never* restarted. A provider page that
+  /// bounces through a chain of redirects fires onLoadStart each time, and
+  /// with only the soft timer above that reset the clock on every hop —
+  /// so the spinner could stay up indefinitely without a single timeout
+  /// ever firing. This is the backstop that guarantees the student always
+  /// gets either the teacher or a retry button.
+  Timer? _deadline;
+
   var _loading = true;
+
+  /// Bumped on retry so the WebView itself is rebuilt. The old retry called
+  /// `_controller?.reload()`, which did nothing at all when the controller
+  /// was still null — exactly the case where the embed had hung before it
+  /// ever came up, so the one button meant to rescue a stuck screen was
+  /// dead precisely when it was needed.
+  var _revision = 0;
+
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _startTimeout();
+    _startDeadline();
   }
 
   @override
   void dispose() {
     _timeout?.cancel();
+    _deadline?.cancel();
     super.dispose();
   }
 
   void _startTimeout() {
     _timeout?.cancel();
-    _timeout = Timer(const Duration(seconds: 12), () {
-      if (mounted && _loading) {
-        setState(
-            () => _error = 'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.');
-      }
+    _timeout = Timer(const Duration(seconds: 12), _giveUp);
+  }
+
+  void _startDeadline() {
+    _deadline?.cancel();
+    _deadline = Timer(const Duration(seconds: 25), _giveUp);
+  }
+
+  void _giveUp() {
+    if (!mounted || !_loading || _error != null) return;
+    _timeout?.cancel();
+    _deadline?.cancel();
+    setState(() {
+      _loading = false;
+      _error = 'استغرق المعلم الافتراضي وقتًا أطول من المعتاد.';
     });
+  }
+
+  /// Clears the loading cover once the page has painted enough to be worth
+  /// showing. Some teacher/avatar providers hold a streaming connection
+  /// open for the whole session, so `onLoadStop` never arrives — the page
+  /// underneath was live and interactive while the spinner sat on top of
+  /// it forever.
+  void _onProgress(int progress) {
+    if (!mounted || progress < 70) return;
+    _timeout?.cancel();
+    _deadline?.cancel();
+    if (_loading) setState(() => _loading = false);
   }
 
   void _reload() {
     setState(() {
       _loading = true;
       _error = null;
+      _revision++;
     });
     _startTimeout();
-    _controller?.reload();
+    _startDeadline();
   }
 
   @override
@@ -72,7 +115,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
       fit: StackFit.expand,
       children: [
         InAppWebView(
-          onWebViewCreated: (controller) => _controller = controller,
+          key: ValueKey('tutor-embed-$_revision'),
           initialUrlRequest: URLRequest(url: WebUri(widget.url)),
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
@@ -122,11 +165,16 @@ class _TutorEmbedState extends State<TutorEmbed> {
             }
           },
           onLoadStart: (_, __) {
-            if (mounted) setState(() => _loading = true);
+            if (mounted && !_loading) setState(() => _loading = true);
+            // Only the per-navigation timer restarts here; the attempt
+            // deadline deliberately keeps running so a redirect chain
+            // cannot postpone it forever.
             _startTimeout();
           },
+          onProgressChanged: (_, progress) => _onProgress(progress),
           onLoadStop: (_, __) {
             _timeout?.cancel();
+            _deadline?.cancel();
             if (mounted) setState(() => _loading = false);
           },
           onReceivedError: (controller, request, error) {
@@ -135,6 +183,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
             // not hide an otherwise-working embed.
             if (request.isForMainFrame != true || !mounted) return;
             _timeout?.cancel();
+            _deadline?.cancel();
             setState(() {
               _loading = false;
               _error = 'تعذر تحميل المعلم الافتراضي: ${error.description}';
@@ -153,6 +202,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
               return;
             }
             _timeout?.cancel();
+            _deadline?.cancel();
             setState(() {
               _loading = false;
               _error = 'تعذر تحميل المعلم الافتراضي: HTTP $statusCode';
@@ -230,7 +280,7 @@ class _TutorEmbedFailure extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('إعادة التحميل'),
+                  label: const Text('إعادة المحاولة'),
                 ),
               ],
             ),

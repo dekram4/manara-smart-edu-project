@@ -278,12 +278,15 @@ class _WelcomeBrand extends StatelessWidget {
           'منارة المعرفة التعليمية',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: const Color(0xFF0E5F6B),
+            color: Colors.black,
             fontSize: titleSize,
             fontWeight: FontWeight.w900,
             letterSpacing: 0.3,
+            // A black drop shadow under black text only muddies its edges;
+            // a white glow is what actually holds the name apart from the
+            // artwork behind it now that the name itself is black.
             shadows: const [
-              Shadow(color: Color(0x33000000), blurRadius: 5, offset: Offset(0, 2)),
+              Shadow(color: Colors.white, blurRadius: 8),
             ],
           ),
         )

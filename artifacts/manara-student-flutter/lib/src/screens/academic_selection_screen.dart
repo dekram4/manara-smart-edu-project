@@ -1117,16 +1117,14 @@ class _BrandMark extends StatelessWidget {
             'منارة المعرفة التعليمية',
             maxLines: 1,
             style: TextStyle(
-              color: Color(0xFF0E5F6B),
+              color: Colors.black,
               fontSize: 20,
               fontWeight: FontWeight.w900,
               letterSpacing: 0.3,
+              // White glow rather than the old black drop shadow — black
+              // text needs separating from the artwork, not darkening.
               shadows: [
-                Shadow(
-                  color: Color(0x33000000),
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
+                Shadow(color: Colors.white, blurRadius: 8),
               ],
             ),
           ),

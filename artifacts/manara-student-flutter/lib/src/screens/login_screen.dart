@@ -241,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                             child: ColorFiltered(
-                              colorFilter: const ColorFilter.mode(_brandTeal, BlendMode.srcIn),
+                              colorFilter: const ColorFilter.mode(_brandInk, BlendMode.srcIn),
                               child: Image.asset(
                                 'assets/images/manara-logo-mark-transparent.png',
                                 width: logoSize,
@@ -262,7 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'منارة المعرفة التعليمية',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: _brandTeal,
+                                  color: _brandInk,
                                   fontSize: 21,
                                   height: 1.15,
                                   fontWeight: FontWeight.w900,
@@ -389,7 +389,11 @@ class _LoginScreenState extends State<LoginScreen> {
 /// The brand teal both the logo mark and the app name are painted in — a
 /// deeper, fully saturated version of the mark's own gradient, so it holds
 /// up against the light blue/cream backdrop instead of washing into it.
-const Color _brandTeal = Color(0xFF0E5F6B);
+/// The brand lockup — the mark and the name under it — is drawn in flat
+/// black so it reads at a glance against the classroom scene behind it.
+/// The white glow around both is what keeps it legible where the artwork
+/// underneath goes dark.
+const Color _brandInk = Color(0xFF000000);
 
 const double _frameTopFraction = 0.235;
 const double _artworkBottomFraction = 0.80;

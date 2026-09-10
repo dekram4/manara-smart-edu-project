@@ -219,9 +219,24 @@ $scriptClose
 ''';
   }
 
+  /// Clears the loading cover once the page has painted enough to be worth
+  /// showing. The Agent Embed holds a streaming connection open for the
+  /// whole conversation, so `onLoadStop` may never arrive — leaving a live,
+  /// working teacher hidden behind a spinner until the timeout below tore
+  /// it down and replaced it with a fallback or an error.
+  void _onProgress(int progress) {
+    if (!mounted || progress < 70) return;
+    _timeout?.cancel();
+    if (_loading) setState(() => _loading = false);
+  }
+
   void _startTimeout() {
     _timeout?.cancel();
-    _timeout = Timer(const Duration(seconds: 5), () {
+    // The page itself gets longer than the 5s allowed for the config call:
+    // an avatar embed pulling its runtime and model over a school
+    // connection routinely needs more, and bailing out early turned a slow
+    // teacher into a failed one.
+    _timeout = Timer(const Duration(seconds: 12), () {
       if (mounted && _loading) {
         if (!_directFallback) {
           _fallBackToDirectUrlOrError(
@@ -300,6 +315,7 @@ $scriptClose
             javaScriptCanOpenWindowsAutomatically: false,
             mixedContentMode: MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE,
           ),
+          onProgressChanged: (_, progress) => _onProgress(progress),
           onLoadStop: (controller, url) {
             _timeout?.cancel();
             if (mounted) setState(() => _loading = false);

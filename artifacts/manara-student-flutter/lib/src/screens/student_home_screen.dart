@@ -57,6 +57,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
   late final ConfettiController _rewardController;
+  bool _openingTutor = false;
 
   @override
   void initState() {
@@ -255,6 +256,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       );
       return;
     }
+    // Looking up the teacher takes a round trip, during which the card
+    // still accepts taps. Without this guard an impatient second tap
+    // stacked a second lookup and a second screen on top of the first.
+    if (_openingTutor) return;
+    _openingTutor = true;
     try {
       final selection = await StudentContentService(
         widget.authService.client,
@@ -287,6 +293,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           ),
         ),
       );
+    } finally {
+      // Released on every path, including the failing one — otherwise one
+      // failed lookup would leave the card permanently unresponsive.
+      _openingTutor = false;
     }
   }
 
@@ -365,7 +375,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF0E5F6B),
+                      color: Colors.black,
                       height: 1.1,
                     ),
                   ),
