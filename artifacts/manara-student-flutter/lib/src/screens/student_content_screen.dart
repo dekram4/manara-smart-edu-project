@@ -173,7 +173,19 @@ class _StudentContentScreenState extends State<StudentContentScreen>
             fontWeight: FontWeight.w900,
           ),
         ),
-        actions: const [StudentSoundToggle()],
+        actions: [
+          // Refetches the lesson from the server on demand. Nothing here
+          // is cached, so this is not clearing anything — it is for the
+          // case where a teacher changes a video while the student has
+          // the card open and wants to see it without closing and
+          // reopening the screen.
+          IconButton(
+            onPressed: _loading ? null : _retryContent,
+            tooltip: 'تحديث محتوى الدرس',
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          const StudentSoundToggle(),
+        ],
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'إغلاق',

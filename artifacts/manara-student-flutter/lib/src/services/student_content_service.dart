@@ -408,7 +408,16 @@ class StudentContentService {
         )
         .toList();
 
-    return _preferredLessonsForStudent(lessons, profile);
+    return _preferredLessonsForStudent(
+      lessons,
+      profile,
+      // The lesson the student actually chose wins over every rule below.
+      // Without this, a unit collapsed to whichever lesson had the newest
+      // createdAt — so a teacher who edited the video on the chosen
+      // lesson saw nothing change on the student's card, because the card
+      // was never showing that lesson in the first place.
+      pinnedLessonId: academicContext?.lessonId,
+    );
   }
 
   /// Resolves one safe, scoped experience for the student dashboard.
@@ -950,10 +959,24 @@ class StudentContentService {
     return configured.isEmpty ? null : configured.first;
   }
 
+  /// Picks one lesson per academic scope.
+  ///
+  /// The order of authority is deliberate:
+  ///
+  /// 1. [pinnedLessonId] — the lesson the student explicitly chose. A
+  ///    choice the student made must not be overridden by a heuristic.
+  /// 2. The student's own teacher's copy, over a supervisor's template.
+  /// 3. The most recently created of whatever is left.
+  ///
+  /// Step 1 is new, and it is what fixes "the teacher changed the video
+  /// and the student still sees the old one". A unit can hold several
+  /// lessons; the rule below used to hand back whichever was newest,
+  /// which is frequently not the lesson the student is sitting in.
   List<LessonContent> _preferredLessonsForStudent(
     List<LessonContent> lessons,
-    StudentProfile profile,
-  ) {
+    StudentProfile profile, {
+    String? pinnedLessonId,
+  }) {
     final grouped = <String, List<LessonContent>>{};
     for (final lesson in lessons) {
       final key = [
@@ -966,9 +989,19 @@ class StudentContentService {
       grouped.putIfAbsent(key, () => []).add(lesson);
     }
 
+    final pinned = _normalize(pinnedLessonId);
     final studentTeacher = _normalize(profile.teacherId);
     final preferred = <LessonContent>[];
     for (final candidates in grouped.values) {
+      if (pinned.isNotEmpty) {
+        final chosen = candidates
+            .where((lesson) => _normalize(lesson.id) == pinned)
+            .toList();
+        if (chosen.isNotEmpty) {
+          preferred.add(chosen.first);
+          continue;
+        }
+      }
       final teacherOwned = studentTeacher.isEmpty
           ? const <LessonContent>[]
           : candidates
@@ -981,7 +1014,16 @@ class StudentContentService {
       });
       preferred.add(pool.first);
     }
-    preferred.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    preferred.sort((a, b) {
+      // The chosen lesson leads the list, so the card opens on it rather
+      // than on whatever happens to be newest.
+      if (pinned.isNotEmpty) {
+        final aPinned = _normalize(a.id) == pinned;
+        final bPinned = _normalize(b.id) == pinned;
+        if (aPinned != bPinned) return aPinned ? -1 : 1;
+      }
+      return b.createdAt.compareTo(a.createdAt);
+    });
     return preferred;
   }
 }

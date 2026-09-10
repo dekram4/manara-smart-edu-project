@@ -111,6 +111,137 @@ class EndlessReaderWords {
   static bool isNonJoining(String letter) => _nonJoining.contains(letter);
 }
 
+/// One sentence from the lesson with a single word taken out of it, for
+/// the second kind of challenge: reading a real definition and choosing
+/// the word that completes it.
+class EndlessReaderSentence {
+  const EndlessReaderSentence({
+    required this.before,
+    required this.answer,
+    required this.after,
+    required this.choices,
+  });
+
+  /// The sentence text either side of the gap.
+  final String before;
+  final String after;
+
+  /// The word that was removed.
+  final String answer;
+
+  /// The answer plus decoys, already shuffled.
+  final List<String> choices;
+}
+
+/// Builds sentence-completion rounds out of a lesson's own prose.
+///
+/// This is the half of the game that teaches the concept rather than the
+/// spelling: the sentences are the teacher's own definitions, and the
+/// word removed is a content word from within them, so completing one
+/// means having read and understood the line.
+class EndlessReaderSentences {
+  const EndlessReaderSentences._();
+
+  /// The shortest and longest sentence worth showing. Under five words
+  /// there is not enough context to work the gap out; over eighteen it
+  /// stops being a puzzle and becomes a paragraph.
+  static const minWords = 5;
+  static const maxWords = 18;
+
+  /// The most sentence rounds one visit plays through.
+  static const maxSentences = 8;
+
+  /// Words never chosen as the missing one: they carry no meaning on
+  /// their own, so blanking them tests nothing.
+  static const _stopWords = <String>{
+    'من', 'في', 'على', 'إلى', 'عن', 'هي', 'هو', 'التي', 'الذي', 'هذا',
+    'هذه', 'ذلك', 'تلك', 'كان', 'كانت', 'مع', 'أو', 'ثم', 'قد', 'بين',
+    'كل', 'عند', 'حتى', 'لكن', 'أن', 'إن', 'لا', 'ما', 'كما', 'وهي',
+    'وهو', 'يتم', 'يكون', 'تكون',
+  };
+
+  static List<EndlessReaderSentence> fromLesson({
+    String? lessonText,
+    math.Random? random,
+  }) {
+    final text = lessonText?.trim() ?? '';
+    if (text.isEmpty) return const [];
+    final rng = random ?? math.Random(text.length);
+
+    // Split on the marks that actually end a sentence in Arabic prose,
+    // including the Arabic full stop and question mark.
+    final raw = text.split(RegExp(r'[.!?؟\n\r]+'));
+    final built = <EndlessReaderSentence>[];
+    final usedAnswers = <String>{};
+
+    for (final piece in raw) {
+      final sentence = piece.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (sentence.isEmpty) continue;
+      final words = sentence.split(' ').where((w) => w.isNotEmpty).toList();
+      if (words.length < minWords || words.length > maxWords) continue;
+
+      // Candidates are content words long enough to be worth removing,
+      // and never the first word — a gap at the very start leaves the
+      // student nothing to read into.
+      final candidates = <int>[];
+      for (var i = 1; i < words.length; i++) {
+        final clean = _clean(words[i]);
+        if (clean.length < 3) continue;
+        if (_stopWords.contains(clean)) continue;
+        if (usedAnswers.contains(clean)) continue;
+        candidates.add(i);
+      }
+      if (candidates.isEmpty) continue;
+
+      final at = candidates[rng.nextInt(candidates.length)];
+      final answer = _clean(words[at]);
+      usedAnswers.add(answer);
+
+      built.add(
+        EndlessReaderSentence(
+          before: words.sublist(0, at).join(' '),
+          answer: answer,
+          after: words.sublist(at + 1).join(' '),
+          choices: const [],
+        ),
+      );
+      if (built.length >= maxSentences) break;
+    }
+
+    // Decoys are drawn from the other sentences' answers, so every option
+    // is a real word from this lesson. A decoy pulled from nowhere would
+    // stand out as obviously wrong without the student reading anything.
+    final pool = built.map((s) => s.answer).toList();
+    return [
+      for (final sentence in built)
+        EndlessReaderSentence(
+          before: sentence.before,
+          answer: sentence.answer,
+          after: sentence.after,
+          choices: _choicesFor(sentence.answer, pool, rng),
+        ),
+    ];
+  }
+
+  static List<String> _choicesFor(
+    String answer,
+    List<String> pool,
+    math.Random rng,
+  ) {
+    final decoys = pool.where((word) => word != answer).toList()..shuffle(rng);
+    final choices = <String>[answer, ...decoys.take(3)];
+    choices.shuffle(rng);
+    return choices;
+  }
+
+  /// Strips the punctuation clinging to a word and the diacritics inside
+  /// it, so the tile a student drags matches the gap it belongs in.
+  static String _clean(String value) => value
+      .replaceAll(RegExp(r'[ً-ْـٰ]'), '')
+      .replaceAll(RegExp(r'[^ء-غف-ي]'), '')
+      .trim();
+}
+
 /// "تحدي القراءة والكلمات" — the student rebuilds words from their own
 /// current lesson by dragging the missing letters into place.
 class StudentEndlessReaderScreen extends StatefulWidget {
@@ -130,6 +261,19 @@ class _StudentEndlessReaderScreenState
     extends State<StudentEndlessReaderScreen> {
   late final ConfettiController _confetti;
   late final List<String> _words;
+  late final List<EndlessReaderSentence> _sentences;
+
+  /// Letter rounds first, then sentence rounds. Spelling a term before
+  /// being asked to place it in a definition is the order that teaches;
+  /// the reverse asks a student to use a word they have not met yet.
+  int get _letterStages => _words.length;
+  int get _sentenceStages => _sentences.length;
+  bool get _onSentence => _wordIndex >= _letterStages;
+  EndlessReaderSentence get _sentence =>
+      _sentences[(_wordIndex - _letterStages).clamp(0, _sentences.length - 1)];
+
+  /// The word dropped into the sentence gap, once one has been.
+  String? _filled;
 
   var _wordIndex = 0;
   List<int> _blanks = const [];
@@ -138,7 +282,7 @@ class _StudentEndlessReaderScreenState
   /// How many words this lesson's round runs for. Every word is a stage,
   /// so the student can see the end of the run rather than playing an
   /// unmarked stream.
-  int get _stageCount => _words.length;
+  int get _stageCount => _letterStages + _sentenceStages;
   bool get _onLastStage => _wordIndex >= _stageCount - 1;
 
   /// Position in the word -> the letter dropped there. A position missing
@@ -163,7 +307,10 @@ class _StudentEndlessReaderScreenState
       lessonText: widget.academicContext?.selectedLesson.lessonText,
       lessonName: widget.academicContext?.selectedLesson.lessonName,
     );
-    if (_words.isNotEmpty) _startRound();
+    _sentences = EndlessReaderSentences.fromLesson(
+      lessonText: widget.academicContext?.selectedLesson.lessonText,
+    );
+    if (_stageCount > 0) _startRound();
   }
 
   @override
@@ -173,12 +320,27 @@ class _StudentEndlessReaderScreenState
   }
 
   void _startRound() {
+    _placed.clear();
+    _filled = null;
+    _justLanded = null;
+    _celebrating = false;
+    if (_onSentence) {
+      _blanks = const [];
+      _tiles = const [];
+      return;
+    }
     final seed = _wordIndex * 7919 + _word.length;
     _blanks = EndlessReaderWords.blanksFor(_word, seed: seed);
     _tiles = EndlessReaderWords.tilesFor(_word, _blanks, seed: seed);
-    _placed.clear();
-    _justLanded = null;
-    _celebrating = false;
+  }
+
+  /// A word dropped into the sentence gap. Only the right one is ever
+  /// accepted, so this always means success.
+  void _onSentenceAccept(String word) {
+    setState(() => _filled = word);
+    HapticFeedback.lightImpact();
+    StudentSoundService.instance.play(StudentSoundCue.success);
+    _finishWord();
   }
 
   void _onAccept(int position, String letter) {
@@ -232,7 +394,7 @@ class _StudentEndlessReaderScreenState
           title: const Text('تحدي القراءة والكلمات'),
           centerTitle: true,
           actions: [
-            if (_words.isNotEmpty)
+            if (_stageCount > 0)
               IconButton(
                 onPressed: _restart,
                 tooltip: "إعادة المرحلة من البداية",
@@ -252,7 +414,7 @@ class _StudentEndlessReaderScreenState
               opacity: 0.24,
             ),
             SafeArea(
-              child: _words.isEmpty ? _emptyState() : _game(),
+              child: _stageCount == 0 ? _emptyState() : _game(),
             ),
             Align(
               alignment: Alignment.topCenter,
@@ -334,8 +496,11 @@ class _StudentEndlessReaderScreenState
                 const SizedBox(height: 14),
                 Text(
                   _celebrating
-                      ? 'أحسنت! كلمة صحيحة 🎉'
-                      : 'اسحب الحروف إلى مكانها',
+                      ? (_onSentence ? 'أحسنت! جملة صحيحة 🎉' : 'أحسنت! كلمة صحيحة 🎉')
+                      : (_onSentence
+                          ? 'اسحب الكلمة الناقصة إلى الفراغ'
+                          : 'اسحب الحروف إلى مكانها'),
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
@@ -345,9 +510,14 @@ class _StudentEndlessReaderScreenState
                   ),
                 ),
                 const SizedBox(height: 18),
-                _wordRow(slot),
+                if (_onSentence) _sentenceCard() else _wordRow(slot),
                 const SizedBox(height: 24),
-                if (_celebrating) _afterWordActions() else _tileTray(slot),
+                if (_celebrating)
+                  _afterWordActions()
+                else if (_onSentence)
+                  _choiceTray()
+                else
+                  _tileTray(slot),
               ],
             ),
           ),
@@ -447,6 +617,142 @@ class _StudentEndlessReaderScreenState
           borderRadius: BorderRadius.circular(30),
         ),
       );
+
+  /// The sentence with its gap, as one readable line. The gap is a drop
+  /// target sized to the answer, so the line does not jump when a word
+  /// lands in it.
+  Widget _sentenceCard() {
+    final sentence = _sentence;
+    final filled = _filled;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 620),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF6D28D9), width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 16,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 8,
+        children: [
+          if (sentence.before.isNotEmpty)
+            Text(sentence.before, style: _sentenceStyle),
+          DragTarget<String>(
+            onWillAcceptWithDetails: (details) =>
+                filled == null && details.data == sentence.answer,
+            onAcceptWithDetails: (details) => _onSentenceAccept(details.data),
+            builder: (context, candidate, rejected) {
+              final hovering = candidate.isNotEmpty;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutBack,
+                constraints: BoxConstraints(
+                  minWidth: (sentence.answer.length * 15.0).clamp(70.0, 200.0),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: filled != null
+                      ? const Color(0xFFD1FAE5)
+                      : Colors.white.withOpacity(hovering ? 0.98 : 0.6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: filled != null
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFF6D28D9),
+                    width: hovering || filled != null ? 3 : 2,
+                  ),
+                ),
+                child: Text(
+                  filled ?? '؟',
+                  textAlign: TextAlign.center,
+                  style: _sentenceStyle.copyWith(
+                    color: filled != null
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFF9C8AC4),
+                  ),
+                ),
+              );
+            },
+          ),
+          if (sentence.after.isNotEmpty)
+            Text(sentence.after, style: _sentenceStyle),
+        ],
+      ),
+    );
+  }
+
+  static const _sentenceStyle = TextStyle(
+    fontSize: 19,
+    height: 1.6,
+    fontWeight: FontWeight.w800,
+    color: Color(0xFF3B2A6B),
+  );
+
+  /// The candidate words for a sentence round. Every one is a real word
+  /// from this lesson, so a student cannot pick the answer out by it
+  /// being the only plausible thing on screen.
+  Widget _choiceTray() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        for (final word in _sentence.choices) _wordTile(word),
+      ],
+    );
+  }
+
+  Widget _wordTile(String word) {
+    final face = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [Color(0xFF60A5FA), Color(0xFF2563EB)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x55000000),
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Text(
+        word,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
+        ),
+      ),
+    );
+
+    return Draggable<String>(
+      data: word,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Transform.scale(scale: 1.12, child: face),
+      ),
+      childWhenDragging: Opacity(opacity: 0.28, child: face),
+      child: face,
+    );
+  }
 
   Widget _wordRow(double slot) {
     return Wrap(

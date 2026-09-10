@@ -106,4 +106,65 @@ void main() {
       expect(pool, isNotEmpty, reason: 'decoys stop winning by elimination');
     });
   });
+
+  group('building sentence rounds', () {
+    const lesson = 'الخلية هي أصغر وحدة في الكائن الحي. '
+        'تحتوي الخلية على النواة والسيتوبلازم والغشاء. '
+        'يقوم الغشاء بحماية محتويات الخلية من الخارج. '
+        'قصير.';
+
+    test('splits on sentence marks and skips the ones too short', () {
+      final built = EndlessReaderSentences.fromLesson(lessonText: lesson);
+      expect(built, isNotEmpty);
+      // "قصير." is one word — nothing to read into, so it is not a round.
+      for (final sentence in built) {
+        final words = '${sentence.before} ${sentence.after}'
+            .split(' ')
+            .where((w) => w.trim().isNotEmpty)
+            .length;
+        expect(words + 1, greaterThanOrEqualTo(EndlessReaderSentences.minWords));
+      }
+    });
+
+    test('the gap is never the first word and never a stop word', () {
+      final built = EndlessReaderSentences.fromLesson(lessonText: lesson);
+      for (final sentence in built) {
+        expect(
+          sentence.before.trim(),
+          isNotEmpty,
+          reason: 'a gap at the very start leaves nothing to read into',
+        );
+        expect(sentence.answer.length, greaterThanOrEqualTo(3));
+        expect(
+          const {'من', 'في', 'على', 'هي', 'هو'},
+          isNot(contains(sentence.answer)),
+        );
+      }
+    });
+
+    test('the answer is always among the choices, with decoys beside it', () {
+      final built = EndlessReaderSentences.fromLesson(lessonText: lesson);
+      for (final sentence in built) {
+        expect(sentence.choices, contains(sentence.answer));
+        expect(
+          sentence.choices.length,
+          greaterThan(1),
+          reason: 'one option is not a choice',
+        );
+        expect(sentence.choices.toSet().length, sentence.choices.length);
+      }
+    });
+
+    test('no text, or text with no usable sentence, is empty not a crash', () {
+      expect(EndlessReaderSentences.fromLesson(), isEmpty);
+      expect(EndlessReaderSentences.fromLesson(lessonText: '   '), isEmpty);
+      expect(EndlessReaderSentences.fromLesson(lessonText: 'كلمة.'), isEmpty);
+    });
+
+    test('a word is never blanked twice across the round', () {
+      final built = EndlessReaderSentences.fromLesson(lessonText: lesson);
+      final answers = built.map((s) => s.answer).toList();
+      expect(answers.toSet().length, answers.length);
+    });
+  });
 }

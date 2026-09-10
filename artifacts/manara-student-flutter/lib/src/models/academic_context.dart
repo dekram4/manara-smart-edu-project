@@ -86,6 +86,30 @@ class AcademicSelectionData {
             .map((path) => path.atram),
       );
 
+  /// Every subject taught in a grade, across all of its terms.
+  ///
+  /// The stored hierarchy nests subject *inside* atram (الترم), so the
+  /// only way to offer the subject first — which is how a student thinks
+  /// about it — is to gather subjects across the grade and then narrow
+  /// the term to those that actually teach the chosen one. Both of these
+  /// filter real paths, so no combination is offered that does not exist.
+  List<String> subjectsInGrade(String grade) => _values(
+        paths
+            .where((path) => path.matches(grade: grade))
+            .map((path) => path.subject),
+      );
+
+  /// The terms in which [subject] is taught in [grade].
+  List<String> atramsForSubject({
+    required String grade,
+    required String subject,
+  }) =>
+      _values(
+        paths
+            .where((path) => path.matches(grade: grade, subject: subject))
+            .map((path) => path.atram),
+      );
+
   List<String> subjectsFor({
     required String grade,
     required String atram,
