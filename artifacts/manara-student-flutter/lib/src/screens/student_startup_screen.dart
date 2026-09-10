@@ -270,11 +270,19 @@ class _WelcomeBrand extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.asset(
-          'assets/images/manara-logo-mark-transparent.png',
-          height: logoSize,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        // Drawn as a flat black silhouette, matching the name beneath it
+        // and the lockup on the login board. srcIn keeps the mark's own
+        // shape — the ring, the open book, the arrow — and replaces only
+        // its colours, so what is lost is the teal gradient, not the
+        // drawing.
+        ColorFiltered(
+          colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
+          child: Image.asset(
+            'assets/images/manara-logo-mark-transparent.png',
+            height: logoSize,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
         )
             .animate()
             .fadeIn(duration: 400.ms)

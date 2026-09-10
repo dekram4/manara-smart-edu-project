@@ -1437,17 +1437,16 @@ class _FullscreenNetworkVideoScreenState
     if (_exiting) return;
     _exiting = true;
     final state = _playerKey.currentState?.fullscreenPlaybackState;
-    // This is the landscape Back bug. The pop used to sit behind
-    // `await setPreferredOrientations(...)`, and on a tablet held in
-    // landscape that call does not settle until the device is physically
-    // rotated — so Back looked dead until the student turned the tablet in
-    // their hands. Nudging the device towards portrait is fired and
-    // forgotten, and the route closes on the same frame as the press.
-    unawaited(
-      SystemChrome.setPreferredOrientations(
-        const [DeviceOrientation.portraitUp],
-      ).catchError((_) {}),
-    );
+    // Nothing is awaited before the pop, which is what fixed the landscape
+    // Back bug: the pop used to sit behind `await
+    // setPreferredOrientations(...)`, and on a tablet held in landscape
+    // that call does not settle until the device is physically rotated, so
+    // Back looked dead until the student turned the tablet in their hands.
+    //
+    // The portrait nudge that used to sit here is gone with it. It was
+    // only ever a workaround for that stall, and now that the app itself
+    // runs landscape it would have spun the tablet upright on the way out
+    // only for the scope's own restore to swing it straight back.
     if (mounted) Navigator.of(context).pop(state);
   }
 
@@ -1560,10 +1559,14 @@ class _FullscreenOrientationScopeState
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // The player is the one place the app's own landscape policy is
+    // lifted rather than narrowed. This used to pin landscape, which is
+    // now what the whole app does anyway — and pinning it here would mean
+    // a lesson filmed in portrait is letterboxed into a wide frame with
+    // the student unable to turn the tablet to fill it. Released for as
+    // long as the video is up; `dispose` and the pop below hand the device
+    // back to the app's policy.
+    unawaited(StudentOrientation.release());
   }
 
   @override

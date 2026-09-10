@@ -64,11 +64,17 @@ flutter:
 # what a child taps on the home screen is the same pair that greets them
 # inside it.
 #
+# The two source images live in tool/ rather than assets/ on purpose.
+# They are build-time inputs that nothing at runtime ever draws, and while
+# they sat under the declared assets/images/ directory every copy of the
+# app carried ~1.5 MB of artwork it could not use. What ships is the
+# generated output under android/app/src/main/res.
+#
 # Regenerate with `dart run flutter_launcher_icons` after changing either
-# image; the generated mipmap/Assets.xcassets output is committed, so the
-# APK build does not need this step.
+# image; that output is committed, so the APK build does not run this
+# step itself.
 flutter_launcher_icons:
-  image_path: "assets/images/app_launcher_icon.png"
+  image_path: "tool/launcher_icon/app_launcher_icon.png"
   android: true
   # This project has no ios/ runner — only android, web and windows — so
   # there is no Assets.xcassets to write into and the generator fails
@@ -85,4 +91,4 @@ flutter_launcher_icons:
   # with the artwork inside 60% of the canvas for exactly that reason, so
   # no launcher shape clips the character or the mark.
   adaptive_icon_background: "#FFF4DF"
-  adaptive_icon_foreground: "assets/images/app_launcher_icon_foreground.png"
+  adaptive_icon_foreground: "tool/launcher_icon/app_launcher_icon_foreground.png"

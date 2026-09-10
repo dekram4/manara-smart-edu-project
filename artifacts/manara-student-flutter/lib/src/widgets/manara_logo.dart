@@ -37,13 +37,21 @@ class ManaraLogo extends StatelessWidget {
               ],
             ),
           ),
+          // Flat black, matching the app name beside it in the top bar and
+          // the same mark on the splash, the path and the login board.
+          //
+          // This replaced a `BlendMode.plus` wash of 4% white, which was
+          // there to lift the mark off a dark background it no longer sits
+          // on — on the light bar it only greyed the artwork slightly.
+          // srcIn replaces the colours and keeps the shape, so the ring,
+          // the open book and the arrow all still read.
           Image.asset(
             'assets/images/manara-logo-mark-transparent.png',
             width: size,
             height: size,
             fit: BoxFit.contain,
-            color: Colors.white.withOpacity(.04),
-            colorBlendMode: BlendMode.plus,
+            color: Colors.black,
+            colorBlendMode: BlendMode.srcIn,
             errorBuilder: (_, __, ___) => Container(
               width: size,
               height: size,

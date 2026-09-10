@@ -24,6 +24,30 @@ void main() {
     );
   });
 
+  test('both landscape directions, so it never matters which way up', () {
+    // A tablet turned the other way round must not end up upside down.
+    expect(StudentOrientation.allowed, hasLength(2));
+    expect(
+      StudentOrientation.allowed,
+      isNot(contains(DeviceOrientation.portraitUp)),
+      reason: 'the app itself runs landscape; only a player opens this up',
+    );
+  });
+
+  test('a player can still be given every orientation', () {
+    // The flexibility the players need: a lesson filmed in portrait
+    // should be watchable upright rather than letterboxed into the app's
+    // own shape.
+    expect(
+      StudentOrientation.unrestricted,
+      containsAll(<DeviceOrientation>[
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]),
+    );
+  });
+
   testWidgets('apply() pushes exactly the policy to the platform',
       (tester) async {
     final sent = <List<String>>[];

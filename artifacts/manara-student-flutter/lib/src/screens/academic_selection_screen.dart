@@ -1066,11 +1066,17 @@ class _BrandMark extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.asset(
-          'assets/images/manara-logo-mark-transparent.png',
-          height: logoHeight,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        // Flat black, to match the name under it and the same mark on the
+        // splash and the login board. srcIn replaces the mark's colours
+        // and keeps its shape.
+        ColorFiltered(
+          colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
+          child: Image.asset(
+            'assets/images/manara-logo-mark-transparent.png',
+            height: logoHeight,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
         ),
         const SizedBox(height: 4),
         // The name is scaled to whatever width the gutter grants, so it
