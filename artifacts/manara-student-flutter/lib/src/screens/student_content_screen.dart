@@ -412,11 +412,13 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
       );
       if (!mounted) return;
       widget.onGamificationChanged(reward.snapshot);
-      StudentSoundService.instance.play(
-        reward.alreadyRewarded
-            ? StudentSoundCue.navigation
-            : StudentSoundCue.success,
-      );
+      if (reward.alreadyRewarded) {
+        StudentSoundService.instance.play(StudentSoundCue.navigation);
+      } else {
+        // The applause chain marks actually finishing the lesson; a
+        // repeat tap that earns nothing gets the quiet cue instead.
+        StudentSoundService.instance.playApplause();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

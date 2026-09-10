@@ -270,21 +270,19 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
           // A real result to celebrate: reward chime (or the bigger
           // level-up one) plus a random Arabic encouragement, same as
           // finishing a lesson or game.
-          if (reward.levelUp) {
-            StudentSoundService.instance.playLevelUp();
-          } else {
-            StudentSoundService.instance.playReward();
-          }
+          // Applause is the celebration now, so the single-shot chime is
+          // not fired alongside it — they share one effects player and the
+          // second would cut the first off.
+          StudentSoundService.instance.playApplause();
           StudentSoundService.instance.playEncouragementArabic();
           if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
             _celebrationController.play();
           }
         } else {
-          // A low score still deserves warmth, not a buzzer: the same
-          // gentle cue used for validation nudges, paired with an
-          // encouraging phrase instead of a discouraging silence — no
-          // confetti, since this isn't the moment to celebrate.
-          StudentSoundService.instance.play(StudentSoundCue.warning);
+          // Finishing is itself worth applauding, whatever the score —
+          // that is what the clapping marks. The encouragement still
+          // carries the result, and there is no confetti here.
+          StudentSoundService.instance.playApplause();
           StudentSoundService.instance.playEncouragementArabic();
         }
         final message = reward.alreadyRewarded

@@ -165,6 +165,46 @@ class StudentSoundService {
     play(StudentSoundCue.levelUp);
   }
 
+  /// Applause, as two clips played back to back: `clap.mp3` and then
+  /// `clap2.mp3` the moment the first reports completion.
+  ///
+  /// Chained on the completion event rather than on a timer, so the two
+  /// meet exactly however long the first clip runs — a fixed delay would
+  /// either overlap them or leave a gap the first time either file is
+  /// re-cut.
+  void playApplause() {
+    HapticFeedback.heavyImpact();
+    unawaited(_playApplause());
+  }
+
+  Future<void> _playApplause() async {
+    if (muted.value) return;
+    try {
+      // A one-shot subscription: it fires for the first clip's completion
+      // and is cancelled immediately, so a later applause cannot stack a
+      // second listener on the same player.
+      late StreamSubscription<void> sub;
+      sub = _effectsPlayer.onPlayerComplete.listen((_) async {
+        await sub.cancel();
+        if (muted.value) return;
+        try {
+          await _effectsPlayer.play(
+            AssetSource('audio/clap2.mp3'),
+            volume: 0.7,
+          );
+        } catch (_) {
+          // The first clap already played; a missing second one is not
+          // worth surfacing to a child.
+        }
+      });
+      await _effectsPlayer.stop();
+      await _effectsPlayer.play(AssetSource('audio/clap.mp3'), volume: 0.7);
+    } catch (_) {
+      // Celebration audio is decoration — never let it break the flow
+      // that triggered it.
+    }
+  }
+
   /// Plays a random Arabic encouragement cue and returns the phrase that
   /// goes with it, so the caller can also show it as text (e.g. a snack
   /// bar) — this keeps the encouragement visible even when sound is muted

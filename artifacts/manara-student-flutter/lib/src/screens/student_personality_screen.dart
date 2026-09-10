@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_profile.dart';
+import '../services/student_avatar_store.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
@@ -31,49 +32,6 @@ class StudentPersonalityScreen extends StatefulWidget {
 }
 
 class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
-  static const _emojis = [
-    '🦸',
-    '🧑‍🚀',
-    '🧙',
-    '🥷',
-    '🧑‍🔬',
-    '🧑‍🎨',
-    '🧑‍🚒',
-    '🧑‍✈️',
-    '🦁',
-    '🐼',
-    '🦊',
-    '🌟',
-  ];
-  static const _outfits = <String, (String, String)>{
-    'hero': ('بطل', '🦸‍♂️'),
-    'space': ('فضاء', '🚀'),
-    'sport': ('رياضي', '🏅'),
-    'science': ('عالِم', '🥼'),
-    'artist': ('فنان', '🎨'),
-    'adventure': ('مغامر', '🎒'),
-  };
-  static const _accessories = <String, String>{
-    'none': 'بدون',
-    'crown': '👑',
-    'glasses': '🕶️',
-    'headphones': '🎧',
-    'cape': '🦸',
-    'star': '⭐',
-  };
-  static const _motions = <String, (String, IconData)>{
-    'idle': ('وقفة البطل', Icons.accessibility_new_rounded),
-    'wave': ('تلويح', Icons.waving_hand_rounded),
-    'celebrate': ('احتفال', Icons.celebration_rounded),
-  };
-  static const _colors = [
-    Color(0xFF38BDF8),
-    Color(0xFFF97316),
-    Color(0xFF8B5CF6),
-    Color(0xFFEC4899),
-    Color(0xFF14B8A6),
-    Color(0xFFFACC15),
-  ];
 
   late Map<String, dynamic> _appearance;
   bool _loadingAppearance = true;
@@ -88,40 +46,6 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     });
   }
 
-  String get _emoji {
-    final value = _appearance['shape']?.toString().trim() ?? '';
-    return _emojis.contains(value) ? value : _emojis.first;
-  }
-
-  Color get _color {
-    final value = _appearance['color']?.toString() ?? '';
-    return _colors.firstWhere(
-      (color) => _hex(color).toLowerCase() == value.toLowerCase(),
-      orElse: () => _colors.first,
-    );
-  }
-
-  String get _outfit {
-    final value = _appearance['outfit']?.toString() ?? '';
-    return _outfits.containsKey(value) ? value : 'hero';
-  }
-
-  String get _accessory {
-    final value = _appearance['accessory']?.toString() ?? '';
-    return _accessories.containsKey(value) ? value : 'none';
-  }
-
-  String get _motion {
-    final value = _appearance['motion']?.toString() ?? '';
-    if (value == 'bounce') return 'idle';
-    if (value == 'dance') return 'celebrate';
-    return _motions.containsKey(value) ? value : 'idle';
-  }
-
-  String? get _avatarImageUrl {
-    final value = _appearance['readyPlayerMeAvatarImageUrl']?.toString().trim();
-    return value == null || value.isEmpty ? null : value;
-  }
 
   bool get _canOpenCreator => _validCreatorUrl(widget.creatorUrl) != null;
 
@@ -147,21 +71,6 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  Future<void> _saveLocalAppearance() {
-    final next = <String, dynamic>{
-      ..._appearance,
-      'shape': _emoji,
-      'color': _hex(_color),
-      'outfit': _outfit,
-      'accessory': _accessory,
-      'motion': _motion,
-    };
-    next.remove('readyPlayerMeAvatarUrl');
-    next.remove('readyPlayerMeAvatarId');
-    next.remove('readyPlayerMeAvatarImageUrl');
-    return _save(next);
   }
 
   Future<void> _openCreator() async {
@@ -221,195 +130,45 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
             const StudentScreenHero(
-              title: 'اصنع بطلك الرائع!',
-              subtitle: 'صمّم بطلك الكامل واختر حركته، ثم احفظ شخصيتك.',
+              title: 'اختر شخصيتك!',
+              subtitle: 'اضغط على الشخصية التي تحبها لتصبح صورتك في التطبيق.',
               icon: Icons.face_retouching_natural_rounded,
               colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
             ),
-            const SizedBox(height: 22),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 100),
-              child: _AppearancePreview(
-                emoji: _emoji,
-                color: _color,
-                imageUrl: _avatarImageUrl,
-                outfit: _outfit,
-                accessory: _accessory,
-                motion: _motion,
-                level: widget.profile.gamification.level,
-                gems: widget.profile.gamification.gems,
-                levelProgress: widget.profile.gamification.levelProgress,
-              ),
-            ),
             const SizedBox(height: 20),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 150),
-              child: _EditorCard(
-                title: 'اختر شارة بطلك',
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: _emojis
-                      .map(
-                        (emoji) => ChoiceChip(
-                          label: Text(
-                            emoji,
-                            style: const TextStyle(fontSize: 28),
-                          ),
-                          selected: _emoji == emoji,
-                          onSelected: (_) {
-                            StudentSoundService.instance.playTap();
-                            setState(() => _appearance['shape'] = emoji);
-                          },
-                        ),
-                      )
-                      .toList(),
+            // The nine characters. The chosen one is marked in place —
+            // there is no save step, because the choice applies the moment
+            // it is tapped and is what every other screen already reads.
+            ValueListenableBuilder<StudentAvatar>(
+              valueListenable: StudentAvatars.selected,
+              builder: (context, selected, _) => GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: StudentAvatars.all.length,
+                gridDelegate:
+                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 170,
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 14,
+                  childAspectRatio: 0.82,
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 175),
-              child: _EditorCard(
-                title: 'اختر ملابس المغامرة',
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 9,
-                  runSpacing: 9,
-                  children: _outfits.entries
-                      .map(
-                        (entry) => ChoiceChip(
-                          avatar: Text(entry.value.$2),
-                          label: Text(entry.value.$1),
-                          selected: _outfit == entry.key,
-                          onSelected: (_) {
-                            StudentSoundService.instance.playTap();
-                            setState(() => _appearance['outfit'] = entry.key);
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 200),
-              child: _EditorCard(
-                title: 'اختر لون الملابس',
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 13,
-                  runSpacing: 12,
-                  children: _colors
-                      .map(
-                        (color) => InkWell(
-                          onTap: () {
-                            StudentSoundService.instance.playTap();
-                            setState(() => _appearance['color'] = _hex(color));
-                          },
-                          borderRadius: BorderRadius.circular(30),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _color == color
-                                    ? const Color(0xFF102A43)
-                                    : Colors.white,
-                                width: _color == color ? 4 : 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 225),
-              child: _EditorCard(
-                title: 'أضف لمسة مرحة',
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 9,
-                  runSpacing: 9,
-                  children: _accessories.entries
-                      .map(
-                        (entry) => ChoiceChip(
-                          label: Text(
-                            entry.value,
-                            style: TextStyle(
-                              fontSize: entry.key == 'none' ? 13 : 24,
-                            ),
-                          ),
-                          selected: _accessory == entry.key,
-                          onSelected: (_) => setState(
-                            () => _appearance['accessory'] = entry.key,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 240),
-              child: _EditorCard(
-                title: 'اختر حركة شخصيتك',
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 9,
-                  runSpacing: 9,
-                  children: _motions.entries
-                      .map(
-                        (entry) => ChoiceChip(
-                          avatar: Icon(entry.value.$2, size: 18),
-                          label: Text(entry.value.$1),
-                          selected: _motion == entry.key,
-                          onSelected: (_) {
-                            StudentSoundService.instance.playTap();
-                            setState(() => _appearance['motion'] = entry.key);
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 250),
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _saveLocalAppearance,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_rounded),
-                label: const Text('حفظ شخصيتي'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
+                itemBuilder: (context, index) {
+                  final avatar = StudentAvatars.all[index];
+                  return _AvatarTile(
+                    avatar: avatar,
+                    selected: avatar.id == selected.id,
+                    onTap: () {
+                      StudentSoundService.instance.playTap();
+                      StudentAvatars.select(avatar);
+                    },
+                  );
+                },
               ),
             ),
             if (_canOpenCreator) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
               StudentEntrance(
-                delay: const Duration(milliseconds: 300),
+                delay: const Duration(milliseconds: 250),
                 child: OutlinedButton.icon(
                   onPressed: _saving ? null : _openCreator,
                   icon: const Icon(Icons.view_in_ar_rounded),
@@ -768,31 +527,6 @@ class _RoomBadge extends StatelessWidget {
   }
 }
 
-class _EditorCard extends StatelessWidget {
-  const _EditorCard({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Student3DCard(
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFD9E6F5)),
-      ),
-      child: Column(
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 13),
-          child,
-        ],
-      ),
-    ),
-  );
-}
 
 class _ReadyPlayerMeCreatorScreen extends StatefulWidget {
   const _ReadyPlayerMeCreatorScreen({required this.creatorUrl});
@@ -951,5 +685,93 @@ _ReadyPlayerMeExport? _readyPlayerMeExport(String? value) {
   );
 }
 
-String _hex(Color color) =>
-    '#${color.red.toRadixString(16).padLeft(2, '0')}${color.green.toRadixString(16).padLeft(2, '0')}${color.blue.toRadixString(16).padLeft(2, '0')}';
+/// One character in the picker. The chosen one is marked by a glowing rim
+/// and a check badge rather than by a colour change alone, so the state is
+/// legible to a child at a glance.
+class _AvatarTile extends StatelessWidget {
+  const _AvatarTile({
+    required this.avatar,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final StudentAvatar avatar;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFE05A86);
+    return StudentPressScale(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            color: Colors.white.withOpacity(selected ? 0.95 : 0.72),
+            border: Border.all(
+              color: selected ? accent : Colors.white,
+              width: selected ? 3 : 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (selected ? accent : const Color(0xFF9B3E68))
+                    .withOpacity(selected ? 0.38 : 0.14),
+                blurRadius: selected ? 20 : 10,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Image.asset(
+                        avatar.asset,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.person_rounded,
+                          size: 40,
+                          color: Color(0xFF9B3E68),
+                        ),
+                      ),
+                    ),
+                    if (selected)
+                      const Positioned(
+                        top: 0,
+                        left: 0,
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          color: accent,
+                          size: 22,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  avatar.label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: selected ? accent : const Color(0xFF5A7286),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

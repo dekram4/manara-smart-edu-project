@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/student_character.dart';
+import '../services/student_avatar_store.dart';
 
 /// The student's own character, drifting gently up and down over the
 /// dashboard background.
@@ -87,14 +88,23 @@ class _StudentFloatingCharacterState extends State<StudentFloatingCharacter>
       ),
       child: ClipOval(
         child: portrait == null
-            ? Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Padding(
-                    padding: EdgeInsets.all(size * 0.16),
-                    child: Text(
-                      character.emoji,
-                      style: TextStyle(fontSize: size * 0.52),
+            // The picked character is the student's picture everywhere,
+            // so this renders it rather than the emoji stand-in. The emoji
+            // remains only as the fallback for a Ready Player Me portrait
+            // that fails to load.
+            ? ValueListenableBuilder<StudentAvatar>(
+                valueListenable: StudentAvatars.selected,
+                builder: (context, avatar, _) => Padding(
+                  padding: EdgeInsets.all(size * 0.07),
+                  child: Image.asset(
+                    avatar.asset,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.medium,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Text(
+                        character.emoji,
+                        style: TextStyle(fontSize: size * 0.52),
+                      ),
                     ),
                   ),
                 ),
@@ -131,7 +141,7 @@ class _StudentFloatingCharacterState extends State<StudentFloatingCharacter>
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              character.label,
+              StudentAvatars.selected.value.label,
               maxLines: 1,
               style: const TextStyle(
                 color: Color(0xFF0E1B2A),

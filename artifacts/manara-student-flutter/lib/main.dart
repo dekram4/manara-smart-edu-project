@@ -8,6 +8,7 @@ import 'src/screens/student_startup_screen.dart';
 import 'src/services/student_auth_service.dart';
 import 'src/services/student_sound_service.dart';
 import 'src/theme/student_theme.dart';
+import 'src/services/student_avatar_store.dart';
 import 'src/utils/student_orientation.dart';
 
 Future<void> main() async {
@@ -18,6 +19,10 @@ Future<void> main() async {
   // video player) hand it back through the same call, so no screen can
   // leave the app pinned to an orientation the app did not choose.
   await StudentOrientation.apply();
+
+  // The picked character is app-wide state, so it is restored before the
+  // first frame — otherwise every screen would flash the default first.
+  await StudentAvatars.restore();
 
   // 1. التقاط أخطاء الـ UI والـ Flutter Framework
   FlutterError.onError = (FlutterErrorDetails details) {
