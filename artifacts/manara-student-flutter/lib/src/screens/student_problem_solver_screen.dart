@@ -209,6 +209,10 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: const Color(0xFFFDF3EA),
+        // Stated rather than inherited: the question box is the point of
+        // this screen, and the keyboard must shorten the page rather than
+        // sit on top of what the student is typing.
+        resizeToAvoidBottomInset: true,
         appBar: AppBar(title: const Text('حلّ المسائل'), centerTitle: true, actions: const [StudentSoundToggle()]),
         body: Stack(
           children: [
@@ -216,7 +220,18 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
             supported.isEmpty
             ? const StudentEntrance(child: _SolverEmptyState())
             : ListView(
-                padding: const EdgeInsets.all(18),
+                physics: const BouncingScrollPhysics(),
+                // Room under the last card equal to the keyboard, so the
+                // field being focused always has somewhere to scroll to.
+                // Without it a landscape phone runs out of list before the
+                // box clears the keys, and Flutter's own scroll-into-view
+                // has nothing left to give.
+                padding: EdgeInsets.fromLTRB(
+                  18,
+                  18,
+                  18,
+                  18 + MediaQuery.viewInsetsOf(context).bottom,
+                ),
                 children: [
                    const StudentScreenHero(
                      title: 'حلّ المسائل',

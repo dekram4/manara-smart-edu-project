@@ -24,13 +24,18 @@ void main() {
     );
   });
 
-  test('both landscape directions, so it never matters which way up', () {
-    // A tablet turned the other way round must not end up upside down.
-    expect(StudentOrientation.allowed, hasLength(2));
+  test('every orientation, on every device', () {
+    // The app was briefly locked to landscape. It is not any more: a
+    // student holding a phone upright gets the app the way they are
+    // holding it, and the responsive tests cover both shapes.
     expect(
       StudentOrientation.allowed,
-      isNot(contains(DeviceOrientation.portraitUp)),
-      reason: 'the app itself runs landscape; only a player opens this up',
+      containsAll(<DeviceOrientation>[
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]),
     );
   });
 

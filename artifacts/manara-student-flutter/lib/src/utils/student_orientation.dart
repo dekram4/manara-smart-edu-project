@@ -15,31 +15,30 @@ import 'package:flutter/services.dart';
 class StudentOrientation {
   const StudentOrientation._();
 
-  /// The orientations the app itself runs in: landscape, either way up.
+  /// Every orientation, on every device.
   ///
-  /// The app is built for a tablet held sideways — the login board, the
-  /// path scene and the portal rail are all composed for a wide screen —
-  /// so this is the shape the student should find it in, and both
-  /// landscape directions are allowed so it never matters which way the
-  /// tablet is turned.
-  ///
-  /// Widening it back to every orientation is one line:
-  ///
-  /// ```dart
-  /// static const allowed = DeviceOrientation.values;
-  /// ```
+  /// The app was briefly locked to landscape. It is not any more: a
+  /// student holding a phone upright should get the app the way they are
+  /// holding it, and every screen is laid out to survive both shapes —
+  /// which the responsive tests check at nine sizes in both orientations.
   static const allowed = <DeviceOrientation>[
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ];
 
-  /// Everything, for a screen that must not be held to the app's own
-  /// shape. A player is the case this exists for: a video shot in
-  /// portrait, or a game built for a tall screen, should be watchable as
-  /// filmed rather than letterboxed into landscape because the app
-  /// prefers it. A screen that opens this up hands the device back with
-  /// [apply] when it closes.
-  static const unrestricted = DeviceOrientation.values;
+  /// The same set. Kept as its own name because the players call it to
+  /// say "do not hold me to the app's shape" — that intent stays true
+  /// whatever the app policy happens to be, so a future narrowing of
+  /// [allowed] leaves the players alone rather than silently catching
+  /// them too.
+  static const unrestricted = <DeviceOrientation>[
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
 
   /// Puts the device back on the app's policy. Safe to call repeatedly.
   static Future<void> apply() =>

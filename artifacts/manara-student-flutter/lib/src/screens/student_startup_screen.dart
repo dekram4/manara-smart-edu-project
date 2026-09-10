@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 import 'login_screen.dart';
 import 'student_home_screen.dart';
@@ -276,7 +277,7 @@ class _WelcomeBrand extends StatelessWidget {
         // its colours, so what is lost is the teal gradient, not the
         // drawing.
         ColorFiltered(
-          colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
+          colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
           child: Image.asset(
             'assets/images/manara-logo-mark-transparent.png',
             height: logoSize,

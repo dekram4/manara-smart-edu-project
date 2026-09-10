@@ -176,6 +176,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: const Color(0xFFFDF3EA),
+        // Stated rather than inherited: the composer must ride above the
+        // keyboard rather than sit under it.
+        resizeToAvoidBottomInset: true,
         appBar: AppBar(
           // Stated explicitly so the bar never inherits a colour that
           // leaves its own title and buttons hard to read.
@@ -275,15 +278,22 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       )
             : Column(
                 children: [
-                  const Padding(
-                    padding: EdgeInsetsDirectional.fromSTEB(14, 12, 14, 0),
-                    child: StudentScreenHero(
-                      title: 'دردشة منارة',
-                      subtitle: 'تواصل باحترام مع زملائك داخل مساحة آمنة.',
-                      icon: Icons.forum_rounded,
-                      colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                  // The header steps aside while the student is typing.
+                  // The keyboard already takes half a landscape phone, and
+                  // between it, the header and the composer there was
+                  // nothing left for the conversation itself — the point
+                  // of the screen. It comes straight back when the
+                  // keyboard closes.
+                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                    const Padding(
+                      padding: EdgeInsetsDirectional.fromSTEB(14, 12, 14, 0),
+                      child: StudentScreenHero(
+                        title: 'دردشة منارة',
+                        subtitle: 'تواصل باحترام مع زملائك داخل مساحة آمنة.',
+                        icon: Icons.forum_rounded,
+                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                      ),
                     ),
-                  ),
                   if (_error != null) _ChatError(text: _error!),
                   Expanded(
                     child: _loading
@@ -295,6 +305,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         : _messages.isEmpty
                             ? const _ChatStatus(icon: Icons.forum_outlined, message: 'لا توجد رسائل بعد. ابدأ حديثًا لطيفًا مع زملائك.')
                             : ListView.builder(
+                                physics: const BouncingScrollPhysics(),
                                 padding: const EdgeInsets.all(14),
                                 itemCount: _messages.length,
                                 itemBuilder: (_, index) => StudentEntrance(

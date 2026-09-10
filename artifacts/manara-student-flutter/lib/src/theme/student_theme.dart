@@ -12,6 +12,14 @@ abstract final class StudentPalette {
   static const mutedInk = Color(0xFF526581);
   static const canvas = Color(0xFFF3F7FF);
   static const surface = Color(0xFFFDFEFF);
+
+  /// The Manara blue, sampled from the logo artwork itself rather than
+  /// chosen: the mark is a left-to-right gradient, and this is the
+  /// dominant colour across its blue end. Used wherever the mark is drawn
+  /// as a flat silhouette — the splash, the login board, the path
+  /// watermark and the portal top bar — so every one of them is the same
+  /// blue as the full-colour original.
+  static const brandBlue = Color(0xFF1D517E);
 }
 
 /// A shared "playful sticker" silhouette used across student-facing cards

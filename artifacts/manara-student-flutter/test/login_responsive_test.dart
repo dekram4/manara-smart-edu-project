@@ -70,4 +70,60 @@ void main() {
       expect(scrollable.axisDirection, AxisDirection.right);
     }
   });
+
+  // The reported problem: on a phone or tablet in landscape the soft
+  // keyboard covered the username and password boxes, so a child could not
+  // see what they were typing. The scene cannot resize or scroll — it is a
+  // fixed composition measured against the window — so it lifts instead.
+  group('the keyboard never covers what the student is typing', () {
+    const keyboardSizes = <String, Size>{
+      'landscape phone 851x393': Size(851, 393),
+      'landscape tablet 4:3 1024x768': Size(1024, 768),
+      'portrait phone 393x851': Size(393, 851),
+    };
+
+    for (final entry in keyboardSizes.entries) {
+      testWidgets('on ${entry.key}', (tester) async {
+        tester.view.physicalSize = entry.value;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(_app());
+        await tester.pump(const Duration(milliseconds: 350));
+
+        // The password box, not the username one: it sits lowest on the
+        // board and is the one the keyboard reaches first. Asserting on
+        // the first field passed whether or not anything worked.
+        Rect field() => tester.getRect(find.byType(TextFormField).last);
+        final before = field();
+
+        // 60% of the height — what a phone really gives up to a keyboard
+        // in landscape, and the case that was reported.
+        tester.view.viewInsets =
+            FakeViewPadding(bottom: entry.value.height * 0.6);
+        addTearDown(() => tester.view.resetViewInsets());
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        final after = field();
+        final keyboardTop = entry.value.height * 0.4;
+
+        expect(
+          after.bottom,
+          lessThanOrEqualTo(keyboardTop),
+          reason: 'the field must end above the keyboard, not under it',
+        );
+        expect(
+          after.top,
+          greaterThanOrEqualTo(0),
+          reason: 'making room must not push it off the top instead',
+        );
+        expect(
+          after.top,
+          lessThanOrEqualTo(before.top),
+          reason: 'the scene moves up, never further under the keys',
+        );
+      });
+    }
+  });
 }

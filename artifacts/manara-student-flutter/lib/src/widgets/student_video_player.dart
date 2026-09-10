@@ -1026,17 +1026,35 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               controlsBuilder: (context, isFullscreen) {
                 if (!isFullscreen) return const SizedBox.shrink();
                 return SafeArea(
-                  child: Align(
-                    alignment: AlignmentDirectional.topStart,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(
+                  child: Stack(
+                    children: [
+                      PositionedDirectional(
                         start: 12,
                         top: 12,
+                        child: _FullscreenBackButton(
+                          onPressed: () => _handleYoutubeBack(controller),
+                        ),
                       ),
-                      child: _FullscreenBackButton(
-                        onPressed: () => _handleYoutubeBack(controller),
+                      // Our own shrink button, opposite the back button.
+                      //
+                      // The player draws a fullscreen toggle of its own
+                      // inside the video, but the student reported pressing
+                      // it while fullscreen and nothing happening. That
+                      // control lives in the embedded page and only reaches
+                      // Flutter as an event the page chooses to send, so
+                      // when it does not arrive there is no way to act on
+                      // it from here. This button is ours: it reads the
+                      // controller's own state and drives it directly, so
+                      // there is always a way out that does not depend on
+                      // the page reporting anything.
+                      PositionedDirectional(
+                        end: 12,
+                        top: 12,
+                        child: _FullscreenExitButton(
+                          onPressed: () => _exitYoutubeFullscreen(controller),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 );
               },
@@ -1063,7 +1081,9 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     );
   }
 
-  /// Leaves the YouTube player's own fullscreen.
+  /// Leaves fullscreen only if it is actually in it, so a stray press
+  /// can never toggle the player *into* fullscreen from a control whose
+  /// whole purpose is getting out of it.
   ///
   /// This used to also force the device to portrait, on the theory that
   /// the exit could not be seen otherwise. That was treating the symptom.
@@ -1073,7 +1093,12 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   /// exit simply holds, and there is no reason to spin the student's
   /// tablet around against their wishes.
   void _exitYoutubeFullscreen(YoutubePlayerController controller) {
+    if (!controller.value.fullScreenOption.enabled) return;
     controller.exitFullScreen();
+    // The player rebuilds from the controller's own stream, so no
+    // setState is needed — and calling one here would be the wrong fix
+    // anyway: the state that matters lives on the controller, not on this
+    // widget.
   }
 
   /// The back button drawn over the video, and the device's own Back key,
@@ -1485,6 +1510,49 @@ class _FullscreenNetworkVideoScreenState
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The app's own "leave fullscreen" control, sharing the back button's
+/// look so the two read as a pair at opposite corners of the video.
+class _FullscreenExitButton extends StatelessWidget {
+  const _FullscreenExitButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'تصغير الفيديو',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(24),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: const Color(0xED071425),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0x99FFFFFF), width: 1.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 5),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(11),
+            child: const Icon(
+              Icons.fullscreen_exit_rounded,
+              color: Colors.white,
+              size: 24,
             ),
           ),
         ),

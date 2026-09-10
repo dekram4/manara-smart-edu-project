@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/student_theme.dart';
+
 class ManaraLogo extends StatelessWidget {
   const ManaraLogo({
     this.size = 96,
@@ -37,20 +39,18 @@ class ManaraLogo extends StatelessWidget {
               ],
             ),
           ),
-          // Flat black, matching the app name beside it in the top bar and
-          // the same mark on the splash, the path and the login board.
-          //
-          // This replaced a `BlendMode.plus` wash of 4% white, which was
-          // there to lift the mark off a dark background it no longer sits
-          // on — on the light bar it only greyed the artwork slightly.
-          // srcIn replaces the colours and keeps the shape, so the ring,
-          // the open book and the arrow all still read.
+          // A flat silhouette in the Manara blue, matching the same mark on
+          // the splash, the path watermark and the login board. The colour
+          // is sampled from this very artwork's own gradient, so the
+          // silhouette reads as the logo rather than as a recolouring of
+          // it. srcIn replaces the colours and keeps the shape, so the
+          // ring, the open book and the arrow all still read.
           Image.asset(
             'assets/images/manara-logo-mark-transparent.png',
             width: size,
             height: size,
             fit: BoxFit.contain,
-            color: Colors.black,
+            color: StudentPalette.brandBlue,
             colorBlendMode: BlendMode.srcIn,
             errorBuilder: (_, __, ___) => Container(
               width: size,

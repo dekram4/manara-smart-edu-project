@@ -14,6 +14,11 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
+    <!-- The activity below declares android:screenOrientation="fullSensor":
+         every orientation the device reports, stated rather than left to
+         the default so the manifest cannot quietly disagree with
+         StudentOrientation.allowed. "fullSensor" rather than "sensor"
+         because the latter leaves out reverse portrait on phones. -->
     <application
         android:label="manara_student"
         android:name="${applicationName}"
@@ -23,6 +28,7 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
+            android:screenOrientation="fullSensor"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"

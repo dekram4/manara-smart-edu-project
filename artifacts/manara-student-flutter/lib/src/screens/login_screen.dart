@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../services/student_auth_service.dart';
+import '../theme/student_theme.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
@@ -105,13 +106,27 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isConfigured = widget.authService != null;
+    // Read here, above the Scaffold, and deliberately not inside the
+    // LayoutBuilder below: a Scaffold with resizeToAvoidBottomInset
+    // subtracts the keyboard from its body's height and then reports zero
+    // insets to it, having already dealt with them. Asking from inside
+    // would always answer "no keyboard", which is exactly the trap that
+    // made the first attempt at this do nothing at all.
+    final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFEFF3F6),
-      // The scene is sized to the window, so letting the soft keyboard
-      // shrink that window would shrink the board with it. Overlaying the
-      // keyboard instead keeps the board steady on phones and tablets.
-      resizeToAvoidBottomInset: false,
+      // The keyboard shortens the window and the scene is re-measured
+      // against what is left, so the board and the writing on it are
+      // always inside the part of the screen the student can still see.
+      //
+      // This used to be false, to keep the board a steady size while
+      // typing. That is what put the fields under the keys: on a phone in
+      // landscape the keyboard takes well over half the height, and a
+      // scene measured against the full window puts its middle — where
+      // the fields are — squarely behind them. A smaller board that can
+      // be written on beats a handsome one that cannot.
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           const Positioned.fill(
@@ -162,16 +177,29 @@ class _LoginScreenState extends State<LoginScreen> {
                   areaSize.height * 0.97 / (stackSpan + 0.19),
                   areaSize.width * 0.96 / artW,
                 );
+                // While the keyboard is open the brand steps aside and
+                // gives the board its height (see `typing`, read above the
+                // Scaffold). On a phone in landscape only about 150px of
+                // window survives the keyboard, and spending a third of
+                // that on a logo leaves writing the student cannot read.
+                // It comes straight back when the keyboard closes.
                 double logoSize = 0;
                 double logoNameHeight = 0;
                 double logoBlockHeight = 0;
                 for (var pass = 0; pass < 3; pass++) {
-                  logoSize = (boardSize * 0.145).clamp(44.0, 130.0).toDouble();
-                  logoNameHeight =
-                      (boardSize * 0.045).clamp(14.0, 34.0).toDouble();
-                  logoBlockHeight = logoSize + logoNameGap + logoNameHeight;
+                  logoSize = typing
+                      ? 0.0
+                      : (boardSize * 0.145).clamp(44.0, 130.0).toDouble();
+                  logoNameHeight = typing
+                      ? 0.0
+                      : (boardSize * 0.045).clamp(14.0, 34.0).toDouble();
+                  logoBlockHeight = typing
+                      ? 0.0
+                      : logoSize + logoNameGap + logoNameHeight;
                   boardSize = math.min(
-                    (areaSize.height * 0.97 - logoBlockHeight - logoGap) /
+                    (areaSize.height * 0.97 -
+                            logoBlockHeight -
+                            (typing ? 0.0 : logoGap)) /
                         stackSpan,
                     areaSize.width * 0.96 / artW,
                   );
@@ -201,7 +229,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     (boardSize * 0.212).clamp(60.0, 200.0).toDouble();
                 final brandWidth = math.min(areaSize.width * 0.92, 380.0);
 
-                return Stack(
+                // The Scaffold has already taken the keyboard out of the
+                // height above, so the scene is laid out inside what
+                // remains and the fields cannot be behind the keys. This
+                // last lift only absorbs rounding at the edges, and is
+                // capped at the slack above the scene so the composition
+                // is never pushed off the top instead.
+                final overlap = !typing
+                    ? 0.0
+                    : math.max(0.0, boardRect.bottom - areaSize.height + 10);
+                final lift = math.min(overlap, math.max(0.0, stackTop));
+
+                return Transform.translate(
+                  offset: Offset(0, -lift),
+                  child: Stack(
                   clipBehavior: Clip.none,
                   children: [
                     Positioned.fromRect(
@@ -221,7 +262,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Centred directly above the board's top frame, in
                     // every orientation. The vertical budget above already
                     // reserved this block's height, so it always has its
-                    // band and never needs to be moved aside.
+                    // band and never needs to be moved aside — except
+                    // while the keyboard is open, when that budget goes to
+                    // the board instead and this comes off the screen with
+                    // it.
+                    if (!typing)
                     Positioned(
                       left: imageRect.center.dx - brandWidth / 2,
                       width: brandWidth,
@@ -241,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                             child: ColorFiltered(
-                              colorFilter: const ColorFilter.mode(_brandInk, BlendMode.srcIn),
+                              colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
                               child: Image.asset(
                                 'assets/images/manara-logo-mark-transparent.png',
                                 width: logoSize,
@@ -367,6 +412,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
+                  ),
                 );
               },
             ),

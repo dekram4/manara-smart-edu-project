@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -11,6 +11,7 @@ import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_content_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_mascot.dart';
 import 'student_home_screen.dart';
@@ -537,6 +538,36 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               ),
             ),
           ),
+          // The mark is the screen's background now rather than a badge in
+          // the corner: one large, very pale blue silhouette spanning the
+          // whole screen behind everything. It is drawn at 7% so it reads
+          // as watermarked paper — present when looked for, invisible when
+          // reading the books over it — and ignores pointers so it can
+          // never take a tap meant for a field.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: FractionallySizedBox(
+                  widthFactor: 0.92,
+                  heightFactor: 0.92,
+                  child: Opacity(
+                    opacity: 0.07,
+                    child: ColorFiltered(
+                      colorFilter: const ColorFilter.mode(
+                        StudentPalette.brandBlue,
+                        BlendMode.srcIn,
+                      ),
+                      child: Image.asset(
+                        'assets/images/manara-logo-mark-transparent.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -551,77 +582,67 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // left, which means the characters always have their place
                 // and simply scale down instead of disappearing.
                 final portrait = areaSize.height > areaSize.width;
-                // The four characters are sized off the screen's shorter
-                // edge, so they stay in proportion whichever way the device
-                // is held, and they are never hidden — only scaled.
-                // The side characters were taking 30% of the shorter edge in
-                // landscape, which on a 4:3 tablet squeezed the book stack
-                // into the middle third. Trimming their share gives the
-                // illustration the room, and the clamp still keeps them
-                // legible on a phone.
-                final artSize = (math.min(areaSize.width, areaSize.height) *
-                        (portrait ? 0.22 : 0.25))
-                    .clamp(56.0, 180.0)
-                    .toDouble();
-                final mascotHeight = artSize;
-                final logoHeight = (artSize * 0.72).clamp(44.0, 120.0).toDouble();
 
-                // Three things share the screen now: the brand at the top,
-                // the guide, and the books. The reserves are decided first
-                // and the books are laid out inside what is left, so the
-                // guide and the brand always have their place and the
-                // illustration scales to fit rather than anything being
-                // pushed off or hidden.
+                // The scene is a left/right pair in both orientations: the
+                // guide holds a column on the left, the books take what is
+                // left on the right. Splitting it the same way whichever
+                // way the device is held is what keeps the balance from
+                // rearranging itself when a student turns the tablet.
                 //
-                // Landscape gives the guide a side gutter, kept equal on
-                // both sides so the books stay centred on the screen
-                // itself. Portrait gives her a band under the books and
-                // the brand a band above them.
-                final sideReserve = portrait ? 0.0 : artSize + 20;
-                // Only the brand and the HUD chips live in the portrait top
-                // band now, so it is sized to the brand rather than to a
-                // character — which is what gives the books back the height
-                // they were losing.
-                final topReserve = portrait ? logoHeight + 58 : 0.0;
-                // The guide is 1.15x her own width tall and carries a
-                // speech bubble above her head, so the bottom band has to
-                // allow for both — sizing it to her height alone would let
-                // the bubble ride up over the lowest books.
-                final bottomReserve = portrait ? artSize * 1.15 + 92 : 0.0;
-                final content = Size(
-                  math.max(0.0, areaSize.width - sideReserve * 2),
-                  math.max(0.0, areaSize.height - topReserve - bottomReserve),
+                // Portrait gives her a wider share because the screen is
+                // narrower there, so an equal fraction would leave her too
+                // small to read.
+                const edge = 12.0;
+                // The HUD chips sit top-right; everything keeps clear of
+                // them.
+                const topReserve = 52.0;
+
+                final girlColumn = (areaSize.width * (portrait ? 0.34 : 0.28))
+                    .clamp(96.0, 460.0)
+                    .toDouble();
+                // Sized to her column, then capped against the height so
+                // she and the bubble above her head always fit — she is
+                // drawn much larger than before, and without this cap a
+                // short landscape window would run her off the top.
+                final mascotHeight = math.min(
+                  girlColumn * 1.02,
+                  (areaSize.height - topReserve - edge) * (portrait ? 0.42 : 0.66),
                 );
-                // Eased back from filling its content box so the stack sits
-                // among the other elements rather than crowding them. The
-                // shrink is applied about the box's own centre, so the
-                // illustration — and every field measured against it —
-                // stays exactly centred. Raised from 0.93 now that nothing
-                // shares the space with it but the guide.
-                const booksScale = 0.97;
+
+                final content = Size(
+                  math.max(0.0, areaSize.width - girlColumn - edge * 2),
+                  math.max(0.0, areaSize.height - topReserve - edge),
+                );
+                // Eased further back than before, so the stack reads as one
+                // object in the right half rather than filling it. The
+                // shrink is about the box's own centre, so the illustration
+                // — and every field measured against it — stays centred on
+                // whatever room it has.
+                const booksScale = 0.90;
                 final fitted = _containRect(content, _booksAspect);
-                final imageRect = Rect.fromCenter(
+                final booksRect = Rect.fromCenter(
                   center: fitted.center,
                   width: fitted.width * booksScale,
                   height: fitted.height * booksScale,
-                ).translate(sideReserve, topReserve);
-
-                // The brand block owns the top-left corner in both
-                // orientations, sized to the band it sits in.
-                final brandWidth = portrait
-                    ? math.min(areaSize.width * 0.42, 190.0)
-                    : sideReserve - 24;
+                );
+                // A nudge further right, bounded by the slack the contain
+                // fit actually left over — so it can never push the stack
+                // off its own half.
+                final slackX = math.max(0.0, content.width - booksRect.width);
+                final nudge = math.min(areaSize.width * 0.02, slackX / 2);
+                final imageRect =
+                    booksRect.translate(girlColumn + edge + nudge, topReserve);
 
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // The guide is painted BEFORE the books, so when she
+                    // The guide is painted BEFORE the books, so if she ever
                     // overlaps the stack she passes behind it instead of
                     // covering a book's face and its field.
                     Positioned(
-                      left: 10,
-                      bottom: 6,
-                      width: mascotHeight,
+                      left: edge,
+                      bottom: edge,
+                      width: math.max(0.0, girlColumn - edge),
                       child: _FlyAway(
                         away: _leaving,
                         angle: -0.32,
@@ -643,12 +664,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         rect: imageRect,
                         child: Center(child: _buildLoadingOrError()),
                       ),
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      width: brandWidth,
-                      child: _BrandMark(logoHeight: logoHeight),
-                    ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -1050,57 +1065,6 @@ class _StartAdventureButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The Manara mark with the app's name set under it, in the top-left
-/// corner above the guide.
-class _BrandMark extends StatelessWidget {
-  const _BrandMark({required this.logoHeight});
-
-  final double logoHeight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Flat black, to match the name under it and the same mark on the
-        // splash and the login board. srcIn replaces the mark's colours
-        // and keeps its shape.
-        ColorFiltered(
-          colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
-          child: Image.asset(
-            'assets/images/manara-logo-mark-transparent.png',
-            height: logoHeight,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-          ),
-        ),
-        const SizedBox(height: 4),
-        // The name is scaled to whatever width the gutter grants, so it
-        // reads at full size on a wide window and shrinks rather than
-        // wrapping or spilling over the books on a narrow one.
-        const FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            'منارة المعرفة التعليمية',
-            maxLines: 1,
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.3,
-              // White glow rather than the old black drop shadow — black
-              // text needs separating from the artwork, not darkening.
-              shadows: [
-                Shadow(color: Colors.white, blurRadius: 8),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
