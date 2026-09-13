@@ -1,10 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../models/student_content.dart';
 import '../services/student_media_permissions.dart';
 import '../services/student_settings.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_avatar_view.dart';
@@ -116,17 +117,17 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
           : AppBar(
               backgroundColor: const Color(0xFF17364F),
               foregroundColor: Colors.white,
-              title: Text(_isLiveMeeting ? 'اللقاء المباشر' : 'صديقك المعلم الافتراضي'),
+              title: Text(_isLiveMeeting ? tr('tutor.meetingTitle') : tr('tutor.title')),
               actions: [
                 const StudentSoundToggle(),
                 IconButton(
                   onPressed: _avatarUrl == null ? null : _reload,
-                  tooltip: 'إعادة التحميل',
+                  tooltip: tr('tutor.reload'),
                   icon: const Icon(Icons.refresh_rounded),
                 ),
                 IconButton(
                   onPressed: _avatarUrl == null ? null : _openFullscreen,
-                  tooltip: 'ملء الشاشة',
+                  tooltip: tr('tutor.fullscreen'),
                   icon: const Icon(Icons.fullscreen_rounded),
                 ),
               ],
@@ -151,7 +152,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                         StudentSoundService.instance.playTap();
                         Navigator.of(context).pop();
                       },
-                      tooltip: 'إنهاء ملء الشاشة',
+                      tooltip: tr('tutor.exitFullscreen'),
                       icon: const Icon(Icons.fullscreen_exit_rounded),
                     ),
                   ),
@@ -188,20 +189,20 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                   : Icons.smart_toy_outlined,
           title: unsafeUrl
               ? _isLiveMeeting
-                  ? 'رابط اللقاء المباشر غير صالح'
-                  : 'رابط المعلم الافتراضي غير صالح'
+                  ? tr('tutor.badMeetingLink')
+                  : tr('tutor.badLink')
               : missingContext
-                  ? 'اختر مسارك الدراسي أولًا'
+                  ? tr('tutor.pickPath')
                   : _isLiveMeeting
-                  ? 'لم يتم إضافة لقاء مباشر بعد'
-                  : 'لم يتم إضافة رابط التفاعل بعد',
+                  ? tr('tutor.noMeeting')
+                  : tr('tutor.noLink'),
           message: unsafeUrl
-              ? 'يجب أن يكون الرابط آمنًا ويبدأ بـ HTTPS.'
+              ? tr('tutor.httpsOnly')
               : missingContext
-                  ? 'اختر الصف والفصل والمادة والترم والوحدة، ثم افتح التجربة الخاصة بالدرس.'
+                  ? tr('tutor.pickPathBody')
                   : _isLiveMeeting
-                  ? 'سيظهر اللقاء هنا عندما يضيف المعلم رابطًا للدرس.'
-                  : 'سيظهر صديقك المعلم هنا عندما يضيف المعلم رابط التفاعل للدرس.',
+                  ? tr('tutor.noMeetingBody')
+                  : tr('tutor.noLinkBody'),
         ),
       );
     }
@@ -235,7 +236,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                         : Icons.smart_toy_rounded,
                     accent: const Color(0xFFC4B5FD),
                     size: 48,
-                    label: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
+                    label: _isLiveMeeting ? tr('tutor.meetingTitle') : tr('tutor.short'),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -243,8 +244,8 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                       _avatarLesson?.lessonName.trim().isNotEmpty == true
                           ? _avatarLesson!.lessonName
                           : _isLiveMeeting
-                              ? 'اللقاء المباشر جاهز للانضمام'
-                              : 'صديقك الذكي مستعد للعب والكلام!',
+                              ? tr('tutor.meetingReady')
+                              : tr('tutor.ready'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -288,7 +289,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                     child: TutorEmbed(
                       key: ValueKey('${_avatarUrl!}:$_embedRevision'),
                       url: _avatarUrl!,
-                      title: _isLiveMeeting ? 'اللقاء المباشر' : 'المعلم الافتراضي',
+                      title: _isLiveMeeting ? tr('tutor.meetingTitle') : tr('tutor.short'),
                     ),
                   ),
                 ),
@@ -307,17 +308,17 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                     color: const Color(0xFF0B1628),
                     child: Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'استخدم زر الاتصال إذا لم يعمل الاجتماع داخل الصفحة.',
-                            textAlign: TextAlign.right,
-                            style: TextStyle(color: Color(0xFFC8D5E5), fontSize: 12),
+                            tr("tutor.meetingHint"),
+                            textAlign: TextAlign.start,
+                            style: const TextStyle(color: Color(0xFFC8D5E5), fontSize: 12),
                           ),
                         ),
                         const SizedBox(width: 10),
                         FilledButton(
                           onPressed: _joinMeeting,
-                          child: const Text('اتصال بالاجتماع'),
+                          child: Text(tr("tutor.joinMeeting")),
                         ),
                       ],
                     ),
@@ -351,22 +352,22 @@ class _BlockedMeetingCard extends StatelessWidget {
               children: [
                 const Icon(Icons.videocam_rounded, color: Color(0xFFFB7185), size: 58),
                 const SizedBox(height: 14),
-                const Text(
-                  'الاجتماع جاهز للانضمام',
+                Text(
+                  tr("tutor.meetingJoinable"),
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'اضغط للاتصال وعرض الاجتماع داخل بطاقة منارة المعرفة. قد تحتاج إلى السماح بالكاميرا والميكروفون عند طلبهما.',
+                Text(
+                  tr('tutor.joinBody'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFFC8D5E5), height: 1.6, fontWeight: FontWeight.w700),
+                  style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.6, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 20),
                 FilledButton.icon(
                   onPressed: onJoin,
                   icon: const Icon(Icons.videocam_rounded),
-                  label: const Text('الاتصال بالاجتماع'),
+                  label: Text(tr("tutor.joinMeeting")),
                 ),
               ],
             ),

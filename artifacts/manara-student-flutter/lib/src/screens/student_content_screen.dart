@@ -1,6 +1,4 @@
-﻿import 'dart:math' as math;
-
-import 'package:confetti/confetti.dart';
+﻿import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -9,6 +7,7 @@ import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
@@ -113,7 +112,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
       SnackBar(
         backgroundColor: const Color(0xFF4B267F),
         content: Text(
-          '🎉 وصلت للمستوى ${updated.level} وفتحت لعبة جديدة: ${opened.title}',
+          trf('content.gameUnlocked',
+              {'level': updated.level, 'title': opened.title}),
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -129,7 +129,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
         academicContext: widget.academicContext,
       );
     } catch (error) {
-      lessonError = 'تعذر تحميل الدروس: $error';
+      lessonError = trf('content.lessonLoadError', {'error': error});
     }
 
     List<HtmlGame> apiGames = const [];
@@ -212,14 +212,14 @@ class _StudentContentScreenState extends State<StudentContentScreen>
           // reopening the screen.
           IconButton(
             onPressed: _loading ? null : _retryContent,
-            tooltip: 'تحديث محتوى الدرس',
+            tooltip: tr('lesson.refresh'),
             icon: const Icon(Icons.refresh_rounded),
           ),
           const StudentSoundToggle(),
         ],
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          tooltip: 'إغلاق',
+          tooltip: tr('action.close'),
           icon: const Icon(Icons.close_rounded),
           style: IconButton.styleFrom(
             foregroundColor: const Color(0xFF0E3A52),
@@ -247,8 +247,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
                   child: StudentScreenHero(
                     title: _moduleTitle(_activeModule),
                     subtitle: _activeModule == StudentContentModule.lesson
-                        ? 'استكشف دروسك خطوة بخطوة واحتفل بكل إنجاز.'
-                        : 'العب وتعلّم واكتشف تحديات تعليمية جديدة.',
+                        ? tr('content.lessonBlurb')
+                        : tr('content.gamesBlurb'),
                     icon: _activeModule == StudentContentModule.lesson
                         ? Icons.play_lesson_rounded
                         : Icons.sports_esports_rounded,
@@ -269,8 +269,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(
-        child: StudentRiveLoading(label: 'جارٍ تحميل محتوى الطالب'),
+      return Center(
+        child: StudentRiveLoading(label: tr('content.loading')),
       );
     }
     if (_error != null &&
@@ -279,9 +279,9 @@ class _StudentContentScreenState extends State<StudentContentScreen>
                 !_hasGameContent))) {
       return _StateCard(
         icon: Icons.cloud_off_rounded,
-        title: 'تعذر تحميل المحتوى',
+        title: tr('content.loadFailed'),
         message: _error!,
-        actionLabel: 'إعادة المحاولة',
+        actionLabel: tr('action.retry'),
         onAction: _retryContent,
       );
     }
@@ -337,9 +337,9 @@ class _StudentContentScreenState extends State<StudentContentScreen>
 String _moduleTitle(StudentContentModule module) {
   switch (module) {
     case StudentContentModule.lesson:
-      return 'شرح الدرس';
+      return tr('content.lessonTab');
     case StudentContentModule.games:
-      return 'الترفيه والألعاب';
+      return tr('content.gamesTab');
   }
 }
 
@@ -367,10 +367,10 @@ class _LessonModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (lessons.isEmpty) {
-      return const _StateCard(
+      return _StateCard(
         icon: Icons.video_library_outlined,
-        title: 'لا توجد فيديوهات بعد',
-        message: 'سيظهر هنا محتوى المعلم والمشرف المطابق لمسارك الأكاديمي.',
+        title: tr('content.noVideos'),
+        message: tr('content.noVideosBody'),
       );
     }
 
@@ -380,7 +380,7 @@ class _LessonModule extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
         Text(
-          'فيديو شرح الدرس',
+          tr('content.lessonVideo'),
           style: const TextStyle(
             color: Color(0xFF0E1B2A),
             fontSize: 24,
@@ -390,7 +390,7 @@ class _LessonModule extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           lesson.scopeLabel.isEmpty
-              ? 'فيديوهات الشرح الخاصة بك'
+              ? tr('content.yourVideos')
               : lesson.scopeLabel,
           style: const TextStyle(
             color: Color(0xFF5680AC),
@@ -422,10 +422,10 @@ class _LessonModule extends StatelessWidget {
         ],
         const SizedBox(height: 16),
         if (lesson.videos.isEmpty)
-          const _StateCard(
+          _StateCard(
             icon: Icons.video_call_outlined,
-            title: 'لم تتم إضافة فيديو',
-            message: 'يمكن للمعلم أو المشرف إضافة رابط فيديو لهذا الدرس.',
+            title: tr('content.noVideoAdded'),
+            message: tr('content.noVideoAddedBody'),
           )
         else
           _VideoCarousel(
@@ -499,16 +499,18 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
         SnackBar(
           content: Text(
             reward.alreadyRewarded
-                ? 'حصلت على مكافأة هذا الدرس مسبقًا.'
-                : 'أحسنت! +5 جواهر'
-                      '${reward.xp > 0 ? ' و +${reward.xp} XP' : ''}',
+                ? tr('content.lessonRewarded')
+                : tr('content.lessonReward') +
+                    (reward.xp > 0
+                        ? trf('content.lessonRewardXp', {'xp': reward.xp})
+                        : ''),
           ),
         ),
       );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر حفظ إتمام الدرس. حاول مرة أخرى.')),
+          SnackBar(content: Text(tr('content.completeFailed'))),
         );
       }
     } finally {
@@ -583,11 +585,11 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      _completed
-                          ? 'تم استلام مكافأة هذا الدرس'
+                      tr(_completed
+                          ? 'content.rewardTaken'
                           : _saving
-                              ? 'جارٍ حفظ الإتمام...'
-                              : 'أنهيت الدرس — احصل على 5 جواهر',
+                              ? 'content.savingCompletion'
+                              : 'content.finishLesson'),
                       maxLines: 1,
                       style: const TextStyle(
                         color: Colors.white,
@@ -645,10 +647,10 @@ class _GamesModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (games.isEmpty) {
-      return const _StateCard(
+      return _StateCard(
         icon: Icons.sports_esports_rounded,
-        title: 'لا توجد ألعاب متاحة',
-        message: 'ستظهر هنا الألعاب التعليمية المرتبطة بدروس مسارك الأكاديمي.',
+        title: tr('lesson.noGames'),
+        message: tr('lesson.noGamesBody'),
       );
     }
 
@@ -656,18 +658,18 @@ class _GamesModule extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
-        const Text(
-          'الألعاب التعليمية',
-          style: TextStyle(
+        Text(
+          tr('content.gamesTitle'),
+          style: const TextStyle(
             color: Color(0xFF0E1B2A),
             fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
         ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
         const SizedBox(height: 4),
-        const Text(
-          'تعلّم والعب داخل منارة المعرفة',
-          style: TextStyle(
+        Text(
+          tr('content.gamesSubtitle'),
+          style: const TextStyle(
             color: Color(0xFF5680AC),
             fontWeight: FontWeight.w700,
           ),
@@ -699,8 +701,10 @@ class _GamesModule extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'يلزمك الوصول إلى \ نقطة لفتح هذه اللعبة. '
-                        'نقاطك الآن: \.',
+                        trf('content.gameLockedHint', {
+                          'required': needed,
+                          'current': gamification.xp,
+                        }),
                       ),
                     ),
                   );
@@ -761,7 +765,11 @@ class _ArcadeProgress extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'المستوى ${stats.level} — فُتحت $open من $total ألعاب',
+                    trf('content.gamesProgress', {
+                      'level': stats.level,
+                      'open': open,
+                      'total': total,
+                    }),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -793,8 +801,8 @@ class _ArcadeProgress extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               allOpen
-                  ? 'فتحت كل الألعاب المتاحة! 🎉'
-                  : 'باقي ${stats.xpToNextLevel} نقطة لفتح اللعبة التالية',
+                  ? tr('content.allGamesOpen')
+                  : trf('content.nextGameIn', {'xp': stats.xpToNextLevel}),
               style: const TextStyle(
                 color: Color(0xFFE9D5FF),
                 fontSize: 12.5,
@@ -886,7 +894,7 @@ class _GameCard extends StatelessWidget {
                         game.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
+                        textAlign: TextAlign.start,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -896,11 +904,12 @@ class _GameCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         locked
-                            ? 'يلزمك الوصول إلى $requiredXp نقطة لفتح هذه اللعبة'
+                            ? trf('content.gameLockedShort',
+                                {'required': requiredXp})
                             : game.subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
+                        textAlign: TextAlign.start,
                         style: TextStyle(
                           color: locked
                               ? const Color(0xFFFDE68A)
@@ -929,8 +938,11 @@ class _GameCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          '$currentXp من $requiredXp نقطة',
-                          textAlign: TextAlign.right,
+                          trf('content.xpOfRequired', {
+                            'current': currentXp,
+                            'required': requiredXp,
+                          }),
+                          textAlign: TextAlign.start,
                           style: const TextStyle(
                             color: Color(0xFFE5E7EB),
                             fontSize: 11.5,
@@ -1035,12 +1047,6 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
             uri.host.isNotEmpty ||
         _isRelativeApiGame;
 
-    // The system bar is hidden while the game runs, but the strip of
-    // screen it lived in is still the phone's gesture area. Anything the
-    // student has to tap stays clear of it by this much.
-    final double bottomInset =
-        16.0 + math.max(MediaQuery.viewPaddingOf(context).bottom, 24.0);
-
     return PopScope(
       // Back out of the game and the phone's own buttons come straight
       // back, without waiting on dispose.
@@ -1056,7 +1062,7 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
         actions: [
           IconButton(
             onPressed: validUrl ? _reload : null,
-            tooltip: 'إعادة تحميل اللعبة',
+            tooltip: tr('lesson.reloadGame'),
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -1064,8 +1070,8 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
       body: !validUrl
           ? _StateCard(
               icon: Icons.link_off_rounded,
-              title: 'رابط اللعبة غير صالح',
-              message: 'لا يمكن فتح هذه اللعبة حاليًا.',
+              title: tr('lesson.badGameLink'),
+              message: tr('lesson.badGameLinkBody'),
             )
           : Stack(
               children: [
@@ -1092,11 +1098,11 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                   ),
                 ),
                 if (_loading)
-                  const ColoredBox(
-                    color: Color(0xFF160C2D),
+                  ColoredBox(
+                    color: const Color(0xFF160C2D),
                     child: Center(
                       child: StudentRiveLoading(
-                        label: 'جارٍ تحميل اللعبة التعليمية',
+                        label: tr('content.gameLoading'),
                       ),
                     ),
                   ),
@@ -1106,9 +1112,9 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
                     child: Center(
                       child: _StateCard(
                         icon: Icons.error_outline_rounded,
-                        title: 'تعذر تشغيل اللعبة',
+                        title: tr('content.gameFailed'),
                         message: _error!,
-                        actionLabel: 'إعادة المحاولة',
+                        actionLabel: tr('action.retry'),
                         onAction: _reload,
                       ),
                     ),
@@ -1237,8 +1243,8 @@ class _VideoCard extends StatelessWidget {
           // clip does, instead of a separate "completed" chip.
           progress: completed ? 1 : null,
           subtitle: completed
-              ? 'تمت المشاهدة ✓'
-              : video.description ?? 'اضغط للمشاهدة',
+              ? tr('content.watched')
+              : video.description ?? tr('content.watchHint'),
         ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);
@@ -1429,7 +1435,7 @@ class UniversalWebVideoScreen extends StatelessWidget {
         title: Text(video.title),
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          tooltip: 'رجوع',
+          tooltip: tr('content.back'),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
       ),
@@ -1504,7 +1510,7 @@ class _StateCard extends StatelessWidget {
                   const SizedBox(height: 14),
                   FilledButton(
                     onPressed: onAction,
-                    child: Text(actionLabel ?? 'متابعة'),
+                    child: Text(actionLabel ?? tr('content.continue')),
                   ),
                 ],
               ],

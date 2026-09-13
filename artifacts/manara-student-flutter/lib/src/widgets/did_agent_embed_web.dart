@@ -1,10 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../l10n/student_strings.dart';
 
 class DIdAgentEmbed extends StatefulWidget {
   const DIdAgentEmbed({required this.apiBaseUrl, this.directUrl, super.key});
@@ -51,7 +52,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
     });
     final base = _apiBase();
     if (base.isEmpty) {
-      setState(() => _error = 'تعذر الوصول إلى إعداد المعلم الافتراضي.');
+      setState(() => _error = tr('embed.configUnreachable'));
       return;
     }
     try {
@@ -64,7 +65,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
           payload is! Map) {
-        throw const FormatException('تعذر قراءة إعداد المعلم الافتراضي.');
+        throw FormatException(tr('embed.configUnreadable'));
       }
       final keyField = String.fromCharCodes(const [
         99,
@@ -80,7 +81,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       final keyValue = payload[keyField]?.toString().trim() ?? '';
       final agentId = payload['agentId']?.toString().trim() ?? '';
       if (keyValue.isEmpty || agentId.isEmpty) {
-        throw const FormatException('إعداد المعلم الافتراضي غير مكتمل.');
+        throw FormatException(tr('embed.configIncomplete'));
       }
       final viewId = 'manara-did-agent-${identityHashCode(this)}';
       _registerEmbed(viewId: viewId, keyValue: keyValue, agentId: agentId);
@@ -89,7 +90,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       if (mounted) {
         setState(() {
           _error =
-              'تعذر تجهيز المعلم الافتراضي. تحقق من اتصالك ثم أعد المحاولة.';
+              tr('embed.prepareRetry');
         });
       }
     }
@@ -165,17 +166,17 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
     final error = _error;
     if (error != null) {
       return _DIdStateCard(
-        title: 'تعذر تشغيل المعلم الافتراضي',
+        title: tr('embed.startFailed'),
         message: error,
-        actionLabel: 'إعادة المحاولة',
+        actionLabel: tr('action.retry'),
         onAction: _loadEmbed,
       );
     }
     final viewId = _viewId;
     if (viewId == null) {
-      return const _DIdStateCard(
-        title: 'يتم تجهيز المعلم الافتراضي',
-        message: 'لحظات قليلة، يجري الاتصال بصديقك الذكي.',
+      return _DIdStateCard(
+        title: tr('embed.preparing'),
+        message: tr('embed.connecting'),
         loading: true,
       );
     }

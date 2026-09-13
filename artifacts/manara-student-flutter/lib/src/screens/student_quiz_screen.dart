@@ -5,6 +5,7 @@ import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
@@ -85,7 +86,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'تعذر تحميل الاختبارات: $error';
+        _error = trf('quiz.loadError', {'error': error});
       });
     }
   }
@@ -107,13 +108,13 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       final correct = sentence.length > 80 ? '${sentence.substring(0, 80)}...' : sentence;
       final options = <String>[
         correct,
-        'فكرة رئيسية',
-        'معلومة إضافية',
-        'لا توجد علاقة بالموضوع',
+        tr('quiz.keyIdea'),
+        tr('quiz.extraInfo'),
+        tr('quiz.unrelated'),
       ];
       return <String, dynamic>{
         'id': 'periodic_fallback_${lesson.id}_${entry.key}',
-        'question': 'اختر الفكرة الأكثر ملاءمة للنص الآتي: "$sentence"',
+        'question': trf('quiz.ideaPrompt', {'sentence': sentence}),
         'options': options,
         'correctAnswer': correct,
         'quizType': 'periodic',
@@ -127,7 +128,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     }).toList();
     return {
       'id': 'periodic_fallback_${lesson.id}',
-      'title': 'الاختبار الدوري',
+      'title': tr('quiz.periodic'),
       'quizType': 'periodic',
       'questions': questions,
       'questionCount': questions.length,
@@ -167,7 +168,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     if (questions.isEmpty) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا توجد أسئلة صالحة في هذا الاختبار بعد.')),
+        SnackBar(content: Text(tr('quiz.noQuestions'))),
       );
       return;
     }
@@ -187,7 +188,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     if (_answers.length != _questions.length) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أجب عن جميع الأسئلة قبل إرسال الاختبار.')),
+        SnackBar(content: Text(tr('quiz.answerAll'))),
       );
       return;
     }
@@ -206,6 +207,10 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       'studentName': widget.profile.name,
       'quizId': _text(quiz['id']),
       'quizType': StudentAssessmentRules.quizTypeValue(quiz['quizType']),
+      // The stored result is read by the teacher's dashboard, which is
+      // Arabic-only, so the payload stays Arabic whichever language the
+      // student is using. What the student sees is rendered from the
+      // dictionary in _QuizResultView instead.
       'quizTitle': _text(quiz['title']).isEmpty ? 'اختبار منارة' : _text(quiz['title']),
       'subject': _text(quiz['subject']),
       'unit': _text(quiz['unit']),
@@ -288,9 +293,11 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
           StudentSoundService.instance.playEncouragementArabic();
         }
         final message = reward.alreadyRewarded
-            ? 'تم حفظ النتيجة؛ لا توجد مكافأة إضافية لإعادة الاختبار.'
-            : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة'
-                '${reward.levelUp ? ' • ارتقيت إلى المستوى ${reward.snapshot.level}!' : ''}';
+            ? tr('quiz.alreadyRewarded')
+            : trf('reward.earned', {'xp': reward.xp, 'gems': reward.gems}) +
+                (reward.levelUp
+                    ? trf('reward.levelUp', {'level': reward.snapshot.level})
+                    : '');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } on TeacherQuizAlreadySubmittedException catch (error) {
@@ -310,9 +317,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تعذر حفظ النتيجة الآن. تحقق من الاتصال ثم أعد المحاولة.'),
-        ),
+        SnackBar(content: Text(tr('quiz.saveFailed'))),
       );
     }
   }
@@ -324,7 +329,8 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       child: Scaffold(
         backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(
-          title: Text(_activeQuiz == null ? 'مركز الاختبارات' : _text(_activeQuiz!['title'])),
+          title: Text(
+              _activeQuiz == null ? tr('quiz.title') : _text(_activeQuiz!['title'])),
           actions: [
             const StudentSoundToggle(),
             if (_activeQuiz != null)
@@ -334,7 +340,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
                   _questions = const [];
                   _answers.clear();
                 }),
-                tooltip: 'العودة للاختبارات',
+                tooltip: tr('quiz.backToList'),
                 icon: const Icon(Icons.close_rounded),
               ),
           ],
@@ -387,13 +393,13 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     }
     return Column(
       children: [
-        const Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(16, 12, 16, 0),
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 0),
           child: StudentScreenHero(
-            title: 'مركز الاختبارات',
-            subtitle: 'اختبارات ومسابقات تناسب مسارك؛ خذ وقتك وأظهر أفضل ما لديك.',
+            title: tr('quiz.title'),
+            subtitle: tr('quiz.blurb'),
             icon: Icons.quiz_rounded,
-            colors: [Color(0xFF165B4A), Color(0xFF16A085)],
+            colors: const [Color(0xFF165B4A), Color(0xFF16A085)],
           ),
         ),
         Expanded(
@@ -427,15 +433,15 @@ class _QuizCatalog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (quizzes.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(28),
+          padding: const EdgeInsets.all(28),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.quiz_outlined, size: 58, color: Color(0xFF0B8693)),
-              SizedBox(height: 14),
-              Text('لا توجد اختبارات مضافة لمسارك الآن.', textAlign: TextAlign.center),
+              const Icon(Icons.quiz_outlined, size: 58, color: Color(0xFF0B8693)),
+              const SizedBox(height: 14),
+              Text(tr('quiz.none'), textAlign: TextAlign.center),
             ],
           ),
         ),
@@ -472,7 +478,9 @@ class _QuizCatalog extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        _text(quiz['title']).isEmpty ? 'اختبار منارة' : _text(quiz['title']),
+                        _text(quiz['title']).isEmpty
+                            ? tr('quiz.subtitle')
+                            : _text(quiz['title']),
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                       ),
                     ),
@@ -482,14 +490,15 @@ class _QuizCatalog extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   teacher
-                      ? 'اختبار المعلم • محاولة واحدة'
-                      : '${StudentAssessmentRules.quizTypeLabel(quiz)} • ${taken ? '${quizResults.length} محاولات' : 'يمكنك الإعادة'}',
+                      ? tr('quiz.teacherQuiz')
+                      : '${StudentAssessmentRules.quizTypeLabel(quiz)} • '
+                          '${taken ? trf('quiz.attempts', {'count': quizResults.length}) : tr('quiz.retryable')}',
                   style: const TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
                 ),
                 if (questionCount > 0) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '$questionCount أسئلة',
+                    trf('quiz.questionsCount', {'count': questionCount}),
                     style: const TextStyle(color: Color(0xFF49617C)),
                   ),
                 ],
@@ -498,7 +507,8 @@ class _QuizCatalog extends StatelessWidget {
                   alignment: AlignmentDirectional.centerStart,
                   child: FilledButton(
                     onPressed: () => onOpen(quiz),
-                    child: Text(teacher && taken ? 'عرض نتيجتي' : 'بدء الاختبار'),
+                    child: Text(
+                        tr(teacher && taken ? 'quiz.showResult' : 'quiz.start')),
                   ),
                 ),
               ],
@@ -546,7 +556,10 @@ class _QuestionList extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         Text(
-          'السؤال ${questionIndex + 1} من ${questions.length}',
+          trf('quiz.questionOf', {
+            'n': questionIndex + 1,
+            'total': questions.length,
+          }),
           style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF49617C)),
         ),
         const SizedBox(height: 8),
@@ -596,7 +609,7 @@ class _QuestionList extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: submitting ? null : onPrevious,
                 icon: const Icon(Icons.arrow_back_rounded),
-                label: const Text('السابق'),
+                label: Text(tr('quiz.previous')),
               ),
             ),
             const SizedBox(width: 10),
@@ -611,12 +624,12 @@ class _QuestionList extends StatelessWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.assignment_turned_in_rounded),
-                      label: Text(submitting ? 'جارٍ الحفظ...' : 'تسليم الاختبار'),
+                      label: Text(tr(submitting ? 'quiz.saving' : 'quiz.submit')),
                     )
                   : FilledButton.icon(
                       onPressed: submitting ? null : onNext,
                       icon: const Icon(Icons.arrow_forward_rounded),
-                      label: const Text('التالي'),
+                      label: Text(tr('action.next')),
                     ),
             ),
           ],
@@ -656,16 +669,29 @@ class _QuizResultView extends StatelessWidget {
                     color: percentage >= 60 ? const Color(0xFFF59E0B) : const Color(0xFF0B8693),
                   ),
                   const SizedBox(height: 12),
-                  Text(_text(result['quizTitle']).isEmpty ? 'نتيجتك' : _text(result['quizTitle']),
+                  Text(
+                      _text(result['quizTitle']).isEmpty
+                          ? tr('quiz.yourScore')
+                          : _text(result['quizTitle']),
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 10),
                   Text('$percentage%', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900)),
-                  Text('${result['score'] ?? 0} من ${result['total'] ?? 0} إجابات صحيحة'),
+                  Text(trf('quiz.correctCount', {
+                    'score': result['score'] ?? 0,
+                    'total': result['total'] ?? 0,
+                  })),
                   const SizedBox(height: 14),
-                  Text(_text(result['feedback']), textAlign: TextAlign.center),
+                  // Rendered from the percentage rather than the stored
+                  // Arabic sentence: the saved result belongs to the
+                  // teacher's dashboard and stays Arabic, while the student
+                  // reads the praise in whichever language they picked.
+                  Text(
+                    tr(percentage >= 60 ? 'quiz.praise' : 'quiz.encourage'),
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 20),
-                  FilledButton(onPressed: onBack, child: const Text('العودة للاختبارات')),
+                  FilledButton(onPressed: onBack, child: Text(tr('quiz.backToList'))),
                 ],
               ),
             ),
@@ -677,9 +703,9 @@ class _QuizResultView extends StatelessWidget {
             child: Card(
               child: ExpansionTile(
                 initiallyExpanded: true,
-                title: const Text(
-                  'تفاصيل الإجابات',
-                  style: TextStyle(fontWeight: FontWeight.w900),
+                title: Text(
+                  tr('quiz.details'),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 children: details.asMap().entries.map((entry) {
                   final detail = entry.value;
@@ -691,8 +717,14 @@ class _QuizResultView extends StatelessWidget {
                     ),
                     title: Text('${entry.key + 1}. ${_text(detail['question'])}'),
                     subtitle: Text(
-                      'إجابتك: ${_text(detail['userAnswer']).isEmpty ? '—' : _text(detail['userAnswer'])}\n'
-                      'الصحيحة: ${_text(detail['correctAnswer'])}',
+                      '${trf('quiz.yourAnswer', {
+                            'answer': _text(detail['userAnswer']).isEmpty
+                                ? '—'
+                                : _text(detail['userAnswer']),
+                          })}\n'
+                      '${trf('quiz.correctAnswer', {
+                        'answer': _text(detail['correctAnswer']),
+                      })}',
                     ),
                     isThreeLine: true,
                   );
@@ -723,7 +755,7 @@ class _ErrorState extends StatelessWidget {
               const SizedBox(height: 12),
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 14),
-              FilledButton(onPressed: onRetry, child: const Text('إعادة المحاولة')),
+              FilledButton(onPressed: onRetry, child: Text(tr('action.retry'))),
             ],
           ),
         ),

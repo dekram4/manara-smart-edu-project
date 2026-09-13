@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/student_profile.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
@@ -76,7 +77,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (!widget.profile.canAccessChat || !_chatEnabled) {
       setState(() {
         _loading = false;
-        _error = widget.profile.canAccessChat ? null : 'الدردشة غير مفعلة لحسابك.';
+        _error = widget.profile.canAccessChat ? null : tr('chat.disabled');
       });
       return;
     }
@@ -85,7 +86,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       setState(() {
         _loading = false;
         _error = widget.authService.apiSessionError ??
-            'تعذر التحقق من جلسة الطالب. تحقق من الاتصال ثم أعد المحاولة.';
+            tr('chat.sessionFailed');
       });
       return;
     }
@@ -101,7 +102,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       final messageData = _decode(responses[0]);
       final peerData = _decode(responses[1]);
       if (responses[0].statusCode != 200 || responses[1].statusCode != 200) {
-        throw Exception(_responseError(messageData) ?? _responseError(peerData) ?? 'تعذر تحميل الدردشة.');
+        throw Exception(_responseError(messageData) ?? _responseError(peerData) ?? tr('chat.loadFailed'));
       }
       final messages = messageData['messages'] is List
           ? (messageData['messages'] as List).map(_ChatMessage.fromJson).toList()
@@ -151,7 +152,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           .post(endpoint, headers: _headers, body: jsonEncode({'message': message, 'to': _recipient}))
           .timeout(const Duration(seconds: 15));
       final data = _decode(response);
-      if (response.statusCode != 201) throw Exception(_responseError(data) ?? 'تعذر إرسال الرسالة.');
+      if (response.statusCode != 201) throw Exception(_responseError(data) ?? tr('chat.sendFailed'));
       StudentSoundService.instance.playTap();
       _messageController.clear();
       await _refresh();
@@ -186,9 +187,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           // leaves its own title and buttons hard to read.
           backgroundColor: const Color(0xFF1B3A6B),
           foregroundColor: Colors.white,
-          title: const Text(
-            'دردشة منارة',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          title: Text(
+            tr('chat.title'),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
           ),
           actions: [
             const StudentSoundToggle(),
@@ -206,7 +207,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       : Icons.play_circle_outline,
                   size: 18,
                 ),
-                label: Text(_chatEnabled ? 'مفعلة' : 'متوقفة'),
+                label: Text(tr(_chatEnabled ? 'chat.on' : 'chat.off')),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white,
                   disabledForegroundColor: Colors.white54,
@@ -223,7 +224,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
             const SizedBox(width: 6),
             IconButton(
-              tooltip: 'تحديث الرسائل',
+              tooltip: tr('chat.refresh'),
               onPressed: _loading || !_chatEnabled ? null : _refresh,
               icon: const Icon(Icons.refresh_rounded),
               style: IconButton.styleFrom(
@@ -253,7 +254,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     side: const BorderSide(color: Colors.white),
                   ),
                 ),
-                child: const Text('إغلاق'),
+                child: Text(tr('action.close')),
               ),
             ),
             const SizedBox(width: 8),
@@ -263,20 +264,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           children: [
             const PortalWatermark(asset: PortalBackgrounds.chat),
             disabled
-            ? const _ChatStatus(
+            ? _ChatStatus(
                 icon: Icons.lock_outline_rounded,
-                message: 'الدردشة غير مفعلة لحسابك.',
+                message: tr('chat.disabled'),
               )
             : !_chatEnabled
-                ? const _ChatStatus(
+                ? _ChatStatus(
                     icon: Icons.pause_circle_outline_rounded,
-                    message: 'الدردشة في استراحة قصيرة',
+                    message: tr('chat.paused'),
                   )
                 : _token == null
                     ? _ChatStatus(
                         icon: Icons.lock_outline_rounded,
                         message: widget.authService.apiSessionError ??
-                            'تعذر التحقق من جلسة الطالب. تحقق من الاتصال ثم أعد المحاولة.',
+                            tr('chat.sessionFailed'),
                       )
             : Column(
                 children: [
@@ -287,25 +288,28 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   // of the screen. It comes straight back when the
                   // keyboard closes.
                   if (MediaQuery.viewInsetsOf(context).bottom == 0)
-                    const Padding(
-                      padding: EdgeInsetsDirectional.fromSTEB(14, 12, 14, 0),
+                    Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 0),
                       child: StudentScreenHero(
-                        title: 'دردشة منارة',
-                        subtitle: 'تواصل باحترام مع زملائك داخل مساحة آمنة.',
+                        title: tr('chat.title'),
+                        subtitle: tr('chat.blurb'),
                         icon: Icons.forum_rounded,
-                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        colors: const [Color(0xFF1E3A8A), Color(0xFF2563EB)],
                       ),
                     ),
                   if (_error != null) _ChatError(text: _error!),
                   Expanded(
                     child: _loading
-                        ? const Center(
+                        ? Center(
                             child: StudentRiveLoading(
-                              label: 'جارٍ تحميل الدردشة',
+                              label: tr('chat.loading'),
                             ),
                           )
                         : _messages.isEmpty
-                            ? const _ChatStatus(icon: Icons.forum_outlined, message: 'لا توجد رسائل بعد. ابدأ حديثًا لطيفًا مع زملائك.')
+                            ? _ChatStatus(
+                                icon: Icons.forum_outlined,
+                                message: tr('chat.empty'),
+                              )
                             : ListView.builder(
                                 physics: const BouncingScrollPhysics(),
                                 padding: const EdgeInsets.all(14),
@@ -339,9 +343,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           child: Column(children: [
             DropdownButtonFormField<String>(
               value: _recipient,
-              decoration: const InputDecoration(labelText: 'إرسال إلى', isDense: true),
+              decoration: InputDecoration(labelText: tr('chat.sendTo'), isDense: true),
               items: [
-                const DropdownMenuItem(value: 'all', child: Text('زملاء صفي')),
+                DropdownMenuItem(value: 'all', child: Text(tr('chat.classmates'))),
                 ..._peers.map((peer) => DropdownMenuItem(value: peer.id, child: Text(peer.name))),
               ],
               onChanged: _sending ? null : (value) => setState(() => _recipient = value ?? 'all'),
@@ -355,7 +359,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   maxLength: 1000,
                   minLines: 1,
                   maxLines: 3,
-                  decoration: const InputDecoration(hintText: 'اكتب رسالة محترمة...', counterText: ''),
+                  decoration: InputDecoration(hintText: tr('chat.hint'), counterText: ''),
                 ),
               ),
               const SizedBox(width: 8),
@@ -375,7 +379,7 @@ class _ChatMessage {
   const _ChatMessage({required this.id, required this.from, required this.name, required this.to, required this.message, required this.time});
   factory _ChatMessage.fromJson(dynamic value) {
     final map = value is Map ? value : const <String, dynamic>{};
-    return _ChatMessage(id: '${map['id'] ?? ''}', from: '${map['from'] ?? ''}', name: '${map['name'] ?? 'طالب'}', to: '${map['to'] ?? 'all'}', message: '${map['message'] ?? ''}', time: '${map['time'] ?? ''}');
+    return _ChatMessage(id: '${map['id'] ?? ''}', from: '${map['from'] ?? ''}', name: '${map['name'] ?? tr('chat.student')}', to: '${map['to'] ?? 'all'}', message: '${map['message'] ?? ''}', time: '${map['time'] ?? ''}');
   }
   final String id, from, name, to, message, time;
 }
@@ -384,7 +388,7 @@ class _ChatPeer {
   const _ChatPeer(this.id, this.name);
   factory _ChatPeer.fromJson(dynamic value) {
     final map = value is Map ? value : const <String, dynamic>{};
-    return _ChatPeer('${map['id'] ?? ''}', '${map['name'] ?? 'طالب'}');
+    return _ChatPeer('${map['id'] ?? ''}', '${map['name'] ?? tr('chat.student')}');
   }
   final String id, name;
 }
@@ -404,7 +408,7 @@ class _MessageBubble extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 320),
         decoration: BoxDecoration(color: mine ? const Color(0xFF0B8693) : Colors.white, borderRadius: BorderRadius.circular(16)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(mine ? 'أنت' : message.name, style: TextStyle(fontWeight: FontWeight.w800, color: mine ? Colors.white : const Color(0xFF0B8693))),
+          Text(mine ? tr('chat.you') : message.name, style: TextStyle(fontWeight: FontWeight.w800, color: mine ? Colors.white : const Color(0xFF0B8693))),
           const SizedBox(height: 4),
           Text(message.message, style: TextStyle(height: 1.45, color: mine ? Colors.white : const Color(0xFF17233A))),
         ]),
@@ -430,6 +434,16 @@ class _ChatError extends StatelessWidget {
 
 String _safeError(Object error) {
   final text = error.toString().replaceFirst('Exception: ', '').trim();
-  if (text.contains('الدردشة') || text.contains('جلسة') || text.contains('رسالة')) return text;
-  return 'تعذر الوصول إلى الدردشة الآن. تحقق من اتصالك ثم حاول مرة أخرى.';
+  // These four are thrown by this screen itself, from the same dictionary
+  // the comparison reads, so they match in either language. Anything else
+  // came off the wire and is replaced with a sentence a child can act on.
+  for (final own in const [
+    'chat.disabled',
+    'chat.loadFailed',
+    'chat.sendFailed',
+    'chat.sessionFailed',
+  ]) {
+    if (text.contains(tr(own))) return text;
+  }
+  return tr('chat.unreachable');
 }

@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../l10n/student_strings.dart';
 import 'student_avatar_view.dart';
 import 'student_immersive.dart';
 import 'student_orientation_guard.dart';
@@ -861,7 +862,7 @@ class StudentCardAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final avatar = Semantics(
-      label: label ?? 'رمز رحلة الطالب',
+      label: label ?? tr('widget.journeyIcon'),
       child: SizedBox(
         width: size,
         height: size,
@@ -1200,20 +1201,23 @@ class StudentSelectionBadge extends StatelessWidget {
 class StudentRiveLoading extends StatelessWidget {
   const StudentRiveLoading({
     this.size = 118,
-    this.label = 'جارٍ التحميل',
+    this.label,
     this.liveRegion = true,
     super.key,
   });
 
   final double size;
-  final String label;
+
+  /// Null means the default "loading" wording, resolved at build time so it
+  /// follows the language instead of being frozen into the constructor.
+  final String? label;
   final bool liveRegion;
 
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Semantics(
-      label: label,
+      label: label ?? tr('widget.loading'),
       liveRegion: liveRegion,
       child: SizedBox(
         width: size,
@@ -1506,7 +1510,7 @@ class StudentSoundToggle extends StatelessWidget {
             sound.playTap();
             sound.toggleMuted();
           },
-          tooltip: isMuted ? 'تشغيل الأصوات' : 'كتم الأصوات',
+          tooltip: tr(isMuted ? 'widget.soundOn' : 'widget.soundOff'),
           style: IconButton.styleFrom(
             backgroundColor: isMuted
                 ? const Color(0xFFFFE4E6)

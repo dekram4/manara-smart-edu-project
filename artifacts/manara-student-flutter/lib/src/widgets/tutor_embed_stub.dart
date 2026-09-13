@@ -1,8 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import '../l10n/student_strings.dart';
 
 /// A normal Chrome user agent for Android's WebView. Some virtual-teacher
 /// providers (the same class of avatar/embed hosts that block plain YouTube
@@ -115,8 +116,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
     _deadline?.cancel();
     setState(() {
       _loading = false;
-      _error = 'صديقك المعلم تأخر أكثر من المعتاد. قد يكون مشغولًا في جهاز '
-          'آخر — اضغط إعادة المحاولة لنجرب من جديد.';
+      _error = tr('embed.slow');
     });
   }
 
@@ -235,7 +235,8 @@ class _TutorEmbedState extends State<TutorEmbed> {
             _deadline?.cancel();
             setState(() {
               _loading = false;
-              _error = 'تعذر تحميل المعلم الافتراضي: ${error.description}';
+              _error =
+                  trf('embed.loadFailed', {'reason': error.description});
             });
           },
           onReceivedHttpError: (controller, request, response) {
@@ -254,7 +255,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
             _deadline?.cancel();
             setState(() {
               _loading = false;
-              _error = 'تعذر تحميل المعلم الافتراضي: HTTP $statusCode';
+              _error = trf('embed.loadFailedHttp', {'code': statusCode});
             });
           },
         ),
@@ -273,7 +274,7 @@ class _TutorEmbedLoading extends StatelessWidget {
   const _TutorEmbedLoading();
 
   @override
-  Widget build(BuildContext context) => const ColoredBox(
+  Widget build(BuildContext context) => ColoredBox(
         color: Color(0xFF1D3B55),
         child: Center(
           child: Column(
@@ -282,7 +283,7 @@ class _TutorEmbedLoading extends StatelessWidget {
               CircularProgressIndicator(color: Color(0xFFC4B5FD)),
               SizedBox(height: 14),
               Text(
-                'يتم تجهيز المعلم الافتراضي...',
+                tr('embed.preparingDots'),
                 style:
                     TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
               ),
@@ -310,8 +311,8 @@ class _TutorEmbedFailure extends StatelessWidget {
                 const Icon(Icons.smart_toy_outlined,
                     color: Color(0xFFC4B5FD), size: 52),
                 const SizedBox(height: 12),
-                const Text(
-                  'صديقك المعلم غير جاهز الآن',
+                Text(
+                  tr('embed.notReady'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
@@ -332,8 +333,8 @@ class _TutorEmbedFailure extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh_rounded, size: 26),
-                  label: const Text(
-                    'إعادة المحاولة',
+                  label: Text(
+                    tr('action.retry'),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../models/academic_context.dart';
 import '../services/student_settings.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
@@ -217,7 +218,7 @@ class EndlessReaderSortings {
     if (items.length < 2) return null;
 
     return EndlessReaderSorting(
-      prompt: 'صنّف كلمات درسك: مفرد أم جمع؟',
+      prompt: tr('challenge.sortPrompt'),
       buckets: const [singular, plural],
       items: items,
     );
@@ -542,13 +543,13 @@ class _StudentEndlessReaderScreenState
         appBar: AppBar(
           backgroundColor: const Color(0xFF3B2A6B),
           foregroundColor: Colors.white,
-          title: const Text('تحدي القراءة والكلمات'),
+          title: Text(tr('challenge.title')),
           centerTitle: true,
           actions: [
             if (_stageCount > 0)
               IconButton(
                 onPressed: _restart,
-                tooltip: "إعادة المرحلة من البداية",
+                tooltip: tr('challenge.replayFromStart'),
                 icon: const Icon(Icons.replay_rounded),
               ),
             const StudentSoundToggle(),
@@ -595,10 +596,10 @@ class _StudentEndlessReaderScreenState
                 color: Color(0xFF6D28D9),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'لا توجد كلمات في هذا الدرس بعد',
+              Text(
+                tr("challenge.empty"),
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   color: const Color(0xFF3B2A6B),
@@ -607,8 +608,8 @@ class _StudentEndlessReaderScreenState
               const SizedBox(height: 10),
               Text(
                 widget.academicContext == null
-                    ? 'اختر درسك أولًا من زر تغيير الدرس، ثم عد إلى هنا.'
-                    : 'سيظهر التحدي هنا عندما يضيف المعلم نص الدرس.',
+                    ? tr('challenge.emptyNoLesson')
+                    : tr('challenge.emptyNoText'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Color(0xFF5B4A7A),
@@ -648,15 +649,15 @@ class _StudentEndlessReaderScreenState
                 Text(
                   _celebrating
                       ? (_onSorting
-                          ? 'أحسنت! تصنيف صحيح 🎉'
+                          ? tr('challenge.sortDone')
                           : _onSentence
-                              ? 'أحسنت! جملة صحيحة 🎉'
-                              : 'أحسنت! كلمة صحيحة 🎉')
+                              ? tr('challenge.sentenceDone')
+                              : tr('challenge.wordDone'))
                       : (_onSorting
                           ? (_sorting?.prompt ?? '')
                           : _onSentence
-                              ? 'اسحب الكلمة الناقصة إلى الفراغ'
-                              : 'اسحب الحروف إلى مكانها'),
+                              ? tr('challenge.dragWord')
+                              : tr('challenge.dragLetters')),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
@@ -707,10 +708,10 @@ class _StudentEndlessReaderScreenState
           ),
           child: Text(
             _onSorting
-                ? 'التصنيف — المرحلة ${_wordIndex + 1} من $_stageCount'
+                ? trf('challenge.stageSorting', {'n': _wordIndex + 1, 'total': _stageCount})
                 : _onSentence
-                    ? 'أكمل الجملة — المرحلة ${_wordIndex + 1} من $_stageCount'
-                    : 'كوّن الكلمة — المرحلة ${_wordIndex + 1} من $_stageCount',
+                    ? trf('challenge.stageSentence', {'n': _wordIndex + 1, 'total': _stageCount})
+                    : trf('challenge.stageLetters', {'n': _wordIndex + 1, 'total': _stageCount}),
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
@@ -748,16 +749,16 @@ class _StudentEndlessReaderScreenState
           FilledButton.icon(
             onPressed: _nextWord,
             icon: const Icon(Icons.arrow_back_rounded),
-            label: const Text(
-              'الكلمة التالية',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            label: Text(
+              tr("challenge.nextWord"),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             style: _actionStyle(const Color(0xFF6D28D9)),
           )
         else ...[
-          const Text(
-            'أنهيت كل كلمات الدرس! 🌟',
-            style: TextStyle(
+          Text(
+            tr("challenge.allDone"),
+            style: const TextStyle(
               fontSize: 19,
               fontWeight: FontWeight.w900,
               color: Color(0xFF15803D),
@@ -766,9 +767,9 @@ class _StudentEndlessReaderScreenState
           FilledButton.icon(
             onPressed: _restart,
             icon: const Icon(Icons.replay_rounded),
-            label: const Text(
-              'إعادة المرحلة',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            label: Text(
+              tr("challenge.replay"),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             style: _actionStyle(const Color(0xFF15803D)),
           ),

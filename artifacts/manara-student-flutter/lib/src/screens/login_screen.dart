@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() {
           _loginSucceeded = false;
-          _errorMessage = 'تعذر إكمال تسجيل الدخول. حاول مرة أخرى.';
+          _errorMessage = tr('login.failed');
         });
       }
     } finally {
@@ -303,10 +303,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             height: logoNameHeight,
                             // Scales itself down rather than overflowing if
                             // the window ever gets narrow.
-                            child: const FittedBox(
+                            child: FittedBox(
                               fit: BoxFit.scaleDown,
                               child: Text(
-                                'منارة المعرفة التعليمية',
+                                tr('app.name'),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: _brandInk,
@@ -572,7 +572,8 @@ class _BoardLoginForm extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                 visualDensity: VisualDensity.compact,
-                tooltip: hidePassword ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
+                tooltip: tr(
+                    hidePassword ? 'login.showPassword' : 'login.hidePassword'),
                 onPressed: onTogglePassword,
                 icon: Icon(
                   hidePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
@@ -623,9 +624,9 @@ class _BoardLoginForm extends StatelessWidget {
                   ),
                   label: Text(
                     loginSucceeded
-                        ? 'أحسنت! لنبدأ'
+                        ? tr('login.ready')
                         : isLoading
-                            ? 'جاري التحقق...'
+                            ? tr('login.checking')
                             : tr('login.submit'),
                   ),
                   style: FilledButton.styleFrom(

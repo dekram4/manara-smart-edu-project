@@ -4,6 +4,7 @@ import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../services/student_settings.dart';
 import '../theme/student_theme.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
 
 /// Picks a lesson by stepping down the academic hierarchy the teacher
@@ -171,7 +172,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                       // more — that was the "تداخل غير منطقي".
                       _step<String>(
                         step: 1,
-                        title: 'المادة',
+                        title: tr('scope.subject'),
                         icon: Icons.menu_book_rounded,
                         items: _subjects,
                         labelOf: (value) => value,
@@ -191,7 +192,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                       if (_subject != null)
                         _step<String>(
                           step: 2,
-                          title: 'الترم',
+                          title: tr('scope.atram'),
                           icon: Icons.event_note_rounded,
                           items: _atrams,
                           labelOf: (value) => value,
@@ -207,7 +208,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                       if (_atram != null)
                         _step<String>(
                           step: 3,
-                          title: 'الفصل',
+                          title: tr('scope.term'),
                           icon: Icons.class_rounded,
                           items: _terms,
                           labelOf: (value) => value,
@@ -222,7 +223,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                       if (_term != null)
                         _step<String>(
                           step: 4,
-                          title: 'الوحدة',
+                          title: tr('scope.unit'),
                           icon: Icons.layers_rounded,
                           items: _units,
                           labelOf: (value) => value,
@@ -236,7 +237,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                       if (_unit != null)
                         _step<LessonContent>(
                           step: 5,
-                          title: 'الدرس',
+                          title: tr('scope.lesson'),
                           icon: Icons.play_lesson_rounded,
                           items: _lessons,
                           labelOf: (value) => value.lessonName,
@@ -282,20 +283,20 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
               ),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'تغيير الدرس',
-                    style: TextStyle(
+                    tr('scope.title'),
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
                       color: Color(0xFF0E3A52),
                     ),
                   ),
                   Text(
-                    'اختر مادتك ثم الترم والوحدة والدرس.',
+                    tr('scope.hint'),
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -308,7 +309,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             IconButton(
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.close_rounded),
-              tooltip: 'إغلاق',
+              tooltip: tr('action.close'),
             ),
           ],
         ),
@@ -358,11 +359,11 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
           ),
           const SizedBox(height: 9),
           if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(
-                'لا توجد خيارات هنا بعد.',
-                style: TextStyle(
+                tr("scope.noOptions"),
+                style: const TextStyle(
                   color: Color(0xFF8092A8),
                   fontWeight: FontWeight.w700,
                 ),
@@ -457,7 +458,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             child: Text(
               ready
                   ? _lesson!.lessonName
-                  : 'أكمل الاختيار للوصول إلى الدرس',
+                  : tr('scope.incomplete'),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -483,9 +484,9 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                       ),
                     ),
             icon: const Icon(Icons.check_circle_rounded),
-            label: const Text(
-              'تثبيت ومتابعة',
-              style: TextStyle(fontWeight: FontWeight.w900),
+            label: Text(
+              tr("action.confirm"),
+              style: const TextStyle(fontWeight: FontWeight.w900),
             ),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF0E5F6B),

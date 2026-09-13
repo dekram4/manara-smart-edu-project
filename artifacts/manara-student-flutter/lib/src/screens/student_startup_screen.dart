@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/student_profile.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
@@ -238,7 +239,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
                             ),
                             SizedBox(height: shortest * 0.05),
                             Text(
-                              'اضغط في أي مكان للتخطي',
+                              tr('app.skipHint'),
                               style: TextStyle(
                                 color: const Color(0xFF7B8B99),
                                 fontSize: titleSize * 0.46,
@@ -295,7 +296,7 @@ class _WelcomeBrand extends StatelessWidget {
             ),
         SizedBox(height: logoSize * 0.08),
         Text(
-          'منارة المعرفة التعليمية',
+          tr('app.name'),
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.black,

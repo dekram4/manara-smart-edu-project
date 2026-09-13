@@ -2,6 +2,7 @@
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_profile.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
@@ -49,7 +50,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('تم حفظ شخصيتك: ${_staged.label} ✨'),
+        content: Text(trf('character.saved', {'label': _staged.label})),
         behavior: SnackBarBehavior.floating,
         backgroundColor: const Color(0xFF0E9F6E),
         duration: const Duration(seconds: 2),
@@ -81,12 +82,12 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       StudentSoundService.instance.play(StudentSoundCue.success);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('أحسنت! تم حفظ شخصيتك ✨')));
+      ).showSnackBar(SnackBar(content: Text(tr('character.savedShort'))));
     } catch (error) {
       if (!mounted) return;
       StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('لم نتمكن من حفظ الشخصية: $error')),
+        SnackBar(content: Text(trf('character.saveFailed', {'error': error}))),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -127,7 +128,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 const CircularProgressIndicator(color: Color(0xFF9B3E68)),
                 const SizedBox(height: 14),
                 Text(
-                  'نجهّز شخصيتك الرائعة...',
+                  tr('character.preparing'),
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     color: StudentSurface.ink(context),
@@ -144,7 +145,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       child: Scaffold(
         backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(
-          title: const Text('شخصيتي'),
+          title: Text(tr('character.title')),
           centerTitle: true,
           actions: const [StudentSoundToggle()],
         ),
@@ -154,9 +155,9 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
             ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
-            const StudentScreenHero(
-              title: 'اختر شخصيتك!',
-              subtitle: 'اضغط على الشخصية التي تحبها لتصبح صورتك في التطبيق.',
+            StudentScreenHero(
+              title: tr('character.pick'),
+              subtitle: tr('character.pickHint'),
               icon: Icons.face_retouching_natural_rounded,
               colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
             ),
@@ -203,7 +204,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _saving ? null : _openCreator,
                   icon: const Icon(Icons.view_in_ar_rounded),
-                  label: const Text('صمّم أفاتار ثلاثي الأبعاد'),
+                  label: Text(tr('character.design3d')),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     textStyle: const TextStyle(fontWeight: FontWeight.w900),
@@ -333,7 +334,7 @@ class _AppearancePreviewState extends State<_AppearancePreview>
               start: 16,
               child: _RoomBadge(
                 icon: Icons.workspace_premium_rounded,
-                label: 'المستوى ${widget.level}',
+                label: trf('character.level', {'level': widget.level}),
                 color: StudentPalette.orange,
               ),
             ),
@@ -355,8 +356,8 @@ class _AppearancePreviewState extends State<_AppearancePreview>
                 children: [
                   Row(
                     children: [
-                      const Text(
-                        'تقدم البطل',
+                      Text(
+                        tr('character.progress'),
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
@@ -383,8 +384,8 @@ class _AppearancePreviewState extends State<_AppearancePreview>
                     ),
                   ),
                   const SizedBox(height: 7),
-                  const Text(
-                    'اضغط على بطلك ليتحرك!',
+                  Text(
+                    tr('character.tapHero'),
                     style: TextStyle(
                       color: Color(0xFFDFF8FF),
                       fontSize: 11,
@@ -615,7 +616,7 @@ class _ReadyPlayerMeCreatorScreenState
     if (data is! Map) return;
     final export = _readyPlayerMeExport(data['url']?.toString());
     if (export == null) {
-      setState(() => _message = 'رابط الأفاتار غير صالح. حاول الحفظ مرة أخرى.');
+      setState(() => _message = tr('character.badAvatarLink'));
       return;
     }
     Navigator.of(context).pop(export);
@@ -627,7 +628,7 @@ class _ReadyPlayerMeCreatorScreenState
     child: Scaffold(
       backgroundColor: StudentSurface.ground(context),
       appBar: AppBar(
-        title: const Text('مصمم شخصيتي'),
+        title: Text(tr('character.designerTitle')),
         backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
       ),
@@ -688,7 +689,7 @@ class _ReadyPlayerMeCreatorScreenState
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  _message ?? 'تعذر إكمال تصميم الشخصية.',
+                  _message ?? tr('character.designFailed'),
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
@@ -909,7 +910,9 @@ class _SaveAvatarButton extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      dirty ? 'حفظ الشخصية' : 'شخصيتك الحالية: $label',
+                      dirty
+                          ? tr('character.save')
+                          : trf('character.current', {'label': label}),
                       maxLines: 1,
                       style: const TextStyle(
                         color: Colors.white,

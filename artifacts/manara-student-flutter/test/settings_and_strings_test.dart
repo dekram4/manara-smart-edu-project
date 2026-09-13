@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -71,6 +72,29 @@ void main() {
           .where((key) => !StudentStrings.keys.contains(key))
           .toList();
       expect(extra, isEmpty, reason: 'orphan English keys: $extra');
+    });
+
+    test('a key takes the same placeholders in both languages', () {
+      // A call site passes one map of values for either language. If the
+      // English wording drops a `{placeholder}` the Arabic has — or
+      // renames it — the number never appears, or `{xp}` is printed
+      // literally, and only in the language nobody was testing in.
+      final mismatched = <String>[];
+      for (final key in StudentStrings.keys) {
+        final arabic = StudentStrings.placeholdersIn(key, english: false);
+        final english = StudentStrings.placeholdersIn(key, english: true);
+        if (!const SetEquality<String>().equals(arabic, english)) {
+          mismatched.add('$key: ar=$arabic en=$english');
+        }
+      }
+      expect(mismatched, isEmpty, reason: mismatched.join('\n'));
+    });
+
+    test('format fills every placeholder it is given values for', () {
+      expect(
+        trf('progress.level', {'level': 4}),
+        isNot(contains('{')),
+      );
     });
 
     test('lookup follows the chosen language', () async {

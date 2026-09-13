@@ -8,6 +8,7 @@ import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_settings.dart';
@@ -107,22 +108,22 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     final question = _questionController.text.trim();
     final endpoint = _answerEndpoint;
     if (lesson == null) {
-      setState(() => _error = 'لا توجد مادة تعليمية صالحة للمساعدة فيها الآن.');
+      setState(() => _error = tr('solver.noLesson'));
       return;
     }
     if (question.isEmpty) {
-      setState(() => _error = 'اكتب سؤالك أولًا.');
+      setState(() => _error = tr('solver.writeFirst'));
       return;
     }
     if (endpoint == null) {
-      setState(() => _error = 'لم يتم إعداد اتصال خدمة المساعد في هذا التطبيق.');
+      setState(() => _error = tr('solver.noService'));
       return;
     }
     final token = await widget.authService.ensureApiSession();
     if (token == null || token.isEmpty) {
       setState(
         () => _error = widget.authService.apiSessionError ??
-            'تعذر تأمين جلسة الطالب. تحقق من الاتصال ثم حاول مرة أخرى.',
+            tr('solver.sessionFailed'),
       );
       return;
     }
@@ -154,15 +155,16 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
        try {
          payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
        } on FormatException {
-         throw Exception('استجابة الخدمة غير صالحة. حاول مرة أخرى.');
+         throw Exception(tr('solver.badResponse'));
        }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final message = payload is Map ? payload['error']?.toString() : null;
-        throw Exception(message?.trim().isNotEmpty == true ? message : 'تعذر الحصول على إجابة.');
+        throw Exception(
+            message?.trim().isNotEmpty == true ? message : tr('solver.serviceSilent'));
       }
       final answer = payload is Map ? payload['answer']?.toString().trim() : null;
       if (answer == null || answer.isEmpty) {
-        throw Exception('لم تصل إجابة صالحة. حاول مرة أخرى.');
+        throw Exception(tr('solver.noAnswer'));
       }
       RewardResult? reward;
       try {
@@ -187,8 +189,9 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
           SnackBar(
             content: Text(
               reward.alreadyRewarded
-                  ? 'تم حفظ الإجابة؛ لا توجد مكافأة إضافية لهذا السؤال.'
-                  : 'أحسنت! +${reward.xp} XP و +${reward.gems} جوهرة',
+                  ? tr('solver.saved')
+                  : trf('reward.earned',
+                      {'xp': reward.xp, 'gems': reward.gems}),
             ),
           ),
         );
@@ -215,7 +218,10 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         // this screen, and the keyboard must shorten the page rather than
         // sit on top of what the student is typing.
         resizeToAvoidBottomInset: true,
-        appBar: AppBar(title: const Text('حلّ المسائل'), centerTitle: true, actions: const [StudentSoundToggle()]),
+        appBar: AppBar(
+            title: Text(tr('solver.title')),
+            centerTitle: true,
+            actions: const [StudentSoundToggle()]),
         body: Stack(
           children: [
             const PortalWatermark(asset: PortalBackgrounds.problemSolver),
@@ -235,9 +241,9 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   18 + MediaQuery.viewInsetsOf(context).bottom,
                 ),
                 children: [
-                   const StudentScreenHero(
-                     title: 'حلّ المسائل',
-                     subtitle: 'اسأل عن درسك وسيقدم لك المساعد شرحًا مباشرًا ومفيدًا.',
+                   StudentScreenHero(
+                     title: tr('solver.title'),
+                     subtitle: tr('solver.blurb'),
                      icon: Icons.auto_awesome_rounded,
                      colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
                   ),
@@ -250,9 +256,9 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                       minLines: 3,
                       maxLines: 6,
                       maxLength: 2000,
-                      decoration: const InputDecoration(
-                        labelText: 'اكتب مسألتك أو سؤالك',
-                        hintText: 'مثال: كيف نحل هذه المسألة؟',
+                      decoration: InputDecoration(
+                        labelText: tr('solver.questionLabel'),
+                        hintText: tr('solver.questionHint'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
@@ -365,7 +371,7 @@ class _AskButton extends StatelessWidget {
                   ),
                 const SizedBox(width: 10),
                 Text(
-                  sending ? 'جارٍ التفكير...' : 'ساعدني في الحل',
+                  tr(sending ? 'solver.thinking' : 'solver.ask'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -386,7 +392,7 @@ class _SolverEmptyState extends StatelessWidget {
   const _SolverEmptyState();
 
   @override
-  Widget build(BuildContext context) => const Center(
+  Widget build(BuildContext context) => Center(
         child: Padding(
           padding: EdgeInsets.all(28),
           child: Column(
@@ -395,7 +401,7 @@ class _SolverEmptyState extends StatelessWidget {
               Icon(Icons.menu_book_outlined, size: 60, color: Color(0xFF0B8693)),
               SizedBox(height: 14),
               Text(
-                'لم يُضف المعلم محتوى نصيًا لهذا الدرس بعد، لذلك لا يستطيع المساعد الإجابة بأمان.',
+                tr('solver.noText'),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -439,8 +445,12 @@ class _MessageCard extends StatelessWidget {
 
 String _studentSafeError(Object error) {
   final message = error.toString().replaceFirst('Exception: ', '').trim();
-  if (message.contains('استجابة الخدمة غير صالحة')) return message;
-  if (message.contains('لم تصل إجابة صالحة')) return message;
-  if (message.contains('تعذر الحصول على إجابة')) return message;
-  return 'تعذر حل السؤال الآن. تحقق من الاتصال ثم حاول مرة أخرى.';
+  // These three are thrown by this screen itself, from the same
+  // dictionary the comparison reads, so they match in either language;
+  // anything else came off the wire and is replaced with a sentence a
+  // child can act on.
+  for (final own in const ['solver.badResponse', 'solver.noAnswer', 'solver.serviceSilent']) {
+    if (message.contains(tr(own))) return message;
+  }
+  return tr('solver.failed');
 }

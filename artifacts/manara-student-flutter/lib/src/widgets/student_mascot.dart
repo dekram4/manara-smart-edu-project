@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
+import '../l10n/student_strings.dart';
 
 /// The student's one illustrated character — `assets/images/student_mascot.png`
 /// — instead of a hand-drawn composition of Flutter shapes. Always rendered
@@ -175,7 +176,7 @@ class _StudentInteractiveMascotState extends State<StudentInteractiveMascot> {
 
     return Semantics(
       button: true,
-      label: 'اضغط لتحية شخصيتك',
+      label: tr('widget.greetAvatar'),
       child: GestureDetector(onTap: _onTap, child: withBounce),
     );
   }

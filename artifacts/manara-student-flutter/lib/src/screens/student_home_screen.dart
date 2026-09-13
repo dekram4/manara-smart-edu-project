@@ -126,9 +126,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
     final parts = <String>[];
     if (gainedXp > 0) parts.add('+$gainedXp XP');
-    if (gainedGems > 0) parts.add('+$gainedGems جوهرة');
+    if (gainedGems > 0) parts.add(trf('home.gems', {'count': gainedGems}));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$phrase ${parts.join(' و ')}')),
+      SnackBar(content: Text('$phrase ${parts.join(tr('home.and'))}')),
     );
   }
 
@@ -293,7 +293,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     final data = _selectionData;
     if (data == null || data.isEmpty) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('تعذر تحميل المسارات. حاول مرة أخرى.')),
+        SnackBar(content: Text(tr('home.pathLoadFailed'))),
       );
       return;
     }
@@ -307,7 +307,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     setState(() => _academicContext = chosen);
     StudentSoundService.instance.play(StudentSoundCue.success);
     messenger.showSnackBar(
-      SnackBar(content: Text('تم اختيار: ${chosen.lesson}')),
+      SnackBar(content: Text(trf('home.lessonChosen', {'lesson': chosen.lesson}))),
     );
   }
 
@@ -328,7 +328,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     final messenger = ScaffoldMessenger.of(context);
     if (liveMeeting && !widget.profile.canAccessLiveMeeting) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('اللقاء المباشر غير مفعّل لحسابك حاليًا.')),
+        SnackBar(content: Text(tr('home.meetingOff'))),
       );
       return;
     }
@@ -365,8 +365,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         SnackBar(
           content: Text(
             liveMeeting
-                ? 'تعذر تحميل اللقاء المباشر. حاول مرة أخرى.'
-                : 'تعذر تحميل المعلم الافتراضي. حاول مرة أخرى.',
+                ? tr('home.meetingLoadFailed')
+                : tr('home.tutorLoadFailed'),
           ),
         ),
       );
@@ -404,7 +404,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     } catch (_) {
       if (!mounted) return;
       messenger.showSnackBar(
-        const SnackBar(content: Text('تعذر تحميل الدروس لحل المسائل. حاول مرة أخرى.')),
+        SnackBar(content: Text(tr('home.solverLoadFailed'))),
       );
     }
   }
@@ -438,17 +438,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           // The mark is bigger and the old tiny "SMART EDU" line is
           // replaced by the app's full Arabic name. FittedBox keeps that
           // longer name from ever widening the bar past its room.
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ManaraLogo(size: 54),
-              SizedBox(width: 10),
+              const ManaraLogo(size: 54),
+              const SizedBox(width: 10),
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: AlignmentDirectional.centerStart,
                   child: Text(
-                    'منارة المعرفة التعليمية',
+                    tr('app.name'),
                     maxLines: 1,
                     style: TextStyle(
                       fontSize: 17,
@@ -522,7 +522,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           const StudentSoundToggle(),
           IconButton(
             onPressed: _signOut,
-            tooltip: 'تسجيل الخروج',
+            tooltip: tr('home.signOut'),
             icon: const Icon(Icons.logout_rounded),
           ),
         ],
@@ -595,10 +595,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  const Padding(
+                  Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Text(
-                      'اختر بوابتك',
+                      tr('home.pickPortal'),
                       style: TextStyle(
                         color: Color(0xFF0E1B2A),
                         fontSize: 22,
@@ -607,10 +607,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 5),
-                  const Padding(
+                  Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Text(
-                      'المس أي بطاقة لتبدأ رحلتك',
+                      tr('home.pickPortalHint'),
                       style: TextStyle(
                         color: Color(0xFF5680AC),
                         fontWeight: FontWeight.w700,
@@ -638,7 +638,7 @@ class _HomeSection {
   const _HomeSection({
     required this.titleKey,
     required this.subtitleKey,
-    required this.description,
+    required this.descriptionKey,
     required this.image,
     required this.colors,
     required this.accent,
@@ -654,9 +654,11 @@ class _HomeSection {
   String get title => tr(titleKey);
   String get subtitle => tr(subtitleKey);
 
-  /// Only shown in accessibility output today, so it stays Arabic until
-  /// there is a surface that reads it to an English-speaking student.
-  final String description;
+  /// Read out by the screen reader, so it follows the language like
+  /// every other label on the card.
+  final String descriptionKey;
+
+  String get description => tr(descriptionKey);
 
   /// The portal's own 3D artwork. Each card is now a distinct illustration
   /// rather than a stock glyph on a coloured square, so adding a portal
@@ -711,7 +713,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.lesson',
     subtitleKey: 'portal.lesson.sub',
-    description: 'افتح الدرس وشاهد الشرح خطوة بخطوة.',
+    descriptionKey: 'portal.lesson.desc',
     image: 'assets/images/icon_teacher.png',
     colors: [Color(0xFF9A5B09), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE08A),
@@ -719,7 +721,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.cinema',
     subtitleKey: 'portal.cinema.sub',
-    description: 'اسحب بين الفيديوهات وشاهد الشروحات بجودة عالية.',
+    descriptionKey: 'portal.cinema.desc',
     image: 'assets/images/icon_cinema.png',
     colors: [Color(0xFF0B5D66), Color(0xFF0B8693)],
     accent: Color(0xFF9EEBEA),
@@ -727,7 +729,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.games',
     subtitleKey: 'portal.games.sub',
-    description: 'تعلّم والعب واكسب مكافآت جديدة.',
+    descriptionKey: 'portal.games.desc',
     image: 'assets/images/icon_game.png',
     colors: [Color(0xFF4B267F), Color(0xFF8B5CF6)],
     accent: Color(0xFFE9D5FF),
@@ -735,7 +737,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.personality',
     subtitleKey: 'portal.personality.sub',
-    description: 'غيّر شعرك وملابسك واحفظ شخصيتك.',
+    descriptionKey: 'portal.personality.desc',
     image: 'assets/images/icon_prof.png',
     colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
     accent: Color(0xFFFFD0DF),
@@ -743,7 +745,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.tutor',
     subtitleKey: 'portal.tutor.sub',
-    description: 'اسأل واستكشف أفكارًا تساعدك في رحلتك.',
+    descriptionKey: 'portal.tutor.desc',
     image: 'assets/images/icon_avatar.png',
     colors: [Color(0xFF274E76), Color(0xFF1394D2)],
     accent: Color(0xFFBAE6FD),
@@ -751,7 +753,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.quiz',
     subtitleKey: 'portal.quiz.sub',
-    description: 'أجب عن أسئلتك وشاهد نتيجتك المحفوظة بأمان.',
+    descriptionKey: 'portal.quiz.desc',
     image: 'assets/images/icon_quez.png',
     colors: [Color(0xFF165B4A), Color(0xFF16A085)],
     accent: Color(0xFFB7F7DD),
@@ -759,7 +761,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.solver',
     subtitleKey: 'portal.solver.sub',
-    description: 'مساعد ذكي يقدم شرحًا مباشرًا ومفيدًا لأسئلتك.',
+    descriptionKey: 'portal.solver.desc',
     image: 'assets/images/icon_ai.png',
     colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
     accent: Color(0xFFE9D5FF),
@@ -767,7 +769,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.meeting',
     subtitleKey: 'portal.meeting.sub',
-    description: 'ادخل لقاء الدرس من دون مغادرة التطبيق.',
+    descriptionKey: 'portal.meeting.desc',
     image: 'assets/images/icon_meet.png',
     colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE4A3),
@@ -775,7 +777,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.chat',
     subtitleKey: 'portal.chat.sub',
-    description: 'نتحقق من الخصوصية قبل عرض أي رسالة أو زميل.',
+    descriptionKey: 'portal.chat.desc',
     image: 'assets/images/icon_chat.png',
     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
     accent: Color(0xFFBFDBFE),
@@ -786,7 +788,7 @@ const _homeSections = <_HomeSection>[
   _HomeSection(
     titleKey: 'portal.challenge',
     subtitleKey: 'portal.challenge.sub',
-    description: 'حروف وجمل وتصنيفات من درسك، على مراحل.',
+    descriptionKey: 'portal.challenge.desc',
     image: 'assets/images/endless_challenge.png',
     colors: [Color(0xFF3B2A6B), Color(0xFF6D28D9)],
     accent: Color(0xFFDDD6FE),
@@ -1130,7 +1132,7 @@ class _TopStatsBar extends StatelessWidget {
                 icon: Icons.workspace_premium_rounded,
                 tint: const Color(0xFF6D5AE6),
                 value: '${stats.level}',
-                label: 'المستوى',
+                label: tr('home.level'),
                 onPressed: onPressed,
               ),
               const SizedBox(width: 10),
@@ -1147,7 +1149,7 @@ class _TopStatsBar extends StatelessWidget {
                   icon: Icons.diamond_rounded,
                   tint: const Color(0xFF0EA5A5),
                   value: '${stats.gems}',
-                  label: 'جوهرة',
+                  label: tr('home.gem'),
                   onPressed: onPressed,
                 ),
               ),
@@ -1312,8 +1314,8 @@ class _WelcomeCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'أهلًا بك في منارة المعرفة',
+                  Text(
+                    tr('hub.welcome'),
                     style: TextStyle(
                       color: Color(0xFF5680AC),
                       fontSize: 13,

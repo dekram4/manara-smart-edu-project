@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
+import '../l10n/student_strings.dart';
 
 /// Native (Android/iOS/iPadOS) implementation of the virtual-teacher D-ID
 /// Agent Embed.
@@ -113,7 +114,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       _directFallback = false;
     });
     if (_apiBase.isEmpty) {
-      _fallBackToDirectUrlOrError('تعذر الوصول إلى إعداد المعلم الافتراضي.');
+      _fallBackToDirectUrlOrError(tr('embed.configUnreachable'));
       return;
     }
     try {
@@ -132,7 +133,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
           payload is! Map) {
-        throw const FormatException('تعذر قراءة إعداد المعلم الافتراضي.');
+        throw FormatException(tr('embed.configUnreadable'));
       }
       final keyField = String.fromCharCodes(const [
         99,
@@ -148,7 +149,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       final keyValue = payload[keyField]?.toString().trim() ?? '';
       final agentId = payload['agentId']?.toString().trim() ?? '';
       if (keyValue.isEmpty || agentId.isEmpty) {
-        throw const FormatException('إعداد المعلم الافتراضي غير مكتمل.');
+        throw FormatException(tr('embed.configIncomplete'));
       }
       if (!mounted) return;
       setState(() {
@@ -161,7 +162,7 @@ class _DIdAgentEmbedState extends State<DIdAgentEmbed> {
       // one (surfaces here as a network exception either way) — in every
       // case, don't leave the student staring at a spinner forever.
       _fallBackToDirectUrlOrError(
-        'لم نستطع تجهيز صديقك المعلم الآن. تأكد من الإنترنت واضغط إعادة المحاولة.',
+        tr('embed.prepareFailed'),
       );
     }
   }
@@ -287,12 +288,12 @@ $scriptClose
       if (mounted && _loading) {
         if (!_directFallback) {
           _fallBackToDirectUrlOrError(
-            'صديقك المعلم تأخر أكثر من المعتاد. قد يكون مشغولًا في جهاز آخر — اضغط إعادة المحاولة لنجرب من جديد.',
+            tr('embed.slow'),
           );
         } else {
           setState(() {
             _loading = false;
-            _error = 'لم يفتح صديقك المعلم هذه المرة. اضغط إعادة المحاولة ليبدأ من جديد.';
+            _error = tr('embed.didNotOpen');
           });
         }
       }
@@ -319,11 +320,11 @@ $scriptClose
     if (html == null && !_directFallback) {
       return _DIdStateCard(
         title: _error != null
-            ? 'صديقك المعلم غير جاهز الآن'
-            : 'يتم تجهيز المعلم الافتراضي',
-        message: _error ?? 'لحظات قليلة، يجري الاتصال بصديقك الذكي.',
+            ? tr('embed.notReady')
+            : tr('embed.preparing'),
+        message: _error ?? tr('embed.connecting'),
         loading: _error == null,
-        actionLabel: _error != null ? 'إعادة المحاولة' : null,
+        actionLabel: _error != null ? tr('action.retry') : null,
         onAction: _error != null ? _retry : null,
       );
     }
@@ -411,13 +412,13 @@ $scriptClose
             _timeout?.cancel();
             if (!_directFallback) {
               _fallBackToDirectUrlOrError(
-                'تعذر تحميل المعلم الافتراضي: ${error.description}',
+                trf('embed.loadFailed', {'reason': error.description}),
               );
               return;
             }
             setState(() {
               _loading = false;
-              _error = 'تعذر تحميل رابط المعلم الافتراضي المباشر.';
+              _error = tr('embed.directLinkFailed');
             });
           },
           onReceivedHttpError: (controller, request, response) {
@@ -430,27 +431,27 @@ $scriptClose
             _timeout?.cancel();
             if (!_directFallback) {
               _fallBackToDirectUrlOrError(
-                'تعذر تحميل المعلم الافتراضي: HTTP $statusCode',
+                trf('embed.loadFailedHttp', {'code': statusCode}),
               );
               return;
             }
             setState(() {
               _loading = false;
-              _error = 'تعذر تحميل رابط المعلم الافتراضي المباشر.';
+              _error = tr('embed.directLinkFailed');
             });
           },
         ),
         if (_loading && _error == null)
-          const _DIdStateCard(
-            title: 'يتم تجهيز المعلم الافتراضي',
-            message: 'لحظات قليلة، يجري الاتصال بصديقك الذكي.',
+          _DIdStateCard(
+            title: tr('embed.preparing'),
+            message: tr('embed.connecting'),
             loading: true,
           ),
         if (_error != null)
           _DIdStateCard(
-            title: 'صديقك المعلم غير جاهز الآن',
-            message: _error ?? 'صديقك المعلم غير جاهز الآن.',
-            actionLabel: 'إعادة المحاولة',
+            title: tr('embed.notReady'),
+            message: _error ?? tr('embed.notReadyDot'),
+            actionLabel: tr('action.retry'),
             onAction: _retry,
           ),
       ],

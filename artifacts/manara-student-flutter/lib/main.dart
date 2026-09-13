@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/config/supabase_config.dart';
+import 'src/l10n/student_strings.dart';
 import 'src/screens/student_startup_screen.dart';
 import 'src/services/student_auth_service.dart';
 import 'src/services/student_sound_service.dart';
@@ -44,7 +45,8 @@ Future<void> main() async {
           child: SingleChildScrollView(
             child: SelectionArea(
               child: Text(
-                'تفاصيل الخطأ أثناء التشغيل:\n\n${details.exception}\n\n${details.stack}',
+                '${tr('boot.errorDetails')}\n\n'
+                '${details.exception}\n\n${details.stack}',
                 style: const TextStyle(color: Colors.red, fontSize: 13, height: 1.4),
                 textDirection: TextDirection.ltr,
               ),
@@ -71,14 +73,15 @@ Future<void> main() async {
     try {
       MediaKit.ensureInitialized();
     } catch (e) {
-      initializationError = 'خطأ في MediaKit: $e';
+      initializationError = trf('boot.mediaKitError', {'error': e});
     }
   }
 
   try {
     await StudentSoundService.instance.initialize();
   } catch (e) {
-    initializationError = (initializationError ?? '') + '\nخطأ في الصوت: $e';
+    initializationError = '${initializationError ?? ''}\n'
+        '${trf('boot.audioError', {'error': e})}';
   }
 
   try {
@@ -96,7 +99,8 @@ Future<void> main() async {
       initializationError = (initializationError ?? '') + '\n' + config.configurationMessage;
     }
   } catch (error) {
-    initializationError = (initializationError ?? '') + '\nتعذر تهيئة Supabase: ${error.toString()}';
+    initializationError = '${initializationError ?? ''}\n'
+        '${trf('boot.supabaseError', {'error': error})}';
   }
 
   runApp(
@@ -133,7 +137,7 @@ class ManaraStudentApp extends StatelessWidget {
           builder: (context, locale, __) {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
-              title: 'منارة المعرفة',
+              title: tr('app.shortName'),
               theme: StudentTheme.light(),
               darkTheme: StudentTheme.dark(),
               themeMode: themeMode,

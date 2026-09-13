@@ -2,6 +2,7 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
+import '../l10n/student_strings.dart';
 
 class StudentWebEmbed extends StatefulWidget {
   const StudentWebEmbed({
@@ -44,7 +45,7 @@ class _StudentWebEmbedState extends State<StudentWebEmbed> {
       }
       frame.onLoad.listen((_) => widget.onLoaded?.call());
       frame.onError.listen(
-        (_) => widget.onError?.call('تعذر تحميل المحتوى من المصدر.'),
+        (_) => widget.onError?.call(tr('embed.contentFailed')),
       );
       return frame;
     });

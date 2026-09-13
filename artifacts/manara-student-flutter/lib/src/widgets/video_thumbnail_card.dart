@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../models/student_content.dart';
+import '../l10n/student_strings.dart';
 import 'student_video_player.dart' show isYoutubeHost, youtubeVideoId;
 
 /// Resolves the cover image for a video the way a video app does.
@@ -171,7 +172,7 @@ class VideoThumbnailCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            video.title.trim().isEmpty ? 'مقطع تعليمي' : video.title,
+            video.title.trim().isEmpty ? tr('video.clip') : video.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
+import '../l10n/student_strings.dart';
 import '../models/student_content.dart';
 import '../utils/student_orientation.dart';
 import 'student_experience.dart';
@@ -236,7 +237,7 @@ class _PreviewBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFF5EEAD4).withOpacity(0.7)),
       ),
-      child: const Padding(
+      child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -244,7 +245,7 @@ class _PreviewBadge extends StatelessWidget {
             Icon(Icons.visibility_rounded, color: Color(0xFFBFFBFA), size: 15),
             SizedBox(width: 5),
             Text(
-              'معاينة ٣ ثوانٍ',
+              tr('video.preview'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 11,
@@ -412,7 +413,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     _loadTimeoutTimer = Timer(_kLoadTimeout, () {
       if (!mounted || _error != null) return;
       setState(() {
-        _error = 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.';
+        _error = tr('video.slowLoad');
       });
     });
   }
@@ -429,7 +430,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       // retry action before the next build), so this runs before/outside
       // an active build — a direct field write is picked up by the next
       // build without needing (and safely being able to call) setState.
-      _error = 'تعذر التعرف على رابط فيديو يوتيوب.';
+      _error = tr('video.badYoutubeLink');
       return;
     }
     // Uses the base constructor (not the `.fromVideoId` factory) because
@@ -455,7 +456,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         if (error.isForMainFrame == false || !mounted) return;
         _cancelLoadTimeout();
         setState(
-          () => _error = 'تعذر تحميل صفحة الفيديو (${error.errorCode}).',
+          () => _error =
+              trf('video.pageLoadFailed', {'code': error.errorCode}),
         );
       },
     );
@@ -506,15 +508,15 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         // YouTube error 101/150/152: the video owner disabled playback in
         // embedded/third-party players. No header or setting fixes this —
         // only opening the video on youtube.com itself works.
-        return 'صاحب الفيديو عطّل تشغيله داخل التطبيقات. جرّب زر "افتح في يوتيوب".';
+        return tr('video.embedBlocked');
       case YoutubeError.videoNotFound:
       case YoutubeError.cannotFindVideo:
-        return 'تعذر العثور على هذا الفيديو على يوتيوب.';
+        return tr('video.notFound');
       case YoutubeError.invalidParam:
       case YoutubeError.html5Error:
       case YoutubeError.unknown:
       case YoutubeError.none:
-        return 'تعذر تشغيل الفيديو.';
+        return "${tr('video.playFailed')}.";
     }
   }
 
@@ -539,7 +541,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         (!(uri.scheme == 'http' || uri.scheme == 'https') &&
             !isWebRelativeUrl)) {
       setState(() {
-        _error = 'يجب أن يكون رابط الفيديو رابط HTTP أو HTTPS عامًا.';
+        _error = tr('video.needsHttp');
       });
       return;
     }
@@ -578,7 +580,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   Future<void> _handleNativePlaybackError(Object error) async {
     if (!mounted || _nativeRetryScheduled) return;
     final message = error is TimeoutException
-        ? 'استغرق تحميل الفيديو وقتًا طويلاً. تحقق من اتصالك بالإنترنت.'
+        ? tr('video.slowLoad')
         : error.toString();
 
     final canRetrySameBackend = _nativeRetryAttempt < _kMaxNativeRetries;
@@ -722,7 +724,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       }
       if (!mounted || !value.hasError) return;
       _handleNativePlaybackError(
-        Exception(value.errorDescription ?? 'تعذر تحميل مصدر الفيديو.'),
+        Exception(value.errorDescription ?? tr('video.sourceFailed')),
       );
     });
 
@@ -797,13 +799,13 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
             ),
           ),
         if (_error != null)
-          _buildError('تعذر تشغيل الفيديو', onRetry: _retryNativePlayback),
+          _buildError(tr('video.playFailed'), onRetry: _retryNativePlayback),
         if (_nativeCompleted && _error == null && !widget.compact)
           Center(
             child: FilledButton.icon(
               onPressed: _replayNativeVideo,
               icon: const Icon(Icons.replay_rounded, size: 34),
-              label: const Text('إعادة التشغيل'),
+              label: Text(tr('video.replay')),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xE60B8693),
                 foregroundColor: Colors.white,
@@ -958,7 +960,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
           ),
         if (_error != null)
           _buildError(
-            'تعذر تشغيل الفيديو',
+            tr('video.playFailed'),
             onRetry: _retryEmbed,
             externalUrl: _externalYoutubeUrl,
           ),
@@ -971,7 +973,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     if (controller == null) {
       return _error != null
           ? _buildError(
-              'تعذر تشغيل الفيديو',
+              tr('video.playFailed'),
               onRetry: _retryYoutube,
               externalUrl: _externalYoutubeUrl,
             )
@@ -1071,7 +1073,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               ),
             if (_error != null)
               _buildError(
-                'تعذر تشغيل الفيديو',
+                tr('video.playFailed'),
                 onRetry: _retryYoutube,
                 externalUrl: _externalYoutubeUrl,
               ),
@@ -1203,7 +1205,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                   OutlinedButton.icon(
                     onPressed: onRetry,
                     icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('إعادة المحاولة'),
+                    label: Text(tr('action.retry')),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFBFFBFA),
                       side: const BorderSide(color: Color(0xFF5EEAD4)),
@@ -1221,7 +1223,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                         mode: LaunchMode.externalApplication,
                       ),
                       icon: const Icon(Icons.open_in_new_rounded),
-                      label: const Text('افتح في يوتيوب'),
+                      label: Text(tr('video.openYoutube')),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: BorderSide(color: Colors.white.withOpacity(0.7)),
@@ -1384,8 +1386,8 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
                     children: [
                       IconButton(
                         tooltip: widget.controller.value.isPlaying
-                            ? 'إيقاف مؤقت'
-                            : 'تشغيل',
+                            ? tr('video.pause')
+                            : tr('video.play'),
                         onPressed: _togglePlayback,
                         icon: Icon(
                           widget.controller.value.isPlaying
@@ -1397,8 +1399,8 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
                       const Spacer(),
                       IconButton(
                         tooltip: widget.fullscreen
-                            ? 'إغلاق ملء الشاشة'
-                            : 'ملء الشاشة',
+                            ? tr('video.exitFullscreen')
+                            : tr('video.fullscreen'),
                         onPressed: widget.fullscreen
                             ? () => Navigator.of(context).pop(
                                 _FullscreenPlaybackState(
@@ -1529,7 +1531,7 @@ class _FullscreenExitButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'تصغير الفيديو',
+      label: tr('video.shrink'),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1570,7 +1572,7 @@ class _FullscreenBackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'الرجوع إلى بطاقة الفيديو',
+      label: tr('video.backToCard'),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1590,14 +1592,15 @@ class _FullscreenBackButton extends StatelessWidget {
               ],
             ),
             padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 16, 10),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.arrow_back_rounded, color: Colors.white, size: 25),
-                SizedBox(width: 7),
+                const Icon(Icons.arrow_back_rounded,
+                    color: Colors.white, size: 25),
+                const SizedBox(width: 7),
                 Text(
-                  'رجوع',
-                  style: TextStyle(
+                  tr('video.back'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w900,

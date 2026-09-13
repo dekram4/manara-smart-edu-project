@@ -7,9 +7,9 @@ import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
-import '../services/student_avatar_store.dart';
 import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
@@ -201,14 +201,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
         _loading = false;
         if (data.isEmpty) {
           _loadError =
-              'لا توجد مسارات أكاديمية مكتملة مرتبطة بدروس متاحة لحسابك حاليًا.';
+              tr('path.noPaths');
           _clearSelection();
           return;
         }
         _applyInitialSelection(data);
         if (data.hierarchyUnavailable) {
           _loadError =
-              'تعذر قراءة إعدادات الشجرة؛ تم عرض المسارات المكتملة من الدروس المتاحة فقط.';
+              tr('path.treeFallback');
         }
       });
     } catch (error) {
@@ -217,7 +217,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
         _loading = false;
         _data = null;
         _clearSelection();
-        _loadError = 'تعذر تحميل البيانات الأكاديمية من Supabase: $error';
+        _loadError = trf('path.loadError', {'error': error});
       });
     }
   }
@@ -763,7 +763,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             const PathMascot(size: 120),
             const SizedBox(height: 10),
             Text(
-              'أهلًا ${widget.profile.name}',
+              trf('path.greeting', {'name': widget.profile.name}),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Color(0xFF22303A),
@@ -772,7 +772,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const StudentRiveLoading(size: 84, label: 'جارٍ تحميل المسار الأكاديمي'),
+            StudentRiveLoading(size: 84, label: tr('path.loading')),
           ],
         ),
       );
@@ -780,7 +780,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     return Padding(
       padding: const EdgeInsets.all(24),
       child: _InfoBanner(
-        message: _loadError ?? 'لا توجد مسارات أكاديمية متاحة حاليًا.',
+        message: _loadError ?? tr('path.empty'),
       ),
     );
   }
@@ -795,7 +795,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     // stays exactly as designed for the usual single-chapter subject.
     final chapters = _termOptions;
     final unitControl = _BookDropdown(
-      label: 'الوحدة التعليمية',
+      label: tr('path.unit'),
       icon: Icons.category_rounded,
       color: _unitSlot.color,
       value: _unit,
@@ -807,7 +807,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _gradeSlot.place(
         imageRect,
         _BookDropdown(
-          label: 'الصف الدراسي',
+          label: tr('path.grade'),
           icon: Icons.school_rounded,
           color: _gradeSlot.color,
           value: _grade,
@@ -818,7 +818,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _atramSlot.place(
         imageRect,
         _BookDropdown(
-          label: 'الفصل الدراسي / الترم',
+          label: tr('path.atram'),
           icon: Icons.calendar_month_rounded,
           color: _atramSlot.color,
           value: _atram,
@@ -829,7 +829,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _subjectSlot.place(
         imageRect,
         _BookDropdown(
-          label: 'المادة التعليمية',
+          label: tr('path.subject'),
           icon: Icons.menu_book_rounded,
           color: _subjectSlot.color,
           value: _subject,
@@ -845,7 +845,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                   Expanded(
                     flex: 4,
                     child: _BookDropdown(
-                      label: 'الفصل',
+                      label: tr('path.term'),
                       icon: Icons.bookmarks_rounded,
                       color: _unitSlot.color,
                       value: _term,
@@ -862,7 +862,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _lessonSlot.place(
         imageRect,
         _BookDropdown(
-          label: 'الدرس',
+          label: tr('path.lesson'),
           icon: Icons.play_lesson_rounded,
           color: _lessonSlot.color,
           value: _lesson?.lessonName,
@@ -1020,7 +1020,7 @@ class _BookDropdown extends StatelessWidget {
                         Flexible(
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
+                            alignment: AlignmentDirectional.centerStart,
                             child: Text(
                               label,
                               style: TextStyle(
@@ -1034,9 +1034,11 @@ class _BookDropdown extends StatelessWidget {
                         Flexible(
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
+                            alignment: AlignmentDirectional.centerStart,
                             child: Text(
-                              enabled ? (value ?? 'اختر') : 'غير متاح',
+                              enabled
+                                  ? (value ?? tr('path.choose'))
+                                  : tr('path.unavailable'),
                               maxLines: 1,
                               style: const TextStyle(
                                 color: Color(0xFF1B2733),
@@ -1096,7 +1098,7 @@ class _StartAdventureButton extends StatelessWidget {
                 : const Icon(Icons.rocket_launch_rounded),
             label: FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(busy ? 'نجهّز رحلتك...' : 'ابدأ المغامرة!'),
+              child: Text(tr(busy ? 'path.preparing' : 'path.start')),
             ),
             style: FilledButton.styleFrom(
               backgroundColor: color,
@@ -1282,8 +1284,8 @@ class _MascotGuide extends StatelessWidget {
         // The bubble breathes on its own, slower than the guide, so the
         // pair no longer moves as one rigid block.
         reduceMotion
-            ? const _SpeechBubble(text: 'اختر صفك لنبدأ الرحلة يا بطل! ✨')
-            : const _SpeechBubble(text: 'اختر صفك لنبدأ الرحلة يا بطل! ✨')
+            ? _SpeechBubble(text: tr('path.mascot'))
+            : _SpeechBubble(text: tr('path.mascot'))
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .scaleXY(
                   begin: 1,

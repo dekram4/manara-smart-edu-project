@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -6,6 +6,7 @@ import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
+import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/video_thumbnail_card.dart';
 import '../widgets/portal_watermark.dart';
@@ -79,7 +80,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'تعذر تحميل فيديوهات السينما: $error';
+        _error = trf('cinema.loadError', {'error': error});
       });
     }
   }
@@ -88,8 +89,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     if (index >= _unlockedVideoCount) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('هذا الفيديو مقفول. تحتاج 5 جواهر لكل فيديو جديد.'),
+        SnackBar(
+          content: Text(tr('cinema.lockedBody')),
         ),
       );
       return;
@@ -111,7 +112,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF17364F),
         foregroundColor: Colors.white,
-        title: const Text('سينما منارة'),
+        title: Text(tr('cinema.title')),
         actions: const [StudentSoundToggle()],
       ),
       body: Stack(
@@ -132,17 +133,17 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     if (_error != null) {
       return _CinemaStateCard(
         icon: Icons.cloud_off_rounded,
-        title: 'تعذر تحميل السينما',
+        title: tr('cinema.loadFailed'),
         message: _error!,
-        actionLabel: 'إعادة المحاولة',
+        actionLabel: tr('action.retry'),
         onAction: _loadVideos,
       );
     }
     if (_videos.isEmpty) {
-      return const _CinemaStateCard(
+      return _CinemaStateCard(
         icon: Icons.movie_filter_outlined,
-        title: 'لا توجد فيديوهات متاحة',
-        message: 'ستظهر هنا فيديوهات المعلم والمشرف المطابقة لمسارك الأكاديمي.',
+        title: tr('cinema.empty'),
+        message: tr('cinema.emptyBody'),
       );
     }
 
@@ -150,9 +151,9 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
         children: [
-          const StudentScreenHero(
-            title: 'شاهد وتعلّم',
-            subtitle: 'فيديوهات آمنة ومطابقة لمسارك الأكاديمي.',
+          StudentScreenHero(
+            title: tr('cinema.subtitle'),
+            subtitle: tr('cinema.blurb'),
             icon: Icons.movie_filter_rounded,
             colors: [Color(0xFF0B5D66), Color(0xFF0B8693)],
             dark: true,
@@ -169,14 +170,14 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
                   _CinemaBadge(
                     icon: Icons.diamond_rounded,
                     tint: const Color(0xFF5EEAD4),
-                    label: 'الجواهر',
+                    label: tr('cinema.gems'),
                     value: '${_gamification.gems}',
                   ),
                   const SizedBox(width: 10),
                   _CinemaBadge(
                     icon: Icons.lock_open_rounded,
                     tint: const Color(0xFFFFD166),
-                    label: 'المفتوح',
+                    label: tr('cinema.unlocked'),
                     value: '$_unlockedVideoCount / ${_videos.length}',
                   ),
                 ],
@@ -184,10 +185,10 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'كل 5 جواهر تفتح فيديو واحدًا. مشاهدة السينما لا تمنح مكافآت.',
-            textAlign: TextAlign.right,
-            style: TextStyle(
+          Text(
+            tr('cinema.gemRule'),
+            textAlign: TextAlign.start,
+            style: const TextStyle(
               color: Color(0xFFB3C8DE),
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -334,8 +335,8 @@ class _CinemaVideoCard extends StatelessWidget {
           locked: locked,
           onTap: onPressed,
           subtitle: locked
-              ? 'مقفول — تحتاج 5 جواهر لفتحه'
-              : video.description ?? 'اضغط للمشاهدة داخل التطبيق',
+              ? tr('cinema.locked')
+              : video.description ?? tr('cinema.watchHint'),
         ),
       ),
     );
@@ -424,7 +425,7 @@ class _CinemaStateCard extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onAction,
                     icon: const Icon(Icons.refresh_rounded),
-                    label: Text(actionLabel ?? 'إعادة المحاولة'),
+                    label: Text(actionLabel ?? tr('action.retry')),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF5EEAD4),
                       side: const BorderSide(color: Color(0xFF5EEAD4)),

@@ -1,8 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
+import '../l10n/student_strings.dart';
 
 class TutorEmbed extends StatefulWidget {
   const TutorEmbed({
@@ -85,7 +86,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
       });
       frame.onError.listen((_) {
         _timeout?.cancel();
-        const message = 'رفض المصدر تحميل محتوى المعلم داخل التطبيق.';
+        final message = tr('embed.refused');
         _updateDomState(loading: false, error: message);
         if (mounted) {
           setState(() {
@@ -125,7 +126,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
       ..style.animation = 'manara-tutor-spin 1s linear infinite';
     panel
       ..append(spinner)
-      ..append(html.DivElement()..text = 'يتم تجهيز المعلم الافتراضي...');
+      ..append(html.DivElement()..text = tr('embed.preparingDots'));
     return panel;
   }
 
@@ -150,7 +151,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
       ..style.zIndex = '3';
     panel.append(
       html.DivElement()
-        ..text = 'تعذر تجهيز المعلم الافتراضي'
+        ..text = tr('embed.prepareFailedShort')
         ..style.fontSize = '20px'
         ..style.fontWeight = '900',
     );
@@ -160,7 +161,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
       ..style.color = '#C8D5E5';
     panel.append(message);
     final retryButton = html.ButtonElement()
-      ..text = 'إعادة التحميل'
+      ..text = tr('embed.reload')
       ..style.marginTop = '4px'
       ..style.padding = '10px 18px'
       ..style.border = '1px solid #C4B5FD'
@@ -191,8 +192,7 @@ class _TutorEmbedState extends State<TutorEmbed> {
     _timeout?.cancel();
     _timeout = Timer(const Duration(seconds: 12), () {
       if (mounted && _loading) {
-        const message =
-            'استغرق المصدر وقتًا أطول من المعتاد. تحقق من رابط المعلم أو أعد المحاولة.';
+        final message = tr('embed.sourceSlow');
         _updateDomState(loading: false, error: message);
         setState(() {
           _loading = false;

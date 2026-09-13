@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
+import '../l10n/student_strings.dart';
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_settings.dart';
@@ -20,13 +21,13 @@ class StudentProgressScreen extends StatelessWidget {
       textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: StudentSurface.ground(context),
-        appBar: AppBar(title: const Text('تقدمي وإنجازاتي'), actions: const [StudentSoundToggle()]),
+        appBar: AppBar(title: Text(tr('progress.title')), actions: const [StudentSoundToggle()]),
         body: ListView(
           padding: const EdgeInsets.all(18),
           children: [
-            const StudentScreenHero(
-              title: 'تقدمي وإنجازاتي',
-              subtitle: 'تابع إنجازاتك وتطورك، وكل خطوة تقربك من هدفك.',
+            StudentScreenHero(
+              title: tr('progress.title'),
+              subtitle: tr('progress.subtitle'),
               icon: Icons.insights_rounded,
               colors: [Color(0xFF0B8693), Color(0xFF274E76)],
             ),
@@ -38,19 +39,19 @@ class StudentProgressScreen extends StatelessWidget {
             const SizedBox(height: 14),
             StudentEntrance(child: _StatsCard(stats: stats)),
             const SizedBox(height: 18),
-            const StudentEntrance(
-              delay: Duration(milliseconds: 80),
-              child: Text('الإنجازات المفتوحة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 80),
+              child: Text(tr('progress.achievements'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
             ),
             const SizedBox(height: 10),
             if (stats.achievements.isEmpty)
-              const StudentEntrance(
-                delay: Duration(milliseconds: 120),
+              StudentEntrance(
+                delay: const Duration(milliseconds: 120),
                 child: Student3DCard(
                   child: Card(
                     child: Padding(
                       padding: EdgeInsets.all(22),
-                      child: Text('لا توجد إنجازات بعد. أكمل درسًا أو اختبارًا لتبدأ رحلتك.', textAlign: TextAlign.center),
+                      child: Text(tr('progress.noAchievements'), textAlign: TextAlign.center),
                     ),
                   ),
                 ),
@@ -69,9 +70,9 @@ class StudentProgressScreen extends StatelessWidget {
                     ),
                   )),
             const SizedBox(height: 18),
-            const StudentEntrance(
-              delay: Duration(milliseconds: 240),
-              child: Text('ملخص التعلم', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            StudentEntrance(
+              delay: const Duration(milliseconds: 240),
+              child: Text(tr('progress.summary'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
             ),
             const SizedBox(height: 10),
             StudentEntrance(
@@ -82,10 +83,10 @@ class StudentProgressScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        _SummaryRow(icon: Icons.quiz_rounded, label: 'الاختبارات المكتملة', value: '${stats.totalQuizzes}'),
-                        _SummaryRow(icon: Icons.menu_book_rounded, label: 'الدروس المكتملة', value: '${stats.totalLessons}'),
-                        _SummaryRow(icon: Icons.sports_esports_rounded, label: 'الألعاب المكتملة', value: '${stats.totalGames}'),
-                        _SummaryRow(icon: Icons.insights_rounded, label: 'متوسط الاختبارات', value: '${stats.averageScore}%'),
+                        _SummaryRow(icon: Icons.quiz_rounded, label: tr('progress.quizzesDone'), value: '${stats.totalQuizzes}'),
+                        _SummaryRow(icon: Icons.menu_book_rounded, label: tr('progress.lessonsDone'), value: '${stats.totalLessons}'),
+                        _SummaryRow(icon: Icons.sports_esports_rounded, label: tr('progress.gamesDone'), value: '${stats.totalGames}'),
+                        _SummaryRow(icon: Icons.insights_rounded, label: tr('progress.quizAverage'), value: '${stats.averageScore}%'),
                       ],
                     ),
                   ),
@@ -111,22 +112,22 @@ class _ProgressAnimationCard extends StatelessWidget {
             padding: const EdgeInsetsDirectional.fromSTEB(18, 10, 12, 10),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'رفيق إنجازاتك',
-                        style: TextStyle(
+                        tr('progress.yourCharacter'),
+                        style: const TextStyle(
                           color: Color(0xFF0B5F69),
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      SizedBox(height: 5),
+                      const SizedBox(height: 5),
                       Text(
-                        'استمر، فأنت تبني تقدّمك خطوة بخطوة.',
-                        style: TextStyle(
+                        tr('progress.encourage'),
+                        style: const TextStyle(
                           color: Color(0xFF365B62),
                           fontWeight: FontWeight.w600,
                         ),
@@ -135,7 +136,7 @@ class _ProgressAnimationCard extends StatelessWidget {
                   ),
                 ),
                 Semantics(
-                  label: 'شخصيتك',
+                  label: tr('progress.yourCharacter'),
                   child: const StudentAvatarView(size: 100),
                 ),
               ],
@@ -158,14 +159,14 @@ class _StatsCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('المستوى ${stats.level}', style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
+                Text(trf('progress.level', {'level': stats.level}), style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('⭐ XP ${stats.xp}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                    Text(trf('progress.xp', {'xp': stats.xp}), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
                     Text('💎 ${stats.gems}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                    Text('🔥 ${stats.streak} يوم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                    Text(trf('progress.streak', {'days': stats.streak}), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -174,7 +175,7 @@ class _StatsCard extends StatelessWidget {
                   child: LinearProgressIndicator(value: stats.levelProgress / 100, minHeight: 11, backgroundColor: Colors.white30, color: Colors.amber),
                 ),
                 const SizedBox(height: 6),
-                Text('${stats.levelProgress} / 100 XP إلى المستوى التالي', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                Text(trf('progress.toNextLevel', {'done': stats.levelProgress}), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
