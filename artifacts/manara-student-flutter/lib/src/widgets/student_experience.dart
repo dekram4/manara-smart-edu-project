@@ -776,7 +776,7 @@ class _LearningWorldPainter extends CustomPainter {
         begin: Alignment.topRight,
         end: Alignment.bottomLeft,
         colors: night
-            ? const [Color(0xFF16161F), Color(0xFF121218), Color(0xFF14181C)]
+            ? const [Color(0xFF141821), Color(0xFF0E1117), Color(0xFF101520)]
             : const [Color(0xFFFFF6DD), Color(0xFFF6F7F0), Color(0xFFE8F3F0)],
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, wash);

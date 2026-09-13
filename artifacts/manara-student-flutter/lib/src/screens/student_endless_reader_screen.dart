@@ -915,10 +915,10 @@ class _StudentEndlessReaderScreenState
               Text(
                 tr("challenge.empty"),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFF3B2A6B),
+                  color: StudentSurface.ink(context),
                 ),
               ),
               const SizedBox(height: 10),
@@ -927,8 +927,8 @@ class _StudentEndlessReaderScreenState
                     ? tr('challenge.emptyNoLesson')
                     : tr('challenge.emptyNoText'),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF5B4A7A),
+                style: TextStyle(
+                  color: StudentSurface.mutedInk(context),
                   height: 1.6,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1020,10 +1020,10 @@ class _StudentEndlessReaderScreenState
               'n': _wordIndex + 1,
               'total': _stageCount,
             }),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF3B2A6B),
+              color: StudentSurface.ink(context),
             ),
           ),
         ),
@@ -1159,10 +1159,10 @@ class _StudentEndlessReaderScreenState
             children: [
               Text(
                 bucket,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFF3B2A6B),
+                  color: StudentSurface.ink(context),
                 ),
               ),
               const SizedBox(height: 10),
@@ -1347,7 +1347,7 @@ class _StudentEndlessReaderScreenState
         runSpacing: 8,
         children: [
           if (sentence.before.isNotEmpty)
-            Text(sentence.before, style: _sentenceStyle),
+            Text(sentence.before, style: _sentenceStyle(context)),
           DragTarget<String>(
             onWillAcceptWithDetails: (details) =>
                 filled == null && details.data == sentence.answer,
@@ -1379,7 +1379,7 @@ class _StudentEndlessReaderScreenState
                 child: Text(
                   filled ?? '؟',
                   textAlign: TextAlign.center,
-                  style: _sentenceStyle.copyWith(
+                  style: _sentenceStyle(context).copyWith(
                     color: filled != null
                         ? const Color(0xFF15803D)
                         : const Color(0xFF9C8AC4),
@@ -1389,18 +1389,20 @@ class _StudentEndlessReaderScreenState
             },
           ),
           if (sentence.after.isNotEmpty)
-            Text(sentence.after, style: _sentenceStyle),
+            Text(sentence.after, style: _sentenceStyle(context)),
         ],
       ),
     );
   }
 
-  static const _sentenceStyle = TextStyle(
-    fontSize: 19,
-    height: 1.6,
-    fontWeight: FontWeight.w800,
-    color: const Color(0xFF3B2A6B),
-  );
+  /// A method rather than a constant: the colour follows the theme, and a
+  /// `const` initializer cannot call anything.
+  TextStyle _sentenceStyle(BuildContext context) => TextStyle(
+        fontSize: 19,
+        height: 1.6,
+        fontWeight: FontWeight.w800,
+        color: StudentSurface.ink(context),
+      );
 
   /// The candidate words for a sentence round. Every one is a real word
   /// from this lesson, so a student cannot pick the answer out by it

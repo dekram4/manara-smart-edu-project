@@ -72,6 +72,18 @@ void main() {
     return tester.widget<Transform>(transforms.first).transform;
   }
 
+  /// Runs the clock until the press has actually registered.
+  ///
+  /// The rail is a horizontal ListView, so its drag recognizer contests
+  /// the gesture arena and onTapDown only fires once the tap wins it.
+  /// That resolution rides on a timer, so the clock has to be advanced in
+  /// steps — one long pump jumps over it and reads an untouched card.
+  Future<void> settlePress(WidgetTester tester) async {
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+  }
+
   double scaleOf(Matrix4 matrix) => matrix.getMaxScaleOnAxis();
   double yOf(Matrix4 matrix) => matrix.getTranslation().y;
 
@@ -158,6 +170,60 @@ void main() {
     expect(
       (scaleOf(cardMatrix(tester, 'portal.lesson')) - settled).abs(),
       lessThan(0.02),
+    );
+  });
+
+  testWidgets('a press squashes the card rather than shrinking it',
+      (tester) async {
+    await pumpHub(tester);
+    final card = cardFinder('portal.lesson');
+
+    // The rail is a horizontal ListView, so its drag recognizer contests
+    // the arena and onTapDown does not fire until the tap wins it — about
+    // 300ms in. Measuring sooner reads an untouched card.
+    final gesture = await tester.startGesture(tester.getCenter(card));
+    await settlePress(tester);
+    final matrix = cardMatrix(tester, 'portal.lesson');
+    await gesture.cancel();
+
+    // A uniform shrink reads as the card moving away. Taking more off the
+    // height than the width is what reads as something soft giving under
+    // a thumb, which is the whole point of the press.
+    final scaleX = matrix.getColumn(0).length;
+    final scaleY = matrix.getColumn(1).length;
+    expect(
+      scaleY,
+      lessThan(scaleX),
+      reason: 'the press scaled uniformly — no compression',
+    );
+  });
+
+  testWidgets('the card tilts toward wherever the finger landed',
+      (tester) async {
+    await pumpHub(tester);
+    final card = cardFinder('portal.lesson');
+    final box = tester.getRect(card);
+
+    Future<Matrix4> pressAt(Offset at) async {
+      final gesture = await tester.startGesture(at);
+      await settlePress(tester);
+      final matrix = cardMatrix(tester, 'portal.lesson');
+      await gesture.cancel();
+      await tester.pump(const Duration(seconds: 1));
+      return matrix;
+    }
+
+    // Pressing opposite edges has to tilt the card opposite ways. If the
+    // tilt is canned, both presses produce the same matrix and the 3D is
+    // an animation rather than an answer to where you touched.
+    final left = await pressAt(Offset(box.left + 8, box.center.dy));
+    final right = await pressAt(Offset(box.right - 8, box.center.dy));
+
+    // Entry (0,2) of the matrix carries the Y rotation's sign.
+    expect(
+      left.entry(0, 2) * right.entry(0, 2),
+      lessThan(0),
+      reason: 'both edges tilted the same way — the tilt ignores the touch',
     );
   });
 

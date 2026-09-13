@@ -42,20 +42,20 @@ abstract final class StudentSurface {
   /// The page behind everything. The light value is the warm cream the
   /// screens already used, so nothing changes in light mode.
   static Color ground(BuildContext context) =>
-      isDark(context) ? const Color(0xFF121212) : const Color(0xFFFDF3EA);
+      isDark(context) ? const Color(0xFF0E1117) : const Color(0xFFFDF3EA);
 
   /// The cooler ground the entry screens use (login, the path).
   static Color coolGround(BuildContext context) =>
-      isDark(context) ? const Color(0xFF121212) : const Color(0xFFEFF3F6);
+      isDark(context) ? const Color(0xFF0E1117) : const Color(0xFFEFF3F6);
 
   /// A card or panel raised above the ground.
   static Color card(BuildContext context) =>
-      isDark(context) ? const Color(0xFF1E1E2E) : Colors.white;
+      isDark(context) ? const Color(0xFF171B26) : Colors.white;
 
   /// A panel that was a translucent white over artwork. Kept translucent
   /// so the watermark still shows through in both modes.
   static Color glass(BuildContext context, [double opacity = 0.88]) => isDark(context)
-      ? const Color(0xFF1E1E2E).withOpacity(opacity)
+      ? const Color(0xFF171B26).withOpacity(opacity)
       : Colors.white.withOpacity(opacity);
 
   /// Body text.
@@ -73,7 +73,7 @@ abstract final class StudentSurface {
 
   /// The warm ground the splash and the lesson card use.
   static Color warmGround(BuildContext context) =>
-      isDark(context) ? const Color(0xFF121212) : const Color(0xFFFFF7EA);
+      isDark(context) ? const Color(0xFF0E1117) : const Color(0xFFFFF7EA);
 
   /// The empty half of a progress bar, a slider groove, a disabled track —
   /// anything that reads as "the part not filled in yet".
@@ -85,7 +85,7 @@ abstract final class StudentSurface {
   /// collapses to the raised surface, because a pale gradient is exactly
   /// what reads as a slab of daylight in a dark app.
   static List<Color> barSweep(BuildContext context) => isDark(context)
-      ? const [Color(0xFF1E1E2E), Color(0xFF1A1A28), Color(0xFF1E1E2E)]
+      ? const [Color(0xFF171B26), Color(0xFF12151D), Color(0xFF171B26)]
       : const [Color(0xFFDCEFF7), Color(0xFFEFF6FA), Color(0xFFFFF6E7)];
 
   /// A control sitting on top of artwork or a gradient bar: a translucent
@@ -296,8 +296,8 @@ abstract final class StudentTheme {
   /// enough to rest the eyes without the pure black that makes white text
   /// smear on OLED panels.
   static ThemeData dark() {
-    const canvas = Color(0xFF121212);
-    const surface = Color(0xFF1E1E2E);
+    const canvas = Color(0xFF0E1117);
+    const surface = Color(0xFF171B26);
     const ink = Color(0xFFF3F4F6);
     const mutedInk = Color(0xFFB6BDCC);
 

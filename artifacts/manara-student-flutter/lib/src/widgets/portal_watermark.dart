@@ -57,8 +57,8 @@ class PortalWatermark extends StatelessWidget {
                           ]
                         : const [
                             Color(0xFF161622),
-                            Color(0xFF121212),
-                            Color(0xFF1A1A28),
+                            Color(0xFF0E1117),
+                            Color(0xFF12151D),
                           ])
                     : const [
                         Color(0xFFFFF6E7),

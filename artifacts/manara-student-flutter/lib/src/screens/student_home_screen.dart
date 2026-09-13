@@ -919,13 +919,30 @@ class _SectionTileState extends State<_SectionTile>
   late final AnimationController _push =
       AnimationController.unbounded(vsync: this);
 
-  /// Stiff enough to answer immediately, damped just under critical so it
-  /// overshoots once on release and settles — one bounce, not a wobble.
-  static const _pushSpring = SpringDescription(
+  /// Going down: stiff, so the card answers the finger the instant it
+  /// lands. Nothing about a press should feel like it is catching up.
+  static const _pressSpring = SpringDescription(
     mass: 1,
-    stiffness: 420,
-    damping: 17,
+    stiffness: 520,
+    damping: 22,
   );
+
+  /// Coming back: softer and a little less damped, so the card rebounds
+  /// past its resting size once and settles. Releasing with the same
+  /// stiff spring snapped it back flat, which reads as a state change
+  /// rather than as something springy letting go.
+  static const _releaseSpring = SpringDescription(
+    mass: 1,
+    stiffness: 300,
+    damping: 13,
+  );
+
+  /// Where on the card the finger landed, as -1..1 from its centre.
+  ///
+  /// The tilt is taken from this, so pressing a corner dips that corner.
+  /// Without it every press tilts identically and the 3D reads as a
+  /// canned animation rather than as a response to where you touched.
+  Offset _pressAlign = Offset.zero;
 
   bool _hovered = false;
   bool _pressed = false;
@@ -962,7 +979,26 @@ class _SectionTileState extends State<_SectionTile>
       return;
     }
     _push.animateWith(
-      SpringSimulation(_pushSpring, _push.value, target, _push.velocity),
+      SpringSimulation(
+        target > 0 ? _pressSpring : _releaseSpring,
+        _push.value,
+        target,
+        _push.velocity,
+      ),
+    );
+  }
+
+  /// Records where a press landed, normalised against the card's own box.
+  void _recordPressPoint(Offset localPosition) {
+    final box = context.findRenderObject() as RenderBox?;
+    final size = box?.size;
+    if (size == null || size.isEmpty) {
+      _pressAlign = Offset.zero;
+      return;
+    }
+    _pressAlign = Offset(
+      ((localPosition.dx / size.width) * 2 - 1).clamp(-1.0, 1.0),
+      ((localPosition.dy / size.height) * 2 - 1).clamp(-1.0, 1.0),
     );
   }
 
@@ -1022,8 +1058,9 @@ class _SectionTileState extends State<_SectionTile>
       },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown: (_) {
+        onTapDown: (details) {
           _pressed = true;
+          _recordPressPoint(details.localPosition);
           _sync();
           _springPushTo(1);
         },
@@ -1054,26 +1091,39 @@ class _SectionTileState extends State<_SectionTile>
             // the card.
             final push = reduceMotion ? 0.0 : _push.value.clamp(-0.35, 1.25);
 
-            // Real depth rather than a flat scale: the card tilts a
-            // little away from the finger as it rises, with a
-            // perspective entry in the matrix, so it reads as an object
-            // lifting off the rail instead of a picture growing.
+            // Real depth rather than a flat scale. A perspective entry in
+            // the matrix, a tilt away from the rail as the card rises,
+            // and — while a finger is down — a tilt *into* the finger
+            // itself: press the left edge and that edge goes away from
+            // you. That last one is what separates a card being pushed
+            // from a card being resized.
             //
             // The idle float also breathes a fraction of a percent of
-            // scale with the rise. Vertical travel alone reads as sliding;
-            // the two together read as floating toward the viewer.
-            final matrix = Matrix4.identity()
-              ..setEntry(3, 2, 0.0014)
-              ..translate(0.0, drift * 11 - lift * 16 + push * 5)
-              ..scale(1 + drift * 0.012 + lift * 0.07 - push * 0.055)
-              ..rotateX(-lift * 0.16)
-              ..rotateZ(drift * 0.012);
+            // scale. Vertical travel alone reads as sliding; the two
+            // together read as floating toward the viewer.
+            //
+            // The squash is deliberately not uniform: pressing takes more
+            // off the height than the width, the way a real soft object
+            // gives under a thumb. A uniform shrink reads as the card
+            // moving away instead of compressing.
+            final squashX = 1 + drift * 0.012 + lift * 0.07 - push * 0.040;
+            final squashY = 1 + drift * 0.012 + lift * 0.07 - push * 0.072;
 
-            // The rim is the neon: it stays a quiet tinted hairline at
-            // rest and burns into the portal's own colour as the card
-            // comes up, so each card glows as itself rather than every
-            // card glowing the same white.
+            final matrix = Matrix4.identity()
+              ..setEntry(3, 2, 0.0018)
+              ..translate(0.0, drift * 11 - lift * 16 + push * 5)
+              ..rotateX(-lift * 0.16 - _pressAlign.dy * push * 0.13)
+              ..rotateY(_pressAlign.dx * push * 0.13)
+              ..rotateZ(drift * 0.012)
+              ..scale(squashX, squashY);
+
+            // The rim is the neon: a quiet tinted hairline at rest that
+            // burns into the portal's own colour as the card comes up, so
+            // each card glows as itself rather than every card glowing
+            // the same white. Past halfway it blends toward white, which
+            // is what gives a neon tube its hot core.
             final glow = lift.clamp(0.0, 1.0);
+            final rim = Color.lerp(tint, Colors.white, glow * 0.35)!;
 
             return Transform(
               alignment: Alignment.center,
@@ -1084,16 +1134,17 @@ class _SectionTileState extends State<_SectionTile>
                     borderRadius: BorderRadius.circular(radius),
                     color: StudentSurface.glass(context, 0.72 + lift * 0.18),
                     border: Border.all(
-                      color: tint.withOpacity(0.45 + glow * 0.50),
-                      width: 1.6 + lift * 1.3,
+                      color: rim.withOpacity(0.45 + glow * 0.52),
+                      width: 1.6 + lift * 1.4,
                     ),
                     boxShadow: [
-                      // Three layers, each with one job. A tight contact
+                      // Four layers, each with one job. A tight contact
                       // shadow that stays put so the card keeps its
                       // footing; a coloured bloom that grows as it rises;
-                      // and a wide, very soft halo that only appears on
-                      // engagement — that outermost one is what reads as
-                      // a glow rather than as a drop shadow.
+                      // a wide soft halo that only appears on engagement —
+                      // that one is what reads as a glow rather than a
+                      // drop shadow; and a tight, nearly opaque ring hard
+                      // against the border, which is the lit tube itself.
                       BoxShadow(
                         color: const Color(0x33000000),
                         blurRadius: 6 + lift * 6,
@@ -1105,12 +1156,18 @@ class _SectionTileState extends State<_SectionTile>
                         spreadRadius: lift * 5,
                         offset: Offset(0, 9 + lift * 12),
                       ),
-                      if (glow > 0.01)
+                      if (glow > 0.01) ...[
                         BoxShadow(
                           color: tint.withOpacity(glow * 0.34),
-                          blurRadius: 30 + glow * 44,
-                          spreadRadius: 2 + glow * 10,
+                          blurRadius: 30 + glow * 52,
+                          spreadRadius: 2 + glow * 12,
                         ),
+                        BoxShadow(
+                          color: rim.withOpacity(glow * 0.55),
+                          blurRadius: 5 + glow * 9,
+                          spreadRadius: glow * 1.4,
+                        ),
+                      ],
                     ],
                   ),
                   child: child,

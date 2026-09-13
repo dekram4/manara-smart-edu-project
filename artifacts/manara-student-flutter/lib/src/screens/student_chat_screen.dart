@@ -422,7 +422,7 @@ class _ChatStatus extends StatelessWidget {
   final IconData icon;
   final String message;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 58, color: const Color(0xFF0B8693)), const SizedBox(height: 14), Text(message, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, height: 1.6, color: Color(0xFF17233A)))])));
+  Widget build(BuildContext context) => Center(child: Padding(padding: EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 58, color: Color(0xFF0B8693)), SizedBox(height: 14), Text(message, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900, height: 1.6, color: StudentSurface.ink(context)))])));
 }
 
 class _ChatError extends StatelessWidget {

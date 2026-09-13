@@ -725,8 +725,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                   const SizedBox(width: 4),
                                   Text(
                                     '${_gamification.gems}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF22303A),
+                                    style: TextStyle(
+                                      color: StudentSurface.ink(context),
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
@@ -765,8 +765,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             Text(
               trf('path.greeting', {'name': widget.profile.name}),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF22303A),
+              style: TextStyle(
+                color: StudentSurface.ink(context),
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
               ),
@@ -980,7 +980,7 @@ class _BookDropdown extends StatelessWidget {
                         style: TextStyle(
                           fontWeight:
                               option == value ? FontWeight.w900 : FontWeight.w700,
-                          color: const Color(0xFF22303A),
+                          color: StudentSurface.ink(context),
                         ),
                       ),
                     ),
@@ -1040,8 +1040,8 @@ class _BookDropdown extends StatelessWidget {
                                   ? (value ?? tr('path.choose'))
                                   : tr('path.unavailable'),
                               maxLines: 1,
-                              style: const TextStyle(
-                                color: Color(0xFF1B2733),
+                              style: TextStyle(
+                                color: StudentSurface.ink(context),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -1331,8 +1331,8 @@ class _SpeechBubble extends StatelessWidget {
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF22303A),
+            style: TextStyle(
+              color: StudentSurface.ink(context),
               fontSize: 12.5,
               height: 1.35,
               fontWeight: FontWeight.w800,

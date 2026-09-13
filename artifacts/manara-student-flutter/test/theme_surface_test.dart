@@ -63,16 +63,24 @@ void main() {
     // A dialog, a sheet or a dropdown that is never handed a colour paints
     // the framework's default — which is light. No screen writes these,
     // so no screen-by-screen audit can catch them; only the theme can.
+    //
+    // Asserted as relationships rather than frozen hex values: the point
+    // is that every built-in surface is the app's raised colour and that
+    // the page sits below it, not that either is one particular black.
+    // Pinning the literals made retuning the palette a test edit.
     final dark = StudentTheme.dark();
-    const page = Color(0xFF121212);
-    const raised = Color(0xFF1E1E2E);
+    final raised = dark.cardTheme.color!;
+    final page = dark.scaffoldBackgroundColor;
 
     expect(dark.dialogTheme.backgroundColor, raised);
     expect(dark.bottomSheetTheme.backgroundColor, raised);
     expect(dark.bottomSheetTheme.modalBackgroundColor, raised);
     expect(dark.popupMenuTheme.color, raised);
-    expect(dark.cardTheme.color, raised);
-    expect(dark.scaffoldBackgroundColor, page);
+
+    // Both genuinely dark, and the card readable as raised above the page.
+    expect(page.computeLuminance(), lessThan(0.05));
+    expect(raised.computeLuminance(), lessThan(0.08));
+    expect(raised.computeLuminance(), greaterThan(page.computeLuminance()));
 
     // And each must be materially darker than its light counterpart.
     final light = StudentTheme.light();
@@ -89,6 +97,51 @@ void main() {
         pair[0]!.computeLuminance(),
         greaterThan(pair[1]!.computeLuminance() + 0.3),
       );
+    }
+  });
+
+  /// WCAG relative-contrast ratio, so "high contrast" is a number rather
+  /// than an opinion. 4.5 is the AA floor for body text; 7 is AAA.
+  double contrast(Color a, Color b) {
+    final la = a.computeLuminance();
+    final lb = b.computeLuminance();
+    final hi = la > lb ? la : lb;
+    final lo = la > lb ? lb : la;
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  testWidgets('dark-mode text clears AAA against both dark surfaces',
+      (tester) async {
+    // The complaint that started this was dark navy text surviving into
+    // dark mode. A ratio is what catches that: #183047 on #0E1117 scores
+    // about 1.4, nowhere near the 7 this demands.
+    final ground = await resolve(tester, Brightness.dark, StudentSurface.ground);
+    final card = await resolve(tester, Brightness.dark, StudentSurface.card);
+    final ink = await resolve(tester, Brightness.dark, StudentSurface.ink);
+    final muted =
+        await resolve(tester, Brightness.dark, StudentSurface.mutedInk);
+
+    expect(contrast(ink, ground), greaterThan(7));
+    expect(contrast(ink, card), greaterThan(7));
+    // Secondary text is allowed to be quieter, but never below AA.
+    expect(contrast(muted, ground), greaterThan(4.5));
+    expect(contrast(muted, card), greaterThan(4.5));
+  });
+
+  testWidgets('dark-mode ink is a light neutral, never a dark blue',
+      (tester) async {
+    for (final role in <Color Function(BuildContext)>[
+      StudentSurface.ink,
+      StudentSurface.mutedInk,
+    ]) {
+      final colour = await resolve(tester, Brightness.dark, role);
+      // Bright enough to read as white or light grey…
+      expect(colour.computeLuminance(), greaterThan(0.4));
+      // …and near-neutral, so it cannot drift back to a navy or a teal.
+      final channels = [colour.r, colour.g, colour.b];
+      final spread = channels.reduce((a, b) => a > b ? a : b) -
+          channels.reduce((a, b) => a < b ? a : b);
+      expect(spread, lessThan(0.1), reason: '$colour is not a neutral');
     }
   });
 

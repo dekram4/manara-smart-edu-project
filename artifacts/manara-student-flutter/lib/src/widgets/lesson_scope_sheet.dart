@@ -148,7 +148,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
             colors: StudentSurface.isDark(context)
-                ? const [Color(0xFF16161F), Color(0xFF121212)]
+                ? const [Color(0xFF141821), Color(0xFF0E1117)]
                 : const [Color(0xFFFFF6E7), Color(0xFFEFF6FA)],
           ),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
