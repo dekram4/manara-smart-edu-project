@@ -852,12 +852,34 @@ class _HomeSectionGrid extends StatelessWidget {
     final cardHeight = (shortest * 0.34).clamp(132.0, 178.0).toDouble();
     final cardWidth = (cardHeight * 1.32).clamp(150.0, 235.0).toDouble();
 
+    // Room above and below the cards, and no clipping.
+    //
+    // The rail used to be exactly one card tall, which meant the viewport
+    // cut every part of a card that was not at rest: the 16px it rises
+    // under a finger, the breath, the 7% it grows by, and — most visibly —
+    // the neon glow, whose outermost bloom reaches about 90px past the
+    // card's own edge. A card cannot look like it is floating inside a box
+    // trimmed to its exact size.
+    //
+    // The box is grown by twice `breathingRoom` and the same amount is
+    // given back as cross-axis padding, so each card still lays out at
+    // exactly `cardHeight` and only the space around it changed. The body
+    // is a scroll view, so the extra height costs nothing on a short
+    // screen.
+    const breathingRoom = 46.0;
+
     return SizedBox(
-      height: cardHeight,
+      height: cardHeight + breathingRoom * 2,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+        // Clip.none so the glow and the lift are not shaved off at the
+        // rail's edges the moment a card reacts.
+        clipBehavior: Clip.none,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 6,
+          vertical: breathingRoom,
+        ),
         itemCount: _homeSections.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) => SizedBox(

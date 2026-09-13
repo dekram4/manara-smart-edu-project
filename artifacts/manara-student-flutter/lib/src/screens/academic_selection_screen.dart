@@ -1112,10 +1112,14 @@ class _BookDropdown extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: dark.withOpacity(0.9),
-                            fontSize: 15,
+                            // The level's own name — الصف, الترم, المادة —
+                            // now that each is a single word rather than a
+                            // phrase, it has the room to be read at a
+                            // glance rather than squinted at.
+                            color: dark,
+                            fontSize: 19,
                             height: 1.1,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                         Text(

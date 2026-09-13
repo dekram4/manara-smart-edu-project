@@ -247,6 +247,59 @@ void main() {
     );
   });
 
+  testWidgets('the rail leaves room above and below each card',
+      (tester) async {
+    await pumpHub(tester);
+
+    // The rail used to be exactly one card tall, so the viewport trimmed
+    // every part of a card that was not at rest — the rise, the breath,
+    // the growth, and the glow, whose outer bloom reaches far past the
+    // card's own edge.
+    final railBox = tester.getRect(find.byType(ListView).first);
+    final cardBox = tester.getRect(cardFinder('portal.lesson'));
+
+    expect(
+      cardBox.top - railBox.top,
+      greaterThan(24),
+      reason: 'no room above the card for it to rise or glow into',
+    );
+    expect(
+      railBox.bottom - cardBox.bottom,
+      greaterThan(24),
+      reason: 'no room below the card for its shadow and bloom',
+    );
+  });
+
+  testWidgets('the rail does not clip what a card paints outside it',
+      (tester) async {
+    await pumpHub(tester);
+
+    // Clip.hardEdge on the viewport shaves the glow off at the rail's own
+    // bounds the instant a card reacts, which is the whole reason the
+    // cards looked boxed in.
+    final rail = tester.widget<ListView>(find.byType(ListView).first);
+    expect(rail.clipBehavior, Clip.none);
+  });
+
+  testWidgets('a card still lays out at its intended height',
+      (tester) async {
+    await pumpHub(tester);
+
+    // The room was added by growing the box and giving the same amount
+    // back as padding. If that ever drifts apart the cards themselves
+    // change size, which is not what was wanted.
+    final railBox = tester.getRect(find.byType(ListView).first);
+    final cardBox = tester.getRect(cardFinder('portal.lesson'));
+    final above = cardBox.top - railBox.top;
+    final below = railBox.bottom - cardBox.bottom;
+
+    expect(
+      (above - below).abs(),
+      lessThan(2),
+      reason: 'the card is not centred in the rail',
+    );
+  });
+
   testWidgets('reduced motion leaves the card entirely flat', (tester) async {
     tester.view.physicalSize = const Size(1280, 720);
     tester.view.devicePixelRatio = 1.0;
