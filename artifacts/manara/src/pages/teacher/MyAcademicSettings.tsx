@@ -363,6 +363,12 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
           const term = subject.terms.find((t: any) => t.term === termName);
           if (term && term.units) {
             term.units = term.units.filter((u: string) => u !== unitName);
+            // خريطة الدروس مفتاحها اسم الوحدة، فحذف الوحدة وحدها كان يترك
+            // دروسها معلّقة في الإعداد بلا واجهة تعرضها.
+            if (term.lessons && unitName in term.lessons) {
+              const { [unitName]: _removed, ...rest } = term.lessons;
+              term.lessons = rest;
+            }
             localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
             loadSettings(teacherId);
             alert('✅ تم حذف الوحدة بنجاح');
@@ -460,6 +466,140 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     }
   };
 
+  // ========== الدروس داخل الوحدة ==========
+  // آخر مستوى في التسلسل الأكاديمي:
+  // الصف ← الترم ← المادة ← الفصل ← الوحدة ← الدرس.
+  //
+  // الدروس مخزّنة في خريطة `term.lessons` مفتاحها اسم الوحدة، لا داخل
+  // `units` نفسها — وهو الشكل الذي تستخدمه لوحة المشرف بالفعل، فتقرأ
+  // الواجهتان وتطبيق الطالب البنية ذاتها. الحقل اختياري، فالإعدادات التي
+  // أُنشئت قبل وجوده تبقى صالحة كما هي بلا ترحيل.
+  //
+  // الكتابة إلى localStorage هي نفسها المزامنة: مفتاح
+  // `smartEdu_hierarchicalConfigs` من مفاتيح المزامنة، فاعتراض الكتابة في
+  // db/sync يرسله إلى Supabase تلقائياً، ولا يحتاج هذا الملف إلى استدعاء
+  // خاص به.
+
+  const lessonsOf = (
+    term: { units?: string[]; lessons?: Record<string, string[]> },
+    unit: string,
+  ): string[] => term.lessons?.[unit] ?? [];
+
+  /** يحدّد الفصل داخل إعداد هذا المعلم، أو null إذا لم يُعثر عليه. */
+  const findTerm = (
+    allConfigs: any[],
+    gradeName: string,
+    atramName: string,
+    subjectName: string,
+    termName: string,
+  ): any | null => {
+    const config = allConfigs.find(
+      (c: HierarchicalConfig) =>
+        c.grade === gradeName && getRecordTeacherId(c) === normalizeScopeValue(teacherId),
+    );
+    const atram = config?.atrams?.find((a: any) => a.atram === atramName);
+    const subject = atram?.subjects?.find((s: any) => s.subject === subjectName);
+    return subject?.terms?.find((t: any) => t.term === termName) ?? null;
+  };
+
+  const writeLessons = (
+    gradeName: string,
+    atramName: string,
+    subjectName: string,
+    termName: string,
+    unit: string,
+    next: string[],
+  ) => {
+    const allConfigs = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+    );
+    const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
+    if (!term) return;
+    const lessons = { ...(term.lessons ?? {}) };
+    if (next.length === 0) {
+      delete lessons[unit];
+    } else {
+      lessons[unit] = next;
+    }
+    term.lessons = lessons;
+    localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
+    loadSettings(teacherId);
+  };
+
+  const handleAddLesson = (
+    gradeName: string,
+    atramName: string,
+    subjectName: string,
+    termName: string,
+    unit: string,
+  ) => {
+    const name = prompt(`إضافة درس إلى وحدة "${unit}":`, '');
+    if (!name || !name.trim()) return;
+    const allConfigs = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+    );
+    const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
+    if (!term) return;
+    const current = lessonsOf(term, unit);
+    if (current.some(lesson => lesson === name.trim())) {
+      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
+      return;
+    }
+    writeLessons(gradeName, atramName, subjectName, termName, unit, [
+      ...current,
+      name.trim(),
+    ]);
+    alert('✅ تم إضافة الدرس بنجاح');
+  };
+
+  const handleEditLesson = (
+    gradeName: string,
+    atramName: string,
+    subjectName: string,
+    termName: string,
+    unit: string,
+    lessonIndex: number,
+  ) => {
+    const allConfigs = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+    );
+    const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
+    if (!term) return;
+    const current = lessonsOf(term, unit);
+    const oldLesson = current[lessonIndex];
+    const newLesson = prompt('تعديل اسم الدرس:', oldLesson);
+    if (!newLesson || !newLesson.trim() || newLesson.trim() === oldLesson) return;
+    const next = [...current];
+    next[lessonIndex] = newLesson.trim();
+    writeLessons(gradeName, atramName, subjectName, termName, unit, next);
+    alert('✅ تم تعديل الدرس بنجاح');
+  };
+
+  const handleDeleteLesson = (
+    gradeName: string,
+    atramName: string,
+    subjectName: string,
+    termName: string,
+    unit: string,
+    lessonIndex: number,
+  ) => {
+    const allConfigs = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+    );
+    const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
+    if (!term) return;
+    const current = lessonsOf(term, unit);
+    if (!confirm(`حذف الدرس "${current[lessonIndex]}"؟`)) return;
+    writeLessons(
+      gradeName,
+      atramName,
+      subjectName,
+      termName,
+      unit,
+      current.filter((_, index) => index !== lessonIndex),
+    );
+  };
+
   const handleEditUnit = (gradeName: string, atramName: string, subjectName: string, termName: string, oldName: string) => {
     const newName = prompt('أدخل الاسم الجديد للوحدة:', oldName);
     if (!newName || newName.trim() === oldName) return;
@@ -479,6 +619,12 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
             const unitIndex = term.units.indexOf(oldName);
             if (unitIndex !== -1) {
               term.units[unitIndex] = newName.trim();
+              // الدروس تتبع وحدتها عند إعادة التسمية، وإلا ظلت مفهرسة تحت
+              // الاسم القديم فتبدو وكأنها حُذفت.
+              if (term.lessons && oldName in term.lessons) {
+                const { [oldName]: moved, ...rest } = term.lessons;
+                term.lessons = { ...rest, [newName.trim()]: moved };
+              }
               localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
               loadSettings(teacherId);
               alert('✅ تم تعديل الوحدة بنجاح');
@@ -818,24 +964,58 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                               {term.units && term.units.length > 0 && (
                                 <div style={styles.unitsContainer}>
                                   {term.units.map((unit, uIdx) => (
-                                    <div key={uIdx} style={styles.unitBadgeWithButtons}>
-                                      <span style={styles.unitBadge}>
-                                        📄 {unit}
-                                      </span>
-                                      <button
-                                        onClick={() => handleEditUnit(config.grade, atram.atram, subject.subject, term.term, unit)}
-                                        style={styles.tinyEditButton}
-                                        title="تعديل الوحدة"
-                                      >
-                                        ✏️
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteUnit(config.grade, atram.atram, subject.subject, term.term, unit)}
-                                        style={styles.tinyDeleteButton}
-                                        title="حذف الوحدة"
-                                      >
-                                        ❌
-                                      </button>
+                                    <div key={uIdx} style={styles.unitBlock}>
+                                      <div style={styles.unitBadgeWithButtons}>
+                                        <span style={styles.unitBadge}>
+                                          📄 {unit}
+                                        </span>
+                                        <button
+                                          onClick={() => handleEditUnit(config.grade, atram.atram, subject.subject, term.term, unit)}
+                                          style={styles.tinyEditButton}
+                                          title="تعديل الوحدة"
+                                        >
+                                          ✏️
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteUnit(config.grade, atram.atram, subject.subject, term.term, unit)}
+                                          style={styles.tinyDeleteButton}
+                                          title="حذف الوحدة"
+                                        >
+                                          ❌
+                                        </button>
+                                        <button
+                                          onClick={() => handleAddLesson(config.grade, atram.atram, subject.subject, term.term, unit)}
+                                          style={styles.tinyAddLessonButton}
+                                          title="إضافة درس إلى هذه الوحدة"
+                                        >
+                                          ➕ درس
+                                        </button>
+                                      </div>
+                                      {/* الدروس تظهر فقط بعد إضافتها، فالإعدادات
+                                          التي أُنشئت قبل هذا الحقل لا يتغيّر شكلها. */}
+                                      {lessonsOf(term, unit).length > 0 && (
+                                        <div style={styles.lessonsRow}>
+                                          {lessonsOf(term, unit).map((lesson, lessonIndex) => (
+                                            <div key={lessonIndex} style={styles.lessonChip}>
+                                              <span style={styles.lessonName}>📘 {lesson}</span>
+                                              <button
+                                                onClick={() => handleEditLesson(config.grade, atram.atram, subject.subject, term.term, unit, lessonIndex)}
+                                                style={styles.tinyEditButton}
+                                                title="تعديل الدرس"
+                                              >
+                                                ✏️
+                                              </button>
+                                              <button
+                                                onClick={() => handleDeleteLesson(config.grade, atram.atram, subject.subject, term.term, unit, lessonIndex)}
+                                                style={styles.tinyDeleteButton}
+                                                title="حذف الدرس"
+                                              >
+                                                ❌
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -1087,6 +1267,44 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     alignItems: 'center',
     gap: '4px'
+  },
+  // الوحدة ودروسها ككتلة واحدة: الدروس تحت وحدتها مباشرة وبإزاحة، حتى
+  // يظل واضحاً أي درس يتبع أي وحدة عندما يحمل الفصل عدة وحدات.
+  unitBlock: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+    width: '100%'
+  },
+  lessonsRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '6px',
+    paddingInlineStart: '22px'
+  },
+  lessonChip: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 10px',
+    borderRadius: '999px',
+    backgroundColor: '#eef2ff',
+    border: '1px solid #c7d2fe'
+  },
+  lessonName: {
+    fontSize: '0.85rem',
+    fontWeight: 700,
+    color: '#3730a3'
+  },
+  tinyAddLessonButton: {
+    padding: '3px 9px',
+    fontSize: '0.78rem',
+    fontWeight: 700,
+    backgroundColor: '#4f46e5',
+    color: 'white',
+    border: 'none',
+    borderRadius: '999px',
+    cursor: 'pointer'
   },
   editButton: {
     padding: '8px 12px',

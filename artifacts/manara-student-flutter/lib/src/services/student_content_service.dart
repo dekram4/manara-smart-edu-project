@@ -389,6 +389,7 @@ class StudentContentService {
       paths: paths,
       lessons: matchingLessons,
       hierarchyUnavailable: hierarchyUnavailable,
+      declaredLessons: _declaredLessonsFromHierarchy(hierarchyValue, profile),
     );
   }
 
@@ -1125,6 +1126,75 @@ List<AcademicPath> _pathsFromHierarchy(Object? value, StudentProfile profile) {
     }
   }
   return paths;
+}
+
+/// The lesson names the teacher typed into the academic settings tree.
+///
+/// Stored as `term.lessons`, a map keyed by unit name rather than nested
+/// inside `units` — the shape the dashboard writes, chosen there so that
+/// settings saved before the lesson field existed stay readable without a
+/// migration. A term with no map, or a unit with no entry, simply yields
+/// nothing here.
+List<DeclaredLesson> _declaredLessonsFromHierarchy(
+  Object? value,
+  StudentProfile profile,
+) {
+  if (value is! List) return const [];
+
+  final declared = <DeclaredLesson>[];
+  final seen = <String>{};
+
+  for (final rawConfig in value) {
+    final config = _asMap(rawConfig);
+    if (!_matchesConfigOwner(config, profile)) continue;
+
+    final grade = _value(config, ['grade', 'class', 'schoolGrade']);
+    final atrams = config['atrams'];
+    if (grade.isEmpty || atrams is! List) continue;
+
+    for (final rawAtram in atrams) {
+      final atram = _asMap(rawAtram);
+      final atramName = _value(atram, ['atram', 'semester', 'term']);
+      final subjects = atram['subjects'];
+      if (atramName.isEmpty || subjects is! List) continue;
+
+      for (final rawSubject in subjects) {
+        final subject = _asMap(rawSubject);
+        final subjectName = _value(subject, ['subject', 'course']);
+        final terms = subject['terms'];
+        if (subjectName.isEmpty || terms is! List) continue;
+
+        for (final rawTerm in terms) {
+          final term = _asMap(rawTerm);
+          final termName = _value(term, ['term', 'chapter', 'name']);
+          final lessonsByUnit = term['lessons'];
+          if (termName.isEmpty || lessonsByUnit is! Map) continue;
+
+          for (final entry in lessonsByUnit.entries) {
+            final unit = _text(entry.key);
+            final names = entry.value;
+            if (unit.isEmpty || names is! List) continue;
+
+            for (final rawName in names) {
+              final name = _text(rawName);
+              if (name.isEmpty) continue;
+              final path = AcademicPath(
+                grade: grade,
+                atram: atramName,
+                subject: subjectName,
+                term: termName,
+                unit: unit,
+              );
+              final lesson = DeclaredLesson(path: path, name: name);
+              if (!seen.add(lesson.placeholderId)) continue;
+              declared.add(lesson);
+            }
+          }
+        }
+      }
+    }
+  }
+  return declared;
 }
 
 List<AcademicPath> _uniquePaths(Iterable<AcademicPath> paths) {

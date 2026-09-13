@@ -85,6 +85,34 @@ export const dedupeHierarchicalConfigs = (value: unknown): HierarchicalConfig[] 
             ...(targetTerm.units || []),
             ...(Array.isArray(rawTerm?.units) ? rawTerm.units : []),
           ]);
+
+          // الدروس تُدمج مع الوحدات ولا تُسقَط.
+          //
+          // هذه الدالة تعيد بناء كل فصل من الصفر، وكانت تنسخ `units` فقط —
+          // فكل تحميل للإعدادات كان يمحو الدروس التي أدخلها المعلم أو
+          // المشرف، ثم يُحفظ المحذوف فوق الأصل. الحقل اختياري، فالإعدادات
+          // القديمة التي لا تحمل دروساً تبقى كما هي بلا مفتاح فارغ.
+          const incomingLessons =
+            rawTerm?.lessons && typeof rawTerm.lessons === 'object'
+              ? (rawTerm.lessons as Record<string, unknown>)
+              : null;
+          if (incomingLessons) {
+            const mergedLessons: Record<string, string[]> = {
+              ...(targetTerm.lessons ?? {}),
+            };
+            Object.entries(incomingLessons).forEach(([unit, value]) => {
+              const unitName = cleanName(unit);
+              if (!unitName) return;
+              const names = uniqueNames([
+                ...(mergedLessons[unitName] ?? []),
+                ...(Array.isArray(value) ? value : []),
+              ]);
+              if (names.length > 0) mergedLessons[unitName] = names;
+            });
+            if (Object.keys(mergedLessons).length > 0) {
+              targetTerm.lessons = mergedLessons;
+            }
+          }
         });
         targetSubject.terms = targetTerms;
       });

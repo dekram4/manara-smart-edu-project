@@ -711,10 +711,20 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   // 10. حذف وحدة
   const handleDeleteUnit = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
     if (!confirm('هل أنت متأكد من حذف هذه الوحدة؟')) return;
-    
+
     const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].units.splice(unitIndex, 1);
-    
+    const term =
+      updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    const removedUnit = term.units[unitIndex];
+    term.units.splice(unitIndex, 1);
+    // خريطة الدروس مفتاحها اسم الوحدة، فحذف الوحدة وحدها كان يترك دروسها
+    // معلّقة في الإعداد إلى الأبد — غير مرئية، وتعود للظهور إذا أُنشئت وحدة
+    // بالاسم نفسه لاحقاً.
+    if (term.lessons && removedUnit in term.lessons) {
+      const { [removedUnit]: _removed, ...rest } = term.lessons;
+      term.lessons = rest;
+    }
+
     setHierarchicalConfigs(updatedConfigs);
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
     onUpdate();
@@ -870,10 +880,18 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const oldName = hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].units[unitIndex];
     const newName = prompt('تعديل اسم الوحدة:', oldName);
     if (!newName || newName.trim() === '' || newName === oldName) return;
-    
+
     const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].units[unitIndex] = newName.trim();
-    
+    const term =
+      updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    term.units[unitIndex] = newName.trim();
+    // الدروس تتبع وحدتها عند إعادة التسمية. بدون هذا كانت تظل مفهرسة تحت
+    // الاسم القديم، فتختفي من الواجهة وتبدو وكأنها حُذفت.
+    if (term.lessons && oldName in term.lessons) {
+      const { [oldName]: moved, ...rest } = term.lessons;
+      term.lessons = { ...rest, [newName.trim()]: moved };
+    }
+
     setHierarchicalConfigs(updatedConfigs);
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
     onUpdate();
