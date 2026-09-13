@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -389,7 +390,7 @@ class StudentContentService {
       paths: paths,
       lessons: matchingLessons,
       hierarchyUnavailable: hierarchyUnavailable,
-      declaredLessons: _declaredLessonsFromHierarchy(hierarchyValue, profile),
+      declaredLessons: declaredLessonsFromHierarchy(hierarchyValue, profile),
     );
   }
 
@@ -1135,7 +1136,8 @@ List<AcademicPath> _pathsFromHierarchy(Object? value, StudentProfile profile) {
 /// settings saved before the lesson field existed stay readable without a
 /// migration. A term with no map, or a unit with no entry, simply yields
 /// nothing here.
-List<DeclaredLesson> _declaredLessonsFromHierarchy(
+@visibleForTesting
+List<DeclaredLesson> declaredLessonsFromHierarchy(
   Object? value,
   StudentProfile profile,
 ) {

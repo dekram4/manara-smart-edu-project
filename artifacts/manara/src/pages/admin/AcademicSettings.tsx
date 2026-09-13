@@ -41,6 +41,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const [selectedTerm, setSelectedTerm] = useState('');
   const [newTerm, setNewTerm] = useState('');
   const [newUnit, setNewUnit] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState('');
+  const [newLesson, setNewLesson] = useState('');
 
   // مسودة اسم الدرس لكل وحدة، ومفتاحها موضع الوحدة في الشجرة — فكل وحدة
   // لها حقلها الخاص ولا تتشارك عدة وحدات مربع إدخال واحداً.
@@ -292,6 +294,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     setSelectedAtram('');
     setSelectedSubject('');
     setSelectedTerm('');
+    setSelectedUnit('');
   };
 
   // ============ دوال الإضافة والحذف للهيكل الجديد ============
@@ -717,6 +720,57 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
     onUpdate();
     alert('تم الحذف بنجاح');
+  };
+
+  /**
+   * 10. إضافة درس لوحدة محددة — الخطوة السادسة في عمود الإنشاء.
+   *
+   * الشجرة تُخاطَب بالفهارس في هذا الملف، والنموذج يحمل أسماء، فالأسماء
+   * تُحلّ إلى فهارس هنا تماماً كما تفعل إضافة الوحدة فوقها.
+   */
+  const handleAddLessonFromForm = () => {
+    if (!selectedGrade || !selectedAtram || !selectedSubject || !selectedTerm || !selectedUnit) {
+      alert('الرجاء اختيار الصف والترم والمادة والفصل والوحدة أولاً');
+      return;
+    }
+    const name = newLesson.trim();
+    if (!name) {
+      alert('الرجاء إدخال اسم الدرس');
+      return;
+    }
+
+    const gradeIndex = hierarchicalConfigs.findIndex(c => c.grade === selectedGrade);
+    if (gradeIndex === -1) return;
+    const grade = hierarchicalConfigs[gradeIndex];
+
+    if (teacherId && !isGeneralConfig(grade) && !belongsToTeacher(grade, teacherId)) {
+      alert('⚠️ لا يمكنك تعديل إعدادات معلم آخر.');
+      return;
+    }
+
+    const atramIndex = grade.atrams?.findIndex(a => a.atram === selectedAtram) ?? -1;
+    if (atramIndex === -1) return;
+    const subjectIndex =
+      grade.atrams[atramIndex].subjects?.findIndex(s => s.subject === selectedSubject) ?? -1;
+    if (subjectIndex === -1) return;
+    const termIndex =
+      grade.atrams[atramIndex].subjects[subjectIndex].terms
+        ?.findIndex(t => t.term === selectedTerm) ?? -1;
+    if (termIndex === -1) return;
+
+    const term = grade.atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    const current = lessonsOf(term, selectedUnit);
+    if (current.some(lesson => lesson === name)) {
+      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
+      return;
+    }
+
+    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, selectedUnit, [
+      ...current,
+      name,
+    ]);
+    setNewLesson('');
+    alert('✅ تم إضافة الدرس');
   };
 
   // 9. إضافة وحدة لفصل محدد
@@ -1269,6 +1323,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 setSelectedAtram('');
                 setSelectedSubject('');
                 setSelectedTerm('');
+                setSelectedUnit('');
               }}
               style={{ ...styles.addInput, marginBottom: '8px' }}
             >
@@ -1298,6 +1353,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 setSelectedAtram(e.target.value);
                 setSelectedSubject('');
                 setSelectedTerm('');
+                setSelectedUnit('');
               }}
               style={{ ...styles.addInput, marginBottom: '8px' }}
               disabled={!selectedGrade}
@@ -1327,6 +1383,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
               onChange={e => {
                 setSelectedSubject(e.target.value);
                 setSelectedTerm('');
+                setSelectedUnit('');
               }}
               style={{ ...styles.addInput, marginBottom: '8px' }}
               disabled={!selectedAtram}
@@ -1353,7 +1410,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>5️⃣ اختر فصل وأضف وحدة</label>
             <select 
               value={selectedTerm} 
-              onChange={e => setSelectedTerm(e.target.value)}
+              onChange={e => {
+                setSelectedTerm(e.target.value);
+                // الوحدة تتبع فصلها: اختيار فصل آخر يجعل الوحدة المختارة
+                // تخصّ شجرة أخرى.
+                setSelectedUnit('');
+              }}
               style={{ ...styles.addInput, marginBottom: '8px' }}
               disabled={!selectedSubject}
             >
@@ -1371,6 +1433,35 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 disabled={!selectedTerm}
               />
               <button onClick={handleAddUnit} style={styles.addButton} disabled={!selectedTerm}>➕</button>
+            </div>
+          </div>
+
+          {/* 6. اختيار وحدة وإضافة درس — آخر خطوة في التسلسل السداسي.
+              الدرس يُضاف من هنا بنفس طريقة كل مستوى فوقه: اختر ما يحتويه،
+              ثم اكتب الاسم. كان يُضاف من بطاقة الوحدة فقط في عمود العرض،
+              فلم يكن جزءاً من خطوات الإنشاء. */}
+          <div style={{ padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>6️⃣ اختر وحدة وأضف درس</label>
+            <select
+              value={selectedUnit}
+              onChange={e => setSelectedUnit(e.target.value)}
+              style={{ ...styles.addInput, marginBottom: '8px' }}
+              disabled={!selectedTerm}
+            >
+              <option value="">-- اختر الوحدة --</option>
+              {getUnitsForTerm().map((u: string, i: number) => <option key={i} value={u}>{u}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={newLesson}
+                onChange={e => setNewLesson(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && !e.currentTarget.disabled && handleAddLessonFromForm()}
+                placeholder="مثال: الخلية ووظائفها"
+                style={{ ...styles.addInput, flex: 1 }}
+                disabled={!selectedUnit}
+              />
+              <button onClick={handleAddLessonFromForm} style={styles.addButton} disabled={!selectedUnit}>➕</button>
             </div>
           </div>
         </div>

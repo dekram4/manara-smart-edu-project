@@ -34,6 +34,8 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   const [selectedTerm, setSelectedTerm] = useState('');
   const [newTerm, setNewTerm] = useState('');
   const [newUnit, setNewUnit] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState('');
+  const [newLesson, setNewLesson] = useState('');
 
   // مسودة اسم الدرس لكل وحدة، ومفتاحها المسار الكامل للوحدة — فكل وحدة
   // على الشاشة لها حقلها الخاص، ولا تتشارك عدة وحدات مربع إدخال واحداً.
@@ -630,6 +632,34 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   /// يضيف الدرس المكتوب في حقل هذه الوحدة.
+  /// الخطوة السادسة في عمود الإنشاء: تكتب اسم الدرس في الحقل هناك بعد
+  /// اختيار الوحدة، بدل الحقل السريع داخل بطاقة الوحدة.
+  const handleAddLessonFromForm = () => {
+    const name = newLesson.trim();
+    if (!name || !selectedGrade || !selectedAtram || !selectedSubject ||
+        !selectedTerm || !selectedUnit) {
+      return;
+    }
+    const allConfigs = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+    );
+    const term = findTerm(
+      allConfigs, selectedGrade, selectedAtram, selectedSubject, selectedTerm,
+    );
+    if (!term) return;
+    const current = lessonsOf(term, selectedUnit);
+    if (current.some(lesson => lesson === name)) {
+      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
+      return;
+    }
+    writeLessons(
+      selectedGrade, selectedAtram, selectedSubject, selectedTerm, selectedUnit,
+      [...current, name],
+    );
+    setNewLesson('');
+    alert('✅ تم إضافة الدرس بنجاح');
+  };
+
   const handleAddLesson = (
     gradeName: string,
     atramName: string,
@@ -843,6 +873,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                   setSelectedAtram('');
                   setSelectedSubject('');
                   setSelectedTerm('');
+                  setSelectedUnit('');
                 }}
                 style={{ ...styles.input, marginBottom: '8px' }}
               >
@@ -872,6 +903,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                   setSelectedAtram(e.target.value);
                   setSelectedSubject('');
                   setSelectedTerm('');
+                  setSelectedUnit('');
                 }}
                 style={{ ...styles.input, marginBottom: '8px' }}
                 disabled={!selectedGrade}
@@ -901,6 +933,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                 onChange={e => {
                   setSelectedSubject(e.target.value);
                   setSelectedTerm('');
+                  setSelectedUnit('');
                 }}
                 style={{ ...styles.input, marginBottom: '8px' }}
                 disabled={!selectedAtram}
@@ -927,7 +960,12 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
               <label style={styles.label}>5️⃣ اختر فصل وأضف وحدة</label>
               <select 
                 value={selectedTerm}
-                onChange={e => setSelectedTerm(e.target.value)}
+onChange={e => {
+                  setSelectedTerm(e.target.value);
+                  // الوحدة تتبع فصلها: اختيار فصل آخر يجعل الوحدة
+                  // المختارة تخصّ شجرة أخرى.
+                  setSelectedUnit('');
+                }}
                 style={{ ...styles.input, marginBottom: '8px' }}
                 disabled={!selectedSubject}
               >
@@ -945,6 +983,34 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                   disabled={!selectedTerm}
                 />
                 <button onClick={handleAddUnit} style={styles.addButton} disabled={!selectedTerm}>➕</button>
+              </div>
+            </div>
+
+            {/* Add Lesson — آخر خطوة في التسلسل السداسي. الدرس يُضاف من هنا
+                بنفس طريقة كل مستوى فوقه: اختر ما يحتويه، ثم اكتب الاسم.
+                كان يُضاف من بطاقة الوحدة فقط، فلم يكن جزءاً من الخطوات. */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>6️⃣ اختر وحدة وأضف درس</label>
+              <select
+                value={selectedUnit}
+                onChange={e => setSelectedUnit(e.target.value)}
+                style={{ ...styles.input, marginBottom: '8px' }}
+                disabled={!selectedTerm}
+              >
+                <option value="">-- اختر الوحدة --</option>
+                {getUnitsForTerm().map((u, i) => <option key={i} value={u}>{u}</option>)}
+              </select>
+              <div style={styles.inputGroup}>
+                <input
+                  type="text"
+                  value={newLesson}
+                  onChange={e => setNewLesson(e.target.value)}
+                  onKeyPress={e => e.key === 'Enter' && !e.currentTarget.disabled && handleAddLessonFromForm()}
+                  placeholder="مثال: الخلية ووظائفها"
+                  style={styles.input}
+                  disabled={!selectedUnit}
+                />
+                <button onClick={handleAddLessonFromForm} style={styles.addButton} disabled={!selectedUnit}>➕</button>
               </div>
             </div>
           </div>
