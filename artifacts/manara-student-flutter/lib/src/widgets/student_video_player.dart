@@ -1259,8 +1259,35 @@ class _NetworkVideoSurface extends StatefulWidget {
 class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   bool _showControls = true;
 
+  /// Hides the controls after a few idle seconds of playback.
+  ///
+  /// Restarted on every interaction, and never started while the video is
+  /// paused: a student who has just paused is looking at the controls, and
+  /// having them vanish underneath is how the play button became
+  /// impossible to find again.
+  Timer? _hideTimer;
+
+  static const _idleBeforeHide = Duration(seconds: 3);
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _restartHideTimer() {
+    _hideTimer?.cancel();
+    if (!widget.controller.value.isPlaying) return;
+    _hideTimer = Timer(_idleBeforeHide, () {
+      if (mounted) setState(() => _showControls = false);
+    });
+  }
+
+  /// The tap on the video surface itself — reveals the controls, or hides
+  /// them again if they are already up.
   void _toggleControls() {
     setState(() => _showControls = !_showControls);
+    if (_showControls) _restartHideTimer();
   }
 
   Future<void> _togglePlayback() async {
@@ -1279,7 +1306,10 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
       await controller.play();
     }
     if (!mounted) return;
+    // Always ends with the controls up, so the button the student just
+    // pressed is still under their finger and shows its new state.
     setState(() => _showControls = true);
+    _restartHideTimer();
   }
 
   Future<void> _openFullscreen() async {
@@ -1365,21 +1395,45 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
               );
             },
           ),
+          // The big centre button, and it is a real button.
+          //
+          // It used to be wrapped in IgnorePointer — decoration only — so
+          // a tap on it fell straight through to the surface's own
+          // "toggle the controls" handler. Pressing pause in the middle of
+          // a video therefore hid the button and did nothing else, which
+          // is exactly what was reported. It now drives playback directly,
+          // and stops the tap so the overlay handler underneath never sees
+          // it.
           if (_showControls)
-            IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black.withAlpha(80),
-                  shape: BoxShape.circle,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Icon(
-                    widget.controller.value.isPlaying
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 34,
+            Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _togglePlayback,
+                customBorder: const CircleBorder(),
+                child: Semantics(
+                  button: true,
+                  label: widget.controller.value.isPlaying
+                      ? tr('video.pause')
+                      : tr('video.play'),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(110),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      // Roomy enough to be an easy target for a child's
+                      // finger rather than a 34px glyph.
+                      padding: const EdgeInsets.all(18),
+                      child: Icon(
+                        widget.controller.value.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
                   ),
                 ),
               ),

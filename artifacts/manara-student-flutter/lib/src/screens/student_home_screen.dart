@@ -877,12 +877,29 @@ class _SectionTile extends StatefulWidget {
 
 class _SectionTileState extends State<_SectionTile>
     with TickerProviderStateMixin {
-  /// The idle float is gone.
+  /// The idle life of the card: a slow breath and a glow that swells with
+  /// it, running whenever nothing is touching it.
   ///
-  /// Nine cards drifting on their own timers read as restless rather than
-  /// alive, and the motion competed with the one that matters — the card
-  /// answering a finger. The card now sits still and raised, and every
-  /// movement on screen is something the student caused.
+  /// This is the second attempt at idle motion. The first was a vertical
+  /// drift, which was removed for reading as restless — nine cards sliding
+  /// on their own timers. The difference here is what moves: a breath is a
+  /// scale and a depth change about its own centre, so the card stays put
+  /// and appears to be alive rather than adrift, and the glow pulsing with
+  /// it does the attracting that the travel was trying to do.
+  ///
+  /// Each card is given its own period and starts part-way into the cycle,
+  /// so nine of them never breathe in unison — that lockstep is what makes
+  /// a row of animated cards look mechanical.
+  late final AnimationController _idle = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: 3400 + (widget.index % 5) * 260),
+  );
+
+  /// The breath, eased at both ends so it never snaps at the turn.
+  late final Animation<double> _idleCurve = CurvedAnimation(
+    parent: _idle,
+    curve: Curves.easeInOutSine,
+  );
 
   /// The reaction to a finger or a pointer resting on the card: it rises,
   /// grows and lights its rim. Fast in, quick out — no lingering.
@@ -946,10 +963,20 @@ class _SectionTileState extends State<_SectionTile>
 
   @override
   void dispose() {
+    _idle.dispose();
     _lift.dispose();
     _push.dispose();
     _pointerAlign.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Offset into the cycle so the rail is never in unison, then run
+    // forever, reversing at each end.
+    _idle.value = (widget.index % 7) / 7;
+    _idle.repeat(reverse: true);
   }
 
   /// Hover and press are tracked apart and combined here: on a desktop the
@@ -1094,7 +1121,8 @@ class _SectionTileState extends State<_SectionTile>
         behavior: HitTestBehavior.opaque,
         onTap: widget.onPressed,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_liftCurve, _push, _pointerAlign]),
+          animation:
+              Listenable.merge([_idleCurve, _liftCurve, _push, _pointerAlign]),
           builder: (context, child) {
             final lift = reduceMotion ? 0.0 : _liftCurve.value.clamp(0.0, 1.4);
             final aim = reduceMotion ? Offset.zero : _pointerAlign.value;
@@ -1103,6 +1131,15 @@ class _SectionTileState extends State<_SectionTile>
             // loosely — just enough that a violent fling cannot invert
             // the card.
             final push = reduceMotion ? 0.0 : _push.value.clamp(-0.35, 1.25);
+
+            // The breath, -1..1 about the resting size, faded out by the
+            // lift so it hands over to the touch rather than fighting it.
+            // Multiplying by (1 - lift) is what makes the two blend: as a
+            // finger arrives the idle motion recedes to nothing over the
+            // same 130ms the card takes to rise, so there is no cut.
+            final breath = reduceMotion
+                ? 0.0
+                : (_idleCurve.value * 2 - 1) * (1 - lift.clamp(0.0, 1.0));
 
             // Real depth rather than a flat scale: a perspective entry in
             // the matrix, a tilt away from the rail as the card rises, and
@@ -1119,14 +1156,19 @@ class _SectionTileState extends State<_SectionTile>
             // off the height than the width, the way a real soft object
             // gives under a thumb. A uniform shrink reads as the card
             // moving away instead of compressing.
-            final squashX = 1 + lift * 0.07 - push * 0.045;
-            final squashY = 1 + lift * 0.07 - push * 0.080;
+            final squashX =
+                1 + breath * 0.014 + lift * 0.07 - push * 0.045;
+            final squashY =
+                1 + breath * 0.014 + lift * 0.07 - push * 0.080;
 
             final matrix = Matrix4.identity()
               ..setEntry(3, 2, 0.0020)
-              ..translate(0.0, -lift * 16 + push * 5)
+              // A couple of pixels of rise on the breath — enough to read
+              // as the card drawing toward the viewer, far short of the
+              // travel that made the old drift look adrift.
+              ..translate(0.0, breath * -2.5 - lift * 16 + push * 5)
               ..rotateX(-lift * 0.10 - aim.dy * push * 0.26)
-              ..rotateY(aim.dx * push * 0.26)
+              ..rotateY(breath * 0.012 + aim.dx * push * 0.26)
               ..scale(squashX, squashY);
 
             // The rim is the neon: a quiet tinted hairline at rest that
@@ -1134,7 +1176,13 @@ class _SectionTileState extends State<_SectionTile>
             // each card glows as itself rather than every card glowing
             // the same white. Past halfway it blends toward white, which
             // is what gives a neon tube its hot core.
-            final glow = lift.clamp(0.0, 1.0);
+            //
+            // It also breathes. The ambient pulse is a floor under the
+            // touch glow rather than a separate effect, so the rim is
+            // never fully dark and arriving with a finger only takes it
+            // brighter — no seam between the two.
+            final ambient = ((breath + 1) / 2) * 0.30;
+            final glow = math.max(ambient, lift.clamp(0.0, 1.0));
             final rim = Color.lerp(tint, Colors.white, glow * 0.35)!;
 
             return Transform(

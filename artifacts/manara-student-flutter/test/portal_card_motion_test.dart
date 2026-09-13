@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,19 +85,47 @@ void main() {
   double tiltY(Matrix4 m) => m.entry(0, 2);
   double tiltX(Matrix4 m) => m.entry(1, 2);
 
-  testWidgets('an untouched card holds perfectly still', (tester) async {
+  testWidgets('an untouched card breathes on its own', (tester) async {
     await pumpHub(tester);
 
-    // The old rail drifted on a repeating timer. Nothing moves now unless
-    // a finger is on it — a card that wanders on its own is exactly the
-    // restlessness this replaced.
-    final first = cardMatrix(tester, 'portal.lesson');
-    for (var i = 0; i < 6; i++) {
-      await tester.pump(const Duration(milliseconds: 400));
-      final now = cardMatrix(tester, 'portal.lesson');
-      expect(yOf(now), yOf(first));
-      expect(scaleOf(now), scaleOf(first));
+    final scales = <double>[];
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+      scales.add(scaleOf(cardMatrix(tester, 'portal.lesson')));
     }
+
+    final swing = scales.reduce(math.max) - scales.reduce(math.min);
+    expect(swing, greaterThan(0.004), reason: 'the card is not breathing');
+  });
+
+  testWidgets('the breath is a breath, not a drift', (tester) async {
+    await pumpHub(tester);
+
+    // The first attempt at idle motion travelled, and a row of cards
+    // sliding on their own timers read as restless. A breath stays put:
+    // the vertical movement has to be small enough that the card appears
+    // to swell rather than wander.
+    final heights = <double>[];
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+      heights.add(yOf(cardMatrix(tester, 'portal.lesson')));
+    }
+
+    final travel = heights.reduce(math.max) - heights.reduce(math.min);
+    expect(travel, lessThan(7), reason: 'the idle motion is drifting again');
+  });
+
+  testWidgets('neighbouring cards do not breathe in unison', (tester) async {
+    await pumpHub(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Each card is given its own period and its own offset into the cycle
+    // precisely so nine of them never pulse as one block, which is what
+    // makes a row of animated cards look mechanical.
+    expect(
+      scaleOf(cardMatrix(tester, 'portal.lesson')),
+      isNot(scaleOf(cardMatrix(tester, 'portal.games'))),
+    );
   });
 
   testWidgets('a press compresses the card, more in height than width',

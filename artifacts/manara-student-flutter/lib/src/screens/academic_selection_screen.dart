@@ -51,13 +51,25 @@ class _BookSlot {
   final double angle;
   final Color color;
 
+  /// The shortest a control may be, whatever the artwork scales to.
+  ///
+  /// The slot heights are fractions of the illustration, and on a
+  /// landscape phone the illustration is short enough that a fraction of
+  /// it cannot hold a 22sp value over its label — the control overflowed
+  /// by about 14px. The text used to be squashed to fit by a FittedBox,
+  /// which is precisely what made raising the font size do nothing. So
+  /// the band gives way instead of the type: below this floor the control
+  /// reaches a little past its book's printed lines, which is a far
+  /// better trade than type a child cannot read.
+  static const minHeight = 52.0;
+
   Rect resolve(Rect imageRect) => Rect.fromCenter(
     center: Offset(
       imageRect.left + centerX * imageRect.width,
       imageRect.top + centerY * imageRect.height,
     ),
     width: width * imageRect.width,
-    height: height * imageRect.height,
+    height: math.max(minHeight, height * imageRect.height),
   );
 
   /// Pins [child] onto this book and tilts it to the page's own slope.
@@ -83,7 +95,7 @@ const _gradeSlot = _BookSlot(
   centerX: 0.3773,
   centerY: 0.1164,
   width: 0.2138,
-  height: 0.077,
+  height: 0.108,
   angle: 0.035,
   color: Color(0xFF2FA8BE), // teal, top book
 );
@@ -91,7 +103,7 @@ const _atramSlot = _BookSlot(
   centerX: 0.6239,
   centerY: 0.2640,
   width: 0.2636,
-  height: 0.066,
+  height: 0.104,
   angle: -0.155,
   color: Color(0xFFE8930C), // orange
 );
@@ -99,7 +111,7 @@ const _subjectSlot = _BookSlot(
   centerX: 0.6667,
   centerY: 0.4381,
   width: 0.3321,
-  height: 0.077,
+  height: 0.108,
   angle: -0.155,
   color: Color(0xFFA974BE), // purple
 );
@@ -110,7 +122,7 @@ const _unitSlot = _BookSlot(
   centerX: 0.3626,
   centerY: 0.6130,
   width: 0.3720,
-  height: 0.064,
+  height: 0.104,
   angle: 0.089,
   color: Color(0xFFC0392B), // red
 );
@@ -118,7 +130,7 @@ const _lessonSlot = _BookSlot(
   centerX: 0.3578,
   centerY: 0.7398,
   width: 0.3923,
-  height: 0.064,
+  height: 0.104,
   angle: 0.089,
   color: Color(0xFF2E7D4F), // green
 );
@@ -126,7 +138,7 @@ const _startSlot = _BookSlot(
   centerX: 0.3419,
   centerY: 0.8928,
   width: 0.4400,
-  height: 0.075,
+  height: 0.108,
   angle: 0.089,
   color: Color(0xFF12406B), // navy, bottom book
 );
@@ -136,12 +148,23 @@ class AcademicSelectionScreen extends StatefulWidget {
     required this.profile,
     required this.authService,
     required this.apiBaseUrl,
+    this.initialData,
     super.key,
   });
 
   final StudentProfile profile;
   final StudentAuthService authService;
   final String apiBaseUrl;
+
+  /// Stands in for the network fetch so the laid-out scene can be tested.
+  ///
+  /// Without this the screen can only ever be pumped in its loading or
+  /// error state — the books and the start button never render, so any
+  /// test that measures them passes by finding nothing. Every visual
+  /// report about this screen has been about those widgets, so they are
+  /// exactly the ones that need to be reachable.
+  @visibleForTesting
+  final AcademicSelectionData? initialData;
 
   @override
   State<AcademicSelectionScreen> createState() => _AcademicSelectionScreenState();
@@ -173,7 +196,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       widget.authService.client,
       baseUrl: widget.apiBaseUrl,
     );
-    _loadSelectionData();
+    final seeded = widget.initialData;
+    if (seeded != null) {
+      _data = seeded;
+      _loading = false;
+      _applyInitialSelection(seeded);
+    } else {
+      _loadSelectionData();
+    }
     _loadGamification();
   }
 
@@ -652,9 +682,19 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                   girlColumn = (areaSize.width * 0.28)
                       .clamp(96.0, 460.0)
                       .toDouble();
+                  // Landscape is two columns, and the button belongs in
+                  // the guide's column under her — not in a band across
+                  // the foot of the screen.
+                  //
+                  // A full-width band there is what covered her and the
+                  // last book once the books grew: on a short landscape
+                  // window the stack reaches the bottom, and anything
+                  // spanning the full width lands on top of it. In its own
+                  // column the button cannot touch a book at all, and the
+                  // books get the whole height back.
                   mascotHeight = math.min(
                     girlColumn * 1.02,
-                    (areaSize.height - topReserve - startBand - edge) * 0.66,
+                    (areaSize.height - topReserve - startBand - edge) * 0.62,
                   );
                   final content = Size(
                     math.max(0.0, areaSize.width - girlColumn - edge * 2),
@@ -696,9 +736,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         ),
                       )
                     else
+                      // She stands on top of the button rather than
+                      // sharing its space: the band below her is reserved,
+                      // so nothing in this column overlaps anything else
+                      // in it.
                       Positioned(
                         left: edge,
-                        bottom: edge,
+                        bottom: startBand,
                         width: math.max(0.0, girlColumn - edge),
                         child: _FlyAway(
                           away: _leaving,
@@ -721,13 +765,22 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         rect: imageRect,
                         child: Center(child: _buildLoadingOrError()),
                       ),
-                    // The start button, across the foot of the screen and
-                    // under every book. Wide enough that a child does not
-                    // have to aim.
+                    // The start button.
+                    //
+                    // Portrait: a band across the foot of the screen, under
+                    // every book, as wide as the screen — a child should
+                    // not have to aim for it.
+                    //
+                    // Landscape: inside the guide's own column, beneath
+                    // her, so it can never reach across and cover a book
+                    // or the character the way a full-width band did on a
+                    // short window.
                     if (_ready)
                       Positioned(
-                        left: edge,
-                        right: edge,
+                        left: portrait ? edge : edge,
+                        right: portrait
+                            ? edge
+                            : math.max(edge, areaSize.width - girlColumn),
                         bottom: edge,
                         height: startBand - edge,
                         child: _FlyAway(
@@ -1034,44 +1087,48 @@ class _BookDropdown extends StatelessWidget {
                     ),
                     const SizedBox(width: 7),
                   ],
+                  // No FittedBox on either line any more.
+                  //
+                  // Both used to be wrapped in one, and a FittedBox inside
+                  // a fixed-height slot makes the source font size
+                  // irrelevant: it scaled whatever was written down to
+                  // whatever half a ~38px book band would take, so raising
+                  // the numbers changed nothing on screen. The slots were
+                  // given the height instead, and the text is now printed
+                  // at its stated size. It cannot overflow because the
+                  // value is one line with an ellipsis and the label is
+                  // one line too.
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                color: dark.withOpacity(0.85),
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                        Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: dark.withOpacity(0.9),
+                            fontSize: 15,
+                            height: 1.1,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Text(
-                              enabled
-                                  ? (value ?? tr('path.choose'))
-                                  : tr('path.unavailable'),
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: StudentSurface.ink(context),
-                                // The value the student actually reads —
-                                // the grade, the subject, the lesson. It
-                                // carries the book, so it is the largest
-                                // thing on the page.
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
+                        Text(
+                          enabled
+                              ? (value ?? tr('path.choose'))
+                              : tr('path.unavailable'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: StudentSurface.ink(context),
+                            // The value the student actually reads — the
+                            // grade, the subject, the lesson. It carries
+                            // the book, so it is the largest thing on it.
+                            fontSize: 22,
+                            height: 1.15,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ],
