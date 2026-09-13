@@ -769,10 +769,10 @@ const _homeSections = <_HomeSection>[
   // it already had — _openModule dispatches on position, and inserting
   // anywhere else would silently send a student to the wrong card.
   _HomeSection(
-    title: 'تحدي القراءة',
-    subtitle: 'كوّن الكلمات',
-    description: 'اسحب الحروف الناقصة وأكمل كلمات درسك.',
-    image: 'assets/images/icon_endless.png',
+    title: 'بطاقة التحدي',
+    subtitle: 'اسحب وأكمل',
+    description: 'حروف وجمل وتصنيفات من درسك، على مراحل.',
+    image: 'assets/images/endless_challenge.png',
     colors: [Color(0xFF3B2A6B), Color(0xFF6D28D9)],
     accent: Color(0xFFDDD6FE),
   ),
@@ -866,13 +866,17 @@ class _SectionTileState extends State<_SectionTile>
   /// more slowly, which is what makes it feel sprung rather than switched.
   late final AnimationController _lift = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 260),
-    reverseDuration: const Duration(milliseconds: 420),
+    duration: const Duration(milliseconds: 340),
+    reverseDuration: const Duration(milliseconds: 520),
   );
 
   late final Animation<double> _liftCurve = CurvedAnimation(
     parent: _lift,
-    curve: Curves.easeOutBack,
+    // Overshoots and settles rather than easing flat into place — that
+    // bounce is the difference between a card that answers a finger and
+    // one that merely changes size. easeOutBack was too polite to read
+    // as a reaction at all.
+    curve: Curves.elasticOut,
     reverseCurve: Curves.easeOutCubic,
   );
 
@@ -982,34 +986,51 @@ class _SectionTileState extends State<_SectionTile>
                 : (1 - math.cos(_drift.value * math.pi)) / 2 - 0.5;
             final lift = reduceMotion ? 0.0 : _liftCurve.value.clamp(0.0, 1.4);
 
-            return Transform.translate(
-              offset: Offset(0, drift * 5 - lift * 9),
-              child: Transform.scale(
-                scale: 1 + lift * 0.05,
-                child: Container(
+            // Real depth rather than a flat scale: the card tilts a
+            // little away from the finger as it rises, with a
+            // perspective entry in the matrix, so it reads as an object
+            // lifting off the rail instead of a picture growing.
+            final matrix = Matrix4.identity()
+              ..setEntry(3, 2, 0.0014)
+              ..translate(0.0, drift * 6 - lift * 16)
+              ..scale(1 + lift * 0.07)
+              ..rotateX(-lift * 0.16);
+
+            return Transform(
+              alignment: Alignment.center,
+              transform: matrix,
+              child: Container(
                   padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
-                    color: Colors.white.withOpacity(0.72 + lift * 0.16),
+                    color: Colors.white.withOpacity(0.72 + lift * 0.18),
                     // The rim brightens into the portal's own colour as
                     // the card comes up, so each one glows as itself
                     // rather than every card glowing the same white.
                     border: Border.all(
-                      color: tint.withOpacity(0.45 + lift * 0.45),
-                      width: 1.6 + lift * 0.9,
+                      color: tint.withOpacity(0.45 + lift * 0.50),
+                      width: 1.6 + lift * 1.3,
                     ),
                     boxShadow: [
+                      // Two shadows: a tight contact shadow that stays
+                      // put, and a wide coloured bloom that grows as the
+                      // card rises. One shadow doing both jobs either
+                      // looks glued down or looks like fog.
                       BoxShadow(
-                        color: tint.withOpacity(0.22 + lift * 0.30),
-                        blurRadius: 16 + lift * 22,
-                        spreadRadius: lift * 2,
-                        offset: Offset(0, 8 + lift * 4),
+                        color: const Color(0x33000000),
+                        blurRadius: 6 + lift * 6,
+                        offset: Offset(0, 3 + lift * 3),
+                      ),
+                      BoxShadow(
+                        color: tint.withOpacity(0.20 + lift * 0.42),
+                        blurRadius: 18 + lift * 34,
+                        spreadRadius: lift * 5,
+                        offset: Offset(0, 9 + lift * 12),
                       ),
                     ],
                   ),
                   child: child,
                 ),
-              ),
             );
           },
           child: contents,

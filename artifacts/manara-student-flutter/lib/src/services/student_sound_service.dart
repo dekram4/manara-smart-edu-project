@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
@@ -153,17 +153,49 @@ class StudentSoundService {
     play(StudentSoundCue.navigation);
   }
 
+  /// When applause last started. Everything below checks it.
+  DateTime? _lastApplause;
+
+  /// How long after applause the quieter reward cues stay silent.
+  ///
+  /// Finishing a lesson celebrates inside the card, and closing it sends
+  /// the student back to the hub, which refetches their progress, sees the
+  /// XP go up and celebrates all over again — a chime and a spoken phrase
+  /// on top of applause the child is still hearing. One celebration per
+  /// achievement; this window is what enforces it.
+  static const _applauseQuiet = Duration(seconds: 6);
+
+  bool get _justApplauded {
+    final at = _lastApplause;
+    return at != null && DateTime.now().difference(at) < _applauseQuiet;
+  }
+
   /// The coin/gem chime for earning XP or gems.
   void playReward() {
+    if (_justApplauded) return;
     HapticFeedback.mediumImpact();
     play(StudentSoundCue.gameReward);
   }
 
   /// A bigger celebration for finishing a lesson, quiz, or leveling up.
   void playLevelUp() {
+    if (_justApplauded) return;
     HapticFeedback.heavyImpact();
     play(StudentSoundCue.levelUp);
   }
+
+  /// Stops applause already in flight.
+  ///
+  /// Called when a card closes, so the clapping does not follow the
+  /// student out to the hub. The chain listens for the first clip's
+  /// completion, so stopping mid-clip would otherwise trigger the second
+  /// one — the guard below is what prevents the stop from starting a clap.
+  void stopEffects() {
+    _applauseCancelled = true;
+    unawaited(_effectsPlayer.stop().catchError((_) {}));
+  }
+
+  bool _applauseCancelled = false;
 
   /// Applause, as two clips played back to back: `clap2.mp3` and then
   /// `clap.mp3` the moment the first reports completion.
@@ -173,6 +205,8 @@ class StudentSoundService {
   /// either overlap them or leave a gap the first time either file is
   /// re-cut.
   void playApplause() {
+    _lastApplause = DateTime.now();
+    _applauseCancelled = false;
     HapticFeedback.heavyImpact();
     unawaited(_playApplause());
   }
@@ -186,7 +220,7 @@ class StudentSoundService {
       late StreamSubscription<void> sub;
       sub = _effectsPlayer.onPlayerComplete.listen((_) async {
         await sub.cancel();
-        if (muted.value) return;
+        if (muted.value || _applauseCancelled) return;
         try {
           await _effectsPlayer.play(
             AssetSource('audio/clap.mp3'),
@@ -210,8 +244,12 @@ class StudentSoundService {
   /// bar) — this keeps the encouragement visible even when sound is muted
   /// or a voice-specific asset isn't bundled yet.
   String playEncouragementArabic() {
-    HapticFeedback.selectionClick();
-    play(StudentSoundCue.success);
+    // The phrase is still returned so the caller can show it; only the
+    // sound is held back while applause is still running.
+    if (!_justApplauded) {
+      HapticFeedback.selectionClick();
+      play(StudentSoundCue.success);
+    }
     return encouragementPhrases[_random.nextInt(encouragementPhrases.length)];
   }
 }

@@ -167,4 +167,53 @@ void main() {
       expect(answers.toSet().length, answers.length);
     });
   });
+
+  group('building the sorting round', () {
+    test('sorts by a property it can actually prove', () {
+      final round = EndlessReaderSortings.fromLesson(
+        lessonText: 'المعلمون والطالبات في المدرسة. الكتاب على الطاولة.',
+      );
+      expect(round, isNotNull);
+      // Every word carrying a sound-plural ending belongs in the plural
+      // bucket; the rest are singular. Nothing here is guessed.
+      for (final entry in round!.items.entries) {
+        final endsPlural = entry.key.length >= 4 &&
+            const ['ون', 'ين', 'ات', 'ان']
+                .contains(entry.key.substring(entry.key.length - 2));
+        expect(
+          entry.value,
+          endsPlural
+              ? EndlessReaderSortings.plural
+              : EndlessReaderSortings.singular,
+          reason: '${entry.key} was put in the wrong bucket',
+        );
+      }
+    });
+
+    test('is not offered when a bucket would be empty', () {
+      // All singular: a round with nothing to put in one bucket cannot be
+      // completed and teaches nothing, so there should be no round.
+      expect(
+        EndlessReaderSortings.fromLesson(lessonText: 'الكتاب على الطاولة'),
+        isNull,
+      );
+      expect(EndlessReaderSortings.fromLesson(), isNull);
+    });
+
+    test('offers both buckets and stays within its item budget', () {
+      final round = EndlessReaderSortings.fromLesson(
+        lessonText: 'المعلمون والطالبات والمهندسون في المدرسة والبيت '
+            'والحديقة مع الكتاب.',
+      );
+      expect(round, isNotNull);
+      expect(round!.buckets, hasLength(2));
+      expect(
+        round.items.length,
+        lessThanOrEqualTo(EndlessReaderSortings.itemCount),
+      );
+      // Both buckets actually receive something.
+      final used = round.items.values.toSet();
+      expect(used, containsAll(round.buckets));
+    });
+  });
 }

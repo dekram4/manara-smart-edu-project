@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect } from 'react';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig } from '../../types';
@@ -779,6 +779,93 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     alert('تم التعديل بنجاح');
   };
 
+  // ============ الدروس داخل الوحدة ============
+  // الدروس مخزّنة في خريطة `term.lessons` مفتاحها اسم الوحدة، لا داخل
+  // `units` نفسها. هذا يبقي كل إعداد قديم صالحاً بلا ترحيل: من لم يضف
+  // دروساً لا يتغيّر عنده شيء، ومن أضاف تظهر دروسه في إدارة المحتوى.
+
+  const lessonsOf = (
+    term: { units: string[]; lessons?: Record<string, string[]> },
+    unit: string,
+  ): string[] => (term.lessons?.[unit] ?? []);
+
+  /** يكتب خريطة الدروس ويحفظ، مع الحفاظ على بقية الشجرة كما هي. */
+  const writeLessons = (
+    gradeIndex: number,
+    atramIndex: number,
+    subjectIndex: number,
+    termIndex: number,
+    unit: string,
+    next: string[],
+  ) => {
+    const updatedConfigs = [...hierarchicalConfigs];
+    const term =
+      updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    term.lessons = { ...(term.lessons ?? {}), [unit]: next };
+    setHierarchicalConfigs(updatedConfigs);
+    localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
+    onUpdate();
+  };
+
+  const handleAddLesson = (
+    gradeIndex: number,
+    atramIndex: number,
+    subjectIndex: number,
+    termIndex: number,
+    unit: string,
+  ) => {
+    const term =
+      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    const name = prompt(`إضافة درس إلى وحدة "${unit}":`, '');
+    if (!name || name.trim() === '') return;
+    const current = lessonsOf(term, unit);
+    if (current.some(lesson => lesson === name.trim())) {
+      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
+      return;
+    }
+    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, [
+      ...current,
+      name.trim(),
+    ]);
+    alert('✅ تم إضافة الدرس');
+  };
+
+  const handleEditLesson = (
+    gradeIndex: number,
+    atramIndex: number,
+    subjectIndex: number,
+    termIndex: number,
+    unit: string,
+    lessonIndex: number,
+  ) => {
+    const term =
+      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    const current = lessonsOf(term, unit);
+    const oldName = current[lessonIndex];
+    const newName = prompt('تعديل اسم الدرس:', oldName);
+    if (!newName || newName.trim() === '' || newName === oldName) return;
+    const next = [...current];
+    next[lessonIndex] = newName.trim();
+    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, next);
+    alert('تم التعديل بنجاح');
+  };
+
+  const handleDeleteLesson = (
+    gradeIndex: number,
+    atramIndex: number,
+    subjectIndex: number,
+    termIndex: number,
+    unit: string,
+    lessonIndex: number,
+  ) => {
+    const term =
+      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    const current = lessonsOf(term, unit);
+    if (!confirm(`حذف الدرس "${current[lessonIndex]}"؟`)) return;
+    const next = current.filter((_, index) => index !== lessonIndex);
+    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, next);
+  };
+
   const handleEditUnit = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
     const oldName = hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].units[unitIndex];
     const newName = prompt('تعديل اسم الوحدة:', oldName);
@@ -1219,10 +1306,27 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                   ) : (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                       {term.units.map((unit, unitIndex) => (
-                                        <div key={unitIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', backgroundColor: '#dbeafe', borderRadius: '4px', fontSize: '0.85rem' }}>
-                                          <span>📖 {unit}</span>
-                                          <button onClick={() => handleEditUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }}>✏️</button>
-                                          <button onClick={() => handleDeleteUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
+                                        <div key={unitIndex} style={{ width: '100%', padding: '6px 8px', backgroundColor: '#dbeafe', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '6px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span style={{ flex: 1 }}>📖 {unit}</span>
+                                            <button onClick={() => handleAddLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px', fontWeight: 'bold' }} title="إضافة درس">➕ درس</button>
+                                            <button onClick={() => handleEditUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }}>✏️</button>
+                                            <button onClick={() => handleDeleteUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
+                                          </div>
+                                          {/* الدروس داخل هذه الوحدة. تظهر فقط بعد إضافتها، فالإعدادات القديمة تبقى كما هي تماماً. */}
+                                          {lessonsOf(term, unit).length === 0 ? (
+                                            <div style={{ color: '#6b7280', fontSize: '0.72rem', paddingRight: '18px', marginTop: '4px' }}>لا توجد دروس بعد — اضغط ➕ درس</div>
+                                          ) : (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', paddingRight: '18px', marginTop: '5px' }}>
+                                              {lessonsOf(term, unit).map((lesson, lessonIndex) => (
+                                                <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', backgroundColor: '#ffffff', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.78rem' }}>
+                                                  <span>📝 {lesson}</span>
+                                                  <button onClick={() => handleEditLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }}>✏️</button>
+                                                  <button onClick={() => handleDeleteLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>

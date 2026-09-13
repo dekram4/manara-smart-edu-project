@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect } from 'react';
 import { LessonConfig } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
@@ -32,7 +32,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const [selectedTeacherName, setSelectedTeacherName] = useState<string>(teacherName || '');
   
   const [formData, setFormData] = useState({
-    grade: '', atram: '', subject: '', term: '', unit: '',
+    grade: '', atram: '', subject: '', term: '', unit: '', lesson: '',
     explanationVideoUrl: '', explanationVideoType: 'embed' as VideoSourceType, explanationVideoFile: null as File | null,
     explanationVideos: [] as LessonVideoEntry[],
     avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: ''
@@ -43,6 +43,21 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [availableTerms, setAvailableTerms] = useState<string[]>([]);
   const [availableUnits, setAvailableUnits] = useState<string[]>([]);
+  /// أسماء الدروس المعرّفة للوحدة المختارة في الإعدادات الأكاديمية.
+  const [availableLessons, setAvailableLessons] = useState<string[]>([]);
+
+  /// يقرأ دروس وحدة من الشجرة الهرمية. خريطة `term.lessons` اختيارية،
+  /// فالوحدات التي لم تُعرَّف لها دروس تعيد قائمة فارغة ويبقى الحقل حراً.
+  const getLessonsFor = (unit: string): string[] => {
+    if (!unit) return [];
+    const configs = getFilteredHierarchicalConfigs();
+    const grade = configs.find((c: any) => c.grade === formData.grade);
+    const atram = grade?.atrams?.find((a: any) => a.atram === formData.atram);
+    const subject = atram?.subjects?.find((s: any) => s.subject === formData.subject);
+    const term = subject?.terms?.find((t: any) => t.term === formData.term);
+    const lessons = term?.lessons?.[unit];
+    return Array.isArray(lessons) ? lessons : [];
+  };
 
   useEffect(() => {
     // تحميل المعلمين إذا كان المشرف
@@ -302,6 +317,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       atram: formData.atram.trim(),
       term: formData.term.trim(),
       unit: formData.unit.trim(),
+      lesson: formData.lesson.trim(),
       explanationVideoUrl: primaryVideo?.url || '',
       explanationVideoType: primaryVideo?.sourceType || 'embed',
       explanationVideos: nextVideos,
@@ -332,7 +348,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     
     setShowForm(false);
     setEditingLesson(null);
-    setFormData({ grade: '', atram: '', subject: '', term: '', unit: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, explanationVideos: [], avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
+    setFormData({ grade: '', atram: '', subject: '', term: '', unit: '', lesson: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, explanationVideos: [], avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
     loadData();
     onUpdate();
   };
@@ -345,6 +361,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       subject: lesson.subject,
       term: lesson.term,
       unit: lesson.unit,
+      lesson: lesson.lesson || '',
       explanationVideoUrl: '',
       explanationVideoType: 'embed',
       explanationVideoFile: null,
@@ -509,7 +526,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               {/* الصف - Grade */}
               <select value={formData.grade} onChange={e => {
                 const newGrade = e.target.value;
-                setFormData({...formData, grade: newGrade, atram: '', subject: '', term: '', unit: ''});
+                setFormData({...formData, grade: newGrade, atram: '', subject: '', term: '', unit: '', lesson: ''});
                 
                 // تحديث الأترام المتاحة بناءً على الصف المختار
                 const hierarchicalConfigs = getFilteredHierarchicalConfigs();
@@ -530,7 +547,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               {/* الترم - Atram */}
               <select value={formData.atram} onChange={e => {
                 const newAtram = e.target.value;
-                setFormData({...formData, atram: newAtram, subject: '', term: '', unit: ''});
+                setFormData({...formData, atram: newAtram, subject: '', term: '', unit: '', lesson: ''});
                 
                 // تحديث المواد المتاحة بناءً على الترم المختار
                 const hierarchicalConfigs = getFilteredHierarchicalConfigs();
@@ -553,7 +570,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               {/* المادة - Subject */}
               <select value={formData.subject} onChange={e => {
                 const newSubject = e.target.value;
-                setFormData({...formData, subject: newSubject, term: '', unit: ''});
+                setFormData({...formData, subject: newSubject, term: '', unit: '', lesson: ''});
                 
                 // تحديث الفصول المتاحة بناءً على المادة المختارة
                 const hierarchicalConfigs = getFilteredHierarchicalConfigs();
@@ -578,7 +595,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               {/* الفصل - Term */}
               <select value={formData.term} onChange={e => {
                 const newTerm = e.target.value;
-                setFormData({...formData, term: newTerm, unit: ''});
+                setFormData({...formData, term: newTerm, unit: '', lesson: ''});
                 
                 // تحديث الوحدات المتاحة بناءً على الفصل المختار
                 const hierarchicalConfigs = getFilteredHierarchicalConfigs();
@@ -605,11 +622,32 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               {/* الوحدة - Unit */}
               <select value={formData.unit} onChange={e => {
                 const newUnit = e.target.value;
-                setFormData({...formData, unit: newUnit});
+                setFormData({...formData, unit: newUnit, lesson: ''});
+                setAvailableLessons(getLessonsFor(newUnit));
                }} className="dashboard-content-control" required disabled={!formData.term}>
                 <option value="">الوحدة</option>
                 {availableUnits.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
+
+              {/* الدرس - Lesson.
+                  يكمل التسلسل السداسي: الصف ← الترم ← المادة ← الفصل ←
+                  الوحدة ← الدرس. قبل هذا الحقل كانت الوحدة تحمل درساً
+                  واحداً فقط، فلا يمكن وضع درسين في وحدة واحدة إطلاقاً.
+
+                  حقل حر مع قائمة اقتراحات لا قائمة مغلقة: الأسماء المقترحة
+                  هي ما عرّفه المعلم في الإعدادات الأكاديمية، لكن من لم
+                  يعرّف دروساً بعد يجب أن يبقى قادراً على الحفظ. */}
+              <input
+                list="content-lesson-options"
+                value={formData.lesson}
+                onChange={e => setFormData({ ...formData, lesson: e.target.value })}
+                className="dashboard-content-control"
+                placeholder="الدرس (اكتبه أو اختر من قائمة الإعدادات)"
+                disabled={!formData.unit}
+              />
+              <datalist id="content-lesson-options">
+                {availableLessons.map((o, i) => <option key={i} value={o} />)}
+              </datalist>
              </div>
              </div>
 

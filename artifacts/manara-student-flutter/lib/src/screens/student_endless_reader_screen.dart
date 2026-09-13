@@ -42,7 +42,16 @@ class EndlessReaderWords {
   /// formula or an English term into its text contributes its Arabic
   /// words and quietly drops the rest rather than producing a puzzle of
   /// symbols no child can spell.
-  static List<String> fromLesson({String? lessonText, String? lessonName}) {
+  static List<String> fromLesson({
+    String? lessonText,
+    String? lessonName,
+    int? minLengthOverride,
+    int? maxLengthOverride,
+    int? limit,
+  }) {
+    final low = minLengthOverride ?? minLength;
+    final high = maxLengthOverride ?? maxLength;
+    final cap = limit ?? maxWords;
     final seen = <String>{};
     final words = <String>[];
 
@@ -55,10 +64,10 @@ class EndlessReaderWords {
       // every fatha: "الشَّمْسُ" split into "الش", "م", "س".
       for (final raw in _strip(source).split(RegExp(r'[^ء-غف-ي]+'))) {
         final word = raw.trim();
-        if (word.length < minLength || word.length > maxLength) continue;
+        if (word.length < low || word.length > high) continue;
         if (!seen.add(word)) continue;
         words.add(word);
-        if (words.length >= maxWords) return words;
+        if (words.length >= cap) return words;
       }
     }
     return words;
@@ -109,6 +118,108 @@ class EndlessReaderWords {
   /// Whether [letter] is one that never joins forward. Exposed so the
   /// screen can be honest about why it renders letters in isolation.
   static bool isNonJoining(String letter) => _nonJoining.contains(letter);
+}
+
+/// A sorting round: words from the lesson, and the two buckets they
+/// belong in.
+class EndlessReaderSorting {
+  const EndlessReaderSorting({
+    required this.prompt,
+    required this.buckets,
+    required this.items,
+  });
+
+  /// What the student is being asked to do, in words.
+  final String prompt;
+
+  /// The bucket labels, in display order.
+  final List<String> buckets;
+
+  /// Each word and the bucket it belongs to.
+  final Map<String, String> items;
+}
+
+/// Builds the sorting round from a lesson's own words.
+///
+/// Sorting needs to know something *about* each word, which free prose
+/// does not supply — so rather than inventing categories it cannot
+/// justify, this uses a property of the words themselves that is always
+/// true and always checkable: Arabic grammatical number. Singular against
+/// plural is a real exercise for this age, it is right for any subject,
+/// and it can never be wrong about a word the way a guessed
+/// "living/non-living" split could be.
+class EndlessReaderSortings {
+  const EndlessReaderSortings._();
+
+  static const singular = 'مفرد';
+  static const plural = 'جمع';
+
+  /// How many words a round sorts. Six fills two buckets without turning
+  /// the screen into a list.
+  static const itemCount = 6;
+
+  /// The sound plural endings, and the marker for a dual. A word carrying
+  /// one of these is plural beyond argument, which is what keeps this
+  /// round honest — no guessing, no word placed in a bucket the app
+  /// cannot defend.
+  static const _pluralEndings = ['ون', 'ين', 'ات', 'ان'];
+
+  static EndlessReaderSorting? fromLesson({String? lessonText, String? lessonName}) {
+    // Deliberately a wider net than the spelling game uses.
+    //
+    // The letter rounds cap words at seven characters so a row of slots
+    // fits a phone — but Arabic sound plurals carry a two-letter suffix,
+    // so the very words this round needs ("المعلمون", "الطالبات") are
+    // usually eight or nine and were being filtered out before they were
+    // ever considered. With the spelling cap applied, a real lesson
+    // almost never produced a sorting round at all. Nothing is dragged
+    // into a slot here, so length costs nothing.
+    final words = EndlessReaderWords.fromLesson(
+      lessonText: lessonText,
+      lessonName: lessonName,
+      maxLengthOverride: 11,
+      limit: 24,
+    );
+    if (words.isEmpty) return null;
+
+    final items = <String, String>{};
+    final plurals = <String>[];
+    final singulars = <String>[];
+
+    for (final word in words) {
+      // A short word cannot carry a plural ending meaningfully: "ات" on
+      // a three-letter word is usually its root, not a suffix.
+      if (word.length < 4) {
+        singulars.add(word);
+        continue;
+      }
+      final ending = word.substring(word.length - 2);
+      if (_pluralEndings.contains(ending)) {
+        plurals.add(word);
+      } else {
+        singulars.add(word);
+      }
+    }
+
+    // A round with nothing in one bucket teaches nothing and cannot be
+    // completed meaningfully, so it is not offered at all.
+    if (plurals.isEmpty || singulars.isEmpty) return null;
+
+    final half = itemCount ~/ 2;
+    for (final word in plurals.take(half)) {
+      items[word] = plural;
+    }
+    for (final word in singulars.take(itemCount - items.length)) {
+      items[word] = singular;
+    }
+    if (items.length < 2) return null;
+
+    return EndlessReaderSorting(
+      prompt: 'صنّف كلمات درسك: مفرد أم جمع؟',
+      buckets: const [singular, plural],
+      items: items,
+    );
+  }
 }
 
 /// One sentence from the lesson with a single word taken out of it, for
@@ -266,11 +377,32 @@ class _StudentEndlessReaderScreenState
   /// Letter rounds first, then sentence rounds. Spelling a term before
   /// being asked to place it in a definition is the order that teaches;
   /// the reverse asks a student to use a word they have not met yet.
-  int get _letterStages => _words.length;
-  int get _sentenceStages => _sentences.length;
-  bool get _onSentence => _wordIndex >= _letterStages;
+  /// The challenge is a fixed, short run rather than everything the
+  /// lesson could yield: two spelling rounds, two sentence rounds, then
+  /// one sorting round. A child finishes it, which a stream of twelve
+  /// words does not let them do — and whatever the lesson provides, the
+  /// shape of the challenge stays the same.
+  static const _maxLetterStages = 2;
+  static const _maxSentenceStages = 2;
+
+  int get _letterStages =>
+      _words.length < _maxLetterStages ? _words.length : _maxLetterStages;
+  int get _sentenceStages => _sentences.length < _maxSentenceStages
+      ? _sentences.length
+      : _maxSentenceStages;
+  int get _sortingStages => _sorting == null ? 0 : 1;
+
+  bool get _onSentence =>
+      _wordIndex >= _letterStages && _wordIndex < _letterStages + _sentenceStages;
+  bool get _onSorting => _wordIndex >= _letterStages + _sentenceStages;
   EndlessReaderSentence get _sentence =>
       _sentences[(_wordIndex - _letterStages).clamp(0, _sentences.length - 1)];
+
+  /// The sorting round, built once when the screen opens.
+  late final EndlessReaderSorting? _sorting;
+
+  /// Which bucket each sorted word has been dropped into so far.
+  final Map<String, String> _sorted = {};
 
   /// The word dropped into the sentence gap, once one has been.
   String? _filled;
@@ -282,7 +414,7 @@ class _StudentEndlessReaderScreenState
   /// How many words this lesson's round runs for. Every word is a stage,
   /// so the student can see the end of the run rather than playing an
   /// unmarked stream.
-  int get _stageCount => _letterStages + _sentenceStages;
+  int get _stageCount => _letterStages + _sentenceStages + _sortingStages;
   bool get _onLastStage => _wordIndex >= _stageCount - 1;
 
   /// Position in the word -> the letter dropped there. A position missing
@@ -310,6 +442,10 @@ class _StudentEndlessReaderScreenState
     _sentences = EndlessReaderSentences.fromLesson(
       lessonText: widget.academicContext?.selectedLesson.lessonText,
     );
+    _sorting = EndlessReaderSortings.fromLesson(
+      lessonText: widget.academicContext?.selectedLesson.lessonText,
+      lessonName: widget.academicContext?.selectedLesson.lessonName,
+    );
     if (_stageCount > 0) _startRound();
   }
 
@@ -321,10 +457,11 @@ class _StudentEndlessReaderScreenState
 
   void _startRound() {
     _placed.clear();
+    _sorted.clear();
     _filled = null;
     _justLanded = null;
     _celebrating = false;
-    if (_onSentence) {
+    if (_onSentence || _onSorting) {
       _blanks = const [];
       _tiles = const [];
       return;
@@ -341,6 +478,18 @@ class _StudentEndlessReaderScreenState
     HapticFeedback.lightImpact();
     StudentSoundService.instance.play(StudentSoundCue.success);
     _finishWord();
+  }
+
+  /// A word dropped into a sorting bucket. Only its own bucket accepts
+  /// it, so a wrong drop springs back instead of being marked wrong.
+  void _onSortAccept(String word, String bucket) {
+    setState(() => _sorted[word] = bucket);
+    HapticFeedback.lightImpact();
+    StudentSoundService.instance.play(StudentSoundCue.success);
+    final sorting = _sorting;
+    if (sorting != null && _sorted.length == sorting.items.length) {
+      _finishWord();
+    }
   }
 
   void _onAccept(int position, String letter) {
@@ -496,10 +645,16 @@ class _StudentEndlessReaderScreenState
                 const SizedBox(height: 14),
                 Text(
                   _celebrating
-                      ? (_onSentence ? 'أحسنت! جملة صحيحة 🎉' : 'أحسنت! كلمة صحيحة 🎉')
-                      : (_onSentence
-                          ? 'اسحب الكلمة الناقصة إلى الفراغ'
-                          : 'اسحب الحروف إلى مكانها'),
+                      ? (_onSorting
+                          ? 'أحسنت! تصنيف صحيح 🎉'
+                          : _onSentence
+                              ? 'أحسنت! جملة صحيحة 🎉'
+                              : 'أحسنت! كلمة صحيحة 🎉')
+                      : (_onSorting
+                          ? (_sorting?.prompt ?? '')
+                          : _onSentence
+                              ? 'اسحب الكلمة الناقصة إلى الفراغ'
+                              : 'اسحب الحروف إلى مكانها'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
@@ -510,10 +665,17 @@ class _StudentEndlessReaderScreenState
                   ),
                 ),
                 const SizedBox(height: 18),
-                if (_onSentence) _sentenceCard() else _wordRow(slot),
+                if (_onSorting)
+                  _sortingBoard()
+                else if (_onSentence)
+                  _sentenceCard()
+                else
+                  _wordRow(slot),
                 const SizedBox(height: 24),
                 if (_celebrating)
                   _afterWordActions()
+                else if (_onSorting)
+                  _sortingTray()
                 else if (_onSentence)
                   _choiceTray()
                 else
@@ -542,7 +704,11 @@ class _StudentEndlessReaderScreenState
             border: Border.all(color: const Color(0xFF6D28D9), width: 1.6),
           ),
           child: Text(
-            'الكلمة ${_wordIndex + 1} من $_stageCount',
+            _onSorting
+                ? 'التصنيف — المرحلة ${_wordIndex + 1} من $_stageCount'
+                : _onSentence
+                    ? 'أكمل الجملة — المرحلة ${_wordIndex + 1} من $_stageCount'
+                    : 'كوّن الكلمة — المرحلة ${_wordIndex + 1} من $_stageCount',
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
@@ -617,6 +783,115 @@ class _StudentEndlessReaderScreenState
           borderRadius: BorderRadius.circular(30),
         ),
       );
+
+  /// The two buckets, side by side. A bucket only accepts the words that
+  /// belong in it, so a wrong drop springs back rather than being marked
+  /// wrong — the same rule the other two rounds use.
+  Widget _sortingBoard() {
+    final sorting = _sorting;
+    if (sorting == null) return const SizedBox.shrink();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final bucket in sorting.buckets)
+          Expanded(child: _bucket(bucket, sorting)),
+      ],
+    );
+  }
+
+  Widget _bucket(String bucket, EndlessReaderSorting sorting) {
+    final inside = _sorted.entries
+        .where((entry) => entry.value == bucket)
+        .map((entry) => entry.key)
+        .toList();
+
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) =>
+          !_sorted.containsKey(details.data) &&
+          sorting.items[details.data] == bucket,
+      onAcceptWithDetails: (details) => _onSortAccept(details.data, bucket),
+      builder: (context, candidate, rejected) {
+        final hovering = candidate.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          margin: const EdgeInsets.symmetric(horizontal: 6),
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 14),
+          constraints: const BoxConstraints(minHeight: 150),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(hovering ? 0.96 : 0.78),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: const Color(0xFF6D28D9),
+              width: hovering ? 3 : 2,
+            ),
+            boxShadow: [
+              if (hovering)
+                BoxShadow(
+                  color: const Color(0xFF6D28D9).withOpacity(0.32),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                bucket,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF3B2A6B),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final word in inside)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1FAE5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF15803D)),
+                      ),
+                      child: Text(
+                        word,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// The words still waiting to be sorted.
+  Widget _sortingTray() {
+    final sorting = _sorting;
+    if (sorting == null) return const SizedBox.shrink();
+    final left = sorting.items.keys
+        .where((word) => !_sorted.containsKey(word))
+        .toList();
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 10,
+      runSpacing: 10,
+      children: [for (final word in left) _wordTile(word)],
+    );
+  }
 
   /// The sentence with its gap, as one readable line. The gap is a drop
   /// target sized to the answer, so the line does not jump when a word

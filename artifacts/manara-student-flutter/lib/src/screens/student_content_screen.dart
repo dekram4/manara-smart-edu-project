@@ -69,6 +69,9 @@ class _StudentContentScreenState extends State<StudentContentScreen>
 
   @override
   void dispose() {
+    // The celebration belongs to this card. Leaving it should end it,
+    // not carry clapping out to the hub behind.
+    StudentSoundService.instance.stopEffects();
     _rewardController.dispose();
     super.dispose();
   }
@@ -87,6 +90,33 @@ class _StudentContentScreenState extends State<StudentContentScreen>
       StudentSoundService.instance.playReward();
     }
     StudentSoundService.instance.playEncouragementArabic();
+    _announceUnlockedGames(previous, stats);
+  }
+
+  /// Tells the student when their new level has opened another game.
+  ///
+  /// Crossing 100 XP is otherwise invisible from the lesson they were in
+  /// — they would have to wander into the arcade to discover it. Naming
+  /// the game is what turns a number going up into a reason to go there.
+  void _announceUnlockedGames(
+    StudentGamification previous,
+    StudentGamification updated,
+  ) {
+    final games = _gamesFromLessons;
+    if (games.isEmpty) return;
+    final before = _GamesModule.unlockedCount(previous.xp).clamp(0, games.length);
+    final after = _GamesModule.unlockedCount(updated.xp).clamp(0, games.length);
+    if (after <= before) return;
+    final opened = games[after - 1];
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF4B267F),
+        content: Text(
+          '🎉 وصلت للمستوى ${updated.level} وفتحت لعبة جديدة: ${opened.title}',
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadContent() async {
@@ -271,6 +301,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
         return _GamesModule(
           games: _gamesFromLessons,
           apiBaseUrl: widget.apiBaseUrl,
+          gamification: _gamification,
         );
     }
   }
@@ -580,14 +611,35 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
 /// The arcade. It no longer needs the student's profile, their progress
 /// or the content service: nothing here is scored, unlocked or saved, so
 /// the list only needs the games themselves and where to load them from.
+/// The arcade, unlocked a game at a time by the XP a student earns
+/// elsewhere — lessons, videos and quizzes.
+///
+/// The rule is positional and deliberately simple, because a child has to
+/// be able to predict it: the nth game needs level n, and a level is 100
+/// XP. So the number of games open is exactly the student's level, and
+/// every 100 points opens the next one.
+///
+/// Nothing here awards XP or spends it. Playing is still free; the points
+/// only decide how many games are available.
 class _GamesModule extends StatelessWidget {
   const _GamesModule({
     required this.games,
     required this.apiBaseUrl,
+    required this.gamification,
   });
 
   final List<HtmlGame> games;
   final String apiBaseUrl;
+  final StudentGamification gamification;
+
+  /// XP needed before the game at [index] opens.
+  static int requiredXpFor(int index) => index * 100;
+
+  /// Whether the game at [index] is open at [xp].
+  static bool isUnlocked(int index, int xp) => xp >= requiredXpFor(index);
+
+  /// How many games [xp] opens. Equals the student's level.
+  static int unlockedCount(int xp) => (xp ~/ 100) + 1;
 
   @override
   Widget build(BuildContext context) {
@@ -626,12 +678,33 @@ class _GamesModule extends StatelessWidget {
         // its own reward rather than a transaction. The gamification the
         // rest of the app runs on is untouched — lessons, videos and
         // quizzes still earn — this is only the games card.
-        ...games.map((game) {
+        _ArcadeProgress(stats: gamification, total: games.length),
+        const SizedBox(height: 16),
+        ...games.asMap().entries.map((entry) {
+          final index = entry.key;
+          final game = entry.value;
+          final unlocked = isUnlocked(index, gamification.xp);
+          final needed = requiredXpFor(index);
           return Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: _GameCard(
               game: game,
+              locked: !unlocked,
+              requiredXp: needed,
+              currentXp: gamification.xp,
               onPressed: () {
+                if (!unlocked) {
+                  StudentSoundService.instance.play(StudentSoundCue.warning);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'يلزمك الوصول إلى \ نقطة لفتح هذه اللعبة. '
+                        'نقاطك الآن: \.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
                 StudentSoundService.instance.playTap();
                 Navigator.of(context).push(
                   StudentPageRoute<void>(
@@ -650,13 +723,106 @@ class _GamesModule extends StatelessWidget {
   }
 }
 
+/// The student's level and how far the next game is.
+///
+/// Gating without showing progress is just a closed door. This says which
+/// level they are on, how many games that opens, and exactly how many
+/// points remain until the next one.
+class _ArcadeProgress extends StatelessWidget {
+  const _ArcadeProgress({required this.stats, required this.total});
+
+  final StudentGamification stats;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final open = _GamesModule.unlockedCount(stats.xp).clamp(0, total);
+    final allOpen = open >= total;
+    return Student3DCard(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF4B267F), Color(0xFF8B5CF6)],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.military_tech_rounded,
+                    color: Color(0xFFFDE68A), size: 32),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'المستوى ${stats.level} — فُتحت $open من $total ألعاب',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${stats.xp} XP',
+                  style: const TextStyle(
+                    color: Color(0xFFFDE68A),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: stats.levelProgress / 100,
+                minHeight: 9,
+                backgroundColor: Colors.white.withOpacity(0.24),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFFFDE68A)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              allOpen
+                  ? 'فتحت كل الألعاب المتاحة! 🎉'
+                  : 'باقي ${stats.xpToNextLevel} نقطة لفتح اللعبة التالية',
+              style: const TextStyle(
+                color: Color(0xFFE9D5FF),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One game in the arcade. A locked card keeps the same shape so the two
+/// read as one family, and says exactly what is needed to open it rather
+/// than only that it is shut.
 class _GameCard extends StatelessWidget {
   const _GameCard({
     required this.game,
+    required this.locked,
+    required this.requiredXp,
+    required this.currentXp,
     required this.onPressed,
   });
 
   final HtmlGame game;
+  final bool locked;
+  final int requiredXp;
+  final int currentXp;
   final VoidCallback onPressed;
 
   @override
@@ -676,21 +842,26 @@ class _GameCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               gradient: LinearGradient(
-                colors: const [
-                  Color(0xFF6D28D9),
-                  Color(0xFF8B5CF6),
-                  Color(0xFF38BDF8),
-                ],
+                colors: locked
+                    ? const [Color(0xFF525C6B), Color(0xFF79839A)]
+                    : const [
+                        Color(0xFF6D28D9),
+                        Color(0xFF8B5CF6),
+                        Color(0xFF38BDF8),
+                      ],
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
               ),
               border: Border.all(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withOpacity(locked ? 0.28 : 0.5),
                 width: 1.6,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF8B5CF6).withOpacity(0.42),
+                  color: (locked
+                          ? const Color(0xFF525C6B)
+                          : const Color(0xFF8B5CF6))
+                      .withOpacity(0.42),
                   blurRadius: 20,
                   offset: const Offset(0, 11),
                 ),
@@ -698,9 +869,11 @@ class _GameCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.sports_esports_rounded,
-                  color: Color(0xFFE9D5FF),
+                Icon(
+                  locked ? Icons.lock_rounded : Icons.sports_esports_rounded,
+                  color: locked
+                      ? const Color(0xFFFDE68A)
+                      : const Color(0xFFE9D5FF),
                   size: 48,
                 ),
                 const SizedBox(width: 14),
@@ -721,25 +894,57 @@ class _GameCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        game.subtitle,
+                        locked
+                            ? 'يلزمك الوصول إلى $requiredXp نقطة لفتح هذه اللعبة'
+                            : game.subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          color: Color(0xFFE9D5FF),
+                        style: TextStyle(
+                          color: locked
+                              ? const Color(0xFFFDE68A)
+                              : const Color(0xFFE9D5FF),
                           height: 1.35,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      // How close the student is, not just that they are
+                      // short. A bar moving toward a number a child can
+                      // see is the difference between a goal and a wall.
+                      if (locked) ...[
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: requiredXp == 0
+                                ? 1
+                                : (currentXp / requiredXp).clamp(0.0, 1.0),
+                            minHeight: 7,
+                            backgroundColor: Colors.white.withOpacity(0.22),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFFFDE68A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '$currentXp من $requiredXp نقطة',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            color: Color(0xFFE5E7EB),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Just "play". The reward line that used to sit here
-                // advertised a price and a payout for something that is
-                // now simply open.
-                const Icon(
-                  Icons.play_circle_fill_rounded,
+                Icon(
+                  locked
+                      ? Icons.lock_outline_rounded
+                      : Icons.play_circle_fill_rounded,
                   color: Colors.white,
                   size: 34,
                 ),

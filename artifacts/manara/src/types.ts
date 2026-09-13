@@ -1,4 +1,4 @@
-
+﻿
 export enum AdminMenuType {
   DASHBOARD = 'DASHBOARD',
   ACADEMIC_SETTINGS = 'ACADEMIC_SETTINGS',
@@ -155,6 +155,16 @@ export interface HierarchicalConfig {
       terms: {
         term: string;
         units: string[];
+        /**
+         * أسماء الدروس داخل كل وحدة، مفهرسة باسم الوحدة.
+         *
+         * حقل إضافي اختياري عن قصد: تحويل `units` نفسها من نصوص إلى كائنات
+         * كان سيتطلب ترحيل كل الإعدادات المخزّنة لدى كل معلم، ويكسر قراءتها
+         * في تطبيق الطالب وفي إدارة المحتوى حتى يكتمل الترحيل. بهذا الشكل
+         * تبقى البيانات القديمة صالحة كما هي، وتظهر قائمة الدروس فقط حيث
+         * أضافها المعلم فعلاً.
+         */
+        lessons?: Record<string, string[]>;
       }[];
     }[];
   }[];
@@ -173,6 +183,14 @@ export interface LessonConfig {
   atram: string;
   term: string;
   unit: string;
+  /**
+   * اسم الدرس داخل الوحدة — المستوى السادس في التسلسل.
+   *
+   * اختياري عن قصد: كل سجل قديم حُفظ قبل وجود هذا الحقل يبقى صالحاً
+   * ويُقرأ كما هو. وتطبيق الطالب يقرأ `lesson` أولاً أصلاً، فلا يحتاج
+   * أي تغيير ليستفيد منه.
+   */
+  lesson?: string;
   explanationVideoUrl?: string;
   explanationVideoType?: 'embed' | 'mp4';
   explanationVideos?: LessonVideo[];
