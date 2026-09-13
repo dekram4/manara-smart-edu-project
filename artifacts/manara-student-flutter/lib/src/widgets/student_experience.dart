@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import 'student_avatar_view.dart';
 import 'student_immersive.dart';
 import 'student_orientation_guard.dart';
@@ -945,8 +946,14 @@ class StudentScreenHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = dark ? Colors.white : const Color(0xFF183047);
-    final supporting = dark ? const Color(0xFFD8F4F0) : const Color(0xFF466273);
+    // `dark` is the caller saying "this card is a dark room"; the theme
+    // is the student saying "the whole app is". Either makes the card
+    // dark, which is what lets this shared header — the top of every
+    // opened card — follow the setting without each screen passing a
+    // flag down to it.
+    final night = dark || StudentSurface.isDark(context);
+    final foreground = night ? Colors.white : const Color(0xFF183047);
+    final supporting = night ? const Color(0xFFD8F4F0) : const Color(0xFF466273);
 
     return StudentAnimatedCard(
       child: Student3DCard(
@@ -958,16 +965,16 @@ class StudentScreenHero extends StatelessWidget {
             gradient: LinearGradient(
               begin: AlignmentDirectional.topStart,
               end: AlignmentDirectional.bottomEnd,
-              colors: dark
+              colors: night
                   ? colors
                   : [colors.first.withOpacity(0.18), Colors.white],
             ),
             border: Border.all(
-              color: dark ? Colors.white.withOpacity(0.15) : colors.first.withOpacity(0.22),
+              color: night ? Colors.white.withOpacity(0.15) : colors.first.withOpacity(0.22),
             ),
             boxShadow: [
               BoxShadow(
-                color: colors.first.withOpacity(dark ? 0.24 : 0.12),
+                color: colors.first.withOpacity(night ? 0.24 : 0.12),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -984,7 +991,7 @@ class StudentScreenHero extends StatelessWidget {
                   height: 116,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: dark ? Colors.white.withOpacity(0.10) : colors.first.withOpacity(0.08),
+                    color: night ? Colors.white.withOpacity(0.10) : colors.first.withOpacity(0.08),
                   ),
                 ),
               ),
@@ -992,7 +999,7 @@ class StudentScreenHero extends StatelessWidget {
                 children: [
                   StudentCardAvatar(
                     icon: icon,
-                    accent: dark ? const Color(0xFFBFFBFA) : colors.first,
+                    accent: night ? const Color(0xFFBFFBFA) : colors.first,
                     label: title,
                   ),
                   const SizedBox(width: 13),

@@ -1,4 +1,4 @@
-import 'package:confetti/confetti.dart';
+﻿import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
@@ -8,6 +8,7 @@ import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
@@ -321,7 +322,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     return Directionality(
       textDirection: StudentSettings.direction,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFDF3EA),
+        backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(
           title: Text(_activeQuiz == null ? 'مركز الاختبارات' : _text(_activeQuiz!['title'])),
           actions: [

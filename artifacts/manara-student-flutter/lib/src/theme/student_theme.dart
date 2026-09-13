@@ -22,6 +22,56 @@ abstract final class StudentPalette {
   static const brandBlue = Color(0xFF1D517E);
 }
 
+/// The handful of colours a screen actually needs to ask the theme for.
+///
+/// Screens were painting fixed values — `0xFFFDF3EA` for a page, white
+/// for a card — which is why dark mode darkened the chrome and left the
+/// screens themselves bright. Rather than rewriting three hundred
+/// literals into `Theme.of(context).colorScheme.…` at each site, the
+/// handful of *roles* those literals played are named here, and each
+/// resolves from the brightness in play.
+///
+/// The roles are deliberately few. A screen needs a ground, a raised
+/// surface, two weights of text and a hairline; everything else on these
+/// screens is brand colour, which is identity and stays put in both
+/// modes because it reads on either ground.
+abstract final class StudentSurface {
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  /// The page behind everything. The light value is the warm cream the
+  /// screens already used, so nothing changes in light mode.
+  static Color ground(BuildContext context) =>
+      isDark(context) ? const Color(0xFF121212) : const Color(0xFFFDF3EA);
+
+  /// The cooler ground the entry screens use (login, the path).
+  static Color coolGround(BuildContext context) =>
+      isDark(context) ? const Color(0xFF121212) : const Color(0xFFEFF3F6);
+
+  /// A card or panel raised above the ground.
+  static Color card(BuildContext context) =>
+      isDark(context) ? const Color(0xFF1E1E2E) : Colors.white;
+
+  /// A panel that was a translucent white over artwork. Kept translucent
+  /// so the watermark still shows through in both modes.
+  static Color glass(BuildContext context, [double opacity = 0.88]) => isDark(context)
+      ? const Color(0xFF1E1E2E).withOpacity(opacity)
+      : Colors.white.withOpacity(opacity);
+
+  /// Body text.
+  static Color ink(BuildContext context) =>
+      isDark(context) ? const Color(0xFFF3F4F6) : const Color(0xFF183047);
+
+  /// Secondary text: labels, hints, captions.
+  static Color mutedInk(BuildContext context) =>
+      isDark(context) ? const Color(0xFFB6BDCC) : const Color(0xFF5B6B7C);
+
+  /// The hairline around a card.
+  static Color outline(BuildContext context) => isDark(context)
+      ? Colors.white.withOpacity(0.16)
+      : Colors.black.withOpacity(0.10);
+}
+
 /// A shared "playful sticker" silhouette used across student-facing cards
 /// instead of a plain uniform rounded rectangle — one large corner and one
 /// small corner on each edge, so cards read as friendly stickers rather than

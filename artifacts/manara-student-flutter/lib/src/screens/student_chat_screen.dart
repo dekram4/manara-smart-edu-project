@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +7,7 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
@@ -176,7 +177,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     return Directionality(
       textDirection: StudentSettings.direction,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFDF3EA),
+        backgroundColor: StudentSurface.ground(context),
         // Stated rather than inherited: the composer must ride above the
         // keyboard rather than sit under it.
         resizeToAvoidBottomInset: true,

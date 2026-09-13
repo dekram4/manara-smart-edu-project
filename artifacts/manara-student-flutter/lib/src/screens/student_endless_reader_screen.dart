@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../models/academic_context.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
@@ -537,7 +538,7 @@ class _StudentEndlessReaderScreenState
     return Directionality(
       textDirection: StudentSettings.direction,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFDF3EA),
+        backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(
           backgroundColor: const Color(0xFF3B2A6B),
           foregroundColor: Colors.white,
@@ -600,7 +601,7 @@ class _StudentEndlessReaderScreenState
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF3B2A6B),
+                  color: const Color(0xFF3B2A6B),
                 ),
               ),
               const SizedBox(height: 10),
@@ -700,7 +701,7 @@ class _StudentEndlessReaderScreenState
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.88),
+            color: StudentSurface.glass(context, 0.88),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: const Color(0xFF6D28D9), width: 1.6),
           ),
@@ -713,7 +714,7 @@ class _StudentEndlessReaderScreenState
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF3B2A6B),
+              color: const Color(0xFF3B2A6B),
             ),
           ),
         ),
@@ -725,7 +726,7 @@ class _StudentEndlessReaderScreenState
             child: LinearProgressIndicator(
               value: _stageCount == 0 ? 0 : done / _stageCount,
               minHeight: 8,
-              backgroundColor: Colors.white.withOpacity(0.7),
+              backgroundColor: StudentSurface.glass(context, 0.7),
               valueColor:
                   const AlwaysStoppedAnimation<Color>(Color(0xFF15803D)),
             ),
@@ -819,7 +820,7 @@ class _StudentEndlessReaderScreenState
           padding: const EdgeInsets.fromLTRB(10, 12, 10, 14),
           constraints: const BoxConstraints(minHeight: 150),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(hovering ? 0.96 : 0.78),
+            color: StudentSurface.glass(context, hovering ? 0.96 : 0.78),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: const Color(0xFF6D28D9),
@@ -842,7 +843,7 @@ class _StudentEndlessReaderScreenState
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF3B2A6B),
+                  color: const Color(0xFF3B2A6B),
                 ),
               ),
               const SizedBox(height: 10),
@@ -904,7 +905,7 @@ class _StudentEndlessReaderScreenState
       constraints: const BoxConstraints(maxWidth: 620),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
+        color: StudentSurface.glass(context, 0.92),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0xFF6D28D9), width: 2),
         boxShadow: const [
@@ -974,7 +975,7 @@ class _StudentEndlessReaderScreenState
     fontSize: 19,
     height: 1.6,
     fontWeight: FontWeight.w800,
-    color: Color(0xFF3B2A6B),
+    color: const Color(0xFF3B2A6B),
   );
 
   /// The candidate words for a sentence round. Every one is a real word
@@ -1049,7 +1050,7 @@ class _StudentEndlessReaderScreenState
         height: slot,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.92),
+          color: StudentSurface.glass(context, 0.92),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0x33000000)),
         ),

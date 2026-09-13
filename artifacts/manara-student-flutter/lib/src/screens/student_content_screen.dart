@@ -12,6 +12,7 @@ import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/video_thumbnail_card.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
@@ -173,7 +174,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF3EA),
+      backgroundColor: StudentSurface.ground(context),
       appBar: AppBar(
         // Stated rather than inherited: the theme's bar rendered near-black
         // here, which is what made the title and the close button read as

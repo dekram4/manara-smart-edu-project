@@ -26,14 +26,19 @@ class PortalWatermark extends StatelessWidget {
   /// body text harder to follow.
   final double opacity;
 
-  /// The cinema and the tutor are deliberately dark rooms. Washing them in
-  /// cream would wreck that, so those pass `dark: true` and get a deep
-  /// navy wash instead — same watermark, same opacity band, a ground that
-  /// still suits the screen.
+  /// The cinema and the tutor are deliberately dark rooms *in both
+  /// themes*. Washing them in cream would wreck that, so those pass
+  /// `dark: true` and keep the deep navy whatever the app's brightness
+  /// is — same watermark, same opacity band, a ground that suits the
+  /// screen rather than the setting.
   final bool dark;
 
   @override
   Widget build(BuildContext context) {
+    // Every other screen follows the theme. This widget sits behind
+    // almost every internal screen, so having it flip is most of what
+    // makes dark mode reach them at all.
+    final night = dark || Theme.of(context).brightness == Brightness.dark;
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
@@ -43,12 +48,18 @@ class PortalWatermark extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
-                colors: dark
-                    ? const [
-                        Color(0xFF19384F),
-                        Color(0xFF17364F),
-                        Color(0xFF1C4059),
-                      ]
+                colors: night
+                    ? (dark
+                        ? const [
+                            Color(0xFF19384F),
+                            Color(0xFF17364F),
+                            Color(0xFF1C4059),
+                          ]
+                        : const [
+                            Color(0xFF161622),
+                            Color(0xFF121212),
+                            Color(0xFF1A1A28),
+                          ])
                     : const [
                         Color(0xFFFFF6E7),
                         Color(0xFFFDF2E6),

@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_settings.dart';
+import '../theme/student_theme.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 
@@ -18,7 +19,7 @@ class StudentProgressScreen extends StatelessWidget {
     return Directionality(
       textDirection: StudentSettings.direction,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4F8FF),
+        backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(title: const Text('تقدمي وإنجازاتي'), actions: const [StudentSoundToggle()]),
         body: ListView(
           padding: const EdgeInsets.all(18),

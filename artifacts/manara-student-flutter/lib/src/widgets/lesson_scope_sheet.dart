@@ -3,6 +3,7 @@
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../services/student_settings.dart';
+import '../theme/student_theme.dart';
 import '../services/student_sound_service.dart';
 
 /// Picks a lesson by stepping down the academic hierarchy the teacher
@@ -141,13 +142,15 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
         // Never taller than most of the screen, so the sheet is always
         // recognisable as a sheet with the hub behind it.
         constraints: BoxConstraints(maxHeight: media.size.height * 0.88),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF6E7), Color(0xFFEFF6FA)],
+            colors: StudentSurface.isDark(context)
+                ? const [Color(0xFF16161F), Color(0xFF121212)]
+                : const [Color(0xFFFFF6E7), Color(0xFFEFF6FA)],
           ),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SafeArea(
           top: false,
@@ -399,7 +402,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
           constraints: const BoxConstraints(maxWidth: 260),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
           decoration: BoxDecoration(
-            color: chosen ? const Color(0xFF0E5F6B) : Colors.white,
+            color: chosen ? const Color(0xFF0E5F6B) : StudentSurface.card(context),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: chosen ? const Color(0xFF0E5F6B) : const Color(0x2200304A),
@@ -429,7 +432,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    color: chosen ? Colors.white : const Color(0xFF0E3A52),
+                    color: chosen ? Colors.white : StudentSurface.ink(context),
                   ),
                 ),
               ),

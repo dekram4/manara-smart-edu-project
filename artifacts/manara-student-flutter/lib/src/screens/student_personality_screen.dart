@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_profile.dart';
@@ -118,17 +118,20 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       // than baked in, because it follows the chosen language.
       return Directionality(
         textDirection: StudentSettings.direction,
-        child: const Scaffold(
-          backgroundColor: Color(0xFFF4F8FF),
+        child: Scaffold(
+          backgroundColor: StudentSurface.ground(context),
           body: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: Color(0xFF9B3E68)),
-                SizedBox(height: 14),
+                const CircularProgressIndicator(color: Color(0xFF9B3E68)),
+                const SizedBox(height: 14),
                 Text(
                   'نجهّز شخصيتك الرائعة...',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: StudentSurface.ink(context),
+                  ),
                 ),
               ],
             ),
@@ -139,7 +142,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
     return Directionality(
       textDirection: StudentSettings.direction,
       child: Scaffold(
-        backgroundColor: const Color(0xFFFDF3EA),
+        backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(
           title: const Text('شخصيتي'),
           centerTitle: true,
@@ -622,7 +625,7 @@ class _ReadyPlayerMeCreatorScreenState
   Widget build(BuildContext context) => Directionality(
     textDirection: StudentSettings.direction,
     child: Scaffold(
-      backgroundColor: const Color(0xFFFDF3EA),
+      backgroundColor: StudentSurface.ground(context),
       appBar: AppBar(
         title: const Text('مصمم شخصيتي'),
         backgroundColor: const Color(0xFF17364F),
