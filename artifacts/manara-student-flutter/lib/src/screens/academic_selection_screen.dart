@@ -767,7 +767,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: StudentSurface.ink(context),
-                fontSize: 15,
+                fontSize: 30,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1025,7 +1025,7 @@ class _BookDropdown extends StatelessWidget {
                               label,
                               style: TextStyle(
                                 color: dark.withOpacity(0.85),
-                                fontSize: 10,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -1042,7 +1042,7 @@ class _BookDropdown extends StatelessWidget {
                               maxLines: 1,
                               style: TextStyle(
                                 color: StudentSurface.ink(context),
-                                fontSize: 14,
+                                fontSize: 20,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -1107,7 +1107,7 @@ class _StartAdventureButton extends StatelessWidget {
               disabledForegroundColor: Colors.white70,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             ),
           ),
@@ -1333,7 +1333,7 @@ class _SpeechBubble extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: StudentSurface.ink(context),
-              fontSize: 12.5,
+              fontSize: 17,
               height: 1.35,
               fontWeight: FontWeight.w800,
             ),
@@ -1405,7 +1405,7 @@ class _InfoBanner extends StatelessWidget {
         textAlign: TextAlign.center,
         style: const TextStyle(
           color: Color(0xFF92400E),
-          fontSize: 12,
+          fontSize: 16,
           fontWeight: FontWeight.w700,
           height: 1.5,
         ),

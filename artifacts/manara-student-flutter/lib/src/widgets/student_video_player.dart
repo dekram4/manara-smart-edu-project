@@ -1310,7 +1310,6 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = widget.controller.value.aspectRatio;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       // Tapping the video surface only reveals/hides the controls. Playback
@@ -1320,10 +1319,31 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Center(
-            child: AspectRatio(
-              aspectRatio: ratio <= 0 ? 16 / 9 : ratio,
-              child: VideoPlayer(widget.controller),
+          // The frame around this is a 16:9 box filling the container's
+          // width. What goes inside it used to be `AspectRatio(ratio)` —
+          // the *source's* own shape — so a lesson filmed on a phone in
+          // portrait rendered as a narrow strip stranded in the middle of
+          // a wide black frame. The video now fills the frame instead.
+          //
+          // Cropped in the card, whole in fullscreen. Cover is what makes
+          // a portrait source fill the width, and it necessarily cuts the
+          // top and bottom off; the student can still see every pixel by
+          // expanding, where nothing is cropped. A landscape source — the
+          // overwhelming majority — is 16:9 already and neither fit
+          // changes it at all.
+          Positioned.fill(
+            child: FittedBox(
+              fit: widget.fullscreen ? BoxFit.contain : BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: widget.controller.value.size.width <= 0
+                    ? 16
+                    : widget.controller.value.size.width,
+                height: widget.controller.value.size.height <= 0
+                    ? 9
+                    : widget.controller.value.size.height,
+                child: VideoPlayer(widget.controller),
+              ),
             ),
           ),
           // ExoPlayer/AVPlayer both surface network stalls as a transient

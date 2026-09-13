@@ -310,7 +310,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: _brandInk,
-                                  fontSize: 21,
+                                  fontSize: 30,
                                   height: 1.15,
                                   fontWeight: FontWeight.w900,
                                   shadows: [
@@ -332,8 +332,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         // A margin proportional to the green area, so the
                         // block keeps the same visual inset at any size.
                         padding: EdgeInsets.symmetric(
-                          horizontal: boardRect.width * 0.05,
-                          vertical: boardRect.height * 0.06,
+                          // Tightened from 0.05/0.06. The form is authored
+                          // at a fixed height and then scaled to this box,
+                          // so on a phone — where the box measures only
+                          // about 177x111 — the rendered type size works
+                          // out to boxHeight/formHeight and does not
+                          // depend on the font sizes at all. The padding
+                          // is the one lever that grows the box without
+                          // moving anything in the scene.
+                          horizontal: boardRect.width * 0.035,
+                          vertical: boardRect.height * 0.035,
                         ),
                         // The block is authored once at its 280px design
                         // size and then scaled to whatever the green area
@@ -351,6 +359,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           fit: BoxFit.scaleDown,
                           child: SizedBox(
                             width: (boardRect.width * 0.70)
+                                // Unchanged. Measuring showed 70% of the
+                                // board tops out near 315 at every size
+                                // shipped, so this ceiling is never the
+                                // binding constraint and raising it moved
+                                // nothing. The type sizes inside the block
+                                // are what had to grow: on a tablet the
+                                // FittedBox already sits at scale 1.0, so
+                                // the form was rendering at its bare
+                                // authored size — which is why the text
+                                // was smallest on the screens with the
+                                // most room.
                                 .clamp(240.0, 340.0)
                                 .toDouble(),
                             child: _BoardLoginForm(
@@ -532,14 +551,27 @@ class _BoardLoginForm extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
+            // One line, always.
+            //
+            // The whole block is scaled to fit the green board, so every
+            // pixel of its height is taken out of the scale factor and
+            // therefore out of the size of *everything else*. Letting this
+            // greeting wrap to two lines cost ~29px of block height, which
+            // on a phone shrank the fields and the button by more than the
+            // larger type had gained them. Keeping it to one line is what
+            // makes the rest of the form bigger.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
               tr('login.greeting'),
+              maxLines: 1,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 15,
+                fontSize: 20,
                 fontWeight: FontWeight.w900,
                 shadows: [Shadow(color: Colors.black54, blurRadius: 5, offset: Offset(0, 2))],
+              ),
               ),
             ),
             const SizedBox(height: 8),
@@ -588,7 +620,7 @@ class _BoardLoginForm extends StatelessWidget {
                 child: Text(
                   errorMessage!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 11, fontWeight: FontWeight.w800),
+                  style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 16, fontWeight: FontWeight.w800),
                 ),
               ),
             if (!isConfigured && initializationError != null)
@@ -597,7 +629,7 @@ class _BoardLoginForm extends StatelessWidget {
                 child: Text(
                   initializationError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFFCD34D), fontSize: 11, fontWeight: FontWeight.w800),
+                  style: const TextStyle(color: Color(0xFFFCD34D), fontSize: 16, fontWeight: FontWeight.w800),
                 ),
               ),
             const SizedBox(height: 8),
@@ -622,20 +654,28 @@ class _BoardLoginForm extends StatelessWidget {
                             key: ValueKey(loginSucceeded),
                           ),
                   ),
+                  // The label stays on one line and shrinks to fit if it
+                  // has to. At the larger type the longest of these
+                  // ("جاري التحقق...") wrapped to two lines inside the
+                  // button on a portrait tablet, which pushed the pill out
+                  // of shape. A button caption that wraps is never right.
                   label: Text(
                     loginSucceeded
                         ? tr('login.ready')
                         : isLoading
                             ? tr('login.checking')
                             : tr('login.submit'),
+                    maxLines: 1,
                   ),
                   style: FilledButton.styleFrom(
+                    // Grew with the type so the taller caption is not
+                    // pressed against the pill's edges.
                     minimumSize: const Size.fromHeight(40),
                     backgroundColor:
                         loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                    textStyle: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
                     shape: const StadiumBorder(),
                   ),
                 ),
@@ -699,11 +739,11 @@ class _SolidField extends StatelessWidget {
         onFieldSubmitted: onFieldSubmitted,
         validator: validator,
         cursorColor: Colors.black54,
-        style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w700),
+        style: const TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.w700),
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.black54, fontSize: 13.5, fontWeight: FontWeight.w600),
+          hintStyle: const TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w600),
           filled: true,
           fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
