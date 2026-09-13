@@ -231,7 +231,9 @@ class StudentLearningWorld extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const CustomPaint(painter: _LearningWorldPainter()),
+          CustomPaint(
+            painter: _LearningWorldPainter(night: StudentSurface.isDark(context)),
+          ),
           PositionedDirectional(
             top: 42,
             start: 28,
@@ -760,19 +762,22 @@ class _FloatingWorldBadge extends StatelessWidget {
 }
 
 class _LearningWorldPainter extends CustomPainter {
-  const _LearningWorldPainter();
+  const _LearningWorldPainter({required this.night});
+
+  /// The whole scene is a painted illustration rather than themed
+  /// widgets, so it cannot read Theme.of itself — the brightness is
+  /// handed to it and every wash below picks its side from this.
+  final bool night;
 
   @override
   void paint(Canvas canvas, Size size) {
     final wash = Paint()
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         begin: Alignment.topRight,
         end: Alignment.bottomLeft,
-        colors: [
-          Color(0xFFFFF6DD),
-          Color(0xFFF6F7F0),
-          Color(0xFFE8F3F0),
-        ],
+        colors: night
+            ? const [Color(0xFF16161F), Color(0xFF121218), Color(0xFF14181C)]
+            : const [Color(0xFFFFF6DD), Color(0xFFF6F7F0), Color(0xFFE8F3F0)],
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, wash);
 
@@ -795,7 +800,8 @@ class _LearningWorldPainter extends CustomPainter {
       lilac,
     );
 
-    final dots = Paint()..color = const Color(0xFF183047).withOpacity(0.11);
+    final dots = Paint()
+      ..color = (night ? Colors.white : const Color(0xFF183047)).withOpacity(0.11);
     for (var row = 0; row < 7; row++) {
       for (var column = 0; column < 9; column++) {
         final point = Offset(
@@ -832,7 +838,8 @@ class _LearningWorldPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _LearningWorldPainter oldDelegate) =>
+      oldDelegate.night != night;
 }
 
 // StudentCompanion — a fixed illustration of two children — used to live
@@ -953,7 +960,7 @@ class StudentScreenHero extends StatelessWidget {
     // opened card — follow the setting without each screen passing a
     // flag down to it.
     final night = dark || StudentSurface.isDark(context);
-    final foreground = night ? Colors.white : const Color(0xFF183047);
+    final foreground = night ? Colors.white : StudentSurface.ink(context);
     final supporting = night ? const Color(0xFFD8F4F0) : const Color(0xFF466273);
 
     return StudentAnimatedCard(

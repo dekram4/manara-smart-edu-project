@@ -493,13 +493,13 @@ class _QuizCatalog extends StatelessWidget {
                       ? tr('quiz.teacherQuiz')
                       : '${StudentAssessmentRules.quizTypeLabel(quiz)} • '
                           '${taken ? trf('quiz.attempts', {'count': quizResults.length}) : tr('quiz.retryable')}',
-                  style: const TextStyle(color: Color(0xFF49617C), fontWeight: FontWeight.w700),
+                  style: TextStyle(color: StudentSurface.mutedInk(context), fontWeight: FontWeight.w700),
                 ),
                 if (questionCount > 0) ...[
                   const SizedBox(height: 4),
                   Text(
                     trf('quiz.questionsCount', {'count': questionCount}),
-                    style: const TextStyle(color: Color(0xFF49617C)),
+                    style: TextStyle(color: StudentSurface.mutedInk(context)),
                   ),
                 ],
                 const SizedBox(height: 14),
@@ -560,7 +560,7 @@ class _QuestionList extends StatelessWidget {
             'n': questionIndex + 1,
             'total': questions.length,
           }),
-          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF49617C)),
+          style: TextStyle(fontWeight: FontWeight.w900, color: StudentSurface.mutedInk(context)),
         ),
         const SizedBox(height: 8),
         ClipRRect(
@@ -569,7 +569,7 @@ class _QuestionList extends StatelessWidget {
             value: (questionIndex + 1) / questions.length,
             minHeight: 9,
             color: const Color(0xFFF59E0B),
-            backgroundColor: const Color(0xFFE5EDF5),
+            backgroundColor: StudentSurface.track(context),
           ),
         ),
         const SizedBox(height: 18),

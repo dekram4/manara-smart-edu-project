@@ -167,7 +167,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF7EA),
+      backgroundColor: StudentSurface.warmGround(context),
       body: GestureDetector(
         // Tap anywhere to skip.
         behavior: HitTestBehavior.opaque,

@@ -4,9 +4,12 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../l10n/student_strings.dart';
 import '../models/student_profile.dart';
 
-const studentOnlyMessage = 'هذا التطبيق مخصص للطلاب فقط، يرجى تسجيل الدخول عبر منصة الويب';
+/// Resolved on each read rather than held in a `const`, so the sentence
+/// follows the language the student picked.
+String get studentOnlyMessage => tr('auth.studentsOnly');
 
 class StudentAuthException implements Exception {
   const StudentAuthException(this.message);
@@ -68,7 +71,7 @@ class StudentAuthService {
   }) async {
     final cleanUsername = username.trim();
     if (cleanUsername.isEmpty || password.isEmpty) {
-      throw const StudentAuthException('اكتب اسم المستخدم وكلمة المرور أولًا.');
+      throw StudentAuthException(tr('auth.fillBoth'));
     }
 
     try {
@@ -77,12 +80,12 @@ class StudentAuthService {
         final data = _asMap(student['data']);
         final storedPassword = data['password']?.toString();
         if (!_passwordsMatch(password, storedPassword)) {
-          throw const StudentAuthException('اسم المستخدم أو كلمة المرور غير صحيحة.');
+          throw StudentAuthException(tr('auth.badCredentials'));
         }
 
         final profile = StudentProfile.fromStudentRow(student);
         if (!profile.isStudent) {
-          throw const StudentAuthException(studentOnlyMessage);
+          throw StudentAuthException(studentOnlyMessage);
         }
         _sessionUsername = cleanUsername;
         _sessionPassword = password;
@@ -95,15 +98,16 @@ class StudentAuthService {
         return _signInWithSupabaseAuth(cleanUsername, password);
       }
 
-      throw const StudentAuthException('اسم المستخدم أو كلمة المرور غير صحيحة.');
+      throw StudentAuthException(tr('auth.badCredentials'));
     } on StudentAuthException {
       rethrow;
     } on AuthException catch (error) {
       throw StudentAuthException(_authErrorMessage(error));
     } on PostgrestException catch (error) {
-      throw StudentAuthException('تعذر الاتصال ببيانات الطلاب: ${error.message}');
+      throw StudentAuthException(
+          trf('auth.dataUnreachable', {'error': error.message}));
     } catch (error) {
-      throw StudentAuthException('حدث خطأ أثناء تسجيل الدخول: $error');
+      throw StudentAuthException(trf('auth.signInError', {'error': error}));
     }
   }
 
@@ -128,7 +132,7 @@ class StudentAuthService {
       _apiSessionToken = null;
       _apiSessionError = error is StudentAuthException
           ? error.message
-          : 'تعذر الوصول إلى خدمة الطالب الآمنة.';
+          : tr('auth.serviceUnreachable');
       return null;
     }
   }
@@ -162,7 +166,7 @@ class StudentAuthService {
       }
     }
     if (base.isEmpty) {
-      throw const StudentAuthException('لم يتم إعداد اتصال خدمة الطالب الآمنة.');
+      throw StudentAuthException(tr('auth.serviceNotConfigured'));
     }
     final response = await http
         .post(
@@ -181,12 +185,12 @@ class StudentAuthService {
       throw StudentAuthException(
         message?.trim().isNotEmpty == true
             ? message!
-            : 'تعذر تأمين جلسة الطالب. حاول مرة أخرى.',
+            : tr('auth.sessionFailed'),
       );
     }
     final token = payload['token']?.toString().trim();
     if (token == null || token.isEmpty) {
-      throw const StudentAuthException('تعذر تأمين جلسة الطالب. حاول مرة أخرى.');
+      throw StudentAuthException(tr('auth.sessionFailed'));
     }
     _apiSessionToken = token;
   }
@@ -212,7 +216,7 @@ class StudentAuthService {
     );
     final user = response.user;
     if (user == null) {
-      throw const StudentAuthException('اسم المستخدم أو كلمة المرور غير صحيحة.');
+      throw StudentAuthException(tr('auth.badCredentials'));
     }
 
     final profileRow = await client
@@ -228,7 +232,7 @@ class StudentAuthService {
 
     if (!profile.isStudent) {
       await client.auth.signOut();
-      throw const StudentAuthException(studentOnlyMessage);
+      throw StudentAuthException(studentOnlyMessage);
     }
     // This legacy email path has no server-verifiable student password row.
     // It can browse permitted Supabase content, but protected chat/AI remains
@@ -252,12 +256,12 @@ class StudentAuthService {
   String _authErrorMessage(AuthException error) {
     final message = error.message.toLowerCase();
     if (message.contains('invalid login credentials')) {
-      return 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+      return tr('auth.badCredentials');
     }
     if (message.contains('email not confirmed')) {
-      return 'يجب تأكيد البريد الإلكتروني قبل الدخول.';
+      return tr('auth.confirmEmail');
     }
-    return 'تعذر تسجيل الدخول عبر Supabase: ${error.message}';
+    return trf('auth.supabaseFailed', {'error': error.message});
   }
 }
 

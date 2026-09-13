@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/student_strings.dart';
+
 import 'audio_service.dart';
 
 enum StudentSoundCue {
@@ -134,15 +136,17 @@ class StudentSoundService {
     }
   }
 
-  /// Short Arabic phrases used for random spoken/textual encouragement. Kept
-  /// public so a caller can show the same phrase as an on-screen toast
+  /// Translation keys for the short phrases used as random encouragement.
+  /// Kept public so a caller can show the same phrase as an on-screen toast
   /// alongside (or instead of, if audio is muted/unavailable) the sound.
-  static const List<String> encouragementPhrases = [
-    'أحسنت يا بطل!',
-    'رائع جدًا!',
-    'ممتاز، واصل التقدّم!',
-    'أنت نجم اليوم!',
-    'عمل رائع، استمر بهذا التميز!',
+  /// Keys rather than sentences, because this list is `const` and the
+  /// phrase has to follow the language the student picked.
+  static const List<String> encouragementPhraseKeys = [
+    'cheer.1',
+    'cheer.2',
+    'cheer.3',
+    'cheer.4',
+    'cheer.5',
   ];
 
   static final math.Random _random = math.Random();
@@ -250,6 +254,8 @@ class StudentSoundService {
       HapticFeedback.selectionClick();
       play(StudentSoundCue.success);
     }
-    return encouragementPhrases[_random.nextInt(encouragementPhrases.length)];
+    return tr(
+      encouragementPhraseKeys[_random.nextInt(encouragementPhraseKeys.length)],
+    );
   }
 }

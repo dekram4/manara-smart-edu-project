@@ -289,10 +289,10 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                 children: [
                   Text(
                     tr('scope.title'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF0E3A52),
+                      color: StudentSurface.ink(context),
                     ),
                   ),
                   Text(
@@ -300,7 +300,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF5680AC),
+                      color: StudentSurface.mutedInk(context),
                     ),
                   ),
                 ],
@@ -345,14 +345,14 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(icon, size: 18, color: const Color(0xFF0E3A52)),
+              Icon(icon, size: 18, color: StudentSurface.ink(context)),
               const SizedBox(width: 6),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF0E3A52),
+                  color: StudentSurface.ink(context),
                 ),
               ),
             ],
@@ -463,7 +463,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: ready ? const Color(0xFF0E3A52) : const Color(0xFF8092A8),
+                color: ready ? StudentSurface.ink(context) : const Color(0xFF8092A8),
               ),
             ),
           ),

@@ -70,6 +70,30 @@ abstract final class StudentSurface {
   static Color outline(BuildContext context) => isDark(context)
       ? Colors.white.withOpacity(0.16)
       : Colors.black.withOpacity(0.10);
+
+  /// The warm ground the splash and the lesson card use.
+  static Color warmGround(BuildContext context) =>
+      isDark(context) ? const Color(0xFF121212) : const Color(0xFFFFF7EA);
+
+  /// The empty half of a progress bar, a slider groove, a disabled track —
+  /// anything that reads as "the part not filled in yet".
+  static Color track(BuildContext context) => isDark(context)
+      ? Colors.white.withOpacity(0.14)
+      : const Color(0xFFE5EDF5);
+
+  /// The three-stop sweep behind a light app bar. In dark mode it
+  /// collapses to the raised surface, because a pale gradient is exactly
+  /// what reads as a slab of daylight in a dark app.
+  static List<Color> barSweep(BuildContext context) => isDark(context)
+      ? const [Color(0xFF1E1E2E), Color(0xFF1A1A28), Color(0xFF1E1E2E)]
+      : const [Color(0xFFDCEFF7), Color(0xFFEFF6FA), Color(0xFFFFF6E7)];
+
+  /// A control sitting on top of artwork or a gradient bar: a translucent
+  /// wash of the page's own ground rather than a fixed white.
+  static Color controlWash(BuildContext context, [double opacity = 0.70]) =>
+      isDark(context)
+      ? Colors.white.withOpacity(opacity * 0.22)
+      : Colors.white.withOpacity(opacity);
 }
 
 /// A shared "playful sticker" silhouette used across student-facing cards
@@ -172,8 +196,94 @@ abstract final class StudentTheme {
           borderRadius: BorderRadius.circular(18),
         ),
       ),
+      // The surfaces Material builds for itself. A dialog, a sheet or a
+      // dropdown that is never given a colour paints the framework's own
+      // default rather than the app's, which is how a light panel survives
+      // into a dark app — the one place a screen-by-screen audit cannot
+      // reach, because no screen writes the colour.
+      dialogTheme: _dialogTheme(StudentPalette.surface, StudentPalette.ink),
+      bottomSheetTheme: _sheetTheme(StudentPalette.surface),
+      popupMenuTheme: _menuTheme(StudentPalette.surface, StudentPalette.ink),
+      dropdownMenuTheme: _dropdownTheme(StudentPalette.surface),
+      listTileTheme: const ListTileThemeData(
+        textColor: StudentPalette.ink,
+        iconColor: StudentPalette.mutedInk,
+      ),
+      expansionTileTheme: const ExpansionTileThemeData(
+        textColor: StudentPalette.ink,
+        collapsedTextColor: StudentPalette.ink,
+        iconColor: StudentPalette.mutedInk,
+        collapsedIconColor: StudentPalette.mutedInk,
+      ),
+      dividerTheme: const DividerThemeData(color: Color(0x1F4F46E5)),
+      iconTheme: const IconThemeData(color: StudentPalette.ink),
+      tooltipTheme: _tooltipTheme(StudentPalette.deepIndigo, Colors.white),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: StudentPalette.indigo,
+      ),
     );
   }
+
+  // Shared shapes for the component themes above, so light and dark differ
+  // only in the two colours each takes and can never drift apart in radius,
+  // elevation or padding.
+
+  static DialogThemeData _dialogTheme(Color surface, Color ink) =>
+      DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: GoogleFonts.tajawal(
+          color: ink,
+          fontSize: 20,
+          fontWeight: FontWeight.w900,
+        ),
+        contentTextStyle: GoogleFonts.tajawal(color: ink, height: 1.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(26),
+        ),
+      );
+
+  static BottomSheetThemeData _sheetTheme(Color surface) =>
+      BottomSheetThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        modalBackgroundColor: surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      );
+
+  static PopupMenuThemeData _menuTheme(Color surface, Color ink) =>
+      PopupMenuThemeData(
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        textStyle: GoogleFonts.tajawal(color: ink, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+      );
+
+  static DropdownMenuThemeData _dropdownTheme(Color surface) =>
+      DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll<Color>(surface),
+          surfaceTintColor: const WidgetStatePropertyAll<Color>(
+            Colors.transparent,
+          ),
+        ),
+      );
+
+  static TooltipThemeData _tooltipTheme(Color background, Color ink) =>
+      TooltipThemeData(
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        textStyle: GoogleFonts.tajawal(
+          color: ink,
+          fontWeight: FontWeight.w700,
+        ),
+      );
 
   /// The dark counterpart.
   ///
@@ -266,6 +376,26 @@ abstract final class StudentTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
+      ),
+      dialogTheme: _dialogTheme(surface, ink),
+      bottomSheetTheme: _sheetTheme(surface),
+      popupMenuTheme: _menuTheme(surface, ink),
+      dropdownMenuTheme: _dropdownTheme(surface),
+      listTileTheme: const ListTileThemeData(
+        textColor: ink,
+        iconColor: mutedInk,
+      ),
+      expansionTileTheme: const ExpansionTileThemeData(
+        textColor: ink,
+        collapsedTextColor: ink,
+        iconColor: mutedInk,
+        collapsedIconColor: mutedInk,
+      ),
+      dividerTheme: const DividerThemeData(color: Color(0x33FFFFFF)),
+      iconTheme: const IconThemeData(color: ink),
+      tooltipTheme: _tooltipTheme(const Color(0xFF2A2A3E), ink),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: StudentPalette.sky,
       ),
     );
   }

@@ -339,7 +339,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          color: Colors.white,
+          color: StudentSurface.card(context),
           child: Column(children: [
             DropdownButtonFormField<String>(
               value: _recipient,

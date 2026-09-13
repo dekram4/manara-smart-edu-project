@@ -1,3 +1,5 @@
+import '../l10n/student_strings.dart';
+
 class SupabaseConfig {
   const SupabaseConfig({
     required this.url,
@@ -37,12 +39,12 @@ class SupabaseConfig {
 
   String get configurationMessage {
     if (url.trim().isEmpty && anonKey.trim().isEmpty) {
-      return 'لم يتم إعداد اتصال Supabase. شغّل التطبيق مع SUPABASE_URL و SUPABASE_ANON_KEY.';
+      return tr('boot.noSupabase');
     }
     if (url.trim().isEmpty) {
-      return 'قيمة SUPABASE_URL غير موجودة في إعدادات تشغيل التطبيق.';
+      return tr('boot.noSupabaseUrl');
     }
-    return 'قيمة SUPABASE_ANON_KEY غير موجودة في إعدادات تشغيل التطبيق.';
+    return tr('boot.noSupabaseKey');
   }
 
 }

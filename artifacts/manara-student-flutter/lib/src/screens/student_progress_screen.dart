@@ -29,7 +29,7 @@ class StudentProgressScreen extends StatelessWidget {
               title: tr('progress.title'),
               subtitle: tr('progress.subtitle'),
               icon: Icons.insights_rounded,
-              colors: [Color(0xFF0B8693), Color(0xFF274E76)],
+              colors: [Color(0xFF0B8693), StudentSurface.ink(context)],
             ),
             const SizedBox(height: 14),
             const StudentEntrance(

@@ -142,86 +142,398 @@ class EndlessReaderSorting {
   final Map<String, String> items;
 }
 
-/// Builds the sorting round from a lesson's own words.
+/// Builds the classification round out of the groups the teacher wrote.
 ///
-/// Sorting needs to know something *about* each word, which free prose
-/// does not supply — so rather than inventing categories it cannot
-/// justify, this uses a property of the words themselves that is always
-/// true and always checkable: Arabic grammatical number. Singular against
-/// plural is a real exercise for this age, it is right for any subject,
-/// and it can never be wrong about a word the way a guessed
-/// "living/non-living" split could be.
-class EndlessReaderSortings {
-  const EndlessReaderSortings._();
+/// This replaced a grammar round — singular against plural — which was
+/// honest about Arabic but had nothing to do with science, and asked a
+/// question the lesson never posed. The rule now is that the app invents
+/// no categories of its own: a classification round exists only when the
+/// lesson text itself names groups and lists what is in them. If the
+/// teacher did not write groups, there is no round, and the challenge
+/// runs the other two. Guessing "living/non-living" from bare prose is
+/// exactly the sort of confident wrong answer this avoids.
+///
+/// The shape it reads is the one science lessons are written in:
+///
+///   الكائنات الحية: النبات، الحيوان، الإنسان
+///   الجمادات: الحجر، الماء، الهواء
+///
+/// A heading, a colon, then the members separated by commas or "و".
+class LessonGroupings {
+  const LessonGroupings._();
 
-  static const singular = 'مفرد';
-  static const plural = 'جمع';
+  /// A round needs at least this many groups, and this many members in
+  /// each, or it is not a classification — it is a list with a title.
+  static const minGroups = 2;
+  static const minItemsPerGroup = 2;
 
-  /// How many words a round sorts. Six fills two buckets without turning
-  /// the screen into a list.
-  static const itemCount = 6;
+  /// Caps, so one long lesson cannot produce a board a child scrolls.
+  static const maxGroups = 3;
+  static const maxItemsPerGroup = 4;
 
-  /// The sound plural endings, and the marker for a dual. A word carrying
-  /// one of these is plural beyond argument, which is what keeps this
-  /// round honest — no guessing, no word placed in a bucket the app
-  /// cannot defend.
-  static const _pluralEndings = ['ون', 'ين', 'ات', 'ان'];
+  /// A group label longer than this is a sentence that happens to contain
+  /// a colon, not a heading.
+  static const maxLabelWords = 4;
 
-  static EndlessReaderSorting? fromLesson({String? lessonText, String? lessonName}) {
-    // Deliberately a wider net than the spelling game uses.
-    //
-    // The letter rounds cap words at seven characters so a row of slots
-    // fits a phone — but Arabic sound plurals carry a two-letter suffix,
-    // so the very words this round needs ("المعلمون", "الطالبات") are
-    // usually eight or nine and were being filtered out before they were
-    // ever considered. With the spelling cap applied, a real lesson
-    // almost never produced a sorting round at all. Nothing is dragged
-    // into a slot here, so length costs nothing.
-    final words = EndlessReaderWords.fromLesson(
-      lessonText: lessonText,
-      lessonName: lessonName,
-      maxLengthOverride: 11,
-      limit: 24,
-    );
-    if (words.isEmpty) return null;
+  /// A member longer than this is a clause, not a thing being classified.
+  static const maxItemWords = 3;
+
+  static EndlessReaderSorting? fromLesson({String? lessonText}) {
+    final text = lessonText?.trim() ?? '';
+    if (text.isEmpty) return null;
+
+    final groups = <String, List<String>>{};
+    for (final line in text.split(RegExp(r'[\n\r]+'))) {
+      final parsed = _parseLine(line);
+      if (parsed == null) continue;
+      // First writing wins: a teacher who repeats a heading later in the
+      // lesson is elaborating, not redefining.
+      groups.putIfAbsent(parsed.$1, () => parsed.$2);
+      if (groups.length >= maxGroups) break;
+    }
+
+    if (groups.length < minGroups) return null;
+
+    // A word listed under two headings cannot be sorted into one bucket,
+    // so it is dropped rather than being marked wrong wherever it lands.
+    final seen = <String>{};
+    final duplicates = <String>{};
+    for (final members in groups.values) {
+      for (final item in members) {
+        if (!seen.add(item)) duplicates.add(item);
+      }
+    }
 
     final items = <String, String>{};
-    final plurals = <String>[];
-    final singulars = <String>[];
-
-    for (final word in words) {
-      // A short word cannot carry a plural ending meaningfully: "ات" on
-      // a three-letter word is usually its root, not a suffix.
-      if (word.length < 4) {
-        singulars.add(word);
-        continue;
-      }
-      final ending = word.substring(word.length - 2);
-      if (_pluralEndings.contains(ending)) {
-        plurals.add(word);
-      } else {
-        singulars.add(word);
+    for (final entry in groups.entries) {
+      final usable =
+          entry.value.where((item) => !duplicates.contains(item)).toList();
+      if (usable.length < minItemsPerGroup) return null;
+      for (final item in usable.take(maxItemsPerGroup)) {
+        items[item] = entry.key;
       }
     }
-
-    // A round with nothing in one bucket teaches nothing and cannot be
-    // completed meaningfully, so it is not offered at all.
-    if (plurals.isEmpty || singulars.isEmpty) return null;
-
-    final half = itemCount ~/ 2;
-    for (final word in plurals.take(half)) {
-      items[word] = plural;
-    }
-    for (final word in singulars.take(itemCount - items.length)) {
-      items[word] = singular;
-    }
-    if (items.length < 2) return null;
 
     return EndlessReaderSorting(
-      prompt: tr('challenge.sortPrompt'),
-      buckets: const [singular, plural],
+      prompt: tr('challenge.classifyPrompt'),
+      buckets: groups.keys.toList(),
       items: items,
     );
+  }
+
+  /// `(label, members)` for a line that names a group, or null.
+  static (String, List<String>)? _parseLine(String line) {
+    final clean = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (clean.isEmpty) return null;
+
+    final colon = clean.indexOf(RegExp('[:：]'));
+    if (colon <= 0 || colon >= clean.length - 1) return null;
+
+    final label = _strip(clean.substring(0, colon));
+    if (label.isEmpty || _wordCount(label) > maxLabelWords) return null;
+
+    // Commas, Arabic commas, and a standalone "و" all separate members
+    // in the way these lessons are written.
+    final members = clean
+        .substring(colon + 1)
+        .split(RegExp(r'[،,؛;]| و '))
+        .map(_strip)
+        .where((item) => item.isNotEmpty && _wordCount(item) <= maxItemWords)
+        .toList();
+
+    // De-duplicated within the line, because "الماء، الماء" is a typo and
+    // two identical tiles cannot both be dragged.
+    final unique = <String>[];
+    for (final item in members) {
+      if (!unique.contains(item)) unique.add(item);
+    }
+    if (unique.length < minItemsPerGroup) return null;
+    return (label, unique);
+  }
+
+  static int _wordCount(String value) =>
+      value.split(' ').where((part) => part.isNotEmpty).length;
+
+  /// Trailing punctuation and the leading conjunction a list picks up.
+  static String _strip(String value) => value
+      .replaceAll(RegExp(r'^[\s\-–—•*]+'), '')
+      .replaceAll(RegExp(r'[\s.،,؛;:]+$'), '')
+      .trim();
+}
+
+/// One term from the lesson and what the lesson says it is.
+class LessonDefinition {
+  const LessonDefinition({required this.term, required this.meaning});
+
+  /// The scientific term — what the student drags.
+  final String term;
+
+  /// The teacher's own wording of what it means — the card it lands on.
+  final String meaning;
+}
+
+/// Builds the concept-matching round out of the lesson's own definitions.
+///
+/// Like the classification round, this invents nothing: it pulls pairs
+/// only where the teacher actually wrote a definition, in one of the two
+/// shapes these lessons use — "الخلية هي وحدة بناء الكائن الحي", or a
+/// heading and a colon. A lesson with no definitions yields no round.
+class LessonDefinitions {
+  const LessonDefinitions._();
+
+  /// Three pairs is a match; two is a coin toss and four is a wall of
+  /// text on a phone.
+  static const minPairs = 3;
+  static const maxPairs = 4;
+
+  /// A term longer than this is a clause; a meaning shorter than this is
+  /// a label, and matching labels to labels teaches nothing.
+  static const maxTermWords = 4;
+  static const minMeaningWords = 2;
+  static const maxMeaningWords = 12;
+
+  /// The copulas that mark "X is Y" in the prose these lessons are
+  /// written in. Order matters: the longer forms are tried first so
+  /// "يُعرَّف ... بأنه" is not cut short by a bare "هو" inside it.
+  static const _copulas = ['بأنها', 'بأنه', 'تعني', 'يعني', 'هي', 'هو'];
+
+  static List<LessonDefinition> fromLesson({String? lessonText}) {
+    final text = lessonText?.trim() ?? '';
+    if (text.isEmpty) return const [];
+
+    final pairs = <LessonDefinition>[];
+    final usedTerms = <String>{};
+
+    for (final piece in text.split(RegExp(r'[.!?؟\n\r]+'))) {
+      final sentence = piece.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (sentence.isEmpty) continue;
+
+      final pair = _parse(sentence);
+      if (pair == null) continue;
+      if (!usedTerms.add(pair.term)) continue;
+      pairs.add(pair);
+      if (pairs.length >= maxPairs) break;
+    }
+
+    return pairs.length >= minPairs ? pairs : const [];
+  }
+
+  static LessonDefinition? _parse(String sentence) {
+    for (final copula in _copulas) {
+      final at = sentence.indexOf(' $copula ');
+      if (at <= 0) continue;
+      final term = _strip(sentence.substring(0, at));
+      final meaning = _strip(sentence.substring(at + copula.length + 2));
+      if (_fits(term, meaning)) {
+        return LessonDefinition(term: term, meaning: meaning);
+      }
+    }
+
+    // A colon line is a definition only when what follows is prose. A
+    // comma list after a colon is a classification, and belongs to the
+    // other round rather than to this one.
+    final colon = sentence.indexOf(RegExp('[:：]'));
+    if (colon > 0 && colon < sentence.length - 1) {
+      final term = _strip(sentence.substring(0, colon));
+      final meaning = _strip(sentence.substring(colon + 1));
+      if (!meaning.contains(RegExp(r'[،,؛;]')) && _fits(term, meaning)) {
+        return LessonDefinition(term: term, meaning: meaning);
+      }
+    }
+    return null;
+  }
+
+  static bool _fits(String term, String meaning) {
+    if (term.isEmpty || meaning.isEmpty) return false;
+    final termWords = _wordCount(term);
+    final meaningWords = _wordCount(meaning);
+    return termWords >= 1 &&
+        termWords <= maxTermWords &&
+        meaningWords >= minMeaningWords &&
+        meaningWords <= maxMeaningWords;
+  }
+
+  static int _wordCount(String value) =>
+      value.split(' ').where((part) => part.isNotEmpty).length;
+
+  static String _strip(String value) => value
+      .replaceAll(RegExp(r'^[\s\-–—•*]+'), '')
+      .replaceAll(RegExp(r'[\s.،,؛;:]+$'), '')
+      .trim();
+}
+
+/// One question in a challenge run.
+///
+/// The run used to be index arithmetic over three fixed blocks, which is
+/// why adding a round meant rewriting the offsets in five getters. A run
+/// is now a plain list of these, built up front: the screen asks what
+/// round it is on rather than working it out.
+sealed class ChallengeRound {
+  const ChallengeRound();
+}
+
+/// Complete the teacher's own sentence with the term taken out of it.
+class FillRound extends ChallengeRound {
+  const FillRound(this.sentence);
+  final EndlessReaderSentence sentence;
+}
+
+/// Drag each item into the group the lesson put it in.
+class ClassifyRound extends ChallengeRound {
+  const ClassifyRound(this.sorting);
+  final EndlessReaderSorting sorting;
+}
+
+/// Drag each term onto the teacher's definition of it.
+class MatchRound extends ChallengeRound {
+  const MatchRound(this.pairs);
+  final List<LessonDefinition> pairs;
+}
+
+/// Builds one run of the challenge from the current lesson.
+///
+/// Two things matter here and neither was true before. A run is a fixed
+/// length, so a child can see the end of it. And a run is *sampled*: the
+/// lesson's sentences, groups and definitions are a bank, and each visit
+/// draws a different hand from it, in a different order, with the choices
+/// shuffled — so replaying is another go at the material rather than the
+/// same ten screens again.
+///
+/// When the lesson cannot fill ten, the run is honestly shorter rather
+/// than padded with invented questions.
+class ChallengeSession {
+  const ChallengeSession._();
+
+  /// The length of a full run.
+  static const questionCount = 10;
+
+  static List<ChallengeRound> build({
+    required String? lessonText,
+    required int seed,
+  }) {
+    final rng = math.Random(seed);
+
+    // Every sentence the lesson can yield, not the two the run will use
+    // — the surplus is exactly what makes the next attempt different.
+    // Copied before shuffling: the builder returns a `const []` when the
+    // lesson has no usable sentence, and a const list cannot be shuffled
+    // in place.
+    final sentences = [
+      ...EndlessReaderSentences.fromLesson(
+        lessonText: lessonText,
+        random: rng,
+      ),
+    ]..shuffle(rng);
+
+    final grouping = LessonGroupings.fromLesson(lessonText: lessonText);
+    final definitions = LessonDefinitions.fromLesson(lessonText: lessonText);
+
+    // Each pool is turned into whole rounds first, then the rounds are
+    // interleaved. Interleaving the kinds rather than blocking them means
+    // a child is not asked the same thing five times running.
+    final fills = <ChallengeRound>[
+      for (final sentence in sentences) FillRound(sentence),
+    ];
+    final classifies = _classifyRounds(grouping, rng);
+    final matches = _matchRounds(definitions, rng);
+
+    final plan = <ChallengeRound>[];
+    final pools = [fills, classifies, matches]
+        .where((pool) => pool.isNotEmpty)
+        .toList()
+      ..shuffle(rng);
+    if (pools.isEmpty) return const [];
+
+    // Round-robin across whatever pools have material left, so the mix
+    // stays varied right to the end of a run instead of degenerating into
+    // whichever pool is deepest.
+    var cursor = 0;
+    while (plan.length < questionCount && pools.isNotEmpty) {
+      final pool = pools[cursor % pools.length];
+      plan.add(pool.removeAt(0));
+      if (pool.isEmpty) {
+        pools.remove(pool);
+      } else {
+        cursor++;
+      }
+    }
+    return plan;
+  }
+
+  /// Classification rounds, each a different hand of items from the same
+  /// groups. One board per pass through the lesson's items, so a lesson
+  /// naming six creatures gives more than a single round.
+  static List<ChallengeRound> _classifyRounds(
+    EndlessReaderSorting? grouping,
+    math.Random rng,
+  ) {
+    if (grouping == null) return const [];
+
+    // Back to the items grouped by bucket, so each generated board can
+    // take a different slice while still holding every bucket.
+    final byBucket = <String, List<String>>{
+      for (final bucket in grouping.buckets) bucket: <String>[],
+    };
+    for (final entry in grouping.items.entries) {
+      byBucket[entry.value]?.add(entry.key);
+    }
+    for (final items in byBucket.values) {
+      items.shuffle(rng);
+    }
+
+    const perBucket = 2;
+    final deepest = byBucket.values
+        .map((items) => items.length ~/ perBucket)
+        .fold<int>(0, math.max);
+
+    final rounds = <ChallengeRound>[];
+    for (var pass = 0; pass < deepest; pass++) {
+      final items = <String, String>{};
+      for (final entry in byBucket.entries) {
+        final slice = entry.value.skip(pass * perBucket).take(perBucket);
+        for (final item in slice) {
+          items[item] = entry.key;
+        }
+      }
+      // A board missing a whole bucket cannot be completed, so the pass
+      // that runs out ends the sequence rather than shipping a broken one.
+      final covered = items.values.toSet();
+      if (covered.length < grouping.buckets.length) break;
+      rounds.add(
+        ClassifyRound(
+          EndlessReaderSorting(
+            prompt: grouping.prompt,
+            buckets: grouping.buckets,
+            items: items,
+          ),
+        ),
+      );
+    }
+    return rounds;
+  }
+
+  /// Matching rounds, each on a different set of the lesson's pairs.
+  static List<ChallengeRound> _matchRounds(
+    List<LessonDefinition> definitions,
+    math.Random rng,
+  ) {
+    if (definitions.length < LessonDefinitions.minPairs) return const [];
+    final shuffled = [...definitions]..shuffle(rng);
+
+    const perRound = LessonDefinitions.minPairs;
+    final rounds = <ChallengeRound>[];
+    for (var at = 0; at + perRound <= shuffled.length; at += perRound) {
+      rounds.add(MatchRound(shuffled.sublist(at, at + perRound)));
+    }
+    // A tail too short for its own round still makes one when it can
+    // borrow from the front — the pairs differ from the round that used
+    // them because the partners around them do.
+    final remainder = shuffled.length % perRound;
+    if (remainder > 0 && shuffled.length > perRound) {
+      final tail = shuffled.sublist(shuffled.length - perRound);
+      rounds.add(MatchRound(tail));
+    }
+    return rounds;
   }
 }
 
@@ -262,8 +574,12 @@ class EndlessReaderSentences {
   static const minWords = 5;
   static const maxWords = 18;
 
-  /// The most sentence rounds one visit plays through.
-  static const maxSentences = 8;
+  /// The size of the sentence bank, not the length of a run.
+  ///
+  /// A run plays a handful of these; the rest is the surplus a retry
+  /// draws a different hand from. Capped so a very long lesson does not
+  /// spend the frame budget building sentences nobody will reach.
+  static const maxSentences = 24;
 
   /// Words never chosen as the missing one: they carry no meaning on
   /// their own, so blanking them tests nothing.
@@ -374,82 +690,67 @@ class StudentEndlessReaderScreen extends StatefulWidget {
 class _StudentEndlessReaderScreenState
     extends State<StudentEndlessReaderScreen> {
   late final ConfettiController _confetti;
-  late final List<String> _words;
-  late final List<EndlessReaderSentence> _sentences;
 
-  /// Letter rounds first, then sentence rounds. Spelling a term before
-  /// being asked to place it in a definition is the order that teaches;
-  /// the reverse asks a student to use a word they have not met yet.
-  /// The challenge is a fixed, short run rather than everything the
-  /// lesson could yield: two spelling rounds, two sentence rounds, then
-  /// one sorting round. A child finishes it, which a stream of twelve
-  /// words does not let them do — and whatever the lesson provides, the
-  /// shape of the challenge stays the same.
-  static const _maxLetterStages = 2;
-  static const _maxSentenceStages = 2;
+  /// The ten questions of this run, drawn when the screen opens and drawn
+  /// again — differently — on every retry.
+  ///
+  /// Three kinds of science round, all built from the lesson the teacher
+  /// wrote: complete the term inside their own sentence, sort the items
+  /// into the groups they named, match each term to their definition of
+  /// it.
+  ///
+  /// The letter-dragging round this used to open with is gone. Spelling a
+  /// word out of loose letters is a reading exercise, not a science one,
+  /// and it was the easiest thing on the screen by a distance. The
+  /// grammar sort — singular against plural — went with it for the same
+  /// reason: a true statement about Arabic that the science lesson had
+  /// never asked.
+  List<ChallengeRound> _plan = const [];
 
-  int get _letterStages =>
-      _words.length < _maxLetterStages ? _words.length : _maxLetterStages;
-  int get _sentenceStages => _sentences.length < _maxSentenceStages
-      ? _sentences.length
-      : _maxSentenceStages;
-  int get _sortingStages => _sorting == null ? 0 : 1;
+  /// Changed on every retry so the next run samples a different hand.
+  int _seed = DateTime.now().microsecondsSinceEpoch;
 
-  bool get _onSentence =>
-      _wordIndex >= _letterStages && _wordIndex < _letterStages + _sentenceStages;
-  bool get _onSorting => _wordIndex >= _letterStages + _sentenceStages;
-  EndlessReaderSentence get _sentence =>
-      _sentences[(_wordIndex - _letterStages).clamp(0, _sentences.length - 1)];
+  ChallengeRound? get _round =>
+      _wordIndex < _plan.length ? _plan[_wordIndex] : null;
 
-  /// The sorting round, built once when the screen opens.
-  late final EndlessReaderSorting? _sorting;
+  bool get _onSorting => _round is ClassifyRound;
+  bool get _onMatching => _round is MatchRound;
 
-  /// Which bucket each sorted word has been dropped into so far.
+  EndlessReaderSentence get _sentence => (_round as FillRound).sentence;
+  EndlessReaderSorting? get _sorting =>
+      _round is ClassifyRound ? (_round! as ClassifyRound).sorting : null;
+  List<LessonDefinition> get _pairs =>
+      _round is MatchRound ? (_round! as MatchRound).pairs : const [];
+
+  /// The definitions of the current matching round in the order they are
+  /// shown — shuffled, so the answer is never the card opposite.
+  List<LessonDefinition> _meaningOrder = const [];
+
+  /// Which bucket each classified item has been dropped into so far.
   final Map<String, String> _sorted = {};
+
+  /// Which term has been matched to its definition so far.
+  final Map<String, String> _matched = {};
 
   /// The word dropped into the sentence gap, once one has been.
   String? _filled;
 
   var _wordIndex = 0;
-  List<int> _blanks = const [];
-  List<String> _tiles = const [];
 
-  /// How many words this lesson's round runs for. Every word is a stage,
-  /// so the student can see the end of the run rather than playing an
-  /// unmarked stream.
-  int get _stageCount => _letterStages + _sentenceStages + _sortingStages;
+  /// How many rounds this run holds, so the student can see the end of it
+  /// rather than playing an unmarked stream.
+  int get _stageCount => _plan.length;
   bool get _onLastStage => _wordIndex >= _stageCount - 1;
 
-  /// Position in the word -> the letter dropped there. A position missing
-  /// from this map is still an empty slot.
-  final Map<int, String> _placed = {};
-
-  /// The slot that just accepted a letter, so it alone plays the landing
-  /// bounce rather than the whole row twitching.
-  int? _justLanded;
-
-  /// Set while the finished-word celebration is on screen, which is also
-  /// what stops a second tap racing the next word in.
+  /// Set while the finished-round celebration is on screen, which is also
+  /// what stops a second tap racing the next round in.
   bool _celebrating = false;
-
-  String get _word => _words[_wordIndex.clamp(0, _words.length - 1)];
 
   @override
   void initState() {
     super.initState();
     _confetti = ConfettiController(duration: const Duration(seconds: 2));
-    _words = EndlessReaderWords.fromLesson(
-      lessonText: widget.academicContext?.selectedLesson.lessonText,
-      lessonName: widget.academicContext?.selectedLesson.lessonName,
-    );
-    _sentences = EndlessReaderSentences.fromLesson(
-      lessonText: widget.academicContext?.selectedLesson.lessonText,
-    );
-    _sorting = EndlessReaderSortings.fromLesson(
-      lessonText: widget.academicContext?.selectedLesson.lessonText,
-      lessonName: widget.academicContext?.selectedLesson.lessonName,
-    );
-    if (_stageCount > 0) _startRound();
+    _deal();
   }
 
   @override
@@ -458,20 +759,30 @@ class _StudentEndlessReaderScreenState
     super.dispose();
   }
 
+  /// Draws a fresh run. Called on open and on every retry, each time with
+  /// a new seed, which is what makes the second attempt a different set of
+  /// questions rather than a replay of the first.
+  void _deal() {
+    _plan = ChallengeSession.build(
+      lessonText: widget.academicContext?.selectedLesson.lessonText,
+      seed: _seed,
+    );
+    _wordIndex = 0;
+    _startRound();
+  }
+
   void _startRound() {
-    _placed.clear();
     _sorted.clear();
+    _matched.clear();
     _filled = null;
-    _justLanded = null;
     _celebrating = false;
-    if (_onSentence || _onSorting) {
-      _blanks = const [];
-      _tiles = const [];
-      return;
-    }
-    final seed = _wordIndex * 7919 + _word.length;
-    _blanks = EndlessReaderWords.blanksFor(_word, seed: seed);
-    _tiles = EndlessReaderWords.tilesFor(_word, _blanks, seed: seed);
+    // The definition cards are ordered per round rather than per run, so
+    // meeting the same pair again in a later round still reads as a new
+    // question.
+    final pairs = _pairs;
+    _meaningOrder = pairs.isEmpty
+        ? const []
+        : ([...pairs]..shuffle(math.Random(_seed ^ (_wordIndex + 1) * 7919)));
   }
 
   /// A word dropped into the sentence gap. Only the right one is ever
@@ -495,14 +806,14 @@ class _StudentEndlessReaderScreenState
     }
   }
 
-  void _onAccept(int position, String letter) {
-    setState(() {
-      _placed[position] = letter;
-      _justLanded = position;
-    });
+  /// A term dropped onto a definition card. Only its own card accepts it,
+  /// so a wrong drop springs back rather than being marked wrong — the
+  /// same rule the other two rounds use.
+  void _onMatchAccept(String term, String meaning) {
+    setState(() => _matched[term] = meaning);
     HapticFeedback.lightImpact();
     StudentSoundService.instance.play(StudentSoundCue.success);
-    if (_placed.length == _blanks.length) _finishWord();
+    if (_matched.length == _pairs.length) _finishWord();
   }
 
   void _finishWord() {
@@ -523,14 +834,19 @@ class _StudentEndlessReaderScreenState
     });
   }
 
-  /// Starts the whole run again from the first word. Offered at the end
-  /// of a lesson's words, and at any point through the bar, because a
-  /// child who wants another go should not have to leave and come back.
+  /// Deals a whole new run. Offered at the end and at any point through
+  /// the bar, because a child who wants another go should not have to
+  /// leave and come back.
+  ///
+  /// A new seed, so this is genuinely another set of questions: different
+  /// sentences drawn from the bank, different items in the buckets,
+  /// different pairs to match, and every list shuffled again. Replaying
+  /// the identical ten screens is what this deliberately does not do.
   void _restart() {
     StudentSoundService.instance.playTap();
     setState(() {
-      _wordIndex = 0;
-      _startRound();
+      _seed = DateTime.now().microsecondsSinceEpoch ^ (_seed * 31 + 17);
+      _deal();
     });
   }
 
@@ -623,72 +939,61 @@ class _StudentEndlessReaderScreenState
       );
 
   Widget _game() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // The slot size is solved from the row that must hold the whole
-        // word, so a seven-letter word on a small phone shrinks its tiles
-        // instead of running off the side — and the floor keeps every
-        // tile inside what a child's finger can reliably hit.
-        final available = constraints.maxWidth - 32;
-        final slot = (available / math.max(_word.length, 4) - 8)
-            .clamp(34.0, 74.0)
-            .toDouble();
-
-        // The whole arena is centred rather than spread to the edges: the
-        // word, its tiles and the progress above them read as one panel
-        // in the middle of the screen with the artwork around it.
-        return Center(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _progress(),
-                const SizedBox(height: 14),
-                Text(
-                  _celebrating
-                      ? (_onSorting
-                          ? tr('challenge.sortDone')
-                          : _onSentence
-                              ? tr('challenge.sentenceDone')
-                              : tr('challenge.wordDone'))
-                      : (_onSorting
-                          ? (_sorting?.prompt ?? '')
-                          : _onSentence
-                              ? tr('challenge.dragWord')
-                              : tr('challenge.dragLetters')),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: _celebrating
-                        ? const Color(0xFF15803D)
-                        : const Color(0xFF3B2A6B),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                if (_onSorting)
-                  _sortingBoard()
-                else if (_onSentence)
-                  _sentenceCard()
-                else
-                  _wordRow(slot),
-                const SizedBox(height: 24),
-                if (_celebrating)
-                  _afterWordActions()
-                else if (_onSorting)
-                  _sortingTray()
-                else if (_onSentence)
-                  _choiceTray()
-                else
-                  _tileTray(slot),
-              ],
+    // The whole arena is centred rather than spread to the edges: the
+    // question, its pieces and the progress above them read as one panel
+    // in the middle of the screen with the artwork around it.
+    return Center(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _progress(),
+            const SizedBox(height: 14),
+            Text(
+              _celebrating ? _doneLine() : _promptLine(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: _celebrating
+                    ? const Color(0xFF15803D)
+                    : const Color(0xFF3B2A6B),
+              ),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 18),
+            if (_onSorting)
+              _sortingBoard()
+            else if (_onMatching)
+              _matchingBoard()
+            else
+              _sentenceCard(),
+            const SizedBox(height: 24),
+            if (_celebrating)
+              _afterWordActions()
+            else if (_onSorting)
+              _sortingTray()
+            else if (_onMatching)
+              _matchingTray()
+            else
+              _choiceTray(),
+          ],
+        ),
+      ),
     );
+  }
+
+  String _promptLine() {
+    if (_onSorting) return _sorting?.prompt ?? tr('challenge.classifyPrompt');
+    if (_onMatching) return tr('challenge.matchPrompt');
+    return tr('challenge.dragWord');
+  }
+
+  String _doneLine() {
+    if (_onSorting) return tr('challenge.sortDone');
+    if (_onMatching) return tr('challenge.matchDone');
+    return tr('challenge.sentenceDone');
   }
 
   /// "الكلمة ٢ من ٥", with a bar under it. A child playing through a
@@ -706,16 +1011,19 @@ class _StudentEndlessReaderScreenState
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: const Color(0xFF6D28D9), width: 1.6),
           ),
+          // "السؤال ٣ من ١٠" — one counter for the whole run rather than
+          // a different wording per kind of round. The student is working
+          // through ten questions; which kind each one happens to be is
+          // already obvious from the board under it.
           child: Text(
-            _onSorting
-                ? trf('challenge.stageSorting', {'n': _wordIndex + 1, 'total': _stageCount})
-                : _onSentence
-                    ? trf('challenge.stageSentence', {'n': _wordIndex + 1, 'total': _stageCount})
-                    : trf('challenge.stageLetters', {'n': _wordIndex + 1, 'total': _stageCount}),
+            trf('challenge.questionOf', {
+              'n': _wordIndex + 1,
+              'total': _stageCount,
+            }),
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
-              color: const Color(0xFF3B2A6B),
+              color: Color(0xFF3B2A6B),
             ),
           ),
         ),
@@ -724,12 +1032,22 @@ class _StudentEndlessReaderScreenState
           width: 220,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: _stageCount == 0 ? 0 : done / _stageCount,
-              minHeight: 8,
-              backgroundColor: StudentSurface.glass(context, 0.7),
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(Color(0xFF15803D)),
+            // Animated rather than jumping: the bar sliding to its new
+            // length is what makes finishing a question feel like ground
+            // gained instead of a number changing.
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(
+                end: _stageCount == 0 ? 0 : done / _stageCount,
+              ),
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                minHeight: 8,
+                backgroundColor: StudentSurface.glass(context, 0.7),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFF15803D)),
+              ),
             ),
           ),
         ),
@@ -896,6 +1214,111 @@ class _StudentEndlessReaderScreenState
     );
   }
 
+  /// The definition cards, stacked. Each accepts only the term it defines,
+  /// so a wrong drop springs back rather than being marked wrong — the
+  /// same rule the other two rounds use, and the reason this screen never
+  /// tells a child they are wrong.
+  Widget _matchingBoard() {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final pair in _meaningOrder) ...[
+            _meaningCard(pair),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _meaningCard(LessonDefinition pair) {
+    final matchedTerm = _matched.entries
+        .where((entry) => entry.value == pair.meaning)
+        .map((entry) => entry.key)
+        .firstOrNull;
+
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) =>
+          matchedTerm == null && details.data == pair.term,
+      onAcceptWithDetails: (details) =>
+          _onMatchAccept(details.data, pair.meaning),
+      builder: (context, candidate, _) {
+        final hovering = candidate.isNotEmpty;
+        final settled = matchedTerm != null;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: settled
+                ? const Color(0xFFDCFCE7)
+                : StudentSurface.glass(context, hovering ? 0.98 : 0.92),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: settled
+                  ? const Color(0xFF15803D)
+                  : hovering
+                      ? const Color(0xFF2563EB)
+                      : const Color(0xFF6D28D9),
+              width: settled || hovering ? 2.4 : 1.6,
+            ),
+          ),
+          child: Row(
+            children: [
+              // The term lands here, at the head of its own definition, so
+              // a finished board reads back as a list of full sentences
+              // rather than as a score.
+              if (settled)
+                Container(
+                  margin: const EdgeInsetsDirectional.only(end: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF15803D),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Text(
+                    matchedTerm,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  pair.meaning,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    height: 1.45,
+                    fontWeight: FontWeight.w700,
+                    color: StudentSurface.ink(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _matchingTray() {
+    final left = _pairs
+        .map((pair) => pair.term)
+        .where((term) => !_matched.containsKey(term))
+        .toList();
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 10,
+      runSpacing: 10,
+      children: [for (final term in left) _wordTile(term)],
+    );
+  }
+
   /// The sentence with its gap, as one readable line. The gap is a drop
   /// target sized to the answer, so the line does not jump when a word
   /// lands in it.
@@ -1032,164 +1455,4 @@ class _StudentEndlessReaderScreenState
     );
   }
 
-  Widget _wordRow(double slot) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (var index = 0; index < _word.length; index++)
-          _blanks.contains(index)
-              ? _slot(index, slot)
-              : _fixedLetter(_word[index], slot),
-      ],
-    );
-  }
-
-  Widget _fixedLetter(String letter, double slot) => Container(
-        width: slot,
-        height: slot,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: StudentSurface.glass(context, 0.92),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0x33000000)),
-        ),
-        child: Text(
-          letter,
-          style: TextStyle(
-            fontSize: slot * 0.52,
-            fontWeight: FontWeight.w900,
-            color: const Color(0xFF3B2A6B),
-          ),
-        ),
-      );
-
-  Widget _slot(int index, double slot) {
-    final placed = _placed[index];
-    final landed = _justLanded == index;
-
-    return DragTarget<String>(
-      // Only the right letter is taken. A wrong one is refused before it
-      // lands, so the tile springs back to the tray on its own and the
-      // child is never shown their own mistake sitting in the word.
-      onWillAcceptWithDetails: (details) =>
-          placed == null && details.data == _word[index],
-      onAcceptWithDetails: (details) => _onAccept(index, details.data),
-      builder: (context, candidate, rejected) {
-        final hovering = candidate.isNotEmpty;
-        return AnimatedScale(
-          scale: landed ? 1.12 : (hovering ? 1.06 : 1.0),
-          duration: Duration(milliseconds: landed ? 220 : 140),
-          curve: Curves.easeOutBack,
-          onEnd: () {
-            if (landed && mounted) setState(() => _justLanded = null);
-          },
-          child: Container(
-            width: slot,
-            height: slot,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: placed != null
-                  ? const Color(0xFFD1FAE5)
-                  : Colors.white.withOpacity(hovering ? 0.95 : 0.55),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: placed != null
-                    ? const Color(0xFF15803D)
-                    : const Color(0xFF6D28D9),
-                width: hovering || placed != null ? 3 : 2,
-              ),
-              boxShadow: [
-                if (hovering || placed != null)
-                  BoxShadow(
-                    color: (placed != null
-                            ? const Color(0xFF15803D)
-                            : const Color(0xFF6D28D9))
-                        .withOpacity(0.32),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-              ],
-            ),
-            child: Text(
-              placed ?? '',
-              style: TextStyle(
-                fontSize: slot * 0.52,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF15803D),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _tileTray(double slot) {
-    // Letters already placed leave the tray, so what is left is always
-    // what is still needed plus the decoys.
-    final used = _placed.values.toList();
-    final remaining = <String>[];
-    for (final tile in _tiles) {
-      final at = used.indexOf(tile);
-      if (at >= 0) {
-        used.removeAt(at);
-      } else {
-        remaining.add(tile);
-      }
-    }
-
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        for (final letter in remaining) _tile(letter, slot),
-      ],
-    );
-  }
-
-  Widget _tile(String letter, double slot) {
-    final face = Container(
-      width: slot,
-      height: slot,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x55000000),
-            blurRadius: 10,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Text(
-        letter,
-        style: TextStyle(
-          fontSize: slot * 0.52,
-          fontWeight: FontWeight.w900,
-          color: const Color(0xFF3B2A6B),
-        ),
-      ),
-    );
-
-    return Draggable<String>(
-      data: letter,
-      // Drawn a little larger under the finger so the letter stays
-      // visible past the fingertip covering it.
-      feedback: Material(
-        color: Colors.transparent,
-        child: Transform.scale(scale: 1.18, child: face),
-      ),
-      childWhenDragging: Opacity(opacity: 0.28, child: face),
-      child: face,
-    );
-  }
 }

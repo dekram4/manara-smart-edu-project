@@ -2,6 +2,7 @@
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
@@ -600,7 +601,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     child: Text(
                       tr('home.pickPortal'),
                       style: TextStyle(
-                        color: Color(0xFF0E1B2A),
+                        color: StudentSurface.ink(context),
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                       ),
@@ -612,7 +613,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     child: Text(
                       tr('home.pickPortalHint'),
                       style: TextStyle(
-                        color: Color(0xFF5680AC),
+                        color: StudentSurface.mutedInk(context),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -835,6 +836,9 @@ class _HomeSectionGrid extends StatelessWidget {
         itemBuilder: (context, index) => SizedBox(
           width: cardWidth,
           child: _SectionTile(
+            // Named by its portal rather than its position, so the key
+            // survives the rail being reordered.
+            key: ValueKey('portal-tile-${_homeSections[index].titleKey}'),
             section: _homeSections[index],
             // Staggers each card's float so the rail breathes rather than
             // pulsing as one block.
@@ -860,6 +864,7 @@ class _SectionTile extends StatefulWidget {
     required this.section,
     required this.index,
     required this.onPressed,
+    super.key,
   });
 
   final _HomeSection section;
@@ -879,8 +884,9 @@ class _SectionTileState extends State<_SectionTile>
     duration: Duration(milliseconds: 2900 + (widget.index % 5) * 170),
   );
 
-  /// The reaction to a finger or a pointer. Rises quickly and settles back
-  /// more slowly, which is what makes it feel sprung rather than switched.
+  /// The reaction to a finger or a pointer resting on the card: it rises,
+  /// grows and lights its rim. Quick up, slower down — which is what makes
+  /// it feel sprung rather than switched.
   late final AnimationController _lift = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 340),
@@ -897,6 +903,30 @@ class _SectionTileState extends State<_SectionTile>
     reverseCurve: Curves.easeOutCubic,
   );
 
+  /// The push itself, separate from the lift.
+  ///
+  /// The lift says "this card is under your finger"; this says "you just
+  /// pushed it". They have to be separate, because on a desktop the card
+  /// is already lifted by the hover before the click ever lands — driving
+  /// both from one controller means a click on a hovered card animates
+  /// nothing at all, which is exactly how the old version felt.
+  ///
+  /// Unbounded and driven by a real spring rather than a curve: a curve
+  /// plays a fixed shape over a fixed time, so releasing mid-press
+  /// restarts it from wherever it happens to be and reads as a stutter. A
+  /// spring carries the current velocity into the release, so a quick tap
+  /// and a slow press settle differently — which is what physical means.
+  late final AnimationController _push =
+      AnimationController.unbounded(vsync: this);
+
+  /// Stiff enough to answer immediately, damped just under critical so it
+  /// overshoots once on release and settles — one bounce, not a wobble.
+  static const _pushSpring = SpringDescription(
+    mass: 1,
+    stiffness: 420,
+    damping: 17,
+  );
+
   bool _hovered = false;
   bool _pressed = false;
 
@@ -910,6 +940,7 @@ class _SectionTileState extends State<_SectionTile>
   void dispose() {
     _drift.dispose();
     _lift.dispose();
+    _push.dispose();
     super.dispose();
   }
 
@@ -923,6 +954,16 @@ class _SectionTileState extends State<_SectionTile>
     } else {
       _lift.reverse();
     }
+  }
+
+  void _springPushTo(double target) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _push.value = target;
+      return;
+    }
+    _push.animateWith(
+      SpringSimulation(_pushSpring, _push.value, target, _push.velocity),
+    );
   }
 
   @override
@@ -958,7 +999,9 @@ class _SectionTileState extends State<_SectionTile>
             maxLines: 1,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Color.lerp(tint, Colors.black, 0.35),
+              color: StudentSurface.isDark(context)
+                ? Color.lerp(tint, Colors.white, 0.55)
+                : Color.lerp(tint, Colors.black, 0.35),
               fontSize: 15.5,
               fontWeight: FontWeight.w900,
             ),
@@ -982,18 +1025,21 @@ class _SectionTileState extends State<_SectionTile>
         onTapDown: (_) {
           _pressed = true;
           _sync();
+          _springPushTo(1);
         },
         onTapUp: (_) {
           _pressed = false;
           _sync();
+          _springPushTo(0);
         },
         onTapCancel: () {
           _pressed = false;
           _sync();
+          _springPushTo(0);
         },
         onTap: widget.onPressed,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_drift, _liftCurve]),
+          animation: Listenable.merge([_drift, _liftCurve, _push]),
           builder: (context, child) {
             // A plain sine over a controller that already reverses would
             // ease twice and stall at the ends; the raw value mapped
@@ -1002,16 +1048,32 @@ class _SectionTileState extends State<_SectionTile>
                 ? 0.0
                 : (1 - math.cos(_drift.value * math.pi)) / 2 - 0.5;
             final lift = reduceMotion ? 0.0 : _liftCurve.value.clamp(0.0, 1.4);
+            // The spring overshoots past 1 on the way down and past 0 on
+            // the way back; both are wanted, so this is clamped only
+            // loosely — just enough that a violent fling cannot invert
+            // the card.
+            final push = reduceMotion ? 0.0 : _push.value.clamp(-0.35, 1.25);
 
             // Real depth rather than a flat scale: the card tilts a
             // little away from the finger as it rises, with a
             // perspective entry in the matrix, so it reads as an object
             // lifting off the rail instead of a picture growing.
+            //
+            // The idle float also breathes a fraction of a percent of
+            // scale with the rise. Vertical travel alone reads as sliding;
+            // the two together read as floating toward the viewer.
             final matrix = Matrix4.identity()
               ..setEntry(3, 2, 0.0014)
-              ..translate(0.0, drift * 6 - lift * 16)
-              ..scale(1 + lift * 0.07)
-              ..rotateX(-lift * 0.16);
+              ..translate(0.0, drift * 11 - lift * 16 + push * 5)
+              ..scale(1 + drift * 0.012 + lift * 0.07 - push * 0.055)
+              ..rotateX(-lift * 0.16)
+              ..rotateZ(drift * 0.012);
+
+            // The rim is the neon: it stays a quiet tinted hairline at
+            // rest and burns into the portal's own colour as the card
+            // comes up, so each card glows as itself rather than every
+            // card glowing the same white.
+            final glow = lift.clamp(0.0, 1.0);
 
             return Transform(
               alignment: Alignment.center,
@@ -1020,30 +1082,35 @@ class _SectionTileState extends State<_SectionTile>
                   padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
-                    color: Colors.white.withOpacity(0.72 + lift * 0.18),
-                    // The rim brightens into the portal's own colour as
-                    // the card comes up, so each one glows as itself
-                    // rather than every card glowing the same white.
+                    color: StudentSurface.glass(context, 0.72 + lift * 0.18),
                     border: Border.all(
-                      color: tint.withOpacity(0.45 + lift * 0.50),
+                      color: tint.withOpacity(0.45 + glow * 0.50),
                       width: 1.6 + lift * 1.3,
                     ),
                     boxShadow: [
-                      // Two shadows: a tight contact shadow that stays
-                      // put, and a wide coloured bloom that grows as the
-                      // card rises. One shadow doing both jobs either
-                      // looks glued down or looks like fog.
+                      // Three layers, each with one job. A tight contact
+                      // shadow that stays put so the card keeps its
+                      // footing; a coloured bloom that grows as it rises;
+                      // and a wide, very soft halo that only appears on
+                      // engagement — that outermost one is what reads as
+                      // a glow rather than as a drop shadow.
                       BoxShadow(
                         color: const Color(0x33000000),
                         blurRadius: 6 + lift * 6,
                         offset: Offset(0, 3 + lift * 3),
                       ),
                       BoxShadow(
-                        color: tint.withOpacity(0.20 + lift * 0.42),
+                        color: tint.withOpacity(0.20 + glow * 0.42),
                         blurRadius: 18 + lift * 34,
                         spreadRadius: lift * 5,
                         offset: Offset(0, 9 + lift * 12),
                       ),
+                      if (glow > 0.01)
+                        BoxShadow(
+                          color: tint.withOpacity(glow * 0.34),
+                          blurRadius: 30 + glow * 44,
+                          spreadRadius: 2 + glow * 10,
+                        ),
                     ],
                   ),
                   child: child,
@@ -1317,7 +1384,7 @@ class _WelcomeCard extends StatelessWidget {
                   Text(
                     tr('hub.welcome'),
                     style: TextStyle(
-                      color: Color(0xFF5680AC),
+                      color: StudentSurface.mutedInk(context),
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1329,8 +1396,8 @@ class _WelcomeCard extends StatelessWidget {
                     child: Text(
                       profile.name,
                       maxLines: 1,
-                      style: const TextStyle(
-                        color: Color(0xFF0E1B2A),
+                      style: TextStyle(
+                        color: StudentSurface.ink(context),
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                       ),

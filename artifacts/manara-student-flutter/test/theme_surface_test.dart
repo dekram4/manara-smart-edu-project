@@ -41,6 +41,10 @@ void main() {
       'ink': StudentSurface.ink,
       'mutedInk': StudentSurface.mutedInk,
       'outline': StudentSurface.outline,
+      'warmGround': StudentSurface.warmGround,
+      'track': StudentSurface.track,
+      'controlWash': (context) => StudentSurface.controlWash(context),
+      'barSweep': (context) => StudentSurface.barSweep(context).first,
     };
 
     for (final entry in roles.entries) {
@@ -51,6 +55,55 @@ void main() {
         isNot(dark),
         reason: '${entry.key} is the same in both themes — not converted',
       );
+    }
+  });
+
+  test('the surfaces Material builds for itself are dark in the dark theme',
+      () {
+    // A dialog, a sheet or a dropdown that is never handed a colour paints
+    // the framework's default — which is light. No screen writes these,
+    // so no screen-by-screen audit can catch them; only the theme can.
+    final dark = StudentTheme.dark();
+    const page = Color(0xFF121212);
+    const raised = Color(0xFF1E1E2E);
+
+    expect(dark.dialogTheme.backgroundColor, raised);
+    expect(dark.bottomSheetTheme.backgroundColor, raised);
+    expect(dark.bottomSheetTheme.modalBackgroundColor, raised);
+    expect(dark.popupMenuTheme.color, raised);
+    expect(dark.cardTheme.color, raised);
+    expect(dark.scaffoldBackgroundColor, page);
+
+    // And each must be materially darker than its light counterpart.
+    final light = StudentTheme.light();
+    for (final pair in <List<Color?>>[
+      [light.dialogTheme.backgroundColor, dark.dialogTheme.backgroundColor],
+      [
+        light.bottomSheetTheme.backgroundColor,
+        dark.bottomSheetTheme.backgroundColor,
+      ],
+      [light.popupMenuTheme.color, dark.popupMenuTheme.color],
+      [light.scaffoldBackgroundColor, dark.scaffoldBackgroundColor],
+    ]) {
+      expect(
+        pair[0]!.computeLuminance(),
+        greaterThan(pair[1]!.computeLuminance() + 0.3),
+      );
+    }
+  });
+
+  test('the dark theme states a readable colour for every text surface', () {
+    final dark = StudentTheme.dark();
+    final raised = dark.cardTheme.color!;
+    for (final ink in <Color?>[
+      dark.listTileTheme.textColor,
+      dark.expansionTileTheme.textColor,
+      dark.expansionTileTheme.collapsedTextColor,
+      dark.iconTheme.color,
+    ]) {
+      expect(ink, isNotNull);
+      final gap = (ink!.computeLuminance() - raised.computeLuminance()).abs();
+      expect(gap, greaterThan(0.4), reason: '$ink is too close to the card');
     }
   });
 

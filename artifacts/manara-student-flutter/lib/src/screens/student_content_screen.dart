@@ -181,26 +181,22 @@ class _StudentContentScreenState extends State<StudentContentScreen>
         // a dark slab over a cream screen. A soft Manara blue-to-cream
         // sweep with deep ink on top instead.
         backgroundColor: Colors.transparent,
-        foregroundColor: const Color(0xFF0E3A52),
+        foregroundColor: StudentSurface.ink(context),
         elevation: 0,
         scrolledUnderElevation: 0,
-        flexibleSpace: const DecoratedBox(
+        flexibleSpace: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
-              colors: [
-                Color(0xFFDCEFF7),
-                Color(0xFFEFF6FA),
-                Color(0xFFFFF6E7),
-              ],
+              colors: StudentSurface.barSweep(context),
             ),
           ),
         ),
         title: Text(
           _moduleTitle(_activeModule),
-          style: const TextStyle(
-            color: Color(0xFF0E3A52),
+          style: TextStyle(
+            color: StudentSurface.ink(context),
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -222,10 +218,10 @@ class _StudentContentScreenState extends State<StudentContentScreen>
           tooltip: tr('action.close'),
           icon: const Icon(Icons.close_rounded),
           style: IconButton.styleFrom(
-            foregroundColor: const Color(0xFF0E3A52),
-            backgroundColor: Colors.white.withOpacity(0.7),
-            shape: const CircleBorder(
-              side: BorderSide(color: Colors.white),
+            foregroundColor: StudentSurface.ink(context),
+            backgroundColor: StudentSurface.controlWash(context),
+            shape: CircleBorder(
+              side: BorderSide(color: StudentSurface.outline(context)),
             ),
           ),
         ),
@@ -381,8 +377,8 @@ class _LessonModule extends StatelessWidget {
       children: [
         Text(
           tr('content.lessonVideo'),
-          style: const TextStyle(
-            color: Color(0xFF0E1B2A),
+          style: TextStyle(
+            color: StudentSurface.ink(context),
             fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
@@ -392,8 +388,8 @@ class _LessonModule extends StatelessWidget {
           lesson.scopeLabel.isEmpty
               ? tr('content.yourVideos')
               : lesson.scopeLabel,
-          style: const TextStyle(
-            color: Color(0xFF5680AC),
+          style: TextStyle(
+            color: StudentSurface.mutedInk(context),
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -660,8 +656,8 @@ class _GamesModule extends StatelessWidget {
       children: [
         Text(
           tr('content.gamesTitle'),
-          style: const TextStyle(
-            color: Color(0xFF0E1B2A),
+          style: TextStyle(
+            color: StudentSurface.ink(context),
             fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
@@ -669,8 +665,8 @@ class _GamesModule extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           tr('content.gamesSubtitle'),
-          style: const TextStyle(
-            color: Color(0xFF5680AC),
+          style: TextStyle(
+            color: StudentSurface.mutedInk(context),
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1490,8 +1486,8 @@ class _StateCard extends StatelessWidget {
                 Text(
                   title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF0E1B2A),
+                  style: TextStyle(
+                    color: StudentSurface.ink(context),
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1500,8 +1496,8 @@ class _StateCard extends StatelessWidget {
                 Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF5680AC),
+                  style: TextStyle(
+                    color: StudentSurface.mutedInk(context),
                     height: 1.5,
                     fontWeight: FontWeight.w700,
                   ),

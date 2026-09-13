@@ -524,7 +524,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEFF3F6),
+      backgroundColor: StudentSurface.coolGround(context),
       body: Stack(
         children: [
           const Positioned.fill(
@@ -1148,28 +1148,22 @@ class _FloatingArt extends StatefulWidget {
   const _FloatingArt({
     required this.asset,
     required this.size,
-    this.baseAngle = 0,
     this.motion = _Motion.bounce,
-    this.amount = 1,
     this.period = const Duration(milliseconds: 3400),
-    this.phase = 0,
-    super.key,
   });
 
   final String asset;
   final double size;
-  final double baseAngle;
   final _Motion motion;
-
-  /// Scales the whole movement, so one character can be livelier than
-  /// another without needing its own style.
-  final double amount;
-
   final Duration period;
 
-  /// 0..1 offset into the cycle. Staggering the characters is what stops
-  /// them moving in lockstep.
-  final double phase;
+  /// The tilt, the liveliness and the offset into the cycle used to be
+  /// constructor parameters, and every one of them was left at its
+  /// default at every call site — so they are the defaults themselves
+  /// now. The values are unchanged; only the unused dials are gone.
+  static const baseAngle = 0.0;
+  static const amount = 1.0;
+  static const phase = 0.0;
 
   @override
   State<_FloatingArt> createState() => _FloatingArtState();
@@ -1205,15 +1199,15 @@ class _FloatingArtState extends State<_FloatingArt>
     );
 
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      return Transform.rotate(angle: widget.baseAngle, child: image);
+      return Transform.rotate(angle: _FloatingArt.baseAngle, child: image);
     }
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final t = (_controller.value + widget.phase) % 1.0;
+        final t = (_controller.value + _FloatingArt.phase) % 1.0;
         final turn = t * 2 * math.pi;
-        final k = widget.amount;
+        final k = _FloatingArt.amount;
         final s = widget.size;
 
         double dy = 0;
@@ -1251,7 +1245,7 @@ class _FloatingArtState extends State<_FloatingArt>
         return Transform.translate(
           offset: Offset(0, dy),
           child: Transform.rotate(
-            angle: widget.baseAngle + tilt,
+            angle: _FloatingArt.baseAngle + tilt,
             // Anchored to the feet so a character deforms without
             // sinking through the floor it stands on.
             child: Transform(

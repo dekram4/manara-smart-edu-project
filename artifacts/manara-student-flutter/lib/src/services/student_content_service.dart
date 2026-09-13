@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
 import '../models/student_content.dart';
+import '../l10n/student_strings.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 
@@ -15,7 +16,7 @@ class TeacherQuizAlreadySubmittedException implements Exception {
   final Map<String, dynamic> result;
 
   @override
-  String toString() => 'تم إكمال اختبار المعلم مسبقًا.';
+  String toString() => tr('svc.quizAlreadyDone');
 }
 
 class StudentContentService {
@@ -46,7 +47,7 @@ class StudentContentService {
     int? quizTotal,
   }) async {
     if (activityId.trim().isEmpty) {
-      throw ArgumentError('لا يمكن منح مكافأة بدون معرف للنشاط.');
+      throw ArgumentError(tr('svc.noActivityId'));
     }
     final row = await client
         .from('students')
@@ -54,7 +55,7 @@ class StudentContentService {
         .eq('id', profile.id)
         .maybeSingle()
         .timeout(_requestTimeout);
-    if (row == null) throw StateError('لم يتم العثور على سجل الطالب.');
+    if (row == null) throw StateError(tr('svc.noStudentRow'));
     final rowData = _asMap(row['data']);
     final current = StudentGamification.fromMap(rowData['gamification']);
     final normalizedActivityType = activityType.trim().toLowerCase();
@@ -120,7 +121,7 @@ class StudentContentService {
       gems = 3;
       games++;
     } else {
-      throw ArgumentError('نوع نشاط المكافأة غير مدعوم: $activityType');
+      throw ArgumentError(trf('svc.badActivityType', {'type': activityType}));
     }
 
     final beforeLevel = current.level;
@@ -238,16 +239,18 @@ class StudentContentService {
     }
 
     if (streak >= 3)
-      addAchievement('streak_3', '3 أيام متواصل', 'تعلم 3 أيام متتالية', '🔥');
+      addAchievement(
+          'streak_3', tr('ach.streak3'), tr('ach.streak3.desc'), '🔥');
     if (streak >= 5)
       addAchievement(
         'streak_5',
-        '5 أيام متواصل',
-        'تعلم 5 أيام متتالية واحصل على مكافأة',
+        tr('ach.streak5'),
+        tr('ach.streak5.desc'),
         '🏅',
       );
     if (streak >= 7)
-      addAchievement('streak_7', 'أسبوع متواصل', 'تعلم 7 أيام متتالية', '🔥');
+      addAchievement(
+          'streak_7', tr('ach.streak7'), tr('ach.streak7.desc'), '🔥');
     final next = current.copyWith(
       xp: current.xp + bonus,
       streak: streak,
@@ -295,30 +298,36 @@ class StudentContentService {
     }
 
     if (type == 'quiz' && stats.totalQuizzes == 1)
-      add('first_quiz', 'أول اختبار', 'أكمل أول اختبار', '🎯');
+      add('first_quiz', tr('ach.firstQuiz'), tr('ach.firstQuiz.desc'), '🎯');
     if (type == 'quiz' && stats.totalQuizzes >= 10)
-      add('quiz_warrior', 'مقاتل الاختبارات', 'أكمل 10 اختبارات', '⚔️');
+      add('quiz_warrior', tr('ach.quizWarrior'), tr('ach.quizWarrior.desc'),
+          '⚔️');
     if (type == 'quiz' && perfectQuiz)
-      add('perfect_quiz', 'نتيجة مثالية', 'حصل على 100% في اختبار', '⭐');
+      add('perfect_quiz', tr('ach.perfectQuiz'), tr('ach.perfectQuiz.desc'),
+          '⭐');
     if (type == 'lesson' && stats.totalLessons == 1)
-      add('first_lesson', 'أول درس', 'أكمل أول درس', '📚');
+      add('first_lesson', tr('ach.firstLesson'), tr('ach.firstLesson.desc'),
+          '📚');
     if (type == 'lesson' && stats.totalLessons >= 10)
-      add('lesson_master', 'سيد الدروس', 'أكمل 10 دروس', '🏆');
+      add('lesson_master', tr('ach.lessonMaster'), tr('ach.lessonMaster.desc'),
+          '🏆');
     if (type == 'problem')
-      add('math_solver', 'حلال المسائل', 'حل أول مسألة', '🔢');
+      add('math_solver', tr('ach.mathSolver'), tr('ach.mathSolver.desc'), '🔢');
     if (type == 'game' && stats.totalGames >= 5)
-      add('game_master', 'سيد الألعاب', 'العب 5 ألعاب', '🎮');
+      add('game_master', tr('ach.gameMaster'), tr('ach.gameMaster.desc'), '🎮');
     final normalizedActivity = activityId.toLowerCase();
     if (type == 'game' && normalizedActivity.contains('memory')) {
-      add('memory_master', 'سيد الذاكرة', 'انتصر في لعبة الذاكرة', '🧠');
+      add('memory_master', tr('ach.memoryMaster'), tr('ach.memoryMaster.desc'),
+          '🧠');
     }
     if (type == 'game' && normalizedActivity.contains('speed')) {
-      add('speed_demon', 'سريع كالبرق', 'فوز في الاختبار السريع', '⚡');
+      add('speed_demon', tr('ach.speedDemon'), tr('ach.speedDemon.desc'), '⚡');
     }
     if (stats.level >= 5)
-      add('level_5', 'المستوى 5', 'اوصل إلى المستوى 5', '💪');
+      add('level_5', tr('ach.level5'), tr('ach.level5.desc'), '💪');
     if (stats.gems >= 50)
-      add('gem_collector', 'جامع الجواهر', 'اجمع 50 جوهرة', '💎');
+      add('gem_collector', tr('ach.gemCollector'), tr('ach.gemCollector.desc'),
+          '💎');
     return result;
   }
 
@@ -539,10 +548,10 @@ class StudentContentService {
           id: _text(map['id']).isEmpty ? 'api-game-$index' : _text(map['id']),
           url: url,
           title: _text(map['title']).isEmpty
-              ? 'لعبة تعليمية'
+              ? tr('svc.defaultGame')
               : _text(map['title']),
           subtitle: _text(map['subtitle']).isEmpty
-              ? 'لعبة تفاعلية داخل منارة'
+              ? tr('svc.defaultGameSub')
               : _text(map['subtitle']),
           requiredLevel: _gameRequiredLevel(map),
         ),
@@ -595,7 +604,7 @@ class StudentContentService {
           url: url,
           sourceType: _videoType(data['sourceType'], url),
           title: _text(data['title']).isEmpty
-              ? 'فيديو سينما منارة'
+              ? tr('svc.defaultCinemaVideo')
               : _text(data['title']),
           description: _nullableText(data['description']),
         ),
@@ -677,7 +686,7 @@ class StudentContentService {
   }) async {
     final id = _text(result['id']);
     if (id.isEmpty) {
-      throw ArgumentError('لا يمكن حفظ نتيجة اختبار بدون معرف.');
+      throw ArgumentError(tr('svc.noResultId'));
     }
     final safeResult = <String, dynamic>{
       ...result,
@@ -1204,7 +1213,7 @@ LessonContent parseLessonContent(
           url: url,
           sourceType: _videoType(item['sourceType'], url),
           title: _text(item['title']).isEmpty
-              ? 'فيديو الشرح ${index + 1}'
+              ? trf('svc.lessonVideoN', {'n': index + 1})
               : _text(item['title']),
           description: _nullableText(item['description']),
         ),
@@ -1227,7 +1236,7 @@ LessonContent parseLessonContent(
         id: '$lessonRecordId:legacy-video',
         url: legacyUrl,
         sourceType: _videoType(data['explanationVideoType'], legacyUrl),
-        title: 'فيديو الشرح',
+        title: tr('svc.lessonVideo'),
       ),
     );
   }
@@ -1279,10 +1288,10 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
           id: _text(map['id']).isEmpty ? 'game-$index' : _text(map['id']),
           url: url,
           title: _text(map['title']).isEmpty
-              ? 'اللعبة ${index + 1}'
+              ? trf('svc.gameN', {'n': index + 1})
               : _text(map['title']),
           subtitle: _text(map['subtitle']).isEmpty
-              ? 'لعبة HTML5 تفاعلية داخل منارة'
+              ? tr('svc.html5Game')
               : _text(map['subtitle']),
           requiredLevel: _gameRequiredLevel(map),
         ),
@@ -1298,8 +1307,8 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
       HtmlGame(
         id: 'lesson-game',
         url: singleGame,
-        title: 'لعبة الدرس',
-        subtitle: 'تحدٍ تفاعلي مرتبط بالدرس',
+        title: tr('svc.lessonGame'),
+        subtitle: tr('svc.lessonGameSub'),
         requiredLevel: _gameRequiredLevel(data),
       ),
     );
@@ -1318,17 +1327,17 @@ int _gameRequiredLevel(Map<String, dynamic> data) {
 }
 
 List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
-  const entries = [
+  final entries = [
     (
       id: 'd4a3629101574bc39bd8f9d1888ca58e',
-      title: 'مغامرة التعلم',
-      subtitle: 'لعبة تعليمية تفاعلية داخل منارة',
+      title: tr('svc.adventure'),
+      subtitle: tr('svc.adventureSub'),
       requiredLevel: 0,
     ),
     (
       id: '172e0bd0c40442dbae3d4adb42a98433',
-      title: 'تحدي المعرفة',
-      subtitle: 'اختبر مهاراتك بطريقة ممتعة',
+      title: tr('svc.knowledge'),
+      subtitle: tr('svc.knowledgeSub'),
       requiredLevel: 2,
     ),
   ];

@@ -168,52 +168,174 @@ void main() {
     });
   });
 
-  group('building the sorting round', () {
-    test('sorts by a property it can actually prove', () {
-      final round = EndlessReaderSortings.fromLesson(
-        lessonText: 'المعلمون والطالبات في المدرسة. الكتاب على الطاولة.',
+  group('reading the teacher\'s groups', () {
+    const grouped = '''
+الكائنات الحية: النبات، الحيوان، الإنسان
+الجمادات: الحجر، الماء، الهواء
+''';
+
+    test('reads the groups and their members straight off the lesson', () {
+      final sorting = LessonGroupings.fromLesson(lessonText: grouped);
+
+      expect(sorting, isNotNull);
+      expect(sorting!.buckets, containsAll(['الكائنات الحية', 'الجمادات']));
+      expect(sorting.items['النبات'], 'الكائنات الحية');
+      expect(sorting.items['الحجر'], 'الجمادات');
+    });
+
+    test('invents nothing when the lesson names no groups', () {
+      // The whole point of the rewrite: prose about science is not a
+      // classification, and guessing one would be a confident wrong
+      // answer rather than a missing round.
+      final sorting = LessonGroupings.fromLesson(
+        lessonText: 'الماء مادة مهمة للحياة. النبات يحتاج الماء والضوء.',
       );
-      expect(round, isNotNull);
-      // Every word carrying a sound-plural ending belongs in the plural
-      // bucket; the rest are singular. Nothing here is guessed.
-      for (final entry in round!.items.entries) {
-        final endsPlural = entry.key.length >= 4 &&
-            const ['ون', 'ين', 'ات', 'ان']
-                .contains(entry.key.substring(entry.key.length - 2));
-        expect(
-          entry.value,
-          endsPlural
-              ? EndlessReaderSortings.plural
-              : EndlessReaderSortings.singular,
-          reason: '${entry.key} was put in the wrong bucket',
-        );
+      expect(sorting, isNull);
+    });
+
+    test('one group is a titled list, not a classification', () {
+      final sorting = LessonGroupings.fromLesson(
+        lessonText: 'الكائنات الحية: النبات، الحيوان، الإنسان',
+      );
+      expect(sorting, isNull);
+    });
+
+    test('an item listed under two groups is dropped, not guessed at', () {
+      final sorting = LessonGroupings.fromLesson(
+        lessonText: '''
+الأولى: الماء، النبات، الهواء
+الثانية: الماء، الحجر، التراب
+''',
+      );
+      // "الماء" cannot be sorted into one bucket, so it is not offered.
+      expect(sorting, isNotNull);
+      expect(sorting!.items.containsKey('الماء'), isFalse);
+      expect(sorting.items['النبات'], 'الأولى');
+      expect(sorting.items['الحجر'], 'الثانية');
+    });
+  });
+
+  group('reading the teacher\'s definitions', () {
+    const defined = '''
+الخلية هي وحدة البناء الأساسية في الكائن الحي.
+المادة هي كل ما له كتلة ويشغل حيزا من الفراغ.
+الطاقة هي القدرة على إنجاز شغل ما.
+الذرة هي أصغر جزء في العنصر الكيميائي.
+''';
+
+    test('pulls term and meaning out of the lesson\'s own sentences', () {
+      final pairs = LessonDefinitions.fromLesson(lessonText: defined);
+
+      expect(pairs.length, greaterThanOrEqualTo(3));
+      final terms = pairs.map((pair) => pair.term).toList();
+      expect(terms, contains('الخلية'));
+      expect(
+        pairs.firstWhere((pair) => pair.term == 'الخلية').meaning,
+        contains('وحدة البناء'),
+      );
+    });
+
+    test('a lesson with too few definitions yields no round at all', () {
+      final pairs = LessonDefinitions.fromLesson(
+        lessonText: 'الخلية هي وحدة البناء الأساسية في الكائن الحي.',
+      );
+      expect(pairs, isEmpty);
+    });
+
+    test('a comma list after a colon is a group, not a definition', () {
+      // Otherwise the same line would be mined twice and the student
+      // would meet it as both a classification and a match.
+      final pairs = LessonDefinitions.fromLesson(
+        lessonText: '''
+الكائنات الحية: النبات، الحيوان، الإنسان
+الجمادات: الحجر، الماء، الهواء
+المعادن: الحديد، النحاس، الذهب
+''',
+      );
+      expect(pairs, isEmpty);
+    });
+  });
+
+  group('dealing a challenge run', () {
+    /// A lesson with enough of all three kinds to fill a full run.
+    const rich = '''
+الخلية هي وحدة البناء الأساسية في الكائن الحي.
+المادة هي كل ما له كتلة ويشغل حيزا من الفراغ.
+الطاقة هي القدرة على إنجاز شغل ما.
+الذرة هي أصغر جزء في العنصر الكيميائي.
+النبات يصنع غذاءه بنفسه عن طريق عملية البناء الضوئي.
+الحيوانات تحتاج إلى الغذاء والماء والهواء لكي تعيش.
+الشمس هي المصدر الرئيسي للطاقة على سطح الأرض.
+الماء يتكون من ذرتي هيدروجين وذرة أكسجين واحدة.
+الكائنات الحية: النبات، الحيوان، الإنسان، الفطريات
+الجمادات: الحجر، الماء، الهواء، التراب
+''';
+
+    test('a rich lesson fills a full ten-question run', () {
+      final plan = ChallengeSession.build(lessonText: rich, seed: 1);
+      expect(plan.length, ChallengeSession.questionCount);
+    });
+
+    test('the run mixes the kinds rather than blocking them', () {
+      final plan = ChallengeSession.build(lessonText: rich, seed: 7);
+      final kinds = plan.map((round) => round.runtimeType).toSet();
+      expect(kinds.length, greaterThan(1));
+    });
+
+    test('a different seed deals a different run', () {
+      // This is what "إعادة التحدي" has to deliver: another go at the
+      // material, not the same ten screens again.
+      String shape(List<ChallengeRound> plan) => plan
+          .map((round) => switch (round) {
+                FillRound(:final sentence) => 'fill:${sentence.answer}',
+                ClassifyRound(:final sorting) =>
+                  'sort:${(sorting.items.keys.toList()..sort()).join(",")}',
+                MatchRound(:final pairs) =>
+                  'match:${(pairs.map((p) => p.term).toList()..sort()).join(",")}',
+              })
+          .join('|');
+
+      final first = shape(ChallengeSession.build(lessonText: rich, seed: 11));
+      final second = shape(ChallengeSession.build(lessonText: rich, seed: 12));
+      expect(first, isNot(second));
+    });
+
+    test('the same seed deals the same run', () {
+      // Determinism per seed is what makes the difference above a real
+      // signal rather than two coin flips that happened to disagree.
+      final a = ChallengeSession.build(lessonText: rich, seed: 99);
+      final b = ChallengeSession.build(lessonText: rich, seed: 99);
+      expect(a.length, b.length);
+      for (var i = 0; i < a.length; i++) {
+        expect(a[i].runtimeType, b[i].runtimeType);
       }
     });
 
-    test('is not offered when a bucket would be empty', () {
-      // All singular: a round with nothing to put in one bucket cannot be
-      // completed and teaches nothing, so there should be no round.
-      expect(
-        EndlessReaderSortings.fromLesson(lessonText: 'الكتاب على الطاولة'),
-        isNull,
+    test('a thin lesson gives a short honest run, never a padded one', () {
+      final plan = ChallengeSession.build(
+        lessonText:
+            'الماء مادة مهمة جدا للحياة على سطح الأرض ولكل الكائنات الحية.',
+        seed: 3,
       );
-      expect(EndlessReaderSortings.fromLesson(), isNull);
+      expect(plan.length, lessThan(ChallengeSession.questionCount));
     });
 
-    test('offers both buckets and stays within its item budget', () {
-      final round = EndlessReaderSortings.fromLesson(
-        lessonText: 'المعلمون والطالبات والمهندسون في المدرسة والبيت '
-            'والحديقة مع الكتاب.',
-      );
-      expect(round, isNotNull);
-      expect(round!.buckets, hasLength(2));
-      expect(
-        round.items.length,
-        lessThanOrEqualTo(EndlessReaderSortings.itemCount),
-      );
-      // Both buckets actually receive something.
-      final used = round.items.values.toSet();
-      expect(used, containsAll(round.buckets));
+    test('no lesson text is an empty run rather than a crash', () {
+      expect(ChallengeSession.build(lessonText: null, seed: 1), isEmpty);
+      expect(ChallengeSession.build(lessonText: '   ', seed: 1), isEmpty);
+    });
+
+    test('every classify round it deals can actually be completed', () {
+      // A board missing a whole bucket has no valid finishing move, which
+      // would strand a child on question seven of ten.
+      final plan = ChallengeSession.build(lessonText: rich, seed: 5);
+      for (final round in plan.whereType<ClassifyRound>()) {
+        expect(round.sorting.items, isNotEmpty);
+        expect(
+          round.sorting.items.values.toSet().length,
+          round.sorting.buckets.length,
+        );
+      }
     });
   });
 }

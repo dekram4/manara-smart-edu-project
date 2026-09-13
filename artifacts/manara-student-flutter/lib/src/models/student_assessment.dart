@@ -1,3 +1,4 @@
+import '../l10n/student_strings.dart';
 import 'academic_context.dart';
 import 'student_profile.dart';
 
@@ -30,24 +31,18 @@ class StudentAssessmentRules {
   static String quizRewardId(Map<String, dynamic> quiz) =>
       'quiz_reward:${quizTypeValue(quiz['quizType'])}:${_normalize(quiz['id'])}';
 
+  /// How many quizzes the dictionary spells out as a word. Past this the
+  /// number itself reads better than inventing more ordinals.
+  static const _namedOrdinals = 10;
+
   static String quizTypeLabel(Map<String, dynamic> quiz) {
-    if (isTeacherQuiz(quiz)) return 'اختبار المعلم';
+    if (isTeacherQuiz(quiz)) return tr('assess.teacherQuiz');
 
     final number = int.tryParse(_text(quiz['periodicNumber']));
-    const ordinals = [
-      'الأول',
-      'الثاني',
-      'الثالث',
-      'الرابع',
-      'الخامس',
-      'السادس',
-      'السابع',
-      'الثامن',
-      'التاسع',
-      'العاشر',
-    ];
-    if (number == null || number < 1) return 'الاختبار الدوري';
-    return 'الاختبار الدوري ${number <= ordinals.length ? ordinals[number - 1] : number}';
+    if (number == null || number < 1) return tr('assess.periodic');
+    final ordinal =
+        number <= _namedOrdinals ? tr('ordinal.$number') : '$number';
+    return trf('assess.periodicN', {'ordinal': ordinal});
   }
 
   static String ownerId(Map<String, dynamic> record) => _normalize(
@@ -307,8 +302,8 @@ class StudentAssessmentRules {
         'id': entry.key,
         'title': _text(first['quizTitle']).isEmpty
             ? (quizType(first['quizType']) == StudentQuizType.teacher
-                ? 'اختبار المعلم'
-                : 'الاختبار الدوري')
+                ? tr('assess.teacherQuiz')
+                : tr('assess.periodic'))
             : _text(first['quizTitle']),
         'quizType': first['quizType'],
         'periodicNumber': first['periodicNumber'],

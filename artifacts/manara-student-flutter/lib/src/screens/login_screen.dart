@@ -117,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEFF3F6),
+      backgroundColor: StudentSurface.coolGround(context),
       // The keyboard shortens the window and the scene is re-measured
       // against what is left, so the board and the writing on it are
       // always inside the part of the screen the student can still see.

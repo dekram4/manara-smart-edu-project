@@ -1,14 +1,27 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/student_strings.dart';
+
 /// One of the nine characters a student can pick as their picture.
 @immutable
 class StudentAvatar {
-  const StudentAvatar({required this.id, required this.label, required this.asset});
+  const StudentAvatar({
+    required this.id,
+    required this.labelKey,
+    required this.asset,
+  });
 
   final String id;
-  final String label;
+
+  /// A translation key rather than finished text, because the catalogue
+  /// below is `const` and a `const` list cannot hold a value that changes
+  /// with the language. Resolved at read time so switching the language
+  /// renames the characters without rebuilding the catalogue.
+  final String labelKey;
   final String asset;
+
+  String get label => tr(labelKey);
 }
 
 /// The catalogue, and the student's current pick.
@@ -26,15 +39,15 @@ class StudentAvatars {
 
   /// Adding a character is one entry here. Nothing else enumerates them.
   static const all = <StudentAvatar>[
-    StudentAvatar(id: 'a1', label: 'المستكشف', asset: 'assets/images/avatar_1.png'),
-    StudentAvatar(id: 'a2', label: 'العالِمة', asset: 'assets/images/avatar_2.png'),
-    StudentAvatar(id: 'a3', label: 'القارئ', asset: 'assets/images/avatar_3.png'),
-    StudentAvatar(id: 'a4', label: 'المخترع', asset: 'assets/images/avatar_4.png'),
-    StudentAvatar(id: 'a5', label: 'المبدعة', asset: 'assets/images/avatar_5.png'),
-    StudentAvatar(id: 'a6', label: 'البطل', asset: 'assets/images/avatar_6.png'),
-    StudentAvatar(id: 'a7', label: 'النجمة', asset: 'assets/images/avatar_7.png'),
-    StudentAvatar(id: 'a8', label: 'المغامر', asset: 'assets/images/avatar_8.png'),
-    StudentAvatar(id: 'a9', label: 'الفنانة', asset: 'assets/images/avatar_9.png'),
+    StudentAvatar(id: 'a1', labelKey: 'avatar.a1', asset: 'assets/images/avatar_1.png'),
+    StudentAvatar(id: 'a2', labelKey: 'avatar.a2', asset: 'assets/images/avatar_2.png'),
+    StudentAvatar(id: 'a3', labelKey: 'avatar.a3', asset: 'assets/images/avatar_3.png'),
+    StudentAvatar(id: 'a4', labelKey: 'avatar.a4', asset: 'assets/images/avatar_4.png'),
+    StudentAvatar(id: 'a5', labelKey: 'avatar.a5', asset: 'assets/images/avatar_5.png'),
+    StudentAvatar(id: 'a6', labelKey: 'avatar.a6', asset: 'assets/images/avatar_6.png'),
+    StudentAvatar(id: 'a7', labelKey: 'avatar.a7', asset: 'assets/images/avatar_7.png'),
+    StudentAvatar(id: 'a8', labelKey: 'avatar.a8', asset: 'assets/images/avatar_8.png'),
+    StudentAvatar(id: 'a9', labelKey: 'avatar.a9', asset: 'assets/images/avatar_9.png'),
   ];
 
   static StudentAvatar get fallback => all.first;
