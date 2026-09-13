@@ -52,6 +52,80 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     { unitKey: string; index: number; value: string } | null
   >(null);
 
+  // العقدة المفتوحة للتحرير في الشجرة (صف/ترم/مادة/فصل/وحدة)، واحدة في
+  // كل مرة. مفتاحها نوعها وموضعها، فلا يلتبس فصلان يحملان الاسم نفسه في
+  // مادتين مختلفتين.
+  const [editingNode, setEditingNode] = useState<
+    { key: string; value: string } | null
+  >(null);
+
+  const nodeKey = (kind: string, ...indexes: number[]) =>
+    `${kind}:${indexes.join('|')}`;
+
+  /**
+   * اسم العقدة: نصاً عادياً، أو مربع إدخال حين تكون هذه العقدة قيد التحرير.
+   *
+   * دالة تُعيد JSX لا مكوّناً متداخلاً عن قصد: المكوّن المعرَّف داخل الـ
+   * render يكون نوعاً جديداً في كل تمريرة، فيُفكّك React المدخل ويعيد
+   * تركيبه مع كل حرف ويضيع التركيز.
+   */
+  const renderNodeName = (
+    key: string,
+    name: string,
+    labelStyle: React.CSSProperties,
+    icon: string,
+    onSave: () => void,
+  ): React.ReactNode => {
+    if (editingNode?.key !== key) {
+      return <span style={labelStyle}>{icon} {name}</span>;
+    }
+    return (
+      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+        <input
+          type="text"
+          autoFocus
+          value={editingNode.value}
+          onChange={e =>
+            setEditingNode(current =>
+              current ? { ...current, value: e.target.value } : current,
+            )
+          }
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSave();
+            }
+            if (e.key === 'Escape') setEditingNode(null);
+          }}
+          style={{
+            flex: 1,
+            minWidth: '120px',
+            padding: '5px 9px',
+            fontSize: '0.85rem',
+            borderRadius: '6px',
+            border: `1px solid ${COLORS.primary}`,
+            outline: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+        <button
+          onClick={onSave}
+          style={{ ...styles.iconButton, color: COLORS.primary }}
+          title="حفظ"
+        >
+          ✅
+        </button>
+        <button
+          onClick={() => setEditingNode(null)}
+          style={{ ...styles.iconButton, color: COLORS.danger }}
+          title="إلغاء"
+        >
+          ↩️
+        </button>
+      </span>
+    );
+  };
+
   const unitKeyOf = (
     gradeIndex: number,
     atramIndex: number,
@@ -751,61 +825,74 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   };
 
   // ============ دوال التعديل ============
-  
-  const handleEditGrade = (gradeIndex: number) => {
-    const oldName = hierarchicalConfigs[gradeIndex].grade;
-    const newName = prompt('تعديل اسم الصف:', oldName);
-    if (!newName || newName.trim() === '' || newName === oldName) return;
-    
-    const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].grade = newName.trim();
-    
+  //
+  // كل مستويات الشجرة تُحرَّر داخل الصفحة: الاسم يتحول إلى مربع إدخال مع
+  // زرَّي حفظ وإلغاء. النوافذ القديمة (window.prompt) لم تكن عنصراً مرئياً
+  // في الصفحة، وتُحجب صامتة داخل إطار iframe فتبدو الضغطة بلا أثر.
+  //
+  // كل التعديلات تمرّ من هنا، ومنها إلى localStorage — ومفتاح
+  // `smartEdu_hierarchicalConfigs` من مفاتيح المزامنة، فاعتراض الكتابة في
+  // db/sync يرسل التغيير إلى Supabase فور حدوثه بلا استدعاء إضافي.
+
+  /** يكتب الشجرة بعد تعديلها ويغلق محرّر السطر. */
+  const commitTree = (updatedConfigs: HierarchicalConfig[]) => {
     setHierarchicalConfigs(updatedConfigs);
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
     onUpdate();
-    alert('تم التعديل بنجاح');
+    setEditingNode(null);
   };
 
-  const handleEditAtram = (gradeIndex: number, atramIndex: number) => {
-    const oldName = hierarchicalConfigs[gradeIndex].atrams[atramIndex].atram;
-    const newName = prompt('تعديل اسم الترم:', oldName);
-    if (!newName || newName.trim() === '' || newName === oldName) return;
-    
-    const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams[atramIndex].atram = newName.trim();
-    
-    setHierarchicalConfigs(updatedConfigs);
-    localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
-    onUpdate();
-    alert('تم التعديل بنجاح');
-  };
+  /** يحفظ الاسم المكتوب في محرّر السطر المفتوح على العقدة المحددة. */
+  const saveNodeEdit = (
+    kind: 'grade' | 'atram' | 'subject' | 'term' | 'unit',
+    gradeIndex: number,
+    atramIndex = -1,
+    subjectIndex = -1,
+    termIndex = -1,
+    unitIndex = -1,
+  ) => {
+    const editing = editingNode;
+    if (!editing) return;
+    const newName = editing.value.trim();
+    if (!newName) return;
 
-  const handleEditSubject = (gradeIndex: number, atramIndex: number, subjectIndex: number) => {
-    const oldName = hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].subject;
-    const newName = prompt('تعديل اسم المادة:', oldName);
-    if (!newName || newName.trim() === '' || newName === oldName) return;
-    
     const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].subject = newName.trim();
-    
-    setHierarchicalConfigs(updatedConfigs);
-    localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
-    onUpdate();
-    alert('تم التعديل بنجاح');
-  };
+    const grade = updatedConfigs[gradeIndex];
+    const atram = atramIndex >= 0 ? grade.atrams[atramIndex] : null;
+    const subject = subjectIndex >= 0 && atram ? atram.subjects[subjectIndex] : null;
+    const term = termIndex >= 0 && subject ? subject.terms[termIndex] : null;
 
-  const handleEditTerm = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number) => {
-    const oldName = hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].term;
-    const newName = prompt('تعديل اسم الفصل:', oldName);
-    if (!newName || newName.trim() === '' || newName === oldName) return;
-    
-    const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].term = newName.trim();
-    
-    setHierarchicalConfigs(updatedConfigs);
-    localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
-    onUpdate();
-    alert('تم التعديل بنجاح');
+    switch (kind) {
+      case 'grade':
+        if (grade.grade === newName) return setEditingNode(null);
+        grade.grade = newName;
+        break;
+      case 'atram':
+        if (!atram || atram.atram === newName) return setEditingNode(null);
+        atram.atram = newName;
+        break;
+      case 'subject':
+        if (!subject || subject.subject === newName) return setEditingNode(null);
+        subject.subject = newName;
+        break;
+      case 'term':
+        if (!term || term.term === newName) return setEditingNode(null);
+        term.term = newName;
+        break;
+      case 'unit': {
+        if (!term) return setEditingNode(null);
+        const oldName = term.units[unitIndex];
+        if (oldName === newName) return setEditingNode(null);
+        term.units[unitIndex] = newName;
+        // الدروس مفهرسة باسم الوحدة، فلا بد أن تتبعها عند إعادة التسمية.
+        if (term.lessons && oldName in term.lessons) {
+          const { [oldName]: moved, ...rest } = term.lessons;
+          term.lessons = { ...rest, [newName]: moved };
+        }
+        break;
+      }
+    }
+    commitTree(updatedConfigs);
   };
 
   // ============ الدروس داخل الوحدة ============
@@ -905,28 +992,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     if (!confirm(`حذف الدرس "${current[lessonIndex]}"؟`)) return;
     const next = current.filter((_, index) => index !== lessonIndex);
     writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, next);
-  };
-
-  const handleEditUnit = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
-    const oldName = hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].units[unitIndex];
-    const newName = prompt('تعديل اسم الوحدة:', oldName);
-    if (!newName || newName.trim() === '' || newName === oldName) return;
-
-    const updatedConfigs = [...hierarchicalConfigs];
-    const term =
-      updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
-    term.units[unitIndex] = newName.trim();
-    // الدروس تتبع وحدتها عند إعادة التسمية. بدون هذا كانت تظل مفهرسة تحت
-    // الاسم القديم، فتختفي من الواجهة وتبدو وكأنها حُذفت.
-    if (term.lessons && oldName in term.lessons) {
-      const { [oldName]: moved, ...rest } = term.lessons;
-      term.lessons = { ...rest, [newName.trim()]: moved };
-    }
-
-    setHierarchicalConfigs(updatedConfigs);
-    localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
-    onUpdate();
-    alert('تم التعديل بنجاح');
   };
 
   // ============ دوال الحصول على القوائم ============
@@ -1273,7 +1338,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
               <div key={gradeIndex} style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '2px solid #3b82f6' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                   <div>
-                    <h4 style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#1e40af', marginBottom: '4px' }}>🏫 {gradeConfig.grade}</h4>
+                    <div style={{ marginBottom: '4px' }}>
+                      {renderNodeName(
+                        nodeKey('grade', gradeIndex),
+                        gradeConfig.grade,
+                        { fontWeight: 'bold', fontSize: '1.1rem', color: '#1e40af' },
+                        '🏫',
+                        () => saveNodeEdit('grade', gradeIndex),
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       {gradeConfig.createdByName && (
                         <span style={{ backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
@@ -1290,7 +1363,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
-                    onClick={() => handleEditGrade(gradeIndex)} 
+                    onClick={() => setEditingNode({ key: nodeKey('grade', gradeIndex), value: gradeConfig.grade })}
+                    title="تعديل اسم الصف"
                     style={{ 
                       ...styles.iconButton, 
                       color: COLORS.primary
@@ -1317,9 +1391,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                   gradeConfig.atrams.map((atram, atramIndex) => (
                     <div key={atramIndex} style={{ marginBottom: '12px', padding: '12px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <h5 style={{ fontWeight: 'bold', color: '#7c3aed' }}>🏷️ {atram.atram}</h5>
+                        {renderNodeName(
+                          nodeKey('atram', gradeIndex, atramIndex),
+                          atram.atram,
+                          { fontWeight: 'bold', color: '#7c3aed' },
+                          '🏷️',
+                          () => saveNodeEdit('atram', gradeIndex, atramIndex),
+                        )}
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => handleEditAtram(gradeIndex, atramIndex)} style={{ ...styles.iconButton, color: COLORS.primary }}>✏️</button>
+                          <button onClick={() => setEditingNode({ key: nodeKey('atram', gradeIndex, atramIndex), value: atram.atram })} style={{ ...styles.iconButton, color: COLORS.primary }} title="تعديل اسم الترم">✏️</button>
                           <button onClick={() => handleDeleteAtram(gradeIndex, atramIndex)} style={{ ...styles.iconButton, color: COLORS.danger }}>✖</button>
                         </div>
                       </div>
@@ -1330,9 +1410,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                         atram.subjects.map((subject, subjectIndex) => (
                           <div key={subjectIndex} style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#fef3c7', borderRadius: '6px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              <h6 style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#059669' }}>📚 {subject.subject}</h6>
+                              {renderNodeName(
+                                nodeKey('subject', gradeIndex, atramIndex, subjectIndex),
+                                subject.subject,
+                                { fontWeight: 'bold', fontSize: '0.95rem', color: '#059669' },
+                                '📚',
+                                () => saveNodeEdit('subject', gradeIndex, atramIndex, subjectIndex),
+                              )}
                               <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={() => handleEditSubject(gradeIndex, atramIndex, subjectIndex)} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.8rem' }}>✏️</button>
+                                <button onClick={() => setEditingNode({ key: nodeKey('subject', gradeIndex, atramIndex, subjectIndex), value: subject.subject })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.8rem' }} title="تعديل اسم المادة">✏️</button>
                                 <button onClick={() => handleDeleteSubject(gradeIndex, atramIndex, subjectIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.8rem' }}>✖</button>
                               </div>
                             </div>
@@ -1343,9 +1429,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                               subject.terms.map((term, termIndex) => (
                                 <div key={termIndex} style={{ marginBottom: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                    <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#92400e' }}>📅 {term.term}</span>
+                                    {renderNodeName(
+                                      nodeKey('term', gradeIndex, atramIndex, subjectIndex, termIndex),
+                                      term.term,
+                                      { fontWeight: 'bold', fontSize: '0.9rem', color: '#92400e' },
+                                      '📅',
+                                      () => saveNodeEdit('term', gradeIndex, atramIndex, subjectIndex, termIndex),
+                                    )}
                                     <div style={{ display: 'flex', gap: '6px' }}>
-                                      <button onClick={() => handleEditTerm(gradeIndex, atramIndex, subjectIndex, termIndex)} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.75rem' }}>✏️</button>
+                                      <button onClick={() => setEditingNode({ key: nodeKey('term', gradeIndex, atramIndex, subjectIndex, termIndex), value: term.term })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.75rem' }} title="تعديل اسم الفصل">✏️</button>
                                       <button onClick={() => handleDeleteTerm(gradeIndex, atramIndex, subjectIndex, termIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.75rem' }}>✖</button>
                                     </div>
                                   </div>
@@ -1357,8 +1449,14 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                       {term.units.map((unit, unitIndex) => (
                                         <div key={unitIndex} style={{ width: '100%', padding: '6px 8px', backgroundColor: '#dbeafe', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '6px' }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <span style={{ flex: 1 }}>📖 {unit}</span>
-                                            <button onClick={() => handleEditUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }}>✏️</button>
+                                            {renderNodeName(
+                                              nodeKey('unit', gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex),
+                                              unit,
+                                              { flex: 1 },
+                                              '📖',
+                                              () => saveNodeEdit('unit', gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex),
+                                            )}
+                                            <button onClick={() => setEditingNode({ key: nodeKey('unit', gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex), value: unit })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل اسم الوحدة">✏️</button>
                                             <button onClick={() => handleDeleteUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
                                           </div>
 
