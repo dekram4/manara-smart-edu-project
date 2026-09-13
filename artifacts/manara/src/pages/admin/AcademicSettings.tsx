@@ -4,6 +4,7 @@ import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { dedupeHierarchicalConfigs } from '../../utils/academic';
+import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
 
 interface AcademicSettingsProps {
   onUpdate: () => void;
@@ -58,6 +59,10 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const [editingNode, setEditingNode] = useState<
     { key: string; value: string } | null
   >(null);
+
+  // ما يُسأل عنه قبل الحذف. window.confirm كان يُحجب صامتاً داخل الإطار
+  // ويُرجع false، فيبدو زر الحذف معطّلاً بلا سبب ظاهر.
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
 
   const nodeKey = (kind: string, ...indexes: number[]) =>
     `${kind}:${indexes.join('|')}`;
@@ -337,8 +342,16 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       return;
     }
     
-    if (!confirm('هل أنت متأكد من حذف هذا الصف وجميع محتوياته؟')) return;
-    
+    setConfirmRequest({
+      title: 'حذف الصف',
+      message: `سيُحذف «${gradeToDelete.grade}» وكل ما تحته من أترام ومواد وفصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteGrade(gradeIndex),
+    });
+  };
+
+  const performDeleteGrade = (gradeIndex: number) => {
+    const gradeToDelete = hierarchicalConfigs[gradeIndex];
+
     // تحميل جميع الإعدادات للحذف الصحيح
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const updatedConfigs = allConfigs.filter((c: HierarchicalConfig) => 
@@ -446,8 +459,14 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       return;
     }
     
-    if (!confirm('هل أنت متأكد من حذف هذا الترم وجميع محتوياته؟')) return;
-    
+    setConfirmRequest({
+      title: 'حذف الترم',
+      message: `سيُحذف «${grade.atrams[atramIndex].atram}» وكل ما تحته من مواد وفصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteAtram(gradeIndex, atramIndex),
+    });
+  };
+
+  const performDeleteAtram = (gradeIndex: number, atramIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
     updatedConfigs[gradeIndex].atrams.splice(atramIndex, 1);
     
@@ -550,8 +569,16 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   // 6. حذف مادة
   const handleDeleteSubject = (gradeIndex: number, atramIndex: number, subjectIndex: number) => {
-    if (!confirm('هل أنت متأكد من حذف هذه المادة وجميع محتوياتها؟')) return;
-    
+    const subject =
+      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex];
+    setConfirmRequest({
+      title: 'حذف المادة',
+      message: `ستُحذف «${subject.subject}» وكل ما تحتها من فصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteSubject(gradeIndex, atramIndex, subjectIndex),
+    });
+  };
+
+  const performDeleteSubject = (gradeIndex: number, atramIndex: number, subjectIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
     updatedConfigs[gradeIndex].atrams[atramIndex].subjects.splice(subjectIndex, 1);
     
@@ -673,8 +700,16 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   // 8. حذف فصل
   const handleDeleteTerm = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الفصل وجميع محتوياته؟')) return;
-    
+    const term =
+      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    setConfirmRequest({
+      title: 'حذف الفصل',
+      message: `سيُحذف «${term.term}» وكل وحداته ودروسها. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteTerm(gradeIndex, atramIndex, subjectIndex, termIndex),
+    });
+  };
+
+  const performDeleteTerm = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
     updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms.splice(termIndex, 1);
     
@@ -803,8 +838,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   // 10. حذف وحدة
   const handleDeleteUnit = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
-    if (!confirm('هل أنت متأكد من حذف هذه الوحدة؟')) return;
+    setConfirmRequest({
+      title: 'حذف الوحدة',
+      message: `ستُحذف «${hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].units[unitIndex]}» وكل دروسها. لا يمكن التراجع عن هذا.`,
+      onConfirm: () =>
+        performDeleteUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex),
+    });
+  };
 
+  const performDeleteUnit = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
     const term =
       updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
@@ -989,9 +1031,19 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const term =
       hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
-    if (!confirm(`حذف الدرس "${current[lessonIndex]}"؟`)) return;
-    const next = current.filter((_, index) => index !== lessonIndex);
-    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, next);
+    setConfirmRequest({
+      title: 'حذف الدرس',
+      message: `سيُحذف الدرس «${current[lessonIndex]}» من وحدة «${unit}».`,
+      onConfirm: () =>
+        writeLessons(
+          gradeIndex,
+          atramIndex,
+          subjectIndex,
+          termIndex,
+          unit,
+          current.filter((_, index) => index !== lessonIndex),
+        ),
+    });
   };
 
   // ============ دوال الحصول على القوائم ============
@@ -1550,6 +1602,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        request={confirmRequest}
+        onClose={() => setConfirmRequest(null)}
+      />
     </div>
   );
 };

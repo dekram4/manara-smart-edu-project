@@ -5,6 +5,7 @@ import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissionDetails } from '../../permissions';
 import { dedupeHierarchicalConfigs } from '../../utils/academic';
 import { readActiveSession } from '../../utils/storage';
+import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
 
 interface MyAcademicSettingsProps {
   teacher?: TeacherInfo | null;
@@ -59,6 +60,10 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   const [editingNode, setEditingNode] = useState<
     { key: string; value: string } | null
   >(null);
+
+  // ما يُسأل عنه قبل الحذف. window.confirm كان يُحجب صامتاً داخل الإطار
+  // ويُرجع false، فيبدو زر الحذف معطّلاً بلا سبب ظاهر.
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
 
   const nodeKey = (kind: string, ...names: string[]) =>
     `${kind}:${names.join('|')}`;
@@ -358,7 +363,14 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   // ========== DELETE FUNCTIONS ==========
   
   const handleDeleteGrade = (gradeName: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الصف وجميع محتوياته؟')) return;
+    setConfirmRequest({
+      title: 'حذف الصف',
+      message: `سيُحذف «${gradeName}» وكل ما تحته من أترام ومواد وفصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteGrade(gradeName),
+    });
+  };
+
+  const performDeleteGrade = (gradeName: string) => {
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const updatedConfigs = allConfigs.filter((c: HierarchicalConfig) => 
@@ -371,7 +383,14 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const handleDeleteAtram = (gradeName: string, atramName: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الترم وجميع محتوياته؟')) return;
+    setConfirmRequest({
+      title: 'حذف الترم',
+      message: `سيُحذف «${atramName}» وكل ما تحته من مواد وفصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteAtram(gradeName, atramName),
+    });
+  };
+
+  const performDeleteAtram = (gradeName: string, atramName: string) => {
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
@@ -387,7 +406,14 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const handleDeleteSubject = (gradeName: string, atramName: string, subjectName: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه المادة وجميع محتوياتها؟')) return;
+    setConfirmRequest({
+      title: 'حذف المادة',
+      message: `ستُحذف «${subjectName}» وكل ما تحتها من فصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteSubject(gradeName, atramName, subjectName),
+    });
+  };
+
+  const performDeleteSubject = (gradeName: string, atramName: string, subjectName: string) => {
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
@@ -406,7 +432,14 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const handleDeleteTerm = (gradeName: string, atramName: string, subjectName: string, termName: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الفصل وجميع وحداته؟')) return;
+    setConfirmRequest({
+      title: 'حذف الفصل',
+      message: `سيُحذف «${termName}» وكل وحداته ودروسها. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteTerm(gradeName, atramName, subjectName, termName),
+    });
+  };
+
+  const performDeleteTerm = (gradeName: string, atramName: string, subjectName: string, termName: string) => {
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
@@ -428,7 +461,14 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const handleDeleteUnit = (gradeName: string, atramName: string, subjectName: string, termName: string, unitName: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه الوحدة؟')) return;
+    setConfirmRequest({
+      title: 'حذف الوحدة',
+      message: `ستُحذف «${unitName}» وكل دروسها. لا يمكن التراجع عن هذا.`,
+      onConfirm: () => performDeleteUnit(gradeName, atramName, subjectName, termName, unitName),
+    });
+  };
+
+  const performDeleteUnit = (gradeName: string, atramName: string, subjectName: string, termName: string, unitName: string) => {
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
@@ -668,15 +708,19 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
     if (!term) return;
     const current = lessonsOf(term, unit);
-    if (!confirm(`حذف الدرس "${current[lessonIndex]}"؟`)) return;
-    writeLessons(
-      gradeName,
-      atramName,
-      subjectName,
-      termName,
-      unit,
-      current.filter((_, index) => index !== lessonIndex),
-    );
+    setConfirmRequest({
+      title: 'حذف الدرس',
+      message: `سيُحذف الدرس «${current[lessonIndex]}» من وحدة «${unit}».`,
+      onConfirm: () =>
+        writeLessons(
+          gradeName,
+          atramName,
+          subjectName,
+          termName,
+          unit,
+          current.filter((_, index) => index !== lessonIndex),
+        ),
+    });
   };
 
   // ========== GENERAL SETTINGS FUNCTIONS ==========
@@ -1252,6 +1296,11 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        request={confirmRequest}
+        onClose={() => setConfirmRequest(null)}
+      />
     </div>
   );
 };
