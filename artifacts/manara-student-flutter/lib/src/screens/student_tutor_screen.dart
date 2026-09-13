@@ -146,7 +146,12 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                 Positioned.fill(child: body),
                 SafeArea(
                   child: Align(
-                    alignment: Alignment.topLeft,
+                    // Directional, not topLeft: the way out of a screen
+                    // belongs on the edge the reader starts from — top
+                    // right in Arabic, top left in English — the same
+                    // corner the app bar's back button occupies
+                    // everywhere else.
+                    alignment: AlignmentDirectional.topStart,
                     child: IconButton.filledTonal(
                       onPressed: () {
                         StudentSoundService.instance.playTap();
