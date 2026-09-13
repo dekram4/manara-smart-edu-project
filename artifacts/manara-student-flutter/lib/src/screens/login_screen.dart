@@ -7,6 +7,7 @@ import '../services/student_auth_service.dart';
 import '../theme/student_theme.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_no_back.dart';
 import '../l10n/student_strings.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/student_mascot.dart';
@@ -116,7 +117,8 @@ class _LoginScreenState extends State<LoginScreen> {
     // made the first attempt at this do nothing at all.
     final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
 
-    return Scaffold(
+    return StudentNoBack(
+      child: Scaffold(
       backgroundColor: StudentSurface.coolGround(context),
       // The keyboard shortens the window and the scene is re-measured
       // against what is left, so the board and the writing on it are
@@ -439,6 +441,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

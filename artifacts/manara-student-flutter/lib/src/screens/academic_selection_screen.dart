@@ -13,6 +13,7 @@ import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_no_back.dart';
 import '../widgets/student_mascot.dart';
 import 'student_home_screen.dart';
 
@@ -553,7 +554,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return StudentNoBack(
+      child: Scaffold(
       backgroundColor: StudentSurface.coolGround(context),
       body: Stack(
         children: [
@@ -834,6 +836,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

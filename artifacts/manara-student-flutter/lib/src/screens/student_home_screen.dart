@@ -15,6 +15,7 @@ import '../widgets/lesson_scope_sheet.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_no_back.dart';
 import '../widgets/student_avatar_view.dart';
 import '../services/student_sound_service.dart';
 import '../l10n/student_strings.dart';
@@ -413,15 +414,24 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    // Below this the bar cannot hold a labelled button and the four
+    // controls beside it. Measured against the overflow, not guessed.
+    final narrowBar = size.width < 560;
 
-    return Scaffold(
+    return StudentNoBack(
+      child: Scaffold(
       backgroundColor: StudentSurface.ground(context),
       appBar: AppBar(
+        // No back arrow. The hub is where a signed-in student lives, and
+        // everything behind it in the stack is a screen they have already
+        // finished with. Without this the bar would draw one automatically
+        // and it would be the one way back that PopScope does not close.
+        automaticallyImplyLeading: false,
         // The enlarged mark is 54px and its pill adds 14px of padding, so
         // 70 left only 2px of slack — raised so the bigger logo cannot
         // press against the bar.
         toolbarHeight: 82,
-        titleSpacing: 16,
+        titleSpacing: narrowBar ? 6 : 16,
         title: Container(
           padding: const EdgeInsetsDirectional.fromSTEB(9, 7, 14, 7),
           decoration: BoxDecoration(
@@ -442,9 +452,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ManaraLogo(size: 54),
-              const SizedBox(width: 10),
-              Flexible(
+              ManaraLogo(size: narrowBar ? 42 : 54),
+              // On a phone the mark alone names the app, and the words beside
+              // it were part of what pushed the bar past its width.
+              if (!narrowBar) const SizedBox(width: 10),
+              if (!narrowBar) Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: AlignmentDirectional.centerStart,
@@ -473,7 +485,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           // what it does instead of leaving a student to guess at an
           // icon. It collapses to just the icon on a narrow bar.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: narrowBar ? 0 : 4, vertical: 8),
             child: _loadingSelection
                 ? const Center(
                     child: Padding(
@@ -487,28 +499,42 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   )
                 : Tooltip(
                     message: tr('hub.changeLessonTooltip'),
-                    child: FilledButton.icon(
-                      onPressed: _changeLesson,
-                      icon: const Icon(Icons.alt_route_rounded, size: 20),
-                      label: Text(
-                        tr('hub.changeLesson'),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13,
-                        ),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0E5F6B),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                      ),
-                    ),
+                    // The comment above has always said this collapses to
+                    // the icon on a narrow bar. It never did, and the
+                    // label plus the four controls after it overflowed a
+                    // portrait phone's bar by 81px — an error the student
+                    // saw as a yellow-and-black bar across the top.
+                    child: narrowBar
+                        ? IconButton(
+                            onPressed: _changeLesson,
+                            icon: const Icon(Icons.alt_route_rounded),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFF0E5F6B),
+                              foregroundColor: Colors.white,
+                            ),
+                          )
+                        : FilledButton.icon(
+                            onPressed: _changeLesson,
+                            icon: const Icon(Icons.alt_route_rounded, size: 20),
+                            label: Text(
+                              tr('hub.changeLesson'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0E5F6B),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                            ),
+                          ),
                   ),
           ),
           // Theme and language, side by side, on the one bar a student
@@ -517,8 +543,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           // The profile icon is the chosen character too, so the bar and
           // the card always agree.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: StudentAvatarView(size: 38, onTap: _openPersonality),
+            padding: EdgeInsets.symmetric(horizontal: narrowBar ? 0 : 4),
+            child: StudentAvatarView(size: narrowBar ? 34 : 38, onTap: _openPersonality),
           ),
           const StudentSoundToggle(),
           IconButton(
@@ -630,6 +656,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -67,4 +67,29 @@ void main() {
     // Both instances changed, though neither was passed the selection.
     expect(shownAssets(), everyElement(chosen.asset));
   });
+
+  test('nothing but an explicit pick changes the character', () async {
+    // The requirement is that the choice holds until the student taps a
+    // different one. Restoring repeatedly, which is what every relaunch
+    // and every navigation does, must not drift it.
+    await StudentAvatars.select(StudentAvatars.all[5]);
+    for (var i = 0; i < 3; i++) {
+      await StudentAvatars.restore();
+      expect(StudentAvatars.selected.value.id, StudentAvatars.all[5].id);
+    }
+  });
+
+  test('a pick is on disk the instant it is made', () async {
+    // The picker used to only stage a tap; it reached disk when the save
+    // button was pressed. select() is what the tap calls now, so what
+    // matters is that it writes through rather than deferring.
+    await StudentAvatars.select(StudentAvatars.all[2]);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getString('manara.student.avatarId'),
+      StudentAvatars.all[2].id,
+      reason: 'the pick did not reach storage',
+    );
+  });
 }

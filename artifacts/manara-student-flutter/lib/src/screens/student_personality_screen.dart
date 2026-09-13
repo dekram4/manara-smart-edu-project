@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_profile.dart';
@@ -181,9 +183,19 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                 return _AvatarTile(
                   avatar: avatar,
                   selected: avatar.id == _staged.id,
+                  // Tapping a character *is* choosing it.
+                  //
+                  // The tap used to only stage the pick; it reached disk
+                  // only if the student then found and pressed the save
+                  // button underneath. A child who tapped a character and
+                  // left saw it revert on the next launch, which reads as
+                  // the app forgetting. It is written through immediately
+                  // now — the save button below stays, because it is also
+                  // what confirms a character built in the 3D creator.
                   onTap: () {
                     StudentSoundService.instance.playTap();
                     setState(() => _staged = avatar);
+                    unawaited(StudentAvatars.select(avatar));
                   },
                 );
               },
