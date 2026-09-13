@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/academic_context.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
@@ -534,7 +535,7 @@ class _StudentEndlessReaderScreenState
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: const Color(0xFFFDF3EA),
         appBar: AppBar(

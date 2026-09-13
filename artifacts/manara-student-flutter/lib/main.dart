@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,6 +10,7 @@ import 'src/services/student_auth_service.dart';
 import 'src/services/student_sound_service.dart';
 import 'src/theme/student_theme.dart';
 import 'src/services/student_avatar_store.dart';
+import 'src/services/student_settings.dart';
 import 'src/utils/student_orientation.dart';
 
 Future<void> main() async {
@@ -23,6 +25,9 @@ Future<void> main() async {
   // The picked character is app-wide state, so it is restored before the
   // first frame — otherwise every screen would flash the default first.
   await StudentAvatars.restore();
+  // Theme and language before the first frame, so the app opens in what
+  // the student last chose rather than flashing the default first.
+  await StudentSettings.restore();
 
   // 1. التقاط أخطاء الـ UI والـ Flutter Framework
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -117,21 +122,48 @@ class ManaraStudentApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'منارة المعرفة',
-      theme: StudentTheme.light(),
-      builder: (context, child) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: child ?? const SizedBox.shrink(),
-      ),
-      home: StudentStartupScreen(
-        authService: client == null
-            ? null
-            : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
-        initializationError: initializationError,
-        apiBaseUrl: apiBaseUrl,
-      ),
+    // Rebuilt whenever either setting changes, so switching theme or
+    // language takes effect on the frame it is tapped — no restart, and
+    // no provider threaded through every screen to achieve it.
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: StudentSettings.themeMode,
+      builder: (context, themeMode, _) {
+        return ValueListenableBuilder<Locale>(
+          valueListenable: StudentSettings.locale,
+          builder: (context, locale, __) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'منارة المعرفة',
+              theme: StudentTheme.light(),
+              darkTheme: StudentTheme.dark(),
+              themeMode: themeMode,
+              locale: locale,
+              supportedLocales: StudentSettings.supported,
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              // The direction follows the chosen language instead of
+              // being pinned to RTL. It stays an explicit Directionality
+              // rather than relying on the locale alone, because the app
+              // was written against a guaranteed direction and several
+              // layouts still read it directly.
+              builder: (context, child) => Directionality(
+                textDirection: StudentSettings.direction,
+                child: child ?? const SizedBox.shrink(),
+              ),
+              home: StudentStartupScreen(
+                authService: client == null
+                    ? null
+                    : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),
+                initializationError: initializationError,
+                apiBaseUrl: apiBaseUrl,
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

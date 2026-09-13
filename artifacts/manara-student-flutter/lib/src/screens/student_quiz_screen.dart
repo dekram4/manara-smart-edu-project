@@ -6,6 +6,7 @@ import '../models/student_assessment.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
@@ -318,7 +319,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: const Color(0xFFFDF3EA),
         appBar: AppBar(

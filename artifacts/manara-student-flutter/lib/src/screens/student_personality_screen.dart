@@ -4,6 +4,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../models/student_profile.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_content_service.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
@@ -113,9 +114,11 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loadingAppearance) {
-      return const Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(
+      // No longer const: the direction is read at build time now rather
+      // than baked in, because it follows the chosen language.
+      return Directionality(
+        textDirection: StudentSettings.direction,
+        child: const Scaffold(
           backgroundColor: Color(0xFFF4F8FF),
           body: Center(
             child: Column(
@@ -134,7 +137,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       );
     }
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: const Color(0xFFFDF3EA),
         appBar: AppBar(
@@ -617,7 +620,7 @@ class _ReadyPlayerMeCreatorScreenState
 
   @override
   Widget build(BuildContext context) => Directionality(
-    textDirection: TextDirection.rtl,
+    textDirection: StudentSettings.direction,
     child: Scaffold(
       backgroundColor: const Color(0xFFFDF3EA),
       appBar: AppBar(

@@ -124,4 +124,99 @@ abstract final class StudentTheme {
       ),
     );
   }
+
+  /// The dark counterpart.
+  ///
+  /// Built from the same seed so the app keeps its identity rather than
+  /// becoming a different product at night: the indigo, sky and orange
+  /// accents survive, and only the grounds and the text invert.
+  ///
+  /// The two dark surfaces are the near-black the request names — #121212 for
+  /// the page and #1E1E2E for anything raised above it — which is dark
+  /// enough to rest the eyes without the pure black that makes white text
+  /// smear on OLED panels.
+  static ThemeData dark() {
+    const canvas = Color(0xFF121212);
+    const surface = Color(0xFF1E1E2E);
+    const ink = Color(0xFFF3F4F6);
+    const mutedInk = Color(0xFFB6BDCC);
+
+    final base = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: StudentPalette.indigo,
+        primary: StudentPalette.sky,
+        secondary: StudentPalette.cyan,
+        tertiary: StudentPalette.orange,
+        brightness: Brightness.dark,
+        surface: surface,
+      ),
+      scaffoldBackgroundColor: canvas,
+      textTheme: GoogleFonts.tajawalTextTheme(ThemeData.dark().textTheme),
+    );
+
+    return base.copyWith(
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        foregroundColor: ink,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(26),
+          side: const BorderSide(color: Color(0x33FFFFFF)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.08),
+        hintStyle: const TextStyle(color: mutedInk),
+        labelStyle: const TextStyle(color: mutedInk),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(22),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(22),
+          borderSide: const BorderSide(color: Color(0x33FFFFFF)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(22),
+          borderSide: const BorderSide(color: StudentPalette.sky, width: 2),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: StudentPalette.sky,
+          foregroundColor: const Color(0xFF07213A),
+          minimumSize: const Size(48, 52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: surface,
+        contentTextStyle: GoogleFonts.tajawal(
+          color: ink,
+          fontWeight: FontWeight.w800,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+      ),
+    );
+  }
 }

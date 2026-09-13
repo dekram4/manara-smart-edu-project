@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
@@ -173,7 +174,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Widget build(BuildContext context) {
     final disabled = !widget.profile.canAccessChat;
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: const Color(0xFFFDF3EA),
         // Stated rather than inherited: the composer must ride above the

@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 
 import 'package:flutter/material.dart';
@@ -7,6 +7,8 @@ import '../services/student_auth_service.dart';
 import '../theme/student_theme.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/student_experience.dart';
+import '../l10n/student_strings.dart';
+import '../widgets/student_display_toggles.dart';
 import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
@@ -408,7 +410,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: const Color(0x14000000),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const StudentSoundToggle(),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [StudentDisplayToggles(), StudentSoundToggle()]),
                       ),
                     ),
                   ],
@@ -530,10 +532,10 @@ class _BoardLoginForm extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'أهلاً بك يا بطل! 🎒',
+            Text(
+              tr('login.greeting'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
@@ -543,19 +545,19 @@ class _BoardLoginForm extends StatelessWidget {
             const SizedBox(height: 8),
             _SolidField(
               controller: usernameController,
-              hint: 'اسم المستخدم',
+              hint: tr('login.username'),
               icon: Icons.person_rounded,
               hasError: showValidationFeedback && usernameController.text.trim().isEmpty,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.username],
               onChanged: onUsernameChanged,
               validator: (value) =>
-                  value == null || value.trim().isEmpty ? 'اكتب اسم المستخدم' : null,
+                  value == null || value.trim().isEmpty ? tr('login.usernameRequired') : null,
             ),
             const SizedBox(height: 8),
             _SolidField(
               controller: passwordController,
-              hint: 'كلمة المرور',
+              hint: tr('login.password'),
               icon: Icons.lock_rounded,
               obscureText: hidePassword,
               hasError: showValidationFeedback && passwordController.text.isEmpty,
@@ -563,7 +565,7 @@ class _BoardLoginForm extends StatelessWidget {
               autofillHints: const [AutofillHints.password],
               onChanged: onPasswordChanged,
               onFieldSubmitted: (_) => onSubmit(),
-              validator: (value) => value == null || value.isEmpty ? 'اكتب كلمة المرور' : null,
+              validator: (value) => value == null || value.isEmpty ? tr('login.passwordRequired') : null,
               suffixIcon: IconButton(
                 // Default IconButton wants 48x48, which would blow past a
                 // 42px field — constrain it explicitly.
@@ -624,7 +626,7 @@ class _BoardLoginForm extends StatelessWidget {
                         ? 'أحسنت! لنبدأ'
                         : isLoading
                             ? 'جاري التحقق...'
-                            : 'تسجيل الدخول',
+                            : tr('login.submit'),
                   ),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(40),

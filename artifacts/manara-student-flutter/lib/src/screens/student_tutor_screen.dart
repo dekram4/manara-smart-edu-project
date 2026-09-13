@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/student_content.dart';
 import '../services/student_media_permissions.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_avatar_view.dart';
@@ -104,7 +105,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
   @override
   Widget build(BuildContext context) {
     final body = Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: _buildBody(),
     );
 

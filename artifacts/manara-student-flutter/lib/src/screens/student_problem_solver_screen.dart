@@ -10,6 +10,7 @@ import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
@@ -206,7 +207,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   Widget build(BuildContext context) {
     final supported = _supportedLessons;
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: const Color(0xFFFDF3EA),
         // Stated rather than inherited: the question box is the point of

@@ -1,4 +1,4 @@
-name: manara_student
+﻿name: manara_student
 description: تطبيق منارة المعرفة المخصص للطلاب.
 publish_to: "none"
 version: 1.0.0+1
@@ -8,6 +8,11 @@ environment:
 
 dependencies:
   flutter:
+    sdk: flutter
+  # Material and Cupertino's own translations for Arabic and English —
+  # month names, dialog buttons, accessibility labels. Without it the
+  # framework's own widgets stay English whatever the app's language is.
+  flutter_localizations:
     sdk: flutter
   supabase_flutter: ^2.8.0
   flutter_animate: ^4.5.2

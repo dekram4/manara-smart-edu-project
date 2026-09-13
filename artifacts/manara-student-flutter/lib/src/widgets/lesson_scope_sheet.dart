@@ -2,6 +2,7 @@
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 
 /// Picks a lesson by stepping down the academic hierarchy the teacher
@@ -135,7 +136,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: Container(
         // Never taller than most of the screen, so the sheet is always
         // recognisable as a sheet with the hub behind it.

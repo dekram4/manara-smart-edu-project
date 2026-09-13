@@ -12,9 +12,11 @@ import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/lesson_scope_sheet.dart';
 import '../widgets/manara_logo.dart';
+import '../widgets/student_display_toggles.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_avatar_view.dart';
 import '../services/student_sound_service.dart';
+import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
@@ -483,13 +485,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     ),
                   )
                 : Tooltip(
-                    message: 'تغيير الدرس أو المسار',
+                    message: tr('hub.changeLessonTooltip'),
                     child: FilledButton.icon(
                       onPressed: _changeLesson,
                       icon: const Icon(Icons.alt_route_rounded, size: 20),
-                      label: const Text(
-                        'تغيير الدرس',
-                        style: TextStyle(
+                      label: Text(
+                        tr('hub.changeLesson'),
+                        style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 13,
                         ),
@@ -508,6 +510,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     ),
                   ),
           ),
+          // Theme and language, side by side, on the one bar a student
+          // sees on every visit.
+          const StudentDisplayToggles(color: Color(0xFF0E5F6B)),
           // The profile icon is the chosen character too, so the bar and
           // the card always agree.
           Padding(
@@ -631,16 +636,26 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
 class _HomeSection {
   const _HomeSection({
-    required this.title,
-    required this.subtitle,
+    required this.titleKey,
+    required this.subtitleKey,
     required this.description,
     required this.image,
     required this.colors,
     required this.accent,
   });
 
-  final String title;
-  final String subtitle;
+  /// Translation keys rather than finished text, because the table below
+  /// is `const` and a `const` list cannot hold a value that changes with
+  /// the language. Resolving at build time is what lets the rail switch
+  /// from Arabic to English without rebuilding the data itself.
+  final String titleKey;
+  final String subtitleKey;
+
+  String get title => tr(titleKey);
+  String get subtitle => tr(subtitleKey);
+
+  /// Only shown in accessibility output today, so it stays Arabic until
+  /// there is a surface that reads it to an English-speaking student.
   final String description;
 
   /// The portal's own 3D artwork. Each card is now a distinct illustration
@@ -694,72 +709,72 @@ class _AcademicContextSummary extends StatelessWidget {
 
 const _homeSections = <_HomeSection>[
   _HomeSection(
-    title: 'شرح الدرس',
-    subtitle: 'تعلم بطريقة ممتعة',
+    titleKey: 'portal.lesson',
+    subtitleKey: 'portal.lesson.sub',
     description: 'افتح الدرس وشاهد الشرح خطوة بخطوة.',
     image: 'assets/images/icon_teacher.png',
     colors: [Color(0xFF9A5B09), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE08A),
   ),
   _HomeSection(
-    title: 'سينما منارة',
-    subtitle: 'فيديوهات المعلم والمشرف',
+    titleKey: 'portal.cinema',
+    subtitleKey: 'portal.cinema.sub',
     description: 'اسحب بين الفيديوهات وشاهد الشروحات بجودة عالية.',
     image: 'assets/images/icon_cinema.png',
     colors: [Color(0xFF0B5D66), Color(0xFF0B8693)],
     accent: Color(0xFF9EEBEA),
   ),
   _HomeSection(
-    title: 'عالم الترفيه',
-    subtitle: 'ألعاب تعليمية',
+    titleKey: 'portal.games',
+    subtitleKey: 'portal.games.sub',
     description: 'تعلّم والعب واكسب مكافآت جديدة.',
     image: 'assets/images/icon_game.png',
     colors: [Color(0xFF4B267F), Color(0xFF8B5CF6)],
     accent: Color(0xFFE9D5FF),
   ),
   _HomeSection(
-    title: 'شخصيتي',
-    subtitle: 'أصنع بطلي',
+    titleKey: 'portal.personality',
+    subtitleKey: 'portal.personality.sub',
     description: 'غيّر شعرك وملابسك واحفظ شخصيتك.',
     image: 'assets/images/icon_prof.png',
     colors: [Color(0xFF9B3E68), Color(0xFFE05A86)],
     accent: Color(0xFFFFD0DF),
   ),
   _HomeSection(
-    title: 'المعلم الافتراضي',
-    subtitle: 'صديقك الذكي',
+    titleKey: 'portal.tutor',
+    subtitleKey: 'portal.tutor.sub',
     description: 'اسأل واستكشف أفكارًا تساعدك في رحلتك.',
     image: 'assets/images/icon_avatar.png',
     colors: [Color(0xFF274E76), Color(0xFF1394D2)],
     accent: Color(0xFFBAE6FD),
   ),
   _HomeSection(
-    title: 'مركز الاختبارات',
-    subtitle: 'اختبارات المعلم والدورية',
+    titleKey: 'portal.quiz',
+    subtitleKey: 'portal.quiz.sub',
     description: 'أجب عن أسئلتك وشاهد نتيجتك المحفوظة بأمان.',
     image: 'assets/images/icon_quez.png',
     colors: [Color(0xFF165B4A), Color(0xFF16A085)],
     accent: Color(0xFFB7F7DD),
   ),
   _HomeSection(
-    title: 'حلّ المسائل',
-    subtitle: 'اسأل عن الدرس',
+    titleKey: 'portal.solver',
+    subtitleKey: 'portal.solver.sub',
     description: 'مساعد ذكي يقدم شرحًا مباشرًا ومفيدًا لأسئلتك.',
     image: 'assets/images/icon_ai.png',
     colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
     accent: Color(0xFFE9D5FF),
   ),
   _HomeSection(
-    title: 'اللقاء المباشر',
-    subtitle: 'انضم داخل منارة',
+    titleKey: 'portal.meeting',
+    subtitleKey: 'portal.meeting.sub',
     description: 'ادخل لقاء الدرس من دون مغادرة التطبيق.',
     image: 'assets/images/icon_meet.png',
     colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
     accent: Color(0xFFFFE4A3),
   ),
   _HomeSection(
-    title: 'دردشة منارة',
-    subtitle: 'تواصل آمن',
+    titleKey: 'portal.chat',
+    subtitleKey: 'portal.chat.sub',
     description: 'نتحقق من الخصوصية قبل عرض أي رسالة أو زميل.',
     image: 'assets/images/icon_chat.png',
     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
@@ -769,8 +784,8 @@ const _homeSections = <_HomeSection>[
   // it already had — _openModule dispatches on position, and inserting
   // anywhere else would silently send a student to the wrong card.
   _HomeSection(
-    title: 'بطاقة التحدي',
-    subtitle: 'اسحب وأكمل',
+    titleKey: 'portal.challenge',
+    subtitleKey: 'portal.challenge.sub',
     description: 'حروف وجمل وتصنيفات من درسك، على مراحل.',
     image: 'assets/images/endless_challenge.png',
     colors: [Color(0xFF3B2A6B), Color(0xFF6D28D9)],

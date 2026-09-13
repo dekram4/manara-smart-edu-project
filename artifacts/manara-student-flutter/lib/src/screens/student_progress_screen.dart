@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
+import '../services/student_settings.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 
@@ -15,7 +16,7 @@ class StudentProgressScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final stats = this.stats ?? profile.gamification;
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F8FF),
         appBar: AppBar(title: const Text('تقدمي وإنجازاتي'), actions: const [StudentSoundToggle()]),
