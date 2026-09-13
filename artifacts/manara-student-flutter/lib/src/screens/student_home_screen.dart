@@ -415,7 +415,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     final size = MediaQuery.sizeOf(context);
 
     return Scaffold(
-      backgroundColor: StudentPalette.canvas,
+      backgroundColor: StudentSurface.ground(context),
       appBar: AppBar(
         // The enlarged mark is 54px and its pill adds 14px of padding, so
         // 70 left only 2px of slack — raised so the bigger logo cannot
@@ -877,29 +877,24 @@ class _SectionTile extends StatefulWidget {
 
 class _SectionTileState extends State<_SectionTile>
     with TickerProviderStateMixin {
-  /// The idle float. Each card gets its own slightly different period, so
-  /// nine cards drifting together never lock into one rhythm.
-  late final AnimationController _drift = AnimationController(
-    vsync: this,
-    duration: Duration(milliseconds: 2900 + (widget.index % 5) * 170),
-  );
+  /// The idle float is gone.
+  ///
+  /// Nine cards drifting on their own timers read as restless rather than
+  /// alive, and the motion competed with the one that matters — the card
+  /// answering a finger. The card now sits still and raised, and every
+  /// movement on screen is something the student caused.
 
   /// The reaction to a finger or a pointer resting on the card: it rises,
-  /// grows and lights its rim. Quick up, slower down — which is what makes
-  /// it feel sprung rather than switched.
+  /// grows and lights its rim. Fast in, quick out — no lingering.
   late final AnimationController _lift = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 340),
-    reverseDuration: const Duration(milliseconds: 520),
+    duration: const Duration(milliseconds: 130),
+    reverseDuration: const Duration(milliseconds: 190),
   );
 
   late final Animation<double> _liftCurve = CurvedAnimation(
     parent: _lift,
-    // Overshoots and settles rather than easing flat into place — that
-    // bounce is the difference between a card that answers a finger and
-    // one that merely changes size. easeOutBack was too polite to read
-    // as a reaction at all.
-    curve: Curves.elasticOut,
+    curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeOutCubic,
   );
 
@@ -919,45 +914,41 @@ class _SectionTileState extends State<_SectionTile>
   late final AnimationController _push =
       AnimationController.unbounded(vsync: this);
 
-  /// Going down: stiff, so the card answers the finger the instant it
+  /// Going down: very stiff, so the card answers the finger the instant it
   /// lands. Nothing about a press should feel like it is catching up.
   static const _pressSpring = SpringDescription(
     mass: 1,
-    stiffness: 520,
-    damping: 22,
+    stiffness: 900,
+    damping: 26,
   );
 
-  /// Coming back: softer and a little less damped, so the card rebounds
-  /// past its resting size once and settles. Releasing with the same
-  /// stiff spring snapped it back flat, which reads as a state change
-  /// rather than as something springy letting go.
+  /// Coming back: still fast, and just under critical damping so it
+  /// overshoots once and is done inside a couple of hundred milliseconds.
+  /// A slow, soft return reads as the card sagging rather than springing.
   static const _releaseSpring = SpringDescription(
     mass: 1,
-    stiffness: 300,
-    damping: 13,
+    stiffness: 620,
+    damping: 17,
   );
 
-  /// Where on the card the finger landed, as -1..1 from its centre.
+  /// Where the finger is on the card right now, as -1..1 from its centre.
   ///
-  /// The tilt is taken from this, so pressing a corner dips that corner.
-  /// Without it every press tilts identically and the 3D reads as a
-  /// canned animation rather than as a response to where you touched.
-  Offset _pressAlign = Offset.zero;
+  /// Updated on every pointer move while a finger is down, not just once
+  /// on touch: the tilt follows the drag continuously, so sliding a thumb
+  /// across the card swings it like a panel on a gimbal. Set straight into
+  /// a ValueNotifier rather than through setState so a move never costs a
+  /// widget rebuild — the AnimatedBuilder listening to it repaints the
+  /// transform alone.
+  final ValueNotifier<Offset> _pointerAlign = ValueNotifier(Offset.zero);
 
   bool _hovered = false;
   bool _pressed = false;
 
   @override
-  void initState() {
-    super.initState();
-    _drift.repeat(reverse: true);
-  }
-
-  @override
   void dispose() {
-    _drift.dispose();
     _lift.dispose();
     _push.dispose();
+    _pointerAlign.dispose();
     super.dispose();
   }
 
@@ -988,18 +979,29 @@ class _SectionTileState extends State<_SectionTile>
     );
   }
 
-  /// Records where a press landed, normalised against the card's own box.
-  void _recordPressPoint(Offset localPosition) {
+  /// Tracks the finger, normalised against the card's own box.
+  ///
+  /// Called on down *and* on every move, which is what makes the tilt
+  /// follow a drag instead of freezing at wherever the touch began.
+  void _trackPointer(Offset localPosition) {
     final box = context.findRenderObject() as RenderBox?;
     final size = box?.size;
     if (size == null || size.isEmpty) {
-      _pressAlign = Offset.zero;
+      _pointerAlign.value = Offset.zero;
       return;
     }
-    _pressAlign = Offset(
-      ((localPosition.dx / size.width) * 2 - 1).clamp(-1.0, 1.0),
-      ((localPosition.dy / size.height) * 2 - 1).clamp(-1.0, 1.0),
+    // Allowed a little past the card's own edge, so a drag that runs off
+    // the side keeps swinging instead of hitting a wall at the border.
+    _pointerAlign.value = Offset(
+      ((localPosition.dx / size.width) * 2 - 1).clamp(-1.4, 1.4),
+      ((localPosition.dy / size.height) * 2 - 1).clamp(-1.4, 1.4),
     );
+  }
+
+  /// Lets go: the tilt returns to flat with the same spring as the push,
+  /// so the card swings back level rather than snapping.
+  void _releasePointer() {
+    _pointerAlign.value = Offset.zero;
   }
 
   @override
@@ -1056,65 +1058,75 @@ class _SectionTileState extends State<_SectionTile>
         _hovered = false;
         _sync();
       },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (details) {
+      // A raw Listener under the GestureDetector, not more gesture
+      // callbacks.
+      //
+      // The rail is a horizontal ListView, so a drag on a card belongs to
+      // the list's scroll — a pan recognizer here would fight it for the
+      // arena and either steal the scroll or never fire. A Listener sees
+      // every pointer event without entering the arena at all, so the tilt
+      // can follow the finger while the list still scrolls normally and
+      // the tap still fires.
+      child: Listener(
+        behavior: HitTestBehavior.deferToChild,
+        onPointerDown: (event) {
           _pressed = true;
-          _recordPressPoint(details.localPosition);
+          _trackPointer(event.localPosition);
           _sync();
           _springPushTo(1);
         },
-        onTapUp: (_) {
+        onPointerMove: (event) {
+          if (_pressed) _trackPointer(event.localPosition);
+        },
+        onPointerUp: (_) {
           _pressed = false;
+          _releasePointer();
           _sync();
           _springPushTo(0);
         },
-        onTapCancel: () {
+        onPointerCancel: (_) {
           _pressed = false;
+          _releasePointer();
           _sync();
           _springPushTo(0);
         },
+        child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: widget.onPressed,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_drift, _liftCurve, _push]),
+          animation: Listenable.merge([_liftCurve, _push, _pointerAlign]),
           builder: (context, child) {
-            // A plain sine over a controller that already reverses would
-            // ease twice and stall at the ends; the raw value mapped
-            // through a cosine gives one clean rise and fall.
-            final drift = reduceMotion
-                ? 0.0
-                : (1 - math.cos(_drift.value * math.pi)) / 2 - 0.5;
             final lift = reduceMotion ? 0.0 : _liftCurve.value.clamp(0.0, 1.4);
+            final aim = reduceMotion ? Offset.zero : _pointerAlign.value;
             // The spring overshoots past 1 on the way down and past 0 on
             // the way back; both are wanted, so this is clamped only
             // loosely — just enough that a violent fling cannot invert
             // the card.
             final push = reduceMotion ? 0.0 : _push.value.clamp(-0.35, 1.25);
 
-            // Real depth rather than a flat scale. A perspective entry in
-            // the matrix, a tilt away from the rail as the card rises,
-            // and — while a finger is down — a tilt *into* the finger
-            // itself: press the left edge and that edge goes away from
-            // you. That last one is what separates a card being pushed
-            // from a card being resized.
+            // Real depth rather than a flat scale: a perspective entry in
+            // the matrix, a tilt away from the rail as the card rises, and
+            // a tilt that tracks the finger across the card while it is
+            // down. Drag a thumb left and the card swings like a panel on
+            // a gimbal; that continuous following is what separates a card
+            // being handled from one playing a canned animation.
             //
-            // The idle float also breathes a fraction of a percent of
-            // scale. Vertical travel alone reads as sliding; the two
-            // together read as floating toward the viewer.
+            // The tilt is driven by `aim`, which the Listener updates on
+            // every pointer move, and scaled by `push` so it is only ever
+            // present while something is actually on the card.
             //
             // The squash is deliberately not uniform: pressing takes more
             // off the height than the width, the way a real soft object
             // gives under a thumb. A uniform shrink reads as the card
             // moving away instead of compressing.
-            final squashX = 1 + drift * 0.012 + lift * 0.07 - push * 0.040;
-            final squashY = 1 + drift * 0.012 + lift * 0.07 - push * 0.072;
+            final squashX = 1 + lift * 0.07 - push * 0.045;
+            final squashY = 1 + lift * 0.07 - push * 0.080;
 
             final matrix = Matrix4.identity()
-              ..setEntry(3, 2, 0.0018)
-              ..translate(0.0, drift * 11 - lift * 16 + push * 5)
-              ..rotateX(-lift * 0.16 - _pressAlign.dy * push * 0.13)
-              ..rotateY(_pressAlign.dx * push * 0.13)
-              ..rotateZ(drift * 0.012)
+              ..setEntry(3, 2, 0.0020)
+              ..translate(0.0, -lift * 16 + push * 5)
+              ..rotateX(-lift * 0.10 - aim.dy * push * 0.26)
+              ..rotateY(aim.dx * push * 0.26)
               ..scale(squashX, squashY);
 
             // The rim is the neon: a quiet tinted hairline at rest that
@@ -1176,6 +1188,7 @@ class _SectionTileState extends State<_SectionTile>
           },
           child: contents,
         ),
+        ),
       ),
     );
 
@@ -1198,7 +1211,13 @@ class _LighthouseBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const IgnorePointer(
+    // This gradient *is* the hub's background — it covers the whole
+    // screen behind the rail, so leaving it cream was what kept the hub
+    // looking like a light app with dark cards sitting on it. It follows
+    // the theme now, and the lighthouse is dimmed at night so it reads as
+    // artwork in the dark rather than a bright panel.
+    final night = StudentSurface.isDark(context);
+    return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -1207,17 +1226,23 @@ class _LighthouseBackdrop extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFFFF6E7),
-                  Color(0xFFFDF3EA),
-                  Color(0xFFEFF5FB),
-                ],
+                colors: night
+                    ? const [
+                        Color(0xFF0B0F19),
+                        Color(0xFF0E1117),
+                        Color(0xFF11151F),
+                      ]
+                    : const [
+                        Color(0xFFFFF6E7),
+                        Color(0xFFFDF3EA),
+                        Color(0xFFEFF5FB),
+                      ],
               ),
             ),
           ),
           Opacity(
-            opacity: 0.55,
-            child: Image(
+            opacity: night ? 0.22 : 0.55,
+            child: const Image(
               image: AssetImage('assets/images/lighthouse_main_bg.png'),
               fit: BoxFit.contain,
               alignment: Alignment.center,

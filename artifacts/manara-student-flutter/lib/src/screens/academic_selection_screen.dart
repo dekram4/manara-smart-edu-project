@@ -588,6 +588,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // them.
                 const topReserve = 52.0;
 
+                // The start button has its own band across the foot of the
+                // screen, and the illustration is laid out inside what is
+                // left above it.
+                //
+                // It used to be printed on the navy book at the bottom of
+                // the stack, which made the one control that is not a
+                // choice look like another field to fill in — and kept it
+                // to a book's width. Down here it can be the full width of
+                // the screen, which is what a child reaches for.
+                const startBand = 76.0;
+
                 // The two orientations get genuinely different layouts,
                 // because the same one cannot serve both.
                 //
@@ -612,7 +623,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                   // the room the books need.
                   mascotHeight = math.min(
                     areaSize.width * 0.30,
-                    (areaSize.height - topReserve - edge) * 0.26,
+                    (areaSize.height - topReserve - startBand - edge) * 0.26,
                   );
                   girlColumn = 0;
                   // Her band: her own height plus the speech bubble above
@@ -622,7 +633,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     math.max(0.0, areaSize.width - edge * 2),
                     math.max(
                       0.0,
-                      areaSize.height - topReserve - greeterBand - edge,
+                      areaSize.height - topReserve - greeterBand - startBand - edge,
                     ),
                   );
                   // Drawn to 88% of the width it is offered, inside the
@@ -643,7 +654,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                       .toDouble();
                   mascotHeight = math.min(
                     girlColumn * 1.02,
-                    (areaSize.height - topReserve - edge) * 0.66,
+                    (areaSize.height - topReserve - startBand - edge) * 0.66,
                   );
                   final content = Size(
                     math.max(0.0, areaSize.width - girlColumn - edge * 2),
@@ -709,6 +720,26 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                       Positioned.fromRect(
                         rect: imageRect,
                         child: Center(child: _buildLoadingOrError()),
+                      ),
+                    // The start button, across the foot of the screen and
+                    // under every book. Wide enough that a child does not
+                    // have to aim.
+                    if (_ready)
+                      Positioned(
+                        left: edge,
+                        right: edge,
+                        bottom: edge,
+                        height: startBand - edge,
+                        child: _FlyAway(
+                          away: _leaving,
+                          angle: 0.18,
+                          delay: const Duration(milliseconds: 60),
+                          child: _StartAdventureButton(
+                            enabled: _selection != null && !_isEntering,
+                            busy: _isEntering,
+                            onPressed: _enterDashboard,
+                          ),
+                        ),
                       ),
                     Positioned(
                       top: 4,
@@ -787,22 +818,18 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   /// One control per book, in hierarchy order, each pinned onto that book's
   /// page area via its measured slot.
+  ///
+  /// Six levels, six books, one each — grade, term, subject, chapter, unit,
+  /// lesson.
+  ///
+  /// The chapter used to share the red book with the unit, and only when
+  /// the teacher had configured more than one of them; with a single
+  /// chapter it was not shown at all. So a level the teacher had filled in
+  /// was invisible here, and even when it appeared it was half a book wide.
+  /// Freeing the navy book — the start button moved out from under the
+  /// stack to its own band below — gave every level a book of its own and
+  /// let the control read the same way at every level.
   List<Widget> _buildBookControls(Rect imageRect) {
-    final canStart = _selection != null;
-    // The tree has a chapter level between subject and unit. It shares the
-    // red book with the unit — and only claims room there when the teacher
-    // actually configured more than one chapter, so the six-book layout
-    // stays exactly as designed for the usual single-chapter subject.
-    final chapters = _termOptions;
-    final unitControl = _BookDropdown(
-      label: tr('path.unit'),
-      icon: Icons.category_rounded,
-      color: _unitSlot.color,
-      value: _unit,
-      options: _unitOptions,
-      onSelected: _selectUnit,
-    );
-
     return [
       _gradeSlot.place(
         imageRect,
@@ -837,45 +864,40 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           onSelected: _selectSubject,
         ),
       ),
+      // Red book: the chapter, now on its own rather than sharing.
       _unitSlot.place(
         imageRect,
-        chapters.length > 1
-            ? Row(
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: _BookDropdown(
-                      label: tr('path.term'),
-                      icon: Icons.bookmarks_rounded,
-                      color: _unitSlot.color,
-                      value: _term,
-                      options: chapters,
-                      onSelected: _selectTerm,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(flex: 6, child: unitControl),
-                ],
-              )
-            : unitControl,
+        _BookDropdown(
+          label: tr('path.term'),
+          icon: Icons.bookmarks_rounded,
+          color: _unitSlot.color,
+          value: _term,
+          options: _termOptions,
+          onSelected: _selectTerm,
+        ),
       ),
+      // Green book: the unit, moved down one from the red.
       _lessonSlot.place(
+        imageRect,
+        _BookDropdown(
+          label: tr('path.unit'),
+          icon: Icons.category_rounded,
+          color: _lessonSlot.color,
+          value: _unit,
+          options: _unitOptions,
+          onSelected: _selectUnit,
+        ),
+      ),
+      // Navy book: the lesson, in the place the start button used to take.
+      _startSlot.place(
         imageRect,
         _BookDropdown(
           label: tr('path.lesson'),
           icon: Icons.play_lesson_rounded,
-          color: _lessonSlot.color,
+          color: _startSlot.color,
           value: _lesson?.lessonName,
           options: _lessonOptions,
           onSelected: _selectLessonNamed,
-        ),
-      ),
-      _startSlot.place(
-        imageRect,
-        _StartAdventureButton(
-          enabled: canStart && !_isEntering,
-          busy: _isEntering,
-          onPressed: _enterDashboard,
         ),
       ),
       if (_loadError != null)
@@ -1025,7 +1047,7 @@ class _BookDropdown extends StatelessWidget {
                               label,
                               style: TextStyle(
                                 color: dark.withOpacity(0.85),
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -1042,7 +1064,11 @@ class _BookDropdown extends StatelessWidget {
                               maxLines: 1,
                               style: TextStyle(
                                 color: StudentSurface.ink(context),
-                                fontSize: 20,
+                                // The value the student actually reads —
+                                // the grade, the subject, the lesson. It
+                                // carries the book, so it is the largest
+                                // thing on the page.
+                                fontSize: 22,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),

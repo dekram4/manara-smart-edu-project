@@ -60,7 +60,7 @@ abstract final class StudentSurface {
 
   /// Body text.
   static Color ink(BuildContext context) =>
-      isDark(context) ? const Color(0xFFF3F4F6) : const Color(0xFF183047);
+      isDark(context) ? Colors.white : const Color(0xFF183047);
 
   /// Secondary text: labels, hints, captions.
   static Color mutedInk(BuildContext context) =>
@@ -298,7 +298,7 @@ abstract final class StudentTheme {
   static ThemeData dark() {
     const canvas = Color(0xFF0E1117);
     const surface = Color(0xFF171B26);
-    const ink = Color(0xFFF3F4F6);
+    const ink = Colors.white;
     const mutedInk = Color(0xFFB6BDCC);
 
     final base = ThemeData(

@@ -10,11 +10,10 @@ import 'package:manara_student/src/services/student_settings.dart';
 
 /// The portal rail's motion, pinned to what a finger actually does to it.
 ///
-/// The card carries three separate motions — an idle float, a lift under
-/// the pointer, and a spring on the push — and the interesting failures
-/// are all about them interfering: a press that does nothing because the
-/// hover already lifted the card, a float that freezes once a card has
-/// been touched, a spring that never settles.
+/// The idle float is deliberately gone: nine cards drifting on their own
+/// timers read as restless, and that movement competed with the one that
+/// matters. Everything that moves now is something the student caused —
+/// which is what these check.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -72,163 +71,153 @@ void main() {
     return tester.widget<Transform>(transforms.first).transform;
   }
 
-  /// Runs the clock until the press has actually registered.
-  ///
-  /// The rail is a horizontal ListView, so its drag recognizer contests
-  /// the gesture arena and onTapDown only fires once the tap wins it.
-  /// That resolution rides on a timer, so the clock has to be advanced in
-  /// steps — one long pump jumps over it and reads an untouched card.
-  Future<void> settlePress(WidgetTester tester) async {
+  /// Runs the clock in steps so pointer-driven work is processed.
+  Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 60));
     }
   }
 
-  double scaleOf(Matrix4 matrix) => matrix.getMaxScaleOnAxis();
-  double yOf(Matrix4 matrix) => matrix.getTranslation().y;
+  double scaleOf(Matrix4 m) => m.getMaxScaleOnAxis();
+  double yOf(Matrix4 m) => m.getTranslation().y;
+  double tiltY(Matrix4 m) => m.entry(0, 2);
+  double tiltX(Matrix4 m) => m.entry(1, 2);
 
-  testWidgets('the cards float on their own, without being touched',
-      (tester) async {
+  testWidgets('an untouched card holds perfectly still', (tester) async {
     await pumpHub(tester);
 
-    // Sampled across a full drift period. A card that never moves, or one
-    // that moves by a hair, is the "no sense of life" this was raised for.
-    final heights = <double>[];
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 380));
-      heights.add(yOf(cardMatrix(tester, 'portal.lesson')));
+    // The old rail drifted on a repeating timer. Nothing moves now unless
+    // a finger is on it — a card that wanders on its own is exactly the
+    // restlessness this replaced.
+    final first = cardMatrix(tester, 'portal.lesson');
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 400));
+      final now = cardMatrix(tester, 'portal.lesson');
+      expect(yOf(now), yOf(first));
+      expect(scaleOf(now), scaleOf(first));
     }
-
-    final travel = heights.reduce((a, b) => a > b ? a : b) -
-        heights.reduce((a, b) => a < b ? a : b);
-    expect(
-      travel,
-      greaterThan(4),
-      reason: 'the idle float is too small to read as floating',
-    );
   });
 
-  testWidgets('neighbouring cards do not float in lockstep', (tester) async {
-    await pumpHub(tester);
-    await tester.pump(const Duration(milliseconds: 700));
-
-    // Each card is given its own period precisely so nine of them never
-    // pulse as one block.
-    expect(yOf(cardMatrix(tester, 'portal.lesson')), isNot(yOf(cardMatrix(tester, 'portal.games'))));
-  });
-
-  testWidgets('the push is its own motion, faster than the lift',
+  testWidgets('a press compresses the card, more in height than width',
       (tester) async {
     await pumpHub(tester);
     final card = cardFinder('portal.lesson');
 
-    // Hold until both the lift and the push have settled, so the card is
-    // sitting at "raised, and pushed in".
     final gesture = await tester.startGesture(tester.getCenter(card));
-    await tester.pump(const Duration(milliseconds: 900));
-    final held = scaleOf(cardMatrix(tester, 'portal.lesson'));
-
-    // Cancel rather than lift, so the tap never fires and the hub is not
-    // navigated away from underneath the assertions.
-    await gesture.cancel();
-    await tester.pump(const Duration(milliseconds: 70));
-    final justReleased = scaleOf(cardMatrix(tester, 'portal.lesson'));
-
-    // Both motions are now reversing, but the push is a stiff spring and
-    // the lift is a half-second ease. If the two shared one controller
-    // the scale could only fall from here; it rising is the proof that
-    // the push released on its own, faster, timeline.
-    expect(
-      justReleased,
-      greaterThan(held),
-      reason: 'the push did not release independently of the lift',
-    );
-  });
-
-  testWidgets('the push springs back and settles', (tester) async {
-    await pumpHub(tester);
-    final card = cardFinder('portal.lesson');
-
-    final gesture = await tester.startGesture(tester.getCenter(card));
-    await tester.pump(const Duration(milliseconds: 80));
-    final pushed = scaleOf(cardMatrix(tester, 'portal.lesson'));
-
-    await gesture.cancel();
-    await tester.pump(const Duration(milliseconds: 40));
-    expect(
-      scaleOf(cardMatrix(tester, 'portal.lesson')),
-      greaterThan(pushed),
-      reason: 'the card did not start coming back',
-    );
-
-    // An unbounded controller driven by a spring runs until the
-    // simulation reports it is done. One that never settles ticks
-    // forever — a visible wobble and a battery drain both.
-    await tester.pump(const Duration(seconds: 2));
-    final settled = scaleOf(cardMatrix(tester, 'portal.lesson'));
-    await tester.pump(const Duration(milliseconds: 16));
-    expect(
-      (scaleOf(cardMatrix(tester, 'portal.lesson')) - settled).abs(),
-      lessThan(0.02),
-    );
-  });
-
-  testWidgets('a press squashes the card rather than shrinking it',
-      (tester) async {
-    await pumpHub(tester);
-    final card = cardFinder('portal.lesson');
-
-    // The rail is a horizontal ListView, so its drag recognizer contests
-    // the arena and onTapDown does not fire until the tap wins it — about
-    // 300ms in. Measuring sooner reads an untouched card.
-    final gesture = await tester.startGesture(tester.getCenter(card));
-    await settlePress(tester);
+    await settle(tester);
     final matrix = cardMatrix(tester, 'portal.lesson');
     await gesture.cancel();
 
     // A uniform shrink reads as the card moving away. Taking more off the
     // height than the width is what reads as something soft giving under
-    // a thumb, which is the whole point of the press.
-    final scaleX = matrix.getColumn(0).length;
-    final scaleY = matrix.getColumn(1).length;
+    // a thumb.
     expect(
-      scaleY,
-      lessThan(scaleX),
+      matrix.getColumn(1).length,
+      lessThan(matrix.getColumn(0).length),
       reason: 'the press scaled uniformly — no compression',
     );
   });
 
-  testWidgets('the card tilts toward wherever the finger landed',
-      (tester) async {
+  testWidgets('the tilt follows the finger across the card', (tester) async {
     await pumpHub(tester);
     final card = cardFinder('portal.lesson');
     final box = tester.getRect(card);
 
-    Future<Matrix4> pressAt(Offset at) async {
-      final gesture = await tester.startGesture(at);
-      await settlePress(tester);
-      final matrix = cardMatrix(tester, 'portal.lesson');
-      await gesture.cancel();
-      await tester.pump(const Duration(seconds: 1));
-      return matrix;
-    }
+    // Land in the middle, then drag to one edge and on to the other
+    // without lifting. The tilt has to keep up the whole way — freezing
+    // at the touch point is the canned-animation failure this guards.
+    final gesture = await tester.startGesture(box.center);
+    await settle(tester);
+    final atCentre = tiltY(cardMatrix(tester, 'portal.lesson'));
 
-    // Pressing opposite edges has to tilt the card opposite ways. If the
-    // tilt is canned, both presses produce the same matrix and the 3D is
-    // an animation rather than an answer to where you touched.
-    final left = await pressAt(Offset(box.left + 8, box.center.dy));
-    final right = await pressAt(Offset(box.right - 8, box.center.dy));
+    await gesture.moveTo(Offset(box.left + 6, box.center.dy));
+    await settle(tester);
+    final atLeft = tiltY(cardMatrix(tester, 'portal.lesson'));
 
-    // Entry (0,2) of the matrix carries the Y rotation's sign.
+    await gesture.moveTo(Offset(box.right - 6, box.center.dy));
+    await settle(tester);
+    final atRight = tiltY(cardMatrix(tester, 'portal.lesson'));
+
+    await gesture.cancel();
+
+    expect(atLeft, isNot(atCentre), reason: 'the drag did not move the tilt');
     expect(
-      left.entry(0, 2) * right.entry(0, 2),
+      atLeft * atRight,
       lessThan(0),
-      reason: 'both edges tilted the same way — the tilt ignores the touch',
+      reason: 'opposite edges did not tilt the card opposite ways',
     );
   });
 
-  testWidgets('reduced motion stops every one of the three motions',
+  testWidgets('dragging up and down tilts the other axis', (tester) async {
+    await pumpHub(tester);
+    final card = cardFinder('portal.lesson');
+    final box = tester.getRect(card);
+
+    final gesture = await tester.startGesture(box.center);
+    await settle(tester);
+
+    await gesture.moveTo(Offset(box.center.dx, box.top + 6));
+    await settle(tester);
+    final atTop = tiltX(cardMatrix(tester, 'portal.lesson'));
+
+    await gesture.moveTo(Offset(box.center.dx, box.bottom - 6));
+    await settle(tester);
+    final atBottom = tiltX(cardMatrix(tester, 'portal.lesson'));
+
+    await gesture.cancel();
+
+    expect(atTop * atBottom, lessThan(0));
+  });
+
+  testWidgets('letting go springs back flat, fast', (tester) async {
+    await pumpHub(tester);
+    final card = cardFinder('portal.lesson');
+    final box = tester.getRect(card);
+
+    final gesture = await tester.startGesture(box.center);
+    await gesture.moveTo(Offset(box.left + 6, box.center.dy));
+    await settle(tester);
+    expect(tiltY(cardMatrix(tester, 'portal.lesson')), isNot(0.0));
+
+    await gesture.cancel();
+    // "In a fraction of a second" is the requirement, so this window is
+    // short on purpose: a card still visibly moving after 400ms is
+    // sagging back, not springing.
+    await tester.pump(const Duration(milliseconds: 400));
+    final settled = cardMatrix(tester, 'portal.lesson');
+
+    expect(tiltY(settled), moreOrLessEquals(0.0, epsilon: 0.005));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(
+      (scaleOf(cardMatrix(tester, 'portal.lesson')) - scaleOf(settled)).abs(),
+      lessThan(0.01),
+      reason: 'the spring is still running — it never settles',
+    );
+  });
+
+  testWidgets('the rail still scrolls under the drag tracking',
       (tester) async {
+    // The tilt rides a raw Listener precisely so it never enters the
+    // gesture arena. A pan recognizer here would contest the horizontal
+    // list and either steal the scroll or never fire — and a rail that
+    // stops scrolling is a far worse bug than a missing tilt.
+    await pumpHub(tester);
+
+    final rail = find.byType(ListView).first;
+    final before = tester.getTopLeft(cardFinder('portal.lesson'));
+
+    await tester.drag(rail, const Offset(-220, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final after = tester.getTopLeft(cardFinder('portal.lesson'));
+    expect(
+      after.dx,
+      lessThan(before.dx),
+      reason: 'the rail did not scroll — the tilt stole the drag',
+    );
+  });
+
+  testWidgets('reduced motion leaves the card entirely flat', (tester) async {
     tester.view.physicalSize = const Size(1280, 720);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -247,9 +236,17 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    final first = cardMatrix(tester, 'portal.lesson');
-    await tester.pump(const Duration(milliseconds: 900));
-    expect(yOf(cardMatrix(tester, 'portal.lesson')), yOf(first));
-    expect(scaleOf(cardMatrix(tester, 'portal.lesson')), scaleOf(first));
+    final card = cardFinder('portal.lesson');
+    final before = cardMatrix(tester, 'portal.lesson');
+
+    final gesture = await tester.startGesture(tester.getCenter(card));
+    await gesture.moveTo(tester.getRect(card).centerLeft);
+    await settle(tester);
+
+    final during = cardMatrix(tester, 'portal.lesson');
+    expect(tiltY(during), 0.0);
+    expect(scaleOf(during), scaleOf(before));
+
+    await gesture.cancel();
   });
 }

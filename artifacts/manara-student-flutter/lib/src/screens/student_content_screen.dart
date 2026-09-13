@@ -1294,25 +1294,31 @@ class _LessonPlayerScreenState extends State<_LessonPlayerScreen> {
         foregroundColor: Colors.white,
         title: Text(widget.video.title),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: StudentVideoPlayer(
-                  video: widget.video,
-                  apiBaseUrl: widget.apiBaseUrl,
-                  // Reaching the end of the video is itself "finished
-                  // watching the lesson" — grant the reward immediately
-                  // instead of waiting for the manual button below, which
-                  // stays as a fallback for a student who skipped ahead.
-                  onCompleted: _completeLesson,
-                ),
-              ),
+      // Pinned to the top at the full width of the screen, not floated in
+      // the middle of the body.
+      //
+      // `Expanded > Center` put a 16:9 strip in the vertical middle of a
+      // tall portrait screen with dark space above and below it, which is
+      // the "small in the middle" in the report. Top-aligned and
+      // full-width, the video starts where the student is already looking
+      // and is as large as 16:9 allows on the device.
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: double.infinity,
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: StudentVideoPlayer(
+              video: widget.video,
+              apiBaseUrl: widget.apiBaseUrl,
+              // Reaching the end of the video is itself "finished
+              // watching the lesson" — grant the reward immediately
+              // instead of waiting for the manual button below, which
+              // stays as a fallback for a student who skipped ahead.
+              onCompleted: _completeLesson,
             ),
           ),
-        ],
+        ),
       ),
       // No completion bar here on purpose: the player screen shows the
       // video and nothing else. The reward button lives once, under the
@@ -1378,10 +1384,14 @@ class UniversalWebVideoScreen extends StatelessWidget {
           foregroundColor: Colors.white,
           title: Text(video.title),
         ),
-        body: Center(
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: StudentVideoPlayer(video: video, apiBaseUrl: apiBaseUrl),
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: double.infinity,
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: StudentVideoPlayer(video: video, apiBaseUrl: apiBaseUrl),
+            ),
           ),
         ),
       );

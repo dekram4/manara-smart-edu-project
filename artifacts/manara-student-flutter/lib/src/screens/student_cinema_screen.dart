@@ -359,10 +359,17 @@ class _CinemaPlayerScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         title: Text(video.title),
       ),
-      body: Center(
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: StudentVideoPlayer(video: video, apiBaseUrl: apiBaseUrl),
+      // Top-aligned and full width, matching the lesson player: a 16:9
+      // strip centred in a tall body reads as a small video adrift in
+      // black, which is what was reported for the cinema too.
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: double.infinity,
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: StudentVideoPlayer(video: video, apiBaseUrl: apiBaseUrl),
+          ),
         ),
       ),
     );
