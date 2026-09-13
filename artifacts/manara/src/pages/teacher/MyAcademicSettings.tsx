@@ -34,6 +34,25 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   const [newTerm, setNewTerm] = useState('');
   const [newUnit, setNewUnit] = useState('');
 
+  // مسودة اسم الدرس لكل وحدة، ومفتاحها المسار الكامل للوحدة — فكل وحدة
+  // على الشاشة لها حقلها الخاص، ولا تتشارك عدة وحدات مربع إدخال واحداً.
+  //
+  // الإضافة والتعديل كانا يستدعيان window.prompt، وهو ليس عنصراً مرئياً
+  // في الصفحة أصلاً: لا يظهر حقل ولا زر، ويُحجب صامتاً داخل إطار iframe
+  // فتبدو الضغطة وكأنها لا تفعل شيئاً. الحقل الآن جزء من الواجهة نفسها.
+  const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
+  const [editingLesson, setEditingLesson] = useState<
+    { unitKey: string; index: number; value: string } | null
+  >(null);
+
+  const unitKeyOf = (
+    grade: string,
+    atram: string,
+    subject: string,
+    term: string,
+    unit: string,
+  ) => [grade, atram, subject, term, unit].join('|');
+
   useEffect(() => {
     const teacher = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
     setTeacherId(teacher?.id || '');
@@ -526,6 +545,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     loadSettings(teacherId);
   };
 
+  /// يضيف الدرس المكتوب في حقل هذه الوحدة.
   const handleAddLesson = (
     gradeName: string,
     atramName: string,
@@ -533,46 +553,61 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     termName: string,
     unit: string,
   ) => {
-    const name = prompt(`إضافة درس إلى وحدة "${unit}":`, '');
-    if (!name || !name.trim()) return;
+    const unitKey = unitKeyOf(gradeName, atramName, subjectName, termName, unit);
+    const name = (lessonDrafts[unitKey] ?? '').trim();
+    if (!name) return;
     const allConfigs = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
     );
     const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
     if (!term) return;
     const current = lessonsOf(term, unit);
-    if (current.some(lesson => lesson === name.trim())) {
+    if (current.some(lesson => lesson === name)) {
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
       return;
     }
     writeLessons(gradeName, atramName, subjectName, termName, unit, [
       ...current,
-      name.trim(),
+      name,
     ]);
-    alert('✅ تم إضافة الدرس بنجاح');
+    // الحقل يُفرَّغ ليستقبل الدرس التالي مباشرة: معلم يضيف خمسة دروس
+    // لوحدة واحدة لا ينبغي أن يمسح ما كتبه في كل مرة.
+    setLessonDrafts(drafts => ({ ...drafts, [unitKey]: '' }));
   };
 
-  const handleEditLesson = (
+  /// يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس.
+  const handleSaveLessonEdit = (
     gradeName: string,
     atramName: string,
     subjectName: string,
     termName: string,
     unit: string,
-    lessonIndex: number,
   ) => {
+    const editing = editingLesson;
+    if (!editing) return;
+    const newLesson = editing.value.trim();
+    if (!newLesson) return;
     const allConfigs = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
     );
     const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
-    if (!term) return;
+    if (!term) {
+      setEditingLesson(null);
+      return;
+    }
     const current = lessonsOf(term, unit);
-    const oldLesson = current[lessonIndex];
-    const newLesson = prompt('تعديل اسم الدرس:', oldLesson);
-    if (!newLesson || !newLesson.trim() || newLesson.trim() === oldLesson) return;
+    if (current[editing.index] === newLesson) {
+      setEditingLesson(null);
+      return;
+    }
+    if (current.some((lesson, index) => index !== editing.index && lesson === newLesson)) {
+      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
+      return;
+    }
     const next = [...current];
-    next[lessonIndex] = newLesson.trim();
+    next[editing.index] = newLesson;
     writeLessons(gradeName, atramName, subjectName, termName, unit, next);
-    alert('✅ تم تعديل الدرس بنجاح');
+    setEditingLesson(null);
   };
 
   const handleDeleteLesson = (
@@ -961,7 +996,14 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                                   </button>
                                 </div>
                               </div>
-                              {term.units && term.units.length > 0 && (
+                              {/* الدروس تسكن داخل وحداتها، فبلا وحدة لا مكان
+                                  لحقل الدرس. قول ذلك صراحةً أفضل من إخفاء
+                                  القسم كله وترك المعلم يبحث عن حقل غير موجود. */}
+                              {!term.units || term.units.length === 0 ? (
+                                <div style={styles.noUnitsHint}>
+                                  لا توجد وحدات في هذا الفصل — أضف وحدة أولاً، ثم يظهر حقل إضافة الدرس داخلها.
+                                </div>
+                              ) : (
                                 <div style={styles.unitsContainer}>
                                   {term.units.map((unit, uIdx) => (
                                     <div key={uIdx} style={styles.unitBlock}>
@@ -983,37 +1025,113 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                                         >
                                           ❌
                                         </button>
+                                      </div>
+
+                                      {/* حقل إضافة الدرس: مربع إدخال ظاهر وزر
+                                          صريح، لا نافذة prompt. لكل وحدة حقلها
+                                          الخاص حتى يكون واضحاً أين سيُضاف الدرس. */}
+                                      <div style={styles.lessonEditorRow}>
+                                        <span style={styles.lessonFieldLabel}>الدرس:</span>
+                                        <input
+                                          type="text"
+                                          value={lessonDrafts[unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit)] ?? ''}
+                                          onChange={e => {
+                                            const key = unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit);
+                                            const value = e.target.value;
+                                            setLessonDrafts(drafts => ({ ...drafts, [key]: value }));
+                                          }}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault();
+                                              handleAddLesson(config.grade, atram.atram, subject.subject, term.term, unit);
+                                            }
+                                          }}
+                                          placeholder={`اسم الدرس داخل وحدة "${unit}"`}
+                                          style={styles.lessonInput}
+                                        />
                                         <button
                                           onClick={() => handleAddLesson(config.grade, atram.atram, subject.subject, term.term, unit)}
-                                          style={styles.tinyAddLessonButton}
+                                          disabled={!(lessonDrafts[unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit)] ?? '').trim()}
+                                          style={{
+                                            ...styles.addLessonButton,
+                                            ...((lessonDrafts[unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit)] ?? '').trim()
+                                              ? {}
+                                              : styles.addLessonButtonDisabled),
+                                          }}
                                           title="إضافة درس إلى هذه الوحدة"
                                         >
-                                          ➕ درس
+                                          ➕ إضافة درس
                                         </button>
                                       </div>
-                                      {/* الدروس تظهر فقط بعد إضافتها، فالإعدادات
-                                          التي أُنشئت قبل هذا الحقل لا يتغيّر شكلها. */}
-                                      {lessonsOf(term, unit).length > 0 && (
+
+                                      {lessonsOf(term, unit).length === 0 ? (
+                                        <div style={styles.noLessonsHint}>
+                                          لا توجد دروس في هذه الوحدة بعد — اكتب اسم الدرس أعلاه ثم اضغط «إضافة درس».
+                                        </div>
+                                      ) : (
                                         <div style={styles.lessonsRow}>
-                                          {lessonsOf(term, unit).map((lesson, lessonIndex) => (
-                                            <div key={lessonIndex} style={styles.lessonChip}>
-                                              <span style={styles.lessonName}>📘 {lesson}</span>
-                                              <button
-                                                onClick={() => handleEditLesson(config.grade, atram.atram, subject.subject, term.term, unit, lessonIndex)}
-                                                style={styles.tinyEditButton}
-                                                title="تعديل الدرس"
-                                              >
-                                                ✏️
-                                              </button>
-                                              <button
-                                                onClick={() => handleDeleteLesson(config.grade, atram.atram, subject.subject, term.term, unit, lessonIndex)}
-                                                style={styles.tinyDeleteButton}
-                                                title="حذف الدرس"
-                                              >
-                                                ❌
-                                              </button>
-                                            </div>
-                                          ))}
+                                          {lessonsOf(term, unit).map((lesson, lessonIndex) => {
+                                            const unitKey = unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit);
+                                            const isEditing =
+                                              editingLesson?.unitKey === unitKey &&
+                                              editingLesson?.index === lessonIndex;
+                                            return isEditing ? (
+                                              <div key={lessonIndex} style={styles.lessonEditChip}>
+                                                <input
+                                                  type="text"
+                                                  autoFocus
+                                                  value={editingLesson!.value}
+                                                  onChange={e =>
+                                                    setEditingLesson(current =>
+                                                      current ? { ...current, value: e.target.value } : current,
+                                                    )
+                                                  }
+                                                  onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                      e.preventDefault();
+                                                      handleSaveLessonEdit(config.grade, atram.atram, subject.subject, term.term, unit);
+                                                    }
+                                                    if (e.key === 'Escape') setEditingLesson(null);
+                                                  }}
+                                                  style={styles.lessonInput}
+                                                />
+                                                <button
+                                                  onClick={() => handleSaveLessonEdit(config.grade, atram.atram, subject.subject, term.term, unit)}
+                                                  style={styles.tinyEditButton}
+                                                  title="حفظ"
+                                                >
+                                                  ✅
+                                                </button>
+                                                <button
+                                                  onClick={() => setEditingLesson(null)}
+                                                  style={styles.tinyDeleteButton}
+                                                  title="إلغاء"
+                                                >
+                                                  ↩️
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div key={lessonIndex} style={styles.lessonChip}>
+                                                <span style={styles.lessonName}>📘 {lesson}</span>
+                                                <button
+                                                  onClick={() =>
+                                                    setEditingLesson({ unitKey, index: lessonIndex, value: lesson })
+                                                  }
+                                                  style={styles.tinyEditButton}
+                                                  title="تعديل الدرس"
+                                                >
+                                                  ✏️
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDeleteLesson(config.grade, atram.atram, subject.subject, term.term, unit, lessonIndex)}
+                                                  style={styles.tinyDeleteButton}
+                                                  title="حذف الدرس"
+                                                >
+                                                  ❌
+                                                </button>
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       )}
                                     </div>
@@ -1296,15 +1414,71 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 700,
     color: '#3730a3'
   },
-  tinyAddLessonButton: {
-    padding: '3px 9px',
-    fontSize: '0.78rem',
-    fontWeight: 700,
+  // صف حقل الدرس: التسمية ثم مربع الإدخال ثم الزر، بخلفية فاتحة وإطار
+  // متقطع حتى يُقرأ كمنطقة إدخال لا كجزء من قائمة الوحدات.
+  lessonEditorRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap' as const,
+    marginInlineStart: '22px',
+    marginTop: '2px',
+    padding: '8px 10px',
+    borderRadius: '10px',
+    backgroundColor: '#f5f3ff',
+    border: '1px dashed #a5b4fc'
+  },
+  lessonFieldLabel: {
+    fontSize: '0.85rem',
+    fontWeight: 800,
+    color: '#4338ca',
+    whiteSpace: 'nowrap' as const
+  },
+  lessonInput: {
+    flex: '1 1 200px',
+    minWidth: '160px',
+    padding: '7px 11px',
+    fontSize: '0.88rem',
+    borderRadius: '8px',
+    border: '1px solid #c7d2fe',
+    outline: 'none',
+    fontFamily: 'inherit'
+  },
+  addLessonButton: {
+    padding: '7px 14px',
+    fontSize: '0.85rem',
+    fontWeight: 800,
     backgroundColor: '#4f46e5',
     color: 'white',
     border: 'none',
-    borderRadius: '999px',
-    cursor: 'pointer'
+    borderRadius: '8px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const
+  },
+  addLessonButtonDisabled: {
+    backgroundColor: '#c7d2fe',
+    color: '#6366f1',
+    cursor: 'not-allowed'
+  },
+  lessonEditChip: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    flex: '1 1 240px'
+  },
+  noLessonsHint: {
+    marginInlineStart: '22px',
+    fontSize: '0.78rem',
+    color: '#6b7280'
+  },
+  noUnitsHint: {
+    marginTop: '6px',
+    fontSize: '0.8rem',
+    color: '#92400e',
+    backgroundColor: '#fffbeb',
+    border: '1px dashed #fcd34d',
+    borderRadius: '8px',
+    padding: '8px 10px'
   },
   editButton: {
     padding: '8px 12px',

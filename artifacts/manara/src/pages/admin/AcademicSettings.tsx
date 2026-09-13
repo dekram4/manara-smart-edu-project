@@ -41,6 +41,25 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const [newTerm, setNewTerm] = useState('');
   const [newUnit, setNewUnit] = useState('');
 
+  // مسودة اسم الدرس لكل وحدة، ومفتاحها موضع الوحدة في الشجرة — فكل وحدة
+  // لها حقلها الخاص ولا تتشارك عدة وحدات مربع إدخال واحداً.
+  //
+  // كانت الإضافة والتعديل تستدعيان window.prompt: لا يظهر في الصفحة حقل
+  // ولا زر، والنافذة نفسها تُحجب صامتاً داخل إطار iframe فتبدو الضغطة بلا
+  // أثر. الحقل الآن جزء من الواجهة.
+  const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
+  const [editingLesson, setEditingLesson] = useState<
+    { unitKey: string; index: number; value: string } | null
+  >(null);
+
+  const unitKeyOf = (
+    gradeIndex: number,
+    atramIndex: number,
+    subjectIndex: number,
+    termIndex: number,
+    unit: string,
+  ) => `${gradeIndex}|${atramIndex}|${subjectIndex}|${termIndex}|${unit}`;
+
   // دالة للحصول على المعلمين الذين لديهم إعدادات أكاديمية
   const getTeachersWithSettings = () => {
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
@@ -817,6 +836,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     onUpdate();
   };
 
+  /** يضيف الدرس المكتوب في حقل هذه الوحدة. */
   const handleAddLesson = (
     gradeIndex: number,
     atramIndex: number,
@@ -824,40 +844,51 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     termIndex: number,
     unit: string,
   ) => {
+    const unitKey = unitKeyOf(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+    const name = (lessonDrafts[unitKey] ?? '').trim();
+    if (!name) return;
     const term =
       hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
-    const name = prompt(`إضافة درس إلى وحدة "${unit}":`, '');
-    if (!name || name.trim() === '') return;
     const current = lessonsOf(term, unit);
-    if (current.some(lesson => lesson === name.trim())) {
+    if (current.some(lesson => lesson === name)) {
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
       return;
     }
     writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, [
       ...current,
-      name.trim(),
+      name,
     ]);
-    alert('✅ تم إضافة الدرس');
+    // الحقل يُفرَّغ ليستقبل الدرس التالي مباشرة.
+    setLessonDrafts(drafts => ({ ...drafts, [unitKey]: '' }));
   };
 
-  const handleEditLesson = (
+  /** يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس. */
+  const handleSaveLessonEdit = (
     gradeIndex: number,
     atramIndex: number,
     subjectIndex: number,
     termIndex: number,
     unit: string,
-    lessonIndex: number,
   ) => {
+    const editing = editingLesson;
+    if (!editing) return;
+    const newName = editing.value.trim();
+    if (!newName) return;
     const term =
       hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
-    const oldName = current[lessonIndex];
-    const newName = prompt('تعديل اسم الدرس:', oldName);
-    if (!newName || newName.trim() === '' || newName === oldName) return;
+    if (current[editing.index] === newName) {
+      setEditingLesson(null);
+      return;
+    }
+    if (current.some((lesson, index) => index !== editing.index && lesson === newName)) {
+      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
+      return;
+    }
     const next = [...current];
-    next[lessonIndex] = newName.trim();
+    next[editing.index] = newName;
     writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, next);
-    alert('تم التعديل بنجاح');
+    setEditingLesson(null);
   };
 
   const handleDeleteLesson = (
@@ -940,7 +971,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     <div style={styles.container} className="dashboard-page animate-fadeIn">
       <div style={styles.header}>
         <h1 style={styles.title}>الإعدادات الأكاديمية - النظام الهرمي</h1>
-        <p style={styles.subtitle}>إدارة البنية الهرمية: صف → ترم → مادة → فصل → وحدة</p>
+        <p style={styles.subtitle}>إدارة البنية الهرمية: صف → ترم → مادة → فصل → وحدة → درس</p>
       </div>
 
       {/* للمشرف فقط: قائمة المعلمين */}
@@ -1327,22 +1358,80 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                         <div key={unitIndex} style={{ width: '100%', padding: '6px 8px', backgroundColor: '#dbeafe', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '6px' }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <span style={{ flex: 1 }}>📖 {unit}</span>
-                                            <button onClick={() => handleAddLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px', fontWeight: 'bold' }} title="إضافة درس">➕ درس</button>
                                             <button onClick={() => handleEditUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }}>✏️</button>
                                             <button onClick={() => handleDeleteUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
                                           </div>
-                                          {/* الدروس داخل هذه الوحدة. تظهر فقط بعد إضافتها، فالإعدادات القديمة تبقى كما هي تماماً. */}
+
+                                          {/* حقل إضافة الدرس: مربع إدخال ظاهر وزر صريح، لا نافذة prompt.
+                                              لكل وحدة حقلها الخاص حتى يكون واضحاً أين سيُضاف الدرس. */}
+                                          {(() => {
+                                            const unitKey = unitKeyOf(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                            const draft = lessonDrafts[unitKey] ?? '';
+                                            return (
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px', padding: '7px 9px', borderRadius: '8px', backgroundColor: '#eef2ff', border: '1px dashed #a5b4fc' }}>
+                                                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#4338ca', whiteSpace: 'nowrap' }}>الدرس:</span>
+                                                <input
+                                                  type="text"
+                                                  value={draft}
+                                                  onChange={e => {
+                                                    const value = e.target.value;
+                                                    setLessonDrafts(drafts => ({ ...drafts, [unitKey]: value }));
+                                                  }}
+                                                  onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                      e.preventDefault();
+                                                      handleAddLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                                    }
+                                                  }}
+                                                  placeholder={`اسم الدرس داخل وحدة "${unit}"`}
+                                                  style={{ flex: '1 1 180px', minWidth: '150px', padding: '6px 10px', fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #c7d2fe', outline: 'none', fontFamily: 'inherit' }}
+                                                />
+                                                <button
+                                                  onClick={() => handleAddLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit)}
+                                                  disabled={!draft.trim()}
+                                                  style={{ padding: '6px 12px', fontSize: '0.8rem', fontWeight: 800, backgroundColor: draft.trim() ? '#4f46e5' : '#c7d2fe', color: draft.trim() ? '#ffffff' : '#6366f1', border: 'none', borderRadius: '6px', cursor: draft.trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
+                                                  title="إضافة درس إلى هذه الوحدة"
+                                                >
+                                                  ➕ إضافة درس
+                                                </button>
+                                              </div>
+                                            );
+                                          })()}
+
                                           {lessonsOf(term, unit).length === 0 ? (
-                                            <div style={{ color: '#6b7280', fontSize: '0.72rem', paddingRight: '18px', marginTop: '4px' }}>لا توجد دروس بعد — اضغط ➕ درس</div>
+                                            <div style={{ color: '#6b7280', fontSize: '0.72rem', paddingRight: '18px', marginTop: '4px' }}>لا توجد دروس في هذه الوحدة بعد — اكتب اسم الدرس أعلاه ثم اضغط «إضافة درس».</div>
                                           ) : (
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', paddingRight: '18px', marginTop: '5px' }}>
-                                              {lessonsOf(term, unit).map((lesson, lessonIndex) => (
-                                                <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', backgroundColor: '#ffffff', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.78rem' }}>
-                                                  <span>📝 {lesson}</span>
-                                                  <button onClick={() => handleEditLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }}>✏️</button>
-                                                  <button onClick={() => handleDeleteLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
-                                                </div>
-                                              ))}
+                                              {lessonsOf(term, unit).map((lesson, lessonIndex) => {
+                                                const unitKey = unitKeyOf(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                                const isEditing = editingLesson?.unitKey === unitKey && editingLesson?.index === lessonIndex;
+                                                return isEditing ? (
+                                                  <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', flex: '1 1 220px' }}>
+                                                    <input
+                                                      type="text"
+                                                      autoFocus
+                                                      value={editingLesson!.value}
+                                                      onChange={e => setEditingLesson(current => (current ? { ...current, value: e.target.value } : current))}
+                                                      onKeyDown={e => {
+                                                        if (e.key === 'Enter') {
+                                                          e.preventDefault();
+                                                          handleSaveLessonEdit(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                                        }
+                                                        if (e.key === 'Escape') setEditingLesson(null);
+                                                      }}
+                                                      style={{ flex: 1, minWidth: '120px', padding: '5px 9px', fontSize: '0.78rem', borderRadius: '5px', border: '1px solid #93c5fd', outline: 'none', fontFamily: 'inherit' }}
+                                                    />
+                                                    <button onClick={() => handleSaveLessonEdit(gradeIndex, atramIndex, subjectIndex, termIndex, unit)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="حفظ">✅</button>
+                                                    <button onClick={() => setEditingLesson(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="إلغاء">↩️</button>
+                                                  </div>
+                                                ) : (
+                                                  <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', backgroundColor: '#ffffff', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.78rem' }}>
+                                                    <span>📝 {lesson}</span>
+                                                    <button onClick={() => setEditingLesson({ unitKey, index: lessonIndex, value: lesson })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل الدرس">✏️</button>
+                                                    <button onClick={() => handleDeleteLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="حذف الدرس">✖</button>
+                                                  </div>
+                                                );
+                                              })}
                                             </div>
                                           )}
                                         </div>
