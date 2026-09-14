@@ -32,12 +32,12 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>👨‍👩‍👧‍👦</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '8%', top: '70%', animationDelay: '1s' }}>🌟</div>
 
-      <div className="login-card web-login-panel mobile-modal-panel relative z-10 rounded-[2rem] border-[3px] border-rose-200 bg-white/90 p-5 text-center shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
+      <div className="login-card web-login-panel mobile-modal-panel relative z-10 rounded-[2rem] border-2 border-slate-200 bg-white p-5 text-center shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-400 hover:text-rose-500 font-bold mb-6 transition-all hover:-translate-x-1 active:scale-95"
+            className="flex items-center gap-2 text-gray-400 hover:text-blue-700 font-bold mb-6 transition-all hover:-translate-x-1 active:scale-95"
           >
             <span className="text-xl">→</span>
             <span>رجوع لاختيار الحساب</span>
@@ -45,7 +45,7 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
         )}
         <ManaraBrand variant="login" className="mb-6 text-gray-800" />
         <h1 className="text-2xl font-black mb-2 text-gray-800 animate-popIn sm:text-4xl">بوابة ولي الأمر</h1>
-        <p className="text-rose-500 mb-6 font-bold animate-popIn sm:mb-10" style={{ animationDelay: '0.1s' }}>تابع مستوى أبنائك وتقدمهم 👨‍👩‍👧‍👦</p>
+        <p className="text-blue-700 mb-6 font-bold animate-popIn sm:mb-10" style={{ animationDelay: '0.1s' }}>تابع مستوى أبنائك وتقدمهم 👨‍👩‍👧‍👦</p>
 
         {error && (
           <div className="mb-5 rounded-2xl border-2 border-red-200 bg-red-50 p-4 text-center font-bold text-red-700">
@@ -62,7 +62,7 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
             autoCapitalize="none"
             spellCheck={false}
             placeholder="اسم المستخدم"
-            className="login-input p-5 bg-rose-50/50 border-[3px] border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 rounded-2xl outline-none transition-all font-bold text-lg hover:border-rose-300"
+            className="login-input min-h-[48px] px-4 py-3 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-lg transition-all hover:border-blue-400"
           />
           <input
             value={password}
@@ -71,12 +71,12 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
             name="password"
             autoComplete="current-password"
             placeholder="كلمة المرور"
-            className="login-input p-5 bg-rose-50/50 border-[3px] border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 rounded-2xl outline-none transition-all font-bold text-lg hover:border-rose-300"
+            className="login-input min-h-[48px] px-4 py-3 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-lg transition-all hover:border-blue-400"
           />
           <button
             type="submit"
             disabled={submitting}
-            className="login-submit bg-gradient-to-r from-rose-400 to-pink-500 text-white py-5 rounded-2xl font-black text-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-2xl shadow-xl transition-all duration-200 active:scale-95 mt-4 animate-pulse-glow"
+            className="login-submit min-h-[52px] px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xl shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 active:scale-95 flex items-center justify-center gap-3 whitespace-nowrap"
           >
             {submitting ? 'جارٍ التحقق…' : '🔐 دخول'}
           </button>

@@ -51,28 +51,28 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
   return (
     <div className="dashboard-account-setup manara-enterprise flex min-h-screen items-center justify-center overflow-y-auto bg-slate-100 p-3 font-tajawal safe-area-x safe-area-top safe-area-bottom sm:p-4">
       <div className="mobile-modal-panel w-full max-w-lg rounded-[34px] border-t-8 border-emerald-500 bg-white p-5 text-center shadow-2xl sm:rounded-[50px] sm:p-10">
-        <div className="w-24 h-24 bg-rose-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-8 shadow-inner">👤</div>
-        <h1 className="text-2xl font-black mb-2 text-rose-800 sm:text-3xl">أهلاً بك {parent.name}!</h1>
-        <p className="text-rose-500 mb-6 font-bold sm:mb-10">هذه أول مرة تقوم بتسجيل الدخول. يرجى تغيير كلمة المرور الافتراضية لحماية حسابك.</p>
+        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-8 shadow-inner">👤</div>
+        <h1 className="text-2xl font-black mb-2 text-slate-800 sm:text-3xl">أهلاً بك {parent.name}!</h1>
+        <p className="text-slate-600 mb-6 font-bold sm:mb-10">هذه أول مرة تقوم بتسجيل الدخول. يرجى تغيير كلمة المرور الافتراضية لحماية حسابك.</p>
         
         <form onSubmit={handleSubmit} className="space-y-6 text-right">
           <div className="space-y-2">
-            <label className="block text-sm font-bold text-rose-700 pr-4">كلمة المرور الحالية</label>
-            <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full p-4 bg-rose-50 border-2 border-transparent focus:border-rose-400 focus:ring-4 focus:ring-rose-100 rounded-2xl outline-none" required autoFocus />
+            <label className="block text-sm font-bold text-slate-700 pr-4">كلمة المرور الحالية</label>
+            <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-2xl outline-none transition-all" required autoFocus />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-bold text-rose-700 pr-4">كلمة المرور الجديدة</label>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full p-4 bg-rose-50 border-2 border-transparent focus:border-rose-400 focus:ring-4 focus:ring-rose-100 rounded-2xl outline-none" required />
-            <small className="text-rose-400 text-[10px] mr-2 italic">6 أحرف على الأقل</small>
+            <label className="block text-sm font-bold text-slate-700 pr-4">كلمة المرور الجديدة</label>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-2xl outline-none transition-all" required />
+            <small className="text-slate-500 text-[10px] mr-2 italic">6 أحرف على الأقل</small>
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-bold text-rose-700 pr-4">تأكيد كلمة المرور</label>
-            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full p-4 bg-rose-50 border-2 border-transparent focus:border-rose-400 focus:ring-4 focus:ring-rose-100 rounded-2xl outline-none" required />
+            <label className="block text-sm font-bold text-slate-700 pr-4">تأكيد كلمة المرور</label>
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border-2 border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-2xl outline-none transition-all" required />
           </div>
 
           {error && <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-center font-bold border border-red-100 animate-pulse">⚠️ {error}</div>}
 
-          <button disabled={saving} type="submit" className="w-full bg-rose-500 text-white py-5 rounded-[24px] font-black text-xl hover:bg-rose-600 shadow-xl shadow-rose-100 transition-all mt-4 disabled:cursor-wait disabled:opacity-60">
+          <button disabled={saving} type="submit" className="w-full min-h-[52px] px-6 py-4 bg-blue-600 text-white rounded-[24px] font-black text-xl hover:bg-blue-700 shadow-xl shadow-slate-200/50 transition-all mt-4 flex items-center justify-center gap-3 whitespace-nowrap disabled:cursor-wait disabled:opacity-60">
             {saving ? 'جارٍ الحفظ…' : '🔐 تحديث ودخول النظام'}
           </button>
         </form>

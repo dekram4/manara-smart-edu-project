@@ -93,9 +93,20 @@
   50% { transform: rotate(3deg); }
 }
 
+/* التوهّج النابض. كان لونه برتقالياً مثبّتاً في الإطار نفسه، فكان زر الدخول
+   يتوهّج برتقالياً في الأدوار الثلاثة جميعاً — حتى زر المشرف البنفسجي. ولأن
+   اللون داخل @keyframes فلا تطاله إعادة تعريف ألوان Tailwind إطلاقاً، وهو
+   ما جعله ينجو من توحيد الهوية كله.
+
+   صار متغيّراً: الافتراضي دافئ لصفحات الطالب المرحة، ويُستبدل بالكحلي
+   الرسمي داخل نطاق اللوحات وشاشات الدخول. */
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 5px rgba(255, 107, 53, 0.4); }
-  50% { box-shadow: 0 0 20px rgba(255, 107, 53, 0.8), 0 0 40px rgba(255, 107, 53, 0.3); }
+  0%, 100% { box-shadow: 0 0 5px rgba(var(--pulse-glow-rgb, 255, 107, 53), 0.4); }
+  50% {
+    box-shadow:
+      0 0 20px rgba(var(--pulse-glow-rgb, 255, 107, 53), 0.8),
+      0 0 40px rgba(var(--pulse-glow-rgb, 255, 107, 53), 0.3);
+  }
 }
 
 @keyframes shake {
@@ -3549,4 +3560,117 @@ body,
 
 .dashboard-account-form-grid > * {
   min-width: 0;
+}
+
+/* ==========================================================================
+   لون التوهّج النابض داخل نطاق العمل الرسمي
+   ==========================================================================
+   الإطار `pulseGlow` صار يقرأ `--pulse-glow-rgb`. الافتراضي دافئ لصفحات
+   الطالب، وهنا يُستبدل بالأزرق الملكي — فيتوقّف زر الدخول عن التوهّج
+   برتقالياً في الأدوار الثلاثة. */
+.manara-enterprise,
+.login-shell,
+.dashboard-account-setup,
+.role-selection-shell {
+  --pulse-glow-rgb: 37, 99, 235;
+}
+
+/* ==========================================================================
+   انحشار النصوص داخل الأزرار — حدّ أدنى معمّم
+   ==========================================================================
+   أزرار كثيرة كُتبت بحشوات ضيقة (`px-3 py-1`, `py-2` بلا حشوة أفقية) فالنص
+   يلتصق بالإطار، وينكسر السطر بين الأيقونة والكلمة حين يضيق العمود. القاعدة
+   تضبط الحدّ الأدنى مرة واحدة لكل أزرار اللوحات بدل مطاردتها زراً زراً،
+   وتترك ما هو أوسع منها على حاله لأنها حدّ أدنى لا قيمة ثابتة. */
+.manara-enterprise button:not(.dashboard-menu-item):not(.dashboard-sidebar-overlay),
+.manara-enterprise a[role='button'] {
+  min-height: 2.75rem;
+  padding-inline: max(1.25rem, var(--btn-pad-inline, 0px));
+  padding-block: 0.625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  /* الأيقونة والكلمة وحدة واحدة. */
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* الأزرار الأيقونية المربعة (✏️ ❌ ☰) لا تُمطّ أفقياً: لا نص فيها ينحشر. */
+.manara-enterprise button.dashboard-icon-button,
+.manara-enterprise button[aria-label]:not([aria-label='']):empty,
+.manara-enterprise .dashboard-mobile-menu-trigger {
+  padding-inline: 0.75rem;
+}
+
+/* صفوف الأزرار تلتف بدل أن تخرج عن إطار الشاشة. */
+.manara-enterprise .dashboard-section-header,
+.manara-enterprise .dashboard-page-banner,
+.manara-enterprise .dashboard-toolbar-row {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* مساحة تنفّس داخل البطاقات فلا تلتصق النصوص بالإطار. */
+.manara-enterprise .dashboard-surface,
+.manara-enterprise .dashboard-filter-surface {
+  padding: clamp(1rem, 2.2vw, 1.5rem);
+}
+
+/* ==========================================================================
+   التبويبات (أولياء الأمور / الطلاب وأشباهها)
+   ========================================================================== */
+.manara-enterprise .dashboard-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.manara-enterprise .dashboard-tab-row > button {
+  flex: 0 1 auto;
+  min-height: 2.75rem;
+  padding-inline: 1.5rem;
+  padding-block: 0.75rem;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   شاشات الدخول — تفاصيل المقاس واللمس
+   ========================================================================== */
+.login-shell .login-card {
+  /* العرض الأقصى للكرت كما طُلب، مع تمركز مضمون على كل المقاسات. */
+  width: 100%;
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .login-shell .login-card,
+  .login-shell .login-card.web-login-panel {
+    max-width: 32rem !important;
+  }
+}
+
+.login-shell .login-input,
+.login-shell input[type='text'],
+.login-shell input[type='password'] {
+  width: 100%;
+  min-height: 3rem;
+  box-sizing: border-box;
+}
+
+.login-shell .login-submit {
+  width: 100%;
+  min-height: 3.25rem;
+}
+
+/* أزرار اختيار الدور: حشوة وفيرة وفاصل بين الأيقونة والنص، ولا انكسار. */
+.role-selection-shell .role-selection-card {
+  padding: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .role-selection-grid {
+    gap: 0.75rem;
+  }
 }

@@ -147,10 +147,10 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>🔐</div>
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
 
-        <div className="login-card web-login-panel mobile-modal-panel relative z-10 rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
+        <div className="login-card web-login-panel mobile-modal-panel relative z-10 rounded-[2rem] border-[3px] border-slate-200 bg-white p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
           <div className="text-center mb-8">
             <div className="relative mx-auto mb-4 w-20 h-20">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-xl animate-wiggle">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-xl animate-wiggle">
                 <span className="text-4xl">🔐</span>
               </div>
             </div>
@@ -175,7 +175,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
               autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"
+                className="login-input min-h-[48px] px-4 py-3 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-lg transition-all hover:border-blue-400"
                 placeholder="أدخل كلمة المرور الجديدة"
                 required
               />
@@ -189,7 +189,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
               autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"
+                className="login-input min-h-[48px] px-4 py-3 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-lg transition-all hover:border-blue-400"
                 placeholder="أعد إدخال كلمة المرور"
                 required
               />
@@ -197,7 +197,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
 
             <button
               type="submit"
-              className="login-submit bg-gradient-to-r from-amber-400 to-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 active:scale-95 animate-pulse-glow"
+              className="login-submit min-h-[52px] px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xl shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 active:scale-95 flex items-center justify-center gap-3 whitespace-nowrap"
             >
               💾 حفظ والمتابعة
             </button>
@@ -208,18 +208,18 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
   }
 
   return (
-    <div className="login-shell flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom sm:p-4">
+    <div className="login-shell flex items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-slate-200 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom sm:p-4">
       {/* floating decorations */}
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>🏫</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '8%', top: '70%', animationDelay: '1s' }}>📚</div>
 
-      <div className="login-card web-login-panel mobile-modal-panel relative z-10 rounded-[2rem] border-[3px] border-amber-200 bg-white/90 p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
+      <div className="login-card web-login-panel mobile-modal-panel relative z-10 rounded-[2rem] border-[3px] border-slate-200 bg-white p-5 shadow-2xl backdrop-blur-xl animate-bounce-in sm:rounded-[2.5rem] sm:p-8">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-400 hover:text-amber-500 font-bold mb-6 transition-all hover:-translate-x-1 active:scale-95"
+            className="flex items-center gap-2 text-gray-400 hover:text-blue-700 font-bold mb-6 transition-all hover:-translate-x-1 active:scale-95"
           >
             <span className="text-xl">→</span>
             <span>رجوع لاختيار الحساب</span>
@@ -228,7 +228,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
         <div className="text-center mb-8">
           <ManaraBrand variant="login" className="text-gray-800" />
           <h1 className="text-2xl font-black text-gray-800 mb-2 animate-popIn sm:text-4xl">تسجيل دخول المعلم</h1>
-          <p className="text-amber-600 font-bold animate-popIn" style={{ animationDelay: '0.1s' }}>منصة منارة المعرفة التعليمية 🎓</p>
+          <p className="text-blue-700 font-bold animate-popIn" style={{ animationDelay: '0.1s' }}>منصة منارة المعرفة التعليمية 🎓</p>
         </div>
 
         {error && (
@@ -248,7 +248,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
               spellCheck={false}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"
+              className="login-input min-h-[48px] px-4 py-3 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-lg transition-all hover:border-blue-400"
               placeholder="أدخل اسم المستخدم"
               required
             />
@@ -262,7 +262,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="login-input p-4 border-[3px] border-amber-200 rounded-2xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 font-bold text-lg transition-all hover:border-amber-300"
+              className="login-input min-h-[48px] px-4 py-3 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-lg transition-all hover:border-blue-400"
               placeholder="أدخل كلمة المرور"
               required
             />
@@ -270,7 +270,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
 
           <button
             type="submit"
-            className="login-submit bg-gradient-to-r from-amber-400 to-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 active:scale-95 animate-pulse-glow"
+            className="login-submit min-h-[52px] px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xl shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 active:scale-95 flex items-center justify-center gap-3 whitespace-nowrap"
           >
             🚀 تسجيل الدخول
           </button>
