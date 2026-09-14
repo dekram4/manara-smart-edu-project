@@ -1,4 +1,8 @@
 ﻿import { RemoteRequestError, supabase } from './remoteSupabase';
+import {
+  applyParentLinkPlan,
+  planParentLinkMigration,
+} from '../utils/parentLinkMigration';
 
 // ============================================================
 // طبقة المزامنة بين localStorage و Supabase
@@ -742,6 +746,49 @@ export function installWriteThrough(): void {
 }
 
 // تهيئة كاملة: أرسل المعلّق ← حمّل (دون طمس المعلّق) ← فعّل الاعتراض
+/**
+ * يملأ `parentId` الناقص من مطابقة رقم جوال لا لبس فيها، مرة واحدة بعد كل
+ * تحميل، ويعكسه إلى Supabase عبر write-through.
+ *
+ * لماذا داخل التطبيق وليس في سكريبت وحده: قراءة أبناء وليّ الأمر صارت
+ * محصورة بـ `parentId` وحده. الطالب الذي لم يُرحَّل بعدُ ينقطع عن وليّه
+ * انقطاعاً صامتاً. هذا يجعل الترحيل يقع من تلقائه أول مرة يفتح فيها مشرف أو
+ * معلم لوحته، فلا يتوقف إصلاح البيانات على تذكّر أحدٍ تشغيلَ سكريبت.
+ *
+ * ولا يُشغَّل لدور ولي الأمر: نطاقه قراءة فقط، وهو لا يرى إلا أبناءه
+ * المربوطين أصلاً فلا بيانات لديه ليُصلحها.
+ */
+function backfillParentLinks(context: SyncContext): void {
+  if (context.role !== 'admin' && context.role !== 'teacher') return;
+  try {
+    const students = safeParse(nativeGetItem('smartEdu_students'));
+    const parents = safeParse(nativeGetItem('smartEdu_parents'));
+    if (!Array.isArray(students) || !Array.isArray(parents)) return;
+    if (students.length === 0 || parents.length === 0) return;
+
+    const plan = planParentLinkMigration(students, parents);
+    if (plan.conflicts.length) {
+      // لا تُحسم آلياً: رقم واحد لوليَّي أمر هو الالتباس الذي جاء الترحيل
+      // لإزالته، وأي اختيار هنا تخمين يثبّت الخطأ.
+      console.warn(
+        `[sync] ${plan.conflicts.length} طالباً برقم جوال يطابق أكثر من وليّ أمر — ` +
+          'يحتاج ربطاً يدوياً:',
+        plan.conflicts,
+      );
+    }
+    if (plan.updates.length === 0) return;
+
+    const updated = applyParentLinkPlan(students, plan);
+    // عبر `localStorage.setItem` المعترَض قصداً، فتنتقل الكتابة إلى Supabase
+    // بنفس مسار أي تعديل آخر بدل مسار خاص.
+    window.localStorage.setItem('smartEdu_students', JSON.stringify(updated));
+    console.info(`[sync] رُبط ${plan.updates.length} طالباً بوليّ أمره عبر parentId`);
+  } catch (error) {
+    // إصلاح البيانات مساعدة لا شرط إقلاع: فشله لا يمنع المزامنة.
+    console.error('[sync] تعذّر ترحيل روابط أولياء الأمور:', error);
+  }
+}
+
 export function initSupabaseSync(): Promise<void> {
   // React StrictMode and fast remounts can invoke the boot effect twice.
   // Share one initialization promise so hydration/write-through cannot race.
@@ -768,6 +815,8 @@ export function initSupabaseSync(): Promise<void> {
         window.localStorage.setItem(PUBLIC_MESSAGES_KEY, migratedMessages);
         nativeRemoveItem(LEGACY_PUBLIC_MESSAGES_KEY);
       }
+
+      backfillParentLinks(activeSyncContext);
     } catch (error) {
       // Local data remains usable when the connector is unavailable.
       console.error('[sync] initialization failed; continuing with local data:', error);

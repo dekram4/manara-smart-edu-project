@@ -32,11 +32,10 @@ export const getParentTeacherId = (
   const linked = students
     .filter((student): student is StudentInfo => Boolean(student && typeof student === 'object'))
     .find(student => {
+      // `parentId` وحده: نفس سبب إسقاط الارتداد في `getParentChildren`.
       const studentParentId = normalizeScopeValue(student.parentId);
-      const studentParentPhone = normalizeScopeValue(student.parentPhoneNumber);
       const parentId = normalizeScopeValue(parent.id);
-      const parentPhone = normalizeScopeValue(parent.phoneNumber);
-      return (studentParentId && studentParentId === parentId) || (studentParentPhone && studentParentPhone === parentPhone);
+      return Boolean(studentParentId) && studentParentId === parentId;
     });
   if (linked) return getStudentTeacherScope(linked).teacherId;
 
@@ -73,10 +72,8 @@ export const getStudentTeacherScope = (
       .filter((candidate): candidate is ParentInfo => Boolean(candidate && typeof candidate === 'object'))
       .find(p => {
         const studentParentId = normalizeScopeValue(student.parentId);
-        if (studentParentId) {
-          return normalizeScopeValue(p.id) === studentParentId;
-        }
-        return normalizeScopeValue(p.phoneNumber) === normalizeScopeValue(student.parentPhoneNumber);
+        if (!studentParentId) return false;
+        return normalizeScopeValue(p.id) === studentParentId;
       });
     if (parent) {
       teacherId = getParentTeacherId(parent, students);
@@ -119,13 +116,23 @@ export const getTeacherStudents = (
   parents: ParentInfo[] = [],
 ) => students.filter(student => studentBelongsToTeacher(student, teacherId, parents));
 
-export const getParentChildren = (students: StudentInfo[], parent: ParentInfo) =>
-  students.filter(student => {
-    if (student.parentId && student.parentId.trim()) {
-      return student.parentId === parent.id;
-    }
-    return student.parentPhoneNumber === parent.phoneNumber;
-  });
+/**
+ * أبناء وليّ الأمر — عبر `parentId` الصريح وحده.
+ *
+ * كان هنا ارتداد إلى مطابقة رقم الجوال عند غياب `parentId`. وهو ثغرة على
+ * حدّ أمني لا مجرّد تساهل: وليّا أمرٍ يحملان الرقم نفسه — خطأ إدخال وارد —
+ * كان يرى كلٌّ منهما أبناء الآخر، في اللوحة وفي نتائج الاختبارات والشهادات.
+ *
+ * الربط الناقص يُملأ آلياً عند إقلاع مزامنة المشرف أو المعلم
+ * (`backfillParentLinks`)، فلم يبقَ للارتداد ما يبرّره.
+ */
+export const getParentChildren = (students: StudentInfo[], parent: ParentInfo) => {
+  const parentId = normalizeScopeValue(parent?.id);
+  if (!parentId) return [];
+  return students.filter(
+    student => normalizeScopeValue(student?.parentId) === parentId,
+  );
+};
 
 export const filterTeacherOwnedRecords = <T extends OwnedRecord>(
   records: T[],

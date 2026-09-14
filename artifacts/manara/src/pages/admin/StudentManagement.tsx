@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig } from '../../types';
 import { STORAGE_KEYS, COLORS, DEFAULT_PASSWORD } from '../../constants';
 import { ensureHashed } from '../../utils/password';
-import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
+import { getParentChildren, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getPermissionPackages } from '../../permissions';
@@ -217,10 +217,27 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     const username = studentForm.username || `student_${studentForm.studentIdNumber}`;
 
     let parentPhoneNumber = studentForm.parentPhoneNumber;
+    let resolvedParentId = studentForm.parentId;
     if (studentForm.parentId) {
       const selectedParent = parents.find(p => p.id === studentForm.parentId);
       if (selectedParent) {
         parentPhoneNumber = selectedParent.phoneNumber;
+      }
+    } else if (normalizeScopeValue(parentPhoneNumber)) {
+      // أُدخل رقم جوال بلا اختيار وليّ من القائمة. الربط صار عبر `parentId`
+      // وحده، فطالب بلا معرّف ينقطع عن وليّه. يُحسم الرقم هنا حين يطابق وليّاً
+      // واحداً لا غير — وعند التعدّد لا يُخمَّن، وهو نفس مبدأ حملة الترحيل.
+      const matches = parents.filter(
+        p => normalizeScopeValue(p.phoneNumber) === normalizeScopeValue(parentPhoneNumber),
+      );
+      if (matches.length === 1) {
+        resolvedParentId = matches[0].id;
+      } else if (matches.length > 1) {
+        alert(
+          'رقم الجوال هذا مسجّل لأكثر من وليّ أمر. اختر وليّ الأمر من القائمة ' +
+            'لتحديد الرابط بدقة.',
+        );
+        return;
       }
     }
 
@@ -246,7 +263,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       username: username,
       password: ensureHashed(studentForm.password || editingStudent?.password || DEFAULT_PASSWORD),
       parentPhoneNumber: parentPhoneNumber,
-      parentId: studentForm.parentId,
+      parentId: resolvedParentId,
       studentIdNumber: studentForm.studentIdNumber,
       primaryGrade: studentForm.primaryGrade,
       gradeEnrollments: finalGradeEnrollments,
@@ -460,17 +477,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   // العرض الهجين يرسم نفس البيانات مرّتين: جدولاً على الشاشات الكبيرة
   // وبطاقات على الجوال والتابلت. استخراج المنطق هنا يمنع أن ينحرف العرضان
   // عن بعضهما مع أول تعديل مستقبلي.
+  // الربط عبر `parentId` وحده. مطابقة رقم الجوال أُسقطت: رقم واحد لوليَّي
+  // أمر كان يعرض أبناء أحدهما تحت الآخر.
   const parentOf = (student: any) =>
-    parents.find(p => p.id === student.parentId || p.phoneNumber === student.parentPhoneNumber);
+    student?.parentId ? parents.find(p => p.id === student.parentId) : undefined;
 
   const teacherOf = (record: any) => teachers.find(t => t.id === record.createdBy);
 
-  const childrenOf = (parent: any) =>
-    students.filter(s =>
-      s.parentId && s.parentId.trim() !== ''
-        ? s.parentId === parent.id
-        : s.parentPhoneNumber === parent.phoneNumber,
-    );
+  const childrenOf = (parent: any) => getParentChildren(students, parent);
 
   const visibleRecords: any[] = activeTab === 'students' ? filteredStudents : filteredParents;
 
@@ -689,7 +703,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   {activeTab === 'students' && (
                     <td className="p-4">
                       {(() => {
-                        const parent = parents.find(p => p.id === item.parentId || p.phoneNumber === item.parentPhoneNumber);
+                        const parent = parentOf(item);
                         return parent ? (
                           <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
                             👨‍👧‍👦 {parent.name}
@@ -738,23 +752,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   )}
                   {activeTab === 'parents' && (
                     <td className="p-4">
-                      {students.filter(s => {
-                        // Priority: Use parentId if exists, fallback to phoneNumber match only if parentId is not set
-                        if (s.parentId && s.parentId.trim() !== '') {
-                          return s.parentId === item.id;
-                        }
-                        // If no parentId, match by phone number (legacy support)
-                        return s.parentPhoneNumber === item.phoneNumber;
-                      }).length > 0 ? (
+                      {childrenOf(item).length > 0 ? (
                         <div className="flex flex-wrap gap-2">
-                          {students.filter(s => {
-                            // Priority: Use parentId if exists, fallback to phoneNumber match only if parentId is not set
-                            if (s.parentId && s.parentId.trim() !== '') {
-                              return s.parentId === item.id;
-                            }
-                            // If no parentId, match by phone number (legacy support)
-                            return s.parentPhoneNumber === item.phoneNumber;
-                          }).map(student => (
+                          {childrenOf(item).map(student => (
                             <span key={student.id} className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">
                              {getStudentEmoji(student)} {student.name}
                             </span>

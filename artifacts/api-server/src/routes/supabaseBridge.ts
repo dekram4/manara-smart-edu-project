@@ -170,34 +170,26 @@ const PARENT_READABLE_TABLES = new Set([
 ]);
 
 /**
- * معرّفات أبناء ولي الأمر.
+ * معرّفات أبناء ولي الأمر — عبر `parentId` الصريح وحده.
  *
- * القاعدة مطابقة لـ `getParentChildren` في الواجهة حرفاً بحرف: الربط عبر
- * `parentId` أولاً، ولا يُلجأ إلى رقم الجوال إلا حين يكون `parentId` غائباً
- * (سجلات قديمة). أي تشدّد زائد هنا يُفرغ لوحة ولي الأمر من أبنائه
- * المشروعين، وأي تساهل يكشف له أبناء أسرة أخرى.
+ * كان هنا ارتداد إلى مطابقة رقم الجوال عند غياب `parentId`، وهو ثغرة على
+ * حدّ أمني حقيقي: وليّا أمرٍ يحملان الرقم نفسه — خطأ إدخال وارد جداً — كان
+ * يقرأ كلٌّ منهما سجلات أبناء الآخر ونتائجهم وشهاداتهم من الخادم مباشرة.
+ *
+ * الطالب الذي لم يُرحَّل بعد ينقطع عن وليّه هنا. وهذا مقصود: الانقطاع
+ * المرئي أهون من ربط خاطئ صامت، وترحيل `parentId` يقع آلياً أول مرة يفتح
+ * فيها مشرف أو معلم لوحته.
  */
 async function parentChildIds(
   config: SupabaseConfig,
   parentId: string,
 ): Promise<{ childIds: Set<string>; childRows: Record<string, unknown>[] }> {
-  const parentRows = asRecords(await rest(config, `parents?select=id,data&id=eq.${encodeURIComponent(parentId)}`));
-  const parentData = parentRows[0]?.data && typeof parentRows[0].data === "object"
-    ? (parentRows[0].data as Record<string, unknown>)
-    : {};
-  const parentPhone = stringValue(parentData.phoneNumber);
-
   const students = asRecords(await rest(config, "students?select=id,data"));
   const childRows = students.filter((row) => {
     const data = row.data && typeof row.data === "object"
       ? (row.data as Record<string, unknown>)
       : row;
-    const linkedId = stringValue(data.parentId);
-    if (linkedId) return linkedId === parentId;
-    // الرجوع إلى رقم الجوال فقط عند غياب الربط الصريح، ولا يُطابَق رقم فارغ
-    // بفارغ وإلا رأى ولي الأمر كل طالب بلا وليّ.
-    const linkedPhone = stringValue(data.parentPhoneNumber);
-    return Boolean(parentPhone) && linkedPhone === parentPhone;
+    return stringValue(data.parentId) === parentId;
   });
 
   const childIds = new Set(
