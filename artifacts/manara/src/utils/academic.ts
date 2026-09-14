@@ -124,3 +124,29 @@ export const dedupeHierarchicalConfigs = (value: unknown): HierarchicalConfig[] 
 
   return Array.from(grouped.values());
 };
+/**
+ * يقرأ الشجرة الأكاديمية من التخزين المحلي **مدموجة**.
+ *
+ * السبب المباشر لوجودها: المصفوفة المخزّنة قد تحوي أكثر من مدخل لنفس الصف
+ * والمالك — وهي النتيجة الطبيعية لدمج المزامنة (`mergeArrayRecords` يُلحق
+ * السجل المحلي غير الموجود عن بُعد). وكل شاشة كانت تقرأ الخام ثم تحلّ
+ * المسار بـ `.find()`، فتقع على **أول** مدخل مطابق. فإن كانت خريطة الدروس
+ * على المدخل الثاني عادت قائمة الدروس فارغة.
+ *
+ * وشاشة «الإعدادات الأكاديمية» وحدها كانت تدمج وتعيد الكتابة، ولهذا كانت
+ * زيارتها «تُصلح» القائمة — وهو العَرَض الذي أبلغ عنه المستخدم.
+ *
+ * القراءة المدموجة تجعل كل الشاشات ترى الشجرة نفسها من أول تحميل، بلا
+ * اعتماد على ترتيب الزيارة.
+ */
+export const readHierarchicalConfigs = (
+  storageKey = 'smartEdu_hierarchicalConfigs',
+): HierarchicalConfig[] => {
+  try {
+    return dedupeHierarchicalConfigs(
+      JSON.parse(localStorage.getItem(storageKey) || '[]'),
+    );
+  } catch {
+    return [];
+  }
+};

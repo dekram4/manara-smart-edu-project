@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { readHierarchicalConfigs } from '../../utils/academic';
+import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { STORAGE_KEYS } from '../../constants';
 import { playLamsaSound } from '../../utils/sounds';
 import { HierarchicalConfig } from '../../types';
@@ -59,6 +61,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     grade: '', atram: '', subject: '', term: '', unit: '', lesson: ''
   });
   const [editingVideo, setEditingVideo] = useState<VideoRecord | null>(null);
+  /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
+  const hydrating = useSyncHydrating();
 
   useEffect(() => {
     loadVideos();
@@ -115,8 +119,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   };
 
   const loadAcademicConfigs = () => {
-    const allConfigs: HierarchicalConfig[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+    const allConfigs: HierarchicalConfig[] = readHierarchicalConfigs(
+      STORAGE_KEYS.HIERARCHICAL_CONFIGS,
     );
     const academicOwnerId = isAdmin ? selectedTeacherId : teacherId;
     setAcademicConfigs(isAdmin && !academicOwnerId
@@ -860,13 +864,13 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               disabled={!formData.unit}
               required
             >
-              <option value="">📘 الدرس</option>
+              <option value="">{hydrating && availableLessons.length === 0 ? '⏳ جارٍ تحميل الدروس…' : '📘 الدرس'}</option>
               {availableLessons.map(lesson => (
                 <option key={lesson} value={lesson}>{lesson}</option>
               ))}
             </select>
           </div>
-          {formData.unit && availableLessons.length === 0 && (
+          {formData.unit && availableLessons.length === 0 && !hydrating && (
             <div className="order-5 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">
               ⚠️ لا توجد دروس معرّفة في هذه الوحدة. أضفها أولاً من «الإعدادات
               الأكاديمية ← الخطوة 6: اختر وحدة وأضف درساً»، ثم عد إلى هنا.

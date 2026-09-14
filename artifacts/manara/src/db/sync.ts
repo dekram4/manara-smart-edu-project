@@ -263,9 +263,18 @@ export type SyncStatus = {
   lastFailure: { kind: SyncFailureKind; label: string; message: string } | null;
   /** true أثناء تفريغ الطابور يدوياً. */
   retrying: boolean;
+  /**
+   * true أثناء أول تحميل من Supabase.
+   *
+   * الشاشات تقرأ الشجرة الأكاديمية من التخزين المحلي قراءةً متزامنة، فإن
+   * كان التحميل لم يكتمل بعد تكون القراءة فارغة. بدون هذه الراية تعرض
+   * القائمة «لا توجد دروس» — وهي رسالة خاطئة تدفع المعلّم إلى إضافة دروس
+   * موجودة أصلاً.
+   */
+  hydrating: boolean;
 };
 
-let syncStatus: SyncStatus = { pending: 0, lastFailure: null, retrying: false };
+let syncStatus: SyncStatus = { pending: 0, lastFailure: null, retrying: false, hydrating: false };
 const statusListeners = new Set<(status: SyncStatus) => void>();
 
 function emitStatus(patch: Partial<SyncStatus>): void {
@@ -835,6 +844,7 @@ export function initSupabaseSync(): Promise<void> {
   if (syncInitializationPromise) return syncInitializationPromise;
 
   syncInitializationPromise = (async () => {
+    emitStatus({ hydrating: true });
     try {
       const contextResult = await supabase.context();
       if (contextResult.error) {
@@ -861,6 +871,7 @@ export function initSupabaseSync(): Promise<void> {
       // Local data remains usable when the connector is unavailable.
       console.error('[sync] initialization failed; continuing with local data:', error);
     } finally {
+      emitStatus({ hydrating: false });
       installWriteThrough();
     }
   })();

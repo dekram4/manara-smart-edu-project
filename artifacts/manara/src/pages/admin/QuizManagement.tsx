@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
+import { readHierarchicalConfigs } from '../../utils/academic';
+import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { QuizQuestion, QuizType, LessonConfig, CreatedQuiz } from '../../types';
 import { STORAGE_KEYS, QUIZ_TYPES } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
@@ -235,6 +237,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   const [availableUnits, setAvailableUnits] = useState<string[]>([]);
   /// أسماء الدروس المعرّفة للوحدة المختارة في الإعدادات الأكاديمية.
   const [availableLessons, setAvailableLessons] = useState<string[]>([]);
+  /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
+  const hydrating = useSyncHydrating();
 
   // 🔎 فلاتر قائمة الاختبارات المنشأة
   const [listSearch, setListSearch] = useState('');
@@ -285,7 +289,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
   // 📚 تحميل الهيكل الأكاديمي
   const loadAcademicHierarchy = () => {
-    const allHierarchicalConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const allHierarchicalConfigs = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     const teachersList = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
     setTeachers(teachersList);
 
@@ -333,7 +337,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
   // 🔗 الحصول على الإعدادات الأكاديمية حسب المعلم المختار
   const getFilteredConfigs = () => {
-    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const all = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     if (selectedTeacherId && selectedTeacherId !== 'admin') {
       return all.filter((c: any) => getRecordTeacherId(c) === normalizeScopeValue(selectedTeacherId));
     }
@@ -443,7 +447,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   /// المحتوى والسينما، فمصدر الدروس واحد عبر المنصة كلها.
   const getLessonsFor = (unit: string): string[] => {
     if (!unit) return [];
-    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const all = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     const scoped = selectedTeacherId && selectedTeacherId !== 'admin'
       ? all.filter((c: any) => getRecordTeacherId(c) === normalizeScopeValue(selectedTeacherId))
       : all;
@@ -1162,7 +1166,7 @@ ${contentSummary}
                 className="p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
                 disabled={!quizFormData.unit}
               >
-                <option value="">📘 الدرس (اختياري — اتركه فارغاً لاختبار الوحدة)</option>
+                <option value="">{hydrating && availableLessons.length === 0 ? '⏳ جارٍ تحميل الدروس…' : '📘 الدرس (اختياري — اتركه فارغاً لاختبار الوحدة)'}</option>
                 {availableLessons.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>

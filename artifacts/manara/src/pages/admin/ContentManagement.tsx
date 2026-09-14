@@ -1,5 +1,7 @@
 ﻿
 import React, { useState, useEffect } from 'react';
+import { readHierarchicalConfigs } from '../../utils/academic';
+import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { LessonConfig } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
@@ -23,6 +25,8 @@ interface ContentManagementProps {
 
 const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacherId, teacherName, permissionPackageId }) => {
   const [lessons, setLessons] = useState<LessonConfig[]>([]);
+  /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
+  const hydrating = useSyncHydrating();
 
   // 🔎 فلاتر قائمة المحتوى المنشور
   const [listSearch, setListSearch] = useState('');
@@ -123,7 +127,10 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
 
   // دالة مساعدة للحصول على الإعدادات المفلترة حسب المعلم
   const getFilteredHierarchicalConfigs = () => {
-    const allHierarchicalConfigs: any[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    // مدموجة عند القراءة: المصفوفة الخام قد تحمل أكثر من مدخل لنفس الصف،
+    // و`.find()` أدناه تقع على أوّلها — فإن كانت الدروس على الثاني عادت
+    // القائمة فارغة حتى تُزار شاشة الإعدادات التي تدمج وتعيد الكتابة.
+    const allHierarchicalConfigs: any[] = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     
     // فلترة الإعدادات الأكاديمية حسب المعلم
     const effectiveTeacherId = teacherId || selectedTeacherId;
@@ -729,11 +736,11 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 required
                 disabled={!formData.unit}
               >
-                <option value="">الدرس</option>
+                <option value="">{hydrating && availableLessons.length === 0 ? '⏳ جارٍ تحميل الدروس…' : 'الدرس'}</option>
                 {availableLessons.map((o, i) => <option key={i} value={o}>{o}</option>)}
               </select>
              </div>
-             {formData.unit && availableLessons.length === 0 && (
+             {formData.unit && availableLessons.length === 0 && !hydrating && (
                <p className="dashboard-content-hint dashboard-content-hint-warning">
                  ⚠️ لا توجد دروس معرّفة في هذه الوحدة. أضفها أولاً من «الإعدادات
                  الأكاديمية ← الخطوة 6: اختر وحدة وأضف درساً»، ثم عد إلى هنا.
