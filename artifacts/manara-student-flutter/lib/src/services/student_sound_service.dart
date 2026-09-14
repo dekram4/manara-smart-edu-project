@@ -201,45 +201,68 @@ class StudentSoundService {
 
   bool _applauseCancelled = false;
 
-  /// Applause, as two clips played back to back: `clap2.mp3` and then
-  /// `clap.mp3` the moment the first reports completion.
-  ///
-  /// Chained on the completion event rather than on a timer, so the two
-  /// meet exactly however long the first clip runs — a fixed delay would
-  /// either overlap them or leave a gap the first time either file is
-  /// re-cut.
+  /// Applause: `clap2.mp3` then `clap.mp3`, back to back.
   void playApplause() {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playApplause());
+    unawaited(_playSequence(const [
+      ('audio/clap2.mp3', 0.7),
+      ('audio/clap.mp3', 0.7),
+    ]));
   }
 
-  Future<void> _playApplause() async {
-    if (muted.value) return;
+  /// إنهاء الدرس: هتاف ثم تصفيق.
+  ///
+  /// نغمة المكافأة تُصعِّد أولاً، ثم يدخل التصفيق على أثرها — والترتيب مقصود:
+  /// التصفيق وحده يبدأ من الذروة بلا تمهيد، فيفاجئ الطفل بدل أن يحتفي به.
+  ///
+  /// ولا يحتاج حارساً ضد التكرار عند إعادة فتح الشاشة: نداؤه الوحيد خلف
+  /// `reward.alreadyRewarded`، وسجلّ الأنشطة في الخادم يمنع مكافأة النشاط
+  /// نفسه مرتين — فالدرس المنتهي سلفاً يأخذ النغمة الهادئة لا الاحتفال.
+  void playLessonComplete() {
+    _lastApplause = DateTime.now();
+    _applauseCancelled = false;
+    HapticFeedback.heavyImpact();
+    unawaited(_playSequence(const [
+      ('audio/success-reward.wav', 0.85),
+      ('audio/clap2.mp3', 0.7),
+      ('audio/clap.mp3', 0.7),
+    ]));
+  }
+
+  /// يشغّل مقاطع متتابعة، كلٌّ عند انتهاء سابقه.
+  ///
+  /// التسلسل معلّق على حدث الانتهاء لا على مؤقّت: التوقيت الثابت إمّا
+  /// يُراكب المقطعين أو يترك فجوة بينهما أول مرة يُعاد فيها قصّ أي ملف.
+  ///
+  /// والاشتراك يُلغى عند كل خطوة، فلا يتراكم مستمعان على المشغّل نفسه لو
+  /// بدأ تسلسل جديد قبل انتهاء السابق.
+  Future<void> _playSequence(List<(String, double)> clips) async {
+    if (muted.value || clips.isEmpty) return;
+    var index = 0;
     try {
-      // A one-shot subscription: it fires for the first clip's completion
-      // and is cancelled immediately, so a later applause cannot stack a
-      // second listener on the same player.
       late StreamSubscription<void> sub;
       sub = _effectsPlayer.onPlayerComplete.listen((_) async {
-        await sub.cancel();
-        if (muted.value || _applauseCancelled) return;
+        index++;
+        if (index >= clips.length || muted.value || _applauseCancelled) {
+          await sub.cancel();
+          return;
+        }
         try {
-          await _effectsPlayer.play(
-            AssetSource('audio/clap.mp3'),
-            volume: 0.7,
-          );
+          final (asset, volume) = clips[index];
+          await _effectsPlayer.play(AssetSource(asset), volume: volume);
         } catch (_) {
-          // The first clap already played; a missing second one is not
-          // worth surfacing to a child.
+          await sub.cancel();
+          // ما سبق من المقاطع عُزف بالفعل؛ سقوط الأخير لا يستحق أن يُعرَض
+          // على طفل.
         }
       });
       await _effectsPlayer.stop();
-      await _effectsPlayer.play(AssetSource('audio/clap2.mp3'), volume: 0.7);
+      final (asset, volume) = clips.first;
+      await _effectsPlayer.play(AssetSource(asset), volume: volume);
     } catch (_) {
-      // Celebration audio is decoration — never let it break the flow
-      // that triggered it.
+      // صوت الاحتفال زينة — لا يجوز أن يكسر المسار الذي أطلقه.
     }
   }
 

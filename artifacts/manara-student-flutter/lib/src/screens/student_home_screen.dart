@@ -1146,6 +1146,15 @@ class _SectionTileState extends State<_SectionTile>
       child: Listener(
         behavior: HitTestBehavior.deferToChild,
         onPointerDown: (event) {
+          // النقرة تُسمع عند ملامسة الإصبع لا عند رفعه.
+          //
+          // التعليق على `onTap` يعني انتظار حلبة الإيماءات حتى تحسم أن هذه
+          // نقرة لا سحب — وهو تأخّر يُدرَك، فيبدو الصوت منفصلاً عن اللمسة.
+          //
+          // و`onPointerDown` يقع مرة واحدة لكل إصبع: سحب الشريط أفقياً
+          // يبدأ بملامسة واحدة ثم حركة، فلا ينتج رشقة نقرات على كل بطاقة
+          // يمرّ فوقها — تكّة واحدة عند البداية، وهي تغذية راجعة مناسبة.
+          StudentSoundService.instance.playTap();
           _pressed = true;
           _trackPointer(event.localPosition);
           _sync();

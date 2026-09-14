@@ -104,8 +104,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   ) {
     final games = _gamesFromLessons;
     if (games.isEmpty) return;
-    final before = _GamesModule.unlockedCount(previous.xp).clamp(0, games.length);
-    final after = _GamesModule.unlockedCount(updated.xp).clamp(0, games.length);
+    final before = _GamesModule.unlockedCount(previous.level).clamp(0, games.length);
+    final after = _GamesModule.unlockedCount(updated.level).clamp(0, games.length);
     if (after <= before) return;
     final opened = games[after - 1];
     ScaffoldMessenger.of(context).showSnackBar(
@@ -487,9 +487,9 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
       if (reward.alreadyRewarded) {
         StudentSoundService.instance.play(StudentSoundCue.navigation);
       } else {
-        // The applause chain marks actually finishing the lesson; a
-        // repeat tap that earns nothing gets the quiet cue instead.
-        StudentSoundService.instance.playApplause();
+        // هتاف ثم تصفيق عند إنهاء الدرس فعلاً؛ والنقرة المتكرّرة التي لا
+        // تكسب شيئاً تأخذ النغمة الهادئة أعلاه.
+        StudentSoundService.instance.playLessonComplete();
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -631,18 +631,11 @@ class _GamesModule extends StatelessWidget {
   final String apiBaseUrl;
   final StudentGamification gamification;
 
-  /// XP needed before the game at [index] opens.
-  static int requiredXpFor(int index) => index * 100;
-
-  /// Whether the game at [index] is open at [xp].
-  static bool isUnlocked(int index, int xp) => xp >= requiredXpFor(index);
-
-  /// كم لعبة يفتحها [xp].
-  ///
-  /// ليست هي المستوى: المستوى صار ⌊xp/100⌋ فيبدأ من 0، أما الألعاب فأوّلها
-  /// (الفهرس 0) مفتوحة عند 0 XP — فلو طُرح الواحد هنا لما استطاع طالب جديد
-  /// فتح أي لعبة إطلاقاً.
-  static int unlockedCount(int xp) => (xp ~/ 100) + 1;
+  // القاعدة تعيش في GameUnlockRule لتكون قابلة للاختبار — هذه الشاشة خاصة
+  // بملفها فلا يبلغها اختبار. ما هنا تفويض لا نسخة ثانية.
+  static int requiredLevelFor(int index) => GameUnlockRule.requiredLevelFor(index);
+  static bool isUnlocked(int index, int level) => GameUnlockRule.isUnlocked(index, level);
+  static int unlockedCount(int level) => GameUnlockRule.unlockedCount(level);
 
   @override
   Widget build(BuildContext context) {
@@ -686,15 +679,15 @@ class _GamesModule extends StatelessWidget {
         ...games.asMap().entries.map((entry) {
           final index = entry.key;
           final game = entry.value;
-          final unlocked = isUnlocked(index, gamification.xp);
-          final needed = requiredXpFor(index);
+          final unlocked = isUnlocked(index, gamification.level);
+          final neededLevel = requiredLevelFor(index);
           return Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: _GameCard(
               game: game,
               locked: !unlocked,
-              requiredXp: needed,
-              currentXp: gamification.xp,
+              requiredLevel: neededLevel,
+              currentLevel: gamification.level,
               onPressed: () {
                 if (!unlocked) {
                   StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -702,8 +695,8 @@ class _GamesModule extends StatelessWidget {
                     SnackBar(
                       content: Text(
                         trf('content.gameLockedHint', {
-                          'required': needed,
-                          'current': gamification.xp,
+                          'level': neededLevel,
+                          'current': gamification.level,
                         }),
                       ),
                     ),
@@ -741,7 +734,7 @@ class _ArcadeProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final open = _GamesModule.unlockedCount(stats.xp).clamp(0, total);
+    final open = _GamesModule.unlockedCount(stats.level).clamp(0, total);
     final allOpen = open >= total;
     return Student3DCard(
       child: Container(
@@ -823,15 +816,17 @@ class _GameCard extends StatelessWidget {
   const _GameCard({
     required this.game,
     required this.locked,
-    required this.requiredXp,
-    required this.currentXp,
+    required this.requiredLevel,
+    required this.currentLevel,
     required this.onPressed,
   });
 
   final HtmlGame game;
   final bool locked;
-  final int requiredXp;
-  final int currentXp;
+  /// المستوى الذي تُفتح عنده هذه اللعبة.
+  final int requiredLevel;
+  /// مستوى الطالب الآن — يُعرض بجانبه ليرى كم بقي.
+  final int currentLevel;
   final VoidCallback onPressed;
 
   @override
@@ -905,7 +900,7 @@ class _GameCard extends StatelessWidget {
                       Text(
                         locked
                             ? trf('content.gameLockedShort',
-                                {'required': requiredXp})
+                                {'level': requiredLevel})
                             : game.subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -926,9 +921,9 @@ class _GameCard extends StatelessWidget {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
                           child: LinearProgressIndicator(
-                            value: requiredXp == 0
+                            value: requiredLevel <= 0
                                 ? 1
-                                : (currentXp / requiredXp).clamp(0.0, 1.0),
+                                : (currentLevel / requiredLevel).clamp(0.0, 1.0),
                             minHeight: 7,
                             backgroundColor: Colors.white.withOpacity(0.22),
                             valueColor: const AlwaysStoppedAnimation<Color>(
@@ -938,9 +933,9 @@ class _GameCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          trf('content.xpOfRequired', {
-                            'current': currentXp,
-                            'required': requiredXp,
+                          trf('content.levelOfRequired', {
+                            'current': currentLevel,
+                            'required': requiredLevel,
                           }),
                           textAlign: TextAlign.start,
                           style: const TextStyle(
