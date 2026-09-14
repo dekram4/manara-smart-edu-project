@@ -239,6 +239,13 @@ export interface CreatedQuiz {
   atram: string;
   term: string;
   unit: string;
+  /**
+   * اسم الدرس الذي يخصّه الاختبار داخل الوحدة — المستوى السادس من الهيكل.
+   *
+   * اختياري لأن الاختبارات المنشأة قبل إضافة هذا المستوى لا تحمله، وهي
+   * تبقى صالحة على مستوى الوحدة كما كانت.
+   */
+  lesson?: string;
   quizType: QuizType;
   questionCount: number;
   isActive: boolean; // مفعل أم لا

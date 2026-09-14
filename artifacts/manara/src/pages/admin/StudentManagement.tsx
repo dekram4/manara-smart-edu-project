@@ -455,6 +455,25 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     return matchesSearch && matchesTeacher;
   });
 
+  // ——— بحثات مشتركة بين عرض الجدول وعرض البطاقات ———
+  //
+  // العرض الهجين يرسم نفس البيانات مرّتين: جدولاً على الشاشات الكبيرة
+  // وبطاقات على الجوال والتابلت. استخراج المنطق هنا يمنع أن ينحرف العرضان
+  // عن بعضهما مع أول تعديل مستقبلي.
+  const parentOf = (student: any) =>
+    parents.find(p => p.id === student.parentId || p.phoneNumber === student.parentPhoneNumber);
+
+  const teacherOf = (record: any) => teachers.find(t => t.id === record.createdBy);
+
+  const childrenOf = (parent: any) =>
+    students.filter(s =>
+      s.parentId && s.parentId.trim() !== ''
+        ? s.parentId === parent.id
+        : s.parentPhoneNumber === parent.phoneNumber,
+    );
+
+  const visibleRecords: any[] = activeTab === 'students' ? filteredStudents : filteredParents;
+
   return (
      <div className="dashboard-page dashboard-consistent-page dashboard-account-page animate-fadeIn">
        <div className="dashboard-section-header" style={styles.header}>
@@ -641,7 +660,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
       </div>
 
-       <div className="dashboard-table-surface dashboard-content-records">
+       {/* ===== العرض الهجين =====
+           الجدول للشاشات الكبيرة، والبطاقات للجوال والتابلت. جدول بتسعة
+           أعمدة داخل 375 بكسل لا يُقرأ مهما مُرِّر أفقياً؛ والبطاقة تعرض
+           نفس الحقول مسمّاة صراحةً. الإظهار والإخفاء في CSS عند 1024. */}
+       <div className="dashboard-table-surface dashboard-content-records dashboard-hybrid-table">
          <table className="w-full min-w-[900px] text-right">
            <thead className="bg-purple-50 border-b">
               <tr>
@@ -753,9 +776,104 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
               ))}
            </tbody>
          </table>
-         {(activeTab === 'students' ? filteredStudents : filteredParents).length === 0 && (
+         {visibleRecords.length === 0 && (
            <div className="p-20 text-center text-purple-400 font-bold italic">لا توجد نتائج بحث</div>
          )}
+      </div>
+
+      {/* ===== عرض البطاقات — الجوال والتابلت ===== */}
+      <div className="dashboard-hybrid-cards">
+        {visibleRecords.length === 0 ? (
+          <div className="dashboard-record-card text-center font-bold italic text-slate-400">
+            لا توجد نتائج بحث
+          </div>
+        ) : (
+          <div className="dashboard-record-grid">
+            {visibleRecords.map((item: any) => {
+              const teacher = teacherOf(item);
+              const parent = activeTab === 'students' ? parentOf(item) : undefined;
+              const children = activeTab === 'parents' ? childrenOf(item) : [];
+              return (
+                <article key={item.id} className="dashboard-record-card">
+                  <header className="dashboard-record-head">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="dashboard-record-title">{item.name}</h3>
+                      <span className="dashboard-badge">
+                        {activeTab === 'students' ? '👨‍🎓 طالب' : '👨‍👩‍👧 ولي أمر'}
+                      </span>
+                    </div>
+                  </header>
+
+                  <dl className="dashboard-record-meta">
+                    <div>
+                      <dt>👤 اسم المستخدم</dt>
+                      <dd>{item.username || '-'}</dd>
+                    </div>
+                    <div>
+                      <dt>🆔 {activeTab === 'students' ? 'رقم الهوية' : 'المعرّف'}</dt>
+                      <dd>{activeTab === 'students' ? (item.studentIdNumber || '-') : (item.id || '-')}</dd>
+                    </div>
+                    <div>
+                      <dt>{activeTab === 'students' ? '🎓 الصف الأساسي' : '📱 رقم الجوال'}</dt>
+                      <dd>
+                        {activeTab === 'students'
+                          ? (item.primaryGrade || item.grade || '-')
+                          : (item.phoneNumber || '-')}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>👨‍🏫 المعلم</dt>
+                      <dd>{teacher?.name || item.createdByName || item.createdBy || 'غير محدد'}</dd>
+                    </div>
+                    {activeTab === 'students' && (
+                      <div>
+                        <dt>👨‍👧‍👦 ولي الأمر</dt>
+                        <dd>{parent?.name || 'غير مرتبط'}</dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  {activeTab === 'parents' && (
+                    <div className="dashboard-record-badges">
+                      {children.length > 0 ? (
+                        children.map(student => (
+                          <span key={student.id} className="dashboard-badge">
+                            {getStudentEmoji(student)} {student.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="dashboard-badge">لا يوجد طلاب مرتبطون</span>
+                      )}
+                    </div>
+                  )}
+
+                  <footer className="dashboard-record-footer dashboard-record-buttons">
+                    {activeTab === 'students' && (
+                      <button
+                        onClick={() => handleResetStudentCounter(item as StudentInfo)}
+                        className="dashboard-record-action bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      >
+                        ♻️ تصفير العداد
+                      </button>
+                    )}
+                    <button
+                      onClick={() => activeTab === 'students' ? handleEditStudent(item) : handleEditParent(item)}
+                      className="dashboard-record-action bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    >
+                      ✏️ تعديل
+                    </button>
+                    <button
+                      onClick={() => activeTab === 'students' ? handleDeleteStudent(item.id) : handleDeleteParent(item.id)}
+                      className="dashboard-record-action bg-red-50 text-red-700 hover:bg-red-100"
+                    >
+                      🗑️ حذف
+                    </button>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

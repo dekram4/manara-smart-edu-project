@@ -214,6 +214,11 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       'quizTitle': _text(quiz['title']).isEmpty ? 'اختبار منارة' : _text(quiz['title']),
       'subject': _text(quiz['subject']),
       'unit': _text(quiz['unit']),
+      // درس الاختبار إن كان مقيّداً بدرس، وإلا الدرس الذي يقف فيه الطالب —
+      // فتصل النتيجة إلى التقارير منسوبة إلى مكانها الصحيح من المسار.
+      'lesson': _text(quiz['lesson']).isEmpty
+          ? _text(widget.academicContext?.lesson)
+          : _text(quiz['lesson']),
       'grade': _text(quiz['grade']),
       'atram': _text(quiz['atram']),
       'term': _text(quiz['term']),

@@ -233,6 +233,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [availableTerms, setAvailableTerms] = useState<string[]>([]);
   const [availableUnits, setAvailableUnits] = useState<string[]>([]);
+  /// أسماء الدروس المعرّفة للوحدة المختارة في الإعدادات الأكاديمية.
+  const [availableLessons, setAvailableLessons] = useState<string[]>([]);
 
   // 📝 محتوى الدرس المسحوب
   const [lessonContent, setLessonContent] = useState('');
@@ -245,6 +247,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     subject: '',
     term: '',
     unit: '',
+    /// المستوى السادس. فارغ يعني اختباراً يغطي الوحدة كاملة.
+    lesson: '',
     quizType: QuizType.PERIODIC,
     questionCount: 10,
     isActive: true
@@ -304,6 +308,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       subject: '',
       term: '',
       unit: '',
+      lesson: '',
        quizType: QuizType.PERIODIC,
       questionCount: 10,
       isActive: true
@@ -315,6 +320,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setAvailableSubjects([]);
     setAvailableTerms([]);
     setAvailableUnits([]);
+    setAvailableLessons([]);
+
     setTimeout(loadAcademicHierarchy, 0);
   };
 
@@ -329,7 +336,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
   // 🔄 تحديث الخيارات المتاحة
   const handleGradeChange = (newGrade: string) => {
-    setQuizFormData({ ...quizFormData, grade: newGrade, atram: '', subject: '', term: '', unit: '' });
+    setQuizFormData({ ...quizFormData, grade: newGrade, atram: '', subject: '', term: '', unit: '', lesson: '' });
     setLessonContent('');
     setLessonFound(false);
 
@@ -346,10 +353,12 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setAvailableSubjects([]);
     setAvailableTerms([]);
     setAvailableUnits([]);
+    setAvailableLessons([]);
+
   };
 
   const handleAtramChange = (newAtram: string) => {
-    setQuizFormData({ ...quizFormData, atram: newAtram, subject: '', term: '', unit: '' });
+    setQuizFormData({ ...quizFormData, atram: newAtram, subject: '', term: '', unit: '', lesson: '' });
     setLessonContent('');
     setLessonFound(false);
 
@@ -368,10 +377,12 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     }
     setAvailableTerms([]);
     setAvailableUnits([]);
+    setAvailableLessons([]);
+
   };
 
   const handleSubjectChange = (newSubject: string) => {
-    setQuizFormData({ ...quizFormData, subject: newSubject, term: '', unit: '' });
+    setQuizFormData({ ...quizFormData, subject: newSubject, term: '', unit: '', lesson: '' });
     setLessonContent('');
     setLessonFound(false);
 
@@ -392,10 +403,12 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       }
     }
     setAvailableUnits([]);
+    setAvailableLessons([]);
+
   };
 
   const handleTermChange = (newTerm: string) => {
-    setQuizFormData({ ...quizFormData, term: newTerm, unit: '' });
+    setQuizFormData({ ...quizFormData, term: newTerm, unit: '', lesson: '' });
     setLessonContent('');
     setLessonFound(false);
 
@@ -412,14 +425,33 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
             setAvailableUnits(uniqueAcademicValues(termConfig.units));
           } else {
             setAvailableUnits([]);
+            setAvailableLessons([]);
+
           }
         }
       }
     }
   };
 
+  /// دروس وحدة من الشجرة الهرمية — نفس عقد `term.lessons` المستعمل في إدارة
+  /// المحتوى والسينما، فمصدر الدروس واحد عبر المنصة كلها.
+  const getLessonsFor = (unit: string): string[] => {
+    if (!unit) return [];
+    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+    const scoped = selectedTeacherId && selectedTeacherId !== 'admin'
+      ? all.filter((c: any) => getRecordTeacherId(c) === normalizeScopeValue(selectedTeacherId))
+      : all;
+    const grade = scoped.find((c: any) => c.grade === quizFormData.grade);
+    const atram = grade?.atrams?.find((a: any) => a.atram === quizFormData.atram);
+    const subject = atram?.subjects?.find((s: any) => s.subject === quizFormData.subject);
+    const term = subject?.terms?.find((t: any) => t.term === quizFormData.term);
+    const lessons = term?.lessons?.[unit];
+    return Array.isArray(lessons) ? uniqueAcademicValues(lessons) : [];
+  };
+
   const handleUnitChange = (newUnit: string) => {
-    setQuizFormData({ ...quizFormData, unit: newUnit });
+    setQuizFormData({ ...quizFormData, unit: newUnit, lesson: '' });
+    setAvailableLessons(getLessonsFor(newUnit));
 
     // 🔍 سحب محتوى الدرس
     const lessonConfigs: LessonConfig[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]');
@@ -678,6 +710,7 @@ ${contentSummary}
       atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
+      lesson: quizFormData.lesson.trim() || undefined,
       quizType: normalizeQuizType(quizFormData.quizType),
       questionCount: quizQuestions.length,
       isActive: quizFormData.isActive,
@@ -722,6 +755,7 @@ ${contentSummary}
       subject: '',
       term: '',
       unit: '',
+      lesson: '',
       quizType: QuizType.PERIODIC,
       questionCount: 10,
       isActive: true
@@ -761,6 +795,7 @@ ${contentSummary}
       atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
+      lesson: quizFormData.lesson.trim() || undefined,
       quizType: normalizeQuizType(quizFormData.quizType),
       questionCount: normalizedQuestions.length,
       isActive: quizFormData.isActive,
@@ -854,6 +889,16 @@ ${contentSummary}
             const termConfig = subjectConfig.terms.find((t: any) => t.term === quiz.term);
             if (termConfig) {
               setAvailableUnits(termConfig.units || []);
+              // دروس الوحدة، مع ضمّ درس الاختبار المحفوظ إن حُذف لاحقاً من
+              // الشجرة — وإلا فُتح النموذج على قائمة فارغة فبدا أن الدرس ضاع،
+              // وأي حفظ يمحوه فعلاً.
+              const saved = Array.isArray(termConfig.lessons?.[quiz.unit])
+                ? termConfig.lessons[quiz.unit]
+                : [];
+              const withCurrent = quiz.lesson && !saved.includes(quiz.lesson)
+                ? [quiz.lesson, ...saved]
+                : saved;
+              setAvailableLessons(uniqueAcademicValues(withCurrent));
             }
           }
         }
@@ -867,6 +912,7 @@ ${contentSummary}
       subject: quiz.subject,
       term: quiz.term,
       unit: quiz.unit,
+      lesson: quiz.lesson || '',
       quizType: quiz.quizType,
       questionCount: quiz.questionCount,
       isActive: quiz.isActive
@@ -1072,6 +1118,20 @@ ${contentSummary}
               >
                 <option value="">📦 الوحدة</option>
                 {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+
+              {/* الدرس — المستوى السادس.
+                  اختياري هنا خلافاً لإدارة المحتوى والسينما: الاختبار قد يكون
+                  دورياً يغطّي الوحدة كلها لا درساً بعينه، فإلزامه يمنع حالة
+                  مشروعة. ومن يختار درساً يُقيَّد الاختبار به. */}
+              <select
+                value={quizFormData.lesson}
+                onChange={e => setQuizFormData({ ...quizFormData, lesson: e.target.value })}
+                className="p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
+                disabled={!quizFormData.unit}
+              >
+                <option value="">📘 الدرس (اختياري — اتركه فارغاً لاختبار الوحدة)</option>
+                {availableLessons.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
 
@@ -1339,9 +1399,12 @@ ${contentSummary}
                   <span className="dashboard-badge">{quiz.subject}</span>
                   <span className="dashboard-badge">{quiz.term}</span>
                   <span className="dashboard-badge">{quiz.unit}</span>
-                  {/* لا شارة درس هنا: `CreatedQuiz` لا يحمل حقل درس أصلاً،
-                      فالاختبارات مرتبطة بالوحدة لا بالدرس. إضافة الحقل تغيير
-                      في نموذج البيانات لا في تنسيق البطاقة. */}
+                  {/* الدرس: يظهر صريحاً حين يكون الاختبار مقيّداً بدرس، وإلا
+                      يُعلَن أنه يغطي الوحدة كاملة — فلا يبقى المستوى السادس
+                      غامضاً على من يقرأ البطاقة. */}
+                  <span className="dashboard-badge">
+                    {quiz.lesson ? `📘 ${quiz.lesson}` : '📘 كل دروس الوحدة'}
+                  </span>
                   <span className="dashboard-badge dashboard-badge-accent">
                     {normalizeQuizType(quiz.quizType) === QuizType.PERIODIC
                       ? getPeriodicQuizLabel(quiz)

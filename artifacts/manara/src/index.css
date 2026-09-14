@@ -3927,3 +3927,93 @@ body,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ==========================================================================
+   العرض الهجين — جدول على الشاشات الكبيرة، بطاقات على الجوال والتابلت
+   ==========================================================================
+
+   جدول بتسعة أعمدة داخل 375 بكسل لا يُقرأ مهما كان التمرير الأفقي ناعماً:
+   القارئ يفقد ترويسة العمود قبل أن يصل إلى قيمته. البطاقة تحلّ ذلك بأن
+   تسمّي كل حقل بجانب قيمته.
+
+   الحدّ 1024: دونه بطاقات، وفوقه جدول. وهو نفس الحدّ الذي تُخفى عنده
+   الأعمدة الجانبية في بقية المنصة.                                        */
+
+.dashboard-hybrid-cards {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.dashboard-hybrid-table {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-hybrid-cards {
+    display: none;
+  }
+
+  .dashboard-hybrid-table {
+    display: block;
+  }
+}
+
+/* حشوات الجدول على الشاشات الكبيرة: px-5 py-3 حداً أدنى، وأعمدة لا تنحشر. */
+@media (min-width: 1024px) {
+  .dashboard-hybrid-table table th,
+  .dashboard-hybrid-table table td {
+    padding: 0.75rem 1.25rem;
+    vertical-align: middle;
+    line-height: 1.6;
+  }
+
+  .dashboard-hybrid-table table th {
+    white-space: nowrap;
+  }
+
+  /* عمود الإجراءات يبقى بعرضه ولا ينكسر. */
+  .dashboard-hybrid-table table td:last-child,
+  .dashboard-hybrid-table table th:last-child {
+    white-space: nowrap;
+    min-width: 9rem;
+  }
+}
+
+/* ——— أزرار تذييل البطاقة ———
+   نصّية لا أيقونية: «تعديل» و«حذف» و«تصفير العداد» لا تُفهم من رمز وحده،
+   والمساحة في البطاقة تتّسع لها خلافاً لخلية الجدول. */
+.dashboard-record-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.dashboard-record-action {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.dashboard-record-action:active {
+  transform: scale(0.97);
+}
+
+/* البطاقة في وضع البطاقات تملأ العرض على الجوال ولا تحمل سقفاً. */
+.dashboard-hybrid-cards .dashboard-record-card {
+  width: 100%;
+}

@@ -831,7 +831,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
 
-      <div className="dashboard-table-surface dashboard-content-records dashboard-content-table-surface">
+      {/* ===== العرض الهجين: جدول على الشاشات الكبيرة، بطاقات دونها ===== */}
+      <div className="dashboard-table-surface dashboard-content-records dashboard-content-table-surface dashboard-hybrid-table">
         <div className="dashboard-content-table-heading">
           <div>
             <span>المحتوى المنشور</span>
@@ -885,6 +886,72 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </tbody>
         </table>
         {lessons.length === 0 && <div className="dashboard-content-empty">لا يوجد محتوى تعليمي مضاف حالياً</div>}
+      </div>
+
+      {/* ===== عرض البطاقات — الجوال والتابلت ===== */}
+      <div className="dashboard-hybrid-cards">
+        {lessons.length === 0 ? (
+          <div className="dashboard-record-card text-center font-bold italic text-slate-400">
+            لا يوجد محتوى تعليمي مضاف حالياً
+          </div>
+        ) : (
+          <div className="dashboard-record-grid">
+            {lessons.map(l => (
+              <article key={l.id} className="dashboard-record-card">
+                <header className="dashboard-record-head">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="dashboard-record-title">{l.lesson || l.unit}</h3>
+                    <span className="dashboard-badge">👨‍🏫 {l.createdByName || 'المشرف'}</span>
+                  </div>
+                  <div className="dashboard-record-actions">
+                    <button
+                      onClick={() => handleEdit(l)}
+                      className="dashboard-icon-button bg-blue-50 text-blue-700 hover:bg-blue-100"
+                      title="تعديل"
+                      aria-label="تعديل المحتوى"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleDelete(l.id)}
+                      className="dashboard-icon-button bg-red-50 text-red-700 hover:bg-red-100"
+                      title="حذف"
+                      aria-label="حذف المحتوى"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </header>
+
+                {/* الهيكل السداسي كاملاً، مسمّى صراحةً — الجدول كان يعرض
+                    أربعة مستويات فقط ويسقط الفصل والدرس. */}
+                <div className="dashboard-record-badges">
+                  <span className="dashboard-badge">{l.grade}</span>
+                  <span className="dashboard-badge">{l.atram}</span>
+                  <span className="dashboard-badge">{l.subject}</span>
+                  <span className="dashboard-badge">{l.term}</span>
+                  <span className="dashboard-badge">{l.unit}</span>
+                  {l.lesson && <span className="dashboard-badge dashboard-badge-accent">📘 {l.lesson}</span>}
+                </div>
+
+                <dl className="dashboard-record-meta">
+                  <div>
+                    <dt>🎬 الفيديو</dt>
+                    <dd>{l.explanationVideoUrl ? '✅ موجود' : '❌ غير موجود'}</dd>
+                  </div>
+                  <div>
+                    <dt>🤖 الأفاتار</dt>
+                    <dd>{l.avatarInteractionUrl ? '✅ موجود' : '❌ غير موجود'}</dd>
+                  </div>
+                  <div>
+                    <dt>📹 الاجتماع</dt>
+                    <dd>{l.liveMeetingUrl ? '✅ موجود' : '❌ غير موجود'}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -714,6 +714,11 @@ class StudentContentService {
       'unit': _text(result['unit']).isEmpty
           ? _text(profile.unit)
           : _text(result['unit']),
+      // الدرس يُحفظ مع النتيجة كبقية مستويات المسار. بدونه لا تستطيع تقارير
+      // المعلم والمشرف أن تنسب النتيجة إلى درس بعينه داخل الوحدة، فتظهر كل
+      // نتائج الوحدة مجمّعة. لا بديل من الملف الشخصي هنا لأن `StudentProfile`
+      // لا يحمل درساً — الدرس اختيار لحظي في شاشة المسار لا خاصية ثابتة.
+      'lesson': _text(result['lesson']),
     };
     if (StudentAssessmentRules.isTeacherQuiz(safeResult)) {
       final existing = await client

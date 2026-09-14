@@ -60,6 +60,10 @@ class StudentAssessmentRules {
       'subject': academicContext?.subject ?? profile.subject,
       'term': academicContext?.term ?? profile.term,
       'unit': academicContext?.unit ?? profile.unit,
+      // المستوى السادس. التساهل عند الفراغ مقصود هنا تحديداً: اختبار بلا
+      // درس هو اختبار الوحدة كاملة — وهي حالة مشروعة في لوحة التحكم —
+      // فيظهر لأي درس داخلها، بينما اختبار مقيّد بدرس لا يظهر إلا فيه.
+      'lesson': academicContext?.lesson,
     };
     return selected.entries.every((entry) {
       final expected = _normalize(entry.value);
@@ -260,7 +264,7 @@ class StudentAssessmentRules {
     final secondOwner = ownerId(second);
     if (firstOwner != secondOwner) return false;
 
-    for (final field in ['grade', 'atram', 'subject', 'term', 'unit']) {
+    for (final field in ['grade', 'atram', 'subject', 'term', 'unit', 'lesson']) {
       final left = _normalize(first[field]);
       final right = _normalize(second[field]);
       if (left.isNotEmpty && right.isNotEmpty && left != right) return false;
@@ -283,7 +287,7 @@ class StudentAssessmentRules {
       if (question['deleted'] == true || question['isActive'] == false) continue;
       final owner = ownerId(question);
       final type = quizTypeValue(question['quizType']);
-      final scope = ['grade', 'atram', 'subject', 'term', 'unit']
+      final scope = ['grade', 'atram', 'subject', 'term', 'unit', 'lesson']
           .map((field) => _normalize(question[field]))
           .join('|');
       final id = _text(question['quizId']).isNotEmpty
