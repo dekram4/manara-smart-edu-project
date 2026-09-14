@@ -8,6 +8,7 @@ import ParentAccountSetup from './ParentAccountSetup';
 import { getEffectiveParentPermissions, getStudentPermissions, isLimitReached } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
+import { refreshSupabaseSync } from '../../db/sync';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
@@ -213,6 +214,15 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       } else {
         writeActiveSession(STORAGE_KEYS.ACTIVE_PARENT, found);
         writeAuthSession('parent', found.id);
+        // سحب بيانات الأبناء من Supabase قبل العرض، كما يفعل المعلم والمشرف.
+        // بدون هذا لا تمتلئ اللوحة إلا بعد إعادة تحميل الصفحة — وعلى جهاز
+        // جديد تبقى فارغة تماماً لأن `localStorage` لا يحمل شيئاً بعد.
+        try {
+          await refreshSupabaseSync();
+        } catch {
+          // المزامنة تفشل بهدوء: اللوحة تعرض ما في التخزين المحلي، وهو
+          // السلوك السابق نفسه، فلا يُمنع الدخول بسبب انقطاع شبكة.
+        }
         loadData();
         playWelcomeAdult();
       }

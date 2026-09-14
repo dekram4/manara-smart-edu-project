@@ -850,6 +850,18 @@ class _StudentEndlessReaderScreenState
     });
   }
 
+  /// عنوان الشاشة باسم المادة التي اختارها الطالب من المسار.
+  ///
+  /// كان ثابتاً على «تحدي العلوم»، فيقرؤه طالب الرياضيات على تحدٍّ مبنيّ من
+  /// درس الرياضيات نفسه. النص الاحتياطي لا يُستعمل إلا حين لا تكون هناك مادة
+  /// مختارة أصلاً — لا كبديل دائم.
+  String get _challengeTitle {
+    final subject = widget.academicContext?.subject.trim() ?? '';
+    return subject.isEmpty
+        ? tr('challenge.titleFallback')
+        : trf('challenge.title', {'subject': subject});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -859,7 +871,7 @@ class _StudentEndlessReaderScreenState
         appBar: AppBar(
           backgroundColor: const Color(0xFF3B2A6B),
           foregroundColor: Colors.white,
-          title: Text(tr('challenge.title')),
+          title: Text(_challengeTitle),
           centerTitle: true,
           actions: [
             if (_stageCount > 0)

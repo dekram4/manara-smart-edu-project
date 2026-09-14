@@ -1,6 +1,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import {
+  PARENT_SESSION_COOKIE,
   readCookie,
   TEACHER_SESSION_COOKIE,
   verifyAdminSession,
@@ -18,6 +19,7 @@ const router = Router();
 const ADMIN_SESSION_COOKIE = "manara_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
 const TEACHER_SESSION_TTL_SECONDS = 60 * 60 * 12;
+const PARENT_SESSION_TTL_SECONDS = 60 * 60 * 12;
 
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -59,6 +61,22 @@ function signTeacherSession(teacherId: string): string {
     role: "teacher",
     teacherId,
     expiresAt: Date.now() + TEACHER_SESSION_TTL_SECONDS * 1000,
+  });
+}
+
+function parentCookieOptions(maxAge = PARENT_SESSION_TTL_SECONDS): string {
+  const secure =
+    process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT
+      ? "; Secure"
+      : "";
+  return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+function signParentSession(parentId: string): string {
+  return signAdminSession({
+    role: "parent",
+    parentId,
+    expiresAt: Date.now() + PARENT_SESSION_TTL_SECONDS * 1000,
   });
 }
 
@@ -401,6 +419,14 @@ router.post("/auth/parent/login", async (req, res) => {
     if (!parent || !passwordsMatch(password, parent.password)) {
       return res.status(401).json({ error: "بيانات دخول ولي الأمر غير صحيحة" });
     }
+    // جلسة قراءة فقط لولي الأمر. بدونها كانت لوحته تعتمد كلياً على ما في
+    // `localStorage`، فتظهر فارغة على أي جهاز جديد.
+    res.setHeader(
+      "Set-Cookie",
+      `${PARENT_SESSION_COOKIE}=${encodeURIComponent(
+        signParentSession(parent.id),
+      )}; ${parentCookieOptions()}`,
+    );
     return res.json({
       ok: true,
       parent: safeAccountData(parent.data, parent.id),
@@ -483,6 +509,14 @@ router.post("/auth/admin/logout", (_req, res) => {
   res.setHeader(
     "Set-Cookie",
     `${ADMIN_SESSION_COOKIE}=; ${adminCookieOptions(0)}`,
+  );
+  return res.json({ ok: true });
+});
+
+router.post("/auth/parent/logout", (_req, res) => {
+  res.setHeader(
+    "Set-Cookie",
+    `${PARENT_SESSION_COOKIE}=; ${parentCookieOptions(0)}`,
   );
   return res.json({ ok: true });
 });

@@ -171,10 +171,23 @@ type PendingOp =
   | { type: 'kv'; key: string; value: any; scope?: string };
 
 type SyncContext = {
-  role: 'admin' | 'teacher';
+  role: 'admin' | 'teacher' | 'parent';
   scope: string;
   teacherId?: string;
+  parentId?: string;
 };
+
+/**
+ * ولي الأمر قارئ فقط.
+ *
+ * الخادم يمنعه من الكتابة أصلاً (مسارات الكتابة تستدعي `getContentActor`
+ * الذي لا يعرف دور ولي الأمر)، لكن الاعتماد على ذلك وحده يعني أن كل كتابة
+ * من لوحته ستنطلق إلى الشبكة لتُرفض بـ 401 — فيظهر الشريط الأحمر على شيء
+ * ليس خطأ. المنع هنا يوقفها قبل أن تُرسَل.
+ */
+function isReadOnlyActor(): boolean {
+  return activeSyncContext?.role === 'parent';
+}
 
 let activeSyncContext: SyncContext | null = null;
 
@@ -206,6 +219,8 @@ function currentScope(): string {
 // لتوقّفت السلسلة عند الفراغ فيُحجب السجل رغم أن الخادم كان سيقبله.
 function recordBelongsToContext(record: any, context: SyncContext, table: string): boolean {
   if (context.role === 'admin') return true;
+  // ولي الأمر لا يملك أي صف: نطاقه قراءة فقط.
+  if (context.role === 'parent') return false;
   if (!record || typeof record !== 'object') return false;
   if (table === 'teachers') return String(record.id ?? '').trim() === context.teacherId;
   const owner =
@@ -308,6 +323,9 @@ export async function retryPendingSync(): Promise<SyncStatus> {
 }
 
 function canCurrentActorWriteKv(key: string): boolean {
+  // ولي الأمر أولاً: بدون هذا الشرط كان بإمكانه الكتابة على `smartEdu_videos`
+  // لأن الاستثناء التالي غير مقيّد بدور.
+  if (isReadOnlyActor()) return false;
   return activeSyncContext?.role === 'admin' || key === 'smartEdu_videos';
 }
 

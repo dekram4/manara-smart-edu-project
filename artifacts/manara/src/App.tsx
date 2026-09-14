@@ -216,6 +216,8 @@ const App: React.FC = () => {
     void Promise.all([
       fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }),
       fetch('/api/auth/teacher/logout', { method: 'POST', credentials: 'same-origin' }),
+      // كوكي ولي الأمر يُمسح كغيره، وإلا بقيت جلسة القراءة قائمة بعد الخروج.
+      fetch('/api/auth/parent/logout', { method: 'POST', credentials: 'same-origin' }),
     ]).catch(() => {});
     setMainView('role');
   };
@@ -256,7 +258,14 @@ const App: React.FC = () => {
     (async () => {
       const syncTask = (async () => {
         migratePasswordsToHash();
-        if (restoredRole !== 'admin' && restoredRole !== 'teacher') {
+        // ولي الأمر مشمول الآن بعد أن صار له جلسة قراءة مقيّدة بأبنائه في
+        // الخادم. قبل ذلك كانت لوحته تعتمد كلياً على `localStorage`، فتظهر
+        // فارغة تماماً على أي جهاز جديد — لا أبناء ولا نتائج.
+        if (
+          restoredRole !== 'admin' &&
+          restoredRole !== 'teacher' &&
+          restoredRole !== 'parent'
+        ) {
           return;
         }
         // Do not mount role dashboards until the shared data has been loaded.

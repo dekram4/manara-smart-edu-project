@@ -3,10 +3,14 @@ import crypto from "node:crypto";
 
 const ADMIN_SESSION_COOKIE = "manara_admin_session";
 export const TEACHER_SESSION_COOKIE = "manara_teacher_session";
+export const PARENT_SESSION_COOKIE = "manara_parent_session";
 
 export type ContentActor =
   | { role: "admin" }
-  | { role: "teacher"; teacherId: string };
+  | { role: "teacher"; teacherId: string }
+  // ولي الأمر قارئ فقط. لا يملك أي مسار كتابة إطلاقاً، ونطاق قراءته محصور
+  // بأبنائه — يُحسم ذلك في `supabaseBridge` لا هنا.
+  | { role: "parent"; parentId: string };
 
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -87,11 +91,65 @@ export function verifyTeacherSession(value: string): ContentActor | null {
   }
 }
 
+export function verifyParentSession(value: string): ContentActor | null {
+  if (!value) return null;
+  const [encoded, signature] = String(value).split(".");
+  if (!encoded || !signature) return null;
+  const expected = crypto
+    .createHmac("sha256", sessionSecret())
+    .update(encoded)
+    .digest("base64url");
+  if (
+    signature.length !== expected.length ||
+    !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  ) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(
+      Buffer.from(encoded, "base64url").toString("utf8"),
+    );
+    const parentId =
+      typeof payload?.parentId === "string" ? payload.parentId.trim() : "";
+    if (
+      payload?.role !== "parent" ||
+      !parentId ||
+      parentId.length > 200 ||
+      Number(payload?.expiresAt) <= Date.now()
+    ) {
+      return null;
+    }
+    return { role: "parent", parentId };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * الفاعل الذي يملك حق الكتابة: المشرف أو المعلم فقط.
+ *
+ * ولي الأمر عمداً غير مشمول هنا. مسارات الكتابة تستدعي هذه الدالة، فبقاؤه
+ * خارجها يجعل منعه من الكتابة خاصية في بنية الكود لا شرطاً قد يُنسى في
+ * مسار جديد يُضاف لاحقاً.
+ */
 export function getContentActor(req: Request): ContentActor | null {
   if (verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE))) {
     return { role: "admin" };
   }
   return verifyTeacherSession(readCookie(req, TEACHER_SESSION_COOKIE));
+}
+
+/**
+ * الفاعل الذي يملك حق القراءة: المشرف والمعلم، ويُضاف إليهم ولي الأمر.
+ *
+ * مسارات القراءة وحدها تستدعي هذه. الفصل بين الدالتين هو ما يضمن ألا تُفتح
+ * لولي الأمر كتابةٌ بالخطأ.
+ */
+export function getReaderActor(req: Request): ContentActor | null {
+  return (
+    getContentActor(req) ??
+    verifyParentSession(readCookie(req, PARENT_SESSION_COOKIE))
+  );
 }
 
 export function requireAdmin(

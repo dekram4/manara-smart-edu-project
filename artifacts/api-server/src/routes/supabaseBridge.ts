@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { getContentActor } from "../middleware/adminAuth";
+import { getContentActor, getReaderActor } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -157,6 +157,83 @@ function rowBelongsToActor(
   return owner === actor.teacherId;
 }
 
+/**
+ * الجداول التي يُسمح لولي الأمر بقراءتها. أي جدول خارج هذه القائمة يعيد له
+ * قائمة فارغة — قائمة سماح لا قائمة منع، فالجدول الذي يُضاف لاحقاً يكون
+ * محجوباً عنه تلقائياً حتى يُقرَّر خلاف ذلك صراحةً.
+ */
+const PARENT_READABLE_TABLES = new Set([
+  "parents",
+  "students",
+  "quiz_results",
+  "certificates",
+]);
+
+/**
+ * معرّفات أبناء ولي الأمر.
+ *
+ * القاعدة مطابقة لـ `getParentChildren` في الواجهة حرفاً بحرف: الربط عبر
+ * `parentId` أولاً، ولا يُلجأ إلى رقم الجوال إلا حين يكون `parentId` غائباً
+ * (سجلات قديمة). أي تشدّد زائد هنا يُفرغ لوحة ولي الأمر من أبنائه
+ * المشروعين، وأي تساهل يكشف له أبناء أسرة أخرى.
+ */
+async function parentChildIds(
+  config: SupabaseConfig,
+  parentId: string,
+): Promise<{ childIds: Set<string>; childRows: Record<string, unknown>[] }> {
+  const parentRows = asRecords(await rest(config, `parents?select=id,data&id=eq.${encodeURIComponent(parentId)}`));
+  const parentData = parentRows[0]?.data && typeof parentRows[0].data === "object"
+    ? (parentRows[0].data as Record<string, unknown>)
+    : {};
+  const parentPhone = stringValue(parentData.phoneNumber);
+
+  const students = asRecords(await rest(config, "students?select=id,data"));
+  const childRows = students.filter((row) => {
+    const data = row.data && typeof row.data === "object"
+      ? (row.data as Record<string, unknown>)
+      : row;
+    const linkedId = stringValue(data.parentId);
+    if (linkedId) return linkedId === parentId;
+    // الرجوع إلى رقم الجوال فقط عند غياب الربط الصريح، ولا يُطابَق رقم فارغ
+    // بفارغ وإلا رأى ولي الأمر كل طالب بلا وليّ.
+    const linkedPhone = stringValue(data.parentPhoneNumber);
+    return Boolean(parentPhone) && linkedPhone === parentPhone;
+  });
+
+  const childIds = new Set(
+    childRows
+      .map((row) => stringValue(row.id) || stringValue((row.data as Record<string, unknown>)?.id))
+      .filter(Boolean),
+  );
+  return { childIds, childRows };
+}
+
+/** يقصر صفوف جدول على ما يخصّ أبناء ولي الأمر. */
+function scopeRowsToParent(
+  rows: Record<string, unknown>[],
+  table: string,
+  parentId: string,
+  childIds: Set<string>,
+  childRows: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  if (table === "parents") {
+    return rows.filter((row) => stringValue(row.id) === parentId);
+  }
+  if (table === "students") {
+    return childRows;
+  }
+  if (table === "quiz_results" || table === "certificates") {
+    return rows.filter((row) => {
+      const data = row.data && typeof row.data === "object"
+        ? (row.data as Record<string, unknown>)
+        : row;
+      const studentId = stringValue(data.studentId);
+      return Boolean(studentId) && childIds.has(studentId);
+    });
+  }
+  return [];
+}
+
 async function readValue(config: SupabaseConfig, key: string): Promise<unknown> {
   const rows = await rest(
     config,
@@ -174,20 +251,44 @@ router.get("/supabase/health", (_req, res) => {
 });
 
 router.get("/supabase/context", (req: Request, res: Response) => {
-  const actor = getContentActor(req);
+  const actor = getReaderActor(req);
   if (!actor) {
-    res.status(401).json({ error: "يجب تسجيل الدخول كمعلم أو مشرف لمزامنة البيانات" });
+    res.status(401).json({ error: "يجب تسجيل الدخول لمزامنة البيانات" });
     return;
   }
-  res.json(actor.role === "admin"
-    ? { role: "admin", scope: "admin" }
-    : { role: "teacher", teacherId: actor.teacherId, scope: `teacher:${actor.teacherId}` });
+  if (actor.role === "admin") {
+    res.json({ role: "admin", scope: "admin" });
+    return;
+  }
+  if (actor.role === "parent") {
+    res.json({
+      role: "parent",
+      parentId: actor.parentId,
+      scope: `parent:${actor.parentId}`,
+    });
+    return;
+  }
+  res.json({ role: "teacher", teacherId: actor.teacherId, scope: `teacher:${actor.teacherId}` });
 });
 
+/**
+ * مفاتيح `app_kv` المتاحة لولي الأمر: بنية أكاديمية لا بيانات أشخاص.
+ * لوحته تحتاجها لعرض أسماء الصفوف والمواد في تقدّم أبنائه.
+ */
+const PARENT_READABLE_KV = new Set([
+  "smartEdu_grades",
+  "smartEdu_subjects",
+  "smartEdu_terms",
+  "smartEdu_atrams",
+  "smartEdu_units",
+  "smartEdu_hierarchicalConfigs",
+  "smartEdu_gradeConfigs",
+]);
+
 router.get("/supabase/app_kv", async (req: Request, res: Response) => {
-  const actor = getContentActor(req);
+  const actor = getReaderActor(req);
   if (!actor) {
-    res.status(401).json({ error: "يجب تسجيل الدخول كمعلم أو مشرف لمزامنة المحتوى" });
+    res.status(401).json({ error: "يجب تسجيل الدخول لمزامنة المحتوى" });
     return;
   }
   const config = getSupabaseConfig();
@@ -197,7 +298,10 @@ router.get("/supabase/app_kv", async (req: Request, res: Response) => {
   }
 
   try {
-    const keys = Array.from(SYNC_KV_KEYS);
+    // ولي الأمر يقرأ البنية الأكاديمية فقط، فلا داعي لجلب البقية أصلاً.
+    const keys = actor.role === "parent"
+      ? Array.from(SYNC_KV_KEYS).filter((key) => PARENT_READABLE_KV.has(key))
+      : Array.from(SYNC_KV_KEYS);
     const values = await Promise.all(keys.map(async (key) => ({ key, value: await readValue(config, key) })));
     res.json(values
       .filter(({ key }) => actor.role === "admin" || ![
@@ -293,10 +397,10 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
 });
 
 router.get("/supabase/:table", async (req: Request, res: Response) => {
-  const actor = getContentActor(req);
+  const actor = getReaderActor(req);
   const table = tableName(req);
   if (!actor) {
-    res.status(401).json({ error: "يجب تسجيل الدخول كمعلم أو مشرف لمزامنة البيانات" });
+    res.status(401).json({ error: "يجب تسجيل الدخول لمزامنة البيانات" });
     return;
   }
   if (!table) {
@@ -310,6 +414,23 @@ router.get("/supabase/:table", async (req: Request, res: Response) => {
   }
 
   try {
+    // ولي الأمر: قائمة سماح للجداول، ثم قصر الصفوف على أبنائه. الجدول غير
+    // المسموح يعيد قائمة فارغة لا 403 — فالمزامنة تمرّ على كل الجداول
+    // بالتتابع، و403 على واحد منها يُظهر لولي الأمر شريط خطأ أحمر على شيء
+    // ليس خطأ أصلاً.
+    if (actor.role === "parent") {
+      if (!PARENT_READABLE_TABLES.has(table)) {
+        res.json([]);
+        return;
+      }
+      const { childIds, childRows } = await parentChildIds(config, actor.parentId);
+      const rows = table === "students"
+        ? []
+        : asRecords(await rest(config, `${table}?select=id,data`));
+      res.json(scopeRowsToParent(rows, table, actor.parentId, childIds, childRows));
+      return;
+    }
+
     const rows = asRecords(await rest(config, `${table}?select=id,data`));
     const scopedRows = actor.role === "admin"
       ? rows

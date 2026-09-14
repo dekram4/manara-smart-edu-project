@@ -129,7 +129,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
 
 export const supabase = {
   context() {
-    return request<{ role: 'admin' | 'teacher'; scope: string; teacherId?: string }>('/api/supabase/context');
+    return request<{
+      role: 'admin' | 'teacher' | 'parent';
+      scope: string;
+      teacherId?: string;
+      parentId?: string;
+    }>('/api/supabase/context');
   },
   from(table: string) {
     return {

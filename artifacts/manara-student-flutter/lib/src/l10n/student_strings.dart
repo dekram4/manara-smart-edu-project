@@ -128,7 +128,10 @@ class StudentStrings {
         'اختر الصف والفصل والمادة والترم والوحدة، ثم افتح التجربة الخاصة بالدرس.',
 
     // Challenge portal
-    'challenge.title': 'تحدي العلوم',
+    // العنوان يحمل اسم المادة المختارة من المسار. كان ثابتاً على 'العلوم'
+    // فيظهر «تحدي العلوم» لطالب يدرس الرياضيات.
+    'challenge.title': 'تحدي {subject}',
+    'challenge.titleFallback': 'تحدي المادة',
     'challenge.dragWord': 'اسحب المصطلح الناقص إلى الفراغ',
     'challenge.sentenceDone': 'أحسنت! جملة صحيحة 🎉',
     'challenge.sortDone': 'أحسنت! تصنيف صحيح 🎉',
@@ -638,7 +641,8 @@ class StudentStrings {
     'tutor.pickPathBody':
         'Pick the subject, term, chapter and unit, then open the lesson.',
 
-    'challenge.title': 'Science Challenge',
+    'challenge.title': '{subject} Challenge',
+    'challenge.titleFallback': 'Subject Challenge',
     'challenge.dragWord': 'Drag the missing term into the gap',
     'challenge.sentenceDone': 'Well done! That sentence is right 🎉',
     'challenge.sortDone': 'Well done! Sorted correctly 🎉',
