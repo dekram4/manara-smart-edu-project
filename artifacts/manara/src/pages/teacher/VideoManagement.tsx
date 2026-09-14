@@ -288,6 +288,13 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       return;
     }
 
+    // الدرس مستوى إلزامي كبقية الخمسة: فيديو بلا درس يظهر لكل دروس الوحدة،
+    // وهو الخلط الذي يمنعه هذا الشرط.
+    if (!formData.lesson.trim()) {
+      alert('يرجى اختيار الدرس التابع للوحدة');
+      return;
+    }
+
     const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
     const all: VideoRecord[] = saved ? JSON.parse(saved) : [];
     const permissions = getTeacherPermissions({ permissionPackageId });
@@ -834,23 +841,37 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             {/* الدرس — آخر خطوة، فيصبح مسار الفيديو سداسياً كاملاً مثل
                 إدارة المحتوى تماماً.
 
-                حقل حر مع قائمة اقتراحات لا قائمة مغلقة: الأسماء المقترحة
-                هي ما عرّفه المعلم في الإعدادات الأكاديمية، ومن لم يعرّف
-                دروساً بعد يبقى قادراً على نشر فيديو الوحدة كما كان. */}
-            <input
-              list="cinema-lesson-options"
+                قائمة مغلقة كبقية المستويات الخمسة ومصدرها الوحيد شجرة
+                الإعدادات الأكاديمية: اسم حر لا يطابق الشجرة يُنتج فيديو لا
+                يصل الطالب أبداً. */}
+            <select
               value={formData.lesson}
-              onChange={e => updateAcademicField('lesson', e.target.value)}
+              onChange={e => {
+                // مسح رسالة الخطأ المخصّصة، وإلا بقي الحقل غير صالح في نظر
+                // المتصفح حتى بعد اختيار درس صحيح.
+                e.currentTarget.setCustomValidity('');
+                updateAcademicField('lesson', e.target.value);
+              }}
+              // تحقّق المتصفح يسبق `handleSubmit` فلا تظهر رسالتنا أبداً؛
+              // رسالته العامة «يُرجى اختيار عنصر من القائمة» لا تقول أي حقل
+              // ولا لماذا. هذه تستبدلها بالنص المطلوب حرفياً.
+              onInvalid={e => e.currentTarget.setCustomValidity('يرجى اختيار الدرس التابع للوحدة')}
               className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              placeholder="📘 الدرس (اختياري)"
               disabled={!formData.unit}
-            />
-            <datalist id="cinema-lesson-options">
+              required
+            >
+              <option value="">📘 الدرس</option>
               {availableLessons.map(lesson => (
-                <option key={lesson} value={lesson} />
+                <option key={lesson} value={lesson}>{lesson}</option>
               ))}
-            </datalist>
+            </select>
           </div>
+          {formData.unit && availableLessons.length === 0 && (
+            <div className="order-5 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+              ⚠️ لا توجد دروس معرّفة في هذه الوحدة. أضفها أولاً من «الإعدادات
+              الأكاديمية ← الخطوة 6: اختر وحدة وأضف درساً»، ثم عد إلى هنا.
+            </div>
+          )}
           <button type="submit" className="order-6 w-full bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black text-white rounded-2xl shadow-xl transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 animate-pulse-glow">
             {editingVideo ? '💾 حفظ التعديل' : '💾 حفظ ونشر فيديوهات السينما'}
           </button>

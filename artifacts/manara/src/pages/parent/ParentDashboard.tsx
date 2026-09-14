@@ -730,7 +730,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Render ===== */
   return (
-    <div dir="rtl" className="dashboard-shell dashboard-consistent-shell bg-[#fdfbf7] animate-fadeIn">
+    <div dir="rtl" className="dashboard-shell dashboard-consistent-shell manara-enterprise animate-fadeIn">
       {/* ===== SIDEBAR ===== */}
        {mobileNavOpen && (
          <button

@@ -26,7 +26,7 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
   };
 
   return (
-    <div className="login-shell flex items-center justify-center bg-gradient-to-br from-rose-50 via-pink-50 to-orange-50 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom sm:p-4">
+    <div className="login-shell manara-enterprise flex items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-slate-200 animate-fadeIn relative safe-area-x safe-area-top safe-area-bottom sm:p-4">
       {/* floating decorations */}
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>❤️</div>
       <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>👨‍👩‍👧‍👦</div>

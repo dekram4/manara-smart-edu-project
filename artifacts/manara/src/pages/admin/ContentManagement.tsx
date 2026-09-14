@@ -47,17 +47,33 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const [availableLessons, setAvailableLessons] = useState<string[]>([]);
 
   /// يقرأ دروس وحدة من الشجرة الهرمية. خريطة `term.lessons` اختيارية،
-  /// فالوحدات التي لم تُعرَّف لها دروس تعيد قائمة فارغة ويبقى الحقل حراً.
-  const getLessonsFor = (unit: string): string[] => {
+  /// فالوحدات التي لم تُعرَّف لها دروس تعيد قائمة فارغة.
+  ///
+  /// المسار يُمرَّر صراحةً عند الحاجة لأن `setFormData` غير متزامن: عند فتح
+  /// محتوى للتعديل تكون `formData` ما زالت تحمل المسار السابق، فالقراءة منها
+  /// تعطي دروس وحدة أخرى.
+  const getLessonsFor = (
+    unit: string,
+    path?: { grade: string; atram: string; subject: string; term: string },
+  ): string[] => {
     if (!unit) return [];
+    const scope = path ?? formData;
     const configs = getFilteredHierarchicalConfigs();
-    const grade = configs.find((c: any) => c.grade === formData.grade);
-    const atram = grade?.atrams?.find((a: any) => a.atram === formData.atram);
-    const subject = atram?.subjects?.find((s: any) => s.subject === formData.subject);
-    const term = subject?.terms?.find((t: any) => t.term === formData.term);
+    const grade = configs.find((c: any) => c.grade === scope.grade);
+    const atram = grade?.atrams?.find((a: any) => a.atram === scope.atram);
+    const subject = atram?.subjects?.find((s: any) => s.subject === scope.subject);
+    const term = subject?.terms?.find((t: any) => t.term === scope.term);
     const lessons = term?.lessons?.[unit];
     return Array.isArray(lessons) ? lessons : [];
   };
+
+  /// يضمّ القيمة المحفوظة إلى الخيارات إن غابت عن الشجرة.
+  ///
+  /// محتوى نُشر قبل أن يصبح الدرس إلزامياً قد يحمل اسماً حُذف من الإعدادات
+  /// لاحقاً؛ بدون هذا يفتح النموذج على قائمة فارغة فيبدو أن الدرس ضاع، وأي
+  /// حفظ يمحوه فعلاً.
+  const withCurrentValue = (options: string[], current: string): string[] =>
+    current && !options.includes(current) ? [current, ...options] : options;
 
   useEffect(() => {
     // تحميل المعلمين إذا كان المشرف
@@ -225,6 +241,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       return;
     }
 
+    // الدرس مستوى إلزامي كبقية الخمسة: محتوى بلا درس يصل الطالب على مستوى
+    // الوحدة فيختلط بدروس أخرى، وهو بالضبط ما يمنعه هذا الشرط.
+    if (!formData.lesson.trim()) {
+      alert('يرجى اختيار الدرس التابع للوحدة');
+      return;
+    }
+
     const ownerId = editingLesson?.createdBy ||
       teacherId ||
       (selectedTeacherId === 'admin' ? 'admin' : selectedTeacherId) ||
@@ -388,6 +411,17 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           const termConfig = subjectConfig.terms.find((t: any) => t.term === lesson.term);
           if (termConfig) {
             setAvailableUnits(termConfig.units);
+            setAvailableLessons(
+              withCurrentValue(
+                getLessonsFor(lesson.unit, {
+                  grade: lesson.grade,
+                  atram: lesson.atram,
+                  subject: lesson.subject,
+                  term: lesson.term,
+                }),
+                lesson.lesson || '',
+              ),
+            );
           }
         }
       }
@@ -634,21 +668,37 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   الوحدة ← الدرس. قبل هذا الحقل كانت الوحدة تحمل درساً
                   واحداً فقط، فلا يمكن وضع درسين في وحدة واحدة إطلاقاً.
 
-                  حقل حر مع قائمة اقتراحات لا قائمة مغلقة: الأسماء المقترحة
-                  هي ما عرّفه المعلم في الإعدادات الأكاديمية، لكن من لم
-                  يعرّف دروساً بعد يجب أن يبقى قادراً على الحفظ. */}
-              <input
-                list="content-lesson-options"
+                  قائمة مغلقة كبقية المستويات الخمسة ومصدرها الوحيد شجرة
+                  الإعدادات الأكاديمية: اسم مكتوب بحرية لا يطابق ما في
+                  الشجرة يُنتج درساً لا يظهر للطالب في شاشة المسار، وهو
+                  عطل صامت. من لم يعرّف دروساً بعد يراه فارغاً مع تنبيه
+                  يدله على مكان الإضافة. */}
+              <select
                 value={formData.lesson}
-                onChange={e => setFormData({ ...formData, lesson: e.target.value })}
+                onChange={e => {
+                  // مسح رسالة الخطأ المخصّصة، وإلا بقي الحقل غير صالح في
+                  // نظر المتصفح حتى بعد اختيار درس صحيح.
+                  e.currentTarget.setCustomValidity('');
+                  setFormData({ ...formData, lesson: e.target.value });
+                }}
+                // تحقّق المتصفح يسبق `handleSubmit` فلا تظهر رسالتنا أبداً؛
+                // رسالته العامة «يُرجى اختيار عنصر من القائمة» لا تقول أي
+                // حقل ولا لماذا. هذه تستبدلها بالنص المطلوب حرفياً.
+                onInvalid={e => e.currentTarget.setCustomValidity('يرجى اختيار الدرس التابع للوحدة')}
                 className="dashboard-content-control"
-                placeholder="الدرس (اكتبه أو اختر من قائمة الإعدادات)"
+                required
                 disabled={!formData.unit}
-              />
-              <datalist id="content-lesson-options">
-                {availableLessons.map((o, i) => <option key={i} value={o} />)}
-              </datalist>
+              >
+                <option value="">الدرس</option>
+                {availableLessons.map((o, i) => <option key={i} value={o}>{o}</option>)}
+              </select>
              </div>
+             {formData.unit && availableLessons.length === 0 && (
+               <p className="dashboard-content-hint dashboard-content-hint-warning">
+                 ⚠️ لا توجد دروس معرّفة في هذه الوحدة. أضفها أولاً من «الإعدادات
+                 الأكاديمية ← الخطوة 6: اختر وحدة وأضف درساً»، ثم عد إلى هنا.
+               </p>
+             )}
              </div>
 
              <div className="dashboard-content-form-section">

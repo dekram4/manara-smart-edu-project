@@ -1328,13 +1328,19 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   tabs: {
     display: 'flex',
+    // بدون الالتفاف كان التبويبان صفاً واحداً لا ينكسر، فيُقتطع الثاني
+    // بمقدار 105 بكسل خلف حدّ المحتوى على شاشة 375 بكسل — الزر موجود
+    // ولا يمكن الوصول إليه لأن الحاوية تخفي الفائض ولا تمرّره.
+    flexWrap: 'wrap',
     gap: '10px',
     marginBottom: '20px',
     borderBottom: '2px solid #e5e7eb'
   },
   tab: {
-    padding: '15px 30px',
-    fontSize: '1.1rem',
+    flex: '1 1 auto',
+    minWidth: 0,
+    padding: '15px clamp(12px, 4vw, 30px)',
+    fontSize: 'clamp(0.95rem, 3.4vw, 1.1rem)',
     fontWeight: 'bold',
     backgroundColor: 'transparent',
     border: 'none',

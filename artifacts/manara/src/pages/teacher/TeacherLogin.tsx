@@ -143,7 +143,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
 
   if (showChangePassword && currentTeacher) {
     return (
-      <div className="login-shell flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 sm:p-4 relative safe-area-x safe-area-top safe-area-bottom">
+      <div className="login-shell manara-enterprise flex items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-slate-200 sm:p-4 relative safe-area-x safe-area-top safe-area-bottom">
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '5%', top: '10%' }}>🔐</div>
         <div className="absolute text-4xl opacity-30 select-none pointer-events-none animate-float" style={{ left: '90%', top: '15%', animationDelay: '0.5s' }}>⭐</div>
 

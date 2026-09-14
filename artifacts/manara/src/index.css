@@ -3168,3 +3168,239 @@ body,
     padding-inline: 0 !important;
   }
 }
+
+/* ==========================================================================
+   الهوية البصرية الرسمية الموحدة — Enterprise Modern Palette
+   ==========================================================================
+
+   الأدوار الثلاثة (المعلم، المشرف، ولي الأمر) كان لكل واحد منها لون مختلف:
+   المعلم برتقالي فاقع (amber/orange)، وولي الأمر وردي (rose/pink)، والمشرف
+   كحلي. النتيجة ثلاثة منتجات تبدو غير مترابطة.
+
+   التوحيد هنا يتم بإعادة تعريف متغيرات ألوان Tailwind داخل نطاق واحد، بدل
+   تعديل مئات الأصناف في ملفات JSX. الأداة تولّد
+   background-color: var(--color-amber-500) وليس القيمة الحرفية، فإعادة
+   تعريف المتغير داخل .manara-enterprise تتسلسل إلى كل عنصر بداخله — بما
+   في ذلك التدرجات والحدود والحلقات والظلال.
+
+   والنطاق مقصود: صفحات الطالب تستعمل نفس الأصناف عمداً لأن واجهته طفولية
+   مرحة، ولا يجوز أن يطالها هذا التهدئة. لذلك لا يوضع أي من هذا في @theme
+   العام الذي يشمل التطبيق كله.
+
+   الخريطة الدلالية:
+     الأساسي  ← كحلي أزرق ملكي   #1E3A8A / #2563EB
+     المحايد  ← رمادي هادئ       #F8FAFC / #F1F5F9 … #1E293B / #0F172A
+     النجاح   ← أخضر متزن        #059669
+     الخطر    ← أحمر متزن        #DC2626                                    */
+
+.manara-enterprise {
+  /* ——— الأساسي: كل ما كان برتقالياً أو وردياً يصبح كحلياً ملكياً ——— */
+  --enterprise-primary-50: #eff6ff;
+  --enterprise-primary-100: #dbeafe;
+  --enterprise-primary-200: #bfdbfe;
+  --enterprise-primary-300: #93c5fd;
+  --enterprise-primary-400: #60a5fa;
+  --enterprise-primary-500: #3b82f6;
+  --enterprise-primary-600: #2563eb;
+  --enterprise-primary-700: #1d4ed8;
+  --enterprise-primary-800: #1e3a8a;
+  --enterprise-primary-900: #172554;
+  --enterprise-primary-950: #0f172a;
+
+  /* amber — لون المعلم السابق */
+  --color-amber-50: var(--enterprise-primary-50);
+  --color-amber-100: var(--enterprise-primary-100);
+  --color-amber-200: var(--enterprise-primary-200);
+  --color-amber-300: var(--enterprise-primary-300);
+  --color-amber-400: var(--enterprise-primary-400);
+  --color-amber-500: var(--enterprise-primary-500);
+  --color-amber-600: var(--enterprise-primary-600);
+  --color-amber-700: var(--enterprise-primary-700);
+  --color-amber-800: var(--enterprise-primary-800);
+  --color-amber-900: var(--enterprise-primary-900);
+  --color-amber-950: var(--enterprise-primary-950);
+
+  /* orange */
+  --color-orange-50: var(--enterprise-primary-50);
+  --color-orange-100: var(--enterprise-primary-100);
+  --color-orange-200: var(--enterprise-primary-200);
+  --color-orange-300: var(--enterprise-primary-300);
+  --color-orange-400: var(--enterprise-primary-400);
+  --color-orange-500: var(--enterprise-primary-500);
+  --color-orange-600: var(--enterprise-primary-600);
+  --color-orange-700: var(--enterprise-primary-700);
+  --color-orange-800: var(--enterprise-primary-800);
+  --color-orange-900: var(--enterprise-primary-900);
+  --color-orange-950: var(--enterprise-primary-950);
+
+  /* yellow */
+  --color-yellow-50: var(--enterprise-primary-50);
+  --color-yellow-100: var(--enterprise-primary-100);
+  --color-yellow-200: var(--enterprise-primary-200);
+  --color-yellow-300: var(--enterprise-primary-300);
+  --color-yellow-400: var(--enterprise-primary-400);
+  --color-yellow-500: var(--enterprise-primary-500);
+  --color-yellow-600: var(--enterprise-primary-600);
+  --color-yellow-700: var(--enterprise-primary-700);
+  --color-yellow-800: var(--enterprise-primary-800);
+  --color-yellow-900: var(--enterprise-primary-900);
+  --color-yellow-950: var(--enterprise-primary-950);
+
+  /* rose — لون ولي الأمر السابق */
+  --color-rose-50: var(--enterprise-primary-50);
+  --color-rose-100: var(--enterprise-primary-100);
+  --color-rose-200: var(--enterprise-primary-200);
+  --color-rose-300: var(--enterprise-primary-300);
+  --color-rose-400: var(--enterprise-primary-400);
+  --color-rose-500: var(--enterprise-primary-500);
+  --color-rose-600: var(--enterprise-primary-600);
+  --color-rose-700: var(--enterprise-primary-700);
+  --color-rose-800: var(--enterprise-primary-800);
+  --color-rose-900: var(--enterprise-primary-900);
+  --color-rose-950: var(--enterprise-primary-950);
+
+  /* pink */
+  --color-pink-50: var(--enterprise-primary-50);
+  --color-pink-100: var(--enterprise-primary-100);
+  --color-pink-200: var(--enterprise-primary-200);
+  --color-pink-300: var(--enterprise-primary-300);
+  --color-pink-400: var(--enterprise-primary-400);
+  --color-pink-500: var(--enterprise-primary-500);
+  --color-pink-600: var(--enterprise-primary-600);
+  --color-pink-700: var(--enterprise-primary-700);
+  --color-pink-800: var(--enterprise-primary-800);
+  --color-pink-900: var(--enterprise-primary-900);
+  --color-pink-950: var(--enterprise-primary-950);
+
+  /* fuchsia */
+  --color-fuchsia-50: var(--enterprise-primary-50);
+  --color-fuchsia-100: var(--enterprise-primary-100);
+  --color-fuchsia-200: var(--enterprise-primary-200);
+  --color-fuchsia-300: var(--enterprise-primary-300);
+  --color-fuchsia-400: var(--enterprise-primary-400);
+  --color-fuchsia-500: var(--enterprise-primary-500);
+  --color-fuchsia-600: var(--enterprise-primary-600);
+  --color-fuchsia-700: var(--enterprise-primary-700);
+  --color-fuchsia-800: var(--enterprise-primary-800);
+  --color-fuchsia-900: var(--enterprise-primary-900);
+  --color-fuchsia-950: var(--enterprise-primary-950);
+
+  /* purple — لون المشرف، يُضبط على نفس المرساة الرسمية */
+  --color-purple-50: var(--enterprise-primary-50);
+  --color-purple-100: var(--enterprise-primary-100);
+  --color-purple-200: var(--enterprise-primary-200);
+  --color-purple-300: var(--enterprise-primary-300);
+  --color-purple-400: var(--enterprise-primary-400);
+  --color-purple-500: var(--enterprise-primary-500);
+  --color-purple-600: var(--enterprise-primary-600);
+  --color-purple-700: var(--enterprise-primary-700);
+  --color-purple-800: var(--enterprise-primary-800);
+  --color-purple-900: var(--enterprise-primary-900);
+  --color-purple-950: var(--enterprise-primary-950);
+
+  /* violet */
+  --color-violet-50: var(--enterprise-primary-50);
+  --color-violet-100: var(--enterprise-primary-100);
+  --color-violet-200: var(--enterprise-primary-200);
+  --color-violet-300: var(--enterprise-primary-300);
+  --color-violet-400: var(--enterprise-primary-400);
+  --color-violet-500: var(--enterprise-primary-500);
+  --color-violet-600: var(--enterprise-primary-600);
+  --color-violet-700: var(--enterprise-primary-700);
+  --color-violet-800: var(--enterprise-primary-800);
+  --color-violet-900: var(--enterprise-primary-900);
+  --color-violet-950: var(--enterprise-primary-950);
+
+  /* ——— النجاح والحفظ: أخضر هادئ مرساته #059669 ——— */
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065f46;
+  --color-emerald-900: #064e3b;
+  --color-emerald-950: #022c22;
+
+  --color-green-50: #ecfdf5;
+  --color-green-100: #d1fae5;
+  --color-green-200: #a7f3d0;
+  --color-green-300: #6ee7b7;
+  --color-green-400: #34d399;
+  --color-green-500: #10b981;
+  --color-green-600: #059669;
+  --color-green-700: #047857;
+  --color-green-800: #065f46;
+  --color-green-900: #064e3b;
+  --color-green-950: #022c22;
+
+  /* ——— الحذف والتنبيه: أحمر متزن مرساته #DC2626 ——— */
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-red-900: #7f1d1d;
+  --color-red-950: #450a0a;
+
+  /* ——— المحايد: رمادي رسمي هادئ ——— */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
+}
+
+/* خلفية الصفحة. اللون البيج الدافئ #fdfbf7 مكتوب حرفياً داخل كل قشرة، فلا
+   يطاله تبديل المتغيرات أعلاه؛ الأرضية الرسمية رمادية باردة. */
+.manara-enterprise.dashboard-shell,
+.manara-enterprise .dashboard-main {
+  background-color: #f1f5f9;
+}
+
+/* أسطح موحدة عبر الأدوار الثلاثة */
+.manara-enterprise .dashboard-surface,
+.manara-enterprise .dashboard-table-surface,
+.manara-enterprise .dashboard-filter-surface,
+.manara-enterprise .dashboard-content-form-surface,
+.manara-enterprise .dashboard-content-table-surface {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+}
+
+/* القائمة الجانبية لا تحتاج قاعدة هنا: قاعدة .dashboard-sidebar أعلاه تفرض
+   التدرّج الكحلي بـ !important على الأدوار الثلاثة أصلاً. أي قاعدة إضافية
+   في هذا النطاق ستكون ميتة. */
+
+/* تنبيه الحقل الإلزامي الفارغ — أحمر الحالة لا تحذير برتقالي */
+.dashboard-content-hint-warning {
+  color: #b91c1c;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.7;
+}

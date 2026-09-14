@@ -176,7 +176,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <div dir="rtl" className="dashboard-shell bg-[#fdfbf7] animate-fadeIn">
+    <div dir="rtl" className="dashboard-shell manara-enterprise animate-fadeIn">
       {/* Sidebar */}
        {mobileNavOpen && (
          <button
