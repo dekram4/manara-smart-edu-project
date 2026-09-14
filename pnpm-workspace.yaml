@@ -100,6 +100,10 @@ overrides:
   lightningcss>lightningcss-linux-x64-musl: '-'
   lightningcss>lightningcss-win32-arm64-msvc: '-'
   lightningcss>lightningcss-win32-x64-msvc: '-'
+  # ثغرتان متوسطتان في qs تحت express: تجاوز حدّ المصفوفات
+  # وحرمان الخدمة. وهي المسار الوحيد من الاعتماديات الذي يصل الإنتاج
+  # فعلاً — يحلّل استعلامات يتحكّم بها المهاجم.
+  qs: '>=6.16.0'
   rollup>@rollup/rollup-android-arm-eabi: '-'
   rollup>@rollup/rollup-android-arm64: '-'
   rollup>@rollup/rollup-darwin-arm64: '-'

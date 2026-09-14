@@ -1317,6 +1317,9 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     final wasPlaying = controller.value.isPlaying;
     final position = controller.value.position;
     await controller.pause();
+    // الإيقاف فجوة غير متزامنة: لو غادر الطالب الشاشة أثناءها صار
+    // `context` معزولاً عن الشجرة، و`Navigator.of` عليه يرمي استثناءً.
+    if (!mounted) return;
     final result = await Navigator.of(context).push<_FullscreenPlaybackState>(
       StudentPageRoute<_FullscreenPlaybackState>(
         builder: (_) => _FullscreenNetworkVideoScreen(

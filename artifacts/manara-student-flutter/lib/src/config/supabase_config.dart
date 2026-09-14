@@ -7,19 +7,22 @@ class SupabaseConfig {
     this.apiBaseUrl = '',
   });
 
+  /// يُقرأ من بيئة البناء وحدها — بلا قيمة افتراضية مكتوبة في الشيفرة.
+  ///
+  /// كان المفتاح مكتوباً هنا صراحةً كـ `defaultValue`، والمستودع عام، فكان
+  /// منشوراً للجميع وصالحاً حتى 2036. حذفُه يمنع تسرّب المفتاح التالي.
+  ///
+  /// ولا يُغني حذفُه عن تشديد RLS: مفتاح anon يُستخرَج من أي APK بفكّ ضغطه،
+  /// فهو معلوم للمهاجم في كل الأحوال. حمايته الحقيقية أن يكون عديم الأثر —
+  /// وذلك ما يفعله `scripts/harden-rls.sql`، لا الإخفاء.
+  ///
+  /// التمرير عند البناء:
+  ///   flutter build apk --release \
+  ///     --dart-define=SUPABASE_URL=... \
+  ///     --dart-define=SUPABASE_ANON_KEY=...
   const SupabaseConfig.fromEnvironment()
-      : url = const String.fromEnvironment(
-          'SUPABASE_URL',
-          defaultValue: 'https://kpqlotlyniomssnzcgqn.supabase.co',
-        ),
-        anonKey = const String.fromEnvironment(
-          'SUPABASE_ANON_KEY',
-          defaultValue:
-              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIs'
-              'InJlZiI6ImtwcWxvdGx5bmlvbXNzbnpjZ3FuIiwicm9sZSI6ImFub24iLCJpYXQi'
-              'OjE3ODcxMzcxNjIsImV4cCI6MjEwMjcxMzE2Mn0.AHZ5vsoBNQ6cemiswQksEe91'
-              'M1IQRU3RsAtDINNymkg',
-        ),
+      : url = const String.fromEnvironment('SUPABASE_URL'),
+        anonKey = const String.fromEnvironment('SUPABASE_ANON_KEY'),
         apiBaseUrl = const String.fromEnvironment(
           'API_BASE_URL',
           // Flutter Web's development server runs on a random localhost port,

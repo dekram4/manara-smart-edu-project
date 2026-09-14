@@ -65,8 +65,21 @@ jobs:
         working-directory: artifacts/manara-student-flutter
 
       - name: Build APK
-        run: flutter build apk --release
+        # المفاتيح تُحقن عند البناء من أسرار المستودع، ولم تعد مكتوبة في
+        # الشيفرة كقيم افتراضية — المستودع عام، فكل قيمة افتراضية فيه منشورة.
+        #
+        # وإن غاب أي سرّ، يُبنى التطبيق ويعرض شاشة «الإعدادات ناقصة» بدل أن
+        # ينهار: `SupabaseConfig.isConfigured` تتكفّل بذلك.
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
         working-directory: artifacts/manara-student-flutter
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
 
       - name: Upload APK Artifact
         # v6 rather than v5: v5 is still a Node 20 action, so it would have

@@ -204,9 +204,34 @@ function savePending(ops: PendingOp[]): void {
   nativeSetItem(PENDING_KEY, JSON.stringify(ops));
 }
 
+/**
+ * أقصى عدد عمليات في الطابور.
+ *
+ * الطابور يعيش في `localStorage` وسعتها 5–10 ميجابايت للأصل كله. جلسة طويلة
+ * بلا خادم كانت تضيف بلا حدّ حتى تمتلئ، فترمي `QuotaExceededError` — وعندها
+ * تتعطّل **الكتابة المحلية نفسها** لا المزامنة وحدها، فيفقد المستخدم عمله
+ * الحاضر أيضاً. السقف يجعل الفشل مقيّداً ومعروفاً بدل أن يكون كارثياً
+ * ومفاجئاً.
+ */
+const MAX_PENDING_OPS = 100;
+
 function appendPending(op: PendingOp): void {
   const ops = loadPending();
   ops.push(op);
+  if (ops.length > MAX_PENDING_OPS) {
+    // يُسقَط الأقدم لا الأحدث: الأحدث يحمل آخر ما كتبه المستخدم، وهو ما
+    // يريد وصوله. والأقدم في جدول الصفوف غالباً مُتجاوَز أصلاً لأن الكتابة
+    // التالية على الصف نفسه تحمل حالته الكاملة.
+    const dropped = ops.length - MAX_PENDING_OPS;
+    ops.splice(0, dropped);
+    console.warn(
+      `[sync] الطابور بلغ ${MAX_PENDING_OPS} عملية — أُسقطت ${dropped} من أقدمها. ` +
+        'تحقّق من اتصال الخادم؛ بعض التعديلات القديمة لن تصل.',
+    );
+    reportFailure('dropped', 'طابور المزامنة', new Error(
+      `تجاوز الطابور ${MAX_PENDING_OPS} عملية؛ أُسقطت ${dropped} من أقدم التعديلات ولن تصل إلى الخادم.`,
+    ));
+  }
   savePending(ops);
 }
 
