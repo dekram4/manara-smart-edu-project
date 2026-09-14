@@ -236,6 +236,12 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   /// أسماء الدروس المعرّفة للوحدة المختارة في الإعدادات الأكاديمية.
   const [availableLessons, setAvailableLessons] = useState<string[]>([]);
 
+  // 🔎 فلاتر قائمة الاختبارات المنشأة
+  const [listSearch, setListSearch] = useState('');
+  const [listSubject, setListSubject] = useState('all');
+  const [listGrade, setListGrade] = useState('all');
+  const [listStatus, setListStatus] = useState<'all' | 'active' | 'locked'>('all');
+
   // 📝 محتوى الدرس المسحوب
   const [lessonContent, setLessonContent] = useState('');
   const [lessonFound, setLessonFound] = useState(false);
@@ -859,6 +865,32 @@ ${contentSummary}
     setEditingQuestion(null);
   };
 
+  /// خيارات الفلاتر مشتقّة من الاختبارات الموجودة فعلاً، لا من قوائم ثابتة:
+  /// فلا يعرض الفلتر صفاً أو مادة لا اختبار فيها.
+  const listFilterOptions = {
+    subjects: uniqueAcademicValues(createdQuizzes.map(q => q.subject)),
+    grades: uniqueAcademicValues(createdQuizzes.map(q => q.grade)),
+  };
+
+  const visibleQuizzes = createdQuizzes.filter(quiz => {
+    const needle = listSearch.trim().toLowerCase();
+    if (needle) {
+      const haystack = [quiz.title, quiz.unit, quiz.lesson, quiz.createdByName]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+    if (listSubject !== 'all' && quiz.subject !== listSubject) return false;
+    if (listGrade !== 'all' && quiz.grade !== listGrade) return false;
+    if (listStatus === 'active' && !quiz.isActive) return false;
+    if (listStatus === 'locked' && quiz.isActive) return false;
+    return true;
+  });
+
+  const listFiltersActive =
+    Boolean(listSearch.trim()) || listSubject !== 'all' || listGrade !== 'all' || listStatus !== 'all';
+
   const handleEdit = (quiz: CreatedQuiz) => {
     setEditingQuiz(quiz);
     // ربط المعلم الأصلي بالاختبار
@@ -1331,8 +1363,58 @@ ${contentSummary}
       {/* 📋 قائمة الاختبارات المنشأة */}
       <div className="space-y-4">
         <h2 className="text-2xl font-black text-purple-900">
-          📚 الاختبارات المنشأة ({createdQuizzes.length})
+          📚 الاختبارات المنشأة ({visibleQuizzes.length}
+          {listFiltersActive ? ` من ${createdQuizzes.length}` : ''})
         </h2>
+
+        {/* 🔎 شريط الفلاتر — يظهر فقط حين يوجد ما يُفلتَر. */}
+        {createdQuizzes.length > 0 && (
+          <div className="dashboard-filter-surface">
+            <div className="dashboard-filter-grid dashboard-filter-grid-wide">
+              <input
+                type="search"
+                value={listSearch}
+                onChange={e => setListSearch(e.target.value)}
+                placeholder="🔎 ابحث بالاسم أو الوحدة أو الدرس"
+                className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              />
+              <select
+                value={listSubject}
+                onChange={e => setListSubject(e.target.value)}
+                className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
+              >
+                <option value="all">📖 كل المواد</option>
+                {listFilterOptions.subjects.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+              <select
+                value={listGrade}
+                onChange={e => setListGrade(e.target.value)}
+                className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
+              >
+                <option value="all">🎓 كل الصفوف</option>
+                {listFilterOptions.grades.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+              <select
+                value={listStatus}
+                onChange={e => setListStatus(e.target.value as 'all' | 'active' | 'locked')}
+                className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
+              >
+                <option value="all">🔁 كل الحالات</option>
+                <option value="active">✅ نشط</option>
+                <option value="locked">🔒 مقفل</option>
+              </select>
+            </div>
+            {listFiltersActive && (
+              <button
+                type="button"
+                onClick={() => { setListSearch(''); setListSubject('all'); setListGrade('all'); setListStatus('all'); }}
+                className="mt-3 rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-200"
+              >
+                مسح الفلاتر
+              </button>
+            )}
+          </div>
+        )}
 
         {createdQuizzes.length === 0 ? (
           <div className="p-32 text-center bg-white rounded-[40px] border-2 border-dashed border-purple-200">
@@ -1341,8 +1423,13 @@ ${contentSummary}
             <p className="text-purple-400">ابدأ بإنشاء اختبار جديد</p>
           </div>
         ) : (
+          visibleQuizzes.length === 0 ? (
+           <div className="dashboard-record-card text-center font-bold italic text-slate-400">
+             لا توجد اختبارات مطابقة للفلاتر المحددة
+           </div>
+         ) : (
            <div className="dashboard-record-grid">
-            {createdQuizzes.map(quiz => (
+            {visibleQuizzes.map(quiz => (
                <article key={quiz.id} className="dashboard-record-card">
                 {/* ===== الترويسة: العنوان والحالة في جهة، الإجراءات في جهة =====
                     كان الاثنان في صفّ `justify-between` واحد مع عمود الأزرار،
@@ -1471,6 +1558,7 @@ ${contentSummary}
               </article>
             ))}
           </div>
+         )
         )}
       </div>
     </div>

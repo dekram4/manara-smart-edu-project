@@ -266,24 +266,20 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
       className="role-selection-shell relative flex min-h-screen w-full select-none flex-col items-center justify-center overflow-hidden p-5 font-tajawal"
       dir="rtl"
     >
-      {/* ─── Rich gradient background ─── */}
+      {/* ─── الخلفية: تدرّج كحلي/رمادي هادئ ───
+          كانت أربع محطات بين الأسود والبنفسجي (#04041a → #0d0b33 → …) مع
+          ثلاث هالات نابضة وشبكة خطوط رمادية باهتة فوق كل شيء. الشبكة تحديداً
+          هي «الخطوط الشاحبة» المُتعبة للعين: خطوط بسُمك بكسل واحد بشفافية
+          0.07 تهتزّ على حافة الإدراك.
+
+          التدرّج هنا محطتان من عائلة slate الرسمية، وهالتان ساكنتان بلا
+          نبض تعطيان عمقاً دون ضوضاء. */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[linear-gradient(145deg,_#04041a_0%,_#0d0b33_40%,_#0a1628_70%,_#03051a_100%)]" />
-        {/* animated nebula orbs */}
-        <div className="absolute -left-32 top-0 h-[42vw] w-[42vw] max-h-[520px] max-w-[520px] animate-pulse rounded-full bg-indigo-600/18 blur-[80px]" />
-        <div className="absolute -right-24 bottom-0 h-[38vw] w-[38vw] max-h-[480px] max-w-[480px] animate-pulse rounded-full bg-purple-600/15 blur-[80px]" style={{ animationDelay: '1.2s' }} />
-        <div className="absolute left-1/2 top-1/4 h-[26vw] w-[26vw] max-h-[320px] max-w-[320px] -translate-x-1/2 animate-pulse rounded-full bg-cyan-500/8 blur-[60px]" style={{ animationDelay: '2.4s' }} />
-        {/* grid overlay */}
-        <div
-          className="absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(148,163,184,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.5) 1px, transparent 1px)',
-            backgroundSize: '52px 52px',
-          }}
-        />
-        {/* top-centre radial highlight */}
-        <div className="absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(129,140,248,0.2),transparent)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(160deg,_#0f172a_0%,_#1e293b_45%,_#0f172a_100%)]" />
+        <div className="absolute -left-32 top-0 h-[42vw] w-[42vw] max-h-[520px] max-w-[520px] rounded-full bg-blue-600/12 blur-[90px]" />
+        <div className="absolute -right-24 bottom-0 h-[38vw] w-[38vw] max-h-[480px] max-w-[480px] rounded-full bg-slate-500/10 blur-[90px]" />
+        {/* إضاءة علوية خفيفة تمنح عمقاً دون أن تُحدث حدّاً مرئياً. */}
+        <div className="absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(37,99,235,0.16),transparent)]" />
         {/* Floating educational objects: each has its own orbit, glow, motion and label. */}
         <FloatingLearningObject icon="📚" label="القراءة" color="#818cf8" left="4%" top="17%" delay={0} duration={6.4} size="lg" hiddenOnMobile />
         <FloatingLearningObject icon="✏️" label="الإبداع" color="#93c5fd" left="89%" top="14%" delay={0.7} duration={5.8} size="md" hiddenOnMobile />
@@ -323,35 +319,30 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               onMouseEnter={() => { setHoveredId(role.id); GameAudioEngine.play('uiHover'); }}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => { GameAudioEngine.play('uiSelect'); handlers[role.id](); }}
-                className="role-selection-card group relative min-h-48 overflow-hidden text-right sm:min-h-56"
+                className={`role-selection-card group relative min-h-48 overflow-hidden text-center sm:min-h-56
+                  border backdrop-blur-md transition-all duration-300
+                  ${isHovered
+                    ? 'border-blue-500/50 shadow-2xl shadow-blue-500/10'
+                    : 'border-slate-700/60 shadow-lg shadow-slate-950/40'}`}
               style={{
-                 borderRadius: '30px',
-                 border: `1px solid rgba(255,255,255,${isHovered ? 0.24 : 0.11})`,
-                 transition: 'border-color 0.3s, box-shadow 0.3s, transform 0.3s',
-                boxShadow: isHovered
-                   ? `0 0 0 1px ${role.glowColor}, 0 24px 72px ${role.glowColor}, 0 12px 30px rgba(0,0,0,0.52), inset 0 1px 0 rgba(255,255,255,0.2)`
-                   : '0 14px 38px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.1)',
+                borderRadius: '1rem',
+                // زجاجية حقيقية: لون شبه شفاف فوق الخلفية مع `backdrop-blur`.
+                // الطبقات المصمتة السابقة كانت تحجب ما خلفها فيضيع الأثر.
+                backgroundColor: isHovered
+                  ? 'rgb(15 23 42 / 0.55)'
+                  : 'rgb(15 23 42 / 0.40)',
               }}
             >
-              {/* Card background */}
+              {/* لمسة لون خافتة من هوية الدور — تكفي للتمييز دون أن تُخرجه
+                  عن العائلة الكحلية. */}
               <div
-                className="absolute inset-0"
+                className="pointer-events-none absolute inset-0 transition-opacity duration-300"
                 style={{
-                  background: `
-                    linear-gradient(145deg, ${role.palette.from}28 0%, ${role.palette.via}18 50%, ${role.palette.to}12 100%),
-                    linear-gradient(180deg, rgba(15,15,35,0.92) 0%, rgba(8,8,24,0.96) 100%)
-                  `,
+                  background: `radial-gradient(circle at 50% 0%, ${role.palette.to}22, transparent 62%)`,
+                  opacity: isHovered ? 1 : 0.6,
                   borderRadius: 'inherit',
                 }}
               />
-
-               {/* Deep color wash for the game-like card surface */}
-               <div
-                 className="pointer-events-none absolute inset-0 opacity-70"
-                 style={{
-                   background: `radial-gradient(circle at 85% 35%, ${role.palette.via}38, transparent 42%), radial-gradient(circle at 15% 100%, ${role.palette.to}20, transparent 48%)`,
-                 }}
-               />
 
                {/* SVG illustration — large atmospheric art behind the role icon */}
               <div
@@ -360,15 +351,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 {role.svgIllustration}
               </div>
 
-               {/* Decorative game HUD corner brackets */}
-               <div
-                 className="pointer-events-none absolute right-4 top-4 h-5 w-5 border-r-2 border-t-2 opacity-50"
-                 style={{ borderColor: role.accentLight }}
-               />
-               <div
-                 className="pointer-events-none absolute bottom-4 left-4 h-5 w-5 border-b-2 border-l-2 opacity-35"
-                 style={{ borderColor: role.accentLight }}
-               />
+              {/* أقواس الزوايا الزخرفية أُزيلت: خطوط بشفافية 35–50٪ على حافة
+                  الإدراك، وهي من «الخطوط الشاحبة» التي تُتعب العين دون أن
+                  تضيف معنى. */}
 
               {/* Shimmer sweep on hover */}
               <div
@@ -398,8 +383,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 }}
               />
 
-               {/* Card content: large focal icon + readable mission copy */}
-               <div className="relative z-10 flex h-full items-center gap-4 p-5 sm:gap-6 sm:p-6">
+               {/* المحتوى في منتصف البطاقة: الأيقونة فوق الاسم، بمحاذاة
+                   وسطية وحشوة مريحة متساوية على الجهات. */}
+               <div className="relative z-10 flex h-full flex-col items-center justify-center gap-4 p-6 text-center sm:gap-5 sm:p-7">
                  {/* Role icon badge */}
                 <div
                    className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-[30px] text-[4.7rem] shadow-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg] sm:h-32 sm:w-32 sm:text-[5.5rem]"
@@ -436,7 +422,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 </div>
 
                 {/* Text block */}
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 w-full">
                   {/* Tag pill */}
                   <span
                      className="mb-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-widest shadow-lg"
@@ -458,14 +444,14 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                   >
                     {role.subtitle}
                   </p>
-                    <p className="mt-2 max-w-xs text-[13px] font-medium leading-relaxed text-slate-400 transition-colors group-hover:text-slate-200 sm:text-sm">
+                    <p className="mt-2 text-[13px] font-medium leading-relaxed text-slate-300 transition-colors group-hover:text-white sm:text-sm">
                     {role.description}
                   </p>
                 </div>
 
-                {/* Arrow indicator */}
+                {/* مؤشّر الدخول */}
                 <motion.div
-                  animate={isHovered ? { x: -4, scale: 1.15 } : { x: 0, scale: 1 }}
+                  animate={isHovered ? { y: 3, scale: 1.12 } : { y: 0, scale: 1 }}
                   transition={{ duration: 0.25 }}
                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl font-black transition-all duration-300"
                   style={{
@@ -488,7 +474,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.9 }}
-        className="relative z-10 mt-8 text-sm text-slate-600"
+        className="relative z-10 mt-8 text-sm text-slate-400"
       >
         منصة التعليم الذكي · التعلّم في كل مكان وزمان
       </motion.p>

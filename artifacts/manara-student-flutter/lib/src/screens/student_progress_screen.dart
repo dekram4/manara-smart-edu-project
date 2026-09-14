@@ -5,7 +5,6 @@ import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_settings.dart';
 import '../theme/student_theme.dart';
-import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 
 class StudentProgressScreen extends StatelessWidget {
@@ -29,121 +28,26 @@ class StudentProgressScreen extends StatelessWidget {
               title: tr('progress.title'),
               subtitle: tr('progress.subtitle'),
               icon: Icons.insights_rounded,
-              colors: [Color(0xFF0B8693), StudentSurface.ink(context)],
+              colors: [const Color(0xFF0B8693), StudentSurface.ink(context)],
             ),
             const SizedBox(height: 14),
-            const StudentEntrance(
-              delay: Duration(milliseconds: 40),
-              child: _ProgressAnimationCard(),
-            ),
-            const SizedBox(height: 14),
+            // الشاشة محصورة في الثلاثة التي تهمّ الطالب: الجواهر، ونقاط
+            // الخبرة، والمستوى — ثم عبارة تحفيزية تتغيّر بتغيّرها.
+            //
+            // أُزيلت بطاقة الشخصية وقائمة الإنجازات وملخّص (الدروس/الاختبارات/
+            // الألعاب/المتوسط): كانت تزاحم الأرقام الثلاثة وتدفعها أسفل الطيّة،
+            // والطالب يفتح هذه الشاشة ليرى رصيده لا ليقرأ تقريراً.
             StudentEntrance(child: _StatsCard(stats: stats)),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             StudentEntrance(
-              delay: const Duration(milliseconds: 80),
-              child: Text(tr('progress.achievements'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-            ),
-            const SizedBox(height: 10),
-            if (stats.achievements.isEmpty)
-              StudentEntrance(
-                delay: const Duration(milliseconds: 120),
-                child: Student3DCard(
-                  child: Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(22),
-                      child: Text(tr('progress.noAchievements'), textAlign: TextAlign.center),
-                    ),
-                  ),
-                ),
-              )
-            else
-              ...stats.achievements.asMap().entries.map((entry) => StudentEntrance(
-                    delay: Duration(milliseconds: 120 + (entry.key * 40)),
-                    child: Student3DCard(
-                      child: Card(
-                        child: ListTile(
-                          leading: Text(entry.value.icon, style: const TextStyle(fontSize: 30)),
-                          title: Text(entry.value.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                          subtitle: Text(entry.value.description),
-                        ),
-                      ),
-                    ),
-                  )),
-            const SizedBox(height: 18),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 240),
-              child: Text(tr('progress.summary'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-            ),
-            const SizedBox(height: 10),
-            StudentEntrance(
-              delay: const Duration(milliseconds: 280),
-              child: Student3DCard(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _SummaryRow(icon: Icons.quiz_rounded, label: tr('progress.quizzesDone'), value: '${stats.totalQuizzes}'),
-                        _SummaryRow(icon: Icons.menu_book_rounded, label: tr('progress.lessonsDone'), value: '${stats.totalLessons}'),
-                        _SummaryRow(icon: Icons.sports_esports_rounded, label: tr('progress.gamesDone'), value: '${stats.totalGames}'),
-                        _SummaryRow(icon: Icons.insights_rounded, label: tr('progress.quizAverage'), value: '${stats.averageScore}%'),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              delay: const Duration(milliseconds: 90),
+              child: _CheerCard(stats: stats),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-class _ProgressAnimationCard extends StatelessWidget {
-  const _ProgressAnimationCard();
-
-  @override
-  Widget build(BuildContext context) => Student3DCard(
-        child: Card(
-          color: const Color(0xFFE8F6F5),
-          elevation: 0,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(18, 10, 12, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tr('progress.yourCharacter'),
-                        style: const TextStyle(
-                          color: Color(0xFF0B5F69),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        tr('progress.encourage'),
-                        style: const TextStyle(
-                          color: Color(0xFF365B62),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Semantics(
-                  label: tr('progress.yourCharacter'),
-                  child: const StudentAvatarView(size: 100),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
 }
 
 class _StatsCard extends StatelessWidget {
@@ -183,14 +87,57 @@ class _StatsCard extends StatelessWidget {
       );
 }
 
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.icon, required this.label, required this.value});
-  final IconData icon;
-  final String label;
-  final String value;
+/// عبارة تشجيع تتبدّل بتبدّل رصيد الطالب.
+///
+/// ثابتة النص كانت ستفقد أثرها من ثاني زيارة؛ ربطها بالمستوى يجعلها تعترف
+/// بما أنجزه الطالب فعلاً.
+class _CheerCard extends StatelessWidget {
+  const _CheerCard({required this.stats});
+
+  final StudentGamification stats;
+
+  String get _message {
+    if (stats.level >= 5) return tr('progress.cheerHero');
+    if (stats.level >= 3) return tr('progress.cheerStrong');
+    if (stats.gems >= 10) return tr('progress.cheerGrowing');
+    return tr('progress.cheerStart');
+  }
+
+  /// كم جوهرة تفصل الطالب عن الدفعة التالية من نقاط الخبرة (كل 10 جواهر).
+  int get _gemsToNextReward => 10 - (stats.gems % 10);
+
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(children: [Icon(icon, color: const Color(0xFF0B8693)), const SizedBox(width: 10), Expanded(child: Text(label)), Text(value, style: const TextStyle(fontWeight: FontWeight.w900))]),
+  Widget build(BuildContext context) => Student3DCard(
+        child: Card(
+          color: StudentSurface.card(context),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    height: 1.6,
+                    fontWeight: FontWeight.w900,
+                    color: StudentSurface.ink(context),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  trf('progress.gemsToNext', {'gems': _gemsToNextReward}),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: StudentSurface.mutedInk(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
 }

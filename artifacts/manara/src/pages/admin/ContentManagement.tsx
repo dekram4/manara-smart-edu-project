@@ -23,6 +23,13 @@ interface ContentManagementProps {
 
 const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacherId, teacherName, permissionPackageId }) => {
   const [lessons, setLessons] = useState<LessonConfig[]>([]);
+
+  // 🔎 فلاتر قائمة المحتوى المنشور
+  const [listSearch, setListSearch] = useState('');
+  const [listSubject, setListSubject] = useState('all');
+  const [listGrade, setListGrade] = useState('all');
+  const [listKind, setListKind] = useState<'all' | 'video' | 'avatar' | 'meeting' | 'text'>('all');
+  const [listPublish, setListPublish] = useState<'all' | 'published' | 'empty'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingLesson, setEditingLesson] = useState<LessonConfig | null>(null);
   
@@ -375,6 +382,39 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     loadData();
     onUpdate();
   };
+
+  /// نوع المحتوى ليس حقلاً مخزّناً بل صفة مشتقّة مما عُبّئ فعلاً في السجل،
+  /// فالفلتر يسأل «ما الذي فيه» لا «كيف صُنّف».
+  const hasVideo = (l: LessonConfig) =>
+    Boolean(l.explanationVideoUrl) || getLessonExplanationVideos(l).length > 0;
+  const isPublished = (l: LessonConfig) =>
+    hasVideo(l) || Boolean(l.avatarInteractionUrl) || Boolean(l.liveMeetingUrl) || Boolean(l.lessonContent);
+
+  const listFilterOptions = {
+    subjects: Array.from(new Set(lessons.map(l => l.subject).filter(Boolean))),
+    grades: Array.from(new Set(lessons.map(l => l.grade).filter(Boolean))),
+  };
+
+  const visibleLessons = lessons.filter(l => {
+    const needle = listSearch.trim().toLowerCase();
+    if (needle) {
+      const haystack = [l.grade, l.atram, l.subject, l.term, l.unit, l.lesson, l.createdByName]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+    if (listSubject !== 'all' && l.subject !== listSubject) return false;
+    if (listGrade !== 'all' && l.grade !== listGrade) return false;
+    if (listKind === 'video' && !hasVideo(l)) return false;
+    if (listKind === 'avatar' && !l.avatarInteractionUrl) return false;
+    if (listKind === 'meeting' && !l.liveMeetingUrl) return false;
+    if (listKind === 'text' && !l.lessonContent) return false;
+    if (listPublish === 'published' && !isPublished(l)) return false;
+    if (listPublish === 'empty' && isPublished(l)) return false;
+    return true;
+  });
+
+  const listFiltersActive = Boolean(listSearch.trim()) || listSubject !== 'all'
+    || listGrade !== 'all' || listKind !== 'all' || listPublish !== 'all';
 
   const handleEdit = (lesson: LessonConfig) => {
     setEditingLesson(lesson);
@@ -831,6 +871,54 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
 
+      {/* 🔎 شريط فلاتر المحتوى */}
+      {lessons.length > 0 && (
+        <div className="dashboard-filter-surface" style={{ marginBottom: '1.5rem' }}>
+          <div className="dashboard-filter-grid dashboard-filter-grid-wide">
+            <input
+              type="search"
+              value={listSearch}
+              onChange={e => setListSearch(e.target.value)}
+              placeholder="🔎 ابحث في المسار الأكاديمي"
+              className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+            />
+            <select value={listSubject} onChange={e => setListSubject(e.target.value)}
+              className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
+              <option value="all">📖 كل المواد</option>
+              {listFilterOptions.subjects.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <select value={listGrade} onChange={e => setListGrade(e.target.value)}
+              className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
+              <option value="all">🎓 كل الصفوف</option>
+              {listFilterOptions.grades.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <select value={listKind} onChange={e => setListKind(e.target.value as typeof listKind)}
+              className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
+              <option value="all">🗂️ كل الأنواع</option>
+              <option value="video">🎬 فيديو شرح</option>
+              <option value="avatar">🤖 معلم افتراضي</option>
+              <option value="meeting">📹 اجتماع مباشر</option>
+              <option value="text">📝 نص الدرس</option>
+            </select>
+            <select value={listPublish} onChange={e => setListPublish(e.target.value as typeof listPublish)}
+              className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
+              <option value="all">🔁 كل الحالات</option>
+              <option value="published">✅ منشور</option>
+              <option value="empty">⚠️ بلا محتوى</option>
+            </select>
+          </div>
+          {listFiltersActive && (
+            <button
+              type="button"
+              onClick={() => { setListSearch(''); setListSubject('all'); setListGrade('all'); setListKind('all'); setListPublish('all'); }}
+              className="mt-3 rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-200"
+            >
+              مسح الفلاتر ({visibleLessons.length} من {lessons.length})
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ===== العرض الهجين: جدول على الشاشات الكبيرة، بطاقات دونها ===== */}
       <div className="dashboard-table-surface dashboard-content-records dashboard-content-table-surface dashboard-hybrid-table">
         <div className="dashboard-content-table-heading">
@@ -838,7 +926,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             <span>المحتوى المنشور</span>
             <h2>دروس المنصة</h2>
           </div>
-          <strong>{lessons.length} محتوى</strong>
+          <strong>{visibleLessons.length}{listFiltersActive ? ` من ${lessons.length}` : ''} محتوى</strong>
         </div>
         <table className="dashboard-content-table text-right">
           <thead className="dashboard-content-table-head">
@@ -855,7 +943,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             </tr>
           </thead>
           <tbody>
-            {lessons.map(l => (
+            {visibleLessons.map(l => (
               <tr key={l.id}>
                 <td className="px-6 py-5 font-black text-purple-800">{l.grade}</td>
                 <td className="px-6 py-5 font-bold text-purple-600">{l.subject}</td>
@@ -896,7 +984,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </div>
         ) : (
           <div className="dashboard-record-grid">
-            {lessons.map(l => (
+            {visibleLessons.map(l => (
               <article key={l.id} className="dashboard-record-card">
                 <header className="dashboard-record-head">
                   <div className="min-w-0 flex-1">

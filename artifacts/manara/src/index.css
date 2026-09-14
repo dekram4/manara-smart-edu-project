@@ -791,11 +791,21 @@ body,
   align-self: flex-start;
   flex: 0 0 16rem;
   width: 16rem;
-  min-height: 100vh;
-  height: auto;
-  max-height: none;
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* مقيَّدة بارتفاع الشاشة، لا `height: auto` مع `max-height: none`.
+   *
+   * كانت تنمو لتسع محتواها، فتبلغ 1151 بكسل داخل نافذة 900 — و`.dashboard-nav`
+   * لا يفيض أبداً لأن أباه يتّسع له، فلا يعمل `overflow-y: auto` فيه إطلاقاً.
+   * والقائمة `sticky` أطول من الشاشة لا سبيل لكشف أسفلها. النتيجة أن
+   * «التقارير» و«الشهادات» و«حسابي» و«تسجيل الخروج» تقع تحت الطيّة ولا
+   * تُدرَك بأي تمرير.
+   *
+   * التقييد هنا هو ما يجعل الفائض يقع داخل `.dashboard-nav` فيتكفّل به
+   * شريط تمريره. */
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
 }
 
 .dashboard-sidebar-header {
@@ -833,13 +843,23 @@ body,
   margin-top: 0 !important;
 }
 
+/* شريط تمرير نحيف داخل القائمة: ظاهر بما يكفي ليُعلم أن ثمة مزيداً أسفل،
+   وخافت بما يكفي ألا ينافس عناصر القائمة نفسها. */
 .dashboard-nav::-webkit-scrollbar {
-  width: 0.35rem;
+  width: 0.375rem;
+}
+
+.dashboard-nav::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .dashboard-nav::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.3);
+  background: rgb(148 163 184 / 0.45);
+}
+
+.dashboard-nav:hover::-webkit-scrollbar-thumb {
+  background: rgb(148 163 184 / 0.75);
 }
 
 .dashboard-menu-item {
