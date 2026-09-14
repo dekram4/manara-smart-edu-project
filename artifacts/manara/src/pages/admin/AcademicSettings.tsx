@@ -109,7 +109,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             minWidth: '120px',
             padding: '5px 9px',
             fontSize: '0.85rem',
-            borderRadius: '6px',
+            borderRadius: '8px',
             border: `1px solid ${COLORS.primary}`,
             outline: 'none',
             fontFamily: 'inherit',
@@ -1492,7 +1492,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                     </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       {gradeConfig.createdByName && (
-                        <span style={{ backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                        <span style={{ backgroundColor: '#f1f5f9', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
                           👨‍🏫 {gradeConfig.createdByName}
                         </span>
                       )}
@@ -1551,7 +1551,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                         <div style={{ color: '#9ca3af', fontSize: '0.85rem', padding: '8px' }}>لا توجد مواد</div>
                       ) : (
                         atram.subjects.map((subject, subjectIndex) => (
-                          <div key={subjectIndex} style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#fef3c7', borderRadius: '6px' }}>
+                          <div key={subjectIndex} style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                               {renderNodeName(
                                 nodeKey('subject', gradeIndex, atramIndex, subjectIndex),
@@ -1570,7 +1570,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                               <div style={{ color: '#9ca3af', fontSize: '0.8rem', padding: '6px' }}>لا توجد فصول</div>
                             ) : (
                               subject.terms.map((term, termIndex) => (
-                                <div key={termIndex} style={{ marginBottom: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
+                                <div key={termIndex} style={{ marginBottom: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                                     {renderNodeName(
                                       nodeKey('term', gradeIndex, atramIndex, subjectIndex, termIndex),
@@ -1590,7 +1590,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                   ) : (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                       {term.units.map((unit, unitIndex) => (
-                                        <div key={unitIndex} style={{ width: '100%', padding: '6px 8px', backgroundColor: '#dbeafe', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '6px' }}>
+                                        <div key={unitIndex} style={{ width: '100%', padding: '6px 8px', backgroundColor: '#dbeafe', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '6px' }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             {renderNodeName(
                                               nodeKey('unit', gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex),
@@ -1625,12 +1625,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                                     }
                                                   }}
                                                   placeholder={`اسم الدرس داخل وحدة "${unit}"`}
-                                                  style={{ flex: '1 1 180px', minWidth: '150px', padding: '6px 10px', fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #c7d2fe', outline: 'none', fontFamily: 'inherit' }}
+                                                  style={{ flex: '1 1 180px', minWidth: '150px', padding: '6px 10px', fontSize: '0.82rem', borderRadius: '8px', border: '1px solid #c7d2fe', outline: 'none', fontFamily: 'inherit' }}
                                                 />
                                                 <button
                                                   onClick={() => handleAddLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit)}
                                                   disabled={!draft.trim()}
-                                                  style={{ padding: '6px 12px', fontSize: '0.8rem', fontWeight: 800, backgroundColor: draft.trim() ? '#4f46e5' : '#c7d2fe', color: draft.trim() ? '#ffffff' : '#6366f1', border: 'none', borderRadius: '6px', cursor: draft.trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
+                                                  style={{ padding: '6px 12px', fontSize: '0.8rem', fontWeight: 800, backgroundColor: draft.trim() ? '#4f46e5' : '#c7d2fe', color: draft.trim() ? '#ffffff' : '#6366f1', border: 'none', borderRadius: '8px', cursor: draft.trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
                                                   title="إضافة درس إلى هذه الوحدة"
                                                 >
                                                   ➕ إضافة درس
@@ -1666,7 +1666,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                                     <button onClick={() => setEditingLesson(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="إلغاء">↩️</button>
                                                   </div>
                                                 ) : (
-                                                  <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', backgroundColor: '#ffffff', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.78rem' }}>
+                                                  <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', backgroundColor: '#ffffff', border: '1px solid #93c5fd', borderRadius: '8px', fontSize: '0.78rem' }}>
                                                     <span>📝 {lesson}</span>
                                                     <button onClick={() => setEditingLesson({ unitKey, index: lessonIndex, value: lesson })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل الدرس">✏️</button>
                                                     <button onClick={() => handleDeleteLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="حذف الدرس">✖</button>
@@ -1715,9 +1715,9 @@ const styles = {
   addInput: { flex: 1, padding: '12px 15px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '1rem', width: '100%' },
   addButton: { padding: '12px 20px', backgroundColor: COLORS.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold', whiteSpace: 'nowrap' as const },
   listItem: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', marginBottom: '8px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e5e7eb' },
-  iconButton: { padding: '6px 10px', backgroundColor: 'white', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' },
-  saveButton: { padding: '8px 12px', backgroundColor: '#10B981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  cancelButton: { padding: '8px 12px', backgroundColor: '#EF4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' },
+  iconButton: { padding: '6px 10px', backgroundColor: 'white', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem' },
+  saveButton: { padding: '8px 12px', backgroundColor: '#10B981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  cancelButton: { padding: '8px 12px', backgroundColor: '#EF4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' },
   emptyState: { textAlign: 'center' as const, padding: '20px', color: '#9CA3AF', fontSize: '0.9rem' },
   categoriesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' },
   teacherListItem: {

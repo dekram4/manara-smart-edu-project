@@ -173,10 +173,26 @@
   animation: wobble 0.6s ease-in-out infinite;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* إعادة الضبط داخل طبقة `base` وليست خارج الطبقات.
+ *
+ * كانت مكتوبة بلا طبقة وبعد `@import 'tailwindcss'`. وفي Tailwind v4 تعيش
+ * الأدوات في `@layer utilities`، و**أي CSS خارج الطبقات يتغلّب على كل ما
+ * بداخلها مهما كانت الأولوية**. فكانت `* { padding: 0 }` تهزم كل أصناف
+ * `p-*` و`m-*` في المشروع كله.
+ *
+ * النتيجة كانت صامتة تماماً: بطاقة مكتوب عليها `p-5` تُحسب حشوتها 0 بكسل،
+ * فيلتصق النص بالحافة. وكل محاولة لعلاج الانحشار بإضافة `p-6` في الترميز
+ * كانت تموت هنا دون أثر — وهو أصل شكاوى «النصوص ملتصقة بالحواف» المتكررة.
+ *
+ * وضعها في `base` يُبقي أثرها المقصود (تصفير الهوامش الافتراضية للمتصفح)
+ * ويعيد لأدوات Tailwind أولويتها الطبيعية فوقها.
+ */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 html, body, #root {
@@ -4016,4 +4032,84 @@ body,
 /* البطاقة في وضع البطاقات تملأ العرض على الجوال ولا تحمل سقفاً. */
 .dashboard-hybrid-cards .dashboard-record-card {
   width: 100%;
+}
+
+/* ==========================================================================
+   توحيد أنصاف الأقطار على المعيار — rounded-2xl (1rem)
+   ==========================================================================
+
+   الترميز يحمل تسع قيم مختلفة للحواف: 20، 24، 25، 26، 28، 30، 32، 40 بكسل،
+   و`rounded-3xl`. فتبدو كل شاشة من عائلة تصميم مختلفة.
+
+   التوحيد هنا بإعادة تعريف الأدوات المتضخّمة داخل نطاق اللوحات والدخول
+   وحدها، بدل تعديل ~100 موضع في الترميز. والاستثناء المقصود `rounded-full`:
+   هو للشارات والأزرار الدائرية والصور الشخصية، وتسويته تشوّهها.
+
+   النطاق مهم: صفحات الطالب تُترك على حوافها المرحة الكبيرة.               */
+
+.manara-enterprise .rounded-3xl,
+.manara-enterprise .rounded-\[20px\],
+.manara-enterprise .rounded-\[24px\],
+.manara-enterprise .rounded-\[25px\],
+.manara-enterprise .rounded-\[26px\],
+.manara-enterprise .rounded-\[28px\],
+.manara-enterprise .rounded-\[30px\],
+.manara-enterprise .rounded-\[32px\],
+.manara-enterprise .rounded-\[34px\],
+.manara-enterprise .rounded-\[40px\],
+.manara-enterprise .rounded-\[50px\],
+.manara-enterprise .rounded-\[2rem\],
+.manara-enterprise .rounded-\[2\.5rem\],
+.login-shell .rounded-3xl,
+.login-shell .rounded-\[2rem\],
+.login-shell .rounded-\[2\.5rem\],
+.login-shell.rounded-\[2rem\],
+.dashboard-account-setup .rounded-\[34px\],
+.dashboard-account-setup .rounded-\[50px\] {
+  border-radius: 1rem;
+}
+
+/* بطاقة الدخول نفسها تحمل الصنف على عنصرها لا على ابن منه. */
+.login-card,
+.login-card.web-login-panel,
+.dashboard-account-setup > .mobile-modal-panel {
+  border-radius: 1rem !important;
+}
+
+/* الإطار والظل الموحّدان على أسطح اللوحات. `border-2` المتفرّقة تُردّ إلى
+   شعرة واحدة بلون واحد، فتتساوى البطاقات في الوزن البصري. */
+.manara-enterprise .dashboard-surface,
+.manara-enterprise .dashboard-filter-surface,
+.manara-enterprise .dashboard-table-surface,
+.manara-enterprise .dashboard-record-card,
+.manara-enterprise .dashboard-account-record,
+.manara-enterprise .dashboard-video-card {
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgb(226 232 240 / 0.8);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  transition: box-shadow 200ms ease;
+}
+
+.manara-enterprise .dashboard-surface:hover,
+.manara-enterprise .dashboard-record-card:hover,
+.manara-enterprise .dashboard-account-record:hover,
+.manara-enterprise .dashboard-video-card:hover {
+  box-shadow: 0 4px 12px rgb(15 23 42 / 0.08);
+}
+
+/* ==========================================================================
+   الترويسات والنصوص التوضيحية
+   ========================================================================== */
+.manara-enterprise .dashboard-page > h1,
+.manara-enterprise .dashboard-section-header h1,
+.manara-enterprise .dashboard-section-header h2 {
+  color: #1e293b;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.manara-enterprise .dashboard-section-header p,
+.manara-enterprise .dashboard-record-meta dt {
+  color: #64748b;
 }

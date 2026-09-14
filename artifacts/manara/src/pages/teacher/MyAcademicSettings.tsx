@@ -1253,7 +1253,7 @@ onChange={e => {
                     <div>
                       <h4 style={styles.configTitle}>🏫 {config.grade}</h4>
                       {config.createdByName && (
-                        <span style={{ backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
+                        <span style={{ backgroundColor: '#f1f5f9', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
                           👨‍💼 {config.createdByName}
                         </span>
                       )}
@@ -1450,8 +1450,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '8px',
     marginRight: '15px',
     padding: '8px',
-    backgroundColor: '#fef3c7',
-    borderRadius: '6px'
+    backgroundColor: '#f1f5f9',
+    borderRadius: '8px'
   },
   termCard: {
     marginTop: '6px',
@@ -1532,7 +1532,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     minWidth: '120px',
     padding: '5px 9px',
     fontSize: '0.9rem',
-    borderRadius: '6px',
+    borderRadius: '8px',
     border: `1px solid ${COLORS.primary}`,
     outline: 'none',
     fontFamily: 'inherit'
@@ -1578,7 +1578,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '6px',
     fontSize: '0.8rem',
     color: '#92400e',
-    backgroundColor: '#fffbeb',
+    backgroundColor: '#f8fafc',
     border: '1px dashed #fcd34d',
     borderRadius: '8px',
     padding: '8px 10px'
@@ -1609,7 +1609,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: '#3b82f6',
     color: 'white',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '8px',
     cursor: 'pointer',
     transition: 'background-color 0.3s'
   },
@@ -1619,7 +1619,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: '#ef4444',
     color: 'white',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '8px',
     cursor: 'pointer',
     transition: 'background-color 0.3s'
   },
