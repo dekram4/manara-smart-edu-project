@@ -24,6 +24,30 @@ class RemoteUnavailableError extends RemoteRequestError {
 }
 
 let remoteState: 'unknown' | 'ready' | 'unavailable' = 'unknown';
+
+/**
+ * مستمعون يُنبَّهون لحظة عودة الخادم بعد انقطاع.
+ *
+ * الطابور كان لا يُفرَّغ إلا عند إقلاع التطبيق أو بضغطة زر يدوية، فمعلّم
+ * فتح لوحته قبل تهيئة الخادم يظلّ معلّقاً حتى يعيد التحميل بنفسه. هذا
+ * الجرس يجعل المزامنة تلتقط العودة من تلقائها.
+ */
+const recoveryListeners = new Set<() => void>();
+
+export function onRemoteRecovered(listener: () => void): () => void {
+  recoveryListeners.add(listener);
+  return () => recoveryListeners.delete(listener);
+}
+
+function announceRecovery(): void {
+  for (const listener of recoveryListeners) {
+    try {
+      listener();
+    } catch {
+      // مستمع معطوب يجب ألا يُسقط طبقة الشبكة.
+    }
+  }
+}
 let probePromise: Promise<boolean> | null = null;
 let remoteUnavailableUntil = 0;
 const REQUEST_TIMEOUT_MS = 10000;
@@ -45,6 +69,9 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
 async function isRemoteReady(): Promise<boolean> {
   if (remoteState === 'ready') return true;
   if (remoteState === 'unavailable' && Date.now() < remoteUnavailableUntil) return false;
+  // تُلتقط الحالة قبل إعادة الضبط إلى `unknown` مباشرةً بعدها: القراءة
+  // بعد السطر التالي تعطي `unknown` دائماً، فلا تُكتشف العودة أبداً.
+  const wasUnavailable = remoteState === 'unavailable';
   if (remoteState === 'unavailable') {
     remoteState = 'unknown';
   }
@@ -53,6 +80,9 @@ async function isRemoteReady(): Promise<boolean> {
       .then((response) => {
         remoteState = response.ok ? 'ready' : 'unavailable';
         remoteUnavailableUntil = response.ok ? 0 : Date.now() + 5000;
+        // الانتقال من «غير متاح» إلى «جاهز» هو اللحظة التي يجب أن يُفرَّغ
+        // فيها الطابور — لا قبلها ولا عند كل فحص ناجح.
+        if (response.ok && wasUnavailable) announceRecovery();
         return response.ok;
       })
       .catch(() => {

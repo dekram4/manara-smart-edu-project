@@ -30,9 +30,14 @@ export function SyncStatusBanner(): React.ReactElement | null {
   if (dismissed || (!failure && !hasPending)) return null;
 
   const dropped = failure?.kind === 'dropped';
+  // الخادم بلا إعدادات Supabase: ليس خطأ في عمل المعلّم ولا في صلاحيته،
+  // فلا يُعرض بلون الخطر. لكنه يُعرض: تعديلاته في المتصفح وحده.
+  const offline = failure?.kind === 'offline';
   const palette = dropped
     ? { bg: '#7f1d1d', border: '#fca5a5', accent: '#fee2e2' }
-    : { bg: '#78350f', border: '#fcd34d', accent: '#fef3c7' };
+    : offline
+      ? { bg: '#1e293b', border: '#64748b', accent: '#cbd5e1' }
+      : { bg: '#78350f', border: '#fcd34d', accent: '#fef3c7' };
 
   return (
     <div
@@ -58,13 +63,15 @@ export function SyncStatusBanner(): React.ReactElement | null {
         fontWeight: 800,
       }}
     >
-      <span style={{ fontSize: 22, lineHeight: 1 }}>{dropped ? '⛔' : '⚠️'}</span>
+      <span style={{ fontSize: 22, lineHeight: 1 }}>{dropped ? '⛔' : offline ? '☁️' : '⚠️'}</span>
 
       <div style={{ flex: '1 1 320px', minWidth: 240 }}>
         <div style={{ fontSize: 15.5 }}>
           {dropped
             ? 'لم يُحفظ التعديل على الخادم — رفض الخادم العملية'
-            : 'تعذّر حفظ التعديل على الخادم'}
+            : offline
+              ? 'العمل بلا مزامنة — الخادم غير مهيّأ حالياً'
+              : 'تعذّر حفظ التعديل على الخادم'}
         </div>
         <div
           style={{
@@ -80,6 +87,12 @@ export function SyncStatusBanner(): React.ReactElement | null {
               التعديل ظاهر عندك فقط ولن يصل إلى الطلاب. تحقّق من صلاحيات
               حسابك ثم أعد إدخاله.
               {failure?.label ? ` (${failure.label})` : ''}
+            </>
+          ) : offline ? (
+            <>
+              تعديلاتك محفوظة في هذا المتصفح وستُرسل تلقائياً عند تهيئة
+              الخادم. يمكنك متابعة العمل بشكل طبيعي.
+              {hasPending ? ` عمليات في الانتظار: ${status.pending}.` : ''}
             </>
           ) : (
             <>

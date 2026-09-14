@@ -1,4 +1,4 @@
-﻿import { RemoteRequestError, supabase } from './remoteSupabase';
+﻿import { onRemoteRecovered, RemoteRequestError, supabase } from './remoteSupabase';
 import {
   applyParentLinkPlan,
   planParentLinkMigration,
@@ -250,7 +250,11 @@ function shouldRetry(error: unknown): boolean {
 //             تُهمَل بصمت تماماً — لا تُحفظ ولا تُعرض — فيضيع التعديل نهائياً
 //             دون أن يعلم أحد. وهي الأخطر، ولذلك تُعرض بلهجة أشد.
 // ------------------------------------------------------------
-export type SyncFailureKind = 'queued' | 'dropped';
+//   offline : الخادم لا يملك إعدادات Supabase أصلاً (أو لا يعمل). ليس فشلاً
+//             في عمل المستخدم ولا في صلاحيته، فلا يُعرض بلهجة الخطأ — لكنه
+//             لا يُخفى أيضاً: تعديلاته تعيش في المتصفح وحده حتى يعود
+//             الاتصال، وإخفاء ذلك يعني أن يظنّها محفوظة وهي ليست كذلك.
+export type SyncFailureKind = 'queued' | 'dropped' | 'offline';
 
 export type SyncStatus = {
   /** عدد العمليات المنتظرة في الطابور. */
@@ -287,9 +291,26 @@ export function getSyncStatus(): SyncStatus {
 }
 
 function reportFailure(kind: SyncFailureKind, label: string, error: any): void {
-  const message = String(error?.message ?? error ?? '').slice(0, 300);
-  console.error(`[sync] ${kind === 'dropped' ? 'فشل نهائي' : 'فشل مؤقت'} — ${label}:`, message);
-  emitStatus({ lastFailure: { kind, label, message } });
+  const rawMessage = String(error?.message ?? error ?? '').slice(0, 300);
+  // الخطأ الصامت هو «الخادم بلا Supabase» — رسالته إنجليزية تقنية لا تعني
+  // المعلّم شيئاً، وكانت تظهر له حرفياً في شريط أحمر. تُصنَّف هنا حالةً
+  // مستقلة برسالة عربية مفهومة ونبرة إخبارية.
+  const isSilent = Boolean((error as { silent?: boolean } | null)?.silent);
+  const effectiveKind: SyncFailureKind = isSilent ? 'offline' : kind;
+  const message = isSilent
+    ? 'الخادم غير مهيّأ للمزامنة حالياً — تعديلاتك محفوظة في المتصفح وستُرسل عند عودة الاتصال.'
+    : rawMessage;
+  const tone = effectiveKind === 'dropped'
+    ? 'فشل نهائي'
+    : effectiveKind === 'offline'
+      ? 'تعذّر الوصول'
+      : 'فشل مؤقت';
+  if (effectiveKind === 'offline') {
+    console.info(`[sync] ${tone} — ${label}: ${rawMessage}`);
+  } else {
+    console.error(`[sync] ${tone} — ${label}:`, message);
+  }
+  emitStatus({ lastFailure: { kind: effectiveKind, label, message } });
 }
 
 /**
@@ -789,7 +810,26 @@ function backfillParentLinks(context: SyncContext): void {
   }
 }
 
+/**
+ * يُفرَّغ الطابور تلقائياً لحظة عودة الخادم.
+ *
+ * مسجَّل مرة واحدة فقط: تسجيله داخل التهيئة يعني مستمعاً جديداً مع كل
+ * إعادة تهيئة (تبديل دور مثلاً)، فتُفرَّغ العمليات مرات متزامنة.
+ */
+let recoveryHookInstalled = false;
+
+function installRecoveryFlush(): void {
+  if (recoveryHookInstalled) return;
+  recoveryHookInstalled = true;
+  onRemoteRecovered(() => {
+    if (loadPending().length === 0) return;
+    console.info('[sync] عاد الخادم — يجري إرسال العمليات المعلّقة');
+    void retryPendingSync();
+  });
+}
+
 export function initSupabaseSync(): Promise<void> {
+  installRecoveryFlush();
   // React StrictMode and fast remounts can invoke the boot effect twice.
   // Share one initialization promise so hydration/write-through cannot race.
   if (syncInitializationPromise) return syncInitializationPromise;

@@ -69,15 +69,22 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
       setCurrentTeacher(teacher);
       setShowChangePassword(true);
     } else {
+      // جلسة الوسائط لا تحجب الدخول.
+      //
+      // كانت `return` عند فشلها تمنع المعلّم من الدخول أصلاً، وتعرض له
+      // «تعذر تأكيد جلسة رفع الفيديو» على شاشة تسجيل الدخول — وهي جلسة لا
+      // يحتاجها إلا لحظة رفع ملف MP4 فعلياً. فمعلّم يريد مراجعة تقاريره
+      // كان يُمنَع لعطل في ميزة لا يستعملها.
+      //
+      // والرفع نفسه محميّ: `uploadMp4Video` يكتشف انتهاء الجلسة ويطلب
+      // إعادة الدخول برسالته الخاصة عند الحاجة الحقيقية.
       try {
         await establishTeacherMediaSession(teacher.username, password);
       } catch (sessionError) {
-        setError(
-          `⚠️ ${sessionError instanceof Error
-            ? sessionError.message
-            : 'تعذر تأكيد جلسة رفع الفيديو للمعلم'}`,
+        console.warn(
+          '[auth] تعذّر تهيئة جلسة رفع الفيديو؛ الدخول يكمل والرفع سيطلبها عند الحاجة:',
+          sessionError instanceof Error ? sessionError.message : sessionError,
         );
-        return;
       }
       writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, teacher);
       onLoginSuccess(teacher);
