@@ -660,35 +660,6 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     alert('✅ تم إضافة الدرس بنجاح');
   };
 
-  const handleAddLesson = (
-    gradeName: string,
-    atramName: string,
-    subjectName: string,
-    termName: string,
-    unit: string,
-  ) => {
-    const unitKey = unitKeyOf(gradeName, atramName, subjectName, termName, unit);
-    const name = (lessonDrafts[unitKey] ?? '').trim();
-    if (!name) return;
-    const allConfigs = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
-    );
-    const term = findTerm(allConfigs, gradeName, atramName, subjectName, termName);
-    if (!term) return;
-    const current = lessonsOf(term, unit);
-    if (current.some(lesson => lesson === name)) {
-      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
-      return;
-    }
-    writeLessons(gradeName, atramName, subjectName, termName, unit, [
-      ...current,
-      name,
-    ]);
-    // الحقل يُفرَّغ ليستقبل الدرس التالي مباشرة: معلم يضيف خمسة دروس
-    // لوحدة واحدة لا ينبغي أن يمسح ما كتبه في كل مرة.
-    setLessonDrafts(drafts => ({ ...drafts, [unitKey]: '' }));
-  };
-
   /// يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس.
   const handleSaveLessonEdit = (
     gradeName: string,
@@ -1174,46 +1145,9 @@ onChange={e => {
                                         </button>
                                       </div>
 
-                                      {/* حقل إضافة الدرس: مربع إدخال ظاهر وزر
-                                          صريح، لا نافذة prompt. لكل وحدة حقلها
-                                          الخاص حتى يكون واضحاً أين سيُضاف الدرس. */}
-                                      <div style={styles.lessonEditorRow}>
-                                        <span style={styles.lessonFieldLabel}>الدرس:</span>
-                                        <input
-                                          type="text"
-                                          value={lessonDrafts[unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit)] ?? ''}
-                                          onChange={e => {
-                                            const key = unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit);
-                                            const value = e.target.value;
-                                            setLessonDrafts(drafts => ({ ...drafts, [key]: value }));
-                                          }}
-                                          onKeyDown={e => {
-                                            if (e.key === 'Enter') {
-                                              e.preventDefault();
-                                              handleAddLesson(config.grade, atram.atram, subject.subject, term.term, unit);
-                                            }
-                                          }}
-                                          placeholder={`اسم الدرس داخل وحدة "${unit}"`}
-                                          style={styles.lessonInput}
-                                        />
-                                        <button
-                                          onClick={() => handleAddLesson(config.grade, atram.atram, subject.subject, term.term, unit)}
-                                          disabled={!(lessonDrafts[unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit)] ?? '').trim()}
-                                          style={{
-                                            ...styles.addLessonButton,
-                                            ...((lessonDrafts[unitKeyOf(config.grade, atram.atram, subject.subject, term.term, unit)] ?? '').trim()
-                                              ? {}
-                                              : styles.addLessonButtonDisabled),
-                                          }}
-                                          title="إضافة درس إلى هذه الوحدة"
-                                        >
-                                          ➕ إضافة درس
-                                        </button>
-                                      </div>
-
                                       {lessonsOf(term, unit).length === 0 ? (
                                         <div style={styles.noLessonsHint}>
-                                          لا توجد دروس في هذه الوحدة بعد — اكتب اسم الدرس أعلاه ثم اضغط «إضافة درس».
+                                          لا توجد دروس في هذه الوحدة بعد — أضفها من الخطوة 6 في عمود الإنشاء.
                                         </div>
                                       ) : (
                                         <div style={styles.lessonsRow}>

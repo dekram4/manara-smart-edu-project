@@ -19,6 +19,9 @@ interface VideoRecord {
   subject: string;
   term: string;
   unit: string;
+  /// اختياري لأن الفيديوهات المنشورة قبل إضافة المستوى السادس لا تحمله،
+  /// وهي تبقى صالحة على مستوى الوحدة.
+  lesson?: string;
   createdBy: string;
   teacher_id?: string;
   teacherId?: string;
@@ -48,12 +51,12 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   const [teachers, setTeachers] = useState<Array<{ id: string; name: string; subject?: string }>>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedTeacherName, setSelectedTeacherName] = useState('');
-  const [filters, setFilters] = useState({ grade: '', atram: '', subject: '', term: '', unit: '' });
+  const [filters, setFilters] = useState({ grade: '', atram: '', subject: '', term: '', unit: '', lesson: '' });
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     title: '', description: '', url: '', sourceType: 'embed' as VideoSourceType, file: null as File | null,
     pendingVideos: [] as CinemaVideoDraft[],
-    grade: '', atram: '', subject: '', term: '', unit: ''
+    grade: '', atram: '', subject: '', term: '', unit: '', lesson: ''
   });
   const [editingVideo, setEditingVideo] = useState<VideoRecord | null>(null);
 
@@ -95,6 +98,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       subject: video.subject,
       term: video.term,
       unit: video.unit,
+      lesson: video.lesson || '',
     });
     setShowForm(true);
     playLamsaSound('click');
@@ -159,8 +163,18 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     formData.unit,
   );
 
+  /// دروس الوحدة المختارة، من الشجرة الأكاديمية نفسها.
+  ///
+  /// الدروس مخزّنة في خريطة `term.lessons` مفتاحها اسم الوحدة — نفس الشكل
+  /// الذي تكتبه الإعدادات الأكاديمية ويقرأه تطبيق الطالب، فالثلاثة تتفق
+  /// على بنية واحدة بلا تحويل بينها.
+  const availableLessons = withCurrentValue(
+    selectedTermConfig?.lessons?.[formData.unit] ?? [],
+    formData.lesson,
+  );
+
   const updateAcademicField = (
-    field: 'grade' | 'atram' | 'subject' | 'term' | 'unit',
+    field: 'grade' | 'atram' | 'subject' | 'term' | 'unit' | 'lesson',
     value: string,
   ) => {
     const next = { ...formData, [field]: value };
@@ -169,15 +183,23 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       next.subject = '';
       next.term = '';
       next.unit = '';
+      next.lesson = '';
     } else if (field === 'atram') {
       next.subject = '';
       next.term = '';
       next.unit = '';
+      next.lesson = '';
     } else if (field === 'subject') {
       next.term = '';
       next.unit = '';
+      next.lesson = '';
     } else if (field === 'term') {
       next.unit = '';
+      next.lesson = '';
+    } else if (field === 'unit') {
+      // The lesson belongs to its unit: changing the unit leaves a chosen
+      // lesson pointing into a branch it is no longer part of.
+      next.lesson = '';
     }
     setFormData(next);
   };
@@ -324,6 +346,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         subject: formData.subject,
         term: formData.term,
         unit: formData.unit,
+        lesson: formData.lesson.trim(),
         createdBy: ownerId,
         teacherId: ownerId,
         teacher_id: ownerId,
@@ -398,6 +421,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         subject: formData.subject,
         term: formData.term,
         unit: formData.unit,
+        lesson: formData.lesson.trim(),
         createdBy: ownerId,
         teacherId: ownerId,
         teacher_id: ownerId,
@@ -451,6 +475,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       subject: '',
       term: '',
       unit: '',
+      lesson: '',
     });
     setShowForm(false);
     loadVideos();
@@ -492,6 +517,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     if (filters.subject && video.subject !== filters.subject) return false;
     if (filters.term && video.term !== filters.term) return false;
     if (filters.unit && video.unit !== filters.unit) return false;
+    if (filters.lesson && video.lesson !== filters.lesson) return false;
     return true;
   });
 
@@ -501,6 +527,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     subjects: Array.from(new Set(videos.map((video) => video.subject).filter(Boolean))),
     terms: Array.from(new Set(videos.map((video) => video.term).filter(Boolean))),
     units: Array.from(new Set(videos.map((video) => video.unit).filter(Boolean))),
+    lessons: Array.from(new Set(videos.map((video) => video.lesson).filter(Boolean))),
   };
 
   return (
@@ -532,6 +559,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                  subject: '',
                  term: '',
                  unit: '',
+                 lesson: '',
                });
              }
              playLamsaSound('click');
@@ -546,7 +574,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
          <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-black text-amber-800">🔎 فلترة الفيديوهات</h3>
           <button
-            onClick={() => setFilters({ grade: '', atram: '', subject: '', term: '', unit: '' })}
+            onClick={() => setFilters({ grade: '', atram: '', subject: '', term: '', unit: '', lesson: '' })}
              className="min-h-11 rounded-lg bg-white px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100 sm:min-h-0 sm:py-1"
           >
             مسح الفلاتر
@@ -572,6 +600,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           <select value={filters.unit} onChange={(e) => setFilters({ ...filters, unit: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
             <option value="">📦 كل الوحدات</option>
             {filterOptions.units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+          </select>
+          <select value={filters.lesson} onChange={(e) => setFilters({ ...filters, lesson: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
+            <option value="">📘 كل الدروس</option>
+            {filterOptions.lessons.map((lesson) => <option key={lesson} value={lesson}>{lesson}</option>)}
           </select>
         </div>
       </div>
@@ -799,6 +831,25 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               <option value="">📦 الوحدة</option>
               {availableUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
             </select>
+            {/* الدرس — آخر خطوة، فيصبح مسار الفيديو سداسياً كاملاً مثل
+                إدارة المحتوى تماماً.
+
+                حقل حر مع قائمة اقتراحات لا قائمة مغلقة: الأسماء المقترحة
+                هي ما عرّفه المعلم في الإعدادات الأكاديمية، ومن لم يعرّف
+                دروساً بعد يبقى قادراً على نشر فيديو الوحدة كما كان. */}
+            <input
+              list="cinema-lesson-options"
+              value={formData.lesson}
+              onChange={e => updateAcademicField('lesson', e.target.value)}
+              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
+              placeholder="📘 الدرس (اختياري)"
+              disabled={!formData.unit}
+            />
+            <datalist id="cinema-lesson-options">
+              {availableLessons.map(lesson => (
+                <option key={lesson} value={lesson} />
+              ))}
+            </datalist>
           </div>
           <button type="submit" className="order-6 w-full bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black text-white rounded-2xl shadow-xl transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 animate-pulse-glow">
             {editingVideo ? '💾 حفظ التعديل' : '💾 حفظ ونشر فيديوهات السينما'}
@@ -827,6 +878,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                   {video.atram && <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold">📅 {video.atram}</span>}
                   {video.term && <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-xs font-bold">📑 {video.term}</span>}
                   {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
+                  {video.lesson && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-lg text-xs font-bold">📘 {video.lesson}</span>}
                 </div>
                 <div className="flex gap-2">
                      <button disabled={!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => beginEditingVideo(video)} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>

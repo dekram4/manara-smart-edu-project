@@ -419,7 +419,7 @@ class StudentContentService {
         )
         .toList();
 
-    return _preferredLessonsForStudent(
+    return preferredLessonsForStudent(
       lessons,
       profile,
       // The lesson the student actually chose wins over every rule below.
@@ -428,6 +428,9 @@ class StudentContentService {
       // lesson saw nothing change on the student's card, because the card
       // was never showing that lesson in the first place.
       pinnedLessonId: academicContext?.lessonId,
+      // A lesson that lives only in the settings tree has a placeholder id
+      // that matches no row, so its name is the only handle on it.
+      pinnedLessonName: academicContext?.lesson,
     );
   }
 
@@ -925,11 +928,18 @@ class StudentContentService {
     final subject = academicContext?.subject ?? profile.subject;
     final term = academicContext?.term ?? profile.term;
     final unit = academicContext?.unit ?? profile.unit;
+    // The manager now tags every new cinema video with the lesson it belongs
+    // to, so the sixth level is filtered like the other five. It stays
+    // permissive on an empty value: videos published before the lesson level
+    // existed carry none, and those belong to the whole unit rather than to
+    // no-one.
+    final lesson = academicContext?.lesson;
     return _matches(_text(video['grade']), grade) &&
         _matches(_text(video['atram']), atram) &&
         _matches(_text(video['subject']), subject) &&
         _matches(_text(video['term']), term) &&
-        _matches(_text(video['unit']), unit);
+        _matches(_text(video['unit']), unit) &&
+        _matches(_text(video['lesson']), lesson);
   }
 
   bool _matches(String contentValue, String? selectedValue) {
@@ -983,11 +993,57 @@ class StudentContentService {
   /// and the student still sees the old one". A unit can hold several
   /// lessons; the rule below used to hand back whichever was newest,
   /// which is frequently not the lesson the student is sitting in.
-  List<LessonContent> _preferredLessonsForStudent(
+  @visibleForTesting
+  static List<LessonContent> preferredLessonsForStudent(
     List<LessonContent> lessons,
     StudentProfile profile, {
     String? pinnedLessonId,
+    String? pinnedLessonName,
   }) {
+    final pinnedId = _normalize(pinnedLessonId);
+    final pinnedName = _normalize(pinnedLessonName);
+
+    // The student named one lesson out of the unit, so no other lesson in
+    // that unit is an answer to it. The name is checked alongside the id
+    // because a lesson that so far exists only in the settings tree carries
+    // a placeholder id that belongs to no `lesson_configs` row — and before
+    // this, such a unit quietly fell back to a *different* lesson's videos
+    // and text, which is exactly the cross-lesson mixing being ruled out.
+    //
+    // When nothing matches, an empty list is the honest answer: the chosen
+    // lesson has no content yet, and the screen says so.
+    if (pinnedId.isNotEmpty || pinnedName.isNotEmpty) {
+      final exact = lessons
+          .where(
+            (lesson) =>
+                (pinnedId.isNotEmpty && _normalize(lesson.id) == pinnedId) ||
+                (pinnedName.isNotEmpty &&
+                    _normalize(lesson.lessonName) == pinnedName),
+          )
+          .toList();
+      if (exact.isNotEmpty) {
+        final studentTeacher = _normalize(profile.teacherId);
+        final teacherOwned = studentTeacher.isEmpty
+            ? const <LessonContent>[]
+            : exact
+                  .where(
+                    (lesson) => _normalize(lesson.ownerId) == studentTeacher,
+                  )
+                  .toList();
+        final pool = teacherOwned.isNotEmpty ? teacherOwned : exact;
+        pool.sort((a, b) {
+          // The id the student actually chose outranks every heuristic.
+          final aPinned = pinnedId.isNotEmpty && _normalize(a.id) == pinnedId;
+          final bPinned = pinnedId.isNotEmpty && _normalize(b.id) == pinnedId;
+          if (aPinned != bPinned) return aPinned ? -1 : 1;
+          final timestamp = b.createdAt.compareTo(a.createdAt);
+          return timestamp != 0 ? timestamp : b.id.compareTo(a.id);
+        });
+        return [pool.first];
+      }
+      return const [];
+    }
+
     final grouped = <String, List<LessonContent>>{};
     for (final lesson in lessons) {
       final key = [
@@ -1000,19 +1056,11 @@ class StudentContentService {
       grouped.putIfAbsent(key, () => []).add(lesson);
     }
 
-    final pinned = _normalize(pinnedLessonId);
+    // Nothing is pinned past this point — the branch above owns that case
+    // and returns from it — so this is the browse view: one lesson per unit.
     final studentTeacher = _normalize(profile.teacherId);
     final preferred = <LessonContent>[];
     for (final candidates in grouped.values) {
-      if (pinned.isNotEmpty) {
-        final chosen = candidates
-            .where((lesson) => _normalize(lesson.id) == pinned)
-            .toList();
-        if (chosen.isNotEmpty) {
-          preferred.add(chosen.first);
-          continue;
-        }
-      }
       final teacherOwned = studentTeacher.isEmpty
           ? const <LessonContent>[]
           : candidates
@@ -1025,16 +1073,7 @@ class StudentContentService {
       });
       preferred.add(pool.first);
     }
-    preferred.sort((a, b) {
-      // The chosen lesson leads the list, so the card opens on it rather
-      // than on whatever happens to be newest.
-      if (pinned.isNotEmpty) {
-        final aPinned = _normalize(a.id) == pinned;
-        final bPinned = _normalize(b.id) == pinned;
-        if (aPinned != bPinned) return aPinned ? -1 : 1;
-      }
-      return b.createdAt.compareTo(a.createdAt);
-    });
+    preferred.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return preferred;
   }
 }
