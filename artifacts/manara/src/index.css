@@ -1949,7 +1949,8 @@ body,
 .dashboard-card-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  /* 1.5rem = gap-6، نفس تباعد شبكة السجلات، فتتّسق كل بطاقات المنصة. */
+  gap: 1.5rem;
   width: 100%;
   min-width: 0;
 }
@@ -3672,5 +3673,257 @@ body,
 @media (max-width: 640px) {
   .role-selection-grid {
     gap: 0.75rem;
+  }
+}
+
+/* ==========================================================================
+   نظام بطاقات السجلات — شبكة متجاوبة وبطاقة واسعة
+   ==========================================================================
+
+   بطاقة الاختبار كانت صفّاً واحداً `justify-between` يضع عمود المعلومات
+   وعمود الأزرار جنباً إلى جنب، فكلما ضاقت البطاقة انعصر عمود المعلومات
+   وحده. وداخله صفّ `flex gap-6` **بلا `flex-wrap`** يحمل عدد الأسئلة
+   وتاريخين، فيُحشر ثلاثتها في سطر واحد داخل عمود عرضه ~300 بكسل —
+   وهذا بالضبط سبب تداخل البيانات فوق بعضها.
+
+   النظام هنا يعالج السببين معاً: الترويسة صفّ مستقل عن الجسم، والتفاصيل
+   شبكة تلتف من تلقائها. ومكتوب بأصناف عامة ليُعمَّم على بقية الشاشات.    */
+
+.dashboard-record-grid {
+  display: grid;
+  /* عمود واحد على الجوال. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.dashboard-record-grid > * {
+  min-width: 0;
+}
+
+/* تابلت: بطاقتان متسعتان. */
+@media (min-width: 640px) {
+  .dashboard-record-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ثلاث بطاقات — لكن ليس قبل 1100 بكسل.
+   عند 1024 تكون مساحة المحتوى 960، فثلاثة أعمدة بفواصل 48 تعطي 304 بكسل
+   للبطاقة: أضيق من الحدّ الأدنى 320 المطلوب. والآيباد الأفقي يستحق عمودين
+   واسعين (456 بكسل) أكثر مما يستحق ثلاثة مضغوطة. */
+@media (min-width: 1100px) {
+  .dashboard-record-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* شاشة عريضة جداً: عمود رابع بدل أن تتمدد البطاقة إلى 700 بكسل. */
+@media (min-width: 1800px) {
+  .dashboard-record-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ——— البطاقة ——— */
+.dashboard-record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid rgb(226 232 240 / 0.8);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+.dashboard-record-card:hover {
+  box-shadow: 0 6px 18px rgb(15 23 42 / 0.09);
+}
+
+/* ——— الترويسة ——— */
+.dashboard-record-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.dashboard-record-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.4;
+  color: #0f172a;
+  /* عنوان طويل يلتف بدل أن يدفع الأزرار خارج البطاقة. */
+  overflow-wrap: anywhere;
+}
+
+.dashboard-record-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.dashboard-record-status-on {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.dashboard-record-status-off {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.dashboard-record-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+/* زر أيقوني مربّع: مساحة لمس كاملة دون أن يُمطّ أفقياً. */
+.dashboard-record-actions .dashboard-icon-button,
+.dashboard-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 0.85rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.dashboard-icon-button:active {
+  transform: scale(0.94);
+}
+
+/* ——— الشارات الأكاديمية ——— */
+.dashboard-record-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.dashboard-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-badge-accent {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+/* ——— التفاصيل ——— */
+.dashboard-record-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  gap: 0.75rem 1rem;
+  margin: 0;
+  padding-top: 0.25rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.dashboard-record-meta > div {
+  min-width: 0;
+}
+
+.dashboard-record-meta dt {
+  margin: 0 0 0.15rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dashboard-record-meta dd {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+/* ——— الأسفل ——— */
+.dashboard-record-footer {
+  margin-top: auto;
+  padding-top: 0.25rem;
+}
+
+.dashboard-record-reveal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.625rem 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.85rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 160ms ease;
+}
+
+.dashboard-record-reveal::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-record-reveal:hover {
+  background: #dbeafe;
+}
+
+/* البطاقة في الوضع الضيق: الأزرار تنزل تحت العنوان بدل أن تعصره. */
+@media (max-width: 400px) {
+  .dashboard-record-head {
+    flex-direction: column;
+  }
+
+  .dashboard-record-actions {
+    width: 100%;
+  }
+}
+
+/* --- card grid 320px floor --- */
+/* ثلاثة أعمدة قبل 1100 بكسل تُنتج بطاقة أضيق من 320: عند 1024 تكون مساحة
+   المحتوى 960، فثلاثة أعمدة بفواصل 48 تعطي 304 للبطاقة. الآيباد الأفقي
+   يعود إلى عمودين واسعين، وهو ما يحفظ الحدّ الأدنى المطلوب. */
+@media (min-width: 1024px) and (max-width: 1099px) {
+  .dashboard-card-grid-wide,
+  .dashboard-card-grid.dashboard-card-grid-wide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

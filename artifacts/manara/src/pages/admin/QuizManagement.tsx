@@ -1281,112 +1281,131 @@ ${contentSummary}
             <p className="text-purple-400">ابدأ بإنشاء اختبار جديد</p>
           </div>
         ) : (
-           <div className="dashboard-card-grid">
+           <div className="dashboard-record-grid">
             {createdQuizzes.map(quiz => (
-               <div key={quiz.id} className="dashboard-account-record dashboard-quiz-record bg-white p-6 rounded-[30px] border-2 border-purple-100 shadow-sm hover:shadow-lg transition-all">
-                <div className="flex justify-between items-start gap-6">
-                  {/* معلومات الاختبار */}
-                  <div className="flex-1 space-y-3">
-                    {/* العنوان */}
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-2xl font-black text-purple-900">{quiz.title}</h3>
-                      <span className={`px-4 py-1.5 rounded-full text-xs font-black ${
-                        quiz.isActive
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {quiz.isActive ? '✅ مفعّل' : '❌ غير مفعّل'}
-                      </span>
-                    </div>
-
-                    {/* التصنيفات */}
-                    <div className="flex gap-2 flex-wrap">
-                      <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.grade}</span>
-                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.subject}</span>
-                      <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.atram}</span>
-                      <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.term}</span>
-                      <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">{quiz.unit}</span>
-                      <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
-                        {normalizeQuizType(quiz.quizType) === QuizType.PERIODIC
-                          ? getPeriodicQuizLabel(quiz)
-                          : getQuizTypeLabel(quiz.quizType)}
-                      </span>
-                      {quiz.createdByName && (
-                        <span className="bg-purple-900 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                          <span>👨‍🏫</span>
-                          {quiz.createdByName}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* معلومات إضافية */}
-                    <div className="flex gap-6 text-sm text-purple-500">
-                      <span>📊 {quiz.questions.length} سؤال</span>
-                      <span>📅 {new Date(quiz.createdAt).toLocaleDateString('ar-SA')}</span>
-                      {quiz.lastModified && <span>🔄 آخر تعديل: {new Date(quiz.lastModified).toLocaleDateString('ar-SA')}</span>}
-                    </div>
-
-                    {/* عرض الأسئلة */}
-                    {quiz.questions.length > 0 && (
-                      <details className="mt-4">
-                        <summary className="cursor-pointer font-bold text-purple-500 hover:text-purple-800">
-                          👁️ عرض الأسئلة ({quiz.questions.length})
-                        </summary>
-                        <div className="mt-4 space-y-3">
-                          {quiz.questions.map((q, idx) => (
-                            <div key={idx} className="bg-purple-50 p-4 rounded-2xl border-2 border-purple-200">
-                              <p className="font-bold text-purple-800 mb-2">{idx + 1}. {q.question}</p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                                {q.options.map((opt, i) => (
-                                  <div 
-                                    key={i}
-                                    className={`p-2 rounded-lg ${
-                                      opt === q.correctAnswer 
-                                        ? 'bg-green-100 text-green-800 font-bold' 
-                                        : 'bg-white text-purple-600'
-                                    }`}
-                                  >
-                                    {opt} {opt === q.correctAnswer && '✓'}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
+               <article key={quiz.id} className="dashboard-record-card">
+                {/* ===== الترويسة: العنوان والحالة في جهة، الإجراءات في جهة =====
+                    كان الاثنان في صفّ `justify-between` واحد مع عمود الأزرار،
+                    فيُعصر عمود المعلومات كلما ضاقت البطاقة. فصلهما إلى صفّين
+                    يعطي العنوان العرض كاملاً ويُبعد الأزرار عن حافة البطاقة. */}
+                <header className="dashboard-record-head">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="dashboard-record-title">{quiz.title}</h3>
+                    <span className={`dashboard-record-status ${
+                      quiz.isActive
+                        ? 'dashboard-record-status-on'
+                        : 'dashboard-record-status-off'
+                    }`}>
+                      {quiz.isActive ? '✅ مفعّل' : '❌ غير مفعّل'}
+                    </span>
                   </div>
 
-                  {/* الأزرار */}
-                  <div className="flex gap-2">
+                  <div className="dashboard-record-actions">
                     <button
                       onClick={() => toggleActive(quiz.id)}
-                      className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                      className={`dashboard-icon-button ${
                         quiz.isActive
-                          ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
-                          : 'bg-green-100 text-green-600 hover:bg-green-200'
+                          ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                       }`}
                       title={quiz.isActive ? 'تعطيل' : 'تفعيل'}
+                      aria-label={quiz.isActive ? 'تعطيل الاختبار' : 'تفعيل الاختبار'}
                     >
                       {quiz.isActive ? '🔴' : '🟢'}
                     </button>
                     <button
                       onClick={() => handleEdit(quiz)}
-                      className="px-4 py-2 bg-blue-100 text-blue-600 rounded-xl font-bold hover:bg-blue-200 transition-all"
+                      className="dashboard-icon-button bg-blue-50 text-blue-700 hover:bg-blue-100"
                       title="تعديل"
+                      aria-label="تعديل الاختبار"
                     >
                       ✏️
                     </button>
                     <button
                       onClick={() => handleDelete(quiz.id)}
-                      className="px-4 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all"
+                      className="dashboard-icon-button bg-red-50 text-red-700 hover:bg-red-100"
                       title="حذف"
+                      aria-label="حذف الاختبار"
                     >
                       🗑️
                     </button>
                   </div>
+                </header>
+
+                {/* ===== شارات الهيكل الأكاديمي الستة ===== */}
+                <div className="dashboard-record-badges">
+                  <span className="dashboard-badge">{quiz.grade}</span>
+                  <span className="dashboard-badge">{quiz.atram}</span>
+                  <span className="dashboard-badge">{quiz.subject}</span>
+                  <span className="dashboard-badge">{quiz.term}</span>
+                  <span className="dashboard-badge">{quiz.unit}</span>
+                  {/* لا شارة درس هنا: `CreatedQuiz` لا يحمل حقل درس أصلاً،
+                      فالاختبارات مرتبطة بالوحدة لا بالدرس. إضافة الحقل تغيير
+                      في نموذج البيانات لا في تنسيق البطاقة. */}
+                  <span className="dashboard-badge dashboard-badge-accent">
+                    {normalizeQuizType(quiz.quizType) === QuizType.PERIODIC
+                      ? getPeriodicQuizLabel(quiz)
+                      : getQuizTypeLabel(quiz.quizType)}
+                  </span>
                 </div>
-              </div>
+
+                {/* ===== التفاصيل =====
+                    كان هذا صفّاً `flex gap-6` بلا `flex-wrap` إطلاقاً، فالعناصر
+                    الثلاثة تُحشر في سطر واحد داخل عمود عرضه ~300 بكسل فتتداخل
+                    فوق بعضها. صار شبكة تلتف من تلقائها. */}
+                <dl className="dashboard-record-meta">
+                  <div>
+                    <dt>📊 الأسئلة</dt>
+                    <dd>{quiz.questions.length}</dd>
+                  </div>
+                  <div>
+                    <dt>📅 الإنشاء</dt>
+                    <dd>{new Date(quiz.createdAt).toLocaleDateString('ar-SA')}</dd>
+                  </div>
+                  {quiz.lastModified && (
+                    <div>
+                      <dt>🔄 آخر تعديل</dt>
+                      <dd>{new Date(quiz.lastModified).toLocaleDateString('ar-SA')}</dd>
+                    </div>
+                  )}
+                  {quiz.createdByName && (
+                    <div>
+                      <dt>👨‍🏫 المعلم</dt>
+                      <dd>{quiz.createdByName}</dd>
+                    </div>
+                  )}
+                </dl>
+
+                {/* ===== الأسفل: عرض الأسئلة ===== */}
+                {quiz.questions.length > 0 && (
+                  <details className="dashboard-record-footer">
+                    <summary className="dashboard-record-reveal">
+                      👁️ عرض الأسئلة ({quiz.questions.length})
+                    </summary>
+                    <div className="mt-4 space-y-3">
+                      {quiz.questions.map((q, idx) => (
+                        <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <p className="mb-2 font-bold text-slate-800">{idx + 1}. {q.question}</p>
+                          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                            {q.options.map((opt, i) => (
+                              <div
+                                key={i}
+                                className={`rounded-lg p-2 ${
+                                  opt === q.correctAnswer
+                                    ? 'bg-emerald-100 font-bold text-emerald-800'
+                                    : 'bg-white text-slate-600'
+                                }`}
+                              >
+                                {opt} {opt === q.correctAnswer && '✓'}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </article>
             ))}
           </div>
         )}
