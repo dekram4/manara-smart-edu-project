@@ -15,10 +15,13 @@
  *
  * التشغيل:
  *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
- *     node scripts/set-student-gems.mjs --name "جوري داود" --gems 10
+ *     node scripts/set-student-gems.mjs --name "جوري داود" --gems 50 --xp 100 --level 1
+ *
+ * وتصفير بقية الطلاب في التشغيل نفسه:
+ *   ... --name "جوري داود" --gems 50 --xp 100 --level 1 --reset-others
  *
  * وبلا كتابة (معاينة):
- *   ... node scripts/set-student-gems.mjs --name "جوري داود" --gems 10 --dry-run
+ *   ... --dry-run
  */
 
 const args = process.argv.slice(2);
@@ -30,6 +33,10 @@ const DRY_RUN = args.includes('--dry-run');
 const NAME = flag('name');
 const STUDENT_ID = flag('id');
 const GEMS = Number(flag('gems', 'NaN'));
+// تجاوز صريح للاشتقاق، لضبط يدوي مقصود.
+const XP_OVERRIDE = args.includes('--xp') ? Number(flag('xp', 'NaN')) : null;
+const LEVEL_OVERRIDE = args.includes('--level') ? Number(flag('level', 'NaN')) : null;
+const RESET_OTHERS = args.includes('--reset-others');
 
 if ((!NAME && !STUDENT_ID) || !Number.isFinite(GEMS) || GEMS < 0) {
   console.error(
@@ -55,7 +62,17 @@ const headers = {
 /** المعادلة المعتمدة، مستنسخة حرفياً من منطق التطبيق. */
 export function deriveRewards(gems) {
   const xp = Math.floor(gems / 10) * 20;
-  const level = Math.floor(xp / 100) + 1;
+  const level = Math.floor(xp / 100);
+  return { gems, xp, level };
+}
+
+/** القيم النهائية: المشتقّة ما لم تُمرَّر قيم صريحة. */
+export function resolveRewards(gems, xpOverride, levelOverride) {
+  const derived = deriveRewards(gems);
+  const xp = xpOverride !== null && Number.isFinite(xpOverride) ? xpOverride : derived.xp;
+  const level = levelOverride !== null && Number.isFinite(levelOverride)
+    ? levelOverride
+    : Math.floor(xp / 100);
   return { gems, xp, level };
 }
 
@@ -94,7 +111,8 @@ async function main() {
   const row = matches[0];
   const data = row.data && typeof row.data === 'object' ? row.data : {};
   const before = data.gamification && typeof data.gamification === 'object' ? data.gamification : {};
-  const derived = deriveRewards(GEMS);
+  const derived = resolveRewards(GEMS, XP_OVERRIDE, LEVEL_OVERRIDE);
+  const consistent = derived.level === Math.floor(derived.xp / 100);
 
   console.log('──────── الطالب ────────');
   console.log(`الاسم   : ${text(data.name)}`);
@@ -103,7 +121,19 @@ async function main() {
   console.log('');
   console.log('القيم قبل :', JSON.stringify({ gems: before.gems ?? 0, xp: before.xp ?? 0, level: before.level ?? 1 }));
   console.log('القيم بعد :', JSON.stringify(derived));
-  console.log(`(المعادلة: xp = ⌊${GEMS}/10⌋ × 20 = ${derived.xp}؛ level = ⌊${derived.xp}/100⌋ + 1 = ${derived.level})`);
+  console.log(
+    XP_OVERRIDE !== null || LEVEL_OVERRIDE !== null
+      ? '(قيم ممرَّرة صراحةً، لا مشتقّة)'
+      : `(المعادلة: xp = ⌊${GEMS}/10⌋ × 20 = ${derived.xp}؛ level = ⌊${derived.xp}/100⌋ = ${derived.level})`,
+  );
+  if (!consistent) {
+    // التطبيق يعيد اشتقاق المستوى من الخبرة عند كل قراءة، فمستوى لا يوافق
+    // المعادلة يضيع صامتاً عند أول تحميل. التحذير هنا أفضل من اكتشافه لاحقاً.
+    console.warn(
+      `⚠️  المستوى ${derived.level} لا يوافق ⌊${derived.xp}/100⌋ = ${Math.floor(derived.xp / 100)}. ` +
+        'التطبيق سيعيد اشتقاقه عند القراءة.',
+    );
+  }
 
   if (DRY_RUN) {
     console.log('\n(معاينة فقط — لم يُكتب شيء)');
@@ -150,6 +180,73 @@ async function main() {
       : `❌ التحقّق فشل — المحفوظ: ${JSON.stringify(saved)}`,
   );
   if (!okAll) process.exit(1);
+
+  if (RESET_OTHERS) await resetOtherStudents(rows, text(row.id));
+}
+
+/**
+ * يصفّر رصيد كل طالب عدا المستهدف.
+ *
+ * يُحافظ على بقية حقول التلعيب (الإنجازات، السلسلة، سجل الأنشطة): المطلوب
+ * تصفير الرصيد لا محو تاريخ الطلاب. وسجل الأنشطة تحديداً هو ما يمنع منح
+ * المكافأة مرتين على النشاط نفسه، فمحوه يفتح باب تكرار المكافآت.
+ */
+async function resetOtherStudents(rows, keepRowId) {
+  const targets = rows.filter((row) => text(row.id) !== keepRowId);
+  console.log(`\n──────── تصفير بقية الطلاب (${targets.length}) ────────`);
+
+  if (DRY_RUN) {
+    targets.forEach((row) => {
+      const d = row.data || {};
+      const g = d.gamification || {};
+      console.log(`  • ${text(d.name) || text(row.id)}: ${g.gems ?? 0} جوهرة / ${g.xp ?? 0} XP → 0 / 0 / المستوى 0`);
+    });
+    console.log('(معاينة فقط — لم يُكتب شيء)');
+    return;
+  }
+
+  let done = 0;
+  for (const row of targets) {
+    const data = row.data && typeof row.data === 'object' ? row.data : {};
+    const before = data.gamification && typeof data.gamification === 'object' ? data.gamification : {};
+    // تخطّي من هو مصفَّر أصلاً: كتابة بلا تغيير تُحدث ضجيجاً في سجل المزامنة.
+    if ((before.gems ?? 0) === 0 && (before.xp ?? 0) === 0 && (before.level ?? 0) === 0) continue;
+
+    const patchUrl = new URL('/rest/v1/students', SUPABASE_URL);
+    patchUrl.searchParams.set('id', `eq.${text(row.id)}`);
+    const res = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: { ...headers, Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        data: {
+          ...data,
+          gamification: { ...before, gems: 0, xp: 0, level: 0, levelProgress: 0, updatedAt: new Date().toISOString() },
+        },
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`تعذّر تصفير ${text(row.id)}: ${res.status} ${await res.text()}`);
+    }
+    done++;
+  }
+  console.log(`✅ صُفّر ${done} طالباً (والباقي كان مصفَّراً أصلاً).`);
+
+  // تحقّق بعدي: لا طالب غير المستهدف بقي برصيد.
+  const verify = await (await fetch(
+    (() => { const u = new URL('/rest/v1/students', SUPABASE_URL); u.searchParams.set('select', 'id,data'); return u; })(),
+    { headers },
+  )).json();
+  const leftovers = verify.filter((row) => {
+    if (text(row.id) === keepRowId) return false;
+    const g = row?.data?.gamification ?? {};
+    return (g.gems ?? 0) !== 0 || (g.xp ?? 0) !== 0 || (g.level ?? 0) !== 0;
+  });
+  if (leftovers.length) {
+    console.error(`❌ بقي ${leftovers.length} طالباً برصيد غير مصفَّر.`);
+    process.exit(1);
+  }
+  console.log('✅ تحقّق: كل الطلاب الآخرين على صفر.');
 }
 
 main().catch((error) => {

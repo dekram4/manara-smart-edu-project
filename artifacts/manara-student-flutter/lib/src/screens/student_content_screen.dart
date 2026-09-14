@@ -637,7 +637,11 @@ class _GamesModule extends StatelessWidget {
   /// Whether the game at [index] is open at [xp].
   static bool isUnlocked(int index, int xp) => xp >= requiredXpFor(index);
 
-  /// How many games [xp] opens. Equals the student's level.
+  /// كم لعبة يفتحها [xp].
+  ///
+  /// ليست هي المستوى: المستوى صار ⌊xp/100⌋ فيبدأ من 0، أما الألعاب فأوّلها
+  /// (الفهرس 0) مفتوحة عند 0 XP — فلو طُرح الواحد هنا لما استطاع طالب جديد
+  /// فتح أي لعبة إطلاقاً.
   static int unlockedCount(int xp) => (xp ~/ 100) + 1;
 
   @override

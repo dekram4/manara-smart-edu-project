@@ -31,7 +31,7 @@ class StudentGamification {
   const StudentGamification({
     this.xp = 0,
     this.gems = 0,
-    this.level = 1,
+    this.level = 0,
     this.streak = 0,
     this.totalQuizzes = 0,
     this.totalLessons = 0,
@@ -74,9 +74,10 @@ class StudentGamification {
     return StudentGamification(
       xp: _number(map['xp']),
       gems: _number(map['gems']),
-      // The web dashboard derives the level from XP. Retain that invariant
-      // even when an older saved snapshot has a stale level field.
-      level: (_number(map['xp']) ~/ 100) + 1,
+      // المستوى مشتقّ من الخبرة دائماً، حتى لو حملت لقطة قديمة قيمة
+      // مخالفة. والمعادلة المعتمدة: level = ⌊xp / 100⌋ — فالمستوى 0 هو
+      // نقطة البداية (0–99 XP)، والمستوى 1 عند 100 XP.
+      level: _number(map['xp']) ~/ 100,
       streak: _number(map['streak']),
       totalQuizzes: _number(map['totalQuizzes']),
       totalLessons: _number(map['totalLessons']),
@@ -140,7 +141,7 @@ class StudentGamification {
   }) => StudentGamification(
     xp: xp ?? this.xp,
     gems: gems ?? this.gems,
-    level: ((xp ?? this.xp) ~/ 100) + 1,
+    level: (xp ?? this.xp) ~/ 100,
     streak: streak ?? this.streak,
     totalQuizzes: totalQuizzes ?? this.totalQuizzes,
     totalLessons: totalLessons ?? this.totalLessons,

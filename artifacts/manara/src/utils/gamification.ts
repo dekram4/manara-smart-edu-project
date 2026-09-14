@@ -183,19 +183,21 @@ export function addGems(amount: number): number {
 }
 
 // Level
+/** المستوى = ⌊xp / 100⌋ — يبدأ من 0 (0–99 XP) ويصير 1 عند 100 XP. */
 export function getLevel(): number {
   const xp = getXP();
-  return Math.floor(xp / XP_PER_LEVEL) + 1;
+  return Math.floor(xp / XP_PER_LEVEL);
 }
 export function getLevelProgress(): number {
   const xp = getXP();
   const level = getLevel();
-  const base = (level - 1) * XP_PER_LEVEL;
+  // قاعدة المستوى صارت level × 100 لأن المستوى يبدأ من 0 لا من 1.
+  const base = level * XP_PER_LEVEL;
   const next = base + XP_PER_LEVEL;
   return Math.min(100, Math.max(0, ((xp - base) / (next - base)) * 100));
 }
 function checkLevelUp() {
-  const oldLevel = getStorage(GAMIFICATION_KEYS.LEVEL, 1);
+  const oldLevel = getStorage(GAMIFICATION_KEYS.LEVEL, 0);
   const newLevel = getLevel();
   if (newLevel > oldLevel) {
     setStorage(GAMIFICATION_KEYS.LEVEL, newLevel);
@@ -427,8 +429,8 @@ export function rewardProblemSolved() {
 export function getGamificationStats() {
   const storedXP = getXP();
   const effectiveXP = storedXP;
-  const effectiveLevel = Math.floor(effectiveXP / XP_PER_LEVEL) + 1;
-  const levelBaseXP = (effectiveLevel - 1) * XP_PER_LEVEL;
+  const effectiveLevel = Math.floor(effectiveXP / XP_PER_LEVEL);
+  const levelBaseXP = effectiveLevel * XP_PER_LEVEL;
   const levelProgress = Math.min(100, Math.max(0, ((effectiveXP - levelBaseXP) / XP_PER_LEVEL) * 100));
 
   return {
