@@ -809,7 +809,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger bg-rose-800 px-3 py-2 text-white" aria-label="فتح القائمة">☰ القائمة</button>
         </div>
         <div className="dashboard-content-area min-w-0 flex-1 safe-area-x safe-area-bottom">
-          <div className="w-full max-w-7xl mx-auto">
+          <div className="dashboard-content-fluid">
 
         {/* ---------- DASHBOARD ---------- */}
         {menuType === ParentMenuType.DASHBOARD && (

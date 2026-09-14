@@ -127,7 +127,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     switch (activeMenu) {
       case TeacherMenuType.DASHBOARD:
         return (
-          <div className="dashboard-page w-full max-w-7xl mx-auto">
+          <div className="dashboard-page dashboard-content-fluid">
             {/* Header */}
             <div className="dashboard-page-banner bg-gradient-to-r from-amber-500 to-orange-500 border border-amber-200/70">
               <div className="flex min-w-0 flex-col items-start justify-between gap-4 md:flex-row md:items-center">

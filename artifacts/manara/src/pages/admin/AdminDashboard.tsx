@@ -271,7 +271,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         </header>
 
         <div className="dashboard-content-area min-w-0 flex-1 safe-area-x safe-area-bottom">
-          <div className="max-w-7xl mx-auto">
+          {/* بلا سقف عرض: `max-w-7xl` (1280px) كان يترك 320 بكسل فارغة على
+              شاشة 1920 في كل شاشة من شاشات المشرف، ولوحة إدارة مكوّنة من
+              بطاقات وجداول تستفيد من العرض ولا تعاني منه كما يعاني نص مقالة. */}
+          <div className="dashboard-content-fluid">
             {renderContent()}
           </div>
         </div>

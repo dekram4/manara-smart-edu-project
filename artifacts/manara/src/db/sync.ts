@@ -197,11 +197,21 @@ function currentScope(): string {
   return activeSyncContext?.scope ?? 'unverified';
 }
 
+// يجب أن تطابق هذه الدالة `rowBelongsToActor` في خادم الـ API حرفياً: هي
+// تُستخدم الآن لتصفية ما يُرسَل، فأي تشدّد زائد فيها يحجب كتابة مشروعة بصمت،
+// وأي تساهل يُعيد الشريط الأحمر الذي جاءت لتمنعه.
+//
+// وتحديداً `||` وليس `??`: الخادم يتخطّى السلسلة عند النص الفارغ أيضاً، فسجلّ
+// فيه `teacherId: ''` و`createdBy: 't1'` يملكه 't1' عنده. لو استُعمل `??` هنا
+// لتوقّفت السلسلة عند الفراغ فيُحجب السجل رغم أن الخادم كان سيقبله.
 function recordBelongsToContext(record: any, context: SyncContext, table: string): boolean {
   if (context.role === 'admin') return true;
   if (!record || typeof record !== 'object') return false;
   if (table === 'teachers') return String(record.id ?? '').trim() === context.teacherId;
-  const owner = String(record.teacherId ?? record.teacher_id ?? record.createdBy ?? '').trim();
+  const owner =
+    String(record.teacher_id ?? '').trim() ||
+    String(record.teacherId ?? '').trim() ||
+    String(record.createdBy ?? '').trim();
   return owner === context.teacherId;
 }
 
@@ -578,6 +588,16 @@ export async function hydrateFromSupabase(
 }
 
 // مزامنة جدول كيانات عبر مقارنة المصفوفة القديمة بالجديدة (upsert/delete للمتغيّر فقط)
+//
+// قاعدة الملكية كانت مطبّقة عند القراءة فقط (`hydrateRowTable`) ومفقودة تماماً
+// عند الكتابة. النتيجة: أي كتابة لـ `smartEdu_teachers` من جلسة معلّم تُرسِل
+// صفوفاً لا يملكها إلى الخادم، فيرفضها RLS رفضاً نهائياً غير قابل للإعادة،
+// فيظهر الشريط الأحمر «رفض الخادم العملية — حفظ teachers» على شاشة المعلّم
+// في كل مرة، رغم أن لا شيء من عمله ضاع فعلاً.
+//
+// الحل ليس إخفاء الشريط: الشريط محقّ حين يضيع تعديل. الحل ألا تُرسَل أصلاً
+// كتابةٌ معروفٌ سلفاً أنها ليست من حق هذا الحساب — وهي نفس القاعدة المعتمدة
+// على القراءة، فلا يمكن أن تُسقط بياناتٍ لم تكن القراءة لتُسقطها.
 async function syncRowTable(table: string, oldArr: any[], newArr: any[]): Promise<void> {
   const oldById = new Map<string, any>();
   for (const r of oldArr) if (r && r.id != null) oldById.set(String(r.id), r);
@@ -585,16 +605,40 @@ async function syncRowTable(table: string, oldArr: any[], newArr: any[]): Promis
   const newById = new Map<string, any>();
   for (const r of newArr) if (r && r.id != null) newById.set(String(r.id), r);
 
+  const context = activeSyncContext;
+  const writable = (record: any): boolean =>
+    !context || recordBelongsToContext(record, context, table);
+
   const upserts: { id: string; data: any }[] = [];
+  let blockedUpserts = 0;
   for (const [id, rec] of newById) {
     const prev = oldById.get(id);
-    if (!prev || JSON.stringify(prev) !== JSON.stringify(rec)) {
-      upserts.push({ id, data: rec });
+    if (prev && JSON.stringify(prev) === JSON.stringify(rec)) continue;
+    if (!writable(rec)) {
+      blockedUpserts++;
+      continue;
     }
+    upserts.push({ id, data: rec });
   }
 
   const deletes: string[] = [];
-  for (const id of oldById.keys()) if (!newById.has(id)) deletes.push(id);
+  let blockedDeletes = 0;
+  for (const [id, prev] of oldById) {
+    if (newById.has(id)) continue;
+    if (!writable(prev)) {
+      blockedDeletes++;
+      continue;
+    }
+    deletes.push(id);
+  }
+
+  // تشخيص في الكونسول دون إزعاج المستخدم: لا شيء ضاع، الصفوف المحجوبة ليست
+  // ملك هذا الحساب أصلاً ونسخته المحلية منها مجرد أثر تحميل سابق.
+  if (blockedUpserts || blockedDeletes) {
+    console.info(
+      `[sync] تخطّي ${blockedUpserts + blockedDeletes} صفاً خارج ملكية الحساب في ${table}`,
+    );
+  }
 
   if (upserts.length) {
     const res = await withRetry(`حفظ ${table}`, () =>

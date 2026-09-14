@@ -444,7 +444,7 @@ body,
   overflow-x: hidden;
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   .dashboard-shell {
     position: relative;
     width: 100%;
@@ -511,7 +511,7 @@ body,
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
   .dashboard-shell .dashboard-sidebar {
     position: sticky;
     inset-block-start: 0;
@@ -527,6 +527,31 @@ body,
     width: calc(100% - 16rem);
     min-width: 0;
     margin: 0;
+  }
+}
+
+/* حدّ الدرج نُقل من 1024 إلى 1280 حتى يشمل التابلت في الوضع الأفقي
+   (آيباد 1024 عرضاً) كما طُلب: القائمة الثابتة تلتهم 256 بكسل من 1024 فلا
+   يبقى للمحتوى إلا 768.
+
+   لكن أصناف Tailwind في الترميز تستعمل `lg:` ونقطته 1024، فزر الهمبرغر
+   (`lg:hidden`) كان سيختفي عند 1024 بينما القائمة ما تزال مخفية خارج
+   الشاشة — درج لا سبيل إلى فتحه إطلاقاً. هذا النطاق يعيد إظهار شريط
+   الأدوات والزر في الفجوة 1024–1279. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .dashboard-shell .dashboard-mobile-toolbar.lg\:hidden,
+  .dashboard-shell .dashboard-mobile-toolbar {
+    display: block !important;
+  }
+
+  .dashboard-shell .dashboard-mobile-menu-trigger {
+    display: inline-flex !important;
+  }
+
+  /* والطبقة المعتمة كذلك، وإلا بقي الدرج مفتوحاً بلا وسيلة لإغلاقه باللمس. */
+  .dashboard-shell .dashboard-sidebar-overlay.lg\:hidden,
+  .dashboard-shell .dashboard-sidebar-overlay {
+    display: block !important;
   }
 }
 
@@ -2328,9 +2353,16 @@ body,
 
 .dashboard-content {
   width: 100%;
-  max-width: 80rem;
-  margin-inline: auto;
   min-width: 0;
+}
+
+/* الحاوية الرئيسية لمحتوى اللوحات الثلاث: تتمدد بكامل المساحة المتاحة.
+   السقف السابق (80rem = 1280px) كان يترك 320 بكسل فارغة على شاشة 1920 —
+   وهي الفجوة التي تجعل الصفحة تبدو محشورة في جانب والنصف الآخر خالياً. */
+.dashboard-content-fluid {
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .dashboard-report-table-wrap {
@@ -3403,4 +3435,118 @@ body,
   font-size: 0.8rem;
   font-weight: 800;
   line-height: 1.7;
+}
+
+/* ==========================================================================
+   الشاشات الكبيرة جداً — توزيع متوازن بعد رفع سقف العرض
+   ==========================================================================
+
+   بعد إزالة `max-w-7xl` صارت حاوية المحتوى تبلغ 1600 بكسل على شاشة 1920
+   و2240 على 2560. الشبكات كانت تتوقف عند 1024 بكسل، فبقيت البطاقة الواحدة
+   تتمدد إلى 500-750 بكسل بدل أن تنضم إليها بطاقة أخرى — وهو تبديد للمساحة
+   لا استغلال لها.
+
+   الحل عمود إضافي لا بطاقة أعرض: الشبكة تكسب عموداً عند 1600 بكسل، فتبقى
+   البطاقة في مقاس مقروء وتُملأ الصفحة فعلاً.                               */
+
+@media (min-width: 1600px) {
+  .dashboard-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-card-grid.dashboard-card-grid-wide,
+  .dashboard-card-grid-wide {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dashboard-actions-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* الفلاتر تبقى أربعة: صفّ واحد مقروء أفضل من خمسة حقول ضيقة. */
+}
+
+@media (min-width: 2100px) {
+  .dashboard-card-grid.dashboard-card-grid-wide,
+  .dashboard-card-grid-wide {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* هوامش المحتوى تتنفس مع اتساع الشاشة بدل أن تبقى 2rem ثابتة. */
+@media (min-width: 1600px) {
+  .dashboard-content-area {
+    padding-inline: 2.5rem;
+  }
+}
+
+/* ==========================================================================
+   أزرار الإجراءات داخل الجداول — مقاس متزن عبر الأدوار الثلاثة
+   ==========================================================================
+
+   أزرار مثل «🖨️ طباعة» كانت `px-4 py-2` فتخرج بارتفاع 36-38 بكسل: أصغر من
+   الحد المريح للمس (44)، ومختلفة من جدول لآخر لأن كل شاشة كتبت حشوتها
+   بنفسها. وحين يضيق العمود ينكسر السطر بين الأيقونة والكلمة.
+
+   القاعدة هنا تضبطها جميعاً من مكان واحد بدل تعديل كل زر على حدة.          */
+
+.dashboard-report-table td button,
+.dashboard-content-table td button,
+.dashboard-table-surface table td button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding-inline: 1.1rem;
+  padding-block: 0.55rem;
+  border-radius: 0.75rem;
+  font-weight: 800;
+  line-height: 1.4;
+  /* الأيقونة والكلمة وحدة واحدة لا تنكسر بينهما. */
+  white-space: nowrap;
+}
+
+/* عمود الإجراءات لا ينضغط تحت ضغط الأعمدة النصية المجاورة. */
+.dashboard-report-table td:last-child,
+.dashboard-report-table th:last-child,
+.dashboard-content-table td:last-child,
+.dashboard-content-table th:last-child {
+  white-space: nowrap;
+  min-width: 8.5rem;
+}
+
+/* أكثر من زر في خلية واحدة: يلتفّان بتباعد بدل أن يتلاصقا. */
+.dashboard-report-table td:last-child,
+.dashboard-content-table td:last-child {
+  text-align: center;
+}
+
+.dashboard-report-table td:last-child > *,
+.dashboard-content-table td:last-child > * {
+  margin-inline: 0.15rem;
+}
+
+/* نصوص الخلايا لا تلتصق ببعضها عمودياً ولا أفقياً. */
+.dashboard-report-table td,
+.dashboard-content-table td {
+  padding-block: 0.85rem;
+}
+
+/* ==========================================================================
+   بطاقات البحث والنماذج في «إدارة الحسابات» و«إدارة الصلاحيات»
+   ==========================================================================
+   الحقول كانت تتراص بلا تنفّس حين تتسع الحاوية. الشبكة تمنحها حداً أدنى
+   معقولاً فتتوزع تلقائياً بعدد الأعمدة الذي يسعه العرض.                    */
+
+.dashboard-account-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.dashboard-account-form-grid > * {
+  min-width: 0;
 }
