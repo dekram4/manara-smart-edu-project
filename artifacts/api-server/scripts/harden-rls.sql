@@ -29,10 +29,16 @@
 --             إن لم تكن نقلت كتابات الطالب إلى خادم الـ API بعد، فعطّل
 --             الخيار (ب-1) وفعّل (ب-2) مؤقتاً.
 --
---  السبب الجذري الذي يبقى قائماً في الحالتين: التطبيق لا يستعمل مصادقة
---  Supabase، فلا يوجد `auth.uid()` تُقصر به الصفوف على صاحبها. أي سماح
---  بالكتابة لدور anon هو سماح لأي حامل للمفتاح. الحل النهائي الوحيد هو
---  توجيه كتابات الطالب عبر خادم الـ API الذي يملك مفتاح الخدمة.
+--  السبب الجذري الذي يبقى قائماً في الحالتين: مسار الدخول الأساسي للطالب
+--  لا يستعمل مصادقة Supabase — يقرأ جدول `students` بدور anon — فلا يوجد
+--  `auth.uid()` تُقصر به الصفوف على صاحبها. أي سماح بالكتابة لدور anon هو
+--  سماح لأي حامل للمفتاح. الحل النهائي الوحيد هو توجيه كتابات الطالب عبر
+--  خادم الـ API الذي يملك مفتاح الخدمة.
+--
+--  (يوجد مسار دخول ثانٍ بالبريد يستعمل `signInWithPassword` فتتوفّر فيه
+--   جلسة حقيقية. جدول `profiles` وحده يستفيد منه، وسياستُه أدناه مقصورة
+--   على صاحب الصف. أما بقية الجداول فيقرؤها الدوران معاً لأن المسار
+--   الأساسي anon، ولا يمكن تقييدها بالصف قبل توحيد المصادقة.)
 --
 -- ════════════════════════════════════════════════════════════════════════
 
@@ -47,15 +53,22 @@ begin
   foreach t in array array[
     'students','parents','teachers','lesson_configs','created_quizzes',
     'quiz_results','interactions','private_messages','public_messages',
-    'certificates','app_kv'
+    'certificates','app_kv','profiles'
   ]
   loop
+    -- `profiles` قد لا يكون موجوداً في كل بيئة. بلا هذا الفحص يفشل
+    -- `alter table` على جدول غائب فتسقط المعاملة كلها ولا يُنفَّذ شيء.
+    if to_regclass(format('public.%I', t)) is null then
+      raise notice 'تخطّي %: الجدول غير موجود.', t;
+      continue;
+    end if;
     execute format('alter table public.%I enable row level security;', t);
     execute format('drop policy if exists "allow_all_%s" on public.%I;', t, t);
     -- وإسقاط أي سياسة من تشغيل سابق لهذا السكريبت، ليكون قابلاً للإعادة.
     execute format('drop policy if exists "anon_read_%s"  on public.%I;', t, t);
     execute format('drop policy if exists "anon_write_%s" on public.%I;', t, t);
   end loop;
+  drop policy if exists "auth_read_own_profile" on public.profiles;
 end $$;
 
 -- ملاحظة على `service_role`: يتجاوز RLS كلياً بحكم التصميم، فلا يحتاج
@@ -80,12 +93,12 @@ end $$;
 -- الشهادات تُصدَر من اللوحة لا من التطبيق. قراءة فقط ليعرضها التطبيق
 -- للطالب، والإصدار عبر الخادم.
 create policy "anon_read_certificates" on public.certificates
-  for select to anon using (true);
+  for select to anon, authenticated using (true);
 
 -- ── lesson_configs ──────────────────────────────────────────────────────
 -- محتوى الدروس: نصوص وروابط فيديو ينشرها المعلم. التطبيق يقرؤها فقط.
 create policy "anon_read_lesson_configs" on public.lesson_configs
-  for select to anon using (true);
+  for select to anon, authenticated using (true);
 
 -- ── created_quizzes ─────────────────────────────────────────────────────
 -- الاختبارات المنشأة. التطبيق يقرؤها ليعرضها، ولا ينشئها.
@@ -94,12 +107,35 @@ create policy "anon_read_lesson_configs" on public.lesson_configs
 -- المفتاح يستطيع رؤيتها. علاجه الصحيح هو فصل الإجابات في عمود لا يُقرأ
 -- من التطبيق وتصحيح الاختبار في الخادم — تغيير أوسع من هذا السكريبت.
 create policy "anon_read_created_quizzes" on public.created_quizzes
-  for select to anon using (true);
+  for select to anon, authenticated using (true);
 
 -- ── public_messages ─────────────────────────────────────────────────────
 -- لوحة الرسائل العامة. قراءة للجميع، والنشر من اللوحة عبر الخادم.
 create policy "anon_read_public_messages" on public.public_messages
-  for select to anon using (true);
+  for select to anon, authenticated using (true);
+
+-- ── profiles ────────────────────────────────────────────────────────────
+-- الجدول الوحيد هنا الذي يقبل تقييداً حقيقياً على مستوى الصف.
+--
+-- مسار الدخول الأساسي يقرأ جدول `students` بدور anon بلا مصادقة، لكن
+-- `student_auth_service.dart` يسلك مساراً ثانياً عندما يحتوي اسم المستخدم
+-- على «@»: `signInWithPassword` ثم قراءة `profiles`. في هذا المسار وحده
+-- توجد جلسة حقيقية، فيتوفّر `auth.uid()`.
+--
+-- ولذلك لا نمنح anon شيئاً هنا، ونمنح المُصادَق صفَّه هو فقط — لا كل
+-- الصفوف. هذا هو التقييد الذي تعذّر على بقية الجداول.
+do $$
+begin
+  if to_regclass('public.profiles') is null then
+    raise notice 'تخطّي profiles: الجدول غير موجود.';
+  else
+    -- التحويل إلى نص في الطرفين مقصود: `auth.uid()` من نوع uuid، وعمود
+    -- `id` هنا قد يكون uuid أو text حسب كيفية إنشاء الجدول. المقارنة
+    -- المباشرة تفشل بخطأ نوع إن اختلفا، وهذه تعمل في الحالتين.
+    create policy "auth_read_own_profile" on public.profiles
+      for select to authenticated using (auth.uid()::text = id::text);
+  end if;
+end $$;
 
 -- ── app_kv ──────────────────────────────────────────────────────────────
 -- خزانة مفاتيح/قيم مختلطة الحساسية:
@@ -107,7 +143,7 @@ create policy "anon_read_public_messages" on public.public_messages
 --   والتقارير (لا يحتاجها ويجب ألا يراها).
 -- لذلك القراءة مقيَّدة بقائمة مفاتيح صريحة لا مفتوحة على الجدول.
 create policy "anon_read_app_kv" on public.app_kv
-  for select to anon
+  for select to anon, authenticated
   using (
     key in (
       'smartEdu_grades',
@@ -120,11 +156,17 @@ create policy "anon_read_app_kv" on public.app_kv
       'smartEdu_videos',
       'smartEdu_deletedVideos',
       'smartEdu_deletedLessons',
-      'smartEdu_deletedQuizzes'
+      'smartEdu_deletedQuizzes',
+      -- يقرؤه التطبيق فعلاً في student_content_service.dart لتحميل أسئلة
+      -- الاختبار. كان مستثنى في أول صياغة لهذا السكريبت، فكان تنفيذه يُفرغ
+      -- كل اختبار من أسئلته بصمت. وحَجْبه لا يحمي شيئاً ما دام
+      -- `created_quizzes` مقروءاً وفيه الإجابات نفسها — العلاج الحقيقي
+      -- تصحيحُ الاختبار في الخادم، لا إخفاء المفتاح.
+      'smartEdu_quizQuestions'
     )
   );
 -- المستثناة عمداً: smartEdu_adminSettings · smartEdu_permissions ·
--- smartEdu_permissionPackages · smartEdu_reports · smartEdu_quizQuestions
+-- smartEdu_permissionPackages · smartEdu_reports
 
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -138,16 +180,16 @@ create policy "anon_read_app_kv" on public.app_kv
 -- كلمة المرور. علاجه نقلها إلى عمود منفصل محجوب، وهو خارج نطاق هذا
 -- السكريبت — لكن اعلمه.
 create policy "anon_read_students" on public.students
-  for select to anon using (true);
+  for select to anon, authenticated using (true);
 
 -- ── quiz_results ────────────────────────────────────────────────────────
 -- يقرؤه التطبيق ليعرض للطالب نتائجه السابقة.
 create policy "anon_read_quiz_results" on public.quiz_results
-  for select to anon using (true);
+  for select to anon, authenticated using (true);
 
 -- ── interactions ────────────────────────────────────────────────────────
 create policy "anon_read_interactions" on public.interactions
-  for select to anon using (true);
+  for select to anon, authenticated using (true);
 
 
 -- ┌────────────────────────────────────────────────────────────────────┐
@@ -171,13 +213,13 @@ create policy "anon_read_interactions" on public.interactions
 -- └────────────────────────────────────────────────────────────────────┘
 --
 -- create policy "anon_write_students" on public.students
---   for update to anon using (true) with check (true);
+--   for update to anon, authenticated using (true) with check (true);
 --
 -- create policy "anon_write_quiz_results" on public.quiz_results
---   for insert to anon with check (true);
+--   for insert to anon, authenticated with check (true);
 --
 -- create policy "anon_write_interactions" on public.interactions
---   for insert to anon with check (true);
+--   for insert to anon, authenticated with check (true);
 
 
 commit;
@@ -212,7 +254,7 @@ where relnamespace = 'public'::regnamespace
   and relname in (
     'students','parents','teachers','lesson_configs','created_quizzes',
     'quiz_results','interactions','private_messages','public_messages',
-    'certificates','app_kv'
+    'certificates','app_kv','profiles'
   )
 order by relname;
 -- المتوقّع: rls_enabled = true في كل سطر.

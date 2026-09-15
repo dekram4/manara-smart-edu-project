@@ -200,8 +200,40 @@ function loadPending(): PendingOp[] {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+/**
+ * يكتب الطابور، ولا يسمح لامتلاء التخزين بأن يُفشل الكتابة المحلية.
+ *
+ * سقف `MAX_PENDING_OPS` يحدّ **عدد** العمليات لا **حجمها**: عملية واحدة
+ * ثقيلة (سؤال باختبار يحمل صورة مضمّنة مثلاً) تكفي لتجاوز حصّة الأصل. ولأن
+ * `nativeSetItem` ترمي عندئذٍ `QuotaExceededError`، كان الاستثناء يصعد عبر
+ * `appendPending` إلى مسار الكتابة نفسه فيُسقط حفظ ما بين يدَي المستخدم.
+ *
+ * فهنا: نقلّص الطابور إلى النصف مراراً ونعيد المحاولة، وإن بقي العجز
+ * أفرغناه. فقدان تعديلات قديمة غير مُزامَنة أهون من تعطُّل الحفظ الحاضر،
+ * والمستخدم يُبلَّغ في الحالتين.
+ */
 function savePending(ops: PendingOp[]): void {
-  nativeSetItem(PENDING_KEY, JSON.stringify(ops));
+  let attempt = ops;
+  while (true) {
+    try {
+      nativeSetItem(PENDING_KEY, JSON.stringify(attempt));
+      return;
+    } catch (error) {
+      if (attempt.length === 0) {
+        // لم يعد في الطابور ما يُقلَّص، فالامتلاء من مفاتيح أخرى.
+        console.error('[sync] تعذّرت كتابة الطابور رغم إفراغه.', error);
+        reportFailure('dropped', 'طابور المزامنة', new Error(
+          'تخزين المتصفح ممتلئ؛ تعذّر حفظ طابور المزامنة وأُفرغ بالكامل.',
+        ));
+        return;
+      }
+      const kept = Math.floor(attempt.length / 2);
+      console.warn(
+        `[sync] تخزين المتصفح ممتلئ — تقليص الطابور من ${attempt.length} إلى ${kept} عملية.`,
+      );
+      attempt = attempt.slice(attempt.length - kept);
+    }
+  }
 }
 
 /**

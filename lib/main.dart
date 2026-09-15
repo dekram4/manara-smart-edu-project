@@ -2,36 +2,44 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'src/config/supabase_config.dart';
 import 'src/screens/login_screen.dart';
 import 'src/services/student_auth_service.dart';
-
-const String kSupabaseUrl = 'https://kpqlotlyniomssnzcgqn.supabase.co';
-const String kSupabaseAnonKey =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwcWxvdGx5bmlvbXNzbnpjZ3FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxMzcxNjIsImV4cCI6MjEwMjcxMzE2Mn0.AHZ5vsoBNQ6cemiswQksEe91M1IQRU3RsAtDINNymkg';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // كان العنوان والمفتاح مكتوبَين هنا ثابتَين، متجاوزَين `SupabaseConfig`
+  // النظيفة المجاورة. والمستودع عام، فكان المفتاح منشوراً. القراءة الآن من
+  // بيئة البناء وحدها عبر --dart-define، كما في تطبيق الطالب المعتمد.
+  const config = SupabaseConfig.fromEnvironment();
+
   SupabaseClient? client;
   String? initializationError;
 
-  try {
-    await Supabase.initialize(
-      url: kSupabaseUrl,
-      anonKey: kSupabaseAnonKey,
-      publishableKey: kSupabaseAnonKey,
-      authOptions: const FlutterAuthClientOptions(),
-    );
-    client = Supabase.instance.client;
-  } catch (error) {
-    initializationError = 'تعذر تهيئة اتصال Supabase: ${error.toString()}';
+  if (!config.isConfigured) {
+    initializationError = config.configurationMessage;
+  } else {
+    try {
+      await Supabase.initialize(
+        url: config.url,
+        anonKey: config.anonKey,
+        publishableKey: config.anonKey,
+        authOptions: const FlutterAuthClientOptions(),
+      );
+      client = Supabase.instance.client;
+    } catch (error) {
+      initializationError = 'تعذر تهيئة اتصال Supabase: ${error.toString()}';
+    }
   }
 
   runApp(
     ManaraStudentApp(
       client: client,
       initializationError: initializationError,
-      apiBaseUrl: '$kSupabaseUrl/rest/v1',
+      apiBaseUrl: config.apiBaseUrl.isNotEmpty
+          ? config.apiBaseUrl
+          : '${config.url}/rest/v1',
     ),
   );
 }
