@@ -71,10 +71,34 @@ jobs:
         # وإن غاب أي سرّ، يُبنى التطبيق ويعرض شاشة «الإعدادات ناقصة» بدل أن
         # ينهار: `SupabaseConfig.isConfigured` تتكفّل بذلك.
         run: |
-          flutter build apk --release \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=API_BASE_URL="$API_BASE_URL"
+          set -euo pipefail
+
+          # السرّ الغائب يجب أن يُترك غير مُعرَّف، لا أن يُمرَّر فارغاً:
+          # `String.fromEnvironment` تُرجع القيمة الافتراضية فقط إن لم يكن
+          # المفتاح مُعرَّفاً أصلاً. تمريره فارغاً يُعرِّفه بالفراغ فيُلغي
+          # الافتراضي — وهو ما كان يمحو عنوان API_BASE_URL بصمت فيقطع
+          # المحادثة وGemini.
+          # `if` لا `&&`: تحت `set -e` يُنهي الاختبارُ الفاشل في آخر السطر
+          # السكريبتَ كلَّه، وهي بالضبط حالة السرّ الغائب التي جاء يعالجها.
+          args=()
+          if [ -n "${SUPABASE_URL:-}" ]; then
+            args+=("--dart-define=SUPABASE_URL=$SUPABASE_URL")
+          fi
+          if [ -n "${SUPABASE_ANON_KEY:-}" ]; then
+            args+=("--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY")
+          fi
+          if [ -n "${API_BASE_URL:-}" ]; then
+            args+=("--dart-define=API_BASE_URL=$API_BASE_URL")
+          fi
+
+          # وإن غاب العنوان أو المفتاح فالبناء ينجح لكن التطبيق يفتح على
+          # شاشة «الإعدادات ناقصة». نُعلن ذلك بوضوح في السجل بدل أن يُكتشف
+          # على الهاتف.
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::warning::SUPABASE_URL أو SUPABASE_ANON_KEY غير مضبوط في أسرار المستودع — سيُبنى تطبيق بلا اتصال بقاعدة البيانات."
+          fi
+
+          flutter build apk --release "${args[@]}"
         working-directory: artifacts/manara-student-flutter
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
