@@ -440,42 +440,56 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       backgroundColor: StudentSurface.coolGround(context),
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFE3EEF7), Color(0xFFF7F1E6), Color(0xFFE9F1F5)],
+          // The journey's own scenery: schoolyard, sky and grass, filling the
+          // screen behind the trail.
+          //
+          // `cacheWidth` is not an optimisation to tidy up later. The source
+          // is 1800px wide, and decoded at full size it holds about 9MB of
+          // pixels for a phone that will draw it at 400 — on a cheap device
+          // that is the difference between a screen that opens and one the
+          // system kills. Decoding to the width actually drawn costs nothing
+          // visible.
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/masar.png',
+              fit: BoxFit.cover,
+              cacheWidth: (MediaQuery.sizeOf(context).width *
+                      MediaQuery.devicePixelRatioOf(context))
+                  .clamp(360.0, 1800.0)
+                  .round(),
+              errorBuilder: (_, __, ___) => const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFFE3EEF7),
+                      Color(0xFFF7F1E6),
+                      Color(0xFFE9F1F5),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          // The mark is the screen's background now rather than a badge in
-          // the corner: one large, very pale blue silhouette spanning the
-          // whole screen behind everything. It is drawn at 7% so it reads
-          // as watermarked paper — present when looked for, invisible when
-          // reading the books over it — and ignores pointers so it can
-          // never take a tap meant for a field.
+          // A veil over the scenery.
+          //
+          // The artwork is busy by design — a painted school, checked tiles,
+          // stars, two children — and Arabic set over it at any weight is
+          // hard to read. The veil pushes it back far enough that the station
+          // names and the answers under them read cleanly, while the scene is
+          // still plainly there. It is the one thing that makes using this
+          // illustration as a background workable rather than decorative.
           Positioned.fill(
             child: IgnorePointer(
-              child: Center(
-                child: FractionallySizedBox(
-                  widthFactor: 0.92,
-                  heightFactor: 0.92,
-                  child: Opacity(
-                    opacity: 0.07,
-                    child: ColorFiltered(
-                      colorFilter: const ColorFilter.mode(
-                        StudentPalette.brandBlue,
-                        BlendMode.srcIn,
-                      ),
-                      child: Image.asset(
-                        'assets/images/manara-logo-mark-transparent.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: StudentSurface.isDark(context)
+                        ? const [Color(0xE00B1622), Color(0xF00B1622)]
+                        : const [Color(0xCCF3F8FB), Color(0xE6FFFFFF)],
                   ),
                 ),
               ),

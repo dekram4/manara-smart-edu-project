@@ -50,6 +50,11 @@ class StudentSoundService {
   final StudentSoundGate _gate = StudentSoundGate();
   final AudioPlayer _effectsPlayer = AudioPlayer();
   final AudioPlayer _voicePlayer = AudioPlayer();
+
+  /// The deal has its own player so a card landing cannot cut short a cue
+  /// already sounding on the effects player — and so the rail's own cards
+  /// cut each other, which is what makes a run of them read as a riffle.
+  final AudioPlayer _dealPlayer = AudioPlayer();
   late final AudioService _feedbackAudio = AudioService(muted: muted);
   bool _initialized = false;
 
@@ -61,6 +66,7 @@ class StudentSoundService {
       muted.value = preferences.getBool(_mutedKey) ?? false;
       await _effectsPlayer.setReleaseMode(ReleaseMode.stop);
       await _voicePlayer.setReleaseMode(ReleaseMode.stop);
+      await _dealPlayer.setReleaseMode(ReleaseMode.stop);
       await _feedbackAudio.initialize();
     } catch (_) {
       // The student experience remains usable if local preferences are absent.
@@ -157,22 +163,29 @@ class StudentSoundService {
     play(StudentSoundCue.navigation);
   }
 
-  /// The soft tick of one card landing as the rail deals itself in.
+  /// The soft rush of air as one card is dealt into place.
+  ///
+  /// `card-whoosh.wav` is synthesised, not recorded: band-passed noise whose
+  /// centre frequency sweeps up and back down under a fast-attack, slow-decay
+  /// envelope. That rise-and-fall in brightness is what the ear reads as
+  /// something passing, and it is why a UI tick could not stand in for it —
+  /// a tick has no sweep, so nine of them read as a clatter rather than a
+  /// deal.
   ///
   /// Deliberately not routed through [play]: the shared gate silences a cue
   /// repeated inside 220ms, which is exactly the rhythm of a deal — only the
-  /// first card would have been heard. It is also quieter than [playTap],
-  /// because this fires once per card rather than once per intention, and a
-  /// tap's volume nine times over is a clatter.
-  ///
-  /// Uses the UI tick asset; a dedicated whoosh would be better, and this
-  /// reads as a riffle only because each card cuts the one before it.
+  /// first card would have been heard. It plays on its own player for the
+  /// same reason, so a card landing never cuts off applause or a spoken
+  /// phrase already running on the effects player.
   void playCardDeal() {
     if (muted.value) return;
     unawaited(() async {
       try {
-        await _effectsPlayer.stop();
-        await _effectsPlayer.play(AssetSource('audio/ui-tap.wav'), volume: 0.3);
+        await _dealPlayer.stop();
+        await _dealPlayer.play(
+          AssetSource('audio/card-whoosh.wav'),
+          volume: 0.34,
+        );
       } catch (_) {
         // Audio is an enhancement and must never block the hub from opening.
       }

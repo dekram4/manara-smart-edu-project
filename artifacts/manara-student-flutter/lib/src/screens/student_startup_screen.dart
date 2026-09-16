@@ -360,6 +360,32 @@ class _GreetingCharacter extends StatelessWidget {
     // fade for the whole composition; this adds only the rotation.
     if (spinning) return _Spin(duration: spinDuration, child: image);
 
+    // The breath, innermost so it scales the figure alone and not the arc it
+    // travels on.
+    //
+    // Slightly wider than it is tall — 1.028 against 0.988 — because a chest
+    // filling pushes outwards more than upwards. A uniform scale reads as a
+    // picture being zoomed; this reads as something alive.
+    //
+    // Its period is deliberately not the hover's. At equal periods the two
+    // lock into a single exaggerated bob, and the figure looks mechanical.
+    // At 2100ms against 1500ms they drift in and out of phase, so the motion
+    // never repeats exactly the same way twice.
+    final breathing = Animate(
+      onPlay: (controller) => controller.repeat(reverse: true),
+      delay: entrance,
+      effects: [
+        ScaleEffect(
+          begin: const Offset(1, 1),
+          end: const Offset(1.028, 0.988),
+          alignment: Alignment.bottomCenter,
+          duration: 2100.ms,
+          curve: Curves.easeInOut,
+        ),
+      ],
+      child: image,
+    );
+
     final hovering = Animate(
       onPlay: (controller) => controller.repeat(reverse: true),
       delay: entrance,
@@ -377,7 +403,31 @@ class _GreetingCharacter extends StatelessWidget {
           curve: Curves.easeInOut,
         ),
       ],
-      child: image,
+      child: breathing,
+    );
+
+    // The greeting: one rock from the waist as the figure lands, the way a
+    // child waves with their whole body. Played once, not looped — a wave
+    // that never stops is a twitch.
+    //
+    // Timed to start as the elastic entrance settles, so the arrival and the
+    // greeting read as one movement rather than two.
+    //
+    // The rock is about the figure's centre — `ShakeEffect` takes no pivot —
+    // so the angle is kept small: at this size a centre-pivoted lean of much
+    // more than three degrees starts to look like sliding rather than
+    // leaning.
+    final greeting = Animate(
+      delay: entrance,
+      effects: [
+        ShakeEffect(
+          duration: 820.ms,
+          hz: 2.2,
+          rotation: 0.055,
+          curve: Curves.easeOut,
+        ),
+      ],
+      child: hovering,
     );
 
     return Animate(
@@ -392,7 +442,7 @@ class _GreetingCharacter extends StatelessWidget {
           curve: Curves.elasticOut,
         ),
       ],
-      child: hovering,
+      child: greeting,
     );
   }
 }

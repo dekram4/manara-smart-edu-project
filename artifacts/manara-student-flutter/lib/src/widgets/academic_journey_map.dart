@@ -619,9 +619,30 @@ class _JourneyWaypoint extends StatelessWidget {
       ],
     );
 
+    // The caption sits on its own plate.
+    //
+    // The trail is drawn over painted scenery — sky, a school, grass — and
+    // Arabic set straight onto that is hard to read however heavy the weight,
+    // because the ground behind any given letter changes. The plate gives
+    // every caption one flat ground of its own. It is sized by its content,
+    // so it never becomes a fixed box the text has to be squeezed into.
+    final plated = DecoratedBox(
+      decoration: BoxDecoration(
+        color: StudentSurface.glass(context, 0.82),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: station.color.withValues(alpha: reached ? 0.55 : 0.22),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: caption,
+      ),
+    );
+
     final children = below
-        ? [node, Flexible(child: caption)]
-        : [Flexible(child: caption), node];
+        ? [node, Flexible(child: plated)]
+        : [Flexible(child: plated), node];
 
     return Semantics(
       button: true,
