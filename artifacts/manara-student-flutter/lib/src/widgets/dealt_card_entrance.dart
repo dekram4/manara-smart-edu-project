@@ -22,8 +22,8 @@ class DealtCardEntrance extends StatefulWidget {
   const DealtCardEntrance({
     required this.index,
     required this.child,
-    this.stagger = const Duration(milliseconds: 70),
-    this.duration = const Duration(milliseconds: 380),
+    this.stagger = const Duration(milliseconds: 260),
+    this.duration = const Duration(milliseconds: 620),
     this.sound = true,
     super.key,
   });
@@ -33,15 +33,20 @@ class DealtCardEntrance extends StatefulWidget {
 
   final Widget child;
 
-  /// Gap between one card's arrival and the next.
+  /// Gap between one card starting and the next one starting.
+  ///
+  /// Long enough that the eye follows one card at a time. At the 70ms this
+  /// began with, nine cards were all in the air together and the rail simply
+  /// appeared — the sequence was there in the code and invisible on screen.
   final Duration stagger;
 
   /// How long a single card takes to land.
   ///
-  /// The default keeps the first card settled inside 400ms. That is a real
-  /// constraint, not a taste: the hub's motion tests press and drag the first
-  /// card after a 400ms pump, and a card still flying at that moment would be
-  /// measured mid-flight.
+  /// Deliberately longer than the gap between cards, so a card is still
+  /// settling as the next one starts. Waiting for full rest before beginning
+  /// the next makes nine cards take three seconds and reads as stalling;
+  /// overlapping the tail of one with the head of the next keeps the order
+  /// unmistakable while the rail still fills at a watchable pace.
   final Duration duration;
 
   /// Whether this card ticks as it lands.
@@ -72,8 +77,13 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
     curve: Curves.easeOutCubic,
   );
 
+  /// From nothing at all, not from half size.
+  ///
+  /// The rail starts empty and each card is *born* out of the depth — at 0.5
+  /// every card was already half-drawn before it moved, so the screen was
+  /// never empty and the arrival had nothing to arrive from.
   late final Animation<double> _scale = Tween<double>(
-    begin: 0.5,
+    begin: 0.0,
     end: 1.0,
   ).animate(
     CurvedAnimation(
@@ -87,7 +97,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
     parent: _controller,
     // Opaque well before the card stops turning: a card that is still fading
     // while it settles reads as a rendering fault rather than a deal.
-    curve: const Interval(0, 0.45, curve: Curves.easeOut),
+    curve: const Interval(0, 0.35, curve: Curves.easeOut),
   );
 
   @override
@@ -144,12 +154,21 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
         // starts back-on and spends the first half of its flight showing a
         // mirror image of itself, which reads as a glitch. -90° starts it
         // edge-on, so it is never seen reversed.
-        final radians = (1 - _turn.value) * (-math.pi / 2);
+        final remaining = 1 - _turn.value;
         final matrix = Matrix4.identity()
           // Perspective: without it `rotateY` is an affine squash and the
           // card looks like it is being flattened rather than turned.
           ..setEntry(3, 2, 0.0012)
-          ..rotateY(radians)
+          // Pushed back along z as well as scaled down, so the card really
+          // is further away at the start rather than just smaller. With the
+          // perspective entry above, the two together are what make it read
+          // as coming out of the depth.
+          ..translate(0.0, 0.0, -160.0 * remaining)
+          // The quarter turn, and a little roll that unwinds with it: a card
+          // dealt by hand does not arrive perfectly square, and the roll is
+          // what separates this from a panel being un-flattened.
+          ..rotateY(remaining * (-math.pi / 2))
+          ..rotateZ(remaining * 0.22)
           ..scale(_scale.value);
         return Opacity(
           opacity: _fade.value.clamp(0.0, 1.0),

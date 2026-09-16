@@ -163,28 +163,30 @@ class StudentSoundService {
     play(StudentSoundCue.navigation);
   }
 
-  /// The soft rush of air as one card is dealt into place.
+  /// The soft rustle of a page turning as one card is dealt into place.
   ///
-  /// `card-whoosh.wav` is synthesised, not recorded: band-passed noise whose
-  /// centre frequency sweeps up and back down under a fast-attack, slow-decay
-  /// envelope. That rise-and-fall in brightness is what the ear reads as
-  /// something passing, and it is why a UI tick could not stand in for it —
-  /// a tick has no sweep, so nine of them read as a clatter rather than a
-  /// deal.
+  /// `page-flip.wav` is synthesised, not recorded: a run of very short noise
+  /// grains — the edge of a sheet flexing against what is under it — thinning
+  /// out under a quiet, immediately-decaying envelope, twice high-passed
+  /// because paper carries no bass.
+  ///
+  /// It replaced an air whoosh, which was the wrong instrument however well
+  /// made: a whoosh swells before it fades and lives in the low-mids, so it
+  /// read as something being thrown. Paper starts at its loudest and thins
+  /// away, and sits an octave higher. That difference is the whole brief.
   ///
   /// Deliberately not routed through [play]: the shared gate silences a cue
-  /// repeated inside 220ms, which is exactly the rhythm of a deal — only the
-  /// first card would have been heard. It plays on its own player for the
-  /// same reason, so a card landing never cuts off applause or a spoken
-  /// phrase already running on the effects player.
+  /// repeated inside 220ms, which is close to the rhythm of a deal. It plays
+  /// on its own player for the same reason, so a card landing never cuts off
+  /// applause or a spoken phrase already running on the effects player.
   void playCardDeal() {
     if (muted.value) return;
     unawaited(() async {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
-          AssetSource('audio/card-whoosh.wav'),
-          volume: 0.34,
+          AssetSource('audio/page-flip.wav'),
+          volume: 0.42,
         );
       } catch (_) {
         // Audio is an enhancement and must never block the hub from opening.

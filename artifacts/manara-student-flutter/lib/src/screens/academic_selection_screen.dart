@@ -12,17 +12,11 @@ import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
-import '../widgets/academic_journey_map.dart';
+import '../widgets/masar_path_board.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_mascot.dart';
 import 'student_home_screen.dart';
-
-/// The books illustration's own aspect ratio (4095 x 3374), used to work
-/// out exactly where it renders under `BoxFit.contain` so every control can
-/// be pinned onto the right book at any window size.
-const double _booksAspect = 4095 / 3374;
-
 
 class AcademicSelectionScreen extends StatefulWidget {
   const AcademicSelectionScreen({
@@ -440,214 +434,40 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       backgroundColor: StudentSurface.coolGround(context),
       body: Stack(
         children: [
-          // The journey's own scenery: schoolyard, sky and grass, filling the
-          // screen behind the trail.
-          //
-          // `cacheWidth` is not an optimisation to tidy up later. The source
-          // is 1800px wide, and decoded at full size it holds about 9MB of
-          // pixels for a phone that will draw it at 400 — on a cheap device
-          // that is the difference between a screen that opens and one the
-          // system kills. Decoding to the width actually drawn costs nothing
-          // visible.
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/masar.png',
-              fit: BoxFit.cover,
-              cacheWidth: (MediaQuery.sizeOf(context).width *
-                      MediaQuery.devicePixelRatioOf(context))
-                  .clamp(360.0, 1800.0)
-                  .round(),
-              errorBuilder: (_, __, ___) => const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFFE3EEF7),
-                      Color(0xFFF7F1E6),
-                      Color(0xFFE9F1F5),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // A veil over the scenery.
-          //
-          // The artwork is busy by design — a painted school, checked tiles,
-          // stars, two children — and Arabic set over it at any weight is
-          // hard to read. The veil pushes it back far enough that the station
-          // names and the answers under them read cleanly, while the scene is
-          // still plainly there. It is the one thing that makes using this
-          // illustration as a background workable rather than decorative.
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: StudentSurface.isDark(context)
-                        ? const [Color(0xE00B1622), Color(0xF00B1622)]
-                        : const [Color(0xCCF3F8FB), Color(0xE6FFFFFF)],
-                  ),
-                ),
-              ),
-            ),
-          ),
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final areaSize = constraints.biggest;
-                // The side art is sized from the screen, not from whatever
-                // margin the illustration happens to leave over. On a
-                // 16:9 desktop window the books are much narrower than the
-                // screen so there was margin to spare, but a 4:3 tablet in
-                // landscape leaves almost none — which is why the guide and
-                // the pencil vanished there. So the reserve is decided
-                // first and the illustration is laid out inside what is
-                // left, which means the characters always have their place
-                // and simply scale down instead of disappearing.
-                final portrait = areaSize.height > areaSize.width;
+                // The whole area above the start band goes to the board.
+                //
+                // It used to be shared with a guide character who took a
+                // column in landscape and a band across the top in portrait —
+                // between a quarter and a third of the screen. She is gone
+                // from this screen for two reasons. The artwork already has
+                // two schoolchildren painted into it, so she was a third
+                // character in the same scene; and the six fields now live
+                // inside the squares in that artwork, so every pixel she held
+                // came straight out of their size. Dropping her is what makes
+                // the text in the squares readable rather than merely present.
 
                 const edge = 12.0;
-                // The HUD chips sit top-right; everything keeps clear of
-                // them.
+                // The HUD chips sit top-right; everything keeps clear of them.
                 const topReserve = 52.0;
-
-                // The start button has its own band across the foot of the
-                // screen, and the illustration is laid out inside what is
-                // left above it.
-                //
-                // It used to be printed on the navy book at the bottom of
-                // the stack, which made the one control that is not a
-                // choice look like another field to fill in — and kept it
-                // to a book's width. Down here it can be the full width of
-                // the screen, which is what a child reaches for.
+                // The start button keeps its own band across the foot.
                 const startBand = 76.0;
 
-                // The two orientations get genuinely different layouts,
-                // because the same one cannot serve both.
-                //
-                // Landscape is a left/right pair: the guide holds a column
-                // on the left and the books take the rest.
-                //
-                // Portrait used to do the same, and that was the bug — on
-                // a tall narrow screen a third of the width went to her,
-                // leaving the books a strip too small to read or tap. So
-                // portrait stacks instead: she stands in a band across the
-                // top as a greeter, and the books get almost the whole
-                // width beneath her, which is where they belong on a phone
-                // held upright.
-                final double girlColumn;
-                final double mascotHeight;
-                final Rect imageRect;
-
-                if (portrait) {
-                  // She is sized off the width so she reads at a glance,
-                  // then capped against the height so the band she stands
-                  // in — her plus the bubble over her head — never eats
-                  // the room the books need.
-                  mascotHeight = math.min(
-                    areaSize.width * 0.30,
-                    (areaSize.height - topReserve - startBand - edge) * 0.26,
-                  );
-                  girlColumn = 0;
-                  // Her band: her own height plus the speech bubble above
-                  // her, which is roughly half as tall again.
-                  final greeterBand = mascotHeight * 1.62 + 10;
-                  final content = Size(
-                    math.max(0.0, areaSize.width - edge * 2),
-                    math.max(
-                      0.0,
-                      areaSize.height - topReserve - greeterBand - startBand - edge,
-                    ),
-                  );
-                  // Drawn to 88% of the width it is offered, inside the
-                  // 85-90% the design calls for — big enough to read the
-                  // printed fields on, with just enough margin that it
-                  // does not touch the screen edges.
-                  final fitted = _containRect(content, _booksAspect);
-                  final booksRect = Rect.fromCenter(
-                    center: fitted.center,
-                    width: fitted.width * 0.88,
-                    height: fitted.height * 0.88,
-                  );
-                  imageRect =
-                      booksRect.translate(edge, topReserve + greeterBand);
-                } else {
-                  girlColumn = (areaSize.width * 0.28)
-                      .clamp(96.0, 460.0)
-                      .toDouble();
-                  // Landscape is two columns, and the button belongs in
-                  // the guide's column under her — not in a band across
-                  // the foot of the screen.
-                  //
-                  // A full-width band there is what covered her and the
-                  // last book once the books grew: on a short landscape
-                  // window the stack reaches the bottom, and anything
-                  // spanning the full width lands on top of it. In its own
-                  // column the button cannot touch a book at all, and the
-                  // books get the whole height back.
-                  mascotHeight = math.min(
-                    girlColumn * 1.02,
-                    (areaSize.height - topReserve - startBand - edge) * 0.62,
-                  );
-                  final content = Size(
-                    math.max(0.0, areaSize.width - girlColumn - edge * 2),
-                    math.max(0.0, areaSize.height - topReserve - edge),
-                  );
-                  final fitted = _containRect(content, _booksAspect);
-                  final booksRect = Rect.fromCenter(
-                    center: fitted.center,
-                    width: fitted.width * 0.90,
-                    height: fitted.height * 0.90,
-                  );
-                  // A nudge further right, bounded by the slack the
-                  // contain fit actually left over — so it can never push
-                  // the stack off its own half.
-                  final slackX = math.max(0.0, content.width - booksRect.width);
-                  final nudge = math.min(areaSize.width * 0.02, slackX / 2);
-                  imageRect =
-                      booksRect.translate(girlColumn + edge + nudge, topReserve);
-                }
+                final imageRect = Rect.fromLTWH(
+                  edge,
+                  topReserve,
+                  math.max(0.0, areaSize.width - edge * 2),
+                  math.max(0.0, areaSize.height - topReserve - startBand),
+                );
 
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // The guide is painted BEFORE the books, so if she ever
-                    // overlaps the stack she passes behind it instead of
-                    // covering a book's face and its field.
-                    if (portrait)
-                      Positioned(
-                        top: topReserve,
-                        left: edge,
-                        right: edge,
-                        child: Center(
-                          child: _FlyAway(
-                            away: _leaving,
-                            angle: -0.32,
-                            delay: const Duration(milliseconds: 120),
-                            child: _MascotGuide(height: mascotHeight),
-                          ),
-                        ),
-                      )
-                    else
-                      // She stands on top of the button rather than
-                      // sharing its space: the band below her is reserved,
-                      // so nothing in this column overlaps anything else
-                      // in it.
-                      Positioned(
-                        left: edge,
-                        bottom: startBand,
-                        width: math.max(0.0, girlColumn - edge),
-                        child: _FlyAway(
-                          away: _leaving,
-                          angle: -0.32,
-                          delay: const Duration(milliseconds: 120),
-                          child: _MascotGuide(height: mascotHeight),
-                        ),
-                      ),
+                    // The board: the artwork with the six fields printed
+                    // into the squares already drawn on it.
                     // The trail, in the space the book stack used to fill.
                     //
                     // Six dropdowns printed on an illustration were correct
@@ -659,8 +479,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     if (_ready)
                       Positioned.fromRect(
                         rect: imageRect,
-                        child: AcademicJourneyMap(
-                          stations: _journeyStations,
+                        child: MasarPathBoard(
+                          stages: _journeyStations,
                           activeIndex: _journeyStage,
                         ),
                       ),
@@ -681,10 +501,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     // short window.
                     if (_ready)
                       Positioned(
-                        left: portrait ? edge : edge,
-                        right: portrait
-                            ? edge
-                            : math.max(edge, areaSize.width - girlColumn),
+                        left: edge,
+                        right: edge,
                         bottom: edge,
                         height: startBand - edge,
                         child: _FlyAway(
@@ -793,8 +611,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// the map can hold no stale copy of the tree. Every `onSelected` is the
   /// existing selector, untouched: the map changes how a level is picked,
   /// never what picking one does.
-  List<JourneyStation> get _journeyStations => [
-        JourneyStation(
+  List<MasarStage> get _journeyStations => [
+        MasarStage(
           label: tr('path.grade'),
           icon: Icons.school_rounded,
           color: const Color(0xFF2FA8BE),
@@ -805,7 +623,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             _advanceJourney(0);
           },
         ),
-        JourneyStation(
+        MasarStage(
           label: tr('path.atram'),
           icon: Icons.calendar_month_rounded,
           color: const Color(0xFFE8930C),
@@ -816,7 +634,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             _advanceJourney(1);
           },
         ),
-        JourneyStation(
+        MasarStage(
           label: tr('path.subject'),
           icon: Icons.menu_book_rounded,
           color: const Color(0xFFA974BE),
@@ -827,7 +645,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             _advanceJourney(2);
           },
         ),
-        JourneyStation(
+        MasarStage(
           label: tr('path.term'),
           icon: Icons.bookmarks_rounded,
           color: const Color(0xFFC0392B),
@@ -838,7 +656,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             _advanceJourney(3);
           },
         ),
-        JourneyStation(
+        MasarStage(
           label: tr('path.unit'),
           icon: Icons.category_rounded,
           color: const Color(0xFF2E7D4F),
@@ -849,7 +667,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             _advanceJourney(4);
           },
         ),
-        JourneyStation(
+        MasarStage(
           label: tr('path.lesson'),
           icon: Icons.play_lesson_rounded,
           color: const Color(0xFF12406B),
@@ -882,28 +700,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     setState(() => _journeyStage = next);
   }
 
-}
-
-/// The rect an image with [aspectRatio] (width / height) actually renders
-/// into under `BoxFit.contain` inside [container] — the anchor every book
-/// control is positioned from.
-Rect _containRect(Size container, double aspectRatio) {
-  final containerAspect = container.width / container.height;
-  double width;
-  double height;
-  if (containerAspect > aspectRatio) {
-    height = container.height;
-    width = height * aspectRatio;
-  } else {
-    width = container.width;
-    height = width / aspectRatio;
-  }
-  return Rect.fromLTWH(
-    (container.width - width) / 2,
-    (container.height - height) / 2,
-    width,
-    height,
-  );
 }
 
 /// The chunky 3D "start the adventure" button on the lower books.
@@ -1100,47 +896,6 @@ class _FloatingArtState extends State<_FloatingArt>
         );
       },
       child: image,
-    );
-  }
-}
-
-/// The girl guide standing beside the books with a speech bubble above her
-/// head, both drifting gently up and down together.
-class _MascotGuide extends StatelessWidget {
-  const _MascotGuide({required this.height});
-
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // The bubble breathes on its own, slower than the guide, so the
-        // pair no longer moves as one rigid block.
-        reduceMotion
-            ? _SpeechBubble(text: tr('path.mascot'))
-            : _SpeechBubble(text: tr('path.mascot'))
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scaleXY(
-                  begin: 1,
-                  end: 1.035,
-                  duration: 2600.ms,
-                  curve: Curves.easeInOut,
-                ),
-        const SizedBox(height: 2),
-        // She is the only character left in the scene, so she hovers
-        // rather than waves: a slow even rise and fall that reads as calm
-        // next to the books instead of competing with them.
-        _FloatingArt(
-          asset: 'assets/images/path_mascot.png',
-          size: height,
-          motion: _Motion.float,
-          period: const Duration(milliseconds: 3600),
-        ),
-      ],
     );
   }
 }
