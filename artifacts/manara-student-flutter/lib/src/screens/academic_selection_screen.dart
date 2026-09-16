@@ -196,6 +196,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _contentService = StudentContentService(
       widget.authService.client,
       baseUrl: widget.apiBaseUrl,
+      authService: widget.authService,
     );
     final seeded = widget.initialData;
     if (seeded != null) {

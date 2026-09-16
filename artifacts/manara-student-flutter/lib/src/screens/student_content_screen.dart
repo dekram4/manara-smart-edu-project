@@ -58,6 +58,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     _contentService = StudentContentService(
       widget.authService.client,
       baseUrl: widget.apiBaseUrl,
+      authService: widget.authService,
     );
     _activeModule = widget.initialModule;
     _gamification = widget.profile.gamification;

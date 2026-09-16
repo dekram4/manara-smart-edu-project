@@ -81,7 +81,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     super.initState();
     _academicContext = widget.academicContext;
     _gamification = widget.profile.gamification;
-    _contentService = StudentContentService(widget.authService.client, baseUrl: widget.apiBaseUrl);
+    _contentService = StudentContentService(widget.authService.client,
+        baseUrl: widget.apiBaseUrl, authService: widget.authService);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
     _loadGamification();
     WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
@@ -207,6 +208,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             contentService: StudentContentService(
               widget.authService.client,
               baseUrl: widget.apiBaseUrl,
+              authService: widget.authService,
             ),
             academicContext: _academicContext,
           ),
@@ -319,7 +321,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         immersive: true,
         builder: (_) => StudentPersonalityScreen(
           profile: widget.profile,
-          contentService: StudentContentService(widget.authService.client),
+          contentService: StudentContentService(widget.authService.client,
+              baseUrl: widget.apiBaseUrl, authService: widget.authService),
           creatorUrl: const String.fromEnvironment('READY_PLAYER_ME_CREATOR_URL'),
         ),
       ),
@@ -343,6 +346,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       final selection = await StudentContentService(
         widget.authService.client,
         baseUrl: widget.apiBaseUrl,
+        authService: widget.authService,
       ).fetchTutorExperience(
         widget.profile,
         academicContext: _academicContext,
@@ -385,6 +389,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       final lessons = await StudentContentService(
         widget.authService.client,
         baseUrl: widget.apiBaseUrl,
+        authService: widget.authService,
       ).fetchLessons(widget.profile, academicContext: _academicContext);
       if (!mounted) return;
       await Navigator.of(context).push(
@@ -397,6 +402,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             contentService: StudentContentService(
               widget.authService.client,
               baseUrl: widget.apiBaseUrl,
+              authService: widget.authService,
             ),
             authService: widget.authService,
             academicContext: _academicContext,

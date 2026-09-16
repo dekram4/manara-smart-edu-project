@@ -6,6 +6,7 @@ import mediaRouter from "./media";
 import gameEmbedRouter from "./gameEmbed";
 import supabaseBridgeRouter from "./supabaseBridge";
 import studentChatRouter from "./studentChat";
+import studentProgressRouter from "./studentProgress";
 import didAgentRouter from "./didAgent";
 
 const router: IRouter = Router();
@@ -14,6 +15,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(geminiRouter);
 router.use(studentChatRouter);
+router.use(studentProgressRouter);
 router.use(didAgentRouter);
 router.use(mediaRouter);
 router.use(gameEmbedRouter);

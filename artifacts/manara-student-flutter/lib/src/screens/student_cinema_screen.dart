@@ -48,6 +48,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     _contentService = StudentContentService(
       widget.authService.client,
       baseUrl: widget.apiBaseUrl,
+      authService: widget.authService,
     );
     _loadVideos();
   }

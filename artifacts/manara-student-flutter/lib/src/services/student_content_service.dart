@@ -10,6 +10,7 @@ import '../models/student_content.dart';
 import '../l10n/student_strings.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
+import 'student_auth_service.dart';
 
 class TeacherQuizAlreadySubmittedException implements Exception {
   const TeacherQuizAlreadySubmittedException(this.result);
@@ -21,11 +22,111 @@ class TeacherQuizAlreadySubmittedException implements Exception {
 }
 
 class StudentContentService {
-  StudentContentService(this.client, {this.baseUrl = ''});
+  StudentContentService(this.client, {this.baseUrl = '', this.authService});
 
   final SupabaseClient client;
   final String baseUrl;
+
+  /// يلزم لكتابات التقدّم وحدها؛ القراءات تمرّ بـ Supabase مباشرةً.
+  ///
+  /// اختياري لأن أغلب مواضع الإنشاء تقرأ فقط، لكن أي استدعاء لكتابة بلا
+  /// خدمة مصادقة يفشل صراحةً بدل أن يكتب في فراغ.
+  final StudentAuthService? authService;
+
   static const _requestTimeout = Duration(seconds: 15);
+
+  // ── كتابات التقدّم ─────────────────────────────────────────────────────
+  //
+  // لم تعد تمرّ بـ Supabase. مفتاح anon لا يستطيع الكتابة بعد تشديد RLS،
+  // وهذا مقصود: لا توجد `auth.uid()` في مسار دخول الطالب، فأي سماح لدور
+  // anon كان سماحاً لكل حامل للمفتاح بتعديل درجات كل طالب.
+  //
+  // الخادم يأخذ هوية الطالب من الرمز الموقَّع، ويحسب المكافأة بنفسه. ما
+  // يُرسَل هنا وصفٌ لما جرى، لا نتيجةٌ مطلوب حفظها.
+
+  Uri _progressEndpoint(String route) {
+    var base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isEmpty) {
+      final current = Uri.base;
+      if (current.scheme == 'http' || current.scheme == 'https') {
+        base = current.host == 'localhost' || current.host == '127.0.0.1'
+            ? 'http://localhost:8080'
+            : current.origin;
+      }
+    }
+    if (base.isEmpty) throw StateError(tr('auth.serviceUnreachable'));
+    return Uri.parse('$base/api/student/progress/$route');
+  }
+
+  /// يرسل كتابة تقدّم واحدة، ويجدّد الجلسة مرة واحدة إن كانت قد انتهت.
+  ///
+  /// رمز الجلسة يعيش 12 ساعة، وجلسة الطالب قد تمتدّ أطول. فبدل أن يرى
+  /// الطفل فشلاً لأن الرمز انتهى بين نشاطين، نُجدّده ونعيد المحاولة مرة
+  /// واحدة — ومرةً واحدة فقط، كي لا يتحوّل الرفض الدائم إلى حلقة.
+  Future<Map<String, dynamic>> _postProgress(
+    String route,
+    Map<String, dynamic> body,
+  ) async {
+    final auth = authService;
+    if (auth == null) throw StateError(tr('svc.noSession'));
+
+    Future<http.Response> send(String token) => http
+        .post(
+          _progressEndpoint(route),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(_requestTimeout);
+
+    var token = auth.apiSessionToken?.trim();
+    if (token == null || token.isEmpty) {
+      token = (await auth.ensureApiSession())?.trim();
+    }
+    if (token == null || token.isEmpty) throw StateError(tr('svc.noSession'));
+
+    var response = await send(token);
+    if (response.statusCode == 401) {
+      auth.clearApiSession();
+      final refreshed = (await auth.ensureApiSession())?.trim();
+      if (refreshed == null || refreshed.isEmpty) {
+        throw StateError(tr('svc.noSession'));
+      }
+      response = await send(refreshed);
+    }
+
+    final decoded = response.body.trim().isEmpty
+        ? const <String, dynamic>{}
+        : _asMap(jsonDecode(response.body));
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return decoded;
+    }
+    if (response.statusCode == 409) {
+      throw TeacherQuizAlreadySubmittedException(_asMap(decoded['result']));
+    }
+    final message = _text(decoded['error']);
+    throw StateError(message.isEmpty ? tr('auth.serviceUnreachable') : message);
+  }
+
+  RewardResult _rewardFromResponse(Map<String, dynamic> payload) {
+    final achievements = payload['newAchievements'];
+    return RewardResult(
+      xp: _number(payload['xp']),
+      gems: _number(payload['gems']),
+      alreadyRewarded: payload['alreadyRewarded'] == true,
+      levelUp: payload['levelUp'] == true,
+      newAchievements: achievements is List
+          ? achievements
+                .whereType<Map>()
+                .map((item) => StudentAchievement.fromMap(_asMap(item)))
+                .where((item) => item.id.isNotEmpty)
+                .toList()
+          : const [],
+      snapshot: StudentGamification.fromMap(payload['snapshot']),
+    );
+  }
 
   Future<StudentGamification> fetchGamification(StudentProfile profile) async {
     final row = await client
@@ -37,8 +138,11 @@ class StudentContentService {
     return StudentGamification.fromMap(_asMap(row?['data'])['gamification']);
   }
 
-  /// Applies one web-compatible reward and persists it in the canonical student
-  /// row. The activity ledger makes retries and retakes idempotent.
+  /// يطلب من الخادم تطبيق مكافأة نشاط واحد.
+  ///
+  /// الحساب كلّه انتقل إلى `studentProgress.ts`: النوع والمعرّف والنتيجة
+  /// تصف ما جرى، والخادم هو من يقرّر الجواهر والخبرة والإنجازات ويكتبها.
+  /// سجلّ الأنشطة هناك يجعل الإعادة بلا أثر.
   Future<RewardResult> rewardActivity({
     required StudentProfile profile,
     required String activityType,
@@ -50,286 +154,24 @@ class StudentContentService {
     if (activityId.trim().isEmpty) {
       throw ArgumentError(tr('svc.noActivityId'));
     }
-    final row = await client
-        .from('students')
-        .select('id,data')
-        .eq('id', profile.id)
-        .maybeSingle()
-        .timeout(_requestTimeout);
-    if (row == null) throw StateError(tr('svc.noStudentRow'));
-    final rowData = _asMap(row['data']);
-    final current = StudentGamification.fromMap(rowData['gamification']);
-    final normalizedActivityType = activityType.trim().toLowerCase();
-    final key = rewardId?.trim().isNotEmpty == true
-        ? rewardId!.trim()
-        : '$normalizedActivityType:$activityId';
-    // Older Flutter versions stored quiz rewards as quiz:<quizId>. Retain
-    // that guard while moving to the web-compatible reward ledger key.
-    final legacyQuizKey = normalizedActivityType == 'quiz'
-        ? 'quiz:$activityId'
-        : '';
-    final legacyVideoKeys = normalizedActivityType == 'video'
-        ? <String>['lesson_video:$activityId']
-        : normalizedActivityType == 'lesson_video'
-        ? <String>['video:$activityId']
-        : const <String>[];
-    if (current.completedActivities.contains(key) ||
-        (legacyQuizKey.isNotEmpty &&
-            current.completedActivities.contains(legacyQuizKey)) ||
-        legacyVideoKeys.any(current.completedActivities.contains)) {
-      return RewardResult(
-        xp: 0,
-        gems: 0,
-        alreadyRewarded: true,
-        levelUp: false,
-        newAchievements: const [],
-        snapshot: current,
-      );
-    }
-
-    var xp = 0;
-    var gems = 0;
-    var quizzes = current.totalQuizzes;
-    var lessons = current.totalLessons;
-    var games = current.totalGames;
-    var average = current.averageScore;
-    var perfectQuiz = false;
-    int? quizPercentage;
-    if (normalizedActivityType == 'quiz') {
-      final score = ((correctAnswers ?? 0).clamp(0, quizTotal ?? 0)).toInt();
-      gems = score;
-      quizzes++;
-      if (quizTotal != null && quizTotal > 0) {
-        final scorePercentage = score * 100 ~/ quizTotal;
-        quizPercentage = scorePercentage;
-        perfectQuiz = scorePercentage == 100;
-        average =
-            ((current.averageScore * (quizzes - 1) + scorePercentage) ~/
-            quizzes);
-      }
-    } else if (normalizedActivityType == 'lesson') {
-      gems = 5;
-      lessons++;
-    } else if (normalizedActivityType == 'video' ||
-        normalizedActivityType == 'lesson_video') {
-      // Cinema playback never grants a reward.
-      xp = 0;
-      gems = 0;
-    } else if (normalizedActivityType == 'problem') {
-      xp = 5;
-      gems = 1;
-    } else if (normalizedActivityType == 'game') {
-      gems = 3;
-      games++;
-    } else {
-      throw ArgumentError(trf('svc.badActivityType', {'type': activityType}));
-    }
-
-    final beforeLevel = current.level;
-    final nextGems = current.gems + gems;
-    final gemMilestones = (nextGems ~/ 10) - (current.gems ~/ 10);
-    xp = gemMilestones * 20;
-    final nextXp = current.xp + xp;
-    final unlocked = _achievementsFor(
-      current.copyWith(
-        xp: nextXp,
-        gems: nextGems,
-        totalQuizzes: quizzes,
-        totalLessons: lessons,
-        totalGames: games,
-      ),
-      normalizedActivityType,
-      perfectQuiz: perfectQuiz,
-      activityId: activityId,
-    );
-    final knownIds = current.achievements.map((item) => item.id).toSet();
-    final newAchievements = unlocked
-        .where((item) => !knownIds.contains(item.id))
-        .toList();
-    final next = current.copyWith(
-      xp: nextXp,
-      gems: nextGems,
-      totalQuizzes: quizzes,
-      totalLessons: lessons,
-      totalGames: games,
-      averageScore: average,
-      lastQuizAt: normalizedActivityType == 'quiz'
-          ? DateTime.now().toIso8601String()
-          : current.lastQuizAt,
-      lastQuizPercentage: normalizedActivityType == 'quiz'
-          ? quizPercentage
-          : current.lastQuizPercentage,
-      achievements: [...current.achievements, ...newAchievements],
-      completedActivities: [...current.completedActivities, key],
-    );
-    await client
-        .from('students')
-        .update({
-          'data': {
-            ...rowData,
-            'gamification': next.toMap(),
-            'lastActivity': DateTime.now().toIso8601String(),
-          },
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', profile.id)
-        .timeout(_requestTimeout);
-    return RewardResult(
-      xp: xp,
-      gems: gems,
-      alreadyRewarded: false,
-      levelUp: next.level > beforeLevel,
-      newAchievements: newAchievements,
-      snapshot: next,
-    );
+    final payload = await _postProgress('reward', {
+      'activityType': activityType.trim().toLowerCase(),
+      'activityId': activityId.trim(),
+      if (rewardId != null && rewardId.trim().isNotEmpty)
+        'rewardId': rewardId.trim(),
+      if (correctAnswers != null) 'correctAnswers': correctAnswers,
+      if (quizTotal != null) 'quizTotal': quizTotal,
+    });
+    return _rewardFromResponse(payload);
   }
 
+  /// يطلب من الخادم تسجيل يوم اليوم في سلسلة الأيام المتتالية.
+  ///
+  /// اليوم يُحسب بساعة الخادم لا بساعة الجهاز: كان بالإمكان تقديم ساعة
+  /// الهاتف لتسجيل أيام متتالية في جلسة واحدة.
   Future<RewardResult> checkStreak(StudentProfile profile) async {
-    final current = await fetchGamification(profile);
-    final today = DateTime.now();
-    final dayKey = '${today.year}-${today.month}-${today.day}';
-    final marker = 'streak-day:$dayKey';
-    if (current.completedActivities.contains(marker)) {
-      return RewardResult(
-        xp: 0,
-        gems: 0,
-        alreadyRewarded: true,
-        levelUp: false,
-        newAchievements: const [],
-        snapshot: current,
-      );
-    }
-    // Keep a compact day ledger; consecutive days are derived from its tail.
-    final days = current.completedActivities
-        .where((item) => item.startsWith('streak-day:'))
-        .toList();
-    var streak = 1;
-    if (days.isNotEmpty) {
-      final last = DateTime.tryParse(days.last.substring('streak-day:'.length));
-      if (last != null &&
-          today.difference(DateTime(last.year, last.month, last.day)).inDays ==
-              1)
-        streak = current.streak + 1;
-    }
-    final bonus = streak % 5 == 0 ? 100 : 0;
-    final row = await client
-        .from('students')
-        .select('data')
-        .eq('id', profile.id)
-        .maybeSingle()
-        .timeout(_requestTimeout);
-    final rowData = _asMap(row?['data']);
-    final knownIds = current.achievements.map((item) => item.id).toSet();
-    final streakAchievements = <StudentAchievement>[];
-    void addAchievement(
-      String id,
-      String title,
-      String description,
-      String icon,
-    ) {
-      if (!knownIds.contains(id)) {
-        streakAchievements.add(
-          StudentAchievement(
-            id: id,
-            title: title,
-            description: description,
-            icon: icon,
-          ),
-        );
-      }
-    }
-
-    if (streak >= 3)
-      addAchievement(
-          'streak_3', tr('ach.streak3'), tr('ach.streak3.desc'), '🔥');
-    if (streak >= 5)
-      addAchievement(
-        'streak_5',
-        tr('ach.streak5'),
-        tr('ach.streak5.desc'),
-        '🏅',
-      );
-    if (streak >= 7)
-      addAchievement(
-          'streak_7', tr('ach.streak7'), tr('ach.streak7.desc'), '🔥');
-    final next = current.copyWith(
-      xp: current.xp + bonus,
-      streak: streak,
-      achievements: [...current.achievements, ...streakAchievements],
-      completedActivities: [...days, marker],
-    );
-    await client
-        .from('students')
-        .update({
-          'data': {
-            ...rowData,
-            'gamification': next.toMap(),
-            'lastActivity': DateTime.now().toIso8601String(),
-          },
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', profile.id)
-        .timeout(_requestTimeout);
-    return RewardResult(
-      xp: bonus,
-      gems: 0,
-      alreadyRewarded: false,
-      levelUp: next.level > current.level,
-      newAchievements: streakAchievements,
-      snapshot: next,
-    );
-  }
-
-  List<StudentAchievement> _achievementsFor(
-    StudentGamification stats,
-    String type, {
-    bool perfectQuiz = false,
-    String activityId = '',
-  }) {
-    final result = <StudentAchievement>[];
-    void add(String id, String title, String description, String icon) {
-      result.add(
-        StudentAchievement(
-          id: id,
-          title: title,
-          description: description,
-          icon: icon,
-        ),
-      );
-    }
-
-    if (type == 'quiz' && stats.totalQuizzes == 1)
-      add('first_quiz', tr('ach.firstQuiz'), tr('ach.firstQuiz.desc'), '🎯');
-    if (type == 'quiz' && stats.totalQuizzes >= 10)
-      add('quiz_warrior', tr('ach.quizWarrior'), tr('ach.quizWarrior.desc'),
-          '⚔️');
-    if (type == 'quiz' && perfectQuiz)
-      add('perfect_quiz', tr('ach.perfectQuiz'), tr('ach.perfectQuiz.desc'),
-          '⭐');
-    if (type == 'lesson' && stats.totalLessons == 1)
-      add('first_lesson', tr('ach.firstLesson'), tr('ach.firstLesson.desc'),
-          '📚');
-    if (type == 'lesson' && stats.totalLessons >= 10)
-      add('lesson_master', tr('ach.lessonMaster'), tr('ach.lessonMaster.desc'),
-          '🏆');
-    if (type == 'problem')
-      add('math_solver', tr('ach.mathSolver'), tr('ach.mathSolver.desc'), '🔢');
-    if (type == 'game' && stats.totalGames >= 5)
-      add('game_master', tr('ach.gameMaster'), tr('ach.gameMaster.desc'), '🎮');
-    final normalizedActivity = activityId.toLowerCase();
-    if (type == 'game' && normalizedActivity.contains('memory')) {
-      add('memory_master', tr('ach.memoryMaster'), tr('ach.memoryMaster.desc'),
-          '🧠');
-    }
-    if (type == 'game' && normalizedActivity.contains('speed')) {
-      add('speed_demon', tr('ach.speedDemon'), tr('ach.speedDemon.desc'), '⚡');
-    }
-    if (stats.level >= 5)
-      add('level_5', tr('ach.level5'), tr('ach.level5.desc'), '💪');
-    if (stats.gems >= 50)
-      add('gem_collector', tr('ach.gemCollector'), tr('ach.gemCollector.desc'),
-          '💎');
-    return result;
+    final payload = await _postProgress('streak', const <String, dynamic>{});
+    return _rewardFromResponse(payload);
   }
 
   Future<AcademicSelectionData> fetchAcademicSelectionData(
@@ -685,6 +527,11 @@ class StudentContentService {
         .toList();
   }
 
+  /// يرسل نتيجة الاختبار إلى الخادم ليحفظها.
+  ///
+  /// `studentId` و`studentName` لم يعودا يُرسَلان: الخادم يكتبهما من
+  /// الجلسة. وبغير ذلك كان بإمكان الطالب تسجيل نتيجة باسم زميله. وفحص
+  /// «سبق التسليم» لاختبار المعلم صار هناك أيضاً، فلا يتخطّاه عميل معدَّل.
   Future<Map<String, dynamic>> saveQuizResult({
     required StudentProfile profile,
     required Map<String, dynamic> result,
@@ -693,88 +540,22 @@ class StudentContentService {
     if (id.isEmpty) {
       throw ArgumentError(tr('svc.noResultId'));
     }
-    final safeResult = <String, dynamic>{
-      ...result,
-      'id': id,
-      'studentId': profile.id,
-      'studentName': profile.name,
-      'quizType': StudentAssessmentRules.quizTypeValue(result['quizType']),
-      'grade': _text(result['grade']).isEmpty
-          ? _text(profile.grade)
-          : _text(result['grade']),
-      'atram': _text(result['atram']).isEmpty
-          ? _text(profile.atram)
-          : _text(result['atram']),
-      'subject': _text(result['subject']).isEmpty
-          ? _text(profile.subject)
-          : _text(result['subject']),
-      'term': _text(result['term']).isEmpty
-          ? _text(profile.term)
-          : _text(result['term']),
-      'unit': _text(result['unit']).isEmpty
-          ? _text(profile.unit)
-          : _text(result['unit']),
-      // الدرس يُحفظ مع النتيجة كبقية مستويات المسار. بدونه لا تستطيع تقارير
-      // المعلم والمشرف أن تنسب النتيجة إلى درس بعينه داخل الوحدة، فتظهر كل
-      // نتائج الوحدة مجمّعة. لا بديل من الملف الشخصي هنا لأن `StudentProfile`
-      // لا يحمل درساً — الدرس اختيار لحظي في شاشة المسار لا خاصية ثابتة.
-      'lesson': _text(result['lesson']),
-    };
-    if (StudentAssessmentRules.isTeacherQuiz(safeResult)) {
-      final existing = await client
-          .from('quiz_results')
-          .select('id,data,updated_at')
-          .eq('data->>studentId', profile.id)
-          .eq('data->>quizId', _text(safeResult['quizId']))
-          .limit(1)
-          .timeout(_requestTimeout);
-      for (final row in existing.whereType<Map>()) {
-        final rowMap = _asMap(row);
-        final stored = _asMap(rowMap['data']);
-        if (StudentAssessmentRules.isTeacherQuiz(stored)) {
-          throw TeacherQuizAlreadySubmittedException(<String, dynamic>{
-            ...stored,
-            'id': _text(rowMap['id']).isEmpty
-                ? _text(stored['id'])
-                : _text(rowMap['id']),
-          });
-        }
-      }
-    }
-    await client
-        .from('quiz_results')
-        .upsert({
-          'id': id,
-          'data': safeResult,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .timeout(_requestTimeout);
-    return safeResult;
+    final payload = await _postProgress('quiz-result', {
+      'result': <String, dynamic>{
+        ...result,
+        'id': id,
+        'quizType': StudentAssessmentRules.quizTypeValue(result['quizType']),
+        'lesson': _text(result['lesson']),
+      },
+    });
+    return _asMap(payload['result']);
   }
 
   Future<void> saveAppearance({
     required StudentProfile profile,
     required Map<String, dynamic> appearance,
   }) async {
-    final current = await client
-        .from('students')
-        .select('data')
-        .eq('id', profile.id)
-        .maybeSingle();
-    final existing = _asMap(current?['data']);
-    final nextData = <String, dynamic>{
-      ...existing,
-      'appearance': appearance,
-      'lastActivity': DateTime.now().toIso8601String(),
-    };
-
-    await client
-        .from('students')
-        .update({
-          'data': nextData,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', profile.id);
+    await _postProgress('appearance', {'appearance': appearance});
   }
 
   Future<List<Map<String, dynamic>>> loadTutorHistory(
@@ -800,50 +581,25 @@ class StudentContentService {
     required String question,
     required String answer,
   }) async {
-    final id = '${profile.id}_${DateTime.now().microsecondsSinceEpoch}';
-    await client
-        .from('interactions')
-        .upsert({
-          'id': id,
-          'data': {
-            'studentId': profile.id,
-            'type': 'virtual_teacher',
-            'question': question,
-            'answer': answer,
-            'createdAt': DateTime.now().toIso8601String(),
-          },
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .timeout(_requestTimeout);
+    await _postProgress('interaction', {
+      'type': 'virtual_teacher',
+      'question': question,
+      'answer': answer,
+    });
   }
 
+  /// حقول النطاق (المعلم والصف والمادة…) لم تعد تُرسَل: الخادم يأخذها من
+  /// سجلّ الطالب، فلا يمكن دسّ تفاعل في صفّ معلم آخر.
   Future<void> saveProblemSolverInteraction({
     required StudentProfile profile,
     required String lessonId,
     required String question,
   }) async {
-    final now = DateTime.now();
-    await client
-        .from('interactions')
-        .upsert({
-          'id': '${profile.id}_solver_${now.microsecondsSinceEpoch}',
-          'data': {
-            'studentId': profile.id,
-            'studentName': profile.name,
-            'teacherId': profile.teacherId,
-            'type': 'problem_solver',
-            'lessonId': lessonId,
-            'question': question,
-            'grade': profile.grade,
-            'atram': profile.atram,
-            'subject': profile.subject,
-            'term': profile.term,
-            'unit': profile.unit,
-            'createdAt': now.toIso8601String(),
-          },
-          'updated_at': now.toIso8601String(),
-        })
-        .timeout(_requestTimeout);
+    await _postProgress('interaction', {
+      'type': 'problem_solver',
+      'lessonId': lessonId,
+      'question': question,
+    });
   }
 
   Future<List<Map<String, dynamic>>> _fetchLegacyQuizQuestions() async {
@@ -1490,6 +1246,9 @@ String _normalize(Object? value) =>
     value?.toString().trim().toLowerCase() ?? '';
 
 String _text(Object? value) => value?.toString().trim() ?? '';
+
+int _number(Object? value) =>
+    value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;
 
 List<Object?> _asList(Object? value) {
   if (value is List) return value.cast<Object?>();
