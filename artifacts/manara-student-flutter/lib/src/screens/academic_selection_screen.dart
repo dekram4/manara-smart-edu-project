@@ -12,6 +12,7 @@ import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/academic_journey_map.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_mascot.dart';
@@ -22,127 +23,6 @@ import 'student_home_screen.dart';
 /// be pinned onto the right book at any window size.
 const double _booksAspect = 4095 / 3374;
 
-/// Where a control sits inside that illustration, as fractions of its
-/// width/height — measured off the asset. A control pinned with these
-/// lands on its book no matter how large the window is.
-///
-/// [angle] is the slope of that book's page band in radians, read straight
-/// off the artwork: for every book the top and bottom edges of the white
-/// block were traced across 21 sample columns and a line fitted through
-/// them. The books do not share one slope — the top book is almost flat,
-/// the two the reader sees edge-on rise to the right, and the three at the
-/// base fall to the right — so each control carries its own book's angle
-/// and ends up sitting along the printed page lines instead of across them.
-/// Because the illustration is scaled uniformly by `BoxFit.contain`, an
-/// angle measured in source pixels is exactly the angle on screen.
-class _BookSlot {
-  const _BookSlot({
-    required this.centerX,
-    required this.centerY,
-    required this.width,
-    required this.height,
-    required this.angle,
-    required this.color,
-  });
-
-  final double centerX;
-  final double centerY;
-  final double width;
-  final double height;
-  final double angle;
-  final Color color;
-
-  /// The shortest a control may be, whatever the artwork scales to.
-  ///
-  /// The slot heights are fractions of the illustration, and on a
-  /// landscape phone the illustration is short enough that a fraction of
-  /// it cannot hold a 22sp value over its label — the control overflowed
-  /// by about 14px. The text used to be squashed to fit by a FittedBox,
-  /// which is precisely what made raising the font size do nothing. So
-  /// the band gives way instead of the type: below this floor the control
-  /// reaches a little past its book's printed lines, which is a far
-  /// better trade than type a child cannot read.
-  static const minHeight = 52.0;
-
-  Rect resolve(Rect imageRect) => Rect.fromCenter(
-    center: Offset(
-      imageRect.left + centerX * imageRect.width,
-      imageRect.top + centerY * imageRect.height,
-    ),
-    width: width * imageRect.width,
-    height: math.max(minHeight, height * imageRect.height),
-  );
-
-  /// Pins [child] onto this book and tilts it to the page's own slope.
-  /// `Transform.rotate` is paint-only, so the tilt can never change the
-  /// laid-out size and can never produce an overflow.
-  Widget place(Rect imageRect, Widget child) => Positioned.fromRect(
-    rect: resolve(imageRect),
-    child: Transform.rotate(angle: angle, child: child),
-  );
-}
-
-/// One slot per book, top to bottom, each measured against the white page
-/// block of that book — never its coloured cover — so every control lands
-/// on paper the way the login fields sit inside the green board.
-/// Each band was then walked column by column along its own slope until
-/// the white ran out, which gives the page's true usable length. Every
-/// control below is centred on its band's midpoint and set to 85% of that
-/// length — the top of the range that still leaves clear paper at both
-/// ends. The bands are very different lengths (the top book's page is
-/// barely a quarter of the illustration wide, the bottom book's is over
-/// half), which is why these widths are not uniform.
-const _gradeSlot = _BookSlot(
-  centerX: 0.3773,
-  centerY: 0.1164,
-  width: 0.2138,
-  height: 0.108,
-  angle: 0.035,
-  color: Color(0xFF2FA8BE), // teal, top book
-);
-const _atramSlot = _BookSlot(
-  centerX: 0.6239,
-  centerY: 0.2640,
-  width: 0.2636,
-  height: 0.104,
-  angle: -0.155,
-  color: Color(0xFFE8930C), // orange
-);
-const _subjectSlot = _BookSlot(
-  centerX: 0.6667,
-  centerY: 0.4381,
-  width: 0.3321,
-  height: 0.108,
-  angle: -0.155,
-  color: Color(0xFFA974BE), // purple
-);
-// The red book is the one exception to the flat 85%: the purple book's
-// bottom corner dips into its page around x=0.47, so this field is set to
-// 81% and dropped ~20px to pass under that corner.
-const _unitSlot = _BookSlot(
-  centerX: 0.3626,
-  centerY: 0.6130,
-  width: 0.3720,
-  height: 0.104,
-  angle: 0.089,
-  color: Color(0xFFC0392B), // red
-);
-const _lessonSlot = _BookSlot(
-  centerX: 0.3578,
-  centerY: 0.7398,
-  width: 0.3923,
-  height: 0.104,
-  angle: 0.089,
-  color: Color(0xFF2E7D4F), // green
-);
-const _startSlot = _BookSlot(
-  centerX: 0.3419,
-  centerY: 0.8928,
-  width: 0.4400,
-  height: 0.108,
-  angle: 0.089,
-  color: Color(0xFF12406B), // navy, bottom book
-);
 
 class AcademicSelectionScreen extends StatefulWidget {
   const AcademicSelectionScreen({
@@ -754,15 +634,22 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           child: _MascotGuide(height: mascotHeight),
                         ),
                       ),
-                    Positioned.fromRect(
-                      rect: imageRect,
-                      child: Image.asset(
-                        'assets/images/learning_path_bg.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    // The trail, in the space the book stack used to fill.
+                    //
+                    // Six dropdowns printed on an illustration were correct
+                    // and mute: nothing on the screen said the levels were a
+                    // sequence, or that each one narrowed the next. The map
+                    // draws that dependency — walked stretch behind, dim
+                    // stations ahead — which is the one thing a child needed
+                    // to see and the books could not show.
+                    if (_ready)
+                      Positioned.fromRect(
+                        rect: imageRect,
+                        child: AcademicJourneyMap(
+                          stations: _journeyStations,
+                          activeIndex: _journeyStage,
+                        ),
                       ),
-                    ),
-                    if (_ready) ..._buildBookControls(imageRect),
                     if (!_ready)
                       Positioned.fromRect(
                         rect: imageRect,
@@ -886,86 +773,101 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// Freeing the navy book — the start button moved out from under the
   /// stack to its own band below — gave every level a book of its own and
   /// let the control read the same way at every level.
-  List<Widget> _buildBookControls(Rect imageRect) {
-    return [
-      _gradeSlot.place(
-        imageRect,
-        _BookDropdown(
+  /// The six levels, in the order the cascade resolves them.
+  ///
+  /// Built fresh on each frame from the same fields the cascade writes, so
+  /// the map can hold no stale copy of the tree. Every `onSelected` is the
+  /// existing selector, untouched: the map changes how a level is picked,
+  /// never what picking one does.
+  List<JourneyStation> get _journeyStations => [
+        JourneyStation(
           label: tr('path.grade'),
           icon: Icons.school_rounded,
-          color: _gradeSlot.color,
+          color: const Color(0xFF2FA8BE),
           value: _grade,
           options: _gradeOptions,
-          onSelected: _selectGrade,
+          onSelected: (value) {
+            _selectGrade(value);
+            _advanceJourney(0);
+          },
         ),
-      ),
-      _atramSlot.place(
-        imageRect,
-        _BookDropdown(
+        JourneyStation(
           label: tr('path.atram'),
           icon: Icons.calendar_month_rounded,
-          color: _atramSlot.color,
+          color: const Color(0xFFE8930C),
           value: _atram,
           options: _atramOptions,
-          onSelected: _selectAtram,
+          onSelected: (value) {
+            _selectAtram(value);
+            _advanceJourney(1);
+          },
         ),
-      ),
-      _subjectSlot.place(
-        imageRect,
-        _BookDropdown(
+        JourneyStation(
           label: tr('path.subject'),
           icon: Icons.menu_book_rounded,
-          color: _subjectSlot.color,
+          color: const Color(0xFFA974BE),
           value: _subject,
           options: _subjectOptions,
-          onSelected: _selectSubject,
+          onSelected: (value) {
+            _selectSubject(value);
+            _advanceJourney(2);
+          },
         ),
-      ),
-      // Red book: the chapter, now on its own rather than sharing.
-      _unitSlot.place(
-        imageRect,
-        _BookDropdown(
+        JourneyStation(
           label: tr('path.term'),
           icon: Icons.bookmarks_rounded,
-          color: _unitSlot.color,
+          color: const Color(0xFFC0392B),
           value: _term,
           options: _termOptions,
-          onSelected: _selectTerm,
+          onSelected: (value) {
+            _selectTerm(value);
+            _advanceJourney(3);
+          },
         ),
-      ),
-      // Green book: the unit, moved down one from the red.
-      _lessonSlot.place(
-        imageRect,
-        _BookDropdown(
+        JourneyStation(
           label: tr('path.unit'),
           icon: Icons.category_rounded,
-          color: _lessonSlot.color,
+          color: const Color(0xFF2E7D4F),
           value: _unit,
           options: _unitOptions,
-          onSelected: _selectUnit,
+          onSelected: (value) {
+            _selectUnit(value);
+            _advanceJourney(4);
+          },
         ),
-      ),
-      // Navy book: the lesson, in the place the start button used to take.
-      _startSlot.place(
-        imageRect,
-        _BookDropdown(
+        JourneyStation(
           label: tr('path.lesson'),
           icon: Icons.play_lesson_rounded,
-          color: _startSlot.color,
+          color: const Color(0xFF12406B),
           value: _lesson?.lessonName,
           options: _lessonOptions,
-          onSelected: _selectLessonNamed,
+          onSelected: (value) {
+            _selectLessonNamed(value);
+            _advanceJourney(5);
+          },
         ),
-      ),
-      if (_loadError != null)
-        Positioned(
-          left: imageRect.left + imageRect.width * 0.12,
-          width: imageRect.width * 0.76,
-          bottom: 4,
-          child: _InfoBanner(message: _loadError!),
-        ),
-    ];
+      ];
+
+  /// How far along the trail the student has walked.
+  ///
+  /// Deliberately *not* derived from which levels hold a value. The cascade
+  /// fills every level below the one just chosen with a sensible default the
+  /// moment it resolves, so "the first level with no answer" is the last
+  /// station almost immediately — the avatar would teleport to the end on the
+  /// first tap and the trail would mean nothing.
+  ///
+  /// So the stage is the student's own progress: one station per choice they
+  /// actually made. Re-answering an earlier level walks them back to it,
+  /// because everything under it has just been reset and is theirs to confirm
+  /// again.
+  int _journeyStage = 0;
+
+  void _advanceJourney(int from) {
+    final next = math.min(from + 1, _journeyStations.length - 1);
+    if (next == _journeyStage) return;
+    setState(() => _journeyStage = next);
   }
+
 }
 
 /// The rect an image with [aspectRatio] (width / height) actually renders
@@ -988,170 +890,6 @@ Rect _containRect(Size container, double aspectRatio) {
     width,
     height,
   );
-}
-
-/// A dropdown that sits on a book's page area: a near-white card so the
-/// text stays black-on-paper legible for young readers, a soft rim and a
-/// light 3D shadow in that book's own colour, and a real popup menu of the
-/// options the teacher configured.
-class _BookDropdown extends StatelessWidget {
-  const _BookDropdown({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.value,
-    required this.options,
-    required this.onSelected,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final String? value;
-  final List<String> options;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = options.isNotEmpty;
-    final dark = Color.lerp(color, Colors.black, 0.34)!;
-    return LayoutBuilder(
-      builder: (context, box) {
-        // On a small screen a book's page — and therefore this control —
-        // can get very narrow. The icon badge and the chevron are fixed
-        // width, so they are dropped in that order once they no longer fit
-        // alongside the value: the label text always wins the space. This
-        // is what the runtime caught as a RIGHT OVERFLOWED error on a
-        // narrow window, and dropping ornaments keeps the control legible
-        // instead of hiding it.
-        final showIcon = box.maxWidth >= 128;
-        final showChevron = box.maxWidth >= 78;
-        final pad = box.maxWidth >= 110 ? 9.0 : 5.0;
-        final iconSize = (box.maxHeight * 0.34).clamp(11.0, 17.0).toDouble();
-        final chevronSize =
-            (box.maxHeight * 0.42).clamp(13.0, 20.0).toDouble();
-        return PopupMenuButton<String>(
-          enabled: enabled,
-          // The label is already printed on the control, so a hover
-          // tooltip would just repeat it over the artwork.
-          tooltip: '',
-          offset: const Offset(0, 8),
-          constraints: const BoxConstraints(minWidth: 200, maxHeight: 320),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          onSelected: onSelected,
-          itemBuilder: (context) => [
-            for (final option in options)
-              PopupMenuItem<String>(
-                value: option,
-                child: Row(
-                  children: [
-                    Icon(
-                      option == value
-                          ? Icons.check_circle_rounded
-                          : Icons.circle_outlined,
-                      size: 18,
-                      color: option == value ? color : Colors.black26,
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        option,
-                        style: TextStyle(
-                          fontWeight:
-                              option == value ? FontWeight.w900 : FontWeight.w700,
-                          color: StudentSurface.ink(context),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-          child: Container(
-              padding: EdgeInsets.symmetric(horizontal: pad),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(11),
-                // Slightly translucent white so the page lines still read
-                // faintly underneath — the field looks printed on the
-                // paper rather than dropped on top of it. No drop shadow
-                // for the same reason; the rim alone gives it its edge.
-                color: Colors.white.withOpacity(0.86),
-                border: Border.all(color: color.withOpacity(0.55), width: 1.3),
-              ),
-              child: Row(
-                children: [
-                  if (showIcon) ...[
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Icon(icon, color: dark, size: iconSize),
-                    ),
-                    const SizedBox(width: 7),
-                  ],
-                  // No FittedBox on either line any more.
-                  //
-                  // Both used to be wrapped in one, and a FittedBox inside
-                  // a fixed-height slot makes the source font size
-                  // irrelevant: it scaled whatever was written down to
-                  // whatever half a ~38px book band would take, so raising
-                  // the numbers changed nothing on screen. The slots were
-                  // given the height instead, and the text is now printed
-                  // at its stated size. It cannot overflow because the
-                  // value is one line with an ellipsis and the label is
-                  // one line too.
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            // The level's own name — الصف, الترم, المادة —
-                            // now that each is a single word rather than a
-                            // phrase, it has the room to be read at a
-                            // glance rather than squinted at.
-                            color: dark,
-                            fontSize: 19,
-                            height: 1.1,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        Text(
-                          enabled
-                              ? (value ?? tr('path.choose'))
-                              : tr('path.unavailable'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: StudentSurface.ink(context),
-                            // The value the student actually reads — the
-                            // grade, the subject, the lesson. It carries
-                            // the book, so it is the largest thing on it.
-                            fontSize: 22,
-                            height: 1.15,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (showChevron)
-                    Icon(Icons.expand_more_rounded,
-                        color: dark, size: chevronSize),
-                ],
-              ),
-            ),
-        );
-      },
-    );
-  }
 }
 
 /// The chunky 3D "start the adventure" button on the lower books.

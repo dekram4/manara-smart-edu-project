@@ -15,6 +15,7 @@ import '../widgets/lesson_scope_sheet.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/dealt_card_entrance.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_avatar_view.dart';
 import '../services/student_sound_service.dart';
@@ -890,15 +891,22 @@ class _HomeSectionGrid extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) => SizedBox(
           width: cardWidth,
-          child: _SectionTile(
-            // Named by its portal rather than its position, so the key
-            // survives the rail being reordered.
-            key: ValueKey('portal-tile-${_homeSections[index].titleKey}'),
-            section: _homeSections[index],
-            // Staggers each card's float so the rail breathes rather than
-            // pulsing as one block.
+          // The deal sits outside the tile's key on purpose: the hub's
+          // motion tests read the first `Transform` under that key and
+          // assert on the card's own breath and tilt. Wrapping the key
+          // would put this transform there instead.
+          child: DealtCardEntrance(
             index: index,
-            onPressed: () => onSectionPressed(index),
+            child: _SectionTile(
+              // Named by its portal rather than its position, so the key
+              // survives the rail being reordered.
+              key: ValueKey('portal-tile-${_homeSections[index].titleKey}'),
+              section: _homeSections[index],
+              // Staggers each card's float so the rail breathes rather than
+              // pulsing as one block.
+              index: index,
+              onPressed: () => onSectionPressed(index),
+            ),
           ),
         ),
       ),

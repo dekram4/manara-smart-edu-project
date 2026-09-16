@@ -157,6 +157,28 @@ class StudentSoundService {
     play(StudentSoundCue.navigation);
   }
 
+  /// The soft tick of one card landing as the rail deals itself in.
+  ///
+  /// Deliberately not routed through [play]: the shared gate silences a cue
+  /// repeated inside 220ms, which is exactly the rhythm of a deal — only the
+  /// first card would have been heard. It is also quieter than [playTap],
+  /// because this fires once per card rather than once per intention, and a
+  /// tap's volume nine times over is a clatter.
+  ///
+  /// Uses the UI tick asset; a dedicated whoosh would be better, and this
+  /// reads as a riffle only because each card cuts the one before it.
+  void playCardDeal() {
+    if (muted.value) return;
+    unawaited(() async {
+      try {
+        await _effectsPlayer.stop();
+        await _effectsPlayer.play(AssetSource('audio/ui-tap.wav'), volume: 0.3);
+      } catch (_) {
+        // Audio is an enhancement and must never block the hub from opening.
+      }
+    }());
+  }
+
   /// When applause last started. Everything below checks it.
   DateTime? _lastApplause;
 
