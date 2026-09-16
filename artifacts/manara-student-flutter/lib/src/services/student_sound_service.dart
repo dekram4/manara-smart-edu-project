@@ -157,27 +157,49 @@ class StudentSoundService {
 
   static final math.Random _random = math.Random();
 
-  /// A cheerful tap for buttons and cards, paired with light haptic feedback.
+  /// The feedback for a finger landing on a card or a button.
+  ///
+  /// This used to be a chime — `ui-tap.wav`, a short pitched tick. A pitched
+  /// note asserts itself: it is a small event announcing itself, and over a
+  /// session of tapping through lessons it wears. The swish is unpitched and
+  /// much quieter, so it registers as touch rather than as a notification.
+  ///
+  /// The haptic stays: on a phone that is half of what makes a tap feel
+  /// answered, and it costs nothing when the device has no motor.
   void playTap() {
     HapticFeedback.lightImpact();
-    play(StudentSoundCue.navigation);
+    playSwish();
   }
 
-  /// The soft rustle of a page turning as one card is dealt into place.
+  /// A very soft air swish. The touch sound, and the voice of anything that
+  /// slides or opens.
+  void playSwish() {
+    if (muted.value) return;
+    unawaited(() async {
+      try {
+        await _dealPlayer.stop();
+        await _dealPlayer.play(
+          AssetSource('audio/soft-swish.wav'),
+          volume: 0.30,
+        );
+      } catch (_) {
+        // Audio is an enhancement and must never block an interaction.
+      }
+    }());
+  }
+
+  /// The breath of air that carries one card out of the depth.
   ///
-  /// `page-flip.wav` is synthesised, not recorded: a run of very short noise
-  /// grains — the edge of a sheet flexing against what is under it — thinning
-  /// out under a quiet, immediately-decaying envelope, twice high-passed
-  /// because paper carries no bass.
-  ///
-  /// It replaced an air whoosh, which was the wrong instrument however well
-  /// made: a whoosh swells before it fades and lives in the low-mids, so it
-  /// read as something being thrown. Paper starts at its loudest and thins
-  /// away, and sits an octave higher. That difference is the whole brief.
+  /// `card-swirl.wav` is synthesised: noise under a slowly sweeping filter,
+  /// shaped by an envelope that rises and falls symmetrically so it has no
+  /// attack to speak of. That matters here — the card spirals in over half a
+  /// second, and a sound with a sharp front would mark a moment the motion
+  /// does not have. It is longer and softer than the touch swish because it
+  /// accompanies a movement rather than an event.
   ///
   /// Deliberately not routed through [play]: the shared gate silences a cue
   /// repeated inside 220ms, which is close to the rhythm of a deal. It plays
-  /// on its own player for the same reason, so a card landing never cuts off
+  /// on its own player for the same reason, so a card arriving never cuts off
   /// applause or a spoken phrase already running on the effects player.
   void playCardDeal() {
     if (muted.value) return;
@@ -185,8 +207,8 @@ class StudentSoundService {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
-          AssetSource('audio/page-flip.wav'),
-          volume: 0.42,
+          AssetSource('audio/card-swirl.wav'),
+          volume: 0.26,
         );
       } catch (_) {
         // Audio is an enhancement and must never block the hub from opening.

@@ -22,8 +22,8 @@ class DealtCardEntrance extends StatefulWidget {
   const DealtCardEntrance({
     required this.index,
     required this.child,
-    this.stagger = const Duration(milliseconds: 260),
-    this.duration = const Duration(milliseconds: 620),
+    this.stagger = const Duration(milliseconds: 300),
+    this.duration = const Duration(milliseconds: 720),
     this.sound = true,
     super.key,
   });
@@ -150,25 +150,32 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
       // second is what would cost the frame budget here.
       child: widget.child,
       builder: (context, child) {
-        // Straight from a quarter turn away, not a half: at 180° the card
-        // starts back-on and spends the first half of its flight showing a
-        // mirror image of itself, which reads as a glitch. -90° starts it
-        // edge-on, so it is never seen reversed.
         final remaining = 1 - _turn.value;
+        // The spiral: the card travels a shallow arc as it turns, instead of
+        // growing on the spot. Sine across, cosine falling — so it swings out
+        // to one side early and curves back in as it settles, which is what
+        // makes the motion read as a path through space rather than a zoom.
+        final swing = math.sin(remaining * math.pi) * 0.34;
+        final rise = (1 - math.cos(remaining * math.pi * 0.5)) * 0.22;
+
         final matrix = Matrix4.identity()
-          // Perspective: without it `rotateY` is an affine squash and the
-          // card looks like it is being flattened rather than turned.
-          ..setEntry(3, 2, 0.0012)
-          // Pushed back along z as well as scaled down, so the card really
-          // is further away at the start rather than just smaller. With the
-          // perspective entry above, the two together are what make it read
-          // as coming out of the depth.
-          ..translate(0.0, 0.0, -160.0 * remaining)
-          // The quarter turn, and a little roll that unwinds with it: a card
-          // dealt by hand does not arrive perfectly square, and the roll is
-          // what separates this from a panel being un-flattened.
-          ..rotateY(remaining * (-math.pi / 2))
-          ..rotateZ(remaining * 0.22)
+          // Perspective: without it the rotations are affine squashes and the
+          // card looks flattened rather than turned.
+          ..setEntry(3, 2, 0.0014)
+          // Pushed back along z as well as scaled down, so the card really is
+          // further away at the start rather than just smaller.
+          // In logical pixels rather than a fraction of the card: the arc
+          // should look the same on every card in the rail, and the cards are
+          // not all the same width.
+          ..translate(swing * 120.0, rise * 70.0, -420.0 * remaining)
+          // Three-quarters of a turn, not a quarter: the card winds in rather
+          // than simply facing round. Kept under a full turn so it never
+          // shows its back, which reads as a rendering fault at this speed.
+          ..rotateY(remaining * -math.pi * 0.75)
+          // A roll that unwinds with it — a card dealt by hand does not
+          // arrive square — and a touch of tilt so the spiral has depth.
+          ..rotateZ(remaining * 0.42)
+          ..rotateX(remaining * 0.18)
           ..scale(_scale.value);
         return Opacity(
           opacity: _fade.value.clamp(0.0, 1.0),

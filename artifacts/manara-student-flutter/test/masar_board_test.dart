@@ -144,12 +144,37 @@ void main() {
 
     await tester.tap(find.text('الصف'));
     await settle(tester);
-    expect(find.text('الصف الخامس'), findsOneWidget, reason: 'no sheet opened');
+    expect(find.text('الصف الخامس'), findsOneWidget, reason: 'nothing opened');
+
+    // The options arrive as a card in the middle of the screen, never as a
+    // sheet hinged to the bottom edge — that was the explicit brief, and a
+    // `showModalBottomSheet` creeping back in is exactly what this catches.
+    expect(find.byType(BottomSheet), findsNothing);
+    final card = tester.getRect(find.text('الصف الخامس'));
+    final screen = tester.getRect(find.byType(MasarPathBoard));
+    expect(
+      (card.center.dy - screen.center.dy).abs(),
+      lessThan(screen.height * 0.34),
+      reason: 'the options are not near the middle of the screen',
+    );
 
     await tester.tap(find.text('الصف الخامس'));
     await settle(tester);
 
     expect(picks, ['الصف=الصف الخامس']);
+  });
+
+  testWidgets('the English signs and the blank scroll are covered',
+      (tester) async {
+    await pumpBoard(tester, given: stages(onPick: (_, __) {}));
+
+    // The artwork ships with START / PRACTICE / CHALLENGE painted on the
+    // hanging signs and an empty scroll over the schoolhouse. Each is
+    // covered by a patch carrying Arabic instead.
+    for (final text in ['انطلق يا بطل!', 'تحدَّ واكسب!', 'واصِل تميّزك!']) {
+      expect(find.text(text), findsOneWidget, reason: '$text is missing');
+    }
+    expect(find.text('منارة المعرفة التعليمية'), findsOneWidget);
   });
 
   testWidgets('a level with nothing configured cannot be opened',

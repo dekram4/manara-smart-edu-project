@@ -456,26 +456,23 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // The start button keeps its own band across the foot.
                 const startBand = 76.0;
 
+                // اللوح يملأ الشاشة كلها. الرقع والزر تطفو فوقه، ولا
+                // تقتطع منه: الصورة هي الشاشة، وكل ما عليها موضوع بنسبة
+                // من رقعتها هي — فاقتطاع شريط لها كان يزيح كل رقعة عمّا
+                // وُضعت لتغطّيه.
                 final imageRect = Rect.fromLTWH(
-                  edge,
-                  topReserve,
-                  math.max(0.0, areaSize.width - edge * 2),
-                  math.max(0.0, areaSize.height - topReserve - startBand),
+                  0,
+                  0,
+                  areaSize.width,
+                  areaSize.height,
                 );
 
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // The board: the artwork with the six fields printed
-                    // into the squares already drawn on it.
-                    // The trail, in the space the book stack used to fill.
-                    //
-                    // Six dropdowns printed on an illustration were correct
-                    // and mute: nothing on the screen said the levels were a
-                    // sequence, or that each one narrowed the next. The map
-                    // draws that dependency — walked stretch behind, dim
-                    // stations ahead — which is the one thing a child needed
-                    // to see and the books could not show.
+                    // The board: the artwork stretched to fill the screen,
+                    // with the six levels printed into the squares already
+                    // drawn on it and patches over the English signs.
                     if (_ready)
                       Positioned.fromRect(
                         rect: imageRect,

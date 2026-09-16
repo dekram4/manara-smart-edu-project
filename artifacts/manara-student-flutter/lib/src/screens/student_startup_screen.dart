@@ -319,14 +319,19 @@ class _WelcomeBrand extends StatelessWidget {
   }
 }
 
-/// One character: an elastic pop-in, then a soft hover in place, and
-/// finally a spin as it leaves.
+/// The welcome character: three schoolchildren, drawn mid-stride with their
+/// arms up and grinning.
 ///
-/// The hover is deliberately quieter than the old bounce — a slow, even
-/// rise and fall with no squash — because it now has to hold the screen
-/// on its own for two seconds before anything else happens, and a
-/// character hopping that long reads as restless rather than alive.
-class _GreetingCharacter extends StatelessWidget {
+/// What the art already contains decided the animation. They are drawn
+/// *running*, so they run in from the side rather than fading up on the spot;
+/// their arms are already raised and their mouths already open, so a rock of
+/// the body reads as waving and cheering without needing a second frame.
+///
+/// The sequence is one controller with four stretches of a single timeline —
+/// run in, land, wave, settle — because these are phases of one movement. Four
+/// separate controllers would let them drift apart, and the landing squash
+/// only reads as a landing if it is locked to the arrival.
+class _GreetingCharacter extends StatefulWidget {
   const _GreetingCharacter({
     required this.asset,
     required this.height,
@@ -344,105 +349,115 @@ class _GreetingCharacter extends StatelessWidget {
   final Duration spinDuration;
 
   @override
+  State<_GreetingCharacter> createState() => _GreetingCharacterState();
+}
+
+class _GreetingCharacterState extends State<_GreetingCharacter>
+    with TickerProviderStateMixin {
+  /// Run in, land, wave — played once.
+  late final AnimationController _arrival = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1750),
+  );
+
+  /// The living idle underneath, which never stops.
+  late final AnimationController _idle = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  );
+
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _arrival.value = 1;
+      return;
+    }
+    _arrival.forward();
+    _idle.repeat();
+  }
+
+  @override
+  void dispose() {
+    _arrival.dispose();
+    _idle.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final image = Image.asset(
-      asset,
-      height: height,
+      widget.asset,
+      height: widget.height,
       fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => SizedBox(height: height),
+      errorBuilder: (_, __, ___) => SizedBox(height: widget.height),
     );
 
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return image;
+    if (widget.spinning) {
+      return _Spin(duration: widget.spinDuration, child: image);
+    }
 
-    // Once the spin starts the hover stops: leaving both running would
-    // have the character bobbing while it turns, which reads as a glitch
-    // rather than a flourish. _SpinAway above handles the shrink and the
-    // fade for the whole composition; this adds only the rotation.
-    if (spinning) return _Spin(duration: spinDuration, child: image);
-
-    // The breath, innermost so it scales the figure alone and not the arc it
-    // travels on.
-    //
-    // Slightly wider than it is tall — 1.028 against 0.988 — because a chest
-    // filling pushes outwards more than upwards. A uniform scale reads as a
-    // picture being zoomed; this reads as something alive.
-    //
-    // Its period is deliberately not the hover's. At equal periods the two
-    // lock into a single exaggerated bob, and the figure looks mechanical.
-    // At 2100ms against 1500ms they drift in and out of phase, so the motion
-    // never repeats exactly the same way twice.
-    final breathing = Animate(
-      onPlay: (controller) => controller.repeat(reverse: true),
-      delay: entrance,
-      effects: [
-        ScaleEffect(
-          begin: const Offset(1, 1),
-          end: const Offset(1.028, 0.988),
-          alignment: Alignment.bottomCenter,
-          duration: 2100.ms,
-          curve: Curves.easeInOut,
-        ),
-      ],
+    return AnimatedBuilder(
+      animation: Listenable.merge([_arrival, _idle]),
       child: image,
-    );
+      builder: (context, child) {
+        final t = _arrival.value;
 
-    final hovering = Animate(
-      onPlay: (controller) => controller.repeat(reverse: true),
-      delay: entrance,
-      effects: [
-        MoveEffect(
-          begin: Offset.zero,
-          end: Offset(0, -height * 0.055),
-          duration: 1500.ms,
-          curve: Curves.easeInOut,
-        ),
-        RotateEffect(
-          begin: -0.008,
-          end: 0.008,
-          duration: 1500.ms,
-          curve: Curves.easeInOut,
-        ),
-      ],
-      child: breathing,
-    );
+        // ── Run in ──────────────────────────────────────────────────────
+        // From off to the side and slightly below, decelerating in. They are
+        // drawn running to the right, so they enter from the left; entering
+        // from anywhere else would have them moving backwards.
+        final runIn = Curves.easeOutCubic.transform((t / 0.34).clamp(0.0, 1.0));
+        final dx = (1 - runIn) * -widget.height * 0.85;
+        final approach = 0.86 + 0.14 * runIn;
 
-    // The greeting: one rock from the waist as the figure lands, the way a
-    // child waves with their whole body. Played once, not looped — a wave
-    // that never stops is a twitch.
-    //
-    // Timed to start as the elastic entrance settles, so the arrival and the
-    // greeting read as one movement rather than two.
-    //
-    // The rock is about the figure's centre — `ShakeEffect` takes no pivot —
-    // so the angle is kept small: at this size a centre-pivoted lean of much
-    // more than three degrees starts to look like sliding rather than
-    // leaning.
-    final greeting = Animate(
-      delay: entrance,
-      effects: [
-        ShakeEffect(
-          duration: 820.ms,
-          hz: 2.2,
-          rotation: 0.055,
-          curve: Curves.easeOut,
-        ),
-      ],
-      child: hovering,
-    );
+        // ── Land ────────────────────────────────────────────────────────
+        // Squash on contact, then a smaller rebound stretch. Volume is
+        // traded between the axes rather than both shrinking, which is what
+        // separates a landing from the whole figure getting smaller.
+        final landPhase = ((t - 0.30) / 0.20).clamp(0.0, 1.0);
+        final squash = math.sin(landPhase * math.pi) * (1 - landPhase * 0.45);
+        final squashX = 1 + squash * 0.13;
+        final squashY = 1 - squash * 0.13;
 
-    return Animate(
-      delay: Duration.zero,
-      effects: [
-        FadeEffect(duration: 320.ms),
-        ScaleEffect(
-          begin: const Offset(0.2, 0.2),
-          end: const Offset(1, 1),
+        // ── Wave ────────────────────────────────────────────────────────
+        // Three rocks of the whole body, fading out. With both arms already
+        // up in the artwork, rocking is what a wave looks like.
+        final wavePhase = ((t - 0.46) / 0.54).clamp(0.0, 1.0);
+        final waveFade = wavePhase <= 0 ? 0.0 : (1 - wavePhase);
+        final wave = math.sin(wavePhase * math.pi * 6) * 0.085 * waveFade;
+
+        // ── Idle ────────────────────────────────────────────────────────
+        // Only once the arrival has finished, so the greeting is not fighting
+        // a breath underneath it.
+        final settled = Curves.easeIn.transform(((t - 0.72) / 0.28).clamp(0.0, 1.0));
+        final phase = _idle.value * math.pi * 2;
+        final float = math.sin(phase) * widget.height * 0.030 * settled;
+        // Wider than it is tall, and on its own slower period, so the breath
+        // never locks into the float and turns the pair into one bob.
+        final breath = math.sin(phase * 0.71) * 0.014 * settled;
+        final sway = math.sin(phase * 0.5) * 0.012 * settled;
+
+        return Transform(
           alignment: Alignment.bottomCenter,
-          duration: entrance,
-          curve: Curves.elasticOut,
-        ),
-      ],
-      child: greeting,
+          transform: Matrix4.identity()
+            ..translate(dx, -float)
+            ..rotateZ(wave + sway)
+            ..scale(
+              approach * squashX * (1 + breath),
+              approach * squashY * (1 - breath * 0.6),
+            ),
+          child: Opacity(
+            opacity: Curves.easeOut.transform((t / 0.18).clamp(0.0, 1.0)),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }
