@@ -195,6 +195,38 @@ void main() {
     expect(picks, isEmpty);
   });
 
+  testWidgets('a degenerate size falls back instead of taking the screen down',
+      (tester) async {
+    // The reported failure was a black screen that never recovered. Anything
+    // that reaches layout with a zero or non-finite size — an unbounded
+    // parent, a collapsed panel, one bad frame mid-rotation — used to flow
+    // straight into `Positioned.fromRect` and into `cacheWidth`, where
+    // `round()` throws on NaN. A board with no room must simply wait for a
+    // real constraint.
+    // An unbounded parent, which is the shape that actually broke it: a Row
+    // hands its child `maxWidth: infinity`, that flows into every
+    // `Positioned.fromRect` on the board, and `infinity` reaches `round()`.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              SizedBox(
+                height: 300,
+                child: MasarPathBoard(
+                  stages: stages(onPick: (_, __) {}),
+                  activeIndex: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the board lays out without overflow across screen shapes',
       (tester) async {
     for (final size in const [

@@ -85,6 +85,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _contentService = StudentContentService(widget.authService.client,
         baseUrl: widget.apiBaseUrl, authService: widget.authService);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
+    // الموسيقى تبدأ مع الشاشة وتُترك عند الخروج منها.
+    StudentSoundService.instance.holdAmbient();
     _loadGamification();
     WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
   }
@@ -143,6 +145,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   @override
   void dispose() {
     _rewardController.dispose();
+    // Paired with the `holdAmbient` in initState. The service counts holders
+    // rather than tracking a flag, so the music survives navigating into a
+    // lesson and back and only stops when nothing is holding it.
+    StudentSoundService.instance.releaseAmbient();
     super.dispose();
   }
 
@@ -1587,22 +1593,29 @@ class _WelcomeCard extends StatelessWidget {
                     tr('hub.welcome'),
                     style: TextStyle(
                       color: StudentSurface.mutedInk(context),
-                      fontSize: 13,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(
-                      profile.name,
-                      maxLines: 1,
-                      style: TextStyle(
-                        color: StudentSurface.ink(context),
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
+                  const SizedBox(height: 3),
+                  // The student's own name, at a size that reads as a
+                  // greeting rather than a caption.
+                  //
+                  // It was inside a `FittedBox(scaleDown)`, which meant the
+                  // 22pt set here was a ceiling and not a size: a long name
+                  // on a narrow phone was quietly shrunk to whatever fitted,
+                  // and the one line meant to welcome the child by name came
+                  // out smaller than the label above it. Ellipsis instead —
+                  // a trimmed name at a readable size beats a whole one too
+                  // small to read.
+                  Text(
+                    trf('path.greeting', {'name': profile.name}),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: StudentSurface.ink(context),
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],

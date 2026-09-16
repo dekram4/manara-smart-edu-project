@@ -231,8 +231,12 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
                             ),
                             SizedBox(height: shortest * 0.045),
                             _GreetingCharacter(
-                              asset: 'assets/images/start.png',
-                              height: characterHeight * 1.35,
+                              asset: 'assets/images/path_mascot.png',
+                              // A standing figure drawn tall, where the old
+                              // asset was three children drawn wide. The same
+                              // multiplier would have her towering over the
+                              // title.
+                              height: characterHeight * 1.15,
                               entrance: _entrance,
                               spinning: _spinningOut,
                               spinDuration: _spinFor,
@@ -408,49 +412,58 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
       builder: (context, child) {
         final t = _arrival.value;
 
-        // ── Run in ──────────────────────────────────────────────────────
-        // From off to the side and slightly below, decelerating in. They are
-        // drawn running to the right, so they enter from the left; entering
-        // from anywhere else would have them moving backwards.
-        final runIn = Curves.easeOutCubic.transform((t / 0.34).clamp(0.0, 1.0));
-        final dx = (1 - runIn) * -widget.height * 0.85;
-        final approach = 0.86 + 0.14 * runIn;
+        // ── Hop in ──────────────────────────────────────────────────────
+        // She is drawn standing, one hand on her hip, so she arrives with a
+        // hop rather than a run: up from below the frame, stretched tall at
+        // the top of the arc the way a jumping figure is drawn, then landing.
+        final hopPhase = (t / 0.32).clamp(0.0, 1.0);
+        final rise = Curves.easeOutCubic.transform(hopPhase);
+        final dy = (1 - rise) * widget.height * 0.55;
+        // Stretch while airborne, strongest at the start of the arc.
+        final airborne = (1 - hopPhase) * math.sin(hopPhase * math.pi);
+        final stretchY = 1 + airborne * 0.10;
+        final stretchX = 1 - airborne * 0.07;
 
         // ── Land ────────────────────────────────────────────────────────
-        // Squash on contact, then a smaller rebound stretch. Volume is
-        // traded between the axes rather than both shrinking, which is what
-        // separates a landing from the whole figure getting smaller.
-        final landPhase = ((t - 0.30) / 0.20).clamp(0.0, 1.0);
+        // Squash on contact, then a smaller rebound. Volume is traded
+        // between the axes rather than both shrinking, which is what
+        // separates a landing from the whole figure simply getting smaller.
+        final landPhase = ((t - 0.28) / 0.20).clamp(0.0, 1.0);
         final squash = math.sin(landPhase * math.pi) * (1 - landPhase * 0.45);
-        final squashX = 1 + squash * 0.13;
-        final squashY = 1 - squash * 0.13;
+        final squashX = 1 + squash * 0.14;
+        final squashY = 1 - squash * 0.14;
 
         // ── Wave ────────────────────────────────────────────────────────
-        // Three rocks of the whole body, fading out. With both arms already
-        // up in the artwork, rocking is what a wave looks like.
+        // Three rocks from the waist, fading out. She has a free arm and a
+        // smile already drawn, so leaning into that side is what reads as a
+        // greeting on a figure that cannot lift its hand.
         final wavePhase = ((t - 0.46) / 0.54).clamp(0.0, 1.0);
         final waveFade = wavePhase <= 0 ? 0.0 : (1 - wavePhase);
-        final wave = math.sin(wavePhase * math.pi * 6) * 0.085 * waveFade;
+        final wave = math.sin(wavePhase * math.pi * 6) * 0.075 * waveFade;
 
         // ── Idle ────────────────────────────────────────────────────────
-        // Only once the arrival has finished, so the greeting is not fighting
-        // a breath underneath it.
-        final settled = Curves.easeIn.transform(((t - 0.72) / 0.28).clamp(0.0, 1.0));
+        // Only once the greeting has finished, so the two are never fighting.
+        final settled =
+            Curves.easeIn.transform(((t - 0.74) / 0.26).clamp(0.0, 1.0));
         final phase = _idle.value * math.pi * 2;
-        final float = math.sin(phase) * widget.height * 0.030 * settled;
+        final float = math.sin(phase) * widget.height * 0.026 * settled;
         // Wider than it is tall, and on its own slower period, so the breath
         // never locks into the float and turns the pair into one bob.
-        final breath = math.sin(phase * 0.71) * 0.014 * settled;
-        final sway = math.sin(phase * 0.5) * 0.012 * settled;
+        final breath = math.sin(phase * 0.71) * 0.013 * settled;
+        final sway = math.sin(phase * 0.5) * 0.010 * settled;
+
 
         return Transform(
+          // Pivoted at her feet: a figure that leans or squashes does so
+          // about the ground it stands on. About the centre she would appear
+          // to slide sideways as she rocks.
           alignment: Alignment.bottomCenter,
           transform: Matrix4.identity()
-            ..translate(dx, -float)
+            ..translate(0.0, dy - float)
             ..rotateZ(wave + sway)
             ..scale(
-              approach * squashX * (1 + breath),
-              approach * squashY * (1 - breath * 0.6),
+              stretchX * squashX * (1 + breath),
+              stretchY * squashY * (1 - breath * 0.6),
             ),
           child: Opacity(
             opacity: Curves.easeOut.transform((t / 0.18).clamp(0.0, 1.0)),

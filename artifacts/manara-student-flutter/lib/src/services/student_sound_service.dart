@@ -55,6 +55,19 @@ class StudentSoundService {
   /// already sounding on the effects player — and so the rail's own cards
   /// cut each other, which is what makes a run of them read as a riffle.
   final AudioPlayer _dealPlayer = AudioPlayer();
+
+  /// The background music. Its own player because it is the only sound that
+  /// is supposed to still be playing while everything else comes and goes.
+  final AudioPlayer _ambientPlayer = AudioPlayer();
+
+  /// How many screens currently want the music.
+  ///
+  /// A count rather than a flag: moving from the hub into a lesson mounts the
+  /// new screen before the old one is disposed, so a flag would be cleared by
+  /// the screen that is leaving and the music would cut out on every
+  /// navigation. The count only reaches zero when nothing wants it.
+  int _ambientHolders = 0;
+  bool _ambientPlaying = false;
   late final AudioService _feedbackAudio = AudioService(muted: muted);
   bool _initialized = false;
 
@@ -79,8 +92,13 @@ class StudentSoundService {
     if (next) {
       await _effectsPlayer.stop();
       await _voicePlayer.stop();
+      await _dealPlayer.stop();
       await _feedbackAudio.stop();
     }
+    // The music follows the switch in both directions: muting has to silence
+    // a loop that is already running, and unmuting has to bring it back for
+    // whatever screen still wants it.
+    await _syncAmbient();
     try {
       final preferences = await SharedPreferences.getInstance();
       await preferences.setBool(_mutedKey, next);
@@ -157,30 +175,65 @@ class StudentSoundService {
 
   static final math.Random _random = math.Random();
 
+  /// Starts the background music, or joins the screen that already has it.
+  ///
+  /// Every caller must pair this with [releaseAmbient] in its `dispose`.
+  void holdAmbient() {
+    _ambientHolders++;
+    unawaited(_syncAmbient());
+  }
+
+  /// Gives up this screen's claim on the music.
+  void releaseAmbient() {
+    if (_ambientHolders > 0) _ambientHolders--;
+    unawaited(_syncAmbient());
+  }
+
+  /// Brings the player in line with whether anything wants music and whether
+  /// the student has muted sound. Safe to call repeatedly.
+  Future<void> _syncAmbient() async {
+    final shouldPlay = _ambientHolders > 0 && !muted.value;
+    if (shouldPlay == _ambientPlaying) return;
+    _ambientPlaying = shouldPlay;
+    try {
+      if (shouldPlay) {
+        await _ambientPlayer.setReleaseMode(ReleaseMode.loop);
+        // Quiet enough to sit under a spoken lesson without competing with
+        // it. Music a child cannot talk over is music they will switch off.
+        await _ambientPlayer.setVolume(0.12);
+        await _ambientPlayer.play(AssetSource('audio/bgm-calm.wav'));
+      } else {
+        await _ambientPlayer.stop();
+      }
+    } catch (_) {
+      // Missing asset or no audio backend: the app is fine without music.
+      _ambientPlaying = false;
+    }
+  }
+
   /// The feedback for a finger landing on a card or a button.
   ///
-  /// This used to be a chime — `ui-tap.wav`, a short pitched tick. A pitched
-  /// note asserts itself: it is a small event announcing itself, and over a
-  /// session of tapping through lessons it wears. The swish is unpitched and
-  /// much quieter, so it registers as touch rather than as a notification.
+  /// `wooden-pop.wav` is synthesised: a tone whose pitch drops steeply from
+  /// 760Hz to about 190Hz inside a tenth of a second, under a very fast
+  /// decay. That steep drop is what the ear hears as something small and
+  /// hollow being tapped — a wooden block rather than a bell.
+  ///
+  /// It replaced an air swish, which was too diffuse to answer a finger:
+  /// touch wants an edge, and noise has none. Before that it was a pitched
+  /// chime, which had the opposite problem — it rang on after the finger had
+  /// gone. The pop has an attack and is over.
   ///
   /// The haptic stays: on a phone that is half of what makes a tap feel
   /// answered, and it costs nothing when the device has no motor.
   void playTap() {
     HapticFeedback.lightImpact();
-    playSwish();
-  }
-
-  /// A very soft air swish. The touch sound, and the voice of anything that
-  /// slides or opens.
-  void playSwish() {
     if (muted.value) return;
     unawaited(() async {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
-          AssetSource('audio/soft-swish.wav'),
-          volume: 0.30,
+          AssetSource('audio/wooden-pop.wav'),
+          volume: 0.34,
         );
       } catch (_) {
         // Audio is an enhancement and must never block an interaction.
@@ -188,14 +241,18 @@ class StudentSoundService {
     }());
   }
 
-  /// The breath of air that carries one card out of the depth.
+  /// The chime that carries one card out of the depth.
   ///
-  /// `card-swirl.wav` is synthesised: noise under a slowly sweeping filter,
-  /// shaped by an envelope that rises and falls symmetrically so it has no
-  /// attack to speak of. That matters here — the card spirals in over half a
-  /// second, and a sound with a sharp front would mark a moment the motion
-  /// does not have. It is longer and softer than the touch swish because it
-  /// accompanies a movement rather than an event.
+  /// `card-chime.wav` is synthesised: a major triad — C5, E5, G5 with a
+  /// touch of the octave — under an envelope that swells before it decays,
+  /// and with a slight upward glide through the note. The swell is what
+  /// matches a card spiralling in over three-quarters of a second; a struck
+  /// bell would mark an impact the motion does not have, and the glide is
+  /// what makes it read as turning rather than simply sounding.
+  ///
+  /// A triad rather than a single note because nine of these play in
+  /// sequence: consonant tones stack into something musical, where nine
+  /// copies of one pitch would read as an alarm.
   ///
   /// Deliberately not routed through [play]: the shared gate silences a cue
   /// repeated inside 220ms, which is close to the rhythm of a deal. It plays
@@ -207,8 +264,8 @@ class StudentSoundService {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
-          AssetSource('audio/card-swirl.wav'),
-          volume: 0.26,
+          AssetSource('audio/card-chime.wav'),
+          volume: 0.30,
         );
       } catch (_) {
         // Audio is an enhancement and must never block the hub from opening.

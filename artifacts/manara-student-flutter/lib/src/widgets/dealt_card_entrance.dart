@@ -22,8 +22,8 @@ class DealtCardEntrance extends StatefulWidget {
   const DealtCardEntrance({
     required this.index,
     required this.child,
-    this.stagger = const Duration(milliseconds: 300),
-    this.duration = const Duration(milliseconds: 720),
+    this.stagger = const Duration(milliseconds: 620),
+    this.duration = const Duration(milliseconds: 780),
     this.sound = true,
     super.key,
   });
@@ -35,18 +35,20 @@ class DealtCardEntrance extends StatefulWidget {
 
   /// Gap between one card starting and the next one starting.
   ///
-  /// Long enough that the eye follows one card at a time. At the 70ms this
-  /// began with, nine cards were all in the air together and the rail simply
-  /// appeared — the sequence was there in the code and invisible on screen.
+  /// Set so that a card is almost entirely at rest before the next one begins
+  /// — 620ms against a 780ms flight leaves only the last fifth overlapping,
+  /// which is the tail of the settle rather than any of the spiral. One card
+  /// is in the air at a time, which is what "one after another" means.
+  ///
+  /// It began at 70ms, where all nine were airborne together and the rail
+  /// simply appeared: the sequence existed in the code and nowhere on screen.
   final Duration stagger;
 
   /// How long a single card takes to land.
   ///
-  /// Deliberately longer than the gap between cards, so a card is still
-  /// settling as the next one starts. Waiting for full rest before beginning
-  /// the next makes nine cards take three seconds and reads as stalling;
-  /// overlapping the tail of one with the head of the next keeps the order
-  /// unmistakable while the rail still fills at a watchable pace.
+  /// Slow enough to be watched. The spiral is the point of the entrance, and
+  /// a card that completes three-quarters of a turn in a third of a second
+  /// only reads as a flicker.
   final Duration duration;
 
   /// Whether this card ticks as it lands.

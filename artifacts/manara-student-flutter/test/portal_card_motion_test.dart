@@ -58,12 +58,12 @@ void main() {
     );
     // Long enough for the rail to finish dealing itself in.
     //
-    // The cards enter one at a time — 300ms apart, 720ms each — so the last
-    // of the nine is not at rest until about 3.1 seconds in. Every test below
+    // The cards enter strictly one at a time — 620ms apart, 780ms each — so
+    // the last of the nine is not at rest until about 5.7 seconds in. Every test
     // measures a card's *resting* geometry or presses one, and a card still
     // arriving would be measured mid-flight. This is a warm-up, not an
     // assertion: nothing below was relaxed to accommodate the entrance.
-    await tester.pump(const Duration(milliseconds: 4000));
+    await tester.pump(const Duration(milliseconds: 6400));
   }
 
   /// The transform the card's own AnimatedBuilder produces. Reading the

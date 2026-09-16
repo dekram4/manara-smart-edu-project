@@ -7,6 +7,18 @@ import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import 'student_avatar_view.dart';
+import 'student_mascot.dart';
+
+/// The width to decode the artwork at, never a value that can throw.
+///
+/// `cacheWidth` takes an `int`, and getting there from a layout measurement
+/// means `round()` — which throws `UnsupportedError` on `NaN` and on
+/// `infinity`. A single bad frame during layout was therefore enough to take
+/// the whole screen down, which is precisely the failure this guards.
+int _safeCacheWidth(double raw) {
+  if (!raw.isFinite || raw <= 0) return 900;
+  return raw.clamp(360.0, 1800.0).round();
+}
 
 /// One level of the academic tree, bound to one painted square.
 @immutable
@@ -71,6 +83,20 @@ const List<_Frac> _arrows = [
 
 /// The blank parchment scroll over the schoolhouse.
 const _Frac _scroll = Rect.fromLTRB(0.3944, 0.0459, 0.9522, 0.1576);
+
+/// Where the two cheering mascots stand, on the grass between the painted
+/// children and the schoolhouse.
+///
+/// They are additions to the scene, not replacements for the children painted
+/// into it. Those two cannot be animated: they are part of the picture, and
+/// they share their colours with the fence and the sky behind them, so no
+/// colour key separates them. Cutting a rectangle around them and bouncing
+/// that would drag a moving seam across the artwork, and would reveal the
+/// originals still standing underneath.
+const List<_Frac> _cheerSpots = [
+  Rect.fromLTRB(0.300, 0.700, 0.372, 0.885),
+  Rect.fromLTRB(0.368, 0.726, 0.430, 0.885),
+];
 
 /// The path artwork with the six levels printed into the squares drawn on it.
 ///
@@ -174,18 +200,42 @@ class _MasarPathBoardState extends State<MasarPathBoard>
     super.dispose();
   }
 
-  /// The options for one level, as a card that grows out of the middle of the
-  /// screen over a blurred scene.
+  /// True while a level's card is on screen.
+  ///
+  /// Without this the board can stack dialogs on top of each other: one route
+  /// opens from a tap and another from the character arriving a moment later,
+  /// and because each choice walks the character on to the next square, the
+  /// second arrival opens a third. The student then has to dismiss a pile of
+  /// cards they never asked for, which is indistinguishable from the screen
+  /// having locked up.
+  bool _dialogOpen = false;
+
+  /// Opens the options for one level, as a card that grows out of the middle
+  /// of the screen over a blurred scene.
   ///
   /// Not a bottom sheet. A sheet slides up from an edge and belongs to the
   /// chrome of the app; this screen is a place, and the choice should arrive
   /// in front of the student rather than from underneath the picture.
   Future<void> openStage(int index) async {
+    if (_dialogOpen) return;
     if (index < 0 || index >= widget.stages.length) return;
     final stage = widget.stages[index];
     if (!stage.isOpen) return;
-    StudentSoundService.instance.playSwish();
+    StudentSoundService.instance.playTap();
 
+    _dialogOpen = true;
+    try {
+      await _showStageDialog(stage);
+    } finally {
+      // In a `finally` so a dismissed route, a pop during a rebuild, or an
+      // error inside the card can never leave the board unable to open
+      // anything again — which would be a real lock-up rather than a
+      // cosmetic one.
+      _dialogOpen = false;
+    }
+  }
+
+  Future<void> _showStageDialog(MasarStage stage) async {
     final picked = await showGeneralDialog<String>(
       context: context,
       barrierDismissible: true,
@@ -234,6 +284,20 @@ class _MasarPathBoardState extends State<MasarPathBoard>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
+        // Nothing below may run on a size that is not a real number.
+        //
+        // An unbounded parent gives `infinity` here and a broken one can give
+        // `NaN`; both then flow into every `Positioned.fromRect` on the board
+        // and into `cacheWidth`, where `NaN.round()` throws outright. The
+        // result on a device is a screen that never paints. A board with no
+        // room is not an error worth crashing over — it just waits for a real
+        // constraint on the next layout.
+        if (!box.maxWidth.isFinite ||
+            !box.maxHeight.isFinite ||
+            box.maxWidth <= 1 ||
+            box.maxHeight <= 1) {
+          return const ColoredBox(color: Color(0xFFBFE3F5));
+        }
         final area = Rect.fromLTWH(0, 0, box.maxWidth, box.maxHeight);
         Rect place(_Frac f) => Rect.fromLTRB(
               area.left + f.left * area.width,
@@ -265,10 +329,9 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   child: Image.asset(
                     'assets/images/masar.png',
                     fit: BoxFit.fill,
-                    cacheWidth: (area.width *
-                            MediaQuery.devicePixelRatioOf(context))
-                        .clamp(360.0, 1800.0)
-                        .round(),
+                    cacheWidth: _safeCacheWidth(
+                      area.width * MediaQuery.devicePixelRatioOf(context),
+                    ),
                     errorBuilder: (_, __, ___) =>
                         const ColoredBox(color: Color(0xFFBFE3F5)),
                   ),
@@ -295,6 +358,21 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                       color: i == 0
                           ? const Color(0xFFFFC107)
                           : const Color(0xFFFF6B35),
+                      pulse: (_pulse.value + i * 0.5) % 1.0,
+                    ),
+                  ),
+
+                // Two mascots cheering the student on from the grass.
+                for (var i = 0; i < _cheerSpots.length; i++)
+                  Positioned.fromRect(
+                    rect: place(_cheerSpots[i]),
+                    child: _CheeringMascot(
+                      builder: (size) => i == 0
+                          ? PathMascot(size: size)
+                          : StudentMascot(size: size),
+                      // Half a cycle apart, so they bounce alternately the way
+                      // two children egging each other on would, rather than
+                      // in lockstep like a pair of metronomes.
                       pulse: (_pulse.value + i * 0.5) % 1.0,
                     ),
                   ),
@@ -392,6 +470,49 @@ class _CheerSign extends StatelessWidget {
                 Shadow(color: Colors.black38, blurRadius: 3, offset: Offset(0, 2)),
               ],
             ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One mascot bouncing on the spot, cheering the student on.
+///
+/// Takes a builder rather than an asset path on purpose. Each mascot image is
+/// owned by exactly one widget in `student_mascot.dart`, and a test walks the
+/// source tree to make sure no other file names those files — so that changing
+/// the illustration is a one-line edit rather than a search. This bounces
+/// whatever that widget renders instead of reaching past it.
+class _CheeringMascot extends StatelessWidget {
+  const _CheeringMascot({required this.builder, required this.pulse});
+
+  final Widget Function(double size) builder;
+  final double pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final height = box.maxHeight;
+        // A bounce, not a float: the figure leaves the ground on a half sine
+        // and spends the rest of the cycle standing on it, which is the shape
+        // of a jump. A full sine would have it hovering half the time.
+        final beat = math.max(0.0, math.sin(pulse * math.pi * 2));
+        final lift = beat * height * 0.13;
+        // Squashed at the bottom of the bounce and stretched at the top —
+        // the weight of the landing, without which a jump reads as a glide.
+        final squash = (1 - beat) * (1 - beat);
+        return Transform(
+          alignment: Alignment.bottomCenter,
+          transform: Matrix4.identity()
+            ..translate(0.0, -lift)
+            ..scale(1 + squash * 0.07, 1 - squash * 0.07 + beat * 0.05),
+          // Sized by width: both mascot widgets take a width and keep their
+          // own aspect, so asking for a height would stretch them.
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: builder(box.maxWidth),
           ),
         );
       },
@@ -715,7 +836,7 @@ class _StageDialog extends StatelessWidget {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(18),
                           onTap: () {
-                            StudentSoundService.instance.playSwish();
+                            StudentSoundService.instance.playTap();
                             Navigator.of(context).pop(option);
                           },
                           child: Padding(
