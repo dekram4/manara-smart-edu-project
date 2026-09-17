@@ -97,9 +97,24 @@ const _Frac _scroll = Rect.fromLTRB(0.3944, 0.0459, 0.9522, 0.1576);
 /// share their colours with the fence and the sky behind them, so no colour
 /// key separates them. Cutting a rectangle around them and bouncing it would
 /// drag a moving seam across the artwork and reveal the originals underneath.
+/// Both were measured against what is painted underneath rather than placed
+/// by eye, because the scene leaves very little clear ground:
+///
+///   - the schoolhouse's window frame runs from x 0.343 to 0.401, so the left
+///     figure ends at 0.335 — it was at 0.352-0.452 and stood squarely across
+///     the glazing bars;
+///   - the first square starts at x 0.4045 and the last ends at 0.9039, so
+///     neither figure may enter that band;
+///   - the speaker, the sack and the progress bar occupy everything below
+///     y 0.872, and the star badge sits from y 0.8646, so both stand above
+///     those.
+///
+/// The left figure stands on the grass in front of the painted girl. Some
+/// overlap with her legs is unavoidable on a scene this full, and reads as one
+/// child standing nearer the viewer than another — which is what it is.
 const List<_Frac> _cheerSpots = [
-  Rect.fromLTRB(0.352, 0.606, 0.452, 0.872),
-  Rect.fromLTRB(0.900, 0.606, 1.000, 0.872),
+  Rect.fromLTRB(0.245, 0.690, 0.335, 0.868),
+  Rect.fromLTRB(0.915, 0.640, 1.000, 0.845),
 ];
 
 /// Which of the "my character" cards cheer from the path.

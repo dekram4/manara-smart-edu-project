@@ -79,14 +79,6 @@ Future<void> main() async {
 
   try {
     await StudentSoundService.instance.initialize();
-    // The background music belongs to the app, not to any one screen.
-    //
-    // It was held by the hub, which meant it started only once a student had
-    // signed in and stopped the moment they left — and every screen that
-    // wanted it would have had to claim it again, with a gap on each
-    // handover. Held once here, it plays from launch until the app closes,
-    // and only the mute switch silences it.
-    StudentSoundService.instance.holdAmbient();
   } catch (e) {
     initializationError = '${initializationError ?? ''}\n'
         '${trf('boot.audioError', {'error': e})}';

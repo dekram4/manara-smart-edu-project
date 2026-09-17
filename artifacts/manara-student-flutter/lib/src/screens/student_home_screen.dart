@@ -89,6 +89,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _contentService = StudentContentService(widget.authService.client,
         baseUrl: widget.apiBaseUrl, authService: widget.authService);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
+    // الموسيقى تبدأ عند الوصول إلى شاشة البطاقات، وتستمرّ بعدها عبر الشاشات.
+    StudentSoundService.instance.ensureAmbient();
     _loadGamification();
     WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
   }

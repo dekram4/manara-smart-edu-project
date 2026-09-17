@@ -58,12 +58,17 @@ void main() {
     );
     // Long enough for the rail to finish dealing itself in.
     //
-    // The cards enter strictly one at a time — 620ms apart, 780ms each — so
-    // the last of the nine is not at rest until about 5.7 seconds in. Every test
-    // measures a card's *resting* geometry or presses one, and a card still
-    // arriving would be measured mid-flight. This is a warm-up, not an
-    // assertion: nothing below was relaxed to accommodate the entrance.
-    await tester.pump(const Duration(milliseconds: 6400));
+    // Stepped rather than one long pump. The rail waits out the spoken
+    // greeting and then deals on timers, and a single huge pump fires those
+    // timers at the *end* of the jump — leaving every card at the very start
+    // of its flight, which is then what gets measured. Small steps let each
+    // timer fire and its animation actually run.
+    //
+    // This is a warm-up, not an assertion: nothing below was relaxed to
+    // accommodate the entrance.
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 120));
+    }
   }
 
   /// The transform the card's own AnimatedBuilder produces. Reading the

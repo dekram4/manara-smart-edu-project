@@ -41,8 +41,9 @@ class DealtCardEntrance extends StatefulWidget {
     required this.index,
     required this.child,
     this.tracker,
-    this.stagger = const Duration(milliseconds: 620),
-    this.duration = const Duration(milliseconds: 780),
+    this.stagger = const Duration(milliseconds: 180),
+    this.duration = const Duration(milliseconds: 620),
+    this.startDelay = const Duration(milliseconds: 1250),
     this.sound = true,
     super.key,
   });
@@ -58,21 +59,22 @@ class DealtCardEntrance extends StatefulWidget {
 
   /// Gap between one card starting and the next one starting.
   ///
-  /// Set so that a card is almost entirely at rest before the next one begins
-  /// — 620ms against a 780ms flight leaves only the last fifth overlapping,
-  /// which is the tail of the settle rather than any of the spiral. One card
-  /// is in the air at a time, which is what "one after another" means.
-  ///
-  /// It began at 70ms, where all nine were airborne together and the rail
-  /// simply appeared: the sequence existed in the code and nowhere on screen.
+  /// A flat step, not a wait for the card before to finish. Waiting for rest
+  /// put the ninth card nearly six seconds after the first, which is the lag
+  /// that made the last of them feel like they were never coming. At 180ms the
+  /// whole rail is dealt inside two seconds and the order is still plain,
+  /// because each card's own pop is far louder than the overlap between them.
   final Duration stagger;
 
-  /// How long a single card takes to land.
-  ///
-  /// Slow enough to be watched. The spiral is the point of the entrance, and
-  /// a card that completes three-quarters of a turn in a third of a second
-  /// only reads as a flicker.
+  /// How long a single card takes to arrive.
   final Duration duration;
+
+  /// How long the rail waits before dealing anything at all.
+  ///
+  /// The hub greets the student by name as it opens, and the deal used to
+  /// start under that: nine page-turns over a spoken sentence, so neither was
+  /// heard properly. This lets the greeting have the first second to itself.
+  final Duration startDelay;
 
   /// Whether this card ticks as it lands.
   final bool sound;
@@ -102,21 +104,29 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
     curve: Curves.easeOutCubic,
   );
 
-  /// From nothing at all, not from half size.
+  /// Nothing, then far too big, then right.
   ///
-  /// The rail starts empty and each card is *born* out of the depth — at 0.5
-  /// every card was already half-drawn before it moved, so the screen was
-  /// never empty and the arrival had nothing to arrive from.
-  late final Animation<double> _scale = Tween<double>(
-    begin: 0.0,
-    end: 1.0,
-  ).animate(
-    CurvedAnimation(
-      parent: _controller,
-      // A touch of overshoot so the card settles rather than stopping dead.
-      curve: Curves.easeOutBack,
+  /// The card is born out of the depth at 0.0 — not 0.5, where every card was
+  /// already half-drawn before it moved and the rail was never really empty —
+  /// rushes past its own size to 1.8, and eases back down to 1.0.
+  ///
+  /// Two-thirds of the time goes to the rush and a third to the settle,
+  /// because an overshoot that takes as long to come back as it took to go out
+  /// reads as a wobble rather than a pop. The rail is drawn with `Clip.none`,
+  /// which is what lets a card at 1.8 spill over its neighbours instead of
+  /// being sliced off at the edge of its slot.
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween<double>(begin: 0.0, end: 1.8)
+          .chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 62,
     ),
-  );
+    TweenSequenceItem(
+      tween: Tween<double>(begin: 1.8, end: 1.0)
+          .chain(CurveTween(curve: Curves.easeOutBack)),
+      weight: 38,
+    ),
+  ]).animate(_controller);
 
   late final Animation<double> _fade = CurvedAnimation(
     parent: _controller,
@@ -153,12 +163,9 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
     // so the card would sit folded for the whole of that frame however long
     // it lasted — and a test that pumps 400ms and then measures would catch
     // the card at the very start of its flight instead of at rest.
-    if (widget.index <= 0) {
-      _deal();
-      return;
-    }
-
-    _cue = Timer(widget.stagger * widget.index, () {
+    // Every card waits, including the first: the greeting speaks over the
+    // whole rail, not just over the cards after it.
+    _cue = Timer(widget.startDelay + widget.stagger * widget.index, () {
       if (!mounted) return;
       _deal();
     });

@@ -60,14 +60,13 @@ class StudentSoundService {
   /// is supposed to still be playing while everything else comes and goes.
   final AudioPlayer _ambientPlayer = AudioPlayer();
 
-  /// How many holders currently want the music.
+  /// Whether the music has been asked for at all.
   ///
-  /// Today `main` takes one hold for the life of the app, so the music plays
-  /// from launch and never gaps at a route change. It is a count rather than a
-  /// flag because that is what makes a second holder — a screen that wants
-  /// music the app-wide hold has released, say — safe to add later: a flag
-  /// would let the first thing to finish silence it for everything else.
-  int _ambientHolders = 0;
+  /// Set once, by the hub, and never cleared: the music is meant to carry on
+  /// across every screen after that. Deliberately not a per-screen claim —
+  /// a claim released on dispose cuts the loop on every route change, which
+  /// is the gap this replaced.
+  bool _ambientWanted = false;
   bool _ambientPlaying = false;
   late final AudioService _feedbackAudio = AudioService(muted: muted);
   bool _initialized = false;
@@ -176,25 +175,26 @@ class StudentSoundService {
 
   static final math.Random _random = math.Random();
 
-  /// Claims the background music.
+  /// Starts the background music if it is not already running.
   ///
-  /// A caller that is not the app-wide hold — a screen, say — must pair this
-  /// with [releaseAmbient] when it goes away.
-  void holdAmbient() {
-    _ambientHolders++;
+  /// Safe to call on every build of every screen: it is idempotent, and the
+  /// loop keeps playing until the app closes or the student mutes it.
+  void ensureAmbient() {
+    if (_ambientWanted) return;
+    _ambientWanted = true;
     unawaited(_syncAmbient());
   }
 
-  /// Gives up this screen's claim on the music.
-  void releaseAmbient() {
-    if (_ambientHolders > 0) _ambientHolders--;
-    unawaited(_syncAmbient());
+  /// Silences the music for good. Only the app teardown needs this.
+  Future<void> stopAmbient() async {
+    _ambientWanted = false;
+    await _syncAmbient();
   }
 
   /// Brings the player in line with whether anything wants music and whether
   /// the student has muted sound. Safe to call repeatedly.
   Future<void> _syncAmbient() async {
-    final shouldPlay = _ambientHolders > 0 && !muted.value;
+    final shouldPlay = _ambientWanted && !muted.value;
     if (shouldPlay == _ambientPlaying) return;
     _ambientPlaying = shouldPlay;
     try {

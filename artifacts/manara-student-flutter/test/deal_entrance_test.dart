@@ -31,6 +31,13 @@ void main() {
     );
   }
 
+  /// Runs the clock in small steps so timer-started animations advance.
+  Future<void> settle(WidgetTester tester, int ms) async {
+    for (var i = 0; i * 100 < ms; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
   /// The opacity the entrance is painting this card at. 1.0 means arrived.
   double opacityOf(WidgetTester tester, String label) {
     final opacity = find.ancestor(
@@ -40,6 +47,51 @@ void main() {
     return tester.widget<Opacity>(opacity.first).opacity;
   }
 
+  /// The scale the entrance is painting, read off the matrix it builds.
+  double scaleOf(WidgetTester tester, String label) {
+    final transform = find.ancestor(
+      of: find.text(label),
+      matching: find.byType(Transform),
+    );
+    return tester
+        .widget<Transform>(transform.first)
+        .transform
+        .getMaxScaleOnAxis();
+  }
+
+  testWidgets('the rail holds still while the greeting speaks', (tester) async {
+    final tracker = DealEntranceTracker();
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(rail(tracker, controller));
+    await settle(tester, 700);
+
+    // Nothing has been dealt yet: the hub speaks the student's name as it
+    // opens, and nine page-turns under that sentence made neither audible.
+    expect(opacityOf(tester, 'card 0'), 0.0);
+  });
+
+  testWidgets('a card overshoots its size before settling on it',
+      (tester) async {
+    final tracker = DealEntranceTracker();
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(rail(tracker, controller));
+
+    var peak = 0.0;
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+      peak = peak > scaleOf(tester, 'card 0') ? peak : scaleOf(tester, 'card 0');
+    }
+
+    // Out past its own size on the way in — the pop — and exactly its own
+    // size once it has settled.
+    expect(peak, greaterThan(1.5), reason: 'the card never overshot');
+    expect(scaleOf(tester, 'card 0'), closeTo(1.0, 0.01));
+  });
+
   testWidgets('a card scrolled away and back does not deal itself again',
       (tester) async {
     final tracker = DealEntranceTracker();
@@ -47,8 +99,9 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(rail(tracker, controller));
-    // Long enough for the first few cards to have arrived.
-    await tester.pump(const Duration(seconds: 3));
+    // Stepped: the deal runs off timers, and one long pump would fire them
+    // all at its end with no time left for the animations to advance.
+    await settle(tester, 3000);
     expect(opacityOf(tester, 'card 0'), 1.0);
 
     // Drag well past card 0 so the list disposes it, then come back.
@@ -74,7 +127,7 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(rail(tracker, controller));
-    await tester.pump(const Duration(milliseconds: 100));
+    await settle(tester, 300);
 
     // Card 11 is far off-screen and its turn is many seconds away, so it has
     // not been built yet. Jumping to it must still give it its entrance —
