@@ -67,6 +67,9 @@ class StudentSoundService {
   /// a claim released on dispose cuts the loop on every route change, which
   /// is the gap this replaced.
   bool _ambientWanted = false;
+
+  /// Set while a lesson is open, so the music steps aside for the teaching.
+  bool _ambientSuspended = false;
   bool _ambientPlaying = false;
   late final AudioService _feedbackAudio = AudioService(muted: muted);
   bool _initialized = false;
@@ -191,10 +194,28 @@ class StudentSoundService {
     await _syncAmbient();
   }
 
+  /// Ducks the music out while a lesson, a video or a game is open.
+  ///
+  /// Separate from [stopAmbient] because it is not a decision, it is a pause:
+  /// the intent to have music is untouched, so coming back out resumes it
+  /// without the hub having to ask again.
+  void pauseAmbient() {
+    if (_ambientSuspended) return;
+    _ambientSuspended = true;
+    unawaited(_syncAmbient());
+  }
+
+  /// Brings the music back when the student returns to the hub.
+  void resumeAmbient() {
+    if (!_ambientSuspended) return;
+    _ambientSuspended = false;
+    unawaited(_syncAmbient());
+  }
+
   /// Brings the player in line with whether anything wants music and whether
   /// the student has muted sound. Safe to call repeatedly.
   Future<void> _syncAmbient() async {
-    final shouldPlay = _ambientWanted && !muted.value;
+    final shouldPlay = _ambientWanted && !_ambientSuspended && !muted.value;
     if (shouldPlay == _ambientPlaying) return;
     _ambientPlaying = shouldPlay;
     try {
@@ -203,7 +224,7 @@ class StudentSoundService {
         // Quiet enough to sit under a spoken lesson without competing with
         // it. Music a child cannot talk over is music they will switch off.
         await _ambientPlayer.setVolume(0.12);
-        await _ambientPlayer.play(AssetSource('audio/bgm-calm.wav'));
+        await _ambientPlayer.play(AssetSource('audio/kids_bgm.mp3'));
       } else {
         await _ambientPlayer.stop();
       }
@@ -215,15 +236,10 @@ class StudentSoundService {
 
   /// The feedback for a finger landing on a card or a button.
   ///
-  /// `wooden-pop.wav` is synthesised: a tone whose pitch drops steeply from
-  /// 760Hz to about 190Hz inside a tenth of a second, under a very fast
-  /// decay. That steep drop is what the ear hears as something small and
-  /// hollow being tapped — a wooden block rather than a bell.
-  ///
-  /// It replaced an air swish, which was too diffuse to answer a finger:
-  /// touch wants an edge, and noise has none. Before that it was a pitched
-  /// chime, which had the opposite problem — it rang on after the finger had
-  /// gone. The pop has an attack and is over.
+  /// `card_tap.mp3` is a real pop-click recording. It shares the deal's
+  /// player, so a tap during the opening deal replaces the card sound rather
+  /// than layering on top of it — a finger is the student's own action and
+  /// should win over the scenery.
   ///
   /// The haptic stays: on a phone that is half of what makes a tap feel
   /// answered, and it costs nothing when the device has no motor.
@@ -234,8 +250,8 @@ class StudentSoundService {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
-          AssetSource('audio/wooden-pop.wav'),
-          volume: 0.34,
+          AssetSource('audio/card_tap.mp3'),
+          volume: 0.55,
         );
       } catch (_) {
         // Audio is an enhancement and must never block an interaction.
@@ -243,30 +259,24 @@ class StudentSoundService {
     }());
   }
 
-  /// The rustle of a page turning as one card arrives.
+  /// The sound of one card arriving.
   ///
-  /// `page-flip.wav` is synthesised: a run of very short noise grains — the
-  /// edge of a sheet flexing — twice high-passed, because paper carries no
-  /// bass, and shaped by a quiet envelope that decays from its first instant.
-  /// The grains are what give it an edge; the decay is what keeps it gentle.
-  ///
-  /// It has now been three sounds. A whoosh swelled before it faded and read
-  /// as something thrown. A chime rang on after the card had landed and, nine
-  /// in a row, turned the rail into a xylophone. Paper starts at its loudest,
-  /// thins away inside a third of a second, and says nothing about pitch —
-  /// which is why it sits under a sequence without becoming the sequence.
+  /// `card.mp3` is a real recording supplied for the app, and it replaced a
+  /// run of synthesised stand-ins — an air whoosh, a chime, a paper rustle —
+  /// each of which was an approximation of something nobody had yet heard.
   ///
   /// Deliberately not routed through [play]: the shared gate silences a cue
-  /// repeated inside 220ms. It plays on its own player so a card arriving
-  /// never cuts off applause or a spoken phrase on the effects player.
+  /// repeated inside 220ms, and the rail deals every 180ms. It plays on its
+  /// own player so a card arriving never cuts off applause or a spoken phrase
+  /// on the effects player.
   void playCardDeal() {
     if (muted.value) return;
     unawaited(() async {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
-          AssetSource('audio/page-flip.wav'),
-          volume: 0.40,
+          AssetSource('audio/card.mp3'),
+          volume: 0.55,
         );
       } catch (_) {
         // Audio is an enhancement and must never block the hub from opening.

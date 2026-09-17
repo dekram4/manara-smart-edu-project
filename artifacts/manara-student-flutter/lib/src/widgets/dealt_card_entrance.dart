@@ -5,19 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../services/student_sound_service.dart';
 
-/// Deals one card in: it arrives from behind the screen, turning to face the
-/// student as it grows into place.
-///
-/// Each card owns its own controller and starts after `index * stagger`, so a
-/// rail deals itself out one card at a time instead of every card appearing
-/// at once. That sequencing is the whole effect — a single shared controller
-/// driving all of them would land them together.
-///
-/// **It transforms nothing the card itself owns.** The card's own motion
-/// (its breath, its tilt under a finger) is produced by its own `Transform`
-/// further down the tree, and tests read that matrix directly. Keeping this
-/// widget strictly *above* the card — and above the card's key — is what
-/// leaves that matrix describing only the card's own motion.
 /// Remembers which cards have already been dealt.
 ///
 /// The rail is a `ListView`, which builds its children lazily and throws away
@@ -36,14 +23,44 @@ class DealEntranceTracker {
   void markDealt(int index) => _dealt.add(index);
 }
 
+/// Deals one card in: it arrives from behind the screen, growing and turning
+/// to face the student before settling into place.
+///
+/// Each card owns its own controller and starts after `index * stagger`, so a
+/// rail deals itself out one card at a time instead of every card appearing at
+/// once. That sequencing is the whole effect — a single shared controller
+/// driving all of them would land them together.
+///
+/// **It transforms nothing the card itself owns.** The card's own motion — its
+/// breath, its tilt under a finger — is produced by its own `Transform` further
+/// down the tree, and tests read that matrix directly. Keeping this widget
+/// strictly *above* the card, and above the card's key, is what leaves that
+/// matrix describing only the card's own motion.
 class DealtCardEntrance extends StatefulWidget {
+  /// The defaults, named so callers can reason about the rail's timing
+  /// without copying the numbers.
+  static const defaultStagger = Duration(milliseconds: 180);
+  static const defaultDuration = Duration(milliseconds: 620);
+  static const defaultStartDelay = Duration(milliseconds: 1250);
+
+  /// How long a rail of [count] cards takes to finish dealing itself in.
+  ///
+  /// Derived from the same constants the cards use, so anything that waits for
+  /// the deal — the background music does — stays in step with it. Hard-coding
+  /// a matching delay elsewhere is how the two drift apart the first time a
+  /// timing is tuned.
+  static Duration totalFor(int count) =>
+      defaultStartDelay +
+      defaultStagger * (count - 1).clamp(0, 1 << 20) +
+      defaultDuration;
+
   const DealtCardEntrance({
     required this.index,
     required this.child,
     this.tracker,
-    this.stagger = const Duration(milliseconds: 180),
-    this.duration = const Duration(milliseconds: 620),
-    this.startDelay = const Duration(milliseconds: 1250),
+    this.stagger = defaultStagger,
+    this.duration = defaultDuration,
+    this.startDelay = defaultStartDelay,
     this.sound = true,
     super.key,
   });
@@ -158,11 +175,6 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
       return;
     }
 
-    // The first card deals immediately rather than through a zero-length
-    // timer. A `Timer(Duration.zero)` does not run until the frame is over,
-    // so the card would sit folded for the whole of that frame however long
-    // it lasted — and a test that pumps 400ms and then measures would catch
-    // the card at the very start of its flight instead of at rest.
     // Every card waits, including the first: the greeting speaks over the
     // whole rail, not just over the cards after it.
     _cue = Timer(widget.startDelay + widget.stagger * widget.index, () {

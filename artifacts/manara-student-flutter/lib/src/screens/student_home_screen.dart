@@ -1,4 +1,5 @@
-﻿import 'dart:math' as math;
+import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ import '../widgets/student_avatar_view.dart';
 import '../services/student_sound_service.dart';
 import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
+import '../utils/student_route_observer.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
@@ -60,7 +62,7 @@ class StudentDashboardScreen extends StudentHomeScreen {
   });
 }
 
-class _StudentHomeScreenState extends State<StudentHomeScreen> {
+class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
   late final ConfettiController _rewardController;
@@ -68,6 +70,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   /// يعيش خارج البطاقات لأن القائمة تتخلّص منها عند السحب. بدونه تعيد كل
   /// بطاقة حركة دخولها كلّما عادت إلى الشاشة.
   final DealEntranceTracker _dealTracker = DealEntranceTracker();
+
+  /// Starts the music once the rail has finished dealing itself in.
+  Timer? _musicCue;
   bool _openingTutor = false;
 
   /// The lesson every card opens against. It starts as whatever the path
@@ -89,11 +94,37 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _contentService = StudentContentService(widget.authService.client,
         baseUrl: widget.apiBaseUrl, authService: widget.authService);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
-    // الموسيقى تبدأ عند الوصول إلى شاشة البطاقات، وتستمرّ بعدها عبر الشاشات.
-    StudentSoundService.instance.ensureAmbient();
+    // The music waits for the deal rather than starting with the screen.
+    //
+    // The hub opens with a spoken greeting and then nine cards arriving, each
+    // with its own sound; music underneath all of that is a fourth thing
+    // competing for the same moment. It comes in once the rail has settled and
+    // the screen is quiet, and carries on from there across every screen.
+    //
+    // The wait is computed from the entrance's own constants, so tuning the
+    // deal moves this with it instead of leaving a stale number behind.
+    _musicCue = Timer(
+      DealtCardEntrance.totalFor(_homeSections.length),
+      () => StudentSoundService.instance.ensureAmbient(),
+    );
     _loadGamification();
     WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) studentRouteObserver.subscribe(this, route);
+  }
+
+  /// A card was opened on top of the hub: the lesson gets the silence.
+  @override
+  void didPushNext() => StudentSoundService.instance.pauseAmbient();
+
+  /// Back on the hub: the music comes back where it left off.
+  @override
+  void didPopNext() => StudentSoundService.instance.resumeAmbient();
 
   Future<void> _loadGamification() async {
     final previous = _gamification;
@@ -148,6 +179,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
   @override
   void dispose() {
+    studentRouteObserver.unsubscribe(this);
+    _musicCue?.cancel();
     _rewardController.dispose();
     super.dispose();
   }

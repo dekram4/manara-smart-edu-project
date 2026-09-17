@@ -13,6 +13,7 @@ import 'src/theme/student_theme.dart';
 import 'src/services/student_avatar_store.dart';
 import 'src/services/student_settings.dart';
 import 'src/utils/student_orientation.dart';
+import 'src/utils/student_route_observer.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -137,6 +138,9 @@ class ManaraStudentApp extends StatelessWidget {
           builder: (context, locale, __) {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
+              // يخبر الشاشة الرئيسية متى غُطّيت ومتى كُشفت، فتُخفت الموسيقى
+              // وتعيدها بلا أن يتذكّر كل موضع تنقّل ذلك بنفسه.
+              navigatorObservers: [studentRouteObserver],
               title: tr('app.shortName'),
               theme: StudentTheme.light(),
               darkTheme: StudentTheme.dark(),

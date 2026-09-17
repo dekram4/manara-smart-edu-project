@@ -373,12 +373,22 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
       _arrival.value = 1;
       return;
     }
+    // The idle does not start until the arrival has finished, so its first
+    // frame is the arrival's last. Running both from the outset is what made
+    // the handover visible.
+    _arrival.addStatusListener(_onArrivalDone);
     _arrival.forward();
-    _idle.repeat();
+  }
+
+  void _onArrivalDone(AnimationStatus status) {
+    if (status == AnimationStatus.completed && !_idle.isAnimating) {
+      _idle.repeat();
+    }
   }
 
   @override
   void dispose() {
+    _arrival.removeStatusListener(_onArrivalDone);
     _arrival.dispose();
     _idle.dispose();
     super.dispose();
@@ -426,23 +436,35 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
         final squashY = 1 - squash * 0.14;
 
         // ── Wave ────────────────────────────────────────────────────────
-        // Three rocks from the waist, fading out. She has a free arm and a
-        // smile already drawn, so leaning into that side is what reads as a
-        // greeting on a figure that cannot lift its hand.
-        final wavePhase = ((t - 0.46) / 0.54).clamp(0.0, 1.0);
-        final waveFade = wavePhase <= 0 ? 0.0 : (1 - wavePhase);
-        final wave = math.sin(wavePhase * math.pi * 6) * 0.075 * waveFade;
+        // Three rocks from the waist. She has a free arm and a smile already
+        // drawn, so leaning into that side is what reads as a greeting on a
+        // figure that cannot lift its hand.
+        //
+        // The amplitude rises and falls on a half sine rather than starting at
+        // full size and decaying. Beginning at full amplitude put a jolt right
+        // where the landing ended — the seam that made the greeting look like
+        // two animations played back to back rather than one movement.
+        final wavePhase = ((t - 0.42) / 0.58).clamp(0.0, 1.0);
+        final waveSwell = math.pow(math.sin(wavePhase * math.pi), 0.75).toDouble();
+        final wave = math.sin(wavePhase * math.pi * 6) * 0.075 * waveSwell;
 
         // ── Idle ────────────────────────────────────────────────────────
-        // Only once the greeting has finished, so the two are never fighting.
-        final settled =
-            Curves.easeIn.transform(((t - 0.74) / 0.26).clamp(0.0, 1.0));
+        // No cross-fade, and no ramp-in weight.
+        //
+        // The idle used to run on a free clock of its own and be faded in over
+        // the tail of the greeting, which meant it arrived at whatever point
+        // of its cycle it happened to be at — mid-rise as often as not — and
+        // the figure visibly changed direction at the handover. Its controller
+        // now starts at the instant the arrival completes, so every term below
+        // begins at sin(0): zero offset, zero velocity, and nothing to blend.
+        // The greeting does not end and the idle begin; the one becomes the
+        // other.
         final phase = _idle.value * math.pi * 2;
-        final float = math.sin(phase) * widget.height * 0.026 * settled;
+        final float = math.sin(phase) * widget.height * 0.026;
         // Wider than it is tall, and on its own slower period, so the breath
         // never locks into the float and turns the pair into one bob.
-        final breath = math.sin(phase * 0.71) * 0.013 * settled;
-        final sway = math.sin(phase * 0.5) * 0.010 * settled;
+        final breath = math.sin(phase * 0.71) * 0.013;
+        final sway = math.sin(phase * 0.5) * 0.010;
 
 
         return Transform(

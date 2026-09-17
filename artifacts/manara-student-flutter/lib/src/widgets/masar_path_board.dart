@@ -109,11 +109,19 @@ const _Frac _scroll = Rect.fromLTRB(0.3944, 0.0459, 0.9522, 0.1576);
 ///     y 0.872, and the star badge sits from y 0.8646, so both stand above
 ///     those.
 ///
-/// The left figure stands on the grass in front of the painted girl. Some
-/// overlap with her legs is unavoidable on a scene this full, and reads as one
-/// child standing nearer the viewer than another — which is what it is.
+/// The left figure is pushed as far into the gap between the painted girl and
+/// the schoolhouse window as that gap allows — and it does not allow much. The
+/// pixels across that band read: girl to x 0.325, pale wall from 0.330 to
+/// 0.348, window frame from 0.350. The clear strip is therefore about 36px of
+/// an 1800px artwork, narrower than any figure drawn at a useful size.
+///
+/// So the right edge sits at 0.345, hard against the wall and clear of the
+/// frame, and the rest of the figure falls back over the painted girl rather
+/// than over the glass. Some overlap is unavoidable on a scene this full; with
+/// the figure standing lower and nearer, it reads as one child in front of
+/// another, which is what it is.
 const List<_Frac> _cheerSpots = [
-  Rect.fromLTRB(0.245, 0.690, 0.335, 0.868),
+  Rect.fromLTRB(0.270, 0.700, 0.345, 0.868),
   Rect.fromLTRB(0.915, 0.640, 1.000, 0.845),
 ];
 
