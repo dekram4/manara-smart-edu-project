@@ -73,6 +73,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   /// Starts the music once the rail has finished dealing itself in.
   Timer? _musicCue;
+
+  /// Moves the opening on if the greeting never reports that it finished.
+  Timer? _welcomeCap;
   bool _openingTutor = false;
 
   /// The lesson every card opens against. It starts as whatever the path
@@ -94,21 +97,39 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _contentService = StudentContentService(widget.authService.client,
         baseUrl: widget.apiBaseUrl, authService: widget.authService);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
-    // The music waits for the deal rather than starting with the screen.
-    //
-    // The hub opens with a spoken greeting and then nine cards arriving, each
-    // with its own sound; music underneath all of that is a fourth thing
-    // competing for the same moment. It comes in once the rail has settled and
-    // the screen is quiet, and carries on from there across every screen.
-    //
-    // The wait is computed from the entrance's own constants, so tuning the
-    // deal moves this with it instead of leaving a stale number behind.
+    _loadGamification();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _runOpeningSequence());
+  }
+
+  /// The hub's opening, in three phases that never overlap.
+  ///
+  /// The greeting is spoken and finishes; only then does the rail begin to
+  /// deal, each card with its own sound; only when the last card has settled
+  /// does the music come in. Each phase waits for the real end of the one
+  /// before it — the greeting on the player reporting completion, the music on
+  /// the deal's own measured span — rather than on delays chosen to be
+  /// "probably long enough", which is what left them talking over each other.
+  void _runOpeningSequence() {
+    // The cap is owned here, and cancelled in dispose, so nothing outlives
+    // this screen. It exists because a device with no audio plugin never
+    // reports the voice finishing, and the rail must not wait forever for a
+    // greeting that was never heard.
+    _welcomeCap = Timer(const Duration(seconds: 6), _beginDeal);
+    StudentSoundService.instance.speakWelcome(onComplete: _beginDeal);
+  }
+
+  bool _dealBegun = false;
+
+  /// Phase two and three: the rail deals, and the music follows the last card.
+  void _beginDeal() {
+    if (_dealBegun || !mounted) return;
+    _dealBegun = true;
+    _welcomeCap?.cancel();
+    _dealTracker.arm();
     _musicCue = Timer(
-      DealtCardEntrance.totalFor(_homeSections.length),
+      DealtCardEntrance.dealSpanFor(_homeSections.length),
       () => StudentSoundService.instance.ensureAmbient(),
     );
-    _loadGamification();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
   }
 
   @override
@@ -173,14 +194,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
   }
 
-  Future<void> _playWelcome() async {
-    StudentSoundService.instance.play(StudentSoundCue.welcome);
-  }
-
   @override
   void dispose() {
     studentRouteObserver.unsubscribe(this);
     _musicCue?.cancel();
+    _welcomeCap?.cancel();
+    _dealTracker.dispose();
     _rewardController.dispose();
     super.dispose();
   }
@@ -923,7 +942,24 @@ class _HomeSectionGrid extends StatelessWidget {
 
     return SizedBox(
       height: cardHeight + breathingRoom * 2,
-      child: ListView.separated(
+      // Every card is built at once, not as it scrolls into view.
+      //
+      // This was a `ListView.separated`, which builds lazily: the cards past
+      // the right edge did not exist yet, so their entrance never started.
+      // A student saw two or three cards deal themselves in and the rest of
+      // the rail apparently empty — and then, as they dragged sideways
+      // looking for the others, each one sprang into its entrance the moment
+      // it was built. That is what made the sequence look erratic and
+      // out of order: it was not a timing problem, it was nine animations
+      // waiting to be constructed.
+      //
+      // Nine cards is a small enough list to build eagerly, and that is what
+      // makes the deal a single sequence the student can simply watch.
+      child: SingleChildScrollView(
+        // Named, because the page body is a scroll view too: finding the rail
+        // by type picks whichever comes first in the tree, which is not this
+        // one.
+        key: const ValueKey('portal-rail'),
         scrollDirection: Axis.horizontal,
         physics: const ClampingScrollPhysics(),
         // Clip.none so the glow and the lift are not shaved off at the
@@ -933,28 +969,33 @@ class _HomeSectionGrid extends StatelessWidget {
           horizontal: 6,
           vertical: breathingRoom,
         ),
-        itemCount: _homeSections.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) => SizedBox(
-          width: cardWidth,
-          // The deal sits outside the tile's key on purpose: the hub's
-          // motion tests read the first `Transform` under that key and
-          // assert on the card's own breath and tilt. Wrapping the key
-          // would put this transform there instead.
-          child: DealtCardEntrance(
-            index: index,
-            tracker: dealTracker,
-            child: _SectionTile(
-              // Named by its portal rather than its position, so the key
-              // survives the rail being reordered.
-              key: ValueKey('portal-tile-${_homeSections[index].titleKey}'),
-              section: _homeSections[index],
-              // Staggers each card's float so the rail breathes rather than
-              // pulsing as one block.
-              index: index,
-              onPressed: () => onSectionPressed(index),
-            ),
-          ),
+        child: Row(
+          children: [
+            for (var index = 0; index < _homeSections.length; index++) ...[
+              if (index > 0) const SizedBox(width: 12),
+              SizedBox(
+                width: cardWidth,
+                // The deal sits outside the tile's key on purpose: the hub's
+                // motion tests read the first `Transform` under that key and
+                // assert on the card's own breath and tilt. Wrapping the key
+                // would put this transform there instead.
+                child: DealtCardEntrance(
+                  index: index,
+                  tracker: dealTracker,
+                  child: _SectionTile(
+                    // Named by its portal rather than its position, so the
+                    // key survives the rail being reordered.
+                    key: ValueKey('portal-tile-${_homeSections[index].titleKey}'),
+                    section: _homeSections[index],
+                    // Staggers each card's float so the rail breathes rather
+                    // than pulsing as one block.
+                    index: index,
+                    onPressed: () => onSectionPressed(index),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

@@ -18,9 +18,22 @@ import '../services/student_sound_service.dart';
 class DealEntranceTracker {
   final Set<int> _dealt = <int>{};
 
+  /// Whether the rail has been given permission to start.
+  ///
+  /// The deal used to begin on a fixed delay guessed to be longer than the
+  /// spoken greeting. A guess is wrong on any device where the voice is slower
+  /// — or is skipped, where it then waits for nothing. The screen now arms the
+  /// rail when the greeting has actually finished, and every card listens for
+  /// that rather than counting.
+  final ValueNotifier<bool> armed = ValueNotifier<bool>(false);
+
   bool isDealt(int index) => _dealt.contains(index);
 
   void markDealt(int index) => _dealt.add(index);
+
+  void arm() => armed.value = true;
+
+  void dispose() => armed.dispose();
 }
 
 /// Deals one card in: it arrives from behind the screen, growing and turning
@@ -39,20 +52,23 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultStagger = Duration(milliseconds: 320);
-  static const defaultDuration = Duration(milliseconds: 850);
+  static const defaultStagger = Duration(milliseconds: 280);
+  static const defaultDuration = Duration(milliseconds: 800);
   static const defaultStartDelay = Duration(milliseconds: 1250);
 
-  /// How long a rail of [count] cards takes to finish dealing itself in.
+  /// How long the deal itself runs, measured from the moment the rail is
+  /// armed. This is what the music waits for.
   ///
   /// Derived from the same constants the cards use, so anything that waits for
-  /// the deal — the background music does — stays in step with it. Hard-coding
-  /// a matching delay elsewhere is how the two drift apart the first time a
-  /// timing is tuned.
+  /// the deal stays in step with it. Hard-coding a matching delay elsewhere is
+  /// how the two drift apart the first time a timing is tuned.
+  static Duration dealSpanFor(int count) =>
+      defaultStagger * (count - 1).clamp(0, 1 << 20) + defaultDuration;
+
+  /// The same span, plus the fixed wait used when no screen is sequencing the
+  /// rail — tests and any caller without a tracker.
   static Duration totalFor(int count) =>
-      defaultStartDelay +
-      defaultStagger * (count - 1).clamp(0, 1 << 20) +
-      defaultDuration;
+      defaultStartDelay + dealSpanFor(count);
 
   const DealtCardEntrance({
     required this.index,
@@ -182,12 +198,37 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
       return;
     }
 
-    // Every card waits, including the first: the greeting speaks over the
-    // whole rail, not just over the cards after it.
-    _cue = Timer(widget.startDelay + widget.stagger * widget.index, () {
-      if (!mounted) return;
-      _deal();
-    });
+    final tracker = widget.tracker;
+    if (tracker == null) {
+      // No screen is sequencing this rail, so fall back to the fixed wait.
+      _cue = Timer(widget.startDelay + widget.stagger * widget.index, _dealIfMounted);
+      return;
+    }
+    if (tracker.armed.value) {
+      _scheduleTurn();
+    } else {
+      tracker.armed.addListener(_onArmed);
+    }
+  }
+
+  void _onArmed() {
+    if (!mounted) return;
+    final tracker = widget.tracker;
+    if (tracker == null || !tracker.armed.value) return;
+    tracker.armed.removeListener(_onArmed);
+    _scheduleTurn();
+  }
+
+  /// This card's place in the queue, counted from the moment the rail was
+  /// armed rather than from the moment the screen opened.
+  void _scheduleTurn() {
+    _cue?.cancel();
+    _cue = Timer(widget.stagger * widget.index, _dealIfMounted);
+  }
+
+  void _dealIfMounted() {
+    if (!mounted) return;
+    _deal();
   }
 
   void _deal() {
@@ -204,6 +245,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
   void dispose() {
     // Both matter: the timer can outlive the widget when the student leaves
     // the hub mid-deal, and the controller holds a ticker until released.
+    widget.tracker?.armed.removeListener(_onArmed);
     _cue?.cancel();
     _controller.dispose();
     super.dispose();

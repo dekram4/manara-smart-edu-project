@@ -144,6 +144,41 @@ class StudentSoundService {
     unawaited(_play(cue));
   }
 
+  /// Speaks the welcome and completes when it has actually finished.
+  ///
+  /// The hub sequences its opening on this: the greeting, then the cards, then
+  /// the music. Waiting on the player rather than on a guessed delay is the
+  /// point — a fixed wait is too short on a slow device and pointless on a
+  /// muted one.
+  ///
+  /// [onComplete] fires once, when the voice has finished — or immediately if
+  /// there is nothing to wait for because sound is muted.
+  ///
+  /// It deliberately owns no timeout of its own. A cap belongs to the caller,
+  /// which can cancel it when its screen goes away; a timer started in here
+  /// would outlive that screen, and a pending timer after teardown is both a
+  /// leak and a test failure. On a device with no audio plugin the completion
+  /// event never arrives, and the caller's cap is what moves things along.
+  void speakWelcome({VoidCallback? onComplete}) {
+    if (muted.value) {
+      onComplete?.call();
+      return;
+    }
+    var fired = false;
+    void finish() {
+      if (fired) return;
+      fired = true;
+      onComplete?.call();
+    }
+
+    // `first` unsubscribes itself as soon as the event arrives.
+    unawaited(_voicePlayer.onPlayerComplete.first.then(
+      (_) => finish(),
+      onError: (_) => finish(),
+    ));
+    play(StudentSoundCue.welcome);
+  }
+
   Future<void> _play(StudentSoundCue cue) async {
     if (muted.value || !_gate.allow(cue)) return;
     try {
@@ -283,7 +318,8 @@ class StudentSoundService {
         await _dealPlayer.stop();
         await _dealPlayer.play(
           AssetSource('audio/card_tap.mp3'),
-          volume: 0.55,
+          // نقرة خفيفة جداً: تُسمع تحت الموسيقى لا فوقها.
+          volume: 0.22,
         );
       } catch (_) {
         // Audio is an enhancement and must never block an interaction.

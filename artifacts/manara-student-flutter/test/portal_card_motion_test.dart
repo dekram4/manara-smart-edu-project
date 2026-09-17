@@ -245,7 +245,7 @@ void main() {
     // stops scrolling is a far worse bug than a missing tilt.
     await pumpHub(tester);
 
-    final rail = find.byType(ListView).first;
+    final rail = find.byKey(const ValueKey('portal-rail'));
     final before = tester.getTopLeft(cardFinder('portal.lesson'));
 
     await tester.drag(rail, const Offset(-220, 0));
@@ -267,7 +267,7 @@ void main() {
     // every part of a card that was not at rest — the rise, the breath,
     // the growth, and the glow, whose outer bloom reaches far past the
     // card's own edge.
-    final railBox = tester.getRect(find.byType(ListView).first);
+    final railBox = tester.getRect(find.byKey(const ValueKey('portal-rail')));
     final cardBox = tester.getRect(cardFinder('portal.lesson'));
 
     expect(
@@ -289,7 +289,7 @@ void main() {
     // Clip.hardEdge on the viewport shaves the glow off at the rail's own
     // bounds the instant a card reacts, which is the whole reason the
     // cards looked boxed in.
-    final rail = tester.widget<ListView>(find.byType(ListView).first);
+    final rail = tester.widget<SingleChildScrollView>(find.byKey(const ValueKey('portal-rail')));
     expect(rail.clipBehavior, Clip.none);
   });
 
@@ -300,7 +300,7 @@ void main() {
     // The room was added by growing the box and giving the same amount
     // back as padding. If that ever drifts apart the cards themselves
     // change size, which is not what was wanted.
-    final railBox = tester.getRect(find.byType(ListView).first);
+    final railBox = tester.getRect(find.byKey(const ValueKey('portal-rail')));
     final cardBox = tester.getRect(cardFinder('portal.lesson'));
     final above = cardBox.top - railBox.top;
     final below = railBox.bottom - cardBox.bottom;

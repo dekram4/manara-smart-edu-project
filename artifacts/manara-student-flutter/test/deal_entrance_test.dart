@@ -12,18 +12,25 @@ void main() {
       home: Scaffold(
         body: SizedBox(
           height: 200,
-          child: ListView.builder(
+          // Built eagerly, exactly as the hub's rail is. A `ListView.builder`
+          // here would only construct the cards near the viewport, and the
+          // tests below are about the ones that are not.
+          child: SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
-            itemCount: 12,
-            itemBuilder: (context, index) => SizedBox(
-              width: 200,
-              child: DealtCardEntrance(
-                index: index,
-                tracker: tracker,
-                sound: false,
-                child: Center(child: Text('card $index')),
-              ),
+            child: Row(
+              children: [
+                for (var index = 0; index < 12; index++)
+                  SizedBox(
+                    width: 200,
+                    child: DealtCardEntrance(
+                      index: index,
+                      tracker: tracker,
+                      sound: false,
+                      child: Center(child: Text('card $index')),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -59,17 +66,36 @@ void main() {
         .getMaxScaleOnAxis();
   }
 
-  testWidgets('the rail holds still while the greeting speaks', (tester) async {
+  testWidgets('an unarmed rail deals nothing at all', (tester) async {
+    final tracker = DealEntranceTracker();
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    // Deliberately not armed. The hub arms the rail only once the spoken
+    // greeting has actually finished, so until then the screen stays empty —
+    // nine card sounds under a spoken sentence made neither audible.
+    await tester.pumpWidget(rail(tracker, controller));
+    await settle(tester, 2000);
+
+    expect(opacityOf(tester, 'card 0'), 0.0);
+    expect(opacityOf(tester, 'card 1'), 0.0);
+  });
+
+  testWidgets('arming deals every card, not only the visible ones',
+      (tester) async {
     final tracker = DealEntranceTracker();
     final controller = ScrollController();
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(rail(tracker, controller));
-    await settle(tester, 700);
+    tracker.arm();
+    // Long enough for all twelve turns: 11 * 280ms + 800ms.
+    await settle(tester, 4200);
 
-    // Nothing has been dealt yet: the hub speaks the student's name as it
-    // opens, and nine page-turns under that sentence made neither audible.
-    expect(opacityOf(tester, 'card 0'), 0.0);
+    // Card 11 is far off the right edge and was never scrolled to. With a
+    // lazily-built rail it would not even exist yet, which is why the later
+    // cards used to appear only when the student dragged looking for them.
+    expect(opacityOf(tester, 'card 11'), 1.0);
   });
 
   testWidgets('a card overshoots its size before settling on it',
@@ -79,6 +105,7 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(rail(tracker, controller));
+    tracker.arm();
 
     var peak = 0.0;
     for (var i = 0; i < 40; i++) {
@@ -99,6 +126,7 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(rail(tracker, controller));
+    tracker.arm();
     // Stepped: the deal runs off timers, and one long pump would fire them
     // all at its end with no time left for the animations to advance.
     await settle(tester, 3000);
@@ -127,6 +155,7 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(rail(tracker, controller));
+    tracker.arm();
     await settle(tester, 300);
 
     // Card 11 is far off-screen and its turn is many seconds away, so it has

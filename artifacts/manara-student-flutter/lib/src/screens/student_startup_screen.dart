@@ -8,19 +8,24 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_avatar_store.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 import 'login_screen.dart';
 import 'student_home_screen.dart';
 
-/// The app's opening screen: the Manara characters pop in, bounce a
-/// greeting, and the recorded welcome plays over them. It replaced a
-/// static indigo card with a progress bar.
+/// Which of the "my character" cards greets the student on the splash.
+/// avatar_6 is the caped superhero, which is what the flight below is drawn
+/// around — a figure without a cape reads as falling rather than flying.
+const int _heroAvatar = 5;
+
+/// The app's opening screen: the hero flies in, rolls once and settles into a
+/// hover while the recorded welcome plays over it.
 ///
-/// It still owns the session restore it always did — the animation runs
-/// while `restoreActiveStudentSession` is in flight, so the greeting costs
-/// no extra startup time, and a returning student still lands on the
-/// dashboard rather than the login screen.
+/// It still owns the session restore it always did — the animation runs while
+/// `restoreActiveStudentSession` is in flight, so the greeting costs no extra
+/// startup time, and a returning student still lands on the dashboard rather
+/// than the login screen.
 class StudentStartupScreen extends StatefulWidget {
   const StudentStartupScreen({
     required this.authService,
@@ -231,11 +236,11 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
                             ),
                             SizedBox(height: shortest * 0.045),
                             _GreetingCharacter(
-                              asset: 'assets/images/path_mascot.png',
-                              // A standing figure drawn tall, where the old
-                              // asset was three children drawn wide. The same
-                              // multiplier would have her towering over the
-                              // title.
+                              // The superhero from the "my character" set —
+                              // cape, bolt and boots. Picked by index into the
+                              // same list the student chooses from, so the
+                              // splash and the app share one cast.
+                              asset: StudentAvatars.all[_heroAvatar].asset,
                               height: characterHeight * 1.15,
                               entrance: _entrance,
                             ),
@@ -350,10 +355,10 @@ class _GreetingCharacter extends StatefulWidget {
 
 class _GreetingCharacterState extends State<_GreetingCharacter>
     with TickerProviderStateMixin {
-  /// Run in, land, wave — played once.
+  /// Fly in, roll, level out — played once.
   late final AnimationController _arrival = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1750),
+    duration: const Duration(milliseconds: 1900),
   );
 
   /// The living idle underneath, which never stops.
@@ -420,75 +425,68 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
       builder: (context, child) {
         final t = _arrival.value;
 
-        // ── Hop in ──────────────────────────────────────────────────────
-        // She is drawn standing, one hand on her hip, so she arrives with a
-        // hop rather than a run: up from below the frame, stretched tall at
-        // the top of the arc the way a jumping figure is drawn, then landing.
-        final hopPhase = (t / 0.32).clamp(0.0, 1.0);
-        final rise = Curves.easeOutCubic.transform(hopPhase);
-        final dy = (1 - rise) * widget.height * 0.55;
-        // Forward, not just upward: she grows through the jump as if coming
-        // toward the student. Without this the hop reads as a figure bobbing
-        // in place on a flat plane, which is what "jump in to greet" is not.
-        final approach = 0.82 + 0.18 * rise;
-        // Stretch while airborne, strongest at the start of the arc.
-        final airborne = (1 - hopPhase) * math.sin(hopPhase * math.pi);
-        final stretchY = 1 + airborne * 0.10;
-        final stretchX = 1 - airborne * 0.07;
-
-        // ── Land ────────────────────────────────────────────────────────
-        // Squash on contact, then a smaller rebound. Volume is traded
-        // between the axes rather than both shrinking, which is what
-        // separates a landing from the whole figure simply getting smaller.
-        final landPhase = ((t - 0.28) / 0.20).clamp(0.0, 1.0);
-        final squash = math.sin(landPhase * math.pi) * (1 - landPhase * 0.45);
-        final squashX = 1 + squash * 0.14;
-        final squashY = 1 - squash * 0.14;
-
-        // ── Wave ────────────────────────────────────────────────────────
-        // Three rocks from the waist. She has a free arm and a smile already
-        // drawn, so leaning into that side is what reads as a greeting on a
-        // figure that cannot lift its hand.
+        // ── Flight ──────────────────────────────────────────────────────
+        // A caped figure, so it flies in rather than hops: from off to the
+        // left, from far away, climbing as it comes.
         //
-        // The amplitude rises and falls on a half sine rather than starting at
-        // full size and decaying. Beginning at full amplitude put a jolt right
-        // where the landing ended — the seam that made the greeting look like
-        // two animations played back to back rather than one movement.
-        final wavePhase = ((t - 0.42) / 0.58).clamp(0.0, 1.0);
-        final waveSwell = math.pow(math.sin(wavePhase * math.pi), 0.75).toDouble();
-        final wave = math.sin(wavePhase * math.pi * 6) * 0.075 * waveSwell;
+        // The arc is what separates flight from a slide. The horizontal is
+        // eased, the vertical is a half sine over the same phase, so the
+        // figure rises through the middle of its approach and levels out at
+        // the end instead of travelling a straight line.
+        final flight = Curves.easeOutCubic.transform((t / 0.62).clamp(0.0, 1.0));
+        final dx = (1 - flight) * -widget.height * 1.15;
+        final dy = (1 - flight) * widget.height * 0.30 -
+            math.sin(flight * math.pi) * widget.height * 0.22;
+        // Pushed back in z as well as scaled down: with the perspective entry
+        // in the matrix the two together read as distance, where scale alone
+        // reads as a small figure.
+        final depth = (1 - flight) * -900.0;
+        final approach = 0.40 + 0.60 * flight;
 
-        // ── Idle ────────────────────────────────────────────────────────
-        // No cross-fade, and no ramp-in weight — none is needed.
+        // ── Roll ────────────────────────────────────────────────────────
+        // One full turn about the vertical axis, completed exactly as the
+        // flight lands — a barrel roll, not a spin in place, because it
+        // happens while the figure is still travelling.
+        final roll = (1 - flight) * math.pi * 2;
+        // And a bank into the turn that levels off with it: a body that
+        // banks is flying, a body that stays upright is being carried.
+        final bank = math.sin(flight * math.pi) * 0.42 * (1 - flight * 0.35);
+
+        // ── Hover ───────────────────────────────────────────────────────
+        // No cross-fade and no ramp-in weight — none is needed.
         //
-        // The controller is started partway through the greeting (see
-        // `_startIdleMidGreeting`), and every term here begins at sin(0): zero
-        // offset, zero velocity. So the float and the breath grow out of
-        // nothing underneath the wave while the wave is still fading, and by
-        // the time the arrival ends they are simply what is left. There is no
+        // The controller is started partway through the flight (see
+        // `_startIdleMidGreeting`), and every term here begins at sin(0):
+        // zero offset, zero velocity. The hover therefore grows out of
+        // nothing underneath the roll while the roll is still unwinding, and
+        // by the time the flight ends it is simply what is left. There is no
         // moment at which one stops and the other starts.
         final phase = _idle.value * math.pi * 2;
-        final float = math.sin(phase) * widget.height * 0.026;
+        final float = math.sin(phase) * widget.height * 0.032;
         // Wider than it is tall, and on its own slower period, so the breath
         // never locks into the float and turns the pair into one bob.
-        final breath = math.sin(phase * 0.71) * 0.013;
-        final sway = math.sin(phase * 0.5) * 0.010;
+        final breath = math.sin(phase * 0.71) * 0.014;
+        final drift = math.sin(phase * 0.5) * 0.012;
 
 
         return Transform(
-          // Pivoted at her feet: a figure that leans or squashes does so
-          // about the ground it stands on. About the centre she would appear
-          // to slide sideways as she rocks.
-          alignment: Alignment.bottomCenter,
+          // About the centre, not the feet: this figure is airborne for the
+          // whole sequence, and a roll pivoted at the soles would swing it
+          // around a point it is not standing on.
+          alignment: Alignment.center,
           transform: Matrix4.identity()
-            ..translate(0.0, dy - float)
-            ..rotateZ(wave + sway)
+            // Perspective, without which `rotateY` is an affine squash and
+            // the roll reads as the figure being flattened and unflattened.
+            ..setEntry(3, 2, 0.0011)
+            ..translate(dx, dy - float, depth)
+            ..rotateY(roll)
+            ..rotateZ(bank + drift)
             ..scale(
-              approach * stretchX * squashX * (1 + breath),
-              approach * stretchY * squashY * (1 - breath * 0.6),
+              approach * (1 + breath),
+              approach * (1 - breath * 0.6),
             ),
           child: Opacity(
-            opacity: Curves.easeOut.transform((t / 0.18).clamp(0.0, 1.0)),
+            opacity: Curves.easeOut.transform((t / 0.16).clamp(0.0, 1.0)),
             child: child,
           ),
         );

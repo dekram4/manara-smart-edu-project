@@ -109,6 +109,20 @@ const List<_Frac> _cheerSpots = [
   Rect.fromLTRB(0.915, 0.640, 1.000, 0.845),
 ];
 
+/// The patch that hides the two children painted into the artwork.
+///
+/// Their extent was measured off the image: they run from x 0.045 to 0.345 and
+/// from the tops of their heads at y 0.425 down to their shoes at 0.855. The
+/// patch covers a little past each edge so no sleeve or shoe survives at the
+/// border.
+///
+/// It replaces them with scenery rather than a rectangle of flat colour,
+/// because the ground behind them is not one colour: sky at the top, a white
+/// fence across the middle, grass at the foot. A shrub and a tree occupy all
+/// three bands the way something growing there would, and read as part of the
+/// painting rather than as something laid over it.
+const _Frac _childrenPatch = Rect.fromLTRB(0.022, 0.395, 0.378, 0.872);
+
 /// Which of the "my character" cards cheer from the path.
 ///
 /// Drawn from the same set the student picks their own avatar from, so the
@@ -356,6 +370,17 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   ),
                 ),
 
+                // The two painted children, hidden behind a tree and a shrub.
+                // Drawn before everything else on top of the artwork so the
+                // patches, the fields and the cheering figures all sit over
+                // it rather than behind it.
+                Positioned.fromRect(
+                  rect: place(_childrenPatch),
+                  child: const IgnorePointer(
+                    child: CustomPaint(painter: _SceneryPatchPainter()),
+                  ),
+                ),
+
                 // The three English signs, replaced with Arabic cheers.
                 for (var i = 0; i < _signs.length; i++)
                   Positioned.fromRect(
@@ -492,6 +517,130 @@ class _CheerSign extends StatelessWidget {
       },
     );
   }
+}
+
+/// A tree and a flowering shrub, painted over the two children in the artwork.
+///
+/// Everything is drawn in fractions of the box it is given, so the scenery
+/// scales with the picture and keeps covering what it was measured to cover.
+/// The greens are sampled from the artwork's own grass and foliage rather than
+/// chosen, which is what stops the patch reading as a sticker.
+class _SceneryPatchPainter extends CustomPainter {
+  const _SceneryPatchPainter();
+
+  // Sampled from the scene: its grass, its hedge, and the shade between them.
+  static const _grass = Color(0xFF92CB0A);
+  static const _grassLit = Color(0xFFAFDB11);
+  static const _leaf = Color(0xFF4E9A2F);
+  static const _leafDark = Color(0xFF357A22);
+  static const _leafLit = Color(0xFF6FBF45);
+  static const _trunk = Color(0xFF8A5A2B);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final paint = Paint()..isAntiAlias = true;
+
+    void lobe(double cx, double cy, double r, Color colour) {
+      paint.color = colour;
+      canvas.drawCircle(Offset(w * cx, h * cy), r * w, paint);
+    }
+
+    // Two trunks, drawn first so both canopies and the shrub close over them.
+    paint.color = _trunk;
+    for (final cx in const [0.26, 0.70]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(w * (cx - 0.038), h * 0.36, w * 0.076, h * 0.52),
+          Radius.circular(w * 0.036),
+        ),
+        paint,
+      );
+    }
+
+    // Two canopies rather than one.
+    //
+    // A single tree in the middle left both children showing at the edges —
+    // the first preview of this patch had the painted girl standing clear of
+    // it on the right. The box is nearly a third of the artwork wide; it needs
+    // foliage at both ends, not one shape in the centre.
+    for (final cx in const [0.26, 0.70]) {
+      lobe(cx, 0.19, 0.25, _leafDark);
+      lobe(cx - 0.13, 0.26, 0.21, _leafDark);
+      lobe(cx + 0.13, 0.27, 0.20, _leafDark);
+      lobe(cx - 0.02, 0.16, 0.215, _leaf);
+      lobe(cx - 0.12, 0.24, 0.175, _leaf);
+      lobe(cx + 0.12, 0.25, 0.165, _leaf);
+      // A highlight up and to the left, matching where the scene's sun is.
+      lobe(cx - 0.07, 0.12, 0.105, _leafLit);
+    }
+
+    // The shrub across the foot, covering the fence and both sets of legs.
+    //
+    // It runs past each edge of the box, and its crown is set high enough to
+    // overlap the underside of the canopies: the canopies reach down to 0.47
+    // of the box and the shrub's dark lobes start at 0.425, so the two meet.
+    // Before that they left a band open between them, and the previous
+    // preview had a pink hair-bow and a shoulder showing through it.
+    for (var i = 0; i < 6; i++) {
+      final cx = -0.04 + i * 0.216;
+      lobe(cx, 0.66 + (i.isEven ? 0.0 : 0.035), 0.235, _leafDark);
+    }
+    for (var i = 0; i < 6; i++) {
+      final cx = -0.02 + i * 0.216;
+      lobe(cx, 0.635 + (i.isEven ? 0.0 : 0.03), 0.195, _leaf);
+    }
+    lobe(0.18, 0.595, 0.085, _leafLit);
+    lobe(0.52, 0.605, 0.078, _leafLit);
+    lobe(0.82, 0.598, 0.072, _leafLit);
+
+    // Grass along the base, so the shrub is planted rather than floating.
+    paint.color = _grass;
+    canvas.drawOval(
+      Rect.fromLTWH(-w * 0.04, h * 0.86, w * 1.08, h * 0.22),
+      paint,
+    );
+    paint.color = _grassLit;
+    canvas.drawOval(
+      Rect.fromLTWH(w * 0.06, h * 0.875, w * 0.62, h * 0.10),
+      paint,
+    );
+
+    // A handful of flowers, placed rather than random so the scene is the
+    // same every time it is drawn.
+    const flowers = <Offset>[
+      Offset(0.22, 0.735),
+      Offset(0.37, 0.695),
+      Offset(0.52, 0.745),
+      Offset(0.64, 0.705),
+      Offset(0.30, 0.785),
+    ];
+    const petals = <Color>[
+      Color(0xFFFFD34E),
+      Color(0xFFFF7BA9),
+      Color(0xFFFFFFFF),
+      Color(0xFFFFD34E),
+      Color(0xFFFF7BA9),
+    ];
+    for (var i = 0; i < flowers.length; i++) {
+      paint.color = petals[i];
+      canvas.drawCircle(
+        Offset(w * flowers[i].dx, h * flowers[i].dy),
+        w * 0.026,
+        paint,
+      );
+      paint.color = const Color(0xFFFFB300);
+      canvas.drawCircle(
+        Offset(w * flowers[i].dx, h * flowers[i].dy),
+        w * 0.010,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SceneryPatchPainter oldDelegate) => false;
 }
 
 /// One "my character" card bouncing on the spot, cheering the student on.
