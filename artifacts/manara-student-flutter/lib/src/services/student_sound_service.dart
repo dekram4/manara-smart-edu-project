@@ -60,12 +60,13 @@ class StudentSoundService {
   /// is supposed to still be playing while everything else comes and goes.
   final AudioPlayer _ambientPlayer = AudioPlayer();
 
-  /// How many screens currently want the music.
+  /// How many holders currently want the music.
   ///
-  /// A count rather than a flag: moving from the hub into a lesson mounts the
-  /// new screen before the old one is disposed, so a flag would be cleared by
-  /// the screen that is leaving and the music would cut out on every
-  /// navigation. The count only reaches zero when nothing wants it.
+  /// Today `main` takes one hold for the life of the app, so the music plays
+  /// from launch and never gaps at a route change. It is a count rather than a
+  /// flag because that is what makes a second holder — a screen that wants
+  /// music the app-wide hold has released, say — safe to add later: a flag
+  /// would let the first thing to finish silence it for everything else.
   int _ambientHolders = 0;
   bool _ambientPlaying = false;
   late final AudioService _feedbackAudio = AudioService(muted: muted);
@@ -175,9 +176,10 @@ class StudentSoundService {
 
   static final math.Random _random = math.Random();
 
-  /// Starts the background music, or joins the screen that already has it.
+  /// Claims the background music.
   ///
-  /// Every caller must pair this with [releaseAmbient] in its `dispose`.
+  /// A caller that is not the app-wide hold — a screen, say — must pair this
+  /// with [releaseAmbient] when it goes away.
   void holdAmbient() {
     _ambientHolders++;
     unawaited(_syncAmbient());
@@ -241,31 +243,30 @@ class StudentSoundService {
     }());
   }
 
-  /// The chime that carries one card out of the depth.
+  /// The rustle of a page turning as one card arrives.
   ///
-  /// `card-chime.wav` is synthesised: a major triad — C5, E5, G5 with a
-  /// touch of the octave — under an envelope that swells before it decays,
-  /// and with a slight upward glide through the note. The swell is what
-  /// matches a card spiralling in over three-quarters of a second; a struck
-  /// bell would mark an impact the motion does not have, and the glide is
-  /// what makes it read as turning rather than simply sounding.
+  /// `page-flip.wav` is synthesised: a run of very short noise grains — the
+  /// edge of a sheet flexing — twice high-passed, because paper carries no
+  /// bass, and shaped by a quiet envelope that decays from its first instant.
+  /// The grains are what give it an edge; the decay is what keeps it gentle.
   ///
-  /// A triad rather than a single note because nine of these play in
-  /// sequence: consonant tones stack into something musical, where nine
-  /// copies of one pitch would read as an alarm.
+  /// It has now been three sounds. A whoosh swelled before it faded and read
+  /// as something thrown. A chime rang on after the card had landed and, nine
+  /// in a row, turned the rail into a xylophone. Paper starts at its loudest,
+  /// thins away inside a third of a second, and says nothing about pitch —
+  /// which is why it sits under a sequence without becoming the sequence.
   ///
   /// Deliberately not routed through [play]: the shared gate silences a cue
-  /// repeated inside 220ms, which is close to the rhythm of a deal. It plays
-  /// on its own player for the same reason, so a card arriving never cuts off
-  /// applause or a spoken phrase already running on the effects player.
+  /// repeated inside 220ms. It plays on its own player so a card arriving
+  /// never cuts off applause or a spoken phrase on the effects player.
   void playCardDeal() {
     if (muted.value) return;
     unawaited(() async {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
-          AssetSource('audio/card-chime.wav'),
-          volume: 0.30,
+          AssetSource('audio/page-flip.wav'),
+          volume: 0.40,
         );
       } catch (_) {
         // Audio is an enhancement and must never block the hub from opening.

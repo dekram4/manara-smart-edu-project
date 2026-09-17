@@ -64,6 +64,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
   late final ConfettiController _rewardController;
+
+  /// يعيش خارج البطاقات لأن القائمة تتخلّص منها عند السحب. بدونه تعيد كل
+  /// بطاقة حركة دخولها كلّما عادت إلى الشاشة.
+  final DealEntranceTracker _dealTracker = DealEntranceTracker();
   bool _openingTutor = false;
 
   /// The lesson every card opens against. It starts as whatever the path
@@ -85,8 +89,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _contentService = StudentContentService(widget.authService.client,
         baseUrl: widget.apiBaseUrl, authService: widget.authService);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
-    // الموسيقى تبدأ مع الشاشة وتُترك عند الخروج منها.
-    StudentSoundService.instance.holdAmbient();
     _loadGamification();
     WidgetsBinding.instance.addPostFrameCallback((_) => _playWelcome());
   }
@@ -145,10 +147,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   @override
   void dispose() {
     _rewardController.dispose();
-    // Paired with the `holdAmbient` in initState. The service counts holders
-    // rather than tracking a flag, so the music survives navigating into a
-    // lesson and back and only stops when nothing is holding it.
-    StudentSoundService.instance.releaseAmbient();
     super.dispose();
   }
 
@@ -660,7 +658,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   const SizedBox(height: 13),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: _HomeSectionGrid(onSectionPressed: _openModule),
+                    child: _HomeSectionGrid(
+                      onSectionPressed: _openModule,
+                      dealTracker: _dealTracker,
+                    ),
                   ),
                     ],
                   ),
@@ -852,9 +853,13 @@ const _homeSections = <_HomeSection>[
 /// itself makes no assumption about what a card looks like beyond its
 /// height.
 class _HomeSectionGrid extends StatelessWidget {
-  const _HomeSectionGrid({required this.onSectionPressed});
+  const _HomeSectionGrid({
+    required this.onSectionPressed,
+    required this.dealTracker,
+  });
 
   final ValueChanged<int> onSectionPressed;
+  final DealEntranceTracker dealTracker;
 
   @override
   Widget build(BuildContext context) {
@@ -903,6 +908,7 @@ class _HomeSectionGrid extends StatelessWidget {
           // would put this transform there instead.
           child: DealtCardEntrance(
             index: index,
+            tracker: dealTracker,
             child: _SectionTile(
               // Named by its portal rather than its position, so the key
               // survives the rail being reordered.

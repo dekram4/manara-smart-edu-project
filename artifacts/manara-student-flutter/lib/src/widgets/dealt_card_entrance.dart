@@ -18,10 +18,29 @@ import '../services/student_sound_service.dart';
 /// further down the tree, and tests read that matrix directly. Keeping this
 /// widget strictly *above* the card — and above the card's key — is what
 /// leaves that matrix describing only the card's own motion.
+/// Remembers which cards have already been dealt.
+///
+/// The rail is a `ListView`, which builds its children lazily and throws away
+/// the ones scrolled out of view. Without somewhere outside the card to record
+/// that it has arrived, every card rebuilt on scroll started its entrance from
+/// nothing again — so dragging the rail sideways made cards vanish and spiral
+/// back in, over and over.
+///
+/// Owned by the screen, not the card, precisely because it has to outlive the
+/// card. Indices are stable here because the rail's contents are fixed.
+class DealEntranceTracker {
+  final Set<int> _dealt = <int>{};
+
+  bool isDealt(int index) => _dealt.contains(index);
+
+  void markDealt(int index) => _dealt.add(index);
+}
+
 class DealtCardEntrance extends StatefulWidget {
   const DealtCardEntrance({
     required this.index,
     required this.child,
+    this.tracker,
     this.stagger = const Duration(milliseconds: 620),
     this.duration = const Duration(milliseconds: 780),
     this.sound = true,
@@ -32,6 +51,10 @@ class DealtCardEntrance extends StatefulWidget {
   final int index;
 
   final Widget child;
+
+  /// Where this card records that it has arrived. Without one, a card rebuilt
+  /// by the list deals itself in all over again.
+  final DealEntranceTracker? tracker;
 
   /// Gap between one card starting and the next one starting.
   ///
@@ -108,11 +131,20 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
     if (_started) return;
     _started = true;
 
+    // Already arrived once. Scrolling the rail rebuilt this card; it must
+    // appear exactly where it was, at rest, in silence. Re-running the
+    // entrance here is the bug where cards blink out mid-drag.
+    if (widget.tracker?.isDealt(widget.index) ?? false) {
+      _controller.value = 1;
+      return;
+    }
+
     // A student who has asked the system for less motion gets the rail
     // already dealt — and in silence. Honouring the setting means no
     // animation and no sound, not a faster one.
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _controller.value = 1;
+      widget.tracker?.markDealt(widget.index);
       return;
     }
 
@@ -122,16 +154,24 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
     // it lasted — and a test that pumps 400ms and then measures would catch
     // the card at the very start of its flight instead of at rest.
     if (widget.index <= 0) {
-      if (widget.sound) StudentSoundService.instance.playCardDeal();
-      _controller.forward();
+      _deal();
       return;
     }
 
     _cue = Timer(widget.stagger * widget.index, () {
       if (!mounted) return;
-      if (widget.sound) StudentSoundService.instance.playCardDeal();
-      _controller.forward();
+      _deal();
     });
+  }
+
+  void _deal() {
+    if (widget.sound) StudentSoundService.instance.playCardDeal();
+    // Recorded at the start of the flight rather than at its end. A card
+    // scrolled out of view mid-arrival is disposed before it can finish, and
+    // marking it only on completion would let it deal itself in again when it
+    // came back — which is the very flicker this is here to stop.
+    widget.tracker?.markDealt(widget.index);
+    _controller.forward();
   }
 
   @override

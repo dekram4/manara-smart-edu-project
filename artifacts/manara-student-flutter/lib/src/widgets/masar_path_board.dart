@@ -7,7 +7,7 @@ import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import 'student_avatar_view.dart';
-import 'student_mascot.dart';
+import '../services/student_avatar_store.dart';
 
 /// The width to decode the artwork at, never a value that can throw.
 ///
@@ -84,19 +84,31 @@ const List<_Frac> _arrows = [
 /// The blank parchment scroll over the schoolhouse.
 const _Frac _scroll = Rect.fromLTRB(0.3944, 0.0459, 0.9522, 0.1576);
 
-/// Where the two cheering mascots stand, on the grass between the painted
-/// children and the schoolhouse.
+/// Where the two cheering characters stand.
+///
+/// Placed where the eye already travels: one at the foot of the first square,
+/// where the path begins, and one under the last, where it ends — so they
+/// frame the six squares instead of huddling in a corner of the grass. Both
+/// stand on the green band below the squares, which is the only part of the
+/// scene with clear ground.
 ///
 /// They are additions to the scene, not replacements for the children painted
-/// into it. Those two cannot be animated: they are part of the picture, and
-/// they share their colours with the fence and the sky behind them, so no
-/// colour key separates them. Cutting a rectangle around them and bouncing
-/// that would drag a moving seam across the artwork, and would reveal the
-/// originals still standing underneath.
+/// into it. Those two cannot be animated: they are part of the picture and
+/// share their colours with the fence and the sky behind them, so no colour
+/// key separates them. Cutting a rectangle around them and bouncing it would
+/// drag a moving seam across the artwork and reveal the originals underneath.
 const List<_Frac> _cheerSpots = [
-  Rect.fromLTRB(0.300, 0.700, 0.372, 0.885),
-  Rect.fromLTRB(0.368, 0.726, 0.430, 0.885),
+  Rect.fromLTRB(0.352, 0.606, 0.452, 0.872),
+  Rect.fromLTRB(0.900, 0.606, 1.000, 0.872),
 ];
+
+/// Which of the "my character" cards cheer from the path.
+///
+/// Drawn from the same set the student picks their own avatar from, so the
+/// figures on the map belong to the app rather than being a second, unrelated
+/// cast. Two fixed picks rather than random ones: the scene should look the
+/// same every time a child opens it.
+const List<int> _cheerAvatars = [0, 4];
 
 /// The path artwork with the six levels printed into the squares drawn on it.
 ///
@@ -367,9 +379,7 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   Positioned.fromRect(
                     rect: place(_cheerSpots[i]),
                     child: _CheeringMascot(
-                      builder: (size) => i == 0
-                          ? PathMascot(size: size)
-                          : StudentMascot(size: size),
+                      avatarIndex: _cheerAvatars[i % _cheerAvatars.length],
                       // Half a cycle apart, so they bounce alternately the way
                       // two children egging each other on would, rather than
                       // in lockstep like a pair of metronomes.
@@ -477,17 +487,12 @@ class _CheerSign extends StatelessWidget {
   }
 }
 
-/// One mascot bouncing on the spot, cheering the student on.
-///
-/// Takes a builder rather than an asset path on purpose. Each mascot image is
-/// owned by exactly one widget in `student_mascot.dart`, and a test walks the
-/// source tree to make sure no other file names those files — so that changing
-/// the illustration is a one-line edit rather than a search. This bounces
-/// whatever that widget renders instead of reaching past it.
+/// One "my character" card bouncing on the spot, cheering the student on.
 class _CheeringMascot extends StatelessWidget {
-  const _CheeringMascot({required this.builder, required this.pulse});
+  const _CheeringMascot({required this.avatarIndex, required this.pulse});
 
-  final Widget Function(double size) builder;
+  /// Index into [StudentAvatars.all] — the same set the student chooses from.
+  final int avatarIndex;
   final double pulse;
 
   @override
@@ -508,11 +513,20 @@ class _CheeringMascot extends StatelessWidget {
           transform: Matrix4.identity()
             ..translate(0.0, -lift)
             ..scale(1 + squash * 0.07, 1 - squash * 0.07 + beat * 0.05),
-          // Sized by width: both mascot widgets take a width and keep their
-          // own aspect, so asking for a height would stretch them.
           child: Align(
             alignment: Alignment.bottomCenter,
-            child: builder(box.maxWidth),
+            child: Image.asset(
+              StudentAvatars.all[avatarIndex % StudentAvatars.all.length].asset,
+              height: height,
+              fit: BoxFit.contain,
+              alignment: Alignment.bottomCenter,
+              cacheWidth: _safeCacheWidth(
+                box.maxWidth * MediaQuery.devicePixelRatioOf(context),
+              ),
+              // A missing character costs the scene nothing; the six squares
+              // are what this screen is for.
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
           ),
         );
       },

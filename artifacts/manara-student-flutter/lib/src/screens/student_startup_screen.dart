@@ -238,8 +238,6 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
                               // title.
                               height: characterHeight * 1.15,
                               entrance: _entrance,
-                              spinning: _spinningOut,
-                              spinDuration: _spinFor,
                             ),
                             SizedBox(height: shortest * 0.05),
                             Text(
@@ -340,17 +338,11 @@ class _GreetingCharacter extends StatefulWidget {
     required this.asset,
     required this.height,
     required this.entrance,
-    required this.spinning,
-    required this.spinDuration,
   });
 
   final String asset;
   final double height;
   final Duration entrance;
-
-  /// Flipped once, at the two-second mark.
-  final bool spinning;
-  final Duration spinDuration;
 
   @override
   State<_GreetingCharacter> createState() => _GreetingCharacterState();
@@ -402,10 +394,6 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
     );
 
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return image;
-    if (widget.spinning) {
-      return _Spin(duration: widget.spinDuration, child: image);
-    }
-
     return AnimatedBuilder(
       animation: Listenable.merge([_arrival, _idle]),
       child: image,
@@ -419,6 +407,10 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
         final hopPhase = (t / 0.32).clamp(0.0, 1.0);
         final rise = Curves.easeOutCubic.transform(hopPhase);
         final dy = (1 - rise) * widget.height * 0.55;
+        // Forward, not just upward: she grows through the jump as if coming
+        // toward the student. Without this the hop reads as a figure bobbing
+        // in place on a flat plane, which is what "jump in to greet" is not.
+        final approach = 0.82 + 0.18 * rise;
         // Stretch while airborne, strongest at the start of the arc.
         final airborne = (1 - hopPhase) * math.sin(hopPhase * math.pi);
         final stretchY = 1 + airborne * 0.10;
@@ -462,8 +454,8 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
             ..translate(0.0, dy - float)
             ..rotateZ(wave + sway)
             ..scale(
-              stretchX * squashX * (1 + breath),
-              stretchY * squashY * (1 - breath * 0.6),
+              approach * stretchX * squashX * (1 + breath),
+              approach * stretchY * squashY * (1 - breath * 0.6),
             ),
           child: Opacity(
             opacity: Curves.easeOut.transform((t / 0.18).clamp(0.0, 1.0)),
@@ -475,55 +467,6 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
   }
 }
 
-/// Turns its child a full three times about its vertical axis, with a
-/// perspective entry in the matrix so it reads as a figure rotating in
-/// space rather than a flat picture being squeezed side to side.
-class _Spin extends StatefulWidget {
-  const _Spin({required this.duration, required this.child});
-
-  final Duration duration;
-  final Widget child;
-
-  @override
-  State<_Spin> createState() => _SpinState();
-}
-
-class _SpinState extends State<_Spin> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: widget.duration,
-  )..forward();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        // Eased in rather than linear: the character drifts into the turn
-        // and is at its fastest as it disappears, which is what stops the
-        // spin looking mechanical.
-        final t = Curves.easeInCubic.transform(_controller.value);
-        return Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()
-            ..setEntry(3, 2, 0.0012)
-            ..rotateY(t * 3 * 2 * math.pi),
-          child: child,
-        );
-      },
-      child: widget.child,
-    );
-  }
-}
-
-/// Shrinks and fades whatever it wraps once [away] flips, over exactly
-/// [duration], and holds it steady before then.
 class _SpinAway extends StatelessWidget {
   const _SpinAway({
     required this.away,
