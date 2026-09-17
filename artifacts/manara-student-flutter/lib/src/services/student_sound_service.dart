@@ -78,6 +78,38 @@ class StudentSoundService {
     if (_initialized) return;
     _initialized = true;
     try {
+      // Why the music stopped the instant a card was touched.
+      //
+      // `audioplayers` defaults every player to `AudioContextConfigFocus.gain`,
+      // which asks Android for *exclusive* audio focus each time it starts a
+      // sound. The tap was therefore telling the system it was now the only
+      // thing playing — and the background loop, a separate player inside this
+      // same app, was duly stopped. Nothing in this class had asked for that;
+      // it was the default doing exactly what it says.
+      //
+      // `mixWithOthers` asks for no focus at all, so a tap, a card landing and
+      // the music simply sum. It also means the app no longer interrupts
+      // whatever the student had playing before they opened it.
+      await AudioPlayer.global.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            isSpeakerphoneOn: false,
+            stayAwake: false,
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.media,
+            audioFocus: AndroidAudioFocus.none,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.ambient,
+            options: const {AVAudioSessionOptions.mixWithOthers},
+          ),
+        ),
+      );
+    } catch (_) {
+      // An older plugin or a platform without audio: the app still runs, the
+      // tap may just duck the music on that device.
+    }
+    try {
       final preferences = await SharedPreferences.getInstance();
       muted.value = preferences.getBool(_mutedKey) ?? false;
       await _effectsPlayer.setReleaseMode(ReleaseMode.stop);
@@ -223,7 +255,7 @@ class StudentSoundService {
         await _ambientPlayer.setReleaseMode(ReleaseMode.loop);
         // Quiet enough to sit under a spoken lesson without competing with
         // it. Music a child cannot talk over is music they will switch off.
-        await _ambientPlayer.setVolume(0.12);
+        await _ambientPlayer.setVolume(0.06);
         await _ambientPlayer.play(AssetSource('audio/kids_bgm.mp3'));
       } else {
         await _ambientPlayer.stop();

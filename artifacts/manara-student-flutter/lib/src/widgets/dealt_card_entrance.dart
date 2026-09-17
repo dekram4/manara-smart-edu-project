@@ -39,8 +39,8 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultStagger = Duration(milliseconds: 180);
-  static const defaultDuration = Duration(milliseconds: 620);
+  static const defaultStagger = Duration(milliseconds: 320);
+  static const defaultDuration = Duration(milliseconds: 850);
   static const defaultStartDelay = Duration(milliseconds: 1250);
 
   /// How long a rail of [count] cards takes to finish dealing itself in.
@@ -77,13 +77,20 @@ class DealtCardEntrance extends StatefulWidget {
   /// Gap between one card starting and the next one starting.
   ///
   /// A flat step, not a wait for the card before to finish. Waiting for rest
-  /// put the ninth card nearly six seconds after the first, which is the lag
-  /// that made the last of them feel like they were never coming. At 180ms the
-  /// whole rail is dealt inside two seconds and the order is still plain,
-  /// because each card's own pop is far louder than the overlap between them.
+  /// put the ninth card nearly six seconds after the first, which made the last
+  /// of them feel like they were never coming; a flat step keeps every gap the
+  /// same, so no card is ever the one that lags.
+  ///
+  /// At 320ms against an 850ms flight, roughly a third of one card's arrival
+  /// overlaps the next — enough that the rail keeps moving, far short of the
+  /// point where they read as arriving together.
   final Duration stagger;
 
   /// How long a single card takes to arrive.
+  ///
+  /// Slow on purpose. The card travels three-quarters of a turn, out to nearly
+  /// twice its size and back; at 620ms that was over before the eye had found
+  /// it, and the detail the animation exists for went unseen.
   final Duration duration;
 
   /// How long the rail waits before dealing anything at all.

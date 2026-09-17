@@ -373,22 +373,32 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
       _arrival.value = 1;
       return;
     }
-    // The idle does not start until the arrival has finished, so its first
-    // frame is the arrival's last. Running both from the outset is what made
-    // the handover visible.
-    _arrival.addStatusListener(_onArrivalDone);
+    // The idle starts *during* the greeting, not after it.
+    //
+    // Two earlier attempts both showed a seam. Running the idle from the
+    // outset meant it arrived at an arbitrary point of its cycle, so the
+    // figure changed direction mid-wave. Starting it only on completion fixed
+    // that but left a beat where the wave had ended and nothing had begun —
+    // which is the "two halves" still being reported.
+    //
+    // It now begins once the arrival is 55% through, while the wave is still
+    // swelling. Because the idle's own terms all start at sin(0) — zero
+    // offset, zero velocity — it can be switched on at any moment without a
+    // jump, and simply grows underneath the wave as the wave dies away. The
+    // two are never handed over; they are only ever summed.
+    _arrival.addListener(_startIdleMidGreeting);
     _arrival.forward();
   }
 
-  void _onArrivalDone(AnimationStatus status) {
-    if (status == AnimationStatus.completed && !_idle.isAnimating) {
-      _idle.repeat();
-    }
+  void _startIdleMidGreeting() {
+    if (_arrival.value < 0.55 || _idle.isAnimating) return;
+    _idle.repeat();
+    _arrival.removeListener(_startIdleMidGreeting);
   }
 
   @override
   void dispose() {
-    _arrival.removeStatusListener(_onArrivalDone);
+    _arrival.removeListener(_startIdleMidGreeting);
     _arrival.dispose();
     _idle.dispose();
     super.dispose();
@@ -449,16 +459,14 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
         final wave = math.sin(wavePhase * math.pi * 6) * 0.075 * waveSwell;
 
         // ── Idle ────────────────────────────────────────────────────────
-        // No cross-fade, and no ramp-in weight.
+        // No cross-fade, and no ramp-in weight — none is needed.
         //
-        // The idle used to run on a free clock of its own and be faded in over
-        // the tail of the greeting, which meant it arrived at whatever point
-        // of its cycle it happened to be at — mid-rise as often as not — and
-        // the figure visibly changed direction at the handover. Its controller
-        // now starts at the instant the arrival completes, so every term below
-        // begins at sin(0): zero offset, zero velocity, and nothing to blend.
-        // The greeting does not end and the idle begin; the one becomes the
-        // other.
+        // The controller is started partway through the greeting (see
+        // `_startIdleMidGreeting`), and every term here begins at sin(0): zero
+        // offset, zero velocity. So the float and the breath grow out of
+        // nothing underneath the wave while the wave is still fading, and by
+        // the time the arrival ends they are simply what is left. There is no
+        // moment at which one stops and the other starts.
         final phase = _idle.value * math.pi * 2;
         final float = math.sin(phase) * widget.height * 0.026;
         // Wider than it is tall, and on its own slower period, so the breath

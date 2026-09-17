@@ -86,42 +86,26 @@ const _Frac _scroll = Rect.fromLTRB(0.3944, 0.0459, 0.9522, 0.1576);
 
 /// Where the two cheering characters stand.
 ///
-/// Placed where the eye already travels: one at the foot of the first square,
-/// where the path begins, and one under the last, where it ends — so they
-/// frame the six squares instead of huddling in a corner of the grass. Both
-/// stand on the green band below the squares, which is the only part of the
-/// scene with clear ground.
-///
 /// They are additions to the scene, not replacements for the children painted
 /// into it. Those two cannot be animated: they are part of the picture and
 /// share their colours with the fence and the sky behind them, so no colour
 /// key separates them. Cutting a rectangle around them and bouncing it would
 /// drag a moving seam across the artwork and reveal the originals underneath.
-/// Both were measured against what is painted underneath rather than placed
-/// by eye, because the scene leaves very little clear ground:
 ///
-///   - the schoolhouse's window frame runs from x 0.343 to 0.401, so the left
-///     figure ends at 0.335 — it was at 0.352-0.452 and stood squarely across
-///     the glazing bars;
-///   - the first square starts at x 0.4045 and the last ends at 0.9039, so
-///     neither figure may enter that band;
-///   - the speaker, the sack and the progress bar occupy everything below
-///     y 0.872, and the star badge sits from y 0.8646, so both stand above
-///     those.
+/// Both positions were read off the pixels rather than judged by eye, because
+/// the scene leaves very little clear ground. Across the band the left figure
+/// occupies: the painted girl ends at x 0.325, pale wall runs 0.330 to 0.348,
+/// the window frame stands at 0.350, and the first square begins at 0.4045.
+/// Below, the speaker and the progress bar take everything past y 0.872.
 ///
-/// The left figure is pushed as far into the gap between the painted girl and
-/// the schoolhouse window as that gap allows — and it does not allow much. The
-/// pixels across that band read: girl to x 0.325, pale wall from 0.330 to
-/// 0.348, window frame from 0.350. The clear strip is therefore about 36px of
-/// an 1800px artwork, narrower than any figure drawn at a useful size.
-///
-/// So the right edge sits at 0.345, hard against the wall and clear of the
-/// frame, and the rest of the figure falls back over the painted girl rather
-/// than over the glass. Some overlap is unavoidable on a scene this full; with
-/// the figure standing lower and nearer, it reads as one child in front of
-/// another, which is what it is.
+/// So the left figure sits in the 0.335-0.395 channel — clear of the girl on
+/// one side and of the square on the other — and is dropped to y 0.745 so it
+/// stands *below* the window rather than against it. It is deliberately
+/// narrower than the right-hand figure: that channel is about a tenth of the
+/// artwork wide, and a figure sized to match its partner simply would not fit
+/// between the two things it has to stay out of.
 const List<_Frac> _cheerSpots = [
-  Rect.fromLTRB(0.270, 0.700, 0.345, 0.868),
+  Rect.fromLTRB(0.335, 0.745, 0.395, 0.872),
   Rect.fromLTRB(0.915, 0.640, 1.000, 0.845),
 ];
 
