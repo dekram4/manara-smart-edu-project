@@ -532,6 +532,10 @@ class StudentStrings {
     'avatar.a7': 'النجمة',
     'avatar.a8': 'المغامر',
     'avatar.a9': 'الفنانة',
+    'avatar.h1': 'البطل الطائر',
+    'avatar.h2': 'حامل الدرع',
+    'avatar.h3': 'المستكشفة',
+    'avatar.h4': 'النشيطة',
 
     // Characters
     'char.hero': 'البطل',
@@ -1040,6 +1044,10 @@ class StudentStrings {
     'avatar.a7': 'The Star',
     'avatar.a8': 'The Adventurer',
     'avatar.a9': 'The Artist',
+    'avatar.h1': 'The Flying Hero',
+    'avatar.h2': 'The Shield Bearer',
+    'avatar.h3': 'The Explorer Girl',
+    'avatar.h4': 'The Sporty One',
 
     'char.hero': 'The Hero',
     'char.astronaut': 'The Astronaut',

@@ -13,12 +13,26 @@ void main() {
     StudentAvatars.selected.value = StudentAvatars.fallback;
   });
 
-  test('the catalogue holds the nine characters, each with its own asset', () {
-    expect(StudentAvatars.all, hasLength(9));
+  test('every character has its own id and its own image', () {
+    // A count is not asserted any more: characters get added, and a hardcoded
+    // number only ever means a passing test has to be edited to let one in.
+    // What must hold whatever the list grows to is that no two entries collide
+    // — a shared id would make the stored pick ambiguous, and a shared image
+    // would put the same face under two names.
+    expect(StudentAvatars.all, isNotEmpty);
+
+    final ids = StudentAvatars.all.map((a) => a.id).toSet();
+    expect(ids, hasLength(StudentAvatars.all.length),
+        reason: 'two characters share an id');
+
     final assets = StudentAvatars.all.map((a) => a.asset).toSet();
-    expect(assets, hasLength(9), reason: 'no two characters share an image');
+    expect(assets, hasLength(StudentAvatars.all.length),
+        reason: 'two characters share an image');
+
     for (final avatar in StudentAvatars.all) {
-      expect(avatar.asset, startsWith('assets/images/avatar_'));
+      expect(avatar.asset, startsWith('assets/images/'));
+      expect(avatar.asset, endsWith('.png'));
+      expect(avatar.labelKey, isNotEmpty);
     }
   });
 

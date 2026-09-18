@@ -8,16 +8,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
-import '../services/student_avatar_store.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 import 'login_screen.dart';
 import 'student_home_screen.dart';
-
-/// Which of the "my character" cards greets the student on the splash.
-/// avatar_6 is the caped superhero, which is what the flight below is drawn
-/// around — a figure without a cape reads as falling rather than flying.
-const int _heroAvatar = 5;
 
 /// The app's opening screen: the hero flies in, rolls once and settles into a
 /// hover while the recorded welcome plays over it.
@@ -236,11 +230,10 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
                             ),
                             SizedBox(height: shortest * 0.045),
                             _GreetingCharacter(
-                              // The superhero from the "my character" set —
-                              // cape, bolt and boots. Picked by index into the
-                              // same list the student chooses from, so the
-                              // splash and the app share one cast.
-                              asset: StudentAvatars.all[_heroAvatar].asset,
+                              // Drawn already in flight — arm forward, cape
+                              // streaming — so the motion below only has to
+                              // carry a figure that is posed for it.
+                              asset: 'assets/images/herrrro.png',
                               height: characterHeight * 1.15,
                               entrance: _entrance,
                             ),
@@ -452,6 +445,23 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
         // banks is flying, a body that stays upright is being carried.
         final bank = math.sin(flight * math.pi) * 0.42 * (1 - flight * 0.35);
 
+        // ── Landing ─────────────────────────────────────────────────────
+        // The hero comes down hard and absorbs it: the classic drop into a
+        // crouch. A half sine over the window straddling touchdown, so the
+        // squash builds into the impact and springs back out of it rather
+        // than snapping on at the moment of contact.
+        //
+        // Width and height trade against each other rather than both
+        // shrinking — that trade is what makes it read as a body taking the
+        // shock instead of the whole figure being scaled down.
+        final landing = ((t - 0.56) / 0.26).clamp(0.0, 1.0);
+        final impact = math.sin(landing * math.pi) * (1 - landing * 0.35);
+        final squashX = 1 + impact * 0.16;
+        final squashY = 1 - impact * 0.16;
+        // And a dip: the knees give, so the figure drops a little further
+        // than its resting height before coming back up to it.
+        final crouch = impact * widget.height * 0.07;
+
         // ── Hover ───────────────────────────────────────────────────────
         // No cross-fade and no ramp-in weight — none is needed.
         //
@@ -478,12 +488,12 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
             // Perspective, without which `rotateY` is an affine squash and
             // the roll reads as the figure being flattened and unflattened.
             ..setEntry(3, 2, 0.0011)
-            ..translate(dx, dy - float, depth)
+            ..translate(dx, dy - float + crouch, depth)
             ..rotateY(roll)
             ..rotateZ(bank + drift)
             ..scale(
-              approach * (1 + breath),
-              approach * (1 - breath * 0.6),
+              approach * squashX * (1 + breath),
+              approach * squashY * (1 - breath * 0.6),
             ),
           child: Opacity(
             opacity: Curves.easeOut.transform((t / 0.16).clamp(0.0, 1.0)),

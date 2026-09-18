@@ -84,29 +84,21 @@ const List<_Frac> _arrows = [
 /// The blank parchment scroll over the schoolhouse.
 const _Frac _scroll = Rect.fromLTRB(0.3944, 0.0459, 0.9522, 0.1576);
 
-/// Where the two cheering characters stand.
+/// Where the two cheering characters stand: side by side in front of the tree
+/// that hides the painted children.
 ///
-/// They are additions to the scene, not replacements for the children painted
-/// into it. Those two cannot be animated: they are part of the picture and
-/// share their colours with the fence and the sky behind them, so no colour
-/// key separates them. Cutting a rectangle around them and bouncing it would
-/// drag a moving seam across the artwork and reveal the originals underneath.
+/// This is why they can now be large. They used to be squeezed into whatever
+/// clear ground the artwork left — one into a channel a tenth of the picture
+/// wide between a painted girl and a window frame, the other pinned to the far
+/// right edge. Once the tree covers that whole corner, the corner is theirs:
+/// nothing behind them has to show, so they stand where a child looks first
+/// and at a size worth looking at.
 ///
-/// Both positions were read off the pixels rather than judged by eye, because
-/// the scene leaves very little clear ground. Across the band the left figure
-/// occupies: the painted girl ends at x 0.325, pale wall runs 0.330 to 0.348,
-/// the window frame stands at 0.350, and the first square begins at 0.4045.
-/// Below, the speaker and the progress bar take everything past y 0.872.
-///
-/// So the left figure sits in the 0.335-0.395 channel — clear of the girl on
-/// one side and of the square on the other — and is dropped to y 0.745 so it
-/// stands *below* the window rather than against it. It is deliberately
-/// narrower than the right-hand figure: that channel is about a tenth of the
-/// artwork wide, and a figure sized to match its partner simply would not fit
-/// between the two things it has to stay out of.
+/// Their feet sit at y 0.870, just above the speaker and the progress bar
+/// painted across the foot of the scene at 0.872.
 const List<_Frac> _cheerSpots = [
-  Rect.fromLTRB(0.335, 0.745, 0.395, 0.872),
-  Rect.fromLTRB(0.915, 0.640, 1.000, 0.845),
+  Rect.fromLTRB(0.052, 0.545, 0.200, 0.870),
+  Rect.fromLTRB(0.208, 0.545, 0.356, 0.870),
 ];
 
 /// The patch that hides the two children painted into the artwork.
@@ -129,7 +121,19 @@ const _Frac _childrenPatch = Rect.fromLTRB(0.022, 0.395, 0.378, 0.872);
 /// figures on the map belong to the app rather than being a second, unrelated
 /// cast. Two fixed picks rather than random ones: the scene should look the
 /// same every time a child opens it.
-const List<int> _cheerAvatars = [0, 4];
+///
+/// Held as ids, not indices. The character list is append-only precisely
+/// because the student's own pick is stored by id, and an index here would
+/// silently point at a different figure the first time that list is reordered.
+const List<String> _cheerAvatarIds = ['h2', 'h4'];
+
+/// The character for one of those ids, or null if it has been removed.
+StudentAvatar? _cheerAvatar(String id) {
+  for (final avatar in StudentAvatars.all) {
+    if (avatar.id == id) return avatar;
+  }
+  return null;
+}
 
 /// The path artwork with the six levels printed into the squares drawn on it.
 ///
@@ -411,7 +415,7 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   Positioned.fromRect(
                     rect: place(_cheerSpots[i]),
                     child: _CheeringMascot(
-                      avatarIndex: _cheerAvatars[i % _cheerAvatars.length],
+                      avatarId: _cheerAvatarIds[i % _cheerAvatarIds.length],
                       // Half a cycle apart, so they bounce alternately the way
                       // two children egging each other on would, rather than
                       // in lockstep like a pair of metronomes.
@@ -542,9 +546,28 @@ class _SceneryPatchPainter extends CustomPainter {
     final h = size.height;
     final paint = Paint()..isAntiAlias = true;
 
-    void lobe(double cx, double cy, double r, Color colour) {
+    // Every lobe is an oval in the box's own coordinates: its horizontal
+    // radius is a fraction of the width and its vertical radius a fraction of
+    // the height.
+    //
+    // They used to be circles with a radius taken from the width alone, which
+    // is why the children reappeared on a tablet held upright. The artwork is
+    // stretched to fill the screen, so this box is as tall as the screen makes
+    // it: 365x366 on a landscape tablet but 273x488 on a portrait one. A
+    // circle sized off the width covered half the box's height in the first
+    // case and barely a quarter in the second, and the heads showed over the
+    // top of the tree. Sized per axis, the foliage covers the same share of
+    // the box in every shape.
+    void lobe(double cx, double cy, double rx, double ry, Color colour) {
       paint.color = colour;
-      canvas.drawCircle(Offset(w * cx, h * cy), r * w, paint);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(w * cx, h * cy),
+          width: rx * w * 2,
+          height: ry * h * 2,
+        ),
+        paint,
+      );
     }
 
     // Two trunks, drawn first so both canopies and the shrub close over them.
@@ -566,34 +589,34 @@ class _SceneryPatchPainter extends CustomPainter {
     // it on the right. The box is nearly a third of the artwork wide; it needs
     // foliage at both ends, not one shape in the centre.
     for (final cx in const [0.26, 0.70]) {
-      lobe(cx, 0.19, 0.25, _leafDark);
-      lobe(cx - 0.13, 0.26, 0.21, _leafDark);
-      lobe(cx + 0.13, 0.27, 0.20, _leafDark);
-      lobe(cx - 0.02, 0.16, 0.215, _leaf);
-      lobe(cx - 0.12, 0.24, 0.175, _leaf);
-      lobe(cx + 0.12, 0.25, 0.165, _leaf);
+      lobe(cx, 0.19, 0.25, 0.23, _leafDark);
+      lobe(cx - 0.13, 0.26, 0.21, 0.20, _leafDark);
+      lobe(cx + 0.13, 0.27, 0.20, 0.19, _leafDark);
+      lobe(cx - 0.02, 0.16, 0.215, 0.20, _leaf);
+      lobe(cx - 0.12, 0.24, 0.175, 0.165, _leaf);
+      lobe(cx + 0.12, 0.25, 0.165, 0.155, _leaf);
       // A highlight up and to the left, matching where the scene's sun is.
-      lobe(cx - 0.07, 0.12, 0.105, _leafLit);
+      lobe(cx - 0.07, 0.12, 0.105, 0.10, _leafLit);
     }
 
     // The shrub across the foot, covering the fence and both sets of legs.
     //
     // It runs past each edge of the box, and its crown is set high enough to
-    // overlap the underside of the canopies: the canopies reach down to 0.47
-    // of the box and the shrub's dark lobes start at 0.425, so the two meet.
-    // Before that they left a band open between them, and the previous
-    // preview had a pink hair-bow and a shoulder showing through it.
+    // overlap the underside of the canopies: the canopies reach down to 0.46
+    // of the box and the shrub's dark lobes start at 0.42, so the two meet.
+    // Before that they left a band open between them, and an early preview
+    // had a pink hair-bow and a shoulder showing through it.
     for (var i = 0; i < 6; i++) {
       final cx = -0.04 + i * 0.216;
-      lobe(cx, 0.66 + (i.isEven ? 0.0 : 0.035), 0.235, _leafDark);
+      lobe(cx, 0.66 + (i.isEven ? 0.0 : 0.035), 0.235, 0.24, _leafDark);
     }
     for (var i = 0; i < 6; i++) {
       final cx = -0.02 + i * 0.216;
-      lobe(cx, 0.635 + (i.isEven ? 0.0 : 0.03), 0.195, _leaf);
+      lobe(cx, 0.635 + (i.isEven ? 0.0 : 0.03), 0.195, 0.20, _leaf);
     }
-    lobe(0.18, 0.595, 0.085, _leafLit);
-    lobe(0.52, 0.605, 0.078, _leafLit);
-    lobe(0.82, 0.598, 0.072, _leafLit);
+    lobe(0.18, 0.595, 0.085, 0.085, _leafLit);
+    lobe(0.52, 0.605, 0.078, 0.078, _leafLit);
+    lobe(0.82, 0.598, 0.072, 0.072, _leafLit);
 
     // Grass along the base, so the shrub is planted rather than floating.
     paint.color = _grass;
@@ -624,18 +647,8 @@ class _SceneryPatchPainter extends CustomPainter {
       Color(0xFFFF7BA9),
     ];
     for (var i = 0; i < flowers.length; i++) {
-      paint.color = petals[i];
-      canvas.drawCircle(
-        Offset(w * flowers[i].dx, h * flowers[i].dy),
-        w * 0.026,
-        paint,
-      );
-      paint.color = const Color(0xFFFFB300);
-      canvas.drawCircle(
-        Offset(w * flowers[i].dx, h * flowers[i].dy),
-        w * 0.010,
-        paint,
-      );
+      lobe(flowers[i].dx, flowers[i].dy, 0.026, 0.026, petals[i]);
+      lobe(flowers[i].dx, flowers[i].dy, 0.010, 0.010, const Color(0xFFFFB300));
     }
   }
 
@@ -645,14 +658,17 @@ class _SceneryPatchPainter extends CustomPainter {
 
 /// One "my character" card bouncing on the spot, cheering the student on.
 class _CheeringMascot extends StatelessWidget {
-  const _CheeringMascot({required this.avatarIndex, required this.pulse});
+  const _CheeringMascot({required this.avatarId, required this.pulse});
 
-  /// Index into [StudentAvatars.all] — the same set the student chooses from.
-  final int avatarIndex;
+  /// Id of a character in [StudentAvatars.all] — the same set the student
+  /// chooses from.
+  final String avatarId;
   final double pulse;
 
   @override
   Widget build(BuildContext context) {
+    final asset = _cheerAvatar(avatarId)?.asset;
+    if (asset == null) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, box) {
         final height = box.maxHeight;
@@ -672,7 +688,7 @@ class _CheeringMascot extends StatelessWidget {
           child: Align(
             alignment: Alignment.bottomCenter,
             child: Image.asset(
-              StudentAvatars.all[avatarIndex % StudentAvatars.all.length].asset,
+              asset,
               height: height,
               fit: BoxFit.contain,
               alignment: Alignment.bottomCenter,

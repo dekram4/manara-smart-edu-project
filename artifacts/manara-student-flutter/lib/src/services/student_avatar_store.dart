@@ -48,6 +48,13 @@ class StudentAvatars {
     StudentAvatar(id: 'a7', labelKey: 'avatar.a7', asset: 'assets/images/avatar_7.png'),
     StudentAvatar(id: 'a8', labelKey: 'avatar.a8', asset: 'assets/images/avatar_8.png'),
     StudentAvatar(id: 'a9', labelKey: 'avatar.a9', asset: 'assets/images/avatar_9.png'),
+    // Appended rather than inserted: the chosen character is stored by id, so
+    // reordering this list would leave every student who had picked one
+    // looking at somebody else's.
+    StudentAvatar(id: 'h1', labelKey: 'avatar.h1', asset: 'assets/images/hero.png'),
+    StudentAvatar(id: 'h2', labelKey: 'avatar.h2', asset: 'assets/images/hero1.png'),
+    StudentAvatar(id: 'h3', labelKey: 'avatar.h3', asset: 'assets/images/hero2.png'),
+    StudentAvatar(id: 'h4', labelKey: 'avatar.h4', asset: 'assets/images/hero3.png'),
   ];
 
   static StudentAvatar get fallback => all.first;

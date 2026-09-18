@@ -52,8 +52,8 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultStagger = Duration(milliseconds: 280);
-  static const defaultDuration = Duration(milliseconds: 800);
+  static const defaultStagger = Duration(milliseconds: 300);
+  static const defaultDuration = Duration(milliseconds: 860);
   static const defaultStartDelay = Duration(milliseconds: 1250);
 
   /// How long the deal itself runs, measured from the moment the rail is
@@ -97,7 +97,7 @@ class DealtCardEntrance extends StatefulWidget {
   /// of them feel like they were never coming; a flat step keeps every gap the
   /// same, so no card is ever the one that lags.
   ///
-  /// At 320ms against an 850ms flight, roughly a third of one card's arrival
+  /// At 300ms against an 860ms flight, roughly a third of one card's arrival
   /// overlaps the next — enough that the rail keeps moving, far short of the
   /// point where they read as arriving together.
   final Duration stagger;

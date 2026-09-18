@@ -71,9 +71,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// بطاقة حركة دخولها كلّما عادت إلى الشاشة.
   final DealEntranceTracker _dealTracker = DealEntranceTracker();
 
-  /// Starts the music once the rail has finished dealing itself in.
-  Timer? _musicCue;
-
   /// Moves the opening on if the greeting never reports that it finished.
   Timer? _welcomeCap;
   bool _openingTutor = false;
@@ -101,15 +98,24 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     WidgetsBinding.instance.addPostFrameCallback((_) => _runOpeningSequence());
   }
 
-  /// The hub's opening, in three phases that never overlap.
+  /// The hub's opening: music underneath from the first frame, the greeting
+  /// over it, and the cards once the greeting has finished.
   ///
-  /// The greeting is spoken and finishes; only then does the rail begin to
-  /// deal, each card with its own sound; only when the last card has settled
-  /// does the music come in. Each phase waits for the real end of the one
-  /// before it — the greeting on the player reporting completion, the music on
-  /// the deal's own measured span — rather than on delays chosen to be
-  /// "probably long enough", which is what left them talking over each other.
+  /// The one thing that is sequenced is the deal, and it waits on the voice
+  /// actually reporting that it ended rather than on a delay picked to be
+  /// "probably long enough" — nine card sounds under a spoken sentence left
+  /// neither audible. The music needs no such care: it is quiet enough, and
+  /// mixed rather than focused, to sit under all of it.
   void _runOpeningSequence() {
+    // The music starts with the screen and never stops for anything on it.
+    //
+    // It used to wait for the whole deal to finish, on the reasoning that it
+    // would otherwise compete with the greeting and the card sounds. It does
+    // not: it plays at a twentieth of full volume, and since every player now
+    // mixes rather than taking audio focus, the greeting and the taps simply
+    // sit on top of it.
+    StudentSoundService.instance.ensureAmbient();
+
     // The cap is owned here, and cancelled in dispose, so nothing outlives
     // this screen. It exists because a device with no audio plugin never
     // reports the voice finishing, and the rail must not wait forever for a
@@ -120,16 +126,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   bool _dealBegun = false;
 
-  /// Phase two and three: the rail deals, and the music follows the last card.
+  /// The cards follow the greeting: the spoken sentence gets a clear run, then
+  /// the rail deals itself in one card at a time.
   void _beginDeal() {
     if (_dealBegun || !mounted) return;
     _dealBegun = true;
     _welcomeCap?.cancel();
     _dealTracker.arm();
-    _musicCue = Timer(
-      DealtCardEntrance.dealSpanFor(_homeSections.length),
-      () => StudentSoundService.instance.ensureAmbient(),
-    );
   }
 
   @override
@@ -197,7 +200,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   @override
   void dispose() {
     studentRouteObserver.unsubscribe(this);
-    _musicCue?.cancel();
     _welcomeCap?.cancel();
     _dealTracker.dispose();
     _rewardController.dispose();
@@ -1648,8 +1650,17 @@ class _WelcomeCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
-          color: Colors.white.withOpacity(0.85),
-          border: Border.all(color: Colors.white, width: 1.6),
+          // Both of these were hardcoded white, which is what made the
+          // greeting unreadable in the dark theme: the panel stayed white
+          // while the text colours followed the theme and turned pale, so
+          // "أهلًا جوري داود" was near-white on near-white.
+          color: StudentSurface.glass(context, 0.90),
+          border: Border.all(
+            color: StudentSurface.isDark(context)
+                ? const Color(0x33FFD27A)
+                : Colors.white,
+            width: 1.6,
+          ),
           boxShadow: const [
             BoxShadow(
               color: Color(0x1A4F46E5),
@@ -1674,7 +1685,12 @@ class _WelcomeCard extends StatelessWidget {
                   Text(
                     tr('hub.welcome'),
                     style: TextStyle(
-                      color: StudentSurface.mutedInk(context),
+                      // Warm gold on the dark theme rather than grey: a muted
+                      // ink that reads as "secondary" on a light panel reads
+                      // as "switched off" on a dark one.
+                      color: StudentSurface.isDark(context)
+                          ? const Color(0xFFFFCF70)
+                          : StudentSurface.mutedInk(context),
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1698,6 +1714,19 @@ class _WelcomeCard extends StatelessWidget {
                       color: StudentSurface.ink(context),
                       fontSize: 26,
                       fontWeight: FontWeight.w900,
+                      // A shadow, not an outline: the name sits over a
+                      // translucent panel, so whatever shows through it
+                      // varies. A soft drop behind the letters keeps them
+                      // legible against any of it, in either theme.
+                      shadows: [
+                        Shadow(
+                          color: StudentSurface.isDark(context)
+                              ? const Color(0xCC000000)
+                              : const Color(0x33000000),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                   ),
                 ],

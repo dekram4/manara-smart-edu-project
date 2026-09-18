@@ -58,15 +58,19 @@ void main() {
     );
     // Long enough for the rail to finish dealing itself in.
     //
-    // Stepped rather than one long pump. The rail waits out the spoken
-    // greeting and then deals on timers, and a single huge pump fires those
-    // timers at the *end* of the jump — leaving every card at the very start
-    // of its flight, which is then what gets measured. Small steps let each
-    // timer fire and its animation actually run.
+    // Stepped rather than one long pump. The rail waits for the spoken
+    // greeting to finish and then deals on timers, and a single huge pump
+    // fires those timers at the *end* of the jump — leaving every card at the
+    // very start of its flight, which is then what gets measured. Small steps
+    // let each timer fire and its animation actually run.
+    //
+    // Long enough to cover the greeting cap as well as the deal: there is no
+    // audio plugin under test, so the voice never reports finishing and the
+    // six-second fallback is what releases the rail.
     //
     // This is a warm-up, not an assertion: nothing below was relaxed to
     // accommodate the entrance.
-    for (var i = 0; i < 55; i++) {
+    for (var i = 0; i < 90; i++) {
       await tester.pump(const Duration(milliseconds: 120));
     }
   }

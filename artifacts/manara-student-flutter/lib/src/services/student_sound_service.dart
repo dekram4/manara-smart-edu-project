@@ -144,12 +144,11 @@ class StudentSoundService {
     unawaited(_play(cue));
   }
 
-  /// Speaks the welcome and completes when it has actually finished.
+  /// Speaks the welcome and reports when it has actually finished.
   ///
-  /// The hub sequences its opening on this: the greeting, then the cards, then
-  /// the music. Waiting on the player rather than on a guessed delay is the
-  /// point — a fixed wait is too short on a slow device and pointless on a
-  /// muted one.
+  /// The hub holds its cards back until this fires. Waiting on the player
+  /// rather than on a guessed delay is the point — a fixed wait is too short
+  /// on a slow device and pointless on a muted one.
   ///
   /// [onComplete] fires once, when the voice has finished — or immediately if
   /// there is nothing to wait for because sound is muted.
@@ -290,7 +289,7 @@ class StudentSoundService {
         await _ambientPlayer.setReleaseMode(ReleaseMode.loop);
         // Quiet enough to sit under a spoken lesson without competing with
         // it. Music a child cannot talk over is music they will switch off.
-        await _ambientPlayer.setVolume(0.06);
+        await _ambientPlayer.setVolume(0.05);
         await _ambientPlayer.play(AssetSource('audio/kids_bgm.mp3'));
       } else {
         await _ambientPlayer.stop();
