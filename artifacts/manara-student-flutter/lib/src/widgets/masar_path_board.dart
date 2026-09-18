@@ -87,18 +87,13 @@ const _Frac _scroll = Rect.fromLTRB(0.3944, 0.0459, 0.9522, 0.1576);
 /// Where the two cheering characters stand: side by side in front of the tree
 /// that hides the painted children.
 ///
-/// This is why they can now be large. They used to be squeezed into whatever
-/// clear ground the artwork left — one into a channel a tenth of the picture
-/// wide between a painted girl and a window frame, the other pinned to the far
-/// right edge. Once the tree covers that whole corner, the corner is theirs:
-/// nothing behind them has to show, so they stand where a child looks first
-/// and at a size worth looking at.
-///
-/// Their feet sit at y 0.870, just above the speaker and the progress bar
-/// painted across the foot of the scene at 0.872.
+/// Both stop at x 0.326, short of the schoolhouse. The pale wall begins at
+/// 0.330 and the window frame at 0.343, and the right-hand figure used to run
+/// to 0.356 — standing on the glazing. Their feet sit at y 0.870, just above
+/// the speaker and the progress bar painted across the foot at 0.872.
 const List<_Frac> _cheerSpots = [
-  Rect.fromLTRB(0.052, 0.545, 0.200, 0.870),
-  Rect.fromLTRB(0.208, 0.545, 0.356, 0.870),
+  Rect.fromLTRB(0.036, 0.545, 0.176, 0.870),
+  Rect.fromLTRB(0.186, 0.545, 0.326, 0.870),
 ];
 
 /// The speech bubble, sitting just above the right-hand character's head.
@@ -108,21 +103,29 @@ const List<_Frac> _cheerSpots = [
 /// what makes an instruction feel like encouragement instead of a label. Its
 /// tail points down at that character's head, so which of the two is speaking
 /// is never in doubt.
-const _Frac _speechBubble = Rect.fromLTRB(0.120, 0.372, 0.400, 0.520);
+///
+/// Its top sits at 0.452, immediately under the "تحدَّ واكسب!" plaque, which
+/// ends at 0.4499 — the bubble used to start at 0.372 and cover it. Its bottom
+/// laps over the characters' heads at 0.545 on purpose: a bubble with a gap
+/// between it and the speaker belongs to nobody.
+const _Frac _speechBubble = Rect.fromLTRB(0.028, 0.452, 0.330, 0.560);
 
 /// The patch that hides the two children painted into the artwork.
 ///
-/// Their extent was measured off the image: they run from x 0.045 to 0.345 and
-/// from the tops of their heads at y 0.425 down to their shoes at 0.855. The
-/// patch covers a little past each edge so no sleeve or shoe survives at the
-/// border.
+/// Their extent was measured off the image: they run from x 0.045 to 0.325 and
+/// from the tops of their heads at y 0.425 down to their shoes at 0.855.
+///
+/// The right edge stops at 0.328 — past the children, short of the pale wall
+/// at 0.330. It reached 0.378 before, which put foliage across the wall and
+/// the window of the "الفصل" square. The hanging sign above overlaps the top of
+/// this patch, but that one is drawn after it and covers it.
 ///
 /// It replaces them with scenery rather than a rectangle of flat colour,
 /// because the ground behind them is not one colour: sky at the top, a white
 /// fence across the middle, grass at the foot. A shrub and a tree occupy all
 /// three bands the way something growing there would, and read as part of the
 /// painting rather than as something laid over it.
-const _Frac _childrenPatch = Rect.fromLTRB(0.022, 0.395, 0.378, 0.872);
+const _Frac _childrenPatch = Rect.fromLTRB(0.022, 0.395, 0.328, 0.872);
 
 /// Which of the "my character" cards cheer from the path.
 ///
@@ -135,6 +138,44 @@ const _Frac _childrenPatch = Rect.fromLTRB(0.022, 0.395, 0.378, 0.872);
 /// because the student's own pick is stored by id, and an index here would
 /// silently point at a different figure the first time that list is reordered.
 const List<String> _cheerAvatarIds = ['h2', 'h4'];
+
+/// Each cheering character's height over its width, as the image is drawn.
+///
+/// Needed because the figure is fitted into its box and anchored at the feet,
+/// so on a narrow window it is far shorter than the box that holds it — and
+/// anything positioned against the *box* ends up floating over empty air. That
+/// is what left a wide gap between the speech bubble and the characters in
+/// portrait: the bubble was above the box, and the box was mostly sky.
+///
+/// Read off the trimmed assets: hero1 is 640x978 and hero3 640x785.
+const Map<String, double> _cheerAspect = {'h2': 978 / 640, 'h4': 785 / 640};
+
+/// Where the bubble actually goes, given the slot it was designed in and the
+/// box the speaking character stands in.
+///
+/// The figure is fitted to its box and stands at the bottom of it, so on a
+/// narrow window it fills only part of that height — the rest is empty. Sitting
+/// the bubble on the *box* therefore leaves it floating well above the head it
+/// belongs to, which is the gap that showed up in portrait and not in
+/// landscape. This works out where the head really is and drops the bubble onto
+/// it, overlapping slightly so the two read as connected.
+///
+/// The result is clamped so the bubble can never rise into the hanging sign
+/// above it, whatever the window shape.
+Rect _bubbleRect(Rect designed, Rect speaker) {
+  final aspect = _cheerAspect[_cheerAvatarIds[1]] ?? 1.5;
+  final figureHeight = math.min(speaker.height, speaker.width * aspect);
+  final headTop = speaker.bottom - figureHeight;
+
+  // A little into the head, so there is no daylight between them.
+  var bottom = headTop + designed.height * 0.18;
+  var top = bottom - designed.height;
+  if (top < designed.top) {
+    top = designed.top;
+    bottom = top + designed.height;
+  }
+  return Rect.fromLTRB(designed.left, top, designed.right, bottom);
+}
 
 /// The character for one of those ids, or null if it has been removed.
 StudentAvatar? _cheerAvatar(String id) {
@@ -435,7 +476,7 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                 // What the character is saying. Drawn after the figures so the
                 // bubble sits in front of whoever is speaking.
                 Positioned.fromRect(
-                  rect: place(_speechBubble),
+                  rect: _bubbleRect(place(_speechBubble), place(_cheerSpots[1])),
                   child: IgnorePointer(
                     child: _SpeechBubble(
                       text: tr('path.chooseTitle'),

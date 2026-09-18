@@ -404,6 +404,19 @@ class StudentStrings {
     'path.cheer3': 'واصِل تميّزك!',
     'path.schoolName': 'منارة المعرفة التعليمية',
     'path.chooseTitle': 'اختر مسارك التعليمي',
+    // العبارات المنطوقة عند فتح كل بطاقة. مكتوبة لتُسمع لا لتُقرأ:
+    // جملة قصيرة واحدة، بلا أقواس ولا رموز يتعثّر بها محرّك النطق.
+    'portal.voice.generic': 'هيّا بنا يا بطل! استمتع وتعلّم شيئاً جديداً.',
+    'portal.lesson.voice': 'أهلاً بك يا بطل! ركّز في الدرس واجمع الجواهر لتتصدّر لوحة الشرف.',
+    'portal.cinema.voice': 'مرحباً بك في سينما المعرفة! شاهد واستمتع وتعلّم بشغف.',
+    'portal.quiz.voice': 'حان وقت التحدي! أظهر ذكاءك واكسب أعلى النقاط.',
+    'portal.personality.voice': 'رائع! اختر بطلك المفضّل وطوّر مظهره بإنجازاتك.',
+    'portal.games.voice': 'استعد للّعب! العب بذكاء واجمع الجواهر مع كل فوز.',
+    'portal.tutor.voice': 'معلّمك الذكي بانتظارك! اسأل عن أي شيء ولا تتردّد.',
+    'portal.solver.voice': 'هات مسألتك الصعبة! سنحلّها خطوة بخطوة معاً.',
+    'portal.meeting.voice': 'لقاؤك المباشر جاهز! انتبه جيداً وشارك بحماس.',
+    'portal.chat.voice': 'تحدّث مع زملائك بأدب ولطف، وتعلّموا معاً.',
+    'portal.challenge.voice': 'تحدي اليوم بانتظارك! أثبت أنك الأفضل.',
     'path.preparing': 'نجهّز رحلتك...',
     'path.start': 'ابدأ المغامرة!',
     'path.mascot': 'اختر صفك لنبدأ الرحلة يا بطل! ✨',
@@ -926,6 +939,18 @@ class StudentStrings {
     'path.cheer3': 'Keep shining!',
     'path.schoolName': 'Manara Knowledge Academy',
     'path.chooseTitle': 'Choose your learning path',
+    'portal.voice.generic': 'Off we go, champion! Enjoy it and learn something new.',
+    'portal.lesson.voice': 'Welcome, champion! Focus on the lesson and collect gems to top the honour board.',
+    'portal.cinema.voice': 'Welcome to the knowledge cinema! Watch, enjoy, and learn with passion.',
+    'portal.quiz.voice': 'Challenge time! Show your brains and win the highest score.',
+    'portal.personality.voice': 'Great! Pick your favourite hero and upgrade the look with your achievements.',
+    'portal.games.voice': 'Get ready to play! Play smart and collect gems with every win.',
+    'portal.tutor.voice': 'Your smart teacher is waiting! Ask about anything at all.',
+    'portal.solver.voice': 'Bring me your hardest problem! We will solve it together, step by step.',
+    'portal.meeting.voice': 'Your live session is ready! Pay close attention and join in.',
+    'portal.chat.voice': 'Talk to your classmates kindly, and learn together.',
+    'portal.challenge.voice':
+        "Today's challenge is waiting! Prove you are the best.",
     'path.preparing': 'Getting your journey ready…',
     'path.start': 'Start the adventure!',
     'path.mascot': 'Pick your grade and let\'s begin! ✨',
@@ -1071,6 +1096,9 @@ class StudentStrings {
     'cheer.5': 'Great work, stay this good!',
   };
   /// Looks a key up in the language currently chosen.
+  /// Whether either table defines [key] at all.
+  static bool has(String key) => _ar.containsKey(key) || _en.containsKey(key);
+
   static String of(String key) {
     if (!StudentSettings.isArabic) {
       final english = _en[key];
@@ -1114,6 +1142,16 @@ class StudentStrings {
 
 /// Shorthand so call sites read as text rather than as lookups.
 String tr(String key) => StudentStrings.of(key);
+
+/// The string for [key], or for [fallbackKey] when [key] has no entry.
+///
+/// `tr` returns the key itself when it finds nothing, which is right for a
+/// label — a missing string shows up on screen where somebody will notice it.
+/// It is wrong for a line that is about to be *spoken*: a text-to-speech engine
+/// would happily read out "portal.games.voice". This is for the cases where a
+/// sensible generic line is better than reading an identifier aloud.
+String trOr(String key, String fallbackKey) =>
+    StudentStrings.has(key) ? StudentStrings.of(key) : StudentStrings.of(fallbackKey);
 
 /// Shorthand for a string with `{placeholders}`.
 String trf(String key, Map<String, Object?> values) =>

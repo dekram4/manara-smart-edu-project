@@ -1,4 +1,4 @@
-﻿name: manara_student
+name: manara_student
 description: تطبيق منارة المعرفة المخصص للطلاب.
 publish_to: "none"
 version: 1.0.0+1
@@ -50,6 +50,7 @@ dependencies:
   # already targets. Raise this only together with the Java level in
   # android/app/build.gradle.
   permission_handler: ^11.3.1
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:

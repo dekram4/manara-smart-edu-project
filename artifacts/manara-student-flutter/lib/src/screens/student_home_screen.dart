@@ -148,7 +148,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   /// Back on the hub: the music comes back where it left off.
   @override
-  void didPopNext() => StudentSoundService.instance.resumeAmbient();
+  void didPopNext() {
+    // Whatever the portal was saying belongs to the portal; if the student
+    // came straight back out, it stops with them.
+    unawaited(StudentSoundService.instance.stopSpeaking());
+    StudentSoundService.instance.resumeAmbient();
+  }
 
   Future<void> _loadGamification() async {
     final previous = _gamification;
@@ -227,6 +232,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   void _openModule(int index) {
     StudentSoundService.instance.playTap();
+    // The portal introduces itself.
+    //
+    // Spoken here rather than inside each destination screen: there are ten
+    // of them, several sharing a screen with different arguments, and the one
+    // thing they all have in common is being opened from this method. The
+    // music is already stepping aside by the time the line starts — the route
+    // push that follows triggers `didPushNext`.
+    if (index >= 0 && index < _homeSections.length) {
+      unawaited(StudentSoundService.instance.speakLine(
+        _homeSections[index].voice,
+      ));
+    }
     final modules = [
       StudentContentModule.lesson,
       StudentContentModule.games,
@@ -757,6 +774,13 @@ class _HomeSection {
   final String descriptionKey;
 
   String get description => tr(descriptionKey);
+
+  /// The line spoken when this portal is opened.
+  ///
+  /// Derived from [titleKey] rather than stored: every portal needs one, and a
+  /// tenth field on a `const` table is a tenth chance to forget it. A missing
+  /// entry falls back to the generic line in [voice].
+  String get voice => trOr('$titleKey.voice', 'portal.voice.generic');
 
   /// The portal's own 3D artwork. Each card is now a distinct illustration
   /// rather than a stock glyph on a coloured square, so adding a portal

@@ -2,6 +2,7 @@
 import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/student_strings.dart';
 
 import 'audio_service.dart';
+import 'student_settings.dart';
 
 enum StudentSoundCue {
   navigation,
@@ -144,6 +146,7 @@ class StudentSoundService {
       await _effectsPlayer.stop();
       await _voicePlayer.stop();
       await _dealPlayer.stop();
+      await stopSpeaking();
       await _feedbackAudio.stop();
     }
     // The music follows the switch in both directions: muting has to silence
@@ -192,6 +195,52 @@ class StudentSoundService {
       onError: (_) => finish(),
     ));
     play(StudentSoundCue.welcome);
+  }
+
+  /// The engine that speaks the per-portal lines. Built on first use.
+  ///
+  /// Lazy because constructing it talks to the platform: creating it eagerly
+  /// would make this service — and so every screen that touches it — fail to
+  /// build on a device or a test host with no speech engine.
+  FlutterTts? _tts;
+  bool _ttsReady = false;
+
+  /// Speaks one short Arabic line, cutting off whatever it was saying.
+  ///
+  /// Used when a portal is opened, so the card greets the student in its own
+  /// words. Spoken rather than recorded: ten lines in two languages is twenty
+  /// clips to record and re-record every time the wording changes, and the
+  /// device already has a voice.
+  ///
+  /// Every failure here is swallowed. A phone with no Arabic voice installed,
+  /// a locale the engine will not take, a platform with no engine at all —
+  /// none of them is a reason a lesson should not open.
+  Future<void> speakLine(String text) async {
+    if (muted.value || text.trim().isEmpty) return;
+    try {
+      final tts = _tts ??= FlutterTts();
+      if (!_ttsReady) {
+        _ttsReady = true;
+        await tts.setLanguage(StudentSettings.isArabic ? 'ar' : 'en-US');
+        // Higher and slower than the default: the app's recorded welcome is a
+        // child's voice, and a flat adult read after it sounds like a
+        // different app. Slower also matters for a young listener.
+        await tts.setPitch(1.25);
+        await tts.setSpeechRate(0.45);
+        await tts.setVolume(1);
+      }
+      await tts.stop();
+      await tts.speak(text);
+    } catch (_) {
+      // No voice on this device: the screen opens in silence.
+    }
+  }
+
+  /// Silences any line still being spoken.
+  Future<void> stopSpeaking() async {
+    try {
+      await _tts?.stop();
+    } catch (_) {}
   }
 
   Future<void> _play(StudentSoundCue cue) async {
