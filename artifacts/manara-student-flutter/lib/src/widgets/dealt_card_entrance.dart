@@ -52,8 +52,8 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultStagger = Duration(milliseconds: 300);
-  static const defaultDuration = Duration(milliseconds: 860);
+  static const defaultStagger = Duration(milliseconds: 450);
+  static const defaultDuration = Duration(milliseconds: 1200);
   static const defaultStartDelay = Duration(milliseconds: 1250);
 
   /// How long the deal itself runs, measured from the moment the rail is
@@ -97,16 +97,18 @@ class DealtCardEntrance extends StatefulWidget {
   /// of them feel like they were never coming; a flat step keeps every gap the
   /// same, so no card is ever the one that lags.
   ///
-  /// At 300ms against an 860ms flight, roughly a third of one card's arrival
-  /// overlaps the next — enough that the rail keeps moving, far short of the
-  /// point where they read as arriving together.
+  /// At 450ms against a 1200ms flight, each card is well past its overshoot
+  /// and into its settle before the next one starts — the cards arrive singly
+  /// and are plainly in order, which is the whole point of dealing them.
   final Duration stagger;
 
   /// How long a single card takes to arrive.
   ///
-  /// Slow on purpose. The card travels three-quarters of a turn, out to nearly
-  /// twice its size and back; at 620ms that was over before the eye had found
-  /// it, and the detail the animation exists for went unseen.
+  /// Slow on purpose, and slower than instinct suggests. The card travels
+  /// three-quarters of a turn, out to nearly twice its size and back; at 620ms
+  /// that was over before the eye had found it, and even at 860ms it still
+  /// read as hurried. At 1200ms the movement can actually be watched, which is
+  /// the only reason it exists.
   final Duration duration;
 
   /// How long the rail waits before dealing anything at all.

@@ -70,7 +70,7 @@ void main() {
     //
     // This is a warm-up, not an assertion: nothing below was relaxed to
     // accommodate the entrance.
-    for (var i = 0; i < 90; i++) {
+    for (var i = 0; i < 120; i++) {
       await tester.pump(const Duration(milliseconds: 120));
     }
   }

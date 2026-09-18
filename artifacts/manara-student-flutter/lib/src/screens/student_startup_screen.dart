@@ -348,16 +348,25 @@ class _GreetingCharacter extends StatefulWidget {
 
 class _GreetingCharacterState extends State<_GreetingCharacter>
     with TickerProviderStateMixin {
-  /// Fly in, roll, level out — played once.
-  late final AnimationController _arrival = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1900),
-  );
+  /// The whole scene, on one clock.
+  ///
+  /// Flight, roll, landing and hover all read from this single controller —
+  /// there is no second controller and nothing waits on a listener for a
+  /// previous part to end. Every earlier attempt failed in the same way for
+  /// the same reason: two clocks, joined at a moment, and the join was
+  /// visible however it was smoothed.
+  ///
+  /// It repeats rather than running once, because the hover has to carry on
+  /// after the landing. The cinematic is not tied to the controller's value
+  /// but to [AnimationController.lastElapsedDuration], which keeps counting
+  /// across repeats — so the flight plays through exactly one cycle, reaches
+  /// its end, and simply stays there while the same clock goes on driving the
+  /// breath. One timeline, running forward, start to finish.
+  static const _sceneLength = Duration(milliseconds: 2800);
 
-  /// The living idle underneath, which never stops.
-  late final AnimationController _idle = AnimationController(
+  late final AnimationController _scene = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2600),
+    duration: _sceneLength,
   );
 
   bool _started = false;
@@ -368,37 +377,15 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
     if (_started) return;
     _started = true;
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      _arrival.value = 1;
+      _scene.value = 1;
       return;
     }
-    // The idle starts *during* the greeting, not after it.
-    //
-    // Two earlier attempts both showed a seam. Running the idle from the
-    // outset meant it arrived at an arbitrary point of its cycle, so the
-    // figure changed direction mid-wave. Starting it only on completion fixed
-    // that but left a beat where the wave had ended and nothing had begun —
-    // which is the "two halves" still being reported.
-    //
-    // It now begins once the arrival is 55% through, while the wave is still
-    // swelling. Because the idle's own terms all start at sin(0) — zero
-    // offset, zero velocity — it can be switched on at any moment without a
-    // jump, and simply grows underneath the wave as the wave dies away. The
-    // two are never handed over; they are only ever summed.
-    _arrival.addListener(_startIdleMidGreeting);
-    _arrival.forward();
-  }
-
-  void _startIdleMidGreeting() {
-    if (_arrival.value < 0.55 || _idle.isAnimating) return;
-    _idle.repeat();
-    _arrival.removeListener(_startIdleMidGreeting);
+    _scene.repeat();
   }
 
   @override
   void dispose() {
-    _arrival.removeListener(_startIdleMidGreeting);
-    _arrival.dispose();
-    _idle.dispose();
+    _scene.dispose();
     super.dispose();
   }
 
@@ -413,10 +400,16 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
 
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return image;
     return AnimatedBuilder(
-      animation: Listenable.merge([_arrival, _idle]),
+      animation: _scene,
       child: image,
       builder: (context, child) {
-        final t = _arrival.value;
+        // How far into the whole scene we are, 0 to 1, and never back to 0.
+        // `lastElapsedDuration` accumulates across the controller's repeats,
+        // which is what lets one repeating clock carry a cinematic that plays
+        // exactly once and a hover that never stops.
+        final elapsedMs =
+            (_scene.lastElapsedDuration ?? Duration.zero).inMilliseconds;
+        final t = (elapsedMs / _sceneLength.inMilliseconds).clamp(0.0, 1.0);
 
         // ── Flight ──────────────────────────────────────────────────────
         // A caped figure, so it flies in rather than hops: from off to the
@@ -463,15 +456,15 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
         final crouch = impact * widget.height * 0.07;
 
         // ── Hover ───────────────────────────────────────────────────────
-        // No cross-fade and no ramp-in weight — none is needed.
+        // Read from the same clock, and running from the first frame.
         //
-        // The controller is started partway through the flight (see
-        // `_startIdleMidGreeting`), and every term here begins at sin(0):
-        // zero offset, zero velocity. The hover therefore grows out of
-        // nothing underneath the roll while the roll is still unwinding, and
-        // by the time the flight ends it is simply what is left. There is no
-        // moment at which one stops and the other starts.
-        final phase = _idle.value * math.pi * 2;
+        // No cross-fade and no ramp-in weight is needed: every term below
+        // begins at sin(0) — zero offset, zero velocity — so the hover is
+        // simply present throughout, contributing nothing at the start,
+        // growing underneath the flight, and left alone once the flight has
+        // reached its end. There is no moment at which one stops and another
+        // starts, because there is only ever one.
+        final phase = _scene.value * math.pi * 2;
         final float = math.sin(phase) * widget.height * 0.032;
         // Wider than it is tall, and on its own slower period, so the breath
         // never locks into the float and turns the pair into one bob.

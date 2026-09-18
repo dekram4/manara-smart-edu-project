@@ -90,21 +90,37 @@ class StudentSoundService {
       // `mixWithOthers` asks for no focus at all, so a tap, a card landing and
       // the music simply sum. It also means the app no longer interrupts
       // whatever the student had playing before they opened it.
-      await AudioPlayer.global.setAudioContext(
-        AudioContext(
-          android: const AudioContextAndroid(
-            isSpeakerphoneOn: false,
-            stayAwake: false,
-            contentType: AndroidContentType.music,
-            usageType: AndroidUsageType.media,
-            audioFocus: AndroidAudioFocus.none,
-          ),
-          iOS: AudioContextIOS(
-            category: AVAudioSessionCategory.ambient,
-            options: const {AVAudioSessionOptions.mixWithOthers},
-          ),
+      final mixing = AudioContext(
+        android: const AudioContextAndroid(
+          isSpeakerphoneOn: false,
+          stayAwake: false,
+          contentType: AndroidContentType.music,
+          usageType: AndroidUsageType.media,
+          audioFocus: AndroidAudioFocus.none,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.ambient,
+          options: const {AVAudioSessionOptions.mixWithOthers},
         ),
       );
+      await AudioPlayer.global.setAudioContext(mixing);
+      // And on every player individually.
+      //
+      // Setting the global context alone was not enough, and this is why the
+      // music kept cutting out after that was supposedly fixed: the global
+      // context is the default handed to players *created after* it is set,
+      // and all four of these are final fields, constructed the moment this
+      // singleton is first touched — which happens before `initialize` runs.
+      // They had already taken a copy of the old default, with its exclusive
+      // focus request, and kept it.
+      for (final player in [
+        _effectsPlayer,
+        _voicePlayer,
+        _dealPlayer,
+        _ambientPlayer,
+      ]) {
+        await player.setAudioContext(mixing);
+      }
     } catch (_) {
       // An older plugin or a platform without audio: the app still runs, the
       // tap may just duck the music on that device.

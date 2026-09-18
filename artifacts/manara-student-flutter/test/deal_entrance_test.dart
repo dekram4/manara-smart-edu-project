@@ -89,8 +89,13 @@ void main() {
 
     await tester.pumpWidget(rail(tracker, controller));
     tracker.arm();
-    // Long enough for all twelve turns: 11 * 280ms + 800ms.
-    await settle(tester, 4200);
+    // Derived, not written down: the deal has been re-timed several times and
+    // a hardcoded wait here goes stale silently — it did, the first time this
+    // ran against a slower pace.
+    await settle(
+      tester,
+      DealtCardEntrance.dealSpanFor(12).inMilliseconds + 400,
+    );
 
     // Card 11 is far off the right edge and was never scrolled to. With a
     // lazily-built rail it would not even exist yet, which is why the later
