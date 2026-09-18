@@ -101,6 +101,15 @@ const List<_Frac> _cheerSpots = [
   Rect.fromLTRB(0.208, 0.545, 0.356, 0.870),
 ];
 
+/// The speech bubble, sitting just above the right-hand character's head.
+///
+/// Anchored to a figure rather than pinned to a corner of the screen: the line
+/// is an instruction to the student, and coming out of a character's mouth is
+/// what makes an instruction feel like encouragement instead of a label. Its
+/// tail points down at that character's head, so which of the two is speaking
+/// is never in doubt.
+const _Frac _speechBubble = Rect.fromLTRB(0.120, 0.372, 0.400, 0.520);
+
 /// The patch that hides the two children painted into the artwork.
 ///
 /// Their extent was measured off the image: they run from x 0.045 to 0.345 and
@@ -423,6 +432,20 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                     ),
                   ),
 
+                // What the character is saying. Drawn after the figures so the
+                // bubble sits in front of whoever is speaking.
+                Positioned.fromRect(
+                  rect: place(_speechBubble),
+                  child: IgnorePointer(
+                    child: _SpeechBubble(
+                      text: tr('path.chooseTitle'),
+                      // Breathes with the same clock as the waypoints, half a
+                      // cycle out, so the bubble lifts as the character lands.
+                      pulse: (_pulse.value + 0.5) % 1.0,
+                    ),
+                  ),
+                ),
+
                 // The blank scroll over the schoolhouse, now the school's name.
                 Positioned.fromRect(
                   rect: place(_scroll),
@@ -654,6 +677,136 @@ class _SceneryPatchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SceneryPatchPainter oldDelegate) => false;
+}
+
+/// A comic speech bubble with a tail pointing down at the character below it.
+class _SpeechBubble extends StatelessWidget {
+  const _SpeechBubble({required this.text, required this.pulse});
+
+  final String text;
+  final double pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final h = box.maxHeight;
+        // Sized from the box's own height so the line stays in proportion to
+        // the bubble at every screen shape, the way the fields in the squares
+        // are sized.
+        final fontSize = (h * 0.30).clamp(11.0, 26.0).toDouble();
+        // A small lift, in step with the character's bounce.
+        final lift = math.sin(pulse * math.pi * 2) * h * 0.035;
+        // The tail's share of the height, left free below the body.
+        final tailHeight = h * 0.22;
+
+        return Transform.translate(
+          offset: Offset(0, -lift),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  width: w,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: w * 0.07,
+                    vertical: h * 0.06,
+                  ),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(h * 0.30),
+                    border: Border.all(
+                      color: const Color(0xFF0E7490),
+                      width: math.max(2, h * 0.035),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: FittedBox(
+                    // The one place a FittedBox is right: a bubble is drawn to
+                    // fit its words, and there is no layout test guarding a
+                    // point size here — unlike the answers in the squares,
+                    // where scaling the type was the regression.
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF0B3F52),
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: tailHeight,
+                width: w,
+                child: CustomPaint(
+                  painter: _BubbleTailPainter(
+                    border: const Color(0xFF0E7490),
+                    borderWidth: math.max(2, h * 0.035),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The little pointer under the bubble, aimed at the character's head.
+class _BubbleTailPainter extends CustomPainter {
+  const _BubbleTailPainter({required this.border, required this.borderWidth});
+
+  final Color border;
+  final double borderWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Placed right of centre, over the character the bubble belongs to.
+    final tipX = size.width * 0.72;
+    final path = Path()
+      ..moveTo(size.width * 0.58, -borderWidth)
+      ..lineTo(size.width * 0.80, -borderWidth)
+      ..lineTo(tipX, size.height)
+      ..close();
+
+    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = borderWidth
+        ..strokeJoin = StrokeJoin.round,
+    );
+    // Paint over the join with the bubble so the shared edge does not show
+    // as a line across the mouth of the tail.
+    canvas.drawRect(
+      Rect.fromLTWH(
+        size.width * 0.58 + borderWidth * 0.6,
+        -borderWidth * 1.6,
+        size.width * 0.22 - borderWidth * 1.2,
+        borderWidth * 2,
+      ),
+      Paint()..color = Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubbleTailPainter old) =>
+      old.border != border || old.borderWidth != borderWidth;
 }
 
 /// One "my character" card bouncing on the spot, cheering the student on.

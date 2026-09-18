@@ -95,5 +95,8 @@ flutter_launcher_icons:
   # crops anything outside the middle 61%. The foreground image is drawn
   # with the artwork inside 60% of the canvas for exactly that reason, so
   # no launcher shape clips the character or the mark.
-  adaptive_icon_background: "#FFF4DF"
+  # Matches the blue of the round shield in the full icon, so a launcher
+  # that composes the foreground over this background produces the same
+  # design as one that uses the legacy icon — not a hero floating on cream.
+  adaptive_icon_background: "#2E9BD6"
   adaptive_icon_foreground: "tool/launcher_icon/app_launcher_icon_foreground.png"

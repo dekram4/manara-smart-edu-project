@@ -513,27 +513,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           ),
                         ),
                       ),
-                    // The instruction, back at the top of the screen.
-                    //
-                    // Kept clear of the gem and level chips on the right
-                    // rather than centred on the screen: centred, it collided
-                    // with them on a narrow window, and a title that has to be
-                    // read around something else is not a title.
-                    if (_ready)
-                      Positioned(
-                        top: 6,
-                        left: 10,
-                        right: 168,
-                        child: _FlyAway(
-                          away: _leaving,
-                          angle: -0.12,
-                          delay: const Duration(milliseconds: 40),
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: _PathTitle(text: tr('path.chooseTitle')),
-                          ),
-                        ),
-                      ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -718,63 +697,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     setState(() => _journeyStage = next);
   }
 
-}
-
-/// The screen's instruction, on a plaque that reads over the painted scene.
-///
-/// A plate rather than bare text: the artwork behind it is sky in one place
-/// and a schoolhouse roof in another, and Arabic set straight onto that is
-/// legible in one spot and not the next. The plate gives the line one ground
-/// of its own wherever it lands.
-class _PathTitle extends StatelessWidget {
-  const _PathTitle({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xF2155E75), Color(0xF20E7490)],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8B75A), width: 2),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.explore_rounded, color: Color(0xFFFFD27A), size: 20),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                shadows: [
-                  Shadow(
-                    color: Colors.black38,
-                    blurRadius: 3,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// The chunky 3D "start the adventure" button on the lower books.

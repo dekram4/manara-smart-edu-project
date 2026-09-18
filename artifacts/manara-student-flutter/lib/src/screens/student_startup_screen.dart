@@ -362,7 +362,7 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
   /// across repeats — so the flight plays through exactly one cycle, reaches
   /// its end, and simply stays there while the same clock goes on driving the
   /// breath. One timeline, running forward, start to finish.
-  static const _sceneLength = Duration(milliseconds: 2800);
+  static const _sceneLength = Duration(milliseconds: 2500);
 
   late final AnimationController _scene = AnimationController(
     vsync: this,
@@ -398,7 +398,10 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
       errorBuilder: (_, __, ___) => SizedBox(height: widget.height),
     );
 
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return image;
+    // No early return for reduced motion either: that too would be a second
+    // shape for the same slot. When motion is off the controller is simply
+    // parked at 1, which lands the figure at rest — the same tree, the same
+    // single `Image`, just not moving.
     return AnimatedBuilder(
       animation: _scene,
       child: image,
@@ -409,7 +412,14 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
         // exactly once and a hover that never stops.
         final elapsedMs =
             (_scene.lastElapsedDuration ?? Duration.zero).inMilliseconds;
-        final t = (elapsedMs / _sceneLength.inMilliseconds).clamp(0.0, 1.0);
+        // While it runs, progress comes from elapsed time so the cinematic
+        // survives the controller looping. Parked — which is what reduced
+        // motion does, at 1 — there is no elapsed time to read, so the value
+        // itself stands in and the figure sits at the end of the scene rather
+        // than at the start of it.
+        final t = _scene.isAnimating
+            ? (elapsedMs / _sceneLength.inMilliseconds).clamp(0.0, 1.0)
+            : _scene.value;
 
         // ── Flight ──────────────────────────────────────────────────────
         // A caped figure, so it flies in rather than hops: from off to the
@@ -511,13 +521,33 @@ class _SpinAway extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!away) return child;
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      return const SizedBox.shrink();
-    }
-    return child
-        .animate()
-        .scaleXY(begin: 1, end: 0.04, duration: duration, curve: Curves.easeInCubic)
-        .fadeOut(duration: duration, curve: Curves.easeInCubic);
+    // One shape, always. The branch that used to be here is what made the
+    // character blink out and fly in a second time.
+    //
+    // It returned the bare child while the composition was staying, and an
+    // `Animate` wrapper once it was leaving. Those are different widget types
+    // at the same position, so at the two-second mark Flutter unmounted the
+    // whole subtree and built it again — taking the character's State, and
+    // with it the controller driving the flight. The replacement started its
+    // scene from zero: invisible for a frame, then flying in all over again,
+    // in the middle of the screen's exit.
+    //
+    // `AnimatedScale` and `AnimatedOpacity` are in the tree whether the screen
+    // is leaving or not, and only their targets change. The subtree below them
+    // is never rebuilt, so the character's clock runs once from beginning to
+    // end.
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final span = reduced ? Duration.zero : duration;
+    return AnimatedScale(
+      scale: away ? 0.04 : 1,
+      duration: span,
+      curve: Curves.easeInCubic,
+      child: AnimatedOpacity(
+        opacity: away ? 0 : 1,
+        duration: span,
+        curve: Curves.easeInCubic,
+        child: child,
+      ),
+    );
   }
 }
