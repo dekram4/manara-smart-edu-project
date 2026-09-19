@@ -83,6 +83,40 @@ void main() {
     expect(sent.single, contains('DeviceOrientation.landscapeLeft'));
   });
 
+  testWidgets('fullscreen video turns the device to the video\'s shape',
+      (tester) async {
+    // Only releasing the orientation left a phone held upright showing a
+    // wide video as a thin strip across the middle of the screen.
+    final sent = <List<String>>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'SystemChrome.setPreferredOrientations') {
+          sent.add(List<String>.from(call.arguments as List));
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await StudentOrientation.fitVideo(landscape: true);
+    expect(sent.last, [
+      'DeviceOrientation.landscapeLeft',
+      'DeviceOrientation.landscapeRight',
+    ]);
+
+    await StudentOrientation.fitVideo(landscape: false);
+    expect(sent.last, ['DeviceOrientation.portraitUp']);
+
+    // And leaving hands every orientation back, not a pinned one.
+    await StudentOrientation.apply();
+    expect(sent.last, contains('DeviceOrientation.portraitUp'));
+    expect(sent.last, contains('DeviceOrientation.landscapeLeft'));
+  });
+
   testWidgets(
       'closing any pushed screen releases an orientation an embed pinned',
       (tester) async {

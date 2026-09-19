@@ -1315,6 +1315,11 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     final controller = widget.controller;
     final wasPlaying = controller.value.isPlaying;
     final position = controller.value.position;
+    // Known already from the inline player, so the device can turn the
+    // moment the fullscreen route opens rather than after its own player
+    // has loaded. An unknown size counts as wide, like nearly every lesson.
+    final size = controller.value.size;
+    final landscape = size.isEmpty || size.width >= size.height;
     await controller.pause();
     // الإيقاف فجوة غير متزامنة: لو غادر الطالب الشاشة أثناءها صار
     // `context` معزولاً عن الشجرة، و`Navigator.of` عليه يرمي استثناءً.
@@ -1326,6 +1331,7 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
           apiBaseUrl: widget.apiBaseUrl,
           initialPosition: position,
           autoPlay: wasPlaying,
+          landscape: landscape,
         ),
       ),
     );
@@ -1519,12 +1525,17 @@ class _FullscreenNetworkVideoScreen extends StatefulWidget {
     required this.apiBaseUrl,
     required this.initialPosition,
     required this.autoPlay,
+    required this.landscape,
   });
 
   final LessonVideo video;
   final String apiBaseUrl;
   final Duration initialPosition;
   final bool autoPlay;
+
+  /// Whether the video is wider than it is tall — decides which way the
+  /// device is turned while it plays.
+  final bool landscape;
 
   @override
   State<_FullscreenNetworkVideoScreen> createState() =>
@@ -1547,15 +1558,16 @@ class _FullscreenNetworkVideoScreenState
     // Back looked dead until the student turned the tablet in their hands.
     //
     // The portrait nudge that used to sit here is gone with it. It was
-    // only ever a workaround for that stall, and now that the app itself
-    // runs landscape it would have spun the tablet upright on the way out
-    // only for the scope's own restore to swing it straight back.
+    // only ever a workaround for that stall. The scope's own restore puts
+    // the device back on the app's policy as the route pops, so a phone
+    // the student turns upright again comes back upright.
     if (mounted) Navigator.of(context).pop(state);
   }
 
   @override
   Widget build(BuildContext context) {
     return _FullscreenOrientationScope(
+      landscape: widget.landscape,
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {
@@ -1563,32 +1575,40 @@ class _FullscreenNetworkVideoScreenState
         },
         child: Scaffold(
           backgroundColor: Colors.black,
-          body: SafeArea(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Center(
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: StudentVideoPlayer(
-                      key: _playerKey,
-                      video: widget.video,
-                      apiBaseUrl: widget.apiBaseUrl,
-                      initialPosition: widget.initialPosition,
-                      autoPlay: widget.autoPlay,
-                      fullscreen: true,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              // The whole screen, edge to edge. This used to be a fixed
+              // `AspectRatio(16 / 9)` centred inside a `SafeArea`: on any
+              // screen not exactly 16:9 that box was smaller than the
+              // screen on one side, and the safe-area insets shrank it
+              // again. The surface inside fits the picture with
+              // `BoxFit.contain`, so it is as large as the screen allows
+              // without cropping or stretching.
+              SizedBox.expand(
+                child: StudentVideoPlayer(
+                  key: _playerKey,
+                  video: widget.video,
+                  apiBaseUrl: widget.apiBaseUrl,
+                  initialPosition: widget.initialPosition,
+                  autoPlay: widget.autoPlay,
+                  fullscreen: true,
+                ),
+              ),
+              // Only the back button keeps clear of the notch and rounded
+              // corners — the picture itself does not need to.
+              SafeArea(
+                child: Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: _FullscreenBackButton(
+                      onPressed: _exitFullscreen,
                     ),
                   ),
                 ),
-                PositionedDirectional(
-                  top: 12,
-                  start: 12,
-                  child: _FullscreenBackButton(
-                    onPressed: _exitFullscreen,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1692,8 +1712,13 @@ class _FullscreenBackButton extends StatelessWidget {
 }
 
 class _FullscreenOrientationScope extends StatefulWidget {
-  const _FullscreenOrientationScope({required this.child});
+  const _FullscreenOrientationScope({
+    required this.landscape,
+    required this.child,
+  });
 
+  /// Whether the video is wider than it is tall.
+  final bool landscape;
   final Widget child;
 
   @override
@@ -1702,24 +1727,51 @@ class _FullscreenOrientationScope extends StatefulWidget {
 }
 
 class _FullscreenOrientationScopeState
-    extends State<_FullscreenOrientationScope> {
+    extends State<_FullscreenOrientationScope> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // The player is the one place the app's own landscape policy is
-    // lifted rather than narrowed. This used to pin landscape, which is
-    // now what the whole app does anyway — and pinning it here would mean
-    // a lesson filmed in portrait is letterboxed into a wide frame with
-    // the student unable to turn the tablet to fill it. Released for as
-    // long as the video is up; `dispose` and the pop below hand the device
-    // back to the app's policy.
-    unawaited(StudentOrientation.release());
+    WidgetsBinding.instance.addObserver(this);
+    _enter();
+  }
+
+  /// Turns the device to the video's own shape and takes the whole screen.
+  ///
+  /// This used to only *release* the orientation, on the idea that the
+  /// student would turn the device themselves. They did not: a phone held
+  /// upright stayed upright, and a wide video fitted to its width was a
+  /// thin strip in the middle — fullscreen in name only. A wide video now
+  /// turns the device to landscape; one filmed upright keeps it upright,
+  /// where it fills the screen rather than being letterboxed into a wide
+  /// one.
+  void _enter() {
+    unawaited(StudentOrientation.fitVideo(landscape: widget.landscape));
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Unlocking the device hands the orientation back to the app through
+    // the route's own orientation guard, which runs first; the video is
+    // still up, so it takes the landscape and the full screen back.
+    if (state == AppLifecycleState.resumed && mounted) _enter();
   }
 
   @override
   void dispose() {
-    _restoreAppOrientation();
+    WidgetsBinding.instance.removeObserver(this);
+    _leave();
     super.dispose();
+  }
+
+  /// Back on the app's orientation policy — upright again for a phone held
+  /// upright — without pinning portrait, which is the bug that once left
+  /// the whole app stuck in portrait after one video. The bars stay hidden:
+  /// the lesson or cinema card underneath runs immersive too, and handing
+  /// them back here would flash them over the card on the way out.
+  void _leave() {
+    _restoreAppOrientation();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   @override
@@ -1732,7 +1784,7 @@ class _FullscreenOrientationScopeState
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) _restoreAppOrientation();
+        if (didPop) _leave();
       },
       child: widget.child,
     );
