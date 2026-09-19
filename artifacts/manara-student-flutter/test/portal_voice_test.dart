@@ -41,12 +41,26 @@ void main() {
     }
   });
 
-  test('the Arabic lines are recorded in a Saudi voice', () {
-    // Ava read them in stiff formal Arabic; the lines are now Saudi dialect,
-    // and only a Saudi voice says them that way.
+  test('both languages are recorded in the welcome\'s own voice', () {
+    // Both greetings — welcome.mp3 and the hub's welcome — are this voice at
+    // these settings; any other voice is a second speaker.
     final tool = File('tool/build_portal_voices.py').readAsStringSync();
-    expect(tool, contains('"voice": "ar-SA-'));
-    expect(tool, contains('"ar": SAUDI_VOICE'));
+    expect(
+      tool,
+      contains('WELCOME_VOICE = {"voice": "en-US-AvaMultilingualNeural", '
+          '"pitch": "+18Hz", "rate": "-12%"}'),
+    );
+    expect(tool, contains('VOICES = {"ar": WELCOME_VOICE, "en": WELCOME_VOICE}'));
+  });
+
+  test('the path screen has its greeting recorded in both languages', () {
+    expect(StudentStrings.has('path.voice'), isTrue);
+    for (final language in ['ar', 'en']) {
+      final clip = File('assets/audio/voice/path_$language.mp3');
+      expect(clip.existsSync(), isTrue,
+          reason: '${clip.path} is missing — run tool/build_portal_voices.py');
+      expect(clip.lengthSync(), greaterThan(1000));
+    }
   });
 
   test('the clips folder is bundled with the app', () {

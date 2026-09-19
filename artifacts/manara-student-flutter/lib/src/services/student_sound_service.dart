@@ -194,6 +194,9 @@ class StudentSoundService with WidgetsBindingObserver {
     if (_backgrounded) return;
     _backgrounded = true;
     _applauseCancelled = true;
+    // The line is being cut, so nothing is left for the music to duck under.
+    _voiceClip = null;
+    _duckAmbient(false);
     unawaited(() async {
       for (final stop in [
         _voicePlayer.stop,
@@ -272,6 +275,7 @@ class StudentSoundService with WidgetsBindingObserver {
     try {
       final asset = portalVoiceAsset(portalKey, language, await _bundledAssets());
       await _voicePlayer.stop();
+      _voiceClip = asset;
       // As loud as the welcome, not louder: the clips are mastered hotter
       // than welcome.mp3 (speech RMS 0.090 against 0.061), and the welcome
       // plays at 0.85, so 0.58 puts the two at the same level.
@@ -279,6 +283,47 @@ class StudentSoundService with WidgetsBindingObserver {
     } catch (_) {
       // No audio on this device: the screen opens in silence.
     }
+  }
+
+  /// The clip the voice player was last asked to play.
+  String? _voiceClip;
+
+  static String _pathClip(String language) => 'audio/voice/path_$language.mp3';
+
+  /// Greets the student on the path-choosing screen: «مَرْحَبًا يَا بَطَل!
+  /// اِخْتَرْ مَسَارَكَ التَّعْلِيمِيَّ…», recorded in the welcome's voice like
+  /// the portal lines (`path.voice`, rendered by
+  /// `tool/build_portal_voices.py`).
+  ///
+  /// The music, if it is playing, is lowered underneath the line and brought
+  /// back when the line ends or is stopped — the sentence is the point here.
+  Future<void> speakPath() async {
+    if (muted.value || _backgrounded) return;
+    final asset = _pathClip(StudentSettings.isArabic ? 'ar' : 'en');
+    try {
+      await _voicePlayer.stop();
+      _voiceClip = asset;
+      _duckAmbient(true);
+      unawaited(_voicePlayer.onPlayerComplete.first.then(
+        (_) => _duckAmbient(false),
+        onError: (_) => _duckAmbient(false),
+      ));
+      await _voicePlayer.play(AssetSource(asset), volume: 0.58);
+    } catch (_) {
+      _duckAmbient(false);
+      // No audio on this device: the path is still there to choose.
+    }
+  }
+
+  /// Stops the path greeting if it is still what is being said.
+  ///
+  /// Only that line: the path screen is torn down after the hub has already
+  /// started its own welcome on the same player, and a blanket stop there
+  /// would cut the hub's greeting off instead.
+  Future<void> stopPathVoice() async {
+    final clip = _voiceClip;
+    if (clip == null || !clip.startsWith('audio/voice/path_')) return;
+    await stopSpeaking();
   }
 
   /// The clip to play for [portalKey] in [language], given the asset paths
@@ -315,9 +360,30 @@ class StudentSoundService with WidgetsBindingObserver {
 
   /// Silences any portal line still being spoken.
   Future<void> stopSpeaking() async {
+    _voiceClip = null;
+    _duckAmbient(false);
     try {
       await _voicePlayer.stop();
     } catch (_) {}
+  }
+
+  /// Whether the music is lowered under a spoken line.
+  bool _ambientDucked = false;
+
+  /// Quiet enough to sit under a spoken lesson without competing with it.
+  /// Music a child cannot talk over is music they will switch off.
+  static const _ambientVolume = 0.05;
+
+  /// Under a greeting: still there, but only just.
+  static const _ambientDuckedVolume = 0.015;
+
+  void _duckAmbient(bool duck) {
+    if (_ambientDucked == duck) return;
+    _ambientDucked = duck;
+    if (!_ambientPlaying) return;
+    unawaited(_ambientPlayer
+        .setVolume(duck ? _ambientDuckedVolume : _ambientVolume)
+        .catchError((_) {}));
   }
 
   Future<void> _play(StudentSoundCue cue) async {
@@ -365,6 +431,7 @@ class StudentSoundService with WidgetsBindingObserver {
         StudentSoundCue.levelUp => 'audio/success-reward.wav',
       };
       await player.stop();
+      if (isVoice) _voiceClip = asset;
       await player.play(AssetSource(asset), volume: isVoice ? 0.78 : 0.56);
     } catch (_) {
       // Audio is an enhancement and must never block a lesson or assessment.
@@ -433,9 +500,9 @@ class StudentSoundService with WidgetsBindingObserver {
         await _ambientPlayer.resume();
       } else if (shouldPlay) {
         await _ambientPlayer.setReleaseMode(ReleaseMode.loop);
-        // Quiet enough to sit under a spoken lesson without competing with
-        // it. Music a child cannot talk over is music they will switch off.
-        await _ambientPlayer.setVolume(0.05);
+        await _ambientPlayer.setVolume(
+          _ambientDucked ? _ambientDuckedVolume : _ambientVolume,
+        );
         await _ambientPlayer.play(AssetSource('audio/kids_bgm.mp3'));
       } else if (_backgrounded) {
         _ambientHeld = true;

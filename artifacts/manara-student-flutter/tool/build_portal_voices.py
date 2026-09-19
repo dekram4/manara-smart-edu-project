@@ -19,18 +19,31 @@ The first version of these clips used `ar-SA-ZariyahNeural` raised by 35 Hz,
 chosen on pitch alone. Its similarity to the welcome was 0.69 — a different
 voice, which is exactly what the student heard.
 
-The Arabic lines have since moved to a Saudi voice, `ar-SA-HamedNeural`. Ava
-read them correctly but in stiff Modern Standard Arabic, which is not how
-anyone speaks to a Saudi child. The lines themselves are now written in white
-Saudi dialect and fully vowelled — the tashkeel is what makes the voice say
-«خَلِّك» and «شُوف» as spoken dialect rather than guessing at a formal reading.
-+2 Hz keeps the tone warm without the synthetic lift of a larger shift, and
--5% gives a child time to follow every word.
+The same voice and settings read the English lines: Ava is natively English,
+so the two languages now also sound like one speaker.
 
-English still uses Ava at the welcome's settings, as before.
+The second greeting — `manara-arabic-student-welcome.mp3`, spoken on the hub
+once the path is chosen — is the same speaker. Transcribed, it is «مرحباً يا
+بطل، أهلاً بك في منصة منارة المعرفة، سعداء جداً بانضمامك إلينا، هيا نبدأ رحلة
+التعلم والمغامرة», in Modern Standard Arabic, at a median pitch of 250 Hz —
+the very pitch Ava reaches at the settings below. Both greetings are formal
+Arabic, so these lines are too.
+
+A Saudi-dialect version in `ar-SA-HamedNeural` was tried and dropped: a
+different speaker from both greetings, which is the mismatch this whole script
+exists to prevent.
+
+**Pronunciation comes from the tashkeel.** Every Arabic line is fully
+vowelled — case endings, hamzas and shaddas written out — except the last
+letter of a word the voice pauses on, which is left bare so the engine makes
+its own natural pause there. Checked by transcribing each render back with
+Whisper: a written pausal sukun was what broke words («الصَّعْبَةْ» came back
+as «الصعبت», «رَائِعْ» as «رع», «بَطَلْ» as «بط»), and all three read cleanly
+once that sukun was dropped («رَائِعٌ» keeps its tanween for the same reason).
 
 The text is read from `lib/src/l10n/student_strings.dart` — every
-`portal.<name>.voice` key and `portal.voice.generic` — so a reworded line is
+`portal.<name>.voice` key, `portal.voice.generic`, and `path.voice` for the
+path-choosing screen (recorded as `path_<language>.mp3`) — so a reworded line is
 re-recorded by running this again, not by editing a second copy here.
 
 Run with:
@@ -55,18 +68,17 @@ ROOT = os.path.dirname(HERE)
 STRINGS = os.path.join(ROOT, "lib", "src", "l10n", "student_strings.dart")
 OUT_DIR = os.path.join(ROOT, "assets", "audio", "voice")
 
-# The welcome's own voice, as identified in the module docstring, for English;
-# a native Saudi voice for Arabic (`ar-SA-ZariyahNeural` is the female
-# alternative at the same settings). Keep the file naming in step with
+# The welcome's own voice, as identified in the module docstring, for both
+# languages. Keep the file naming in step with
 # `StudentSoundService.portalVoiceAsset`.
 WELCOME_VOICE = {"voice": "en-US-AvaMultilingualNeural", "pitch": "+18Hz", "rate": "-12%"}
-SAUDI_VOICE = {"voice": "ar-SA-HamedNeural", "pitch": "+2Hz", "rate": "-5%"}
-VOICES = {"ar": SAUDI_VOICE, "en": WELCOME_VOICE}
+VOICES = {"ar": WELCOME_VOICE, "en": WELCOME_VOICE}
 
 # `'portal.lesson.voice': 'text',` — the value may wrap onto the next line, and
 # may be in either quote style when it contains an apostrophe.
 LINE = re.compile(
-    r"'portal\.(?:(?P<name>[a-z]+)\.voice|voice\.(?P<generic>generic))'\s*:\s*"
+    r"'(?:portal\.(?:(?P<name>[a-z]+)\.voice|voice\.(?P<generic>generic))"
+    r"|(?P<path>path)\.voice)'\s*:\s*"
     r"(?P<quote>['\"])(?P<text>.*?)(?P=quote)\s*,",
     re.DOTALL,
 )
@@ -75,7 +87,7 @@ LINE = re.compile(
 def lines_for(block: str) -> dict[str, str]:
     found = {}
     for match in LINE.finditer(block):
-        name = match.group("name") or match.group("generic")
+        name = match.group("name") or match.group("generic") or match.group("path")
         found[name] = match.group("text")
     return found
 

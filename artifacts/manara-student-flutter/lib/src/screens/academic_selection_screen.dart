@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -81,6 +82,19 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _loadSelectionData();
     }
     _loadGamification();
+    // The screen greets the student once it is on screen, in the same voice
+    // as the welcome before it and the hub after it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(StudentSoundService.instance.speakPath());
+    });
+  }
+
+  @override
+  void dispose() {
+    // Leaving mid-sentence ends the sentence. Screen locks are handled by
+    // the sound service itself.
+    unawaited(StudentSoundService.instance.stopPathVoice());
+    super.dispose();
   }
 
   Future<void> _loadGamification() async {
@@ -403,6 +417,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     final selection = _selection;
     if (selection == null || _isEntering) return;
     StudentSoundService.instance.playTap();
+    // Silenced here, at the tap, rather than in dispose: by the time this
+    // route is torn down the hub has begun its own welcome on the same player.
+    unawaited(StudentSoundService.instance.stopPathVoice());
     // The characters fly off before the route changes, so starting the
     // adventure reads as them leading the way rather than as a cut.
     setState(() {
