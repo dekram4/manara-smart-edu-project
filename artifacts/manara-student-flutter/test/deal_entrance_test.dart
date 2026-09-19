@@ -66,22 +66,22 @@ void main() {
         .getMaxScaleOnAxis();
   }
 
-  test('the deal is strictly serial and quick: 320ms a card, the next at 340ms',
-      () {
-    // Asked for by name: a card may only leave once the one before it has
-    // stopped. That holds exactly when the step is longer than the flight.
+  test('the ten portals run from one second to ten, evenly', () {
+    // The rail's budget, asked for by name: the first card sets off a
+    // second after the hub opens and the tenth is in place at ten.
+    expect(DealtCardEntrance.defaultStartDelay, const Duration(seconds: 1));
+    expect(DealtCardEntrance.totalFor(10), const Duration(seconds: 10));
+    // Evenly: every card takes the same time and the steps are equal.
     expect(DealtCardEntrance.defaultDuration,
-        const Duration(milliseconds: 320));
+        const Duration(milliseconds: 900));
     expect(DealtCardEntrance.defaultStagger,
-        const Duration(milliseconds: 340));
+        const Duration(milliseconds: 900));
+    // A card may only leave once the one before it has stopped, which
+    // holds exactly when the step is at least as long as the flight.
     expect(DealtCardEntrance.defaultStagger,
         greaterThanOrEqualTo(DealtCardEntrance.defaultDuration));
-    // And quick, which was asked for just as plainly: the last of the ten
-    // portals lands 3.38s after the rail is armed, not 17 as it once did.
     expect(DealtCardEntrance.dealSpanFor(10),
-        const Duration(milliseconds: 9 * 340 + 320));
-    expect(DealtCardEntrance.defaultStartDelay,
-        lessThanOrEqualTo(const Duration(seconds: 1)));
+        const Duration(milliseconds: 9 * 900 + 900));
   });
 
   testWidgets('never two cards in the air at once', (tester) async {
@@ -100,9 +100,9 @@ void main() {
       return opacity > 0.0 && (opacity < 1.0 || scale > 1.0005);
     }
 
-    // Sampled finer than the 20ms beat between one card landing and the
-    // next leaving, so a card that set off early cannot hide between frames.
-    const step = 10;
+    // Sampled far finer than the 900ms step, so a card that set off early
+    // cannot hide between frames.
+    const step = 30;
     final span = DealtCardEntrance.defaultStagger.inMilliseconds * 4 + 200;
     final landed = <int>{};
     for (var frame = 0; frame * step < span; frame++) {

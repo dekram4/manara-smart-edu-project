@@ -80,8 +80,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// runs ten seconds, so they sat behind the six-second fallback every
   /// time — and then dealt at 1.7s a card, the last one landing some
   /// twenty seconds after the path was chosen. They now start under the
-  /// greeting, well inside a second.
-  static const _dealAfter = Duration(milliseconds: 600);
+  /// greeting, on the rail's own opening beat, and the ten of them are in
+  /// place ten seconds after the hub opens.
+  static const _dealAfter = DealtCardEntrance.defaultStartDelay;
   bool _openingTutor = false;
 
   /// The lesson every card opens against. It starts as whatever the path

@@ -1296,11 +1296,13 @@ class _NetworkVideoSurface extends StatefulWidget {
 class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   bool _showControls = true;
 
-  /// Whether the enlarged video is zoomed to fill the screen. Off by
-  /// default: the whole picture, undistorted, as large as the screen
-  /// allows. The student can zoom in from the control bar — useful for a
-  /// clip with blurred bars baked into its own sides.
-  bool _fill = false;
+  /// Whether the enlarged video fills the screen. On by default: the
+  /// picture covers every pixel, at its true proportions, with whatever
+  /// overflows the screen's shape cropped off. `contain` left black bars
+  /// above and below instead, which is the "squeezed in the middle"
+  /// report. The student can switch to the whole picture from the control
+  /// bar.
+  bool _fill = true;
 
   /// Hides the controls after a few idle seconds of playback.
   ///
@@ -1382,8 +1384,9 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     return Builder(
       builder: (context) {
         // Cropped in the card, where the frame is 16:9 and a portrait
-        // source must still fill its width. Enlarged, the whole picture is
-        // shown unless the student zooms in.
+        // source must still fill its width — and enlarged, where the
+        // screen is filled edge to edge unless the student asks for the
+        // whole picture.
         final fill = widget.fullscreen ? _fill : true;
 
         return GestureDetector(

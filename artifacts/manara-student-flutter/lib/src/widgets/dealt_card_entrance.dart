@@ -56,12 +56,12 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultDuration = Duration(milliseconds: 320);
+  static const defaultDuration = Duration(milliseconds: 900);
 
-  /// The flight plus a 20ms beat, so each card is at rest in its place
-  /// before the next one sets off.
-  static const defaultStagger = Duration(milliseconds: 340);
-  static const defaultStartDelay = Duration(milliseconds: 600);
+  /// One card sets off exactly as the one before it lands: an even, unbroken
+  /// procession, and still only one card in the air at a time.
+  static const defaultStagger = Duration(milliseconds: 900);
+  static const defaultStartDelay = Duration(seconds: 1);
 
   /// How long the deal itself runs, measured from the moment the rail is
   /// armed. This is what the music waits for.
@@ -99,7 +99,8 @@ class DealtCardEntrance extends StatefulWidget {
 
   /// Gap between one card starting and the next one starting.
   ///
-  /// Must be at least [duration]. It used to be shorter — 650ms, then 800ms,
+  /// Must be at least [duration], and equal to it here: the next card
+  /// leaves on the beat the previous one lands. It used to be shorter — 650ms, then 800ms,
   /// against a much longer flight — which put two and three cards in the air
   /// at once, each still turning and shrinking over the one before. Longer
   /// than the flight is what makes the deal strictly serial: the previous card
@@ -113,11 +114,12 @@ class DealtCardEntrance extends StatefulWidget {
 
   /// How long a single card takes to arrive.
   ///
-  /// Quick. It was 1600ms, with 1.7s between cards, which left ten cards
-  /// still arriving twenty seconds after the hub opened — the "cards take
-  /// forever to appear" report. At 320ms with one card in the air at a time
-  /// the whole rail is in place in about four seconds, the first card inside
-  /// one.
+  /// Set from the whole rail's budget rather than chosen on its own: the
+  /// ten portals are asked to start a second after the hub opens and to be
+  /// in place ten seconds after it, so the nine steps plus the last card's
+  /// flight divide the remaining nine seconds evenly — 900ms each. Earlier
+  /// settings missed at both ends: 1600/1700ms left the last card arriving
+  /// twenty seconds in, 320/340ms put them all down inside four.
   final Duration duration;
 
   /// How long the rail waits before dealing anything at all, when no screen
