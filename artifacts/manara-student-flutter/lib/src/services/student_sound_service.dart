@@ -2,8 +2,8 @@
 import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/student_strings.dart';
@@ -41,7 +41,11 @@ class StudentSoundGate {
 /// Owns student-facing sounds. Voices and UI feedback have separate players so
 /// a short confirmation never cuts off the welcome message, while each group
 /// is still stopped before replaying to avoid overlap.
-class StudentSoundService {
+///
+/// It also watches the app's lifecycle, so nothing keeps sounding once the
+/// screen is locked or the app leaves the foreground — see
+/// [didChangeAppLifecycleState].
+class StudentSoundService with WidgetsBindingObserver {
   StudentSoundService._();
 
   static final StudentSoundService instance = StudentSoundService._();
@@ -72,12 +76,20 @@ class StudentSoundService {
   /// Set while a lesson is open, so the music steps aside for the teaching.
   bool _ambientSuspended = false;
   bool _ambientPlaying = false;
+
+  /// Set while the screen is locked or the app is in the background.
+  bool _backgrounded = false;
+
+  /// The music was paused, not stopped, by going to the background, so it
+  /// picks up where it left off instead of restarting the loop.
+  bool _ambientHeld = false;
   late final AudioService _feedbackAudio = AudioService(muted: muted);
   bool _initialized = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
+    WidgetsBinding.instance.addObserver(this);
     try {
       // Why the music stopped the instant a card was touched.
       //
@@ -158,6 +170,45 @@ class StudentSoundService {
     } catch (_) {}
   }
 
+  /// Silences everything the moment the screen locks or the app leaves the
+  /// foreground, and brings only the music back on return.
+  ///
+  /// Without this the players simply carried on: `audioplayers` has no idea
+  /// the screen went dark, and with `stayAwake: false` and no audio focus
+  /// nothing else stops them either — so a tablet in a bag kept playing the
+  /// loop and whatever line was mid-sentence.
+  ///
+  /// `inactive` counts as leaving too: it is the first state a lock passes
+  /// through, and on some devices the only one before the process is frozen.
+  /// A spoken line or a chime cut off there is not resumed — half a sentence
+  /// minutes later means nothing. The music is, from where it paused, and
+  /// only if the screen that was showing still wants it.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_backgrounded) return;
+      _backgrounded = false;
+      unawaited(_syncAmbient());
+      return;
+    }
+    if (_backgrounded) return;
+    _backgrounded = true;
+    _applauseCancelled = true;
+    unawaited(() async {
+      for (final stop in [
+        _voicePlayer.stop,
+        _effectsPlayer.stop,
+        _dealPlayer.stop,
+        _feedbackAudio.stop,
+      ]) {
+        try {
+          await stop();
+        } catch (_) {}
+      }
+    }());
+    unawaited(_syncAmbient());
+  }
+
   void play(StudentSoundCue cue) {
     unawaited(_play(cue));
   }
@@ -216,7 +267,7 @@ class StudentSoundService {
   /// Every failure here is swallowed. A missing clip or a platform with no
   /// audio is not a reason a lesson should not open.
   Future<void> speakPortal(String portalKey) async {
-    if (muted.value) return;
+    if (muted.value || _backgrounded) return;
     final language = StudentSettings.isArabic ? 'ar' : 'en';
     try {
       final asset = portalVoiceAsset(portalKey, language, await _bundledAssets());
@@ -270,7 +321,7 @@ class StudentSoundService {
   }
 
   Future<void> _play(StudentSoundCue cue) async {
-    if (muted.value || !_gate.allow(cue)) return;
+    if (muted.value || _backgrounded || !_gate.allow(cue)) return;
     try {
       if (cue == StudentSoundCue.success) {
         await _feedbackAudio.playSuccess();
@@ -372,22 +423,31 @@ class StudentSoundService {
   /// Brings the player in line with whether anything wants music and whether
   /// the student has muted sound. Safe to call repeatedly.
   Future<void> _syncAmbient() async {
-    final shouldPlay = _ambientWanted && !_ambientSuspended && !muted.value;
+    final shouldPlay =
+        _ambientWanted && !_ambientSuspended && !muted.value && !_backgrounded;
     if (shouldPlay == _ambientPlaying) return;
     _ambientPlaying = shouldPlay;
     try {
-      if (shouldPlay) {
+      if (shouldPlay && _ambientHeld) {
+        _ambientHeld = false;
+        await _ambientPlayer.resume();
+      } else if (shouldPlay) {
         await _ambientPlayer.setReleaseMode(ReleaseMode.loop);
         // Quiet enough to sit under a spoken lesson without competing with
         // it. Music a child cannot talk over is music they will switch off.
         await _ambientPlayer.setVolume(0.05);
         await _ambientPlayer.play(AssetSource('audio/kids_bgm.mp3'));
+      } else if (_backgrounded) {
+        _ambientHeld = true;
+        await _ambientPlayer.pause();
       } else {
+        _ambientHeld = false;
         await _ambientPlayer.stop();
       }
     } catch (_) {
       // Missing asset or no audio backend: the app is fine without music.
       _ambientPlaying = false;
+      _ambientHeld = false;
     }
   }
 
@@ -402,7 +462,7 @@ class StudentSoundService {
   /// answered, and it costs nothing when the device has no motor.
   void playTap() {
     HapticFeedback.lightImpact();
-    if (muted.value) return;
+    if (muted.value || _backgrounded) return;
     unawaited(() async {
       try {
         await _dealPlayer.stop();
@@ -428,7 +488,7 @@ class StudentSoundService {
   /// own player so a card arriving never cuts off applause or a spoken phrase
   /// on the effects player.
   void playCardDeal() {
-    if (muted.value) return;
+    if (muted.value || _backgrounded) return;
     unawaited(() async {
       try {
         await _dealPlayer.stop();
@@ -524,13 +584,16 @@ class StudentSoundService {
   /// والاشتراك يُلغى عند كل خطوة، فلا يتراكم مستمعان على المشغّل نفسه لو
   /// بدأ تسلسل جديد قبل انتهاء السابق.
   Future<void> _playSequence(List<(String, double)> clips) async {
-    if (muted.value || clips.isEmpty) return;
+    if (muted.value || _backgrounded || clips.isEmpty) return;
     var index = 0;
     try {
       late StreamSubscription<void> sub;
       sub = _effectsPlayer.onPlayerComplete.listen((_) async {
         index++;
-        if (index >= clips.length || muted.value || _applauseCancelled) {
+        if (index >= clips.length ||
+            muted.value ||
+            _backgrounded ||
+            _applauseCancelled) {
           await sub.cancel();
           return;
         }

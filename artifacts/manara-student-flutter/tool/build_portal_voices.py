@@ -19,8 +19,15 @@ The first version of these clips used `ar-SA-ZariyahNeural` raised by 35 Hz,
 chosen on pitch alone. Its similarity to the welcome was 0.69 — a different
 voice, which is exactly what the student heard.
 
-The same voice and settings read the English lines: Ava is natively English,
-so the two languages now also sound like one speaker.
+The Arabic lines have since moved to a Saudi voice, `ar-SA-HamedNeural`. Ava
+read them correctly but in stiff Modern Standard Arabic, which is not how
+anyone speaks to a Saudi child. The lines themselves are now written in white
+Saudi dialect and fully vowelled — the tashkeel is what makes the voice say
+«خَلِّك» and «شُوف» as spoken dialect rather than guessing at a formal reading.
++2 Hz keeps the tone warm without the synthetic lift of a larger shift, and
+-5% gives a child time to follow every word.
+
+English still uses Ava at the welcome's settings, as before.
 
 The text is read from `lib/src/l10n/student_strings.dart` — every
 `portal.<name>.voice` key and `portal.voice.generic` — so a reworded line is
@@ -48,11 +55,13 @@ ROOT = os.path.dirname(HERE)
 STRINGS = os.path.join(ROOT, "lib", "src", "l10n", "student_strings.dart")
 OUT_DIR = os.path.join(ROOT, "assets", "audio", "voice")
 
-# The welcome's own voice, as identified in the module docstring, for both
-# languages. Keep the file naming in step with
+# The welcome's own voice, as identified in the module docstring, for English;
+# a native Saudi voice for Arabic (`ar-SA-ZariyahNeural` is the female
+# alternative at the same settings). Keep the file naming in step with
 # `StudentSoundService.portalVoiceAsset`.
 WELCOME_VOICE = {"voice": "en-US-AvaMultilingualNeural", "pitch": "+18Hz", "rate": "-12%"}
-VOICES = {"ar": WELCOME_VOICE, "en": WELCOME_VOICE}
+SAUDI_VOICE = {"voice": "ar-SA-HamedNeural", "pitch": "+2Hz", "rate": "-5%"}
+VOICES = {"ar": SAUDI_VOICE, "en": WELCOME_VOICE}
 
 # `'portal.lesson.voice': 'text',` — the value may wrap onto the next line, and
 # may be in either quote style when it contains an apostrophe.

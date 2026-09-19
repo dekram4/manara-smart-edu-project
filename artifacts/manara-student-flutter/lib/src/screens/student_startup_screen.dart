@@ -36,7 +36,8 @@ class StudentStartupScreen extends StatefulWidget {
   State<StudentStartupScreen> createState() => _StudentStartupScreenState();
 }
 
-class _StudentStartupScreenState extends State<StudentStartupScreen> {
+class _StudentStartupScreenState extends State<StudentStartupScreen>
+    with WidgetsBindingObserver {
   /// How long the characters take to pop in. The voice starts as the
   /// bounce does, not before, so the greeting lands with the movement.
   static const _entrance = Duration(milliseconds: 900);
@@ -77,6 +78,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _resolveDestination();
     _voiceTimer = Timer(_entrance, _playWelcomeVoice);
     _spinTimer = Timer(_spinAt, () {
@@ -87,6 +89,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _voiceTimer?.cancel();
     _dwellTimer?.cancel();
     _spinTimer?.cancel();
@@ -96,6 +99,18 @@ class _StudentStartupScreenState extends State<StudentStartupScreen> {
     _player?.dispose();
     _player = null;
     super.dispose();
+  }
+
+  /// The welcome is played here, not through `StudentSoundService`, so it
+  /// needs its own answer to the screen locking: stop, and do not start
+  /// later if the lock came before the greeting did. It is not replayed on
+  /// return — a greeting heard after the fact is not a greeting.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) return;
+    _voiceTimer?.cancel();
+    final player = _player;
+    if (player != null) unawaited(player.stop().catchError((_) {}));
   }
 
   Future<void> _playWelcomeVoice() async {

@@ -41,6 +41,14 @@ void main() {
     }
   });
 
+  test('the Arabic lines are recorded in a Saudi voice', () {
+    // Ava read them in stiff formal Arabic; the lines are now Saudi dialect,
+    // and only a Saudi voice says them that way.
+    final tool = File('tool/build_portal_voices.py').readAsStringSync();
+    expect(tool, contains('"voice": "ar-SA-'));
+    expect(tool, contains('"ar": SAUDI_VOICE'));
+  });
+
   test('the clips folder is bundled with the app', () {
     // `assets/audio/` alone does not reach into `voice/`: Flutter asset
     // directories are not recursive, and every clip would fail to load.
