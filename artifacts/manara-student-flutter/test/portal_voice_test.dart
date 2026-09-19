@@ -64,6 +64,7 @@ void main() {
       'challenge',
       'solver',
       'quiz',
+      'personality',
     ]) {
       expect(tool, contains('"${name}_ar",'),
           reason: '${name}_ar.mp3 is not protected from the generator');

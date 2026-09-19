@@ -97,6 +97,7 @@ SUPPLIED = {
     "challenge_ar",
     "solver_ar",
     "quiz_ar",
+    "personality_ar",
 }
 
 # `'portal.lesson.voice': 'text',` — the value may wrap onto the next line, and

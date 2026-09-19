@@ -315,7 +315,7 @@ class StudentSoundService with WidgetsBindingObserver {
     'meeting_en': 0.146,
     'path_ar': 0.092,
     'path_en': 0.148,
-    'personality_ar': 0.096,
+    'personality_ar': 0.129,
     'personality_en': 0.155,
     'quiz_ar': 0.131,
     'quiz_en': 0.132,
