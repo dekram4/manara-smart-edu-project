@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 // `PlayerState` is defined by both media_kit and youtube_player_iframe;
@@ -16,8 +17,6 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/student_content.dart';
-import '../utils/student_orientation.dart';
-import 'student_experience.dart';
 
 /// A realistic, up to date mobile-Chrome user agent.
 ///
@@ -120,11 +119,6 @@ String? _youtubeIdFromUrl(String url) {
 /// gives up and surfaces a retryable "connection timed out" error instead
 /// of spinning forever.
 const Duration _kLoadTimeout = Duration(seconds: 20);
-
-/// Hands the orientation back to the app's own policy after a fullscreen
-/// video. This used to force portrait, which is the bug that left the app
-/// stuck in portrait for the rest of the session once a video had played.
-Future<void> _restoreAppOrientation() => StudentOrientation.apply();
 
 /// Plays a short, muted preview only while a desktop pointer is over a card.
 /// The underlying player is mounted lazily, so scrolling a library does not
@@ -745,7 +739,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
   @override
   void dispose() {
-    _closeFullscreen(deferred: true);
+    _closeFullscreen();
     _loadTimeoutTimer?.cancel();
     _videoTrackWatchdogTimer?.cancel();
     _ytSubscription?.cancel();
@@ -762,7 +756,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
     final controller = _videoController;
     final networkController = _networkController;
-    return Stack(
+    final player = Stack(
       fit: StackFit.expand,
       children: [
         if (_usesMediaKit && controller != null)
@@ -786,7 +780,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
             networkController.value.isInitialized)
           _NetworkVideoSurface(
             controller: networkController,
-            onToggleFullscreen: _openFullscreen,
+            onToggleFullscreen: _toggleFullscreen,
           )
         else
           const ColoredBox(
@@ -819,6 +813,15 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
           ),
       ],
     );
+    // While the video is enlarged, Back shrinks it rather than leaving the
+    // page underneath.
+    return PopScope(
+      canPop: !_isFullscreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _closeFullscreen();
+      },
+      child: player,
+    );
   }
 
   Future<void> _replayNativeVideo() async {
@@ -840,54 +843,56 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     });
   }
 
-  /// The fullscreen route while it is open. It shows this state's own
-  /// controller, so it must be gone before that controller is disposed.
-  Route<void>? _fullscreenRoute;
+  /// The layer covering the screen while the video is enlarged. It shows
+  /// this state's own controller, so it must be gone before that controller
+  /// is disposed.
+  OverlayEntry? _fullscreenEntry;
 
-  /// Opens the MP4 fullscreen on the controller already playing here — no
-  /// second download, no hand-off of position; see
-  /// [_FullscreenNetworkVideoScreen].
-  Future<void> _openFullscreen() async {
+  bool get _isFullscreen => _fullscreenEntry != null;
+
+  void _toggleFullscreen() =>
+      _isFullscreen ? _closeFullscreen() : _openFullscreen();
+
+  /// Enlarges the MP4 in place to cover the whole screen, however the
+  /// device is being held — upright stays upright, sideways stays
+  /// sideways. Nothing turns the device and nothing is pushed: the same
+  /// controller is drawn once more in a layer over everything, so the
+  /// picture carries on exactly where it was, playing or paused.
+  ///
+  /// It used to push a route that forced landscape. Forcing the device
+  /// round is what made the button feel broken: sideways it looked like
+  /// nothing happened, upright the whole screen spun under the student's
+  /// hands.
+  void _openFullscreen() {
     final controller = _networkController;
-    if (controller == null || _fullscreenRoute != null) return;
-    // Known from the controller already, so the device turns the moment
-    // the route opens. An unknown size counts as wide, like nearly every
-    // lesson.
-    final size = controller.value.size;
-    final landscape = size.isEmpty || size.width >= size.height;
-    final route = StudentPageRoute<void>(
-      builder: (_) => _FullscreenNetworkVideoScreen(
+    if (controller == null || _isFullscreen) return;
+    final entry = OverlayEntry(
+      builder: (_) => _FullscreenVideoLayer(
         controller: controller,
-        landscape: landscape,
+        onClose: _closeFullscreen,
       ),
     );
-    _fullscreenRoute = route;
-    try {
-      await Navigator.of(context).push(route);
-    } finally {
-      if (identical(_fullscreenRoute, route)) _fullscreenRoute = null;
-    }
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    // The lesson and cinema cards already run immersive; asserted again so
+    // the layer has the whole screen even if the platform drifted back.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    setState(() => _fullscreenEntry = entry);
   }
 
-  /// Takes the fullscreen route down without an animation. Called before
-  /// the controller it shows is disposed — a retry, a fallback, or this
-  /// player leaving — so it never draws a released texture.
-  ///
-  /// From `dispose` the removal waits for the end of the frame: the tree is
-  /// locked while it is being torn down, and the navigator cannot change
-  /// its history in the middle of that.
-  void _closeFullscreen({bool deferred = false}) {
-    final route = _fullscreenRoute;
-    _fullscreenRoute = null;
-    if (route == null) return;
-    void remove() {
-      if (route.isActive) route.navigator?.removeRoute(route);
-    }
-
-    if (deferred) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => remove());
-    } else {
-      remove();
+  /// Back to the video's place in the page. Also called before the
+  /// controller the layer shows is disposed — a retry, a fallback, or this
+  /// player leaving — so the layer never draws a released texture.
+  void _closeFullscreen() {
+    final entry = _fullscreenEntry;
+    if (entry == null) return;
+    _fullscreenEntry = null;
+    // `remove` defers itself when called mid-frame (from dispose); the
+    // entry is only released once that removal has gone through.
+    entry.remove();
+    WidgetsBinding.instance.addPostFrameCallback((_) => entry.dispose());
+    if (mounted && SchedulerBinding.instance.schedulerPhase !=
+        SchedulerPhase.persistentCallbacks) {
+      setState(() {});
     }
   }
 
@@ -1271,24 +1276,6 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   }
 }
 
-/// Whether a fullscreen video fills [screen] before the student chooses.
-///
-/// Yes, unless filling would crop more than 30% of the picture: a 16:9
-/// lesson on a 20:9 phone loses a fifth of its height, which is what every
-/// video app does, while a clip filmed upright on a landscape screen would
-/// lose most of itself and is shown whole instead. The student can switch
-/// either way from the control bar.
-@visibleForTesting
-bool studentVideoFillsScreen(Size screen, Size video) {
-  if (screen.isEmpty || video.isEmpty) return true;
-  final screenRatio = screen.width / screen.height;
-  final videoRatio = video.width / video.height;
-  final crop = screenRatio > videoRatio
-      ? screenRatio / videoRatio
-      : videoRatio / screenRatio;
-  return crop <= 1.3;
-}
-
 class _NetworkVideoSurface extends StatefulWidget {
   const _NetworkVideoSurface({
     required this.controller,
@@ -1309,10 +1296,11 @@ class _NetworkVideoSurface extends StatefulWidget {
 class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   bool _showControls = true;
 
-  /// The student's own choice between filling the screen and seeing the
-  /// whole picture, once they have made one. `null` until then, and the
-  /// screen's shape decides — see [studentVideoFillsScreen].
-  bool? _fill;
+  /// Whether the enlarged video is zoomed to fill the screen. Off by
+  /// default: the whole picture, undistorted, as large as the screen
+  /// allows. The student can zoom in from the control bar — useful for a
+  /// clip with blurred bars baked into its own sides.
+  bool _fill = false;
 
   /// Hides the controls after a few idle seconds of playback.
   ///
@@ -1391,17 +1379,12 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
         ? MediaQuery.paddingOf(context)
         : EdgeInsets.zero;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final box = constraints.biggest;
+    return Builder(
+      builder: (context) {
         // Cropped in the card, where the frame is 16:9 and a portrait
-        // source must still fill its width. In fullscreen the whole screen
-        // is filled too — the side bars a 16:9 lesson leaves on a 20:9
-        // phone were the "still stuck in the middle" report — unless that
-        // would crop too much, and the student can switch either way.
-        final fill = widget.fullscreen
-            ? (_fill ?? studentVideoFillsScreen(box, videoSize))
-            : true;
+        // source must still fill its width. Enlarged, the whole picture is
+        // shown unless the student zooms in.
+        final fill = widget.fullscreen ? _fill : true;
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -1558,65 +1541,50 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   }
 }
 
-/// Fullscreen for a direct MP4: the very controller the card was playing,
-/// shown across the whole screen.
+/// The enlarged MP4: the card's own controller, drawn over the whole screen
+/// in whatever orientation the device is already in.
 ///
-/// This used to open a second player on the same URL. Every trip into
-/// fullscreen downloaded the video again from the start and sought to the
-/// saved position — a black screen and a spinner for as long as that took,
-/// which in landscape, where the card already looks wide, read as the
-/// button doing nothing at all. Sharing the controller makes it instant:
-/// the picture carries on exactly where it was, playing or paused, and
-/// coming back out needs no position handed back.
-class _FullscreenNetworkVideoScreen extends StatelessWidget {
-  const _FullscreenNetworkVideoScreen({
+/// A layer in the root overlay rather than a route, so nothing is pushed,
+/// nothing reloads, and the page underneath keeps its place. The picture
+/// fits the screen whole ([BoxFit.contain]) — the student can switch to
+/// filling it from the control bar.
+class _FullscreenVideoLayer extends StatelessWidget {
+  const _FullscreenVideoLayer({
     required this.controller,
-    required this.landscape,
+    required this.onClose,
   });
 
   final VideoPlayerController controller;
-
-  /// Whether the video is wider than it is tall — decides which way the
-  /// device is turned while it plays.
-  final bool landscape;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    // Nothing is awaited before the pop. It used to sit behind `await
-    // setPreferredOrientations(...)`, and on a tablet held in landscape that
-    // call does not settle until the device is physically rotated, so Back
-    // looked dead until the student turned the tablet in their hands.
-    void exit() => Navigator.of(context).maybePop();
-
-    return _FullscreenOrientationScope(
-      landscape: landscape,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            // The whole screen, edge to edge — no SafeArea and no fixed
-            // aspect-ratio box around the picture.
-            SizedBox.expand(
-              child: _NetworkVideoSurface(
-                controller: controller,
-                onToggleFullscreen: exit,
-                fullscreen: true,
+    return Material(
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // The whole screen, edge to edge — no SafeArea and no fixed
+          // aspect-ratio box around the picture.
+          SizedBox.expand(
+            child: _NetworkVideoSurface(
+              controller: controller,
+              onToggleFullscreen: onClose,
+              fullscreen: true,
+            ),
+          ),
+          // Only the back button keeps clear of the notch and rounded
+          // corners — the picture itself does not need to.
+          SafeArea(
+            child: Align(
+              alignment: AlignmentDirectional.topStart,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: _FullscreenBackButton(onPressed: onClose),
               ),
             ),
-            // Only the back button keeps clear of the notch and rounded
-            // corners — the picture itself does not need to.
-            SafeArea(
-              child: Align(
-                alignment: AlignmentDirectional.topStart,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: _FullscreenBackButton(onPressed: exit),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1713,86 +1681,6 @@ class _FullscreenBackButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _FullscreenOrientationScope extends StatefulWidget {
-  const _FullscreenOrientationScope({
-    required this.landscape,
-    required this.child,
-  });
-
-  /// Whether the video is wider than it is tall.
-  final bool landscape;
-  final Widget child;
-
-  @override
-  State<_FullscreenOrientationScope> createState() =>
-      _FullscreenOrientationScopeState();
-}
-
-class _FullscreenOrientationScopeState
-    extends State<_FullscreenOrientationScope> with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _enter();
-  }
-
-  /// Turns the device to the video's own shape and takes the whole screen.
-  ///
-  /// This used to only *release* the orientation, on the idea that the
-  /// student would turn the device themselves. They did not: a phone held
-  /// upright stayed upright, and a wide video fitted to its width was a
-  /// thin strip in the middle — fullscreen in name only. A wide video now
-  /// turns the device to landscape; one filmed upright keeps it upright,
-  /// where it fills the screen rather than being letterboxed into a wide
-  /// one.
-  void _enter() {
-    unawaited(StudentOrientation.fitVideo(landscape: widget.landscape));
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Unlocking the device hands the orientation back to the app through
-    // the route's own orientation guard, which runs first; the video is
-    // still up, so it takes the landscape and the full screen back.
-    if (state == AppLifecycleState.resumed && mounted) _enter();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _leave();
-    super.dispose();
-  }
-
-  /// Back on the app's orientation policy — upright again for a phone held
-  /// upright — without pinning portrait, which is the bug that once left
-  /// the whole app stuck in portrait after one video. The bars stay hidden:
-  /// the lesson or cinema card underneath runs immersive too, and handing
-  /// them back here would flash them over the card on the way out.
-  void _leave() {
-    _restoreAppOrientation();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // The restore also runs from `dispose`, but a pop is the moment the
-    // student actually leaves the video, and `dispose` can land a frame or
-    // more later (or not at all, if this route is kept alive). Restoring on
-    // the pop itself closes that window, so the app can never be observed
-    // in the fullscreen player's narrowed orientation after leaving it.
-    return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) _leave();
-      },
-      child: widget.child,
     );
   }
 }

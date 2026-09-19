@@ -1,4 +1,3 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manara_student/src/models/student_content.dart';
 import 'package:manara_student/src/widgets/student_video_player.dart';
@@ -89,36 +88,6 @@ void main() {
     test('extracts the video id from a shorts URL', () {
       final uri = Uri.parse('https://www.youtube.com/shorts/abc123XYZ_-');
       expect(youtubeVideoId(uri, 'youtube.com'), 'abc123XYZ_-');
-    });
-  });
-
-  group('fullscreen fills the screen', () {
-    // The side bars a 16:9 lesson left on a 20:9 phone were the "still
-    // stuck in the middle" report: fullscreen now fills unless that would
-    // crop too much of the picture.
-    test('a 16:9 lesson fills a 20:9 phone held sideways', () {
-      expect(
-        studentVideoFillsScreen(const Size(800, 360), const Size(1920, 1080)),
-        isTrue,
-      );
-    });
-
-    test('a 16:9 lesson fills a 16:10 tablet', () {
-      expect(
-        studentVideoFillsScreen(const Size(1280, 800), const Size(1280, 720)),
-        isTrue,
-      );
-    });
-
-    test('a clip filmed upright is shown whole on a wide screen', () {
-      expect(
-        studentVideoFillsScreen(const Size(800, 360), const Size(720, 1280)),
-        isFalse,
-      );
-    });
-
-    test('an unknown size fills', () {
-      expect(studentVideoFillsScreen(const Size(800, 360), Size.zero), isTrue);
     });
   });
 }

@@ -608,14 +608,19 @@ class StudentSoundService with WidgetsBindingObserver {
   /// repeated inside 220ms, and the rail deals every 180ms. It plays on its
   /// own player so a card arriving never cuts off applause or a spoken phrase
   /// on the effects player.
+  ///
+  /// The deal now runs under the hub's spoken welcome rather than after it,
+  /// so while a line is being spoken the cards tick softly underneath it
+  /// instead of over it.
   void playCardDeal() {
     if (muted.value || _backgrounded) return;
+    final speaking = _voicePlayer.state == PlayerState.playing;
     unawaited(() async {
       try {
         await _dealPlayer.stop();
         await _dealPlayer.play(
           AssetSource('audio/card.mp3'),
-          volume: 0.55,
+          volume: speaking ? 0.18 : 0.55,
         );
       } catch (_) {
         // Audio is an enhancement and must never block the hub from opening.

@@ -56,12 +56,12 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultDuration = Duration(milliseconds: 1600);
+  static const defaultDuration = Duration(milliseconds: 320);
 
-  /// The flight plus a 100ms beat of stillness, so each card is seen resting
-  /// in its place before the next one sets off.
-  static const defaultStagger = Duration(milliseconds: 1700);
-  static const defaultStartDelay = Duration(milliseconds: 1250);
+  /// The flight plus a 20ms beat, so each card is at rest in its place
+  /// before the next one sets off.
+  static const defaultStagger = Duration(milliseconds: 340);
+  static const defaultStartDelay = Duration(milliseconds: 600);
 
   /// How long the deal itself runs, measured from the moment the rail is
   /// armed. This is what the music waits for.
@@ -113,20 +113,15 @@ class DealtCardEntrance extends StatefulWidget {
 
   /// How long a single card takes to arrive.
   ///
-  /// Slow on purpose, and slower than instinct suggests. The card travels
-  /// three-quarters of a turn while shrinking from nearly three times its own
-  /// size; at 620ms that was over before the eye had found it, at 1200ms it
-  /// could be watched but not savoured. At 1600ms the shrink is unhurried — a
-  /// visible middle and a visible end, which is the only reason the movement
-  /// exists — and, with only one card in the air at a time, it is not
-  /// competing with anything for the eye.
+  /// Quick. It was 1600ms, with 1.7s between cards, which left ten cards
+  /// still arriving twenty seconds after the hub opened — the "cards take
+  /// forever to appear" report. At 320ms with one card in the air at a time
+  /// the whole rail is in place in about four seconds, the first card inside
+  /// one.
   final Duration duration;
 
-  /// How long the rail waits before dealing anything at all.
-  ///
-  /// The hub greets the student by name as it opens, and the deal used to
-  /// start under that: nine page-turns over a spoken sentence, so neither was
-  /// heard properly. This lets the greeting have the first second to itself.
+  /// How long the rail waits before dealing anything at all, when no screen
+  /// is sequencing it. The hub arms its rail itself, at the same beat.
   final Duration startDelay;
 
   /// Whether this card ticks as it lands.

@@ -47,27 +47,4 @@ class StudentOrientation {
   /// Lets a player accept any orientation for as long as it is on screen.
   static Future<void> release() =>
       SystemChrome.setPreferredOrientations(unrestricted);
-
-  /// A fullscreen video filmed wide: the device is turned to landscape.
-  static const videoLandscape = <DeviceOrientation>[
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ];
-
-  /// A fullscreen video filmed upright: the device stays upright.
-  static const videoPortrait = <DeviceOrientation>[
-    DeviceOrientation.portraitUp,
-  ];
-
-  /// Turns the device to the shape of the video being watched fullscreen.
-  ///
-  /// Only releasing the orientation was not enough: a phone held upright
-  /// stayed upright, and a wide video fitted to its width was a thin strip
-  /// in the middle of the screen — the "fullscreen that is tiny" report.
-  /// Held until the fullscreen route closes and [apply] hands the device
-  /// back to the app's policy.
-  static Future<void> fitVideo({required bool landscape}) =>
-      SystemChrome.setPreferredOrientations(
-        landscape ? videoLandscape : videoPortrait,
-      );
 }

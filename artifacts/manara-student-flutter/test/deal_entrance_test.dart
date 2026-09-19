@@ -66,19 +66,22 @@ void main() {
         .getMaxScaleOnAxis();
   }
 
-  test('the deal is strictly serial: 1600ms a card, the next at 1700ms', () {
+  test('the deal is strictly serial and quick: 320ms a card, the next at 340ms',
+      () {
     // Asked for by name: a card may only leave once the one before it has
     // stopped. That holds exactly when the step is longer than the flight.
     expect(DealtCardEntrance.defaultDuration,
-        const Duration(milliseconds: 1600));
+        const Duration(milliseconds: 320));
     expect(DealtCardEntrance.defaultStagger,
-        const Duration(milliseconds: 1700));
+        const Duration(milliseconds: 340));
     expect(DealtCardEntrance.defaultStagger,
         greaterThanOrEqualTo(DealtCardEntrance.defaultDuration));
-    // Card i leaves at i * 1700ms, so the last of the ten portals lands
-    // 15.3s + 1.6s after the rail is armed.
+    // And quick, which was asked for just as plainly: the last of the ten
+    // portals lands 3.38s after the rail is armed, not 17 as it once did.
     expect(DealtCardEntrance.dealSpanFor(10),
-        const Duration(milliseconds: 9 * 1700 + 1600));
+        const Duration(milliseconds: 9 * 340 + 320));
+    expect(DealtCardEntrance.defaultStartDelay,
+        lessThanOrEqualTo(const Duration(seconds: 1)));
   });
 
   testWidgets('never two cards in the air at once', (tester) async {
@@ -97,24 +100,28 @@ void main() {
       return opacity > 0.0 && (opacity < 1.0 || scale > 1.0005);
     }
 
+    // Sampled finer than the 20ms beat between one card landing and the
+    // next leaving, so a card that set off early cannot hide between frames.
+    const step = 10;
+    final span = DealtCardEntrance.defaultStagger.inMilliseconds * 4 + 200;
     final landed = <int>{};
-    for (var frame = 0; frame * 50 < 4 * 1700 + 200; frame++) {
-      await tester.pump(const Duration(milliseconds: 50));
+    for (var frame = 0; frame * step < span; frame++) {
+      await tester.pump(const Duration(milliseconds: step));
       final flying = [
         for (var i = 0; i < 4; i++)
           if (inFlight(i)) i,
       ];
+      for (var i = 0; i < 4; i++) {
+        if (opacityOf(tester, 'card $i') == 1.0 && !inFlight(i)) landed.add(i);
+      }
       expect(flying.length, lessThanOrEqualTo(1),
-          reason: 'cards $flying were moving together at ${frame * 50}ms');
+          reason: 'cards $flying were moving together at ${frame * step}ms');
       // And each one leaves only after every card before it has landed.
       for (final i in flying) {
         for (var before = 0; before < i; before++) {
           expect(landed, contains(before),
               reason: 'card $i left before card $before had settled');
         }
-      }
-      for (var i = 0; i < 4; i++) {
-        if (opacityOf(tester, 'card $i') == 1.0 && !inFlight(i)) landed.add(i);
       }
     }
     expect(landed, containsAll(<int>[0, 1, 2, 3]));
@@ -125,9 +132,8 @@ void main() {
     final controller = ScrollController();
     addTearDown(controller.dispose);
 
-    // Deliberately not armed. The hub arms the rail only once the spoken
-    // greeting has actually finished, so until then the screen stays empty —
-    // nine card sounds under a spoken sentence made neither audible.
+    // Deliberately not armed. The hub arms the rail itself, a beat after it
+    // opens; until then the cards must not move on their own.
     await tester.pumpWidget(rail(tracker, controller));
     await settle(tester, 2000);
 

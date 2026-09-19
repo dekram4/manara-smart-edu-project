@@ -71,8 +71,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// بطاقة حركة دخولها كلّما عادت إلى الشاشة.
   final DealEntranceTracker _dealTracker = DealEntranceTracker();
 
-  /// Moves the opening on if the greeting never reports that it finished.
-  Timer? _welcomeCap;
+  /// Starts the deal a beat after the hub opens.
+  Timer? _dealCue;
+
+  /// How long the hub shows before the first card sets off.
+  ///
+  /// The cards used to wait for the spoken welcome to finish. That clip
+  /// runs ten seconds, so they sat behind the six-second fallback every
+  /// time — and then dealt at 1.7s a card, the last one landing some
+  /// twenty seconds after the path was chosen. They now start under the
+  /// greeting, well inside a second.
+  static const _dealAfter = Duration(milliseconds: 600);
   bool _openingTutor = false;
 
   /// The lesson every card opens against. It starts as whatever the path
@@ -99,13 +108,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   }
 
   /// The hub's opening: music underneath from the first frame, the greeting
-  /// over it, and the cards once the greeting has finished.
-  ///
-  /// The one thing that is sequenced is the deal, and it waits on the voice
-  /// actually reporting that it ended rather than on a delay picked to be
-  /// "probably long enough" — nine card sounds under a spoken sentence left
-  /// neither audible. The music needs no such care: it is quiet enough, and
-  /// mixed rather than focused, to sit under all of it.
+  /// over it, and the cards dealt in straight away — see [_dealAfter]. The
+  /// card sounds step down under the greeting so the sentence stays clear
+  /// (see `StudentSoundService.playCardDeal`).
   void _runOpeningSequence() {
     // The music starts with the screen and never stops for anything on it.
     //
@@ -116,22 +121,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // sit on top of it.
     StudentSoundService.instance.ensureAmbient();
 
-    // The cap is owned here, and cancelled in dispose, so nothing outlives
-    // this screen. It exists because a device with no audio plugin never
-    // reports the voice finishing, and the rail must not wait forever for a
-    // greeting that was never heard.
-    _welcomeCap = Timer(const Duration(seconds: 6), _beginDeal);
-    StudentSoundService.instance.speakWelcome(onComplete: _beginDeal);
+    // Owned here and cancelled in dispose, so nothing outlives this screen.
+    _dealCue = Timer(_dealAfter, _beginDeal);
+    StudentSoundService.instance.speakWelcome();
   }
 
   bool _dealBegun = false;
 
-  /// The cards follow the greeting: the spoken sentence gets a clear run, then
-  /// the rail deals itself in one card at a time.
+  /// The rail deals itself in, one card at a time.
   void _beginDeal() {
     if (_dealBegun || !mounted) return;
     _dealBegun = true;
-    _welcomeCap?.cancel();
+    _dealCue?.cancel();
     _dealTracker.arm();
   }
 
@@ -205,7 +206,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   @override
   void dispose() {
     studentRouteObserver.unsubscribe(this);
-    _welcomeCap?.cancel();
+    _dealCue?.cancel();
     _dealTracker.dispose();
     _rewardController.dispose();
     super.dispose();
