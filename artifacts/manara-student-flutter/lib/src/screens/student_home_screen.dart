@@ -519,7 +519,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
         title: Container(
           padding: const EdgeInsetsDirectional.fromSTEB(9, 7, 14, 7),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.78),
+            color: Colors.white.withValues(alpha: 0.78),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white),
             boxShadow: const [
@@ -795,7 +795,7 @@ class _AcademicContextSummary extends StatelessWidget {
       child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.75),
+        color: Colors.white.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0x8099F6E4), width: 1.4),
       ),
@@ -1220,7 +1220,7 @@ class _SectionTileState extends State<_SectionTile>
             filterQuality: FilterQuality.medium,
             errorBuilder: (_, __, ___) => Icon(
               Icons.image_not_supported_rounded,
-              color: tint.withOpacity(0.5),
+              color: tint.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -1345,10 +1345,10 @@ class _SectionTileState extends State<_SectionTile>
               // A couple of pixels of rise on the breath — enough to read
               // as the card drawing toward the viewer, far short of the
               // travel that made the old drift look adrift.
-              ..translate(0.0, breath * -2.5 - lift * 16 + push * 5)
+              ..translateByDouble(0.0, breath * -2.5 - lift * 16 + push * 5, 0.0, 1.0)
               ..rotateX(-lift * 0.10 - aim.dy * push * 0.26)
               ..rotateY(breath * 0.012 + aim.dx * push * 0.26)
-              ..scale(squashX, squashY);
+              ..scaleByDouble(squashX, squashY, squashX, 1.0);
 
             // The rim is the neon: a quiet tinted hairline at rest that
             // burns into the portal's own colour as the card comes up, so
@@ -1373,7 +1373,7 @@ class _SectionTileState extends State<_SectionTile>
                     borderRadius: BorderRadius.circular(radius),
                     color: StudentSurface.glass(context, 0.72 + lift * 0.18),
                     border: Border.all(
-                      color: rim.withOpacity(0.45 + glow * 0.52),
+                      color: rim.withValues(alpha: 0.45 + glow * 0.52),
                       width: 1.6 + lift * 1.4,
                     ),
                     boxShadow: [
@@ -1390,19 +1390,19 @@ class _SectionTileState extends State<_SectionTile>
                         offset: Offset(0, 3 + lift * 3),
                       ),
                       BoxShadow(
-                        color: tint.withOpacity(0.20 + glow * 0.42),
+                        color: tint.withValues(alpha: 0.20 + glow * 0.42),
                         blurRadius: 18 + lift * 34,
                         spreadRadius: lift * 5,
                         offset: Offset(0, 9 + lift * 12),
                       ),
                       if (glow > 0.01) ...[
                         BoxShadow(
-                          color: tint.withOpacity(glow * 0.34),
+                          color: tint.withValues(alpha: glow * 0.34),
                           blurRadius: 30 + glow * 52,
                           spreadRadius: 2 + glow * 12,
                         ),
                         BoxShadow(
-                          color: rim.withOpacity(glow * 0.55),
+                          color: rim.withValues(alpha: glow * 0.55),
                           blurRadius: 5 + glow * 9,
                           spreadRadius: glow * 1.4,
                         ),
@@ -1565,10 +1565,10 @@ class _StatBadge extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(26),
-            color: deep.withOpacity(0.55),
+            color: deep.withValues(alpha: 0.55),
             boxShadow: [
               BoxShadow(
-                color: deep.withOpacity(0.34),
+                color: deep.withValues(alpha: 0.34),
                 blurRadius: 14,
                 offset: const Offset(0, 7),
               ),
@@ -1582,8 +1582,8 @@ class _StatBadge extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity(0.94),
-                  Colors.white.withOpacity(0.74),
+                  Colors.white.withValues(alpha: 0.94),
+                  Colors.white.withValues(alpha: 0.74),
                 ],
               ),
               border: Border.all(color: Colors.white, width: 1.4),
@@ -1603,7 +1603,7 @@ class _StatBadge extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: tint.withOpacity(0.5),
+                        color: tint.withValues(alpha: 0.5),
                         blurRadius: 8,
                         offset: const Offset(0, 3),
                       ),

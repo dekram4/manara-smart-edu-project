@@ -44,6 +44,10 @@ class DealEntranceTracker {
 /// once. That sequencing is the whole effect — a single shared controller
 /// driving all of them would land them together.
 ///
+/// **Strictly one at a time.** [stagger] is longer than [duration], so a card
+/// only leaves once the one before it has stopped completely — never two in
+/// flight together.
+///
 /// **It transforms nothing the card itself owns.** The card's own motion — its
 /// breath, its tilt under a finger — is produced by its own `Transform` further
 /// down the tree, and tests read that matrix directly. Keeping this widget
@@ -52,8 +56,11 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultStagger = Duration(milliseconds: 800);
-  static const defaultDuration = Duration(milliseconds: 1800);
+  static const defaultDuration = Duration(milliseconds: 1600);
+
+  /// The flight plus a 100ms beat of stillness, so each card is seen resting
+  /// in its place before the next one sets off.
+  static const defaultStagger = Duration(milliseconds: 1700);
   static const defaultStartDelay = Duration(milliseconds: 1250);
 
   /// How long the deal itself runs, measured from the moment the rail is
@@ -92,17 +99,16 @@ class DealtCardEntrance extends StatefulWidget {
 
   /// Gap between one card starting and the next one starting.
   ///
-  /// A flat step, not a wait for the card before to finish. Waiting for rest
-  /// put the ninth card nearly six seconds after the first, which made the last
-  /// of them feel like they were never coming; a flat step keeps every gap the
-  /// same, so no card is ever the one that lags.
+  /// Must be at least [duration]. It used to be shorter — 650ms, then 800ms,
+  /// against a much longer flight — which put two and three cards in the air
+  /// at once, each still turning and shrinking over the one before. Longer
+  /// than the flight is what makes the deal strictly serial: the previous card
+  /// is at rest, fully in its place, before this one moves at all.
   ///
-  /// At 800ms against an 1800ms flight, a card is already down to roughly its
-  /// own size and into its settle before the next one leaves — the cards arrive
-  /// singly and are plainly in order, which is the whole point of dealing them.
-  /// The step grew with the flight: keeping 650ms against the longer flight
-  /// would have put two cards mid-shrink at once, and the calm this is for
-  /// comes as much from the pause between cards as from each card's pace.
+  /// A flat step rather than a listener on the previous card's completion:
+  /// a card scrolled out of view is disposed, and a chain hung on its
+  /// controller would stop there. The step is fixed from the moment the rail
+  /// is armed, so no card can be the one that breaks the sequence.
   final Duration stagger;
 
   /// How long a single card takes to arrive.
@@ -110,9 +116,10 @@ class DealtCardEntrance extends StatefulWidget {
   /// Slow on purpose, and slower than instinct suggests. The card travels
   /// three-quarters of a turn while shrinking from nearly three times its own
   /// size; at 620ms that was over before the eye had found it, at 1200ms it
-  /// could be watched but not savoured, and 1450ms still read as brisk. At
-  /// 1800ms the shrink is unhurried — a visible middle and a long, visible end,
-  /// which is the only reason the movement exists.
+  /// could be watched but not savoured. At 1600ms the shrink is unhurried — a
+  /// visible middle and a visible end, which is the only reason the movement
+  /// exists — and, with only one card in the air at a time, it is not
+  /// competing with anything for the eye.
   final Duration duration;
 
   /// How long the rail waits before dealing anything at all.
@@ -148,7 +155,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
   /// Drives the turn and the arc through space.
   ///
   /// Eased at *both* ends, not just the out. An ease-out alone spends its
-  /// rotation in the first third and then holds still for the rest of an 1800ms
+  /// rotation in the first third and then holds still for the rest of a 1600ms
   /// flight, which reads as a snap followed by a stall. Easing in as well gives
   /// the roll a slow beginning, a body, and a slow end — and lands it on the
   /// same frame the shrink finishes on.
@@ -167,7 +174,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
   ///
   /// Split in two because one curve cannot do both jobs. The first 60% carries
   /// it from 2.9 down to 1.35, eased at both ends so the travel has a middle
-  /// instead of collapsing in the first few frames; the last 40% — a full 720ms
+  /// instead of collapsing in the first few frames; the last 40% — a full 640ms
   /// — is the settle from 1.35 to rest, slow enough to be seen stopping. A
   /// single ease-out across the whole flight put 80% of the shrink in the first
   /// 400ms and left a second of near-stillness after it.
@@ -311,7 +318,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
           // The lateral swing is in logical pixels rather than a fraction of
           // the card: the arc should look the same on every card in the rail,
           // and the cards are not all the same width.
-          ..translate(swing * 120.0, rise * 70.0, -90.0 * remaining)
+          ..translateByDouble(swing * 120.0, rise * 70.0, -90.0 * remaining, 1.0)
           // Just under a quarter turn — 77°, deliberately short of 90°.
           //
           // This used to be 135°, which is past edge-on, and Flutter does no
@@ -330,7 +337,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
           ..rotateZ(remaining * 0.95)
           // A touch of tilt so the arc has depth rather than being flat.
           ..rotateX(remaining * 0.18)
-          ..scale(_scale.value);
+          ..scaleByDouble(_scale.value, _scale.value, _scale.value, 1.0);
         return Opacity(
           opacity: _fade.value.clamp(0.0, 1.0),
           child: Transform(

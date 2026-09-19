@@ -1,6 +1,5 @@
-﻿import 'dart:async';
+import 'dart:async';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -235,7 +234,7 @@ class _PreviewBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xD9071425),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF5EEAD4).withOpacity(0.7)),
+        border: Border.all(color: const Color(0xFF5EEAD4).withValues(alpha: 0.7)),
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1226,7 +1225,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                       label: Text(tr('video.openYoutube')),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withOpacity(0.7)),
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
                       ),
                     ),
                 ],

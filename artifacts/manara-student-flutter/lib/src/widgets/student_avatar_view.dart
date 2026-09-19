@@ -38,8 +38,8 @@ class StudentAvatarView extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(0.95),
-                      const Color(0xFF9EE7F5).withOpacity(0.55),
+                      Colors.white.withValues(alpha: 0.95),
+                      const Color(0xFF9EE7F5).withValues(alpha: 0.55),
                     ],
                   ),
                   border: Border.all(color: Colors.white, width: 2.5),

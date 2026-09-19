@@ -119,10 +119,10 @@ class VideoThumbnailCard extends StatelessWidget {
                       width: 54,
                       height: 54,
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.45),
+                        color: Colors.black.withValues(alpha: 0.45),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                           width: 2,
                         ),
                       ),
@@ -145,7 +145,7 @@ class VideoThumbnailCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.78),
+                          color: Colors.black.withValues(alpha: 0.78),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(

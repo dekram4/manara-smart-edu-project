@@ -14,10 +14,9 @@ import 'student_orientation_guard.dart';
 class StudentPageRoute<T> extends PageRouteBuilder<T> {
   StudentPageRoute({
     required WidgetBuilder builder,
-    RouteSettings? settings,
+    super.settings,
     bool immersive = false,
   }) : super(
-          settings: settings,
           transitionDuration: const Duration(milliseconds: 320),
           reverseTransitionDuration: const Duration(milliseconds: 240),
           // Every screen in the app is pushed through this route, so
@@ -198,9 +197,9 @@ class _SmartEduParticle extends StatelessWidget {
       height: spec.size + 26,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.16),
+        color: Colors.white.withValues(alpha: 0.16),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.28)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
       ),
       child: Icon(spec.icon, color: spec.color, size: spec.size),
     );
@@ -238,38 +237,38 @@ class StudentLearningWorld extends StatelessWidget {
             top: 42,
             start: 28,
             child: _FloatingWorldBadge(
+              duration: const Duration(milliseconds: 4200),
+              delay: const Duration(milliseconds: 120),
+              reduceMotion: reduceMotion,
               child: const Icon(
                 Icons.menu_book_rounded,
                 color: Color(0xFF0B6977),
                 size: 20,
               ),
-              duration: const Duration(milliseconds: 4200),
-              delay: const Duration(milliseconds: 120),
-              reduceMotion: reduceMotion,
             ),
           ),
           PositionedDirectional(
             top: 116,
             end: 28,
             child: _FloatingWorldBadge(
-              child: sparkle,
               duration: const Duration(milliseconds: 3600),
               delay: const Duration(milliseconds: 360),
               reduceMotion: reduceMotion,
+              child: sparkle,
             ),
           ),
           PositionedDirectional(
             bottom: 44,
             end: 42,
             child: _FloatingWorldBadge(
+              duration: const Duration(milliseconds: 3900),
+              delay: const Duration(milliseconds: 220),
+              reduceMotion: reduceMotion,
               child: const Icon(
                 Icons.star_rounded,
                 color: Color(0xFFE27962),
                 size: 18,
               ),
-              duration: const Duration(milliseconds: 3900),
-              delay: const Duration(milliseconds: 220),
-              reduceMotion: reduceMotion,
             ),
           ),
         ],
@@ -418,7 +417,7 @@ class _OrbitTrailsPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = const Color(0xFF8BD7D0).withOpacity(.16);
+      ..color = const Color(0xFF8BD7D0).withValues(alpha: .16);
     for (var i = 0; i < 3; i++) {
       final rect = Rect.fromCenter(
         center: center,
@@ -470,7 +469,7 @@ class _AnimatedSubjectOrb extends StatelessWidget {
             ..rotateX(depthTilt)
             ..rotateY(turn)
             ..rotateZ(tilt)
-            ..scale(scale),
+            ..scaleByDouble(scale, scale, scale, 1.0),
           child: Opacity(
             opacity: compact ? 0.82 : 0.92,
             child: _SubjectSculpture(subject: subject, compact: compact),
@@ -507,11 +506,11 @@ class _SubjectSculpture extends StatelessWidget {
             height: 12,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color(0xFF071B2E).withOpacity(0.28),
+                color: const Color(0xFF071B2E).withValues(alpha: 0.28),
                 borderRadius: BorderRadius.circular(40),
                 boxShadow: [
                   BoxShadow(
-                    color: subject.primary.withOpacity(0.36),
+                    color: subject.primary.withValues(alpha: 0.36),
                     blurRadius: 14,
                     offset: const Offset(0, 7),
                   ),
@@ -535,12 +534,12 @@ class _SubjectSculpture extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     center: const Alignment(-.35, -.45),
-                    colors: [Colors.white.withOpacity(.98), subject.secondary, subject.primary],
+                    colors: [Colors.white.withValues(alpha: .98), subject.secondary, subject.primary],
                     stops: const [.04, .48, 1],
                   ),
-                  border: Border.all(color: Colors.white.withOpacity(.65), width: 1),
+                  border: Border.all(color: Colors.white.withValues(alpha: .65), width: 1),
                   boxShadow: [
-                    BoxShadow(color: subject.primary.withOpacity(.48), blurRadius: 18, offset: const Offset(0, 8)),
+                    BoxShadow(color: subject.primary.withValues(alpha: .48), blurRadius: 18, offset: const Offset(0, 8)),
                   ],
                 ),
                 child: Center(
@@ -556,7 +555,7 @@ class _SubjectSculpture extends StatelessWidget {
               width: compact ? 11 : 15,
               height: compact ? 4 : 5,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.38),
+                color: Colors.white.withValues(alpha: 0.38),
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
@@ -593,7 +592,7 @@ class _Subject3DMedallion extends StatelessWidget {
               width: size * 0.68,
               height: size * 0.16,
               decoration: BoxDecoration(
-                color: const Color(0xFF102E42).withOpacity(0.24),
+                color: const Color(0xFF102E42).withValues(alpha: 0.24),
                 borderRadius: BorderRadius.circular(30),
               ),
             ),
@@ -614,16 +613,16 @@ class _Subject3DMedallion extends StatelessWidget {
                   center: const Alignment(-0.36, -0.42),
                   radius: 0.94,
                   colors: [
-                    Colors.white.withOpacity(0.98),
-                    subject.secondary.withOpacity(0.84),
+                    Colors.white.withValues(alpha: 0.98),
+                    subject.secondary.withValues(alpha: 0.84),
                     subject.primary,
                   ],
                   stops: const [0.05, 0.55, 1],
                 ),
-                border: Border.all(color: Colors.white.withOpacity(0.72), width: 1),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.72), width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF09243A).withOpacity(0.28),
+                    color: const Color(0xFF09243A).withValues(alpha: 0.28),
                     blurRadius: 7,
                     offset: const Offset(0, 4),
                   ),
@@ -643,7 +642,7 @@ class _Subject3DMedallion extends StatelessWidget {
               width: size * 0.24,
               height: size * 0.13,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.72),
+                color: Colors.white.withValues(alpha: 0.72),
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
@@ -740,7 +739,7 @@ class _FloatingWorldBadge extends StatelessWidget {
       height: 42,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFCF3).withOpacity(0.8),
+        color: const Color(0xFFFFFCF3).withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: const Color(0xFFE3D5A9)),
         boxShadow: const [
@@ -782,7 +781,7 @@ class _LearningWorldPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, wash);
 
     final tealRing = Paint()
-      ..color = const Color(0xFF147D83).withOpacity(0.08)
+      ..color = const Color(0xFF147D83).withValues(alpha: 0.08)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 22;
     canvas.drawCircle(
@@ -792,7 +791,7 @@ class _LearningWorldPainter extends CustomPainter {
     );
 
     final lilac = Paint()
-      ..color = const Color(0xFF7663C7).withOpacity(0.09)
+      ..color = const Color(0xFF7663C7).withValues(alpha: 0.09)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(
       Offset(size.width * 0.96, size.height * 0.9),
@@ -801,7 +800,7 @@ class _LearningWorldPainter extends CustomPainter {
     );
 
     final dots = Paint()
-      ..color = (night ? Colors.white : const Color(0xFF183047)).withOpacity(0.11);
+      ..color = (night ? Colors.white : const Color(0xFF183047)).withValues(alpha: 0.11);
     for (var row = 0; row < 7; row++) {
       for (var column = 0; column < 9; column++) {
         final point = Offset(
@@ -813,7 +812,7 @@ class _LearningWorldPainter extends CustomPainter {
     }
 
     final path = Paint()
-      ..color = const Color(0xFFE2B85E).withOpacity(0.17)
+      ..color = const Color(0xFFE2B85E).withValues(alpha: 0.17)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
     final curve = Path()
@@ -883,12 +882,12 @@ class StudentCardAvatar extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
-                  colors: [Colors.white, accent.withOpacity(0.24)],
+                  colors: [Colors.white, accent.withValues(alpha: 0.24)],
                 ),
-                border: Border.all(color: Colors.white.withOpacity(0.76), width: 2),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.76), width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: accent.withOpacity(0.32),
+                    color: accent.withValues(alpha: 0.32),
                     blurRadius: 14,
                     offset: const Offset(0, 7),
                   ),
@@ -975,14 +974,14 @@ class StudentScreenHero extends StatelessWidget {
               end: AlignmentDirectional.bottomEnd,
               colors: night
                   ? colors
-                  : [colors.first.withOpacity(0.18), Colors.white],
+                  : [colors.first.withValues(alpha: 0.18), Colors.white],
             ),
             border: Border.all(
-              color: night ? Colors.white.withOpacity(0.15) : colors.first.withOpacity(0.22),
+              color: night ? Colors.white.withValues(alpha: 0.15) : colors.first.withValues(alpha: 0.22),
             ),
             boxShadow: [
               BoxShadow(
-                color: colors.first.withOpacity(night ? 0.24 : 0.12),
+                color: colors.first.withValues(alpha: night ? 0.24 : 0.12),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -999,7 +998,7 @@ class StudentScreenHero extends StatelessWidget {
                   height: 116,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: night ? Colors.white.withOpacity(0.10) : colors.first.withOpacity(0.08),
+                    color: night ? Colors.white.withValues(alpha: 0.10) : colors.first.withValues(alpha: 0.08),
                   ),
                 ),
               ),
@@ -1106,7 +1105,7 @@ class _StudentFocusGlowState extends State<StudentFocusGlow> {
             boxShadow: _hasFocus || widget.hasError
                 ? [
                     BoxShadow(
-                      color: color.withOpacity(widget.hasError ? 0.18 : 0.16),
+                      color: color.withValues(alpha: widget.hasError ? 0.18 : 0.16),
                       blurRadius: 18,
                       spreadRadius: 1,
                     ),

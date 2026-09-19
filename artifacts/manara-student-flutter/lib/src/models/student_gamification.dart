@@ -57,7 +57,7 @@ class StudentGamification {
   final List<StudentAchievement> achievements;
 
   /// IDs are namespaced by activity type. Quiz rewards use the web-compatible
-  /// quiz_reward:<type>:<quizId> key; older quiz:<quizId> entries are retained.
+  /// `quiz_reward:<type>:<quizId>` key; older `quiz:<quizId>` entries are retained.
   final List<String> completedActivities;
   final String? updatedAt;
 

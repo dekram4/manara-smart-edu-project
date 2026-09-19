@@ -480,6 +480,8 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
         // never locks into the float and turns the pair into one bob.
         final breath = math.sin(phase * 0.71) * 0.014;
         final drift = math.sin(phase * 0.5) * 0.012;
+        final scaleX = approach * squashX * (1 + breath);
+        final scaleY = approach * squashY * (1 - breath * 0.6);
 
 
         return Transform(
@@ -491,13 +493,10 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
             // Perspective, without which `rotateY` is an affine squash and
             // the roll reads as the figure being flattened and unflattened.
             ..setEntry(3, 2, 0.0011)
-            ..translate(dx, dy - float + crouch, depth)
+            ..translateByDouble(dx, dy - float + crouch, depth, 1.0)
             ..rotateY(roll)
             ..rotateZ(bank + drift)
-            ..scale(
-              approach * squashX * (1 + breath),
-              approach * squashY * (1 - breath * 0.6),
-            ),
+            ..scaleByDouble(scaleX, scaleY, scaleX, 1.0),
           child: Opacity(
             opacity: Curves.easeOut.transform((t / 0.16).clamp(0.0, 1.0)),
             child: child,

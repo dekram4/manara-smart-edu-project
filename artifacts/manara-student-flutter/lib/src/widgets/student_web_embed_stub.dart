@@ -37,8 +37,12 @@ class StudentWebEmbed extends StatelessWidget {
         iframeAllowFullscreen: true,
       ),
       onLoadStop: (_, __) => onLoaded?.call(),
-      onLoadError: (_, controller, request, description) =>
-          onError?.call(description),
+      // Unlike the old `onLoadError`, this fires for every resource the page
+      // fails to fetch — an image, a tracker. Only the page itself failing is
+      // an error for the embed, so everything else is let through.
+      onReceivedError: (_, request, error) {
+        if (request.isForMainFrame ?? true) onError?.call(error.description);
+      },
     );
   }
 }

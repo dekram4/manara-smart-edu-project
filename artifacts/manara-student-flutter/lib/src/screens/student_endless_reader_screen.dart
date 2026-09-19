@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -925,7 +925,7 @@ class _StudentEndlessReaderScreenState
               ),
               const SizedBox(height: 16),
               Text(
-                tr("challenge.empty"),
+                tr('challenge.empty'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
@@ -1080,14 +1080,14 @@ class _StudentEndlessReaderScreenState
             onPressed: _nextWord,
             icon: const Icon(Icons.arrow_back_rounded),
             label: Text(
-              tr("challenge.nextWord"),
+              tr('challenge.nextWord'),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             style: _actionStyle(const Color(0xFF6D28D9)),
           )
         else ...[
           Text(
-            tr("challenge.allDone"),
+            tr('challenge.allDone'),
             style: const TextStyle(
               fontSize: 19,
               fontWeight: FontWeight.w900,
@@ -1098,7 +1098,7 @@ class _StudentEndlessReaderScreenState
             onPressed: _restart,
             icon: const Icon(Icons.replay_rounded),
             label: Text(
-              tr("challenge.replay"),
+              tr('challenge.replay'),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             style: _actionStyle(const Color(0xFF15803D)),
@@ -1160,7 +1160,7 @@ class _StudentEndlessReaderScreenState
             boxShadow: [
               if (hovering)
                 BoxShadow(
-                  color: const Color(0xFF6D28D9).withOpacity(0.32),
+                  color: const Color(0xFF6D28D9).withValues(alpha: 0.32),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -1379,7 +1379,7 @@ class _StudentEndlessReaderScreenState
                 decoration: BoxDecoration(
                   color: filled != null
                       ? const Color(0xFFD1FAE5)
-                      : Colors.white.withOpacity(hovering ? 0.98 : 0.6),
+                      : Colors.white.withValues(alpha: hovering ? 0.98 : 0.6),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: filled != null

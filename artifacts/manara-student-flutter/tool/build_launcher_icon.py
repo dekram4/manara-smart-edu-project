@@ -15,24 +15,32 @@ hands. Those hands staying visible at the left and right of the disc are what
 makes the pair read as holding it; a disc wide enough to cover them would read
 as a sticker pasted on top.
 
-**No background, no frame.** The icon used to sit on a rounded sky-blue square
-with a white glow behind the pair. On the home screen that read as the
-characters shut inside a blue box with a hard edge, so both are gone: the
-artwork is cut out on transparency and is itself the icon's shape.
+**An opaque background, always.** The previous version left the adaptive
+icon's background layer transparent, to lose the blue square. Android does not
+promise to show a transparent adaptive background as transparent: tablet
+launchers and Samsung's One UI filled it with solid black. So the background is
+now a real, opaque layer — white, fading to the palest sky at the foot — soft
+enough to read as no colour at all next to the characters, and never black.
 
-Two files come out, because Android needs two:
+Three files come out:
 
-  * `assets/icon/app_icon.png` — the whole icon, used by pre-Android-8
-    launchers. With nothing to frame, the artwork runs almost edge to edge.
-  * `assets/icon/app_icon_foreground.png` — the adaptive icon's foreground.
-    Android 8+ composites it over `adaptive_icon_background` (transparent, see
-    pubspec.yaml) and clips it with the launcher's own mask — a circle, a
-    squircle, a rounded square. Every one of those masks contains the 72dp
-    circle at the middle of the 108dp canvas, so the artwork is sized to keep
-    its whole silhouette inside that circle, and no launcher shaves a foot or a
-    hat off it. `adaptive_icon_foreground_inset` is 0 so this file's own
-    margins are the only ones — the generator's default 16% inset on top of
-    them is what made the characters so small before.
+  * `assets/icon/app_icon_background.png` — that background, full bleed. It is
+    the adaptive icon's background layer.
+  * `assets/icon/app_icon_foreground.png` — the characters and the mark, with
+    their shadow, on transparency. Android 8+ lays it over the background and
+    clips both with the launcher's mask (circle, squircle, rounded square).
+    Every one of those masks contains the 72dp circle at the middle of the
+    108dp canvas, so the artwork keeps its whole silhouette inside that circle
+    and no launcher shaves a foot or a hat off it.
+    `adaptive_icon_foreground_inset` is 0: this file's own margins are the
+    only ones, and the generator's default 16% on top of them is what once
+    made the characters so small.
+  * `assets/icon/app_icon.png` — the two combined on a rounded square, for
+    launchers older than Android 8, which take one flat image.
+
+The characters stand out in 3D from two shadows rather than one: a wide, faint
+ambient shadow all round, and a tighter, darker one dropped below them, the way
+a real object on a surface is lit from above.
 
 `assets/icon/` is deliberately NOT in pubspec.yaml's `assets:` list. These are
 build-time inputs that nothing at runtime draws, and a declared directory would
@@ -57,11 +65,16 @@ OUT_DIR = os.path.join(ROOT, "assets", "icon")
 
 SIZE = 1024
 
-# The pair's height as a fraction of the canvas, for each output.
-#
-# The legacy icon was 0.80 inside a frame. With the frame gone it is 0.98 —
-# 22% larger, just short of the edge so resampling never shaves a pixel off.
-LEGACY_CONTENT = 0.98
+# The background: white at the top, the palest sky at the foot.
+BG_TOP = (0xFF, 0xFF, 0xFF)
+BG_BOTTOM = (0xE3, 0xF4, 0xFD)
+
+# The legacy icon's rounded square.
+CORNER_RADIUS = round(SIZE * 0.23)
+
+# The pair's height as a fraction of the canvas, for each output. The legacy
+# icon draws its own rounded square, so the artwork stays inside it.
+LEGACY_CONTENT = 0.82
 # The adaptive foreground was 0.60 of an image the generator then inset by 16%
 # per side: 0.60 x 0.68 = 0.41 of the launcher's canvas. It is now 0.50 with no
 # inset — 22% larger. That is also as large as it can go: the silhouette's
@@ -112,8 +125,26 @@ def drop_shadow(source: Image.Image, blur: int, offset: int, opacity: int) -> Im
     return padded
 
 
+def background() -> Image.Image:
+    """The soft vertical gradient behind the characters, full bleed."""
+    band = Image.new("RGB", (1, SIZE))
+    pixels = band.load()
+    for y in range(SIZE):
+        t = y / (SIZE - 1)
+        pixels[0, y] = tuple(
+            round(BG_TOP[i] + (BG_BOTTOM[i] - BG_TOP[i]) * t) for i in range(3)
+        )
+    return band.resize((SIZE, SIZE), Image.BICUBIC).convert("RGBA")
+
+
+def rounded_mask(radius: int) -> Image.Image:
+    mask = Image.new("L", (SIZE, SIZE), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, SIZE - 1, SIZE - 1), radius, fill=255)
+    return mask
+
+
 def compose(content_fraction: float) -> Image.Image:
-    """The pair holding the mark, centred on a transparent canvas."""
+    """The pair holding the mark, with its shadow, on a transparent canvas."""
     canvas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
 
     content = round(SIZE * content_fraction)
@@ -128,10 +159,27 @@ def compose(content_fraction: float) -> Image.Image:
     pair_x = (SIZE - pair.width) // 2
     pair_y = (SIZE - pair.height) // 2
 
-    # No halo and no shadow behind the pair. Both were there to lift it off the
-    # sky, and on a transparent icon they would be a grey smudge on whatever
-    # wallpaper the student has — the launcher draws its own shadow.
-    canvas.alpha_composite(_placed(pair, pair_x, pair_y))
+    # The 3D lift: a wide, faint ambient shadow all round, then a tighter,
+    # darker one dropped below. Sized from the pair, so the effect is the same
+    # in both outputs whatever their scale.
+    pair_layer = _placed(pair, pair_x, pair_y)
+    canvas.alpha_composite(
+        drop_shadow(
+            pair_layer,
+            blur=round(pair.height * 0.045),
+            offset=round(pair.height * 0.012),
+            opacity=55,
+        )
+    )
+    canvas.alpha_composite(
+        drop_shadow(
+            pair_layer,
+            blur=round(pair.height * 0.018),
+            offset=round(pair.height * 0.028),
+            opacity=95,
+        )
+    )
+    canvas.alpha_composite(pair_layer)
 
     # The mark, in front, on the line where their hands already are.
     mark = scaled_to_width(trimmed(LOGO), round(pair.width * LOGO_WIDTH_FRACTION))
@@ -173,14 +221,19 @@ def _placed(image: Image.Image, x: int, y: int) -> Image.Image:
 def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    full = compose(LEGACY_CONTENT)
-    full.save(os.path.join(OUT_DIR, "app_icon.png"))
+    back = background()
+    back.save(os.path.join(OUT_DIR, "app_icon_background.png"))
 
     foreground = compose(FOREGROUND_CONTENT)
     foreground.save(os.path.join(OUT_DIR, "app_icon_foreground.png"))
 
-    print(f"wrote {OUT_DIR}/app_icon.png             {full.size}")
-    print(f"wrote {OUT_DIR}/app_icon_foreground.png  {foreground.size}")
+    full = back.copy()
+    full.alpha_composite(compose(LEGACY_CONTENT))
+    full.putalpha(rounded_mask(CORNER_RADIUS))
+    full.save(os.path.join(OUT_DIR, "app_icon.png"))
+
+    for name in ("app_icon_background", "app_icon_foreground", "app_icon"):
+        print(f"wrote {OUT_DIR}/{name}.png")
 
 
 if __name__ == "__main__":

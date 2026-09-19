@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -217,7 +217,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   textStyle: const TextStyle(fontWeight: FontWeight.w900),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(color: Colors.white.withOpacity(0.75)),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.75)),
                   ),
                 ),
               ),
@@ -230,10 +230,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               style: IconButton.styleFrom(
                 foregroundColor: Colors.white,
                 disabledForegroundColor: Colors.white38,
-                backgroundColor: Colors.white.withOpacity(0.16),
+                backgroundColor: Colors.white.withValues(alpha: 0.16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: Colors.white.withOpacity(0.6)),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.6)),
                 ),
               ),
             ),
@@ -342,7 +342,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           color: StudentSurface.card(context),
           child: Column(children: [
             DropdownButtonFormField<String>(
-              value: _recipient,
+              initialValue: _recipient,
               decoration: InputDecoration(labelText: tr('chat.sendTo'), isDense: true),
               items: [
                 DropdownMenuItem(value: 'all', child: Text(tr('chat.classmates'))),

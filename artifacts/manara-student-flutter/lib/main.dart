@@ -97,7 +97,7 @@ Future<void> main() async {
       );
       client = Supabase.instance.client;
     } else {
-      initializationError = (initializationError ?? '') + '\n' + config.configurationMessage;
+      initializationError = '${initializationError ?? ''}\n${config.configurationMessage}';
     }
   } catch (error) {
     initializationError = '${initializationError ?? ''}\n'

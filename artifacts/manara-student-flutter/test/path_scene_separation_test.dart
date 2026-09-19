@@ -30,9 +30,31 @@ void main() {
     // ran to 0.378 and the right-hand figure to 0.356 — both over the glass.
     expect(MasarPathLayout.childrenPatch.right,
         lessThanOrEqualTo(MasarPathLayout.wallLeft));
-    for (final spot in MasarPathLayout.cheerSpots) {
-      expect(spot.right, lessThanOrEqualTo(MasarPathLayout.wallLeft));
-      expect(spot.right, lessThan(MasarPathLayout.windowLeft));
+    for (final layout in MasarPathLayout.cheerSpotLayouts) {
+      for (final spot in layout) {
+        expect(spot.right, lessThanOrEqualTo(MasarPathLayout.wallLeft));
+        expect(spot.right, lessThan(MasarPathLayout.windowLeft));
+        expect(spot.left, greaterThanOrEqualTo(0.0),
+            reason: 'a character ran off the left edge of the screen');
+      }
+    }
+  });
+
+  test('on an upright screen the characters are 25-35% larger, feet unmoved',
+      () {
+    // Upright, the figures are limited by their boxes' width, so the width
+    // of the box is the size of the character.
+    const portrait = Size(768, 1024);
+    const landscape = Size(1024, 768);
+    final tall = MasarPathLayout.cheerSpotsFor(portrait);
+    final wide = MasarPathLayout.cheerSpotsFor(landscape);
+    for (var i = 0; i < tall.length; i++) {
+      final growth = tall[i].width / wide[i].width;
+      expect(growth, inInclusiveRange(1.25, 1.35),
+          reason: 'character $i grew by ${((growth - 1) * 100).round()}%');
+      // Standing on the same ground, so the growth goes up and out — never
+      // down into the start button across the foot.
+      expect(tall[i].bottom, wide[i].bottom);
     }
   });
 

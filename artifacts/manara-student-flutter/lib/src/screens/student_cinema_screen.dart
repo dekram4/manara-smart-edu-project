@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -248,7 +248,7 @@ class _CinemaBadge extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
-        color: Colors.black.withOpacity(0.45),
+        color: Colors.black.withValues(alpha: 0.45),
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(7, 6, 14, 6),
@@ -258,11 +258,11 @@ class _CinemaBadge extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.white.withOpacity(0.20),
-              Colors.white.withOpacity(0.07),
+              Colors.white.withValues(alpha: 0.20),
+              Colors.white.withValues(alpha: 0.07),
             ],
           ),
-          border: Border.all(color: tint.withOpacity(0.55), width: 1.4),
+          border: Border.all(color: tint.withValues(alpha: 0.55), width: 1.4),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -272,8 +272,8 @@ class _CinemaBadge extends StatelessWidget {
               height: 30,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: tint.withOpacity(0.22),
-                border: Border.all(color: tint.withOpacity(0.8)),
+                color: tint.withValues(alpha: 0.22),
+                border: Border.all(color: tint.withValues(alpha: 0.8)),
               ),
               child: Icon(icon, color: tint, size: 17),
             ),
@@ -294,7 +294,7 @@ class _CinemaBadge extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: tint.withOpacity(0.9),
+                    color: tint.withValues(alpha: 0.9),
                     fontSize: 9.5,
                     height: 1.3,
                     fontWeight: FontWeight.w800,

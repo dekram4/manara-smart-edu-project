@@ -1,4 +1,4 @@
-﻿import 'package:confetti/confetti.dart';
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -538,7 +538,7 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
             color: ledge,
             boxShadow: [
               BoxShadow(
-                color: ledge.withOpacity(0.42),
+                color: ledge.withValues(alpha: 0.42),
                 blurRadius: 18,
                 offset: const Offset(0, 9),
               ),
@@ -555,7 +555,7 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                 end: Alignment.bottomLeft,
                 colors: gradient,
               ),
-              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.6),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.6),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -566,8 +566,8 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                   height: 34,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.26),
-                    border: Border.all(color: Colors.white.withOpacity(0.7)),
+                    color: Colors.white.withValues(alpha: 0.26),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
                   ),
                   child: Icon(
                     _completed
@@ -747,7 +747,7 @@ class _ArcadeProgress extends StatelessWidget {
             end: Alignment.bottomLeft,
           ),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -787,7 +787,7 @@ class _ArcadeProgress extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: stats.levelProgress / 100,
                 minHeight: 9,
-                backgroundColor: Colors.white.withOpacity(0.24),
+                backgroundColor: Colors.white.withValues(alpha: 0.24),
                 valueColor:
                     const AlwaysStoppedAnimation<Color>(Color(0xFFFDE68A)),
               ),
@@ -858,7 +858,7 @@ class _GameCard extends StatelessWidget {
                 end: Alignment.bottomLeft,
               ),
               border: Border.all(
-                color: Colors.white.withOpacity(locked ? 0.28 : 0.5),
+                color: Colors.white.withValues(alpha: locked ? 0.28 : 0.5),
                 width: 1.6,
               ),
               boxShadow: [
@@ -866,7 +866,7 @@ class _GameCard extends StatelessWidget {
                   color: (locked
                           ? const Color(0xFF525C6B)
                           : const Color(0xFF8B5CF6))
-                      .withOpacity(0.42),
+                      .withValues(alpha: 0.42),
                   blurRadius: 20,
                   offset: const Offset(0, 11),
                 ),
@@ -926,7 +926,7 @@ class _GameCard extends StatelessWidget {
                                 ? 1
                                 : (currentLevel / requiredLevel).clamp(0.0, 1.0),
                             minHeight: 7,
-                            backgroundColor: Colors.white.withOpacity(0.22),
+                            backgroundColor: Colors.white.withValues(alpha: 0.22),
                             valueColor: const AlwaysStoppedAnimation<Color>(
                               Color(0xFFFDE68A),
                             ),

@@ -25,14 +25,14 @@ class ManaraLogo extends StatelessWidget {
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  const Color(0xFFF4C96B).withOpacity(.3),
-                  const Color(0xFF58C9BE).withOpacity(.08),
+                  const Color(0xFFF4C96B).withValues(alpha: .3),
+                  const Color(0xFF58C9BE).withValues(alpha: .08),
                   Colors.transparent,
                 ],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF6BD4C8).withOpacity(.22),
+                  color: const Color(0xFF6BD4C8).withValues(alpha: .22),
                   blurRadius: size * .28,
                   spreadRadius: size * .04,
                 ),
@@ -60,7 +60,7 @@ class ManaraLogo extends StatelessWidget {
                 borderRadius: BorderRadius.circular(size / 3),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFF4C96B).withOpacity(.28),
+                    color: const Color(0xFFF4C96B).withValues(alpha: .28),
                     blurRadius: size * .2,
                   ),
                 ],

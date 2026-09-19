@@ -49,7 +49,7 @@ class StudentMascot extends StatelessWidget {
               width: size * 0.5,
               height: size * 0.05,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.black.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(40),
               ),
             ),
@@ -60,7 +60,7 @@ class StudentMascot extends StatelessWidget {
                 ? image
                 : ColorFiltered(
                     colorFilter: ColorFilter.mode(
-                      tint!.withOpacity(0.32),
+                      tint!.withValues(alpha: 0.32),
                       BlendMode.srcATop,
                     ),
                     child: image,
@@ -112,7 +112,7 @@ class PathMascot extends StatelessWidget {
               width: size * 0.55,
               height: size * 0.08,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.22),
+                color: Colors.black.withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(40),
               ),
             ),

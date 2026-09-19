@@ -591,15 +591,23 @@ class _QuestionList extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
                   ),
                   const SizedBox(height: 12),
-                  ...options.map(
-                    (option) => RadioListTile<String>(
-                      value: option,
-                      groupValue: selected,
-                      onChanged: submitting || option.isEmpty
-                          ? null
-                          : (value) => onAnswer(id, value!),
-                      title: Text(option),
-                      contentPadding: EdgeInsets.zero,
+                  RadioGroup<String>(
+                    groupValue: selected,
+                    onChanged: (value) {
+                      if (submitting || value == null || value.isEmpty) return;
+                      onAnswer(id, value);
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final option in options)
+                          RadioListTile<String>(
+                            value: option,
+                            enabled: !submitting && option.isNotEmpty,
+                            title: Text(option),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                      ],
                     ),
                   ),
                 ],

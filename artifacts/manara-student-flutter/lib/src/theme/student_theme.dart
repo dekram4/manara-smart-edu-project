@@ -55,8 +55,8 @@ abstract final class StudentSurface {
   /// A panel that was a translucent white over artwork. Kept translucent
   /// so the watermark still shows through in both modes.
   static Color glass(BuildContext context, [double opacity = 0.88]) => isDark(context)
-      ? const Color(0xFF171B26).withOpacity(opacity)
-      : Colors.white.withOpacity(opacity);
+      ? const Color(0xFF171B26).withValues(alpha: opacity)
+      : Colors.white.withValues(alpha: opacity);
 
   /// Body text.
   static Color ink(BuildContext context) =>
@@ -68,8 +68,8 @@ abstract final class StudentSurface {
 
   /// The hairline around a card.
   static Color outline(BuildContext context) => isDark(context)
-      ? Colors.white.withOpacity(0.16)
-      : Colors.black.withOpacity(0.10);
+      ? Colors.white.withValues(alpha: 0.16)
+      : Colors.black.withValues(alpha: 0.10);
 
   /// The warm ground the splash and the lesson card use.
   static Color warmGround(BuildContext context) =>
@@ -78,7 +78,7 @@ abstract final class StudentSurface {
   /// The empty half of a progress bar, a slider groove, a disabled track —
   /// anything that reads as "the part not filled in yet".
   static Color track(BuildContext context) => isDark(context)
-      ? Colors.white.withOpacity(0.14)
+      ? Colors.white.withValues(alpha: 0.14)
       : const Color(0xFFE5EDF5);
 
   /// The three-stop sweep behind a light app bar. In dark mode it
@@ -92,8 +92,8 @@ abstract final class StudentSurface {
   /// wash of the page's own ground rather than a fixed white.
   static Color controlWash(BuildContext context, [double opacity = 0.70]) =>
       isDark(context)
-      ? Colors.white.withOpacity(opacity * 0.22)
-      : Colors.white.withOpacity(opacity);
+      ? Colors.white.withValues(alpha: opacity * 0.22)
+      : Colors.white.withValues(alpha: opacity);
 }
 
 /// A shared "playful sticker" silhouette used across student-facing cards
@@ -153,7 +153,7 @@ abstract final class StudentTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withOpacity(0.92),
+        fillColor: Colors.white.withValues(alpha: 0.92),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
           vertical: 16,
@@ -335,7 +335,7 @@ abstract final class StudentTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
+        fillColor: Colors.white.withValues(alpha: 0.08),
         hintStyle: const TextStyle(color: mutedInk),
         labelStyle: const TextStyle(color: mutedInk),
         contentPadding: const EdgeInsets.symmetric(

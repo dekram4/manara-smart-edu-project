@@ -1,4 +1,10 @@
-﻿import 'dart:async';
+﻿// Web-only: this file is reached solely through the `if (dart.library.html)`
+// conditional import, so `dart:html` is never compiled for Android, iOS or
+// Windows. Moving it to package:web is a rewrite of the embed that has to be
+// tested in a browser, and belongs in its own change.
+// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
+
+import 'dart:async';
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 

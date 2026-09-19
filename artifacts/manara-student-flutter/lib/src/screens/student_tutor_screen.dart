@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -315,7 +315,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            tr("tutor.meetingHint"),
+                            tr('tutor.meetingHint'),
                             textAlign: TextAlign.start,
                             style: const TextStyle(color: Color(0xFFC8D5E5), fontSize: 12),
                           ),
@@ -323,7 +323,7 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                         const SizedBox(width: 10),
                         FilledButton(
                           onPressed: _joinMeeting,
-                          child: Text(tr("tutor.joinMeeting")),
+                          child: Text(tr('tutor.joinMeeting')),
                         ),
                       ],
                     ),
@@ -358,7 +358,7 @@ class _BlockedMeetingCard extends StatelessWidget {
                 const Icon(Icons.videocam_rounded, color: Color(0xFFFB7185), size: 58),
                 const SizedBox(height: 14),
                 Text(
-                  tr("tutor.meetingJoinable"),
+                  tr('tutor.meetingJoinable'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
                 ),
@@ -372,7 +372,7 @@ class _BlockedMeetingCard extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onJoin,
                   icon: const Icon(Icons.videocam_rounded),
-                  label: Text(tr("tutor.joinMeeting")),
+                  label: Text(tr('tutor.joinMeeting')),
                 ),
               ],
             ),

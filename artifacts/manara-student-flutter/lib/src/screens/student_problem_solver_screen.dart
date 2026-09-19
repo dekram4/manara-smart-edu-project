@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -322,7 +322,7 @@ class _AskButton extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: (sending ? const Color(0xFF6B7280) : ledge)
-                    .withOpacity(0.42),
+                    .withValues(alpha: 0.42),
                 blurRadius: 18,
                 offset: const Offset(0, 9),
               ),
@@ -340,7 +340,7 @@ class _AskButton extends StatelessWidget {
                     ? const [Color(0xFF9CA3AF), Color(0xFF6B7280)]
                     : const [Color(0xFF22D3EE), Color(0xFF0B8693)],
               ),
-              border: Border.all(color: Colors.white.withOpacity(0.55), width: 1.6),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 1.6),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -360,8 +360,8 @@ class _AskButton extends StatelessWidget {
                     height: 34,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.24),
-                      border: Border.all(color: Colors.white.withOpacity(0.7)),
+                      color: Colors.white.withValues(alpha: 0.24),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
                     ),
                     child: const Icon(
                       Icons.auto_awesome_rounded,

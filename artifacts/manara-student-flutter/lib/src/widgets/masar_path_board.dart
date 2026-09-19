@@ -96,6 +96,32 @@ const List<_Frac> _cheerSpots = [
   Rect.fromLTRB(0.186, 0.545, 0.326, 0.870),
 ];
 
+/// The same two characters on an upright screen, 30% larger.
+///
+/// The painting is stretched to fill the screen, so on a tall window it is
+/// squeezed sideways, and a figure fitted into its box is limited by the box's
+/// *width* — 14% of a narrow screen. That left two small figures at the foot
+/// of a tall stretch of sky. The height was never the constraint, so growing
+/// them means widening their boxes: 0.182 wide instead of 0.140.
+///
+/// Two boxes that wide do not fit side by side between the screen's left edge
+/// and the schoolhouse wall at 0.330, so they overlap by 0.040 — one child
+/// standing slightly in front of the other, which is how two friends pose
+/// anyway. The speaker on the right is drawn second, so it is the one in
+/// front, under its bubble.
+///
+/// Their feet stay exactly where they were, at 0.870, so the extra size goes
+/// upwards and outwards — clear of the start button across the foot and of
+/// the reward badge below. The right edge stops at 0.328, short of the wall.
+const List<_Frac> _cheerSpotsPortrait = [
+  Rect.fromLTRB(0.004, 0.545, 0.186, 0.870),
+  Rect.fromLTRB(0.146, 0.545, 0.328, 0.870),
+];
+
+/// Which layout of the two characters a scene of [size] uses.
+List<_Frac> _cheerSpotsFor(Size size) =>
+    size.height > size.width ? _cheerSpotsPortrait : _cheerSpots;
+
 /// The speech bubble, sitting just above the right-hand character's head.
 ///
 /// Anchored to a figure rather than pinned to a corner of the screen: the line
@@ -211,7 +237,11 @@ class MasarPathLayout {
   /// The lowest hanging sign — the one the bubble used to cover.
   static Rect get lowestSign => _signs.last;
 
-  static List<Rect> get cheerSpots => _cheerSpots;
+  /// Both layouts of the two characters, landscape first.
+  static List<List<Rect>> get cheerSpotLayouts =>
+      [_cheerSpots, _cheerSpotsPortrait];
+
+  static List<Rect> cheerSpotsFor(Size size) => _cheerSpotsFor(size);
   static Rect get childrenPatch => _childrenPatch;
   static Rect get speechBubble => _speechBubble;
 
@@ -229,16 +259,19 @@ class MasarPathLayout {
           f.right * size.width,
           f.bottom * size.height,
         );
-    return _bubbleRect(place(_speechBubble), place(_cheerSpots[1]));
+    return _bubbleRect(place(_speechBubble), place(_cheerSpotsFor(size)[1]));
   }
 
   /// The speaking character's box for a scene of [size].
-  static Rect speakerFor(Size size) => Rect.fromLTRB(
-        _cheerSpots[1].left * size.width,
-        _cheerSpots[1].top * size.height,
-        _cheerSpots[1].right * size.width,
-        _cheerSpots[1].bottom * size.height,
-      );
+  static Rect speakerFor(Size size) {
+    final spot = _cheerSpotsFor(size)[1];
+    return Rect.fromLTRB(
+      spot.left * size.width,
+      spot.top * size.height,
+      spot.right * size.width,
+      spot.bottom * size.height,
+    );
+  }
 
   /// Where the speaking figure's head actually starts for a scene of [size] —
   /// not where its box starts. On a narrow window the figure fills only part of
@@ -459,6 +492,7 @@ class _MasarPathBoardState extends State<MasarPathBoard>
           return const ColoredBox(color: Color(0xFFBFE3F5));
         }
         final area = Rect.fromLTWH(0, 0, box.maxWidth, box.maxHeight);
+        final cheerSpots = _cheerSpotsFor(area.size);
         Rect place(_Frac f) => Rect.fromLTRB(
               area.left + f.left * area.width,
               area.top + f.top * area.height,
@@ -534,9 +568,9 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   ),
 
                 // Two mascots cheering the student on from the grass.
-                for (var i = 0; i < _cheerSpots.length; i++)
+                for (var i = 0; i < cheerSpots.length; i++)
                   Positioned.fromRect(
-                    rect: place(_cheerSpots[i]),
+                    rect: place(cheerSpots[i]),
                     child: _CheeringMascot(
                       avatarId: _cheerAvatarIds[i % _cheerAvatarIds.length],
                       // Half a cycle apart, so they bounce alternately the way
@@ -549,7 +583,7 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                 // What the character is saying. Drawn after the figures so the
                 // bubble sits in front of whoever is speaking.
                 Positioned.fromRect(
-                  rect: _bubbleRect(place(_speechBubble), place(_cheerSpots[1])),
+                  rect: _bubbleRect(place(_speechBubble), place(cheerSpots[1])),
                   child: IgnorePointer(
                     child: _SpeechBubble(
                       text: tr('path.chooseTitle'),
@@ -950,8 +984,13 @@ class _CheeringMascot extends StatelessWidget {
         return Transform(
           alignment: Alignment.bottomCenter,
           transform: Matrix4.identity()
-            ..translate(0.0, -lift)
-            ..scale(1 + squash * 0.07, 1 - squash * 0.07 + beat * 0.05),
+            ..translateByDouble(0.0, -lift, 0.0, 1.0)
+            ..scaleByDouble(
+              1 + squash * 0.07,
+              1 - squash * 0.07 + beat * 0.05,
+              1 + squash * 0.07,
+              1.0,
+            ),
           child: Align(
             alignment: Alignment.bottomCenter,
             child: Image.asset(

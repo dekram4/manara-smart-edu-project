@@ -66,17 +66,58 @@ void main() {
         .getMaxScaleOnAxis();
   }
 
-  test('the deal is paced slowly: 1800ms a card, 800ms between cards', () {
-    // Asked for by name, after 1450/650 still read as hurried. Pinned here so
-    // a later tune cannot quietly speed the rail back up.
+  test('the deal is strictly serial: 1600ms a card, the next at 1700ms', () {
+    // Asked for by name: a card may only leave once the one before it has
+    // stopped. That holds exactly when the step is longer than the flight.
     expect(DealtCardEntrance.defaultDuration,
-        const Duration(milliseconds: 1800));
+        const Duration(milliseconds: 1600));
     expect(DealtCardEntrance.defaultStagger,
-        const Duration(milliseconds: 800));
-    // Card i leaves at i * 800ms, so the last of the ten portals lands
-    // 7.2s + 1.8s after the rail is armed.
+        const Duration(milliseconds: 1700));
+    expect(DealtCardEntrance.defaultStagger,
+        greaterThanOrEqualTo(DealtCardEntrance.defaultDuration));
+    // Card i leaves at i * 1700ms, so the last of the ten portals lands
+    // 15.3s + 1.6s after the rail is armed.
     expect(DealtCardEntrance.dealSpanFor(10),
-        const Duration(milliseconds: 9 * 800 + 1800));
+        const Duration(milliseconds: 9 * 1700 + 1600));
+  });
+
+  testWidgets('never two cards in the air at once', (tester) async {
+    final tracker = DealEntranceTracker();
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(rail(tracker, controller));
+    tracker.arm();
+
+    // A card is in flight once it has begun to show and until it is back at
+    // its own size. Not yet dealt is invisible; dealt is opaque at 1.0.
+    bool inFlight(int index) {
+      final opacity = opacityOf(tester, 'card $index');
+      final scale = scaleOf(tester, 'card $index');
+      return opacity > 0.0 && (opacity < 1.0 || scale > 1.0005);
+    }
+
+    final landed = <int>{};
+    for (var frame = 0; frame * 50 < 4 * 1700 + 200; frame++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      final flying = [
+        for (var i = 0; i < 4; i++)
+          if (inFlight(i)) i,
+      ];
+      expect(flying.length, lessThanOrEqualTo(1),
+          reason: 'cards $flying were moving together at ${frame * 50}ms');
+      // And each one leaves only after every card before it has landed.
+      for (final i in flying) {
+        for (var before = 0; before < i; before++) {
+          expect(landed, contains(before),
+              reason: 'card $i left before card $before had settled');
+        }
+      }
+      for (var i = 0; i < 4; i++) {
+        if (opacityOf(tester, 'card $i') == 1.0 && !inFlight(i)) landed.add(i);
+      }
+    }
+    expect(landed, containsAll(<int>[0, 1, 2, 3]));
   });
 
   testWidgets('an unarmed rail deals nothing at all', (tester) async {

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -579,7 +579,7 @@ class _RoomBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xCC172554),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -784,7 +784,7 @@ class _AvatarTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
-            color: Colors.white.withOpacity(selected ? 0.95 : 0.72),
+            color: Colors.white.withValues(alpha: selected ? 0.95 : 0.72),
             border: Border.all(
               color: selected ? accent : Colors.white,
               width: selected ? 3 : 1.5,
@@ -792,7 +792,7 @@ class _AvatarTile extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: (selected ? accent : const Color(0xFF9B3E68))
-                    .withOpacity(selected ? 0.38 : 0.14),
+                    .withValues(alpha: selected ? 0.38 : 0.14),
                 blurRadius: selected ? 20 : 10,
                 offset: const Offset(0, 8),
               ),
@@ -880,7 +880,7 @@ class _SaveAvatarButton extends StatelessWidget {
             color: ledge,
             boxShadow: [
               BoxShadow(
-                color: ledge.withOpacity(0.42),
+                color: ledge.withValues(alpha: 0.42),
                 blurRadius: 18,
                 offset: const Offset(0, 9),
               ),
@@ -898,7 +898,7 @@ class _SaveAvatarButton extends StatelessWidget {
                 colors: face,
               ),
               border:
-                  Border.all(color: Colors.white.withOpacity(0.6), width: 1.6),
+                  Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.6),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -908,8 +908,8 @@ class _SaveAvatarButton extends StatelessWidget {
                   height: 34,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.26),
-                    border: Border.all(color: Colors.white.withOpacity(0.7)),
+                    color: Colors.white.withValues(alpha: 0.26),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
                   ),
                   child: Icon(
                     dirty ? Icons.save_rounded : Icons.verified_rounded,

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -274,7 +274,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             Container(
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: const Color(0xFF0E5F6B).withOpacity(0.12),
+                color: const Color(0xFF0E5F6B).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(
@@ -362,7 +362,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(
-                tr("scope.noOptions"),
+                tr('scope.noOptions'),
                 style: const TextStyle(
                   color: Color(0xFF8092A8),
                   fontWeight: FontWeight.w700,
@@ -412,7 +412,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             boxShadow: [
               BoxShadow(
                 color: chosen
-                    ? const Color(0xFF0E5F6B).withOpacity(0.28)
+                    ? const Color(0xFF0E5F6B).withValues(alpha: 0.28)
                     : const Color(0x11000000),
                 blurRadius: chosen ? 14 : 6,
                 offset: Offset(0, chosen ? 6 : 3),
@@ -485,7 +485,7 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                     ),
             icon: const Icon(Icons.check_circle_rounded),
             label: Text(
-              tr("action.confirm"),
+              tr('action.confirm'),
               style: const TextStyle(fontWeight: FontWeight.w900),
             ),
             style: FilledButton.styleFrom(
