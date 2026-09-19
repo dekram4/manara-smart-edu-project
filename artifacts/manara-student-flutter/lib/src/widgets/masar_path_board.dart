@@ -177,6 +177,61 @@ Rect _bubbleRect(Rect designed, Rect speaker) {
   return Rect.fromLTRB(designed.left, top, designed.right, bottom);
 }
 
+/// The scene's layout, opened up for the test that guards it.
+///
+/// These fractions have now drifted three separate times — foliage onto the
+/// schoolhouse wall, a figure standing on the window glass, the bubble over the
+/// "تحدَّ واكسب!" plaque — and each time it was caught by measuring the render by
+/// hand rather than by anything that would fail on its own. The separations
+/// they have to keep are arithmetic between constants in this file, so the test
+/// needs the constants; nothing here is for the app to use.
+@visibleForTesting
+class MasarPathLayout {
+  const MasarPathLayout._();
+
+  /// Where the schoolhouse's pale wall starts, and its window frame after it.
+  /// Everything on the left of the scene has to stop before these.
+  static const double wallLeft = 0.330;
+  static const double windowLeft = 0.343;
+
+  /// The lowest hanging sign — the one the bubble used to cover.
+  static Rect get lowestSign => _signs.last;
+
+  static List<Rect> get cheerSpots => _cheerSpots;
+  static Rect get childrenPatch => _childrenPatch;
+  static Rect get speechBubble => _speechBubble;
+
+  /// The bubble's real position for a scene of [size] — the same computation
+  /// the widget does, which is the point: the gap this closes only appears once
+  /// the figure has been fitted into its box.
+  static Rect bubbleFor(Size size) {
+    Rect place(Rect f) => Rect.fromLTRB(
+          f.left * size.width,
+          f.top * size.height,
+          f.right * size.width,
+          f.bottom * size.height,
+        );
+    return _bubbleRect(place(_speechBubble), place(_cheerSpots[1]));
+  }
+
+  /// The speaking character's box for a scene of [size].
+  static Rect speakerFor(Size size) => Rect.fromLTRB(
+        _cheerSpots[1].left * size.width,
+        _cheerSpots[1].top * size.height,
+        _cheerSpots[1].right * size.width,
+        _cheerSpots[1].bottom * size.height,
+      );
+
+  /// Where the speaking figure's head actually starts for a scene of [size] —
+  /// not where its box starts. On a narrow window the figure fills only part of
+  /// its box, and the difference is the gap this all exists to close.
+  static double headTopFor(Size size) {
+    final box = speakerFor(size);
+    final aspect = _cheerAspect[_cheerAvatarIds[1]] ?? 1.5;
+    return box.bottom - math.min(box.height, box.width * aspect);
+  }
+}
+
 /// The character for one of those ids, or null if it has been removed.
 StudentAvatar? _cheerAvatar(String id) {
   for (final avatar in StudentAvatars.all) {

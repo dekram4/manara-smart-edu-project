@@ -103,7 +103,7 @@ void main() {
     expect(opacityOf(tester, 'card 11'), 1.0);
   });
 
-  testWidgets('a card overshoots its size before settling on it',
+  testWidgets('a card arrives huge and shrinks the whole way to its own size',
       (tester) async {
     final tracker = DealEntranceTracker();
     final controller = ScrollController();
@@ -112,16 +112,59 @@ void main() {
     await tester.pumpWidget(rail(tracker, controller));
     tracker.arm();
 
-    var peak = 0.0;
+    final samples = <double>[];
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 60));
-      peak = peak > scaleOf(tester, 'card 0') ? peak : scaleOf(tester, 'card 0');
+      samples.add(scaleOf(tester, 'card 0'));
     }
 
-    // Out past its own size on the way in — the pop — and exactly its own
-    // size once it has settled.
-    expect(peak, greaterThan(1.5), reason: 'the card never overshot');
+    // It starts near 2.9 — from the front of the scene, not from nothing. The
+    // first sample is a frame in, so it has already lost a little.
+    expect(samples.first, greaterThan(2.5),
+        reason: 'the card did not arrive from the front of the scene');
+    expect(samples.reduce((a, b) => a > b ? a : b), lessThanOrEqualTo(2.91));
+
+    // And it only ever shrinks. This is the whole shape of the motion in one
+    // assertion: no growth, and so no overshoot past its own size on the way
+    // to rest — the card stops where it stops. A tolerance because the samples
+    // are frames, not exact curve values.
+    for (var i = 1; i < samples.length; i++) {
+      expect(samples[i], lessThanOrEqualTo(samples[i - 1] + 0.001),
+          reason: 'the card grew between samples ${i - 1} and $i');
+    }
+
     expect(scaleOf(tester, 'card 0'), closeTo(1.0, 0.01));
+  });
+
+  testWidgets('a card never turns far enough to show its back', (tester) async {
+    final tracker = DealEntranceTracker();
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(rail(tracker, controller));
+    tracker.arm();
+
+    // Flutter does no backface culling: rotate a widget past 90° on Y and it
+    // simply paints mirrored — artwork and Arabic text reversed. That shows up
+    // in the projected transform as the 2x2 in-plane block flipping sign, so
+    // that sign is the invariant to hold, whatever the rotation is tuned to.
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+      final matrix = tester
+          .widget<Transform>(
+            find
+                .ancestor(
+                  of: find.text('card 0'),
+                  matching: find.byType(Transform),
+                )
+                .first,
+          )
+          .transform;
+      final inPlane = matrix.entry(0, 0) * matrix.entry(1, 1) -
+          matrix.entry(0, 1) * matrix.entry(1, 0);
+      expect(inPlane, greaterThan(0.0),
+          reason: 'the card was painting mirrored at frame $i');
+    }
   });
 
   testWidgets('a card scrolled away and back does not deal itself again',

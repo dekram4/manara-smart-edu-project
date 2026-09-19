@@ -52,8 +52,8 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultStagger = Duration(milliseconds: 450);
-  static const defaultDuration = Duration(milliseconds: 1200);
+  static const defaultStagger = Duration(milliseconds: 650);
+  static const defaultDuration = Duration(milliseconds: 1450);
   static const defaultStartDelay = Duration(milliseconds: 1250);
 
   /// How long the deal itself runs, measured from the moment the rail is
@@ -97,18 +97,18 @@ class DealtCardEntrance extends StatefulWidget {
   /// of them feel like they were never coming; a flat step keeps every gap the
   /// same, so no card is ever the one that lags.
   ///
-  /// At 450ms against a 1200ms flight, each card is well past its overshoot
-  /// and into its settle before the next one starts — the cards arrive singly
-  /// and are plainly in order, which is the whole point of dealing them.
+  /// At 650ms against a 1450ms flight, a card is already down to roughly its
+  /// own size and into its settle before the next one leaves — the cards arrive
+  /// singly and are plainly in order, which is the whole point of dealing them.
   final Duration stagger;
 
   /// How long a single card takes to arrive.
   ///
   /// Slow on purpose, and slower than instinct suggests. The card travels
-  /// three-quarters of a turn, out to nearly twice its size and back; at 620ms
-  /// that was over before the eye had found it, and even at 860ms it still
-  /// read as hurried. At 1200ms the movement can actually be watched, which is
-  /// the only reason it exists.
+  /// three-quarters of a turn while shrinking from nearly three times its own
+  /// size; at 620ms that was over before the eye had found it, at 1200ms it
+  /// could be watched but not savoured. At 1450ms the shrink has a visible
+  /// middle and a visible end, which is the only reason the movement exists.
   final Duration duration;
 
   /// How long the rail waits before dealing anything at all.
@@ -141,32 +141,50 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
   /// dependency change.
   bool _started = false;
 
+  /// Drives the turn and the arc through space.
+  ///
+  /// Eased at *both* ends, not just the out. An ease-out alone spends its
+  /// rotation in the first third and then holds still for the rest of a 1450ms
+  /// flight, which reads as a snap followed by a stall. Easing in as well gives
+  /// the roll a slow beginning, a body, and a slow end — and lands it on the
+  /// same frame the shrink finishes on.
   late final Animation<double> _turn = CurvedAnimation(
     parent: _controller,
-    curve: Curves.easeOutCubic,
+    curve: Curves.easeInOutCubic,
   );
 
-  /// Nothing, then far too big, then right.
+  /// Enormous, then right.
   ///
-  /// The card is born out of the depth at 0.0 — not 0.5, where every card was
-  /// already half-drawn before it moved and the rail was never really empty —
-  /// rushes past its own size to 1.8, and eases back down to 1.0.
+  /// The card comes in from the front of the scene at 2.9 times its size and
+  /// shrinks the whole way down to 1.0 — it is arriving, not being inflated.
+  /// The rail is drawn with `Clip.none`, which is what lets a card that large
+  /// spill over its neighbours instead of being sliced off at the edge of its
+  /// slot.
   ///
-  /// Two-thirds of the time goes to the rush and a third to the settle,
-  /// because an overshoot that takes as long to come back as it took to go out
-  /// reads as a wobble rather than a pop. The rail is drawn with `Clip.none`,
-  /// which is what lets a card at 1.8 spill over its neighbours instead of
-  /// being sliced off at the edge of its slot.
+  /// Split in two because one curve cannot do both jobs. The first 60% carries
+  /// it from 2.9 down to 1.35, eased at both ends so the travel has a middle
+  /// instead of collapsing in the first few frames; the last 40% — a full 580ms
+  /// — is the settle from 1.35 to rest, slow enough to be seen stopping. A
+  /// single ease-out across the whole flight put 80% of the shrink in the first
+  /// 400ms and left a second of near-stillness after it.
+  ///
+  /// Sine rather than cubic on that first stretch. A cubic ease-in is nearly
+  /// flat at the start, and the card fades in during exactly that stretch — so
+  /// it appeared at 2.9 and hung there, motionless and filling the screen,
+  /// before it began to move. Sine is moving by the time the card can be seen.
+  ///
+  /// It ends flat at 1.0, with no overshoot past it: the card stops where it
+  /// stops.
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(
-      tween: Tween<double>(begin: 0.0, end: 1.8)
-          .chain(CurveTween(curve: Curves.easeOutCubic)),
-      weight: 62,
+      tween: Tween<double>(begin: 2.9, end: 1.35)
+          .chain(CurveTween(curve: Curves.easeInOutSine)),
+      weight: 60,
     ),
     TweenSequenceItem(
-      tween: Tween<double>(begin: 1.8, end: 1.0)
-          .chain(CurveTween(curve: Curves.easeOutBack)),
-      weight: 38,
+      tween: Tween<double>(begin: 1.35, end: 1.0)
+          .chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 40,
     ),
   ]).animate(_controller);
 
@@ -274,19 +292,39 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
           // Perspective: without it the rotations are affine squashes and the
           // card looks flattened rather than turned.
           ..setEntry(3, 2, 0.0014)
-          // Pushed back along z as well as scaled down, so the card really is
-          // further away at the start rather than just smaller.
-          // In logical pixels rather than a fraction of the card: the arc
-          // should look the same on every card in the rail, and the cards are
-          // not all the same width.
-          ..translate(swing * 120.0, rise * 70.0, -420.0 * remaining)
-          // Three-quarters of a turn, not a quarter: the card winds in rather
-          // than simply facing round. Kept under a full turn so it never
-          // shows its back, which reads as a rendering fault at this speed.
-          ..rotateY(remaining * -math.pi * 0.75)
-          // A roll that unwinds with it — a card dealt by hand does not
-          // arrive square — and a touch of tilt so the spiral has depth.
-          ..rotateZ(remaining * 0.42)
+          // Brought *forward* along z, not pushed back — the card starts in
+          // front of the scene and recedes into its slot. Negative is forward
+          // here: the perspective row divides by `1 + 0.0014 * z`, so a
+          // negative z divides by less than one and magnifies. Getting this
+          // sign wrong pushes the card away while the scale says it is close,
+          // and the two cancel into a flat zoom.
+          //
+          // Kept small (90px against a 2.9 scale) because that divide
+          // multiplies whatever the scale is already doing — 90px is another
+          // 14% on top. The size is the scale tween's job; this only has to
+          // make the movement read as depth rather than zoom.
+          //
+          // The lateral swing is in logical pixels rather than a fraction of
+          // the card: the arc should look the same on every card in the rail,
+          // and the cards are not all the same width.
+          ..translate(swing * 120.0, rise * 70.0, -90.0 * remaining)
+          // Just under a quarter turn — 77°, deliberately short of 90°.
+          //
+          // This used to be 135°, which is past edge-on, and Flutter does no
+          // backface culling: past 90° the card paints mirrored. That was
+          // survivable while the turn was front-loaded and the card was still
+          // fading in, but at 1450ms with an eased-in turn the card holds past
+          // 90° for the first 600ms — fully opaque, three times its size, and
+          // showing its artwork and text in mirror. It reads as a rendering
+          // fault, not a deal. Stopping at 77° keeps the card facing the
+          // student for every frame it can actually be seen in.
+          ..rotateY(remaining * -math.pi * 0.43)
+          // The roll now carries the winding the Y turn gave up. Z rotation is
+          // in the plane of the screen, so it can be as generous as the motion
+          // wants without ever turning the card away: 54° is a card arriving
+          // askew and straightening, which is how a card dealt by hand lands.
+          ..rotateZ(remaining * 0.95)
+          // A touch of tilt so the arc has depth rather than being flat.
           ..rotateX(remaining * 0.18)
           ..scale(_scale.value);
         return Opacity(

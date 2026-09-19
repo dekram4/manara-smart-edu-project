@@ -66,21 +66,25 @@ flutter:
     - assets/sounds/
     - assets/audio/
 
-# The launcher icon: the Manara mark beside the app's own character, so
-# what a child taps on the home screen is the same pair that greets them
-# inside it.
+# The launcher icon: the two reading children from the login screen holding
+# the Manara mark from the welcome screen, so what a child taps on the home
+# screen is the same pair that greets them inside it.
 #
-# The two source images live in tool/ rather than assets/ on purpose.
-# They are build-time inputs that nothing at runtime ever draws, and while
-# they sat under the declared assets/images/ directory every copy of the
-# app carried ~1.5 MB of artwork it could not use. What ships is the
+# Both files are composed from those two assets by `tool/build_launcher_icon.py`
+# — re-run it there rather than editing the PNGs, so the composition stays
+# derived from the artwork the app actually ships.
+#
+# `assets/icon/` is NOT in the `assets:` list above, and must not be added to
+# it. These are build-time inputs that nothing at runtime ever draws, and while
+# the previous pair sat under the declared assets/images/ directory every copy
+# of the app carried ~1.5 MB of artwork it could not use. What ships is the
 # generated output under android/app/src/main/res.
 #
 # Regenerate with `dart run flutter_launcher_icons` after changing either
 # image; that output is committed, so the APK build does not run this
 # step itself.
 flutter_launcher_icons:
-  image_path: "tool/launcher_icon/app_launcher_icon.png"
+  image_path: "assets/icon/app_icon.png"
   android: true
   # This project has no ios/ runner — only android, web and windows — so
   # there is no Assets.xcassets to write into and the generator fails
@@ -96,8 +100,9 @@ flutter_launcher_icons:
   # crops anything outside the middle 61%. The foreground image is drawn
   # with the artwork inside 60% of the canvas for exactly that reason, so
   # no launcher shape clips the character or the mark.
-  # Matches the blue of the round shield in the full icon, so a launcher
-  # that composes the foreground over this background produces the same
-  # design as one that uses the legacy icon — not a hero floating on cream.
-  adaptive_icon_background: "#2E9BD6"
-  adaptive_icon_foreground: "tool/launcher_icon/app_launcher_icon_foreground.png"
+  # The midpoint of the full icon's sky gradient, so a launcher that composes
+  # the foreground over this flat colour produces the same design as one that
+  # uses the legacy icon. Keep in sync with SKY_TOP/SKY_BOTTOM in
+  # tool/build_launcher_icon.py.
+  adaptive_icon_background: "#9BDDF7"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
