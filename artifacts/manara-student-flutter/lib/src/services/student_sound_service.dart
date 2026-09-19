@@ -207,11 +207,11 @@ class StudentSoundService {
   /// straight after a welcome recorded in a natural one. No amount of locale
   /// probing fixes a device that does not have a good voice.
   ///
-  /// The welcome is a real clip, so these are now real clips too — the same
-  /// family of neural voice, pitched to the welcome's own range, rendered once
-  /// by `tool/build_portal_voices.py` from the lines in `student_strings.dart`,
-  /// and played on the same player the welcome plays on. What the student
-  /// hears no longer depends on the phone at all.
+  /// The welcome is a real clip, so these are now real clips too, in the
+  /// welcome's own voice — identified by measurement against `welcome.mp3`
+  /// (see `tool/build_portal_voices.py`, which renders them from the lines in
+  /// `student_strings.dart`). What the student hears no longer depends on
+  /// the phone at all.
   ///
   /// Every failure here is swallowed. A missing clip or a platform with no
   /// audio is not a reason a lesson should not open.
@@ -221,7 +221,10 @@ class StudentSoundService {
     try {
       final asset = portalVoiceAsset(portalKey, language, await _bundledAssets());
       await _voicePlayer.stop();
-      await _voicePlayer.play(AssetSource(asset), volume: 0.95);
+      // As loud as the welcome, not louder: the clips are mastered hotter
+      // than welcome.mp3 (speech RMS 0.090 against 0.061), and the welcome
+      // plays at 0.85, so 0.58 puts the two at the same level.
+      await _voicePlayer.play(AssetSource(asset), volume: 0.58);
     } catch (_) {
       // No audio on this device: the screen opens in silence.
     }

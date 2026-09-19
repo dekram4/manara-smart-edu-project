@@ -1,26 +1,26 @@
-"""Records the line each portal says when it is opened.
+"""Records the line each portal says when it is opened, in the welcome's voice.
 
-The welcome the student hears first (`assets/audio/welcome.mp3`) is not the
-device's speech engine — it is a clip exported from Clipchamp, whose voices are
-Microsoft's neural voices. The portal lines used to go through `flutter_tts`
-instead, which hands the text to whatever engine the phone ships with. On most
-phones that engine has no Arabic voice worth the name, and the result was the
-robotic reading that sounded nothing like the greeting before it.
+The welcome the student hears first is `assets/audio/welcome.mp3`, played by
+`student_startup_screen.dart`: «منارة المعرفة التعليمية ترحب بكم». It carries a
+Clipchamp export tag, and its voice was identified by measurement:
 
-So the lines are now recorded too, from the same family of voices, and played
-back exactly the way the welcome is. Nothing about how they sound depends on
-the device any more.
+  1. Transcribed offline with Whisper, so candidate voices could be made to say
+     the very same sentence.
+  2. That sentence rendered in every Microsoft Arabic and multilingual neural
+     voice, across pitch and speed settings, and each compared with the
+     original using a speaker-verification model (Resemblyzer). Calibration:
+     one voice saying two different sentences scores ~0.88; two different
+     voices ~0.77.
+  3. `en-US-AvaMultilingualNeural` took every top place — up to 0.90 — and no
+     other voice came close. At +18 Hz and -12% speed it also matches the
+     original's length (2.93s against 2.88s) and median pitch (250 Hz, exactly).
 
-The voice was matched by measurement, not by ear alone:
+The first version of these clips used `ar-SA-ZariyahNeural` raised by 35 Hz,
+chosen on pitch alone. Its similarity to the welcome was 0.69 — a different
+voice, which is exactly what the student heard.
 
-  * `welcome.mp3` has a median pitch of ~254 Hz, 20th-80th percentile 225-291.
-  * `ar-SA-ZariyahNeural` — the Saudi voice in that family — sits at ~205 Hz.
-  * Raised by 35 Hz it lands on 222-291, the same band as the welcome.
-
-A touch slower than the default, for a young listener.
-
-The English lines use `en-US-AnaNeural`, which is a child's voice already and
-needs no adjustment.
+The same voice and settings read the English lines: Ava is natively English,
+so the two languages now also sound like one speaker.
 
 The text is read from `lib/src/l10n/student_strings.dart` — every
 `portal.<name>.voice` key and `portal.voice.generic` — so a reworded line is
@@ -48,13 +48,11 @@ ROOT = os.path.dirname(HERE)
 STRINGS = os.path.join(ROOT, "lib", "src", "l10n", "student_strings.dart")
 OUT_DIR = os.path.join(ROOT, "assets", "audio", "voice")
 
-# Per language: the voice, and how it is adjusted. See the module docstring for
-# where the Arabic numbers come from. Keep the file naming in step with
-# `StudentSoundService._portalVoiceAsset`.
-VOICES = {
-    "ar": {"voice": "ar-SA-ZariyahNeural", "pitch": "+35Hz", "rate": "-8%"},
-    "en": {"voice": "en-US-AnaNeural", "pitch": "+0Hz", "rate": "-5%"},
-}
+# The welcome's own voice, as identified in the module docstring, for both
+# languages. Keep the file naming in step with
+# `StudentSoundService.portalVoiceAsset`.
+WELCOME_VOICE = {"voice": "en-US-AvaMultilingualNeural", "pitch": "+18Hz", "rate": "-12%"}
+VOICES = {"ar": WELCOME_VOICE, "en": WELCOME_VOICE}
 
 # `'portal.lesson.voice': 'text',` — the value may wrap onto the next line, and
 # may be in either quote style when it contains an apostrophe.

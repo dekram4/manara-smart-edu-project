@@ -1135,7 +1135,17 @@ class _StageField extends StatelessWidget {
             .min(box.maxHeight * 0.20, box.maxWidth * 0.20)
             .clamp(11.0, 28.0)
             .toDouble();
-        final labelSize = (valueSize * 0.66).clamp(8.0, 17.0).toDouble();
+        // The level's name is the square's heading, so it is the largest
+        // type in it — a fifth larger than the answer below. It used to be two
+        // thirds of the answer's size, medium weight and in the muted grey,
+        // and read as a faint caption rather than as what the square is for.
+        final labelSize = (valueSize * 1.2).clamp(13.0, 32.0).toDouble();
+        final dark = StudentSurface.isDark(context);
+        // Royal navy on the white plate; on the dark plate navy would vanish,
+        // so the heading turns gold there instead. Either way it is the
+        // strongest contrast the plate allows.
+        final headingColor =
+            dark ? const Color(0xFFFFD166) : const Color(0xFF0B2E7A);
 
         return Semantics(
           button: true,
@@ -1183,19 +1193,63 @@ class _StageField extends StatelessWidget {
                   // FittedBox: scaling the type is the regression the layout
                   // test guards against.
                   Flexible(
-                    child: Text(
-                      stage.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: labelSize,
-                        fontWeight: FontWeight.w700,
-                        color: StudentSurface.mutedInk(context),
+                    // Two parts in five of the height to the heading, three
+                    // to the answer. Equal shares — the default — let the
+                    // larger heading take half the square and cut the second
+                    // line of a two-line answer off.
+                    flex: 2,
+                    // The one line here allowed to scale: a heading is a
+                    // single word, and on a narrow phone "Subject" at full
+                    // size would be cut to "Subj…". The answer below keeps
+                    // its size untouched, which is what the layout test
+                    // guards.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            stage.label,
+                            maxLines: 1,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: labelSize,
+                              height: 1.1,
+                              fontWeight: FontWeight.w900,
+                              color: headingColor,
+                              shadows: [
+                                Shadow(
+                                  color: dark
+                                      ? Colors.black.withValues(alpha: 0.65)
+                                      : Colors.white,
+                                  blurRadius: 3,
+                                ),
+                                Shadow(
+                                  color: headingColor.withValues(alpha: 0.35),
+                                  offset: const Offset(0, 1.5),
+                                  blurRadius: 2,
+                                ),
+                              ],
+                            ),
+                          ),
+                          // A short bar in the level's own colour under the
+                          // name, the way a heading is underlined: it marks
+                          // the line as the title of the square.
+                          Container(
+                            margin: EdgeInsets.only(top: labelSize * 0.12),
+                            width: labelSize * 1.6,
+                            height: math.max(2.0, labelSize * 0.12),
+                            decoration: BoxDecoration(
+                              color: stage.color,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                   Flexible(
+                    flex: 3,
                     child: Text(
                       stage.isChosen
                           ? stage.value!

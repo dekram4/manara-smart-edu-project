@@ -106,6 +106,21 @@ void main() {
     expect(find.text('الصف الرابع'), findsOneWidget);
   });
 
+  testWidgets('each square is headed by its level, larger and bolder than '
+      'the answer', (tester) async {
+    await pumpBoard(tester, given: stages(onPick: (_, __) {}));
+
+    // The level's name used to be two thirds of the answer's size, medium
+    // weight and in the muted grey — a faint caption, not a heading.
+    final heading = tester.widget<Text>(find.text('الصف')).style!;
+    final answer = tester.widget<Text>(find.text('الصف الرابع')).style!;
+    expect(heading.fontWeight, FontWeight.w900);
+    expect(heading.fontSize!, greaterThan(answer.fontSize! * 1.1),
+        reason: 'the heading is not clearly larger than the answer');
+    // Royal navy on the light plate: the strongest contrast it allows.
+    expect(heading.color, const Color(0xFF0B2E7A));
+  });
+
   testWidgets('the six squares sit where the artwork draws them',
       (tester) async {
     await pumpBoard(tester, given: stages(onPick: (_, __) {}));
