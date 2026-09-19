@@ -261,11 +261,11 @@ class StudentSoundService with WidgetsBindingObserver {
   /// straight after a welcome recorded in a natural one. No amount of locale
   /// probing fixes a device that does not have a good voice.
   ///
-  /// The welcome is a real clip, so these are now real clips too, in the
-  /// welcome's own voice — identified by measurement against `welcome.mp3`
-  /// (see `tool/build_portal_voices.py`, which renders them from the lines in
-  /// `student_strings.dart`). What the student hears no longer depends on
-  /// the phone at all.
+  /// The Arabic clips are recordings supplied for the app, produced the same
+  /// way as the hub's welcome (`manara-arabic-student-welcome.mp3`), so the
+  /// greeting and the cards are one voice. What the student hears does not
+  /// depend on the phone at all. Each clip is played at the welcome's
+  /// loudness — see [voiceVolume].
   ///
   /// Every failure here is swallowed. A missing clip or a platform with no
   /// audio is not a reason a lesson should not open.
@@ -276,13 +276,68 @@ class StudentSoundService with WidgetsBindingObserver {
       final asset = portalVoiceAsset(portalKey, language, await _bundledAssets());
       await _voicePlayer.stop();
       _voiceClip = asset;
-      // As loud as the welcome, not louder: the clips are mastered hotter
-      // than welcome.mp3 (speech RMS 0.090 against 0.061), and the welcome
-      // plays at 0.85, so 0.58 puts the two at the same level.
-      await _voicePlayer.play(AssetSource(asset), volume: 0.58);
+      await _voicePlayer.play(AssetSource(asset), volume: voiceVolume(asset));
     } catch (_) {
       // No audio on this device: the screen opens in silence.
     }
+  }
+
+  /// How loud the hub's welcome actually sounds: its speech RMS (0.122)
+  /// at the 0.78 it is played at. Every spoken line is brought to this.
+  static const _welcomeLoudness = 0.122 * 0.78;
+
+  /// Speech RMS of each clip in `assets/audio/voice/` — measured over its
+  /// voiced frames, not its silences.
+  ///
+  /// The Arabic clips are recordings supplied for the app and arrive at
+  /// their own levels, 5.5 dB apart from quietest to loudest (0.092 to
+  /// 0.174). One volume for all of them made some cards shout and others
+  /// mumble; dividing by the measured level gives each the same loudness
+  /// as the welcome, without re-encoding the recordings themselves.
+  ///
+  /// Replace a clip, re-measure it here. `portal_voice_test.dart` fails
+  /// for a clip that has no entry.
+  @visibleForTesting
+  static const Map<String, double> voiceRms = {
+    'challenge_ar': 0.174,
+    'challenge_en': 0.147,
+    'chat_ar': 0.133,
+    'chat_en': 0.136,
+    'cinema_ar': 0.119,
+    'cinema_en': 0.142,
+    'games_ar': 0.137,
+    'games_en': 0.144,
+    'generic_ar': 0.086,
+    'generic_en': 0.151,
+    'lesson_ar': 0.137,
+    'lesson_en': 0.142,
+    'meeting_ar': 0.148,
+    'meeting_en': 0.146,
+    'path_ar': 0.092,
+    'path_en': 0.148,
+    'personality_ar': 0.096,
+    'personality_en': 0.155,
+    'quiz_ar': 0.131,
+    'quiz_en': 0.132,
+    'solver_ar': 0.154,
+    'solver_en': 0.160,
+    'tutor_ar': 0.138,
+    'tutor_en': 0.145,
+  };
+
+  /// The player volume that makes [asset] as loud as the hub's welcome.
+  ///
+  /// Capped at full volume: a clip quieter than the welcome plays as loud
+  /// as it can rather than being pushed into distortion.
+  @visibleForTesting
+  static double voiceVolume(String asset) {
+    final file = asset.split('/').last;
+    final name = file.endsWith('.mp3')
+        ? file.substring(0, file.length - '.mp3'.length)
+        : file;
+    final rms = voiceRms[name];
+    if (rms == null) return 0.6;
+    return (_welcomeLoudness / rms).clamp(0.0, 1.0);
   }
 
   /// The clip the voice player was last asked to play.
@@ -291,9 +346,8 @@ class StudentSoundService with WidgetsBindingObserver {
   static String _pathClip(String language) => 'audio/voice/path_$language.mp3';
 
   /// Greets the student on the path-choosing screen: «مَرْحَبًا يَا بَطَل!
-  /// اِخْتَرْ مَسَارَكَ التَّعْلِيمِيَّ…», recorded in the welcome's voice like
-  /// the portal lines (`path.voice`, rendered by
-  /// `tool/build_portal_voices.py`).
+  /// اِخْتَرْ مَسَارَكَ التَّعْلِيمِيَّ…» — `path_ar.mp3`, a supplied recording in
+  /// the same voice as the hub's welcome and the portal lines.
   ///
   /// The music, if it is playing, is lowered underneath the line and brought
   /// back when the line ends or is stopped — the sentence is the point here.
@@ -308,7 +362,7 @@ class StudentSoundService with WidgetsBindingObserver {
         (_) => _duckAmbient(false),
         onError: (_) => _duckAmbient(false),
       ));
-      await _voicePlayer.play(AssetSource(asset), volume: 0.58);
+      await _voicePlayer.play(AssetSource(asset), volume: voiceVolume(asset));
     } catch (_) {
       _duckAmbient(false);
       // No audio on this device: the path is still there to choose.

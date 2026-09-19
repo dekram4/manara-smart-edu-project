@@ -1,4 +1,14 @@
-"""Records the line each portal says when it is opened, in the welcome's voice.
+"""RETIRED — do not run. The Arabic clips are now supplied recordings.
+
+The Arabic lines in `assets/audio/voice/` were replaced by recordings produced
+the same way as the hub's welcome (`manara-arabic-student-welcome.mp3`), so the
+greeting and the cards are one voice. Running this would write edge-tts clips
+over them. It therefore stops before doing anything unless given `--allow`,
+and even then it never writes any file in `SUPPLIED` below.
+
+The notes that follow describe how the earlier clips were made.
+
+Records the line each portal says when it is opened, in the welcome's voice.
 
 The welcome the student hears first is `assets/audio/welcome.mp3`, played by
 `student_startup_screen.dart`: «منارة المعرفة التعليمية ترحب بكم». It carries a
@@ -59,6 +69,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import sys
 
 import edge_tts
 
@@ -73,6 +84,20 @@ OUT_DIR = os.path.join(ROOT, "assets", "audio", "voice")
 # `StudentSoundService.portalVoiceAsset`.
 WELCOME_VOICE = {"voice": "en-US-AvaMultilingualNeural", "pitch": "+18Hz", "rate": "-12%"}
 VOICES = {"ar": WELCOME_VOICE, "en": WELCOME_VOICE}
+
+# Supplied recordings. Never written by this script, with or without --allow.
+SUPPLIED = {
+    "path_ar",
+    "lesson_ar",
+    "tutor_ar",
+    "cinema_ar",
+    "games_ar",
+    "meeting_ar",
+    "chat_ar",
+    "challenge_ar",
+    "solver_ar",
+    "quiz_ar",
+}
 
 # `'portal.lesson.voice': 'text',` — the value may wrap onto the next line, and
 # may be in either quote style when it contains an apostrophe.
@@ -116,11 +141,19 @@ async def render(text: str, language: str, path: str) -> None:
 
 
 async def main() -> None:
+    if "--allow" not in sys.argv[1:]:
+        raise SystemExit(
+            "build_portal_voices.py is retired: the Arabic clips are supplied "
+            "recordings. Pass --allow only to re-render a clip that is not one "
+            "of them (see SUPPLIED)."
+        )
     os.makedirs(OUT_DIR, exist_ok=True)
     for language, lines in read_lines().items():
         if "generic" not in lines:
             raise SystemExit(f"no portal.voice.generic line for {language}")
         for name, text in sorted(lines.items()):
+            if f"{name}_{language}" in SUPPLIED:
+                continue
             path = os.path.join(OUT_DIR, f"{name}_{language}.mp3")
             await render(text, language, path)
             print(f"wrote {os.path.relpath(path, ROOT)}  {text}")
