@@ -266,7 +266,6 @@ class StudentVideoPlayer extends StatefulWidget {
     this.initialPosition = Duration.zero,
     this.autoPlay = true,
     this.muted = false,
-    this.fullscreen = false,
     this.allowInteractivePermissions = false,
     this.onCompleted,
     super.key,
@@ -278,7 +277,6 @@ class StudentVideoPlayer extends StatefulWidget {
   final Duration initialPosition;
   final bool autoPlay;
   final bool muted;
-  final bool fullscreen;
 
   /// Enables only the browser permissions required by an interactive tutor
   /// embedded from another origin. Lesson videos keep this disabled.
@@ -593,6 +591,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
     _nativeRetryScheduled = true;
     _videoTrackWatchdogTimer?.cancel();
+    _closeFullscreen();
     await _player?.dispose();
     await _networkController?.dispose();
     _player = null;
@@ -746,6 +745,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
   @override
   void dispose() {
+    _closeFullscreen(deferred: true);
     _loadTimeoutTimer?.cancel();
     _videoTrackWatchdogTimer?.cancel();
     _ytSubscription?.cancel();
@@ -786,9 +786,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
             networkController.value.isInitialized)
           _NetworkVideoSurface(
             controller: networkController,
-            video: widget.video,
-            apiBaseUrl: widget.apiBaseUrl,
-            fullscreen: widget.fullscreen,
+            onToggleFullscreen: _openFullscreen,
           )
         else
           const ColoredBox(
@@ -842,21 +840,55 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     });
   }
 
-  _FullscreenPlaybackState? get fullscreenPlaybackState {
-    if (_usesMediaKit) {
-      final player = _player;
-      if (player == null) return null;
-      return _FullscreenPlaybackState(
-        position: player.state.position,
-        isPlaying: player.state.playing,
-      );
-    }
+  /// The fullscreen route while it is open. It shows this state's own
+  /// controller, so it must be gone before that controller is disposed.
+  Route<void>? _fullscreenRoute;
+
+  /// Opens the MP4 fullscreen on the controller already playing here — no
+  /// second download, no hand-off of position; see
+  /// [_FullscreenNetworkVideoScreen].
+  Future<void> _openFullscreen() async {
     final controller = _networkController;
-    if (controller == null || !controller.value.isInitialized) return null;
-    return _FullscreenPlaybackState(
-      position: controller.value.position,
-      isPlaying: controller.value.isPlaying,
+    if (controller == null || _fullscreenRoute != null) return;
+    // Known from the controller already, so the device turns the moment
+    // the route opens. An unknown size counts as wide, like nearly every
+    // lesson.
+    final size = controller.value.size;
+    final landscape = size.isEmpty || size.width >= size.height;
+    final route = StudentPageRoute<void>(
+      builder: (_) => _FullscreenNetworkVideoScreen(
+        controller: controller,
+        landscape: landscape,
+      ),
     );
+    _fullscreenRoute = route;
+    try {
+      await Navigator.of(context).push(route);
+    } finally {
+      if (identical(_fullscreenRoute, route)) _fullscreenRoute = null;
+    }
+  }
+
+  /// Takes the fullscreen route down without an animation. Called before
+  /// the controller it shows is disposed — a retry, a fallback, or this
+  /// player leaving — so it never draws a released texture.
+  ///
+  /// From `dispose` the removal waits for the end of the frame: the tree is
+  /// locked while it is being torn down, and the navigator cannot change
+  /// its history in the middle of that.
+  void _closeFullscreen({bool deferred = false}) {
+    final route = _fullscreenRoute;
+    _fullscreenRoute = null;
+    if (route == null) return;
+    void remove() {
+      if (route.isActive) route.navigator?.removeRoute(route);
+    }
+
+    if (deferred) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => remove());
+    } else {
+      remove();
+    }
   }
 
   Widget _buildInlineEmbed() {
@@ -1117,6 +1149,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
   Future<void> _retryNativePlayback() async {
     _videoTrackWatchdogTimer?.cancel();
+    _closeFullscreen();
     await _player?.dispose();
     await _networkController?.dispose();
     if (!mounted) return;
@@ -1238,17 +1271,35 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   }
 }
 
+/// Whether a fullscreen video fills [screen] before the student chooses.
+///
+/// Yes, unless filling would crop more than 30% of the picture: a 16:9
+/// lesson on a 20:9 phone loses a fifth of its height, which is what every
+/// video app does, while a clip filmed upright on a landscape screen would
+/// lose most of itself and is shown whole instead. The student can switch
+/// either way from the control bar.
+@visibleForTesting
+bool studentVideoFillsScreen(Size screen, Size video) {
+  if (screen.isEmpty || video.isEmpty) return true;
+  final screenRatio = screen.width / screen.height;
+  final videoRatio = video.width / video.height;
+  final crop = screenRatio > videoRatio
+      ? screenRatio / videoRatio
+      : videoRatio / screenRatio;
+  return crop <= 1.3;
+}
+
 class _NetworkVideoSurface extends StatefulWidget {
   const _NetworkVideoSurface({
     required this.controller,
-    required this.video,
-    required this.apiBaseUrl,
+    required this.onToggleFullscreen,
     this.fullscreen = false,
   });
 
   final VideoPlayerController controller;
-  final LessonVideo video;
-  final String apiBaseUrl;
+
+  /// Opens the fullscreen route from the card, or closes it from inside.
+  final VoidCallback onToggleFullscreen;
   final bool fullscreen;
 
   @override
@@ -1257,6 +1308,11 @@ class _NetworkVideoSurface extends StatefulWidget {
 
 class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   bool _showControls = true;
+
+  /// The student's own choice between filling the screen and seeing the
+  /// whole picture, once they have made one. `null` until then, and the
+  /// screen's shape decides — see [studentVideoFillsScreen].
+  bool? _fill;
 
   /// Hides the controls after a few idle seconds of playback.
   ///
@@ -1267,6 +1323,12 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
   Timer? _hideTimer;
 
   static const _idleBeforeHide = Duration(seconds: 3);
+
+  @override
+  void initState() {
+    super.initState();
+    _restartHideTimer();
+  }
 
   @override
   void dispose() {
@@ -1311,305 +1373,249 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     _restartHideTimer();
   }
 
-  Future<void> _openFullscreen() async {
-    final controller = widget.controller;
-    final wasPlaying = controller.value.isPlaying;
-    final position = controller.value.position;
-    // Known already from the inline player, so the device can turn the
-    // moment the fullscreen route opens rather than after its own player
-    // has loaded. An unknown size counts as wide, like nearly every lesson.
-    final size = controller.value.size;
-    final landscape = size.isEmpty || size.width >= size.height;
-    await controller.pause();
-    // الإيقاف فجوة غير متزامنة: لو غادر الطالب الشاشة أثناءها صار
-    // `context` معزولاً عن الشجرة، و`Navigator.of` عليه يرمي استثناءً.
-    if (!mounted) return;
-    final result = await Navigator.of(context).push<_FullscreenPlaybackState>(
-      StudentPageRoute<_FullscreenPlaybackState>(
-        builder: (_) => _FullscreenNetworkVideoScreen(
-          video: widget.video,
-          apiBaseUrl: widget.apiBaseUrl,
-          initialPosition: position,
-          autoPlay: wasPlaying,
-          landscape: landscape,
-        ),
-      ),
-    );
-    if (!mounted) return;
-    if (!controller.value.isInitialized) return;
-    await controller.seekTo(result?.position ?? position);
-    if (result?.isPlaying ?? wasPlaying) {
-      await controller.play();
-    } else {
-      await controller.pause();
-    }
-    setState(() => _showControls = true);
+  void _toggleFill(bool current) {
+    setState(() {
+      _fill = !current;
+      _showControls = true;
+    });
+    _restartHideTimer();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // Tapping the video surface only reveals/hides the controls. Playback
-      // changes are intentionally restricted to the dedicated play button so
-      // an incidental touch cannot pause a lesson or cinema video.
-      onTap: _toggleControls,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // The frame around this is a 16:9 box filling the container's
-          // width. What goes inside it used to be `AspectRatio(ratio)` —
-          // the *source's* own shape — so a lesson filmed on a phone in
-          // portrait rendered as a narrow strip stranded in the middle of
-          // a wide black frame. The video now fills the frame instead.
-          //
-          // Cropped in the card, whole in fullscreen. Cover is what makes
-          // a portrait source fill the width, and it necessarily cuts the
-          // top and bottom off; the student can still see every pixel by
-          // expanding, where nothing is cropped. A landscape source — the
-          // overwhelming majority — is 16:9 already and neither fit
-          // changes it at all.
-          Positioned.fill(
-            child: FittedBox(
-              fit: widget.fullscreen ? BoxFit.contain : BoxFit.cover,
-              clipBehavior: Clip.hardEdge,
-              child: SizedBox(
-                width: widget.controller.value.size.width <= 0
-                    ? 16
-                    : widget.controller.value.size.width,
-                height: widget.controller.value.size.height <= 0
-                    ? 9
-                    : widget.controller.value.size.height,
-                child: VideoPlayer(widget.controller),
-              ),
-            ),
-          ),
-          // ExoPlayer/AVPlayer both surface network stalls as a transient
-          // "buffering" state rather than an error. Without this, a slow
-          // connection just freezes the frame with no feedback, which reads
-          // as "the video is broken" even though it's still trying.
-          ValueListenableBuilder<VideoPlayerValue>(
-            valueListenable: widget.controller,
-            builder: (context, value, _) {
-              final ended =
-                  value.isInitialized &&
-                  value.duration > Duration.zero &&
-                  value.position >= value.duration;
-              if (!value.isBuffering || value.isPlaying || ended) {
-                return const SizedBox.shrink();
-              }
-              return const IgnorePointer(
-                child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
-              );
-            },
-          ),
-          // The big centre button, and it is a real button.
-          //
-          // It used to be wrapped in IgnorePointer — decoration only — so
-          // a tap on it fell straight through to the surface's own
-          // "toggle the controls" handler. Pressing pause in the middle of
-          // a video therefore hid the button and did nothing else, which
-          // is exactly what was reported. It now drives playback directly,
-          // and stops the tap so the overlay handler underneath never sees
-          // it.
-          if (_showControls)
-            Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: _togglePlayback,
-                customBorder: const CircleBorder(),
-                child: Semantics(
-                  button: true,
-                  label: widget.controller.value.isPlaying
-                      ? tr('video.pause')
-                      : tr('video.play'),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withAlpha(110),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Padding(
-                      // Roomy enough to be an easy target for a child's
-                      // finger rather than a 34px glyph.
-                      padding: const EdgeInsets.all(18),
-                      child: Icon(
-                        widget.controller.value.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 40,
-                      ),
+    final rawSize = widget.controller.value.size;
+    final videoSize = rawSize.isEmpty ? const Size(16, 9) : rawSize;
+    // In fullscreen the controls keep clear of the camera cutout and the
+    // rounded corners; the picture itself runs edge to edge underneath.
+    final insets = widget.fullscreen
+        ? MediaQuery.paddingOf(context)
+        : EdgeInsets.zero;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final box = constraints.biggest;
+        // Cropped in the card, where the frame is 16:9 and a portrait
+        // source must still fill its width. In fullscreen the whole screen
+        // is filled too — the side bars a 16:9 lesson leaves on a 20:9
+        // phone were the "still stuck in the middle" report — unless that
+        // would crop too much, and the student can switch either way.
+        final fill = widget.fullscreen
+            ? (_fill ?? studentVideoFillsScreen(box, videoSize))
+            : true;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // Tapping the video surface only reveals/hides the controls.
+          // Playback changes are intentionally restricted to the dedicated
+          // play button so an incidental touch cannot pause a lesson or
+          // cinema video.
+          onTap: _toggleControls,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black,
+                  child: FittedBox(
+                    fit: fill ? BoxFit.cover : BoxFit.contain,
+                    clipBehavior: Clip.hardEdge,
+                    child: SizedBox(
+                      width: videoSize.width,
+                      height: videoSize.height,
+                      child: VideoPlayer(widget.controller),
                     ),
                   ),
                 ),
               ),
-            ),
-          if (_showControls)
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  VideoProgressIndicator(
-                    widget.controller,
-                    allowScrubbing: true,
-                    colors: const VideoProgressColors(
-                      playedColor: Color(0xFF5EEAD4),
-                      bufferedColor: Color(0x885EEAD4),
-                      backgroundColor: Color(0x66788A9F),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: widget.controller.value.isPlaying
-                            ? tr('video.pause')
-                            : tr('video.play'),
-                        onPressed: _togglePlayback,
-                        icon: Icon(
-                          widget.controller.value.isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          color: Colors.white,
+              // ExoPlayer/AVPlayer both surface network stalls as a
+              // transient "buffering" state rather than an error. Without
+              // this, a slow connection just freezes the frame with no
+              // feedback, which reads as "the video is broken" even though
+              // it's still trying.
+              ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: widget.controller,
+                builder: (context, value, _) {
+                  final ended =
+                      value.isInitialized &&
+                      value.duration > Duration.zero &&
+                      value.position >= value.duration;
+                  if (!value.isBuffering || value.isPlaying || ended) {
+                    return const SizedBox.shrink();
+                  }
+                  return const IgnorePointer(
+                    child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
+                  );
+                },
+              ),
+              // The big centre button, and it is a real button: it drives
+              // playback directly and stops the tap, so the surface's own
+              // "toggle the controls" handler underneath never sees it.
+              if (_showControls)
+                Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: _togglePlayback,
+                    customBorder: const CircleBorder(),
+                    child: Semantics(
+                      button: true,
+                      label: widget.controller.value.isPlaying
+                          ? tr('video.pause')
+                          : tr('video.play'),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withAlpha(110),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          // Roomy enough to be an easy target for a child's
+                          // finger rather than a 34px glyph.
+                          padding: const EdgeInsets.all(18),
+                          child: Icon(
+                            widget.controller.value.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 40,
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: widget.fullscreen
-                            ? tr('video.exitFullscreen')
-                            : tr('video.fullscreen'),
-                        onPressed: widget.fullscreen
-                            ? () => Navigator.of(context).pop(
-                                _FullscreenPlaybackState(
-                                  position: widget.controller.value.position,
-                                  isPlaying: widget.controller.value.isPlaying,
-                                ),
-                              )
-                            : _openFullscreen,
-                        icon: Icon(
-                          widget.fullscreen
-                              ? Icons.fullscreen_exit_rounded
-                              : Icons.fullscreen_rounded,
-                          color: Colors.white,
+                    ),
+                  ),
+                ),
+              // The control bar is the last child, so nothing in this stack
+              // sits above it to take its taps.
+              if (_showControls)
+                Positioned(
+                  left: 12 + insets.left,
+                  right: 12 + insets.right,
+                  bottom: 10 + insets.bottom,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      VideoProgressIndicator(
+                        widget.controller,
+                        allowScrubbing: true,
+                        colors: const VideoProgressColors(
+                          playedColor: Color(0xFF5EEAD4),
+                          bufferedColor: Color(0x885EEAD4),
+                          backgroundColor: Color(0x66788A9F),
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: widget.controller.value.isPlaying
+                                ? tr('video.pause')
+                                : tr('video.play'),
+                            onPressed: _togglePlayback,
+                            icon: Icon(
+                              widget.controller.value.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (widget.fullscreen)
+                            IconButton(
+                              tooltip: fill
+                                  ? tr('video.fitWhole')
+                                  : tr('video.fillScreen'),
+                              onPressed: () => _toggleFill(fill),
+                              icon: Icon(
+                                fill
+                                    ? Icons.fit_screen_rounded
+                                    : Icons.zoom_out_map_rounded,
+                                color: Colors.white,
+                              ),
+                            ),
+                          IconButton(
+                            tooltip: widget.fullscreen
+                                ? tr('video.exitFullscreen')
+                                : tr('video.fullscreen'),
+                            onPressed: widget.onToggleFullscreen,
+                            icon: Icon(
+                              widget.fullscreen
+                                  ? Icons.fullscreen_exit_rounded
+                                  : Icons.fullscreen_rounded,
+                              color: Colors.white,
+                              size: 30,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-        ],
-      ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _FullscreenPlaybackState {
-  const _FullscreenPlaybackState({
-    required this.position,
-    required this.isPlaying,
-  });
-
-  final Duration position;
-  final bool isPlaying;
-}
-
-class _FullscreenNetworkVideoScreen extends StatefulWidget {
+/// Fullscreen for a direct MP4: the very controller the card was playing,
+/// shown across the whole screen.
+///
+/// This used to open a second player on the same URL. Every trip into
+/// fullscreen downloaded the video again from the start and sought to the
+/// saved position — a black screen and a spinner for as long as that took,
+/// which in landscape, where the card already looks wide, read as the
+/// button doing nothing at all. Sharing the controller makes it instant:
+/// the picture carries on exactly where it was, playing or paused, and
+/// coming back out needs no position handed back.
+class _FullscreenNetworkVideoScreen extends StatelessWidget {
   const _FullscreenNetworkVideoScreen({
-    required this.video,
-    required this.apiBaseUrl,
-    required this.initialPosition,
-    required this.autoPlay,
+    required this.controller,
     required this.landscape,
   });
 
-  final LessonVideo video;
-  final String apiBaseUrl;
-  final Duration initialPosition;
-  final bool autoPlay;
+  final VideoPlayerController controller;
 
   /// Whether the video is wider than it is tall — decides which way the
   /// device is turned while it plays.
   final bool landscape;
 
   @override
-  State<_FullscreenNetworkVideoScreen> createState() =>
-      _FullscreenNetworkVideoScreenState();
-}
-
-class _FullscreenNetworkVideoScreenState
-    extends State<_FullscreenNetworkVideoScreen> {
-  final _playerKey = GlobalKey<_StudentVideoPlayerState>();
-  bool _exiting = false;
-
-  void _exitFullscreen() {
-    if (_exiting) return;
-    _exiting = true;
-    final state = _playerKey.currentState?.fullscreenPlaybackState;
-    // Nothing is awaited before the pop, which is what fixed the landscape
-    // Back bug: the pop used to sit behind `await
-    // setPreferredOrientations(...)`, and on a tablet held in landscape
-    // that call does not settle until the device is physically rotated, so
-    // Back looked dead until the student turned the tablet in their hands.
-    //
-    // The portrait nudge that used to sit here is gone with it. It was
-    // only ever a workaround for that stall. The scope's own restore puts
-    // the device back on the app's policy as the route pops, so a phone
-    // the student turns upright again comes back upright.
-    if (mounted) Navigator.of(context).pop(state);
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // Nothing is awaited before the pop. It used to sit behind `await
+    // setPreferredOrientations(...)`, and on a tablet held in landscape that
+    // call does not settle until the device is physically rotated, so Back
+    // looked dead until the student turned the tablet in their hands.
+    void exit() => Navigator.of(context).maybePop();
+
     return _FullscreenOrientationScope(
-      landscape: widget.landscape,
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _exitFullscreen();
-        },
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              // The whole screen, edge to edge. This used to be a fixed
-              // `AspectRatio(16 / 9)` centred inside a `SafeArea`: on any
-              // screen not exactly 16:9 that box was smaller than the
-              // screen on one side, and the safe-area insets shrank it
-              // again. The surface inside fits the picture with
-              // `BoxFit.contain`, so it is as large as the screen allows
-              // without cropping or stretching.
-              SizedBox.expand(
-                child: StudentVideoPlayer(
-                  key: _playerKey,
-                  video: widget.video,
-                  apiBaseUrl: widget.apiBaseUrl,
-                  initialPosition: widget.initialPosition,
-                  autoPlay: widget.autoPlay,
-                  fullscreen: true,
+      landscape: landscape,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // The whole screen, edge to edge — no SafeArea and no fixed
+            // aspect-ratio box around the picture.
+            SizedBox.expand(
+              child: _NetworkVideoSurface(
+                controller: controller,
+                onToggleFullscreen: exit,
+                fullscreen: true,
+              ),
+            ),
+            // Only the back button keeps clear of the notch and rounded
+            // corners — the picture itself does not need to.
+            SafeArea(
+              child: Align(
+                alignment: AlignmentDirectional.topStart,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: _FullscreenBackButton(onPressed: exit),
                 ),
               ),
-              // Only the back button keeps clear of the notch and rounded
-              // corners — the picture itself does not need to.
-              SafeArea(
-                child: Align(
-                  alignment: AlignmentDirectional.topStart,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: _FullscreenBackButton(
-                      onPressed: _exitFullscreen,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
