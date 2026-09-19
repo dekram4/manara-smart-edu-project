@@ -52,8 +52,8 @@ class DealEntranceTracker {
 class DealtCardEntrance extends StatefulWidget {
   /// The defaults, named so callers can reason about the rail's timing
   /// without copying the numbers.
-  static const defaultStagger = Duration(milliseconds: 650);
-  static const defaultDuration = Duration(milliseconds: 1450);
+  static const defaultStagger = Duration(milliseconds: 800);
+  static const defaultDuration = Duration(milliseconds: 1800);
   static const defaultStartDelay = Duration(milliseconds: 1250);
 
   /// How long the deal itself runs, measured from the moment the rail is
@@ -97,9 +97,12 @@ class DealtCardEntrance extends StatefulWidget {
   /// of them feel like they were never coming; a flat step keeps every gap the
   /// same, so no card is ever the one that lags.
   ///
-  /// At 650ms against a 1450ms flight, a card is already down to roughly its
+  /// At 800ms against an 1800ms flight, a card is already down to roughly its
   /// own size and into its settle before the next one leaves — the cards arrive
   /// singly and are plainly in order, which is the whole point of dealing them.
+  /// The step grew with the flight: keeping 650ms against the longer flight
+  /// would have put two cards mid-shrink at once, and the calm this is for
+  /// comes as much from the pause between cards as from each card's pace.
   final Duration stagger;
 
   /// How long a single card takes to arrive.
@@ -107,8 +110,9 @@ class DealtCardEntrance extends StatefulWidget {
   /// Slow on purpose, and slower than instinct suggests. The card travels
   /// three-quarters of a turn while shrinking from nearly three times its own
   /// size; at 620ms that was over before the eye had found it, at 1200ms it
-  /// could be watched but not savoured. At 1450ms the shrink has a visible
-  /// middle and a visible end, which is the only reason the movement exists.
+  /// could be watched but not savoured, and 1450ms still read as brisk. At
+  /// 1800ms the shrink is unhurried — a visible middle and a long, visible end,
+  /// which is the only reason the movement exists.
   final Duration duration;
 
   /// How long the rail waits before dealing anything at all.
@@ -144,7 +148,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
   /// Drives the turn and the arc through space.
   ///
   /// Eased at *both* ends, not just the out. An ease-out alone spends its
-  /// rotation in the first third and then holds still for the rest of a 1450ms
+  /// rotation in the first third and then holds still for the rest of an 1800ms
   /// flight, which reads as a snap followed by a stall. Easing in as well gives
   /// the roll a slow beginning, a body, and a slow end — and lands it on the
   /// same frame the shrink finishes on.
@@ -163,7 +167,7 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
   ///
   /// Split in two because one curve cannot do both jobs. The first 60% carries
   /// it from 2.9 down to 1.35, eased at both ends so the travel has a middle
-  /// instead of collapsing in the first few frames; the last 40% — a full 580ms
+  /// instead of collapsing in the first few frames; the last 40% — a full 720ms
   /// — is the settle from 1.35 to rest, slow enough to be seen stopping. A
   /// single ease-out across the whole flight put 80% of the shrink in the first
   /// 400ms and left a second of near-stillness after it.
@@ -313,8 +317,8 @@ class _DealtCardEntranceState extends State<DealtCardEntrance>
           // This used to be 135°, which is past edge-on, and Flutter does no
           // backface culling: past 90° the card paints mirrored. That was
           // survivable while the turn was front-loaded and the card was still
-          // fading in, but at 1450ms with an eased-in turn the card holds past
-          // 90° for the first 600ms — fully opaque, three times its size, and
+          // fading in, but at a slow pace with an eased-in turn the card holds
+          // past 90° for the first ~40% of the flight — fully opaque, three times its size, and
           // showing its artwork and text in mirror. It reads as a rendering
           // fault, not a deal. Stopping at 77° keeps the card facing the
           // student for every frame it can actually be seen in.

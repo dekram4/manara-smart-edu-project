@@ -105,10 +105,19 @@ const List<_Frac> _cheerSpots = [
 /// is never in doubt.
 ///
 /// Its top sits at 0.452, immediately under the "تحدَّ واكسب!" plaque, which
-/// ends at 0.4499 — the bubble used to start at 0.372 and cover it. Its bottom
-/// laps over the characters' heads at 0.545 on purpose: a bubble with a gap
-/// between it and the speaker belongs to nobody.
+/// ends at 0.4499 — the bubble used to start at 0.372 and cover it. This is
+/// only the designed slot: where the bubble finally sits is worked out against
+/// the speaker's head by [_bubbleRect].
 const _Frac _speechBubble = Rect.fromLTRB(0.028, 0.452, 0.330, 0.560);
+
+/// How far the bubble is lifted above where it would sit lapped over the head,
+/// in logical pixels.
+///
+/// Pixels rather than a fraction of the scene, because what it buys is
+/// breathing room a person sees — about the same on a phone as on a tablet.
+/// 18px moves the tail's tip from inside the hair to the top of the head, and
+/// leaves the bubble's body about 20px clear of it.
+const double _bubbleHeadroom = 18;
 
 /// The patch that hides the two children painted into the artwork.
 ///
@@ -157,8 +166,8 @@ const Map<String, double> _cheerAspect = {'h2': 978 / 640, 'h4': 785 / 640};
 /// narrow window it fills only part of that height — the rest is empty. Sitting
 /// the bubble on the *box* therefore leaves it floating well above the head it
 /// belongs to, which is the gap that showed up in portrait and not in
-/// landscape. This works out where the head really is and drops the bubble onto
-/// it, overlapping slightly so the two read as connected.
+/// landscape. This works out where the head really is and places the bubble
+/// just above it: the tail reaches down to the head, the body stays clear.
 ///
 /// The result is clamped so the bubble can never rise into the hanging sign
 /// above it, whatever the window shape.
@@ -167,8 +176,13 @@ Rect _bubbleRect(Rect designed, Rect speaker) {
   final figureHeight = math.min(speaker.height, speaker.width * aspect);
   final headTop = speaker.bottom - figureHeight;
 
-  // A little into the head, so there is no daylight between them.
-  var bottom = headTop + designed.height * 0.18;
+  // Seated a little into the head, then lifted clear of it by
+  // [_bubbleHeadroom]. Seated alone, the tail's tip sank into the hair and
+  // the bubble's body sat right on the characters' heads — crowded rather
+  // than connected. Lifted, the tail's tip still reaches the head, so which
+  // of the two is speaking stays obvious, and the body clears it by about
+  // 20px.
+  var bottom = headTop + designed.height * 0.18 - _bubbleHeadroom;
   var top = bottom - designed.height;
   if (top < designed.top) {
     top = designed.top;
@@ -200,6 +214,10 @@ class MasarPathLayout {
   static List<Rect> get cheerSpots => _cheerSpots;
   static Rect get childrenPatch => _childrenPatch;
   static Rect get speechBubble => _speechBubble;
+
+  /// The share of the bubble's height its tail takes, below the body. The
+  /// bubble draws its tail from this, so the test measures the same body.
+  static const double tailShare = 0.22;
 
   /// The bubble's real position for a scene of [size] — the same computation
   /// the widget does, which is the point: the gap this closes only appears once
@@ -795,7 +813,7 @@ class _SpeechBubble extends StatelessWidget {
         // A small lift, in step with the character's bounce.
         final lift = math.sin(pulse * math.pi * 2) * h * 0.035;
         // The tail's share of the height, left free below the body.
-        final tailHeight = h * 0.22;
+        final tailHeight = h * MasarPathLayout.tailShare;
 
         return Transform.translate(
           offset: Offset(0, -lift),

@@ -404,8 +404,9 @@ class StudentStrings {
     'path.cheer3': 'واصِل تميّزك!',
     'path.schoolName': 'منارة المعرفة التعليمية',
     'path.chooseTitle': 'اختر مسارك التعليمي',
-    // العبارات المنطوقة عند فتح كل بطاقة. مكتوبة لتُسمع لا لتُقرأ:
-    // جملة قصيرة واحدة، بلا أقواس ولا رموز يتعثّر بها محرّك النطق.
+    // العبارات المنطوقة عند فتح كل بطاقة. لا تُنطق من هنا مباشرة: هي نصّ
+    // المقاطع المسجّلة في assets/audio/voice/ — عند تعديل أيٍّ منها أعِد
+    // تشغيل tool/build_portal_voices.py وإلا بقي المقطع القديم.
     'portal.voice.generic': 'هيّا بنا يا بطل! استمتع وتعلّم شيئاً جديداً.',
     'portal.lesson.voice': 'أهلاً بك يا بطل! ركّز في الدرس واجمع الجواهر لتتصدّر لوحة الشرف.',
     'portal.cinema.voice': 'مرحباً بك في سينما المعرفة! شاهد واستمتع وتعلّم بشغف.',
@@ -1142,16 +1143,6 @@ class StudentStrings {
 
 /// Shorthand so call sites read as text rather than as lookups.
 String tr(String key) => StudentStrings.of(key);
-
-/// The string for [key], or for [fallbackKey] when [key] has no entry.
-///
-/// `tr` returns the key itself when it finds nothing, which is right for a
-/// label — a missing string shows up on screen where somebody will notice it.
-/// It is wrong for a line that is about to be *spoken*: a text-to-speech engine
-/// would happily read out "portal.games.voice". This is for the cases where a
-/// sensible generic line is better than reading an identifier aloud.
-String trOr(String key, String fallbackKey) =>
-    StudentStrings.has(key) ? StudentStrings.of(key) : StudentStrings.of(fallbackKey);
 
 /// Shorthand for a string with `{placeholders}`.
 String trf(String key, Map<String, Object?> values) =>

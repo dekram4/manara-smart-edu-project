@@ -2,7 +2,6 @@
 import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -197,162 +196,73 @@ class StudentSoundService {
     play(StudentSoundCue.welcome);
   }
 
-  /// The engine that speaks the per-portal lines. Built on first use.
+  /// Speaks the line for the portal [portalKey] — `portal.lesson`,
+  /// `portal.games` and so on — in the app's language, cutting off whatever
+  /// was being said.
   ///
-  /// Lazy because constructing it talks to the platform: creating it eagerly
-  /// would make this service — and so every screen that touches it — fail to
-  /// build on a device or a test host with no speech engine.
-  FlutterTts? _tts;
-
-  /// Which language the engine is currently configured for — `'ar'` or `'en'`.
+  /// **Recorded, not synthesised on the device.** This used to hand the text
+  /// to `flutter_tts`, and so to whatever engine the phone shipped with. On
+  /// most phones that engine has no Arabic voice worth the name: asking it for
+  /// `ar-SA` either failed or found a voice that read the line like a machine,
+  /// straight after a welcome recorded in a natural one. No amount of locale
+  /// probing fixes a device that does not have a good voice.
   ///
-  /// Not a one-shot `bool`, because the student can change the app's language
-  /// while it is running. A latched "already set up" flag would leave an Arabic
-  /// voice reading English lines, and the other way round.
-  String? _ttsLanguage;
-
-  /// Languages this device turned out to have no voice for.
+  /// The welcome is a real clip, so these are now real clips too — the same
+  /// family of neural voice, pitched to the welcome's own range, rendered once
+  /// by `tool/build_portal_voices.py` from the lines in `student_strings.dart`,
+  /// and played on the same player the welcome plays on. What the student
+  /// hears no longer depends on the phone at all.
   ///
-  /// Probing costs a round trip to the platform for every candidate locale, and
-  /// the answer cannot change while the app is running. Remembering the failure
-  /// keeps the second card from paying for it again.
-  final Set<String> _ttsUnavailable = <String>{};
-
-  /// The locales to try, best first.
-  ///
-  /// `ar-SA` is asked for by name. The bare `ar` that used to be passed here is
-  /// the whole reason the lines came out in an English accent: Android
-  /// enumerates its voices by full locale, rejects the bare language tag, and
-  /// `setLanguage` then fails *quietly* — leaving the engine on whatever it
-  /// booted with, which on most devices is US English. An English voice handed
-  /// Arabic text does not refuse it; it transliterates, which is the mangled
-  /// robotic reading. The rest are fallbacks for a device with some other
-  /// Arabic pack installed; `ar` stays last so an engine that does accept it
-  /// is still better than nothing.
-  static const List<String> _arabicLocales = <String>[
-    'ar-SA',
-    'ar-EG',
-    'ar-AE',
-    'ar-JO',
-    'ar-MA',
-    'ar-XA',
-    'ar',
-  ];
-  static const List<String> _englishLocales = <String>['en-US', 'en-GB', 'en'];
-
-  /// Speaks one short line in the app's language, cutting off whatever it was
-  /// saying.
-  ///
-  /// Used when a portal is opened, so the card greets the student in its own
-  /// words. Spoken rather than recorded: ten lines in two languages is twenty
-  /// clips to record and re-record every time the wording changes, and the
-  /// device already has a voice.
-  ///
-  /// If the device has no voice for the language, this stays **silent** rather
-  /// than speaking. That is the point of [_configureTts] returning a result at
-  /// all: handing Arabic to an English voice is not a degraded reading, it is
-  /// noise, and noise is worse for a child than quiet.
-  ///
-  /// Every failure here is swallowed. A locale the engine will not take, a
-  /// platform with no engine at all — none of them is a reason a lesson should
-  /// not open.
-  Future<void> speakLine(String text) async {
-    if (muted.value || text.trim().isEmpty) return;
+  /// Every failure here is swallowed. A missing clip or a platform with no
+  /// audio is not a reason a lesson should not open.
+  Future<void> speakPortal(String portalKey) async {
+    if (muted.value) return;
     final language = StudentSettings.isArabic ? 'ar' : 'en';
-    if (_ttsUnavailable.contains(language)) return;
     try {
-      final tts = _tts ??= FlutterTts();
-      if (_ttsLanguage != language) {
-        if (!await _configureTts(tts, language)) {
-          _ttsUnavailable.add(language);
-          return;
-        }
-        _ttsLanguage = language;
-      }
-      await tts.stop();
-      await tts.speak(text);
+      final asset = portalVoiceAsset(portalKey, language, await _bundledAssets());
+      await _voicePlayer.stop();
+      await _voicePlayer.play(AssetSource(asset), volume: 0.95);
     } catch (_) {
-      // No voice on this device: the screen opens in silence.
+      // No audio on this device: the screen opens in silence.
     }
   }
 
-  /// Points the engine at a real voice for [language] and sets the tone.
+  /// The clip to play for [portalKey] in [language], given the asset paths
+  /// the app was built with.
   ///
-  /// Returns false when the device has nothing that speaks it — the caller then
-  /// stays silent instead of letting the wrong voice have a go.
-  Future<bool> _configureTts(FlutterTts tts, String language) async {
-    final candidates = language == 'ar' ? _arabicLocales : _englishLocales;
-    String? locale;
-    for (final candidate in candidates) {
-      if (await tts.isLanguageAvailable(candidate) == true) {
-        locale = candidate;
-        break;
-      }
-    }
-    if (locale == null) return false;
-
-    await tts.setLanguage(locale);
-    await _preferVoiceFor(tts, locale);
-    // Higher and slower than the default: the app's recorded welcome is a
-    // child's voice, and a flat adult read after it sounds like a different
-    // app. Slower also matters for a young listener — 0.42 is just under
-    // Android's 0.5 "normal".
-    await tts.setPitch(1.2);
-    await tts.setSpeechRate(0.42);
-    await tts.setVolume(1);
-    try {
-      // Flush, not queue. Tapping three cards quickly should speak the third
-      // line, not all three back to back over each other's screens.
-      await tts.setQueueMode(0);
-    } catch (_) {
-      // Not implemented on every platform; the default is already flush.
-    }
-    return true;
+  /// Falls back to the generic line when a portal has no clip of its own —
+  /// a portal added to the rail before anyone re-ran the recording script
+  /// should still greet the student, not fail to play a file that is not
+  /// there.
+  ///
+  /// The path is relative to `assets/`, the way [AssetSource] takes it; the
+  /// manifest lists it with the prefix.
+  @visibleForTesting
+  static String portalVoiceAsset(
+    String portalKey,
+    String language,
+    Set<String> bundled,
+  ) {
+    final name = portalKey.startsWith('portal.')
+        ? portalKey.substring('portal.'.length)
+        : portalKey;
+    final own = 'audio/voice/${name}_$language.mp3';
+    if (bundled.contains('assets/$own')) return own;
+    return 'audio/voice/generic_$language.mp3';
   }
 
-  /// Pins a named voice matching [locale], where the engine offers one.
-  ///
-  /// `setLanguage` alone is enough on a well-behaved engine. It is not enough
-  /// on the ones that accept the locale, report success, and keep speaking in
-  /// their default voice anyway. Naming the voice removes that discretion.
-  ///
-  /// Only ever narrows: a voice is chosen solely when its own locale is in the
-  /// language we asked for, so this cannot swap in something worse than what
-  /// `setLanguage` already achieved.
-  Future<void> _preferVoiceFor(FlutterTts tts, String locale) async {
-    try {
-      final voices = await tts.getVoices;
-      if (voices is! List) return;
-      final wanted = locale.toLowerCase();
-      final language = wanted.split('-').first;
+  /// Every asset path in the build, read once.
+  Future<Set<String>>? _assets;
 
-      Map<Object?, Object?>? exact;
-      Map<Object?, Object?>? sameLanguage;
-      for (final voice in voices) {
-        if (voice is! Map) continue;
-        final voiceLocale = '${voice['locale']}'.toLowerCase();
-        if (voiceLocale == wanted) {
-          exact ??= voice;
-        } else if (voiceLocale.split('-').first == language) {
-          sameLanguage ??= voice;
-        }
-      }
+  Future<Set<String>> _bundledAssets() => _assets ??= () async {
+        final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+        return manifest.listAssets().toSet();
+      }();
 
-      final chosen = exact ?? sameLanguage;
-      if (chosen == null) return;
-      await tts.setVoice(<String, String>{
-        'name': '${chosen['name']}',
-        'locale': '${chosen['locale']}',
-      });
-    } catch (_) {
-      // The engine does not expose its voices; setLanguage stands on its own.
-    }
-  }
-
-  /// Silences any line still being spoken.
+  /// Silences any portal line still being spoken.
   Future<void> stopSpeaking() async {
     try {
-      await _tts?.stop();
+      await _voicePlayer.stop();
     } catch (_) {}
   }
 

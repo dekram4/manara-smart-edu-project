@@ -66,6 +66,19 @@ void main() {
         .getMaxScaleOnAxis();
   }
 
+  test('the deal is paced slowly: 1800ms a card, 800ms between cards', () {
+    // Asked for by name, after 1450/650 still read as hurried. Pinned here so
+    // a later tune cannot quietly speed the rail back up.
+    expect(DealtCardEntrance.defaultDuration,
+        const Duration(milliseconds: 1800));
+    expect(DealtCardEntrance.defaultStagger,
+        const Duration(milliseconds: 800));
+    // Card i leaves at i * 800ms, so the last of the ten portals lands
+    // 7.2s + 1.8s after the rail is armed.
+    expect(DealtCardEntrance.dealSpanFor(10),
+        const Duration(milliseconds: 9 * 800 + 1800));
+  });
+
   testWidgets('an unarmed rail deals nothing at all', (tester) async {
     final tracker = DealEntranceTracker();
     final controller = ScrollController();

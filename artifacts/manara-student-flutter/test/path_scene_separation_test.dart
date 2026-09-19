@@ -45,28 +45,41 @@ void main() {
   });
 
   for (final entry in shapes.entries) {
-    test('the bubble is joined to its speaker on ${entry.key}', () {
+    test('the bubble clears its speaker but still points at them on '
+        '${entry.key}', () {
       final size = entry.value;
       final bubble = MasarPathLayout.bubbleFor(size);
       final headTop = MasarPathLayout.headTopFor(size);
+      final signBottom = MasarPathLayout.lowestSign.bottom * size.height;
 
-      // Negative is the requirement, not merely tolerated: the bubble has to
-      // lap over the head. A positive number here is a band of sky between a
-      // character and the thing they are supposedly saying, which is exactly
-      // what portrait used to show.
-      final gap = headTop - bubble.bottom;
-      expect(gap, lessThanOrEqualTo(0.0),
-          reason: 'a ${gap.round()}px gap opened above the speaker');
+      // It must never climb into the plaque above it, whatever else gives.
+      expect(bubble.top, greaterThanOrEqualTo(signBottom),
+          reason: 'the bubble rose into the "تحدَّ واكسب!" sign');
 
-      // But not swallowing them: the bubble must not reach past the head into
-      // the body.
+      // Nor sink past the head into the character's body.
       expect(bubble.bottom - headTop, lessThan(size.height * 0.08),
           reason: 'the bubble sat too far down over the character');
 
-      // And it still must not climb into the plaque above it.
-      expect(bubble.top,
-          greaterThanOrEqualTo(MasarPathLayout.lowestSign.bottom * size.height),
-          reason: 'the bubble rose into the "تحدَّ واكسب!" sign');
+      // A short landscape phone leaves only a couple of pixels between the
+      // sign and where the bubble would sit, so there is no room to lift it
+      // there; the sign wins. Everywhere else it has to clear the head.
+      final highestAllowed = MasarPathLayout.speechBubble.top * size.height;
+      final pinnedUnderSign = bubble.top <= highestAllowed + 0.5;
+      if (pinnedUnderSign) return;
+
+      // Breathing room between the bubble's body and the heads — the bubble
+      // used to sit right on them.
+      final body = bubble.bottom - bubble.height * MasarPathLayout.tailShare;
+      final clearance = headTop - body;
+      expect(clearance, greaterThanOrEqualTo(15.0),
+          reason: 'only ${clearance.round()}px between bubble and head');
+
+      // But the tail still reaches the head: a bubble floating in the sky
+      // with nothing pointing at the speaker belongs to nobody — the gap
+      // portrait used to show.
+      final tailGap = headTop - bubble.bottom;
+      expect(tailGap.abs(), lessThanOrEqualTo(8.0),
+          reason: 'the tail stops ${tailGap.round()}px from the head');
     });
   }
 }

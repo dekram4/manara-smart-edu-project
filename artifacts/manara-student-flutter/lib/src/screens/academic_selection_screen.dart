@@ -451,8 +451,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // the text in the squares readable rather than merely present.
 
                 const edge = 12.0;
-                // The HUD chips sit top-right; everything keeps clear of them.
-                const topReserve = 52.0;
                 // The start button keeps its own band across the foot.
                 const startBand = 76.0;
 
@@ -784,14 +782,14 @@ class _FloatingArt extends StatefulWidget {
   const _FloatingArt({
     required this.asset,
     required this.size,
-    this.motion = _Motion.bounce,
-    this.period = const Duration(milliseconds: 3400),
   });
 
   final String asset;
   final double size;
-  final _Motion motion;
-  final Duration period;
+
+  /// Fixed rather than parameters: no call site ever passed anything else.
+  final _Motion motion = _Motion.bounce;
+  final Duration period = const Duration(milliseconds: 3400);
 
   /// The tilt, the liveliness and the offset into the cycle used to be
   /// constructor parameters, and every one of them was left at its
@@ -895,71 +893,6 @@ class _FloatingArtState extends State<_FloatingArt>
       child: image,
     );
   }
-}
-
-/// A soft cartoon speech bubble with a little tail pointing down at the
-/// guide's head.
-class _SpeechBubble extends StatelessWidget {
-  const _SpeechBubble({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFFFD9A0), width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.14),
-                blurRadius: 12,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: StudentSurface.ink(context),
-              fontSize: 17,
-              height: 1.35,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        CustomPaint(size: const Size(18, 9), painter: _BubbleTailPainter()),
-      ],
-    );
-  }
-}
-
-class _BubbleTailPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(size.width * 0.42, size.height)
-      ..close();
-    canvas.drawPath(path, Paint()..color = Colors.white);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(0xFFFFD9A0)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _HudChip extends StatelessWidget {
