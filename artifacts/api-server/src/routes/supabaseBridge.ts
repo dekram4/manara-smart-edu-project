@@ -484,8 +484,24 @@ router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {
   const rows = asRecords(req.body?.rows);
   const validRows = rows.filter((row) => stringValue(row.id) && rowBelongsToActor(row, actor, table));
   if (validRows.length !== rows.length) {
-    res.status(403).json({ error: "لا يمكن للمعلم تعديل سجلات تخص مستخدمًا آخر" });
-    return;
+    // جدول المعلمين وحده يُستثنى من الرفض: نسخة المتصفح عند المعلم تحمل
+    // كل المعلمين — يحتاجها ليسجّل دخوله ويرى الأسماء — فأي حفظ للجدول
+    // يرسلهم جميعاً، ولمسة واحدة على `lastActivity` عند الدخول تكفي
+    // لإطلاقه. فكان الردّ رفضاً يُسقط الكتابة كلّها ويُظهر الشريط الأحمر
+    // «حفظ teachers» في وجه المعلم قبل أن يفعل شيئاً.
+    //
+    // فيُكتب الآن سجلّه هو — وبه يحفظ حسابه فعلاً — ويُهمل ما سواه بلا
+    // خطأ، إذ لم يقصد تعديله أصلاً. وبقية الجداول تبقى على الرفض الصريح:
+    // نسخة المعلم منها لا تحمل إلا سجلاته، فمجيء سجلّ غريب فيها خلل
+    // يستحق أن يُقال لا أن يُبتلع.
+    if (!(table === "teachers" && actor.role === "teacher")) {
+      res.status(403).json({ error: "لا يمكن للمعلم تعديل سجلات تخص مستخدمًا آخر" });
+      return;
+    }
+    logger.info(
+      { table, teacherId: actor.teacherId, ignored: rows.length - validRows.length },
+      "Ignored foreign teacher rows from a teacher sync",
+    );
   }
 
   try {

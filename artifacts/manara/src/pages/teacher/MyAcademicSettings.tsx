@@ -28,7 +28,6 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   
   // General Settings States
   const [generalConfigs, setGeneralConfigs] = useState<HierarchicalConfig[]>([]);
-  const [selectedConfig, setSelectedConfig] = useState<HierarchicalConfig | null>(null);
   
   // Form States for My Settings
   const [selectedGrade, setSelectedGrade] = useState('');
@@ -557,31 +556,6 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     alert('✅ تم إضافة الدرس بنجاح');
   };
 
-  /// يضيف درساً إلى وحدة بعينها من داخل بطاقتها في الشجرة.
-  /// الخطوة السادسة في عمود الإنشاء تبقى كما هي؛ هذا طريق أقصر لمن يكتب
-  /// دروس وحدة بعد الأخرى وهو ينظر إليها.
-  const handleAddLessonToUnit = (
-    gradeName: string,
-    subjectName: string,
-    termName: string,
-    unit: string,
-    name: string,
-  ): boolean => {
-    if (!name) return false;
-    const allConfigs = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
-    );
-    const term = findTerm(allConfigs, gradeName, subjectName, termName);
-    if (!term) return false;
-    const current = lessonsOf(term, unit);
-    if (current.some(lesson => lesson === name)) {
-      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
-      return false;
-    }
-    writeLessons(gradeName, subjectName, termName, unit, [...current, name]);
-    return true;
-  };
-
   /// يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس.
   const handleSaveLessonEdit = (
     gradeName: string,
@@ -830,7 +804,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
 
             {/* Add Term */}
             <div style={styles.formGroup}>
-              <label style={styles.label}>4️⃣ اختر مادة وأضف فصل</label>
+              <label style={styles.label}>3️⃣ اختر مادة وأضف فصل</label>
               <select 
                 value={selectedSubject}
                 onChange={e => {
@@ -860,7 +834,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
 
             {/* Add Unit */}
             <div style={styles.formGroup}>
-              <label style={styles.label}>5️⃣ اختر فصل وأضف وحدة</label>
+              <label style={styles.label}>4️⃣ اختر فصل وأضف وحدة</label>
               <select 
                 value={selectedTerm}
 onChange={e => {
@@ -893,7 +867,7 @@ onChange={e => {
                 بنفس طريقة كل مستوى فوقه: اختر ما يحتويه، ثم اكتب الاسم.
                 كان يُضاف من بطاقة الوحدة فقط، فلم يكن جزءاً من الخطوات. */}
             <div style={styles.formGroup}>
-              <label style={styles.label}>6️⃣ اختر وحدة وأضف درس</label>
+              <label style={styles.label}>5️⃣ اختر وحدة وأضف درس</label>
               <select
                 value={selectedUnit}
                 onChange={e => setSelectedUnit(e.target.value)}
@@ -1006,8 +980,6 @@ onChange={e => {
                 handleDeleteLesson(
                   node.grade, node.subject, node.term, node.unit, node.lessonIndex,
                 )}
-              onAddLesson={(node: UnitNode, name: string) =>
-                handleAddLessonToUnit(node.grade, node.subject, node.term, node.unit, name)}
               emptyState={
                 <div style={styles.emptyState}>
                   <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>

@@ -13,10 +13,13 @@ import React, { useState } from 'react';
  * المشرف تخاطب شجرتها بالفهارس ولوحة المعلم بالأسماء، فيأخذ كلٌّ ما يلزمه
  * من العقدة نفسها بلا تحويل.
  *
- * والحالة المؤقتة للتحرير — أي عقدة مفتوحة، ومسوّدة كل حقل درس — تسكن
- * داخل المكوّن، فلا تتكرّر في الشاشتين. أما الحفظ فيبقى عند صاحب البيانات:
- * المكوّن ينادي `onRename*` و`onDelete*` و`onAddLesson`، وكلٌّ يكتب في
- * شجرته ويزامنها إلى Supabase كما يفعل اليوم.
+ * والشجرة للعرض والتعديل والحذف وحدها: لكل عقدة زرّا قلم وسلّة، ولا نموذج
+ * إضافة فيها. الإضافة كلها في عمود الخطوات المتسلسلة إلى جانبها، فلا يتفرّق
+ * طريق الإنشاء على موضعين ولا تزدحم الشجرة بحقول إدخال.
+ *
+ * والعقدة المفتوحة للتحرير حالة داخلية، فلا تتكرّر في الشاشتين. أما الحفظ
+ * فيبقى عند صاحب البيانات: المكوّن ينادي `onRename*` و`onDelete*`، وكلٌّ
+ * يكتب في شجرته ويزامنها إلى Supabase كما يفعل اليوم.
  */
 
 export type GradeNode = { gradeIndex: number; grade: string };
@@ -64,9 +67,6 @@ export type AcademicTreeViewerProps = {
   onDeleteUnit: (node: UnitNode) => void;
   onDeleteLesson: (node: LessonNode) => void;
 
-  /** إضافة درس من داخل بطاقة الوحدة. يُعيد true إن قُبل، فيُفرَّغ الحقل. */
-  onAddLesson: (node: UnitNode, name: string) => boolean | void;
-
   /** ما يُعرض حين لا يوجد صف أصلاً، وحين تُخفي التصفية كل الصفوف. */
   emptyState: React.ReactNode;
   noMatchState?: React.ReactNode;
@@ -103,7 +103,6 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
   onDeleteTerm,
   onDeleteUnit,
   onDeleteLesson,
-  onAddLesson,
   emptyState,
   noMatchState,
 }) => {
@@ -113,8 +112,6 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
   const [editingLesson, setEditingLesson] = useState<
     { key: string; index: number; value: string } | null
   >(null);
-  const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
-
   const keyOf = (kind: string, ...parts: (string | number)[]) =>
     `${kind}:${parts.join('|')}`;
 
@@ -294,8 +291,7 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                                 القسم وترك المستخدم يبحث عن حقل غير موجود. */}
                             {!term.units || term.units.length === 0 ? (
                               <div style={styles.noUnitsHint}>
-                                لا توجد وحدات في هذا الفصل — أضف وحدة أولاً، ثم يظهر حقل إضافة
-                                الدرس داخلها.
+                                لا توجد وحدات في هذا الفصل — أضفها من عمود الخطوات.
                               </div>
                             ) : (
                               <div style={styles.unitsContainer}>
@@ -304,16 +300,7 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                                   const unitKey = keyOf(
                                     'unit', gradeIndex, subjectIndex, termIndex, unit,
                                   );
-                                  const draft = lessonDrafts[unitKey] ?? '';
                                   const lessons = lessonsOf(term, unit);
-                                  const addLesson = () => {
-                                    const name = draft.trim();
-                                    if (!name) return;
-                                    const accepted = onAddLesson(unitNode, name);
-                                    if (accepted !== false) {
-                                      setLessonDrafts(drafts => ({ ...drafts, [unitKey]: '' }));
-                                    }
-                                  };
                                   return (
                                     <div key={unitKey} style={styles.unitBlock}>
                                       <div style={styles.unitBadgeWithButtons}>
@@ -337,48 +324,10 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                                         </button>
                                       </div>
 
-                                      {/* حقل إضافة الدرس: مربع ظاهر وزر صريح،
-                                          لكل وحدة حقلها، فيبقى واضحاً أين
-                                          سيُضاف الدرس. */}
-                                      <div style={styles.lessonEditorRow}>
-                                        <span style={styles.lessonFieldLabel}>الدرس:</span>
-                                        <input
-                                          type="text"
-                                          value={draft}
-                                          onChange={e => {
-                                            const value = e.target.value;
-                                            setLessonDrafts(drafts => ({
-                                              ...drafts,
-                                              [unitKey]: value,
-                                            }));
-                                          }}
-                                          onKeyDown={e => {
-                                            if (e.key === 'Enter') {
-                                              e.preventDefault();
-                                              addLesson();
-                                            }
-                                          }}
-                                          placeholder={`اسم الدرس داخل وحدة "${unit}"`}
-                                          style={styles.lessonInput}
-                                        />
-                                        <button
-                                          onClick={addLesson}
-                                          disabled={!draft.trim()}
-                                          style={
-                                            draft.trim()
-                                              ? styles.addLessonButton
-                                              : { ...styles.addLessonButton, ...styles.addLessonButtonDisabled }
-                                          }
-                                          title="إضافة درس إلى هذه الوحدة"
-                                        >
-                                          ➕ إضافة درس
-                                        </button>
-                                      </div>
-
                                       {lessons.length === 0 ? (
                                         <div style={styles.noLessonsHint}>
-                                          لا توجد دروس في هذه الوحدة بعد — اكتب اسم الدرس أعلاه
-                                          ثم اضغط «إضافة درس».
+                                          لا توجد دروس في هذه الوحدة بعد — أضفها من
+                                          الخطوة ٥ في عمود الإنشاء.
                                         </div>
                                       ) : (
                                         <div style={styles.lessonsRow}>
@@ -544,31 +493,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   lessonName: { fontSize: '0.85rem', fontWeight: 700, color: '#3730a3' },
   lessonEditChip: { display: 'flex', alignItems: 'center', gap: '4px', flex: '1 1 240px' },
-  // صف حقل الدرس: التسمية ثم مربع الإدخال ثم الزر، بخلفية فاتحة وإطار
-  // متقطع حتى يُقرأ كمنطقة إدخال لا كجزء من قائمة الوحدات.
-  lessonEditorRow: {
-    display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
-    marginInlineStart: '22px', marginTop: '2px', padding: '8px 10px',
-    borderRadius: '10px', backgroundColor: '#f5f3ff', border: '1px dashed #a5b4fc',
-  },
-  lessonFieldLabel: {
-    fontSize: '0.85rem', fontWeight: 800, color: '#4338ca', whiteSpace: 'nowrap',
-  },
-  lessonInput: {
-    flex: '1 1 200px', minWidth: '160px', padding: '7px 11px', fontSize: '0.88rem',
-    borderRadius: '8px', border: '1px solid #c7d2fe', outline: 'none', fontFamily: 'inherit',
-  },
   lessonEditInput: {
     flex: 1, minWidth: '120px', padding: '5px 9px', fontSize: '0.82rem',
     borderRadius: '8px', border: '1px solid #93c5fd', outline: 'none', fontFamily: 'inherit',
-  },
-  addLessonButton: {
-    padding: '7px 14px', fontSize: '0.85rem', fontWeight: 800,
-    backgroundColor: '#4f46e5', color: 'white', border: 'none',
-    borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap',
-  },
-  addLessonButtonDisabled: {
-    backgroundColor: '#c7d2fe', color: '#6366f1', cursor: 'not-allowed',
   },
   nodeInput: {
     flex: 1, minWidth: '120px', padding: '5px 9px', fontSize: '0.9rem',

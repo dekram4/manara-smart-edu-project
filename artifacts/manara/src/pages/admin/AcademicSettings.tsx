@@ -845,29 +845,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     onUpdate();
   };
 
-  /** يضيف الدرس المكتوب في حقل هذه الوحدة. */
-  const handleAddLesson = (
-    gradeIndex: number,
-    subjectIndex: number,
-    termIndex: number,
-    unit: string,
-    name: string,
-  ): boolean => {
-    if (!name) return false;
-    const term =
-      hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
-    const current = lessonsOf(term, unit);
-    if (current.some(lesson => lesson === name)) {
-      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
-      return false;
-    }
-    writeLessons(gradeIndex, subjectIndex, termIndex, unit, [
-      ...current,
-      name,
-    ]);
-    return true;
-  };
-
   /** يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس. */
   const handleSaveLessonEdit = (
     gradeIndex: number,
@@ -1348,7 +1325,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
           {/* 4. اختيار مادة وإضافة فصل */}
           <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>4️⃣ اختر مادة وأضف فصل</label>
+            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>3️⃣ اختر مادة وأضف فصل</label>
             <select 
               value={selectedSubject} 
               onChange={e => {
@@ -1378,7 +1355,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
           {/* 5. اختيار فصل وإضافة وحدة */}
           <div style={{ padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>5️⃣ اختر فصل وأضف وحدة</label>
+            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>4️⃣ اختر فصل وأضف وحدة</label>
             <select 
               value={selectedTerm} 
               onChange={e => {
@@ -1412,7 +1389,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
               ثم اكتب الاسم. كان يُضاف من بطاقة الوحدة فقط في عمود العرض،
               فلم يكن جزءاً من خطوات الإنشاء. */}
           <div style={{ padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>6️⃣ اختر وحدة وأضف درس</label>
+            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>5️⃣ اختر وحدة وأضف درس</label>
             <select
               value={selectedUnit}
               onChange={e => setSelectedUnit(e.target.value)}
@@ -1535,8 +1512,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 node.gradeIndex, node.subjectIndex, node.termIndex,
                 node.unit, node.lessonIndex,
               )}
-            onAddLesson={(node: UnitNode, name: string) =>
-              handleAddLesson(node.gradeIndex, node.subjectIndex, node.termIndex, node.unit, name)}
             emptyState={
               <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
                 <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
