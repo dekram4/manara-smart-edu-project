@@ -1,7 +1,7 @@
 import { saveRowsConfirmed } from '../../db/confirmedSave';
 import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig, ParentPermissions } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { ensureHashed } from '../../utils/password';
@@ -24,7 +24,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const [terms, setTerms] = useState<string[]>([]);
   const [units, setUnits] = useState<string[]>([]);
   const [hierarchicalConfigs, setHierarchicalConfigs] = useState<HierarchicalConfig[]>([]);
-  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+
   const [parentPackages, setParentPackages] = useState<any[]>([]);
   const [studentPackages, setStudentPackages] = useState<any[]>([]);
 
@@ -65,6 +65,14 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     enrollmentSubject: '',
     permissionPackageId: '',
   });
+
+  // مواد الصف المختار من شجرة هذا المعلم، مشتقّة من حالة النموذج: كانت
+  // تُملأ في حدث قائمة الصف وحده، فتبقى فارغة عند فتح نافذة طالب مسجَّل
+  // بينما حقل المادة إجباري — فيمتنع الحفظ.
+  const availableSubjects = useMemo(
+    () => subjectsForOwner(teacherId, studentForm.primaryGrade),
+    [teacherId, studentForm.primaryGrade, hierarchicalConfigs],
+  );
 
   useEffect(() => {
     loadData();
@@ -309,6 +317,9 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         studentIdNumber: studentForm.studentIdNumber || Date.now().toString(),
         nationalId: studentForm.nationalId?.trim() || '',
         primaryGrade: studentForm.primaryGrade,
+        // و`grade` معه: شاشات الويب تقرأ هذا الحقل، وكان يبقى على قيمته
+        // القديمة بعد تغيير الصف من هنا.
+        grade: studentForm.primaryGrade,
         gradeEnrollments: studentForm.gradeEnrollments,
         subject: studentForm.enrollmentSubject || '',
         createdAt: new Date().toISOString(),
@@ -911,7 +922,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 <label className="block text-sm font-bold text-gray-700 mb-2">الصف الأساسي *</label>
                 <select
                   value={studentForm.primaryGrade}
-                  onChange={(e) => { setStudentForm({ ...studentForm, primaryGrade: e.target.value }); const subs = getSubjectsForGrade(e.target.value); setAvailableSubjects(subs); }}
+                  onChange={(e) => setStudentForm({ ...studentForm, primaryGrade: e.target.value, enrollmentSubject: '' })}
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
                 >
                   <option value="">اختر الصف</option>
@@ -923,14 +934,25 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">المادة *</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  المادة {availableSubjects.length > 0 ? '*' : '(لا مواد لهذا الصف بعد)'}
+                </label>
+                {/* إجباري متى وُجدت مواد، وإلا منع حفظ الطالب على صفّ لم
+                    تُسجَّل مواده في الشجرة بعد. */}
                 <select
                   value={studentForm.enrollmentSubject || ''}
                   onChange={(e) => setStudentForm({ ...studentForm, enrollmentSubject: e.target.value })}
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
-                  required
+                  required={availableSubjects.length > 0}
+                  disabled={!studentForm.primaryGrade}
                 >
-                  <option value="">اختر المادة</option>
+                  <option value="">
+                    {!studentForm.primaryGrade
+                      ? 'اختر الصف أولاً'
+                      : availableSubjects.length === 0
+                        ? 'لا توجد مواد مسجّلة لهذا الصف'
+                        : 'اختر المادة'}
+                  </option>
                   {availableSubjects.map((s, i) => (
                     <option key={i} value={s}>{s}</option>
                   ))}
