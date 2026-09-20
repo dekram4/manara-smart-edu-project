@@ -24,6 +24,7 @@ import '../services/student_sound_service.dart';
 import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
 import '../utils/student_route_observer.dart';
+import '../widgets/playful_text.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
@@ -1244,17 +1245,17 @@ class _SectionTileState extends State<_SectionTile>
         // portal name cannot change the card's height.
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(
+          child: RainbowText(
             widget.section.title,
+            fontSize: 17,
             maxLines: 1,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: StudentSurface.isDark(context)
-                ? Color.lerp(tint, Colors.white, 0.55)
-                : Color.lerp(tint, Colors.black, 0.35),
-              fontSize: 15.5,
-              fontWeight: FontWeight.w900,
-            ),
+            shadowed: false,
+            colors: [
+              widget.section.colors.last,
+              Color.lerp(widget.section.accent, Colors.white, 0.18)!,
+              widget.section.colors.first,
+            ],
           ),
         ),
       ],
@@ -1738,28 +1739,15 @@ class _WelcomeCard extends StatelessWidget {
                   // out smaller than the label above it. Ellipsis instead —
                   // a trimmed name at a readable size beats a whole one too
                   // small to read.
-                  Text(
+                  // The one line that greets the child by name, so it is
+                  // the one line that gets the playful face and the rainbow.
+                  // The drop shadow lives inside RainbowText, outside the
+                  // shader — a tinted shadow is just a coloured blur.
+                  RainbowText(
                     trf('path.greeting', {'name': profile.name}),
+                    fontSize: 30,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: StudentSurface.ink(context),
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      // A shadow, not an outline: the name sits over a
-                      // translucent panel, so whatever shows through it
-                      // varies. A soft drop behind the letters keeps them
-                      // legible against any of it, in either theme.
-                      shadows: [
-                        Shadow(
-                          color: StudentSurface.isDark(context)
-                              ? const Color(0xCC000000)
-                              : const Color(0x33000000),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),

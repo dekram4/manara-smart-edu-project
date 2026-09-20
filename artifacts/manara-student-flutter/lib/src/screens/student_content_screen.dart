@@ -13,6 +13,7 @@ import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/video_thumbnail_card.dart';
+import '../widgets/playful_text.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
@@ -652,13 +653,9 @@ class _GamesModule extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: [
-        Text(
+        RainbowText(
           tr('content.gamesTitle'),
-          style: TextStyle(
-            color: StudentSurface.ink(context),
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-          ),
+          fontSize: 28,
         ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
         const SizedBox(height: 4),
         Text(
@@ -677,46 +674,65 @@ class _GamesModule extends StatelessWidget {
         // quizzes still earn — this is only the games card.
         _ArcadeProgress(stats: gamification, total: games.length),
         const SizedBox(height: 16),
-        ...games.asMap().entries.map((entry) {
-          final index = entry.key;
-          final game = entry.value;
-          final unlocked = isUnlocked(index, gamification.level);
-          final neededLevel = requiredLevelFor(index);
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: _GameCard(
-              game: game,
-              locked: !unlocked,
-              requiredLevel: neededLevel,
-              currentLevel: gamification.level,
-              onPressed: () {
-                if (!unlocked) {
-                  StudentSoundService.instance.play(StudentSoundCue.warning);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        trf('content.gameLockedHint', {
-                          'level': neededLevel,
-                          'current': gamification.level,
-                        }),
+        // شبكة لا قائمة: بطاقتان في عرض الهاتف وثلاث على الشاشة الواسعة،
+        // فتُرى الألعاب معاً كرفّ ألعاب يختار منه الطفل، لا كسطور متتابعة
+        // يقرؤها سطراً سطراً.
+        LayoutBuilder(
+          builder: (context, box) {
+            final columns = box.maxWidth >= 720 ? 3 : 2;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: games.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.78,
+              ),
+              itemBuilder: (context, index) {
+                final game = games[index];
+                final unlocked = isUnlocked(index, gamification.level);
+                final neededLevel = requiredLevelFor(index);
+                return _GameCard(
+                  game: game,
+                  index: index,
+                  locked: !unlocked,
+                  requiredLevel: neededLevel,
+                  currentLevel: gamification.level,
+                  onPressed: () {
+                    if (!unlocked) {
+                      StudentSoundService.instance.play(StudentSoundCue.warning);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            trf('content.gameLockedHint', {
+                              'level': neededLevel,
+                              'current': gamification.level,
+                            }),
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    StudentSoundService.instance.playTap();
+                    Navigator.of(context).push(
+                      StudentPageRoute<void>(
+                        builder: (_) => _GamePlayerScreen(
+                          game: game,
+                          apiBaseUrl: apiBaseUrl,
+                        ),
                       ),
-                    ),
-                  );
-                  return;
-                }
-                StudentSoundService.instance.playTap();
-                Navigator.of(context).push(
-                  StudentPageRoute<void>(
-                    builder: (_) => _GamePlayerScreen(
-                      game: game,
-                      apiBaseUrl: apiBaseUrl,
-                    ),
-                  ),
-                );
+                    );
+                  },
+                )
+                    .animate()
+                    .fadeIn(duration: 260.ms, delay: (60 * index).ms)
+                    .scale(begin: const Offset(0.92, 0.92));
               },
-            ),
-          );
-        }),
+            );
+          },
+        ),
       ],
     );
   }
@@ -813,9 +829,45 @@ class _ArcadeProgress extends StatelessWidget {
 /// One game in the arcade. A locked card keeps the same shape so the two
 /// read as one family, and says exactly what is needed to open it rather
 /// than only that it is shut.
+/// شارات الألعاب: ثلاث عائلات تدور بالترتيب.
+///
+/// اللعبة لا تحمل نوعاً في بياناتها، فالشارة تُشتقّ من موضعها — وهو ثابت،
+/// فتحمل اللعبة الواحدة شارتها نفسها في كل مرة بدل أن تتبدّل أمام الطفل.
+/// وتُعرّف هنا بألوانها معاً: الشارة ولون البطاقة شيء واحد يُقرأ من بعيد.
+class _GameFlavor {
+  const _GameFlavor(this.badgeKey, this.emoji, this.pastel, this.ink, this.tint);
+
+  final String badgeKey;
+  final String emoji;
+
+  /// خلفية باستيل هادئة، وحبر داكن منها ليقرأ فوقها، ولون مشبع للزرّ.
+  final Color pastel;
+  final Color ink;
+  final Color tint;
+
+  static const _all = [
+    _GameFlavor('game.badge.brain', '🧠', Color(0xFFEDE9FE), Color(0xFF4C1D95), Color(0xFF8B5CF6)),
+    _GameFlavor('game.badge.challenge', '⚡', Color(0xFFFFF1CC), Color(0xFF92400E), Color(0xFFF59E0B)),
+    _GameFlavor('game.badge.adventure', '🗺️', Color(0xFFD9F5EC), Color(0xFF065F46), Color(0xFF10B981)),
+  ];
+
+  static _GameFlavor of(int index) => _all[index % _all.length];
+}
+
+/// بطاقة لعبة: مربّع مبهج يُضغط فيرتدّ.
+///
+/// كانت سطراً أفقياً في قائمة رأسية — أيقونة ونصّ وسهم — تُقرأ كبند في
+/// جدول لا كلعبة. صارت بطاقة قائمة بذاتها: وجه باستيل بزوايا واسعة، وظلّ
+/// ناعم يرفعها عن الخلفية، ورمز كبير يعرفه الطفل قبل أن يقرأ، وشارة تقول
+/// نوعها، ونجوم تقول كم تقدّم، وزرّ «العب الآن» لا يحتاج شرحاً.
+///
+/// والنجوم محسوبة من مستوى الطالب فعلاً لا مزيّنة: كل لعبة تُفتح عند
+/// مستوى، فكلّما علا مستواه عن ذلك امتلأت نجمة. رقمٌ يُرى ويصدق أفضل من
+/// زينة تُرى ولا تعني شيئاً.
 class _GameCard extends StatelessWidget {
   const _GameCard({
     required this.game,
+    required this.index,
     required this.locked,
     required this.requiredLevel,
     required this.currentLevel,
@@ -823,146 +875,170 @@ class _GameCard extends StatelessWidget {
   });
 
   final HtmlGame game;
+  final int index;
   final bool locked;
+
   /// المستوى الذي تُفتح عنده هذه اللعبة.
   final int requiredLevel;
-  /// مستوى الطالب الآن — يُعرض بجانبه ليرى كم بقي.
+
+  /// مستوى الطالب الآن — تُحسب منه النجوم وما بقي للفتح.
   final int currentLevel;
   final VoidCallback onPressed;
 
+  /// نجمة لكل مستوى فوق مستوى الفتح، من صفر إلى ثلاث.
+  int get _stars =>
+      locked ? 0 : (currentLevel - requiredLevel + 1).clamp(0, 3).toInt();
+
   @override
   Widget build(BuildContext context) {
+    final flavor = _GameFlavor.of(index);
+    final face = locked ? const Color(0xFFE8EAEF) : flavor.pastel;
+    final ink = locked ? const Color(0xFF5B6472) : flavor.ink;
+    final tint = locked ? const Color(0xFF94A3B8) : flavor.tint;
+
     return StudentPressScale(
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(28),
           child: Ink(
-            // Roomier padding and a three-stop cartoon sweep with a bright
-            // rim; a locked card stays grey but keeps the same shape so the
-            // two read as one family.
-            padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: LinearGradient(
-                colors: locked
-                    ? const [Color(0xFF525C6B), Color(0xFF79839A)]
-                    : const [
-                        Color(0xFF6D28D9),
-                        Color(0xFF8B5CF6),
-                        Color(0xFF38BDF8),
-                      ],
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
-              ),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: locked ? 0.28 : 0.5),
-                width: 1.6,
-              ),
+              color: face,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Colors.white, width: 2.4),
               boxShadow: [
+                // ظلّ ناعم لا حادّ: يرفع البطاقة عن الخلفية بلا أن يصير
+                // إطاراً ثانياً حولها.
                 BoxShadow(
-                  color: (locked
-                          ? const Color(0xFF525C6B)
-                          : const Color(0xFF8B5CF6))
-                      .withValues(alpha: 0.42),
-                  blurRadius: 20,
-                  offset: const Offset(0, 11),
+                  color: tint.withValues(alpha: 0.30),
+                  blurRadius: 18,
+                  offset: const Offset(0, 9),
                 ),
               ],
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  locked ? Icons.lock_rounded : Icons.sports_esports_rounded,
-                  color: locked
-                      ? const Color(0xFFFDE68A)
-                      : const Color(0xFFE9D5FF),
-                  size: 48,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        game.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.start,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        locked
-                            ? trf('content.gameLockedShort',
-                                {'level': requiredLevel})
-                            : game.subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.start,
-                        style: TextStyle(
-                          color: locked
-                              ? const Color(0xFFFDE68A)
-                              : const Color(0xFFE9D5FF),
-                          height: 1.35,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      // How close the student is, not just that they are
-                      // short. A bar moving toward a number a child can
-                      // see is the difference between a goal and a wall.
-                      if (locked) ...[
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: requiredLevel <= 0
-                                ? 1
-                                : (currentLevel / requiredLevel).clamp(0.0, 1.0),
-                            minHeight: 7,
-                            backgroundColor: Colors.white.withValues(alpha: 0.22),
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              Color(0xFFFDE68A),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          trf('content.levelOfRequired', {
-                            'current': currentLevel,
-                            'required': requiredLevel,
-                          }),
-                          textAlign: TextAlign.start,
-                          style: const TextStyle(
-                            color: Color(0xFFE5E7EB),
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ],
+                // الشارة أولاً: نوع اللعبة يُعرف قبل اسمها.
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    locked
+                        ? trf('content.gameLockedShort', {'level': requiredLevel})
+                        : tr(flavor.badgeKey),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: ink,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Icon(
-                  locked
-                      ? Icons.lock_outline_rounded
-                      : Icons.play_circle_fill_rounded,
-                  color: Colors.white,
-                  size: 34,
+                const SizedBox(height: 8),
+                Text(
+                  locked ? '🔒' : flavor.emoji,
+                  style: const TextStyle(fontSize: 40),
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      game.title,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: StudentPlayfulFont.style(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ),
+                if (!locked) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (var i = 0; i < 3; i++)
+                        Icon(
+                          i < _stars
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          size: 16,
+                          color: i < _stars
+                              ? const Color(0xFFF59E0B)
+                              : ink.withValues(alpha: 0.3),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ] else ...[
+                  // كم بقي للفتح، شريطاً يُرى: الهدف أوضح من الباب المغلق.
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: requiredLevel <= 0
+                          ? 1
+                          : (currentLevel / requiredLevel).clamp(0.0, 1.0),
+                      minHeight: 6,
+                      backgroundColor: Colors.white,
+                      valueColor:
+                          const AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: tint,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        // حافة سفلية داكنة: ما يجعل الزرّ يبدو مجسّماً
+                        // يُضغط، لا مستطيلاً ملوّناً.
+                        BoxShadow(
+                          color: Color.lerp(tint, Colors.black, 0.28)!,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        locked
+                            ? trf('content.levelOfRequired', {
+                                'current': currentLevel,
+                                'required': requiredLevel,
+                              })
+                            : tr('game.play'),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: StudentPlayfulFont.style(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
         ),
       ),
-    ).animate().fadeIn(duration: 350.ms).slideX(begin: 0.08);
+    );
   }
 }
 

@@ -52,9 +52,14 @@ class MasarStage {
 typedef _Frac = Rect;
 
 // The six boards in the artwork, in reading order: three across the top,
-// three across the bottom. The five levels fill the first five; the sixth
-// is scenery now that «الترم» is gone from the whole system, and the rail
-// stops at whichever board the last level lands on.
+// three across the bottom. The five levels fill the first five.
+//
+// The sixth is painted into the background and cannot be removed from it,
+// and left bare it read as a sixth field the child was expected to fill —
+// one that never filled, because the level it once held («الترم») is gone
+// from the whole system. So it carries a plaque instead: how many of the
+// five are chosen. It answers rather than asks, and nothing about it
+// invites a tap.
 const _Frac _tileGrade = Rect.fromLTRB(0.4045, 0.2961, 0.5167, 0.4453);
 const _Frac _tileSubject = Rect.fromLTRB(0.6011, 0.2961, 0.7111, 0.4453);
 const _Frac _tileTerm = Rect.fromLTRB(0.7939, 0.2961, 0.9039, 0.4453);
@@ -68,7 +73,6 @@ const List<_Frac> _tiles = [
   _tileTerm,
   _tileUnit,
   _tileLesson,
-  _tileSpare,
 ];
 
 /// The three hanging signs, with their gold frames included so nothing of the
@@ -604,7 +608,21 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   child: _SchoolBanner(text: tr('path.schoolName')),
                 ),
 
-                for (var i = 0; i < widget.stages.length && i < _tiles.length; i++)
+                Positioned.fromRect(
+                  rect: place(_tileSpare),
+                  child: IgnorePointer(
+                    child: _ProgressPlaque(
+                      done: widget.stages
+                          .where((stage) => (stage.value ?? '').isNotEmpty)
+                          .length,
+                      total: widget.stages.length,
+                    ),
+                  ),
+                ),
+
+                for (var i = 0;
+                    i < widget.stages.length && i < _tiles.length;
+                    i++)
                   Positioned.fromRect(
                     rect: place(_tiles[i]),
                     child: _StageField(
@@ -627,6 +645,66 @@ class _MasarPathBoardState extends State<MasarPathBoard>
               ],
             );
           },
+        );
+      },
+    );
+  }
+}
+
+/// لوحة صغيرة على اللوح السادس: كم مستوى اختاره الطفل من خمسة.
+///
+/// تملأ لوحاً كان فارغاً يُقرأ حقلاً منتظِراً. وهي عدّ لا زينة: تتحرّك مع
+/// كل اختيار، فيرى الطفل مساره يقصر أمامه.
+class _ProgressPlaque extends StatelessWidget {
+  const _ProgressPlaque({required this.done, required this.total});
+
+  final int done;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final unit = (box.maxHeight * 0.20).clamp(9.0, 22.0).toDouble();
+        // يتقلّص ليسع اللوح مهما صغر: اللوح جزء من صورة خلفية تتغيّر
+        // نسبتها مع كل مقاس شاشة، فالحجم المحسوب وحده لا يضمن الاتّساع.
+        return Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: unit * 0.55,
+                vertical: unit * 0.35,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7E6),
+                borderRadius: BorderRadius.circular(unit),
+                border: Border.all(color: const Color(0xFFFFB703), width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x33000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('⭐', style: TextStyle(fontSize: unit * 1.25)),
+                  SizedBox(height: unit * 0.18),
+                  Text(
+                    '$done / $total',
+                    style: TextStyle(
+                      color: const Color(0xFF92400E),
+                      fontSize: unit,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
@@ -673,7 +751,8 @@ class _CheerSign extends StatelessWidget {
               width: math.max(2, box.maxHeight * 0.07),
             ),
             boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3)),
+              BoxShadow(
+                  color: Colors.black26, blurRadius: 6, offset: Offset(0, 3)),
             ],
           ),
           alignment: Alignment.center,
@@ -688,7 +767,8 @@ class _CheerSign extends StatelessWidget {
               fontWeight: FontWeight.w900,
               color: Colors.white,
               shadows: const [
-                Shadow(color: Colors.black38, blurRadius: 3, offset: Offset(0, 2)),
+                Shadow(
+                    color: Colors.black38, blurRadius: 3, offset: Offset(0, 2)),
               ],
             ),
           ),
@@ -1090,7 +1170,8 @@ class _SchoolBanner extends StatelessWidget {
               width: math.max(1.5, box.maxHeight * 0.05),
             ),
             boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 5, offset: Offset(0, 2)),
+              BoxShadow(
+                  color: Colors.black26, blurRadius: 5, offset: Offset(0, 2)),
             ],
           ),
           alignment: Alignment.center,
@@ -1131,7 +1212,8 @@ class _StageField extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final swell = active ? (math.sin(pulse * math.pi * 2) * 0.5 + 0.5) : 0.0;
+        final swell =
+            active ? (math.sin(pulse * math.pi * 2) * 0.5 + 0.5) : 0.0;
         // Sized by whichever of the square's two dimensions runs out first.
         // Taking only the height made the type overflow sideways on a narrow
         // portrait window, where the squares are tall and thin.

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manara_student/src/widgets/masar_path_board.dart';
 
-/// The board prints the six levels into the squares already drawn on the
+/// The board prints the five levels into the squares already drawn on the
 /// artwork. It owns no academic state: every choice leaves through the
 /// callback the screen handed in, which is what keeps the cascade the one
 /// place the tree is resolved.
@@ -21,14 +21,6 @@ void main() {
           onSelected: (v) => onPick('الصف', v),
         ),
         MasarStage(
-          label: 'الترم',
-          icon: Icons.calendar_month_rounded,
-          color: Colors.orange,
-          value: 'الترم الأول',
-          options: const ['الترم الأول'],
-          onSelected: (v) => onPick('الترم', v),
-        ),
-        MasarStage(
           label: 'المادة',
           icon: Icons.menu_book_rounded,
           color: Colors.purple,
@@ -37,12 +29,12 @@ void main() {
           onSelected: (v) => onPick('المادة', v),
         ),
         MasarStage(
-          label: 'الفصل',
+          label: 'الفصل الدراسي',
           icon: Icons.bookmarks_rounded,
           color: Colors.red,
           value: 'الفصل الأول',
           options: const ['الفصل الأول'],
-          onSelected: (v) => onPick('الفصل', v),
+          onSelected: (v) => onPick('الفصل الدراسي', v),
         ),
         MasarStage(
           label: 'الوحدة',
@@ -93,12 +85,26 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  testWidgets('all six levels are printed on the board', (tester) async {
+  testWidgets('all five levels are printed on the board', (tester) async {
     await pumpBoard(tester, given: stages(onPick: (_, __) {}));
 
-    for (final label in ['الصف', 'الترم', 'المادة', 'الفصل', 'الوحدة', 'الدرس']) {
+    for (final label in [
+      'الصف',
+      'المادة',
+      'الفصل الدراسي',
+      'الوحدة',
+      'الدرس',
+    ]) {
       expect(find.text(label), findsOneWidget, reason: '$label has no square');
     }
+  });
+
+  testWidgets('the sixth board carries the count, not a level', (tester) async {
+    await pumpBoard(tester, given: stages(onPick: (_, __) {}));
+
+    // اللوح السادس مرسوم في الخلفية ولا يُنزع منها. تركه فارغاً كان يُقرأ
+    // حقلاً سادساً ينتظر إجابة لا تأتي، فصار يحمل عدّ ما اختير من خمسة.
+    expect(find.text('5 / 5'), findsOneWidget);
   });
 
   testWidgets('a square shows the answer already given', (tester) async {
@@ -121,24 +127,28 @@ void main() {
     expect(heading.color, const Color(0xFF0B2E7A));
   });
 
-  testWidgets('the six squares sit where the artwork draws them',
+  testWidgets('the five squares sit where the artwork draws them',
       (tester) async {
     await pumpBoard(tester, given: stages(onPick: (_, __) {}));
 
     Rect rectOf(String label) => tester.getRect(find.text(label));
 
-    // Two rows of three. The top row shares a baseline, the bottom row sits
-    // below it, and the columns run right to left in Arabic reading order —
-    // which is the order the path is walked.
-    final top = ['الصف', 'الترم', 'المادة'].map(rectOf).toList();
-    final bottom = ['الفصل', 'الوحدة', 'الدرس'].map(rectOf).toList();
+    // Three across the top, two on the bottom row beneath them. Each row
+    // shares a baseline, and the columns run right to left in Arabic
+    // reading order — which is the order the path is walked.
+    final top = ['الصف', 'المادة', 'الفصل الدراسي'].map(rectOf).toList();
+    final bottom = ['الوحدة', 'الدرس'].map(rectOf).toList();
 
+    // القياس على مركز النصّ لا على مربّعه، وطول التسمية يزيح ذلك المركز
+    // قليلاً: «الفصل الدراسي» يُصغَّر ليتّسع فيرتفع مركزه عن «الصف» بثلاث
+    // نقاط. والسماح ست نقاط يبقى كاشفاً لما يعنيه الاختبار — مربّع في
+    // الصفّ الخطأ يبعد عشرات النقاط، والصفّان بينهما أكثر من أربعين.
     for (final r in top) {
-      expect((r.center.dy - top.first.center.dy).abs(), lessThan(2),
+      expect((r.center.dy - top.first.center.dy).abs(), lessThan(6),
           reason: 'the top row is not level');
     }
     for (final r in bottom) {
-      expect((r.center.dy - bottom.first.center.dy).abs(), lessThan(2),
+      expect((r.center.dy - bottom.first.center.dy).abs(), lessThan(6),
           reason: 'the bottom row is not level');
     }
     expect(bottom.first.center.dy, greaterThan(top.first.center.dy + 40),
