@@ -81,7 +81,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
 
   const getPermissionDescription = (key: string): string => {
     const descriptions: Record<string, string> = {
-      canManageAcademicSettings: 'السماح للمعلم بإضافة وتعديل الصفوف والمواد والترمات والوحدات',
+      canManageAcademicSettings: 'السماح للمعلم بإضافة وتعديل الصفوف والمواد والفصول الدراسية والوحدات',
       canEditGeneralSettings: 'السماح للمعلم بسحب وتعديل الإعدادات الأكاديمية العامة من المشرف',
       canManageContent: 'السماح للمعلم بربط المحتوى التعليمي (فيديو، أفاتار، تمارين)',
       canManageVideos: 'السماح للمعلم بإضافة وتعديل وحذف الفيديوهات',

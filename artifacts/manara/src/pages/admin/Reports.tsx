@@ -5,6 +5,7 @@ import { StudentInfo, QuizResult, ParentInfo, ReportData, LessonConfig } from '.
 import { getParentChildren, getTeacherParents, getTeacherStudents } from '../../utils/scope';
 import { getQuizTypeLabel as formatQuizTypeLabel } from '../../utils/quizTypes';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
+import { pathCell, quizResultPath } from '../../utils/academicPath';
 
 const Reports: React.FC = () => {
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -307,9 +308,12 @@ const Reports: React.FC = () => {
           <tr>
             <th>اسم الطالب</th>
             <th>رقم الهوية</th>
+            <th>الصف</th>
             <th>المادة</th>
-            <th>نوع الاختبار</th>
+            <th>الفصل الدراسي</th>
             <th>الوحدة</th>
+            <th>الدرس</th>
+            <th>نوع الاختبار</th>
             <th>النتيجة</th>
             <th>المستوى</th>
             <th>التاريخ</th>
@@ -320,13 +324,18 @@ const Reports: React.FC = () => {
             const s = studentsMap[q.studentId] || null;
             const studentName = s ? s.name : q.studentName || 'غير معروف';
             const studentIdNumber = s ? (s.studentIdNumber || '—') : (q.studentId || '—');
+            // الفصل الدراسي والدرس يسكنان الاختبار نفسه لا نتيجته، فيُوصلان به.
+            const path = quizResultPath(q, data.quizzes);
             return `
               <tr>
                 <td>${studentName}</td>
                 <td>${studentIdNumber}</td>
-                <td>${q.subject}</td>
+                <td>${pathCell(path.grade)}</td>
+                <td>${pathCell(path.subject)}</td>
+                <td>${pathCell(path.term)}</td>
+                <td>${pathCell(path.unit)}</td>
+                <td>${pathCell(path.lesson)}</td>
                 <td>${getQuizTypeLabel(q.quizType)}</td>
-                <td>${q.unit}</td>
                 <td style="font-weight:bold;">${q.percentage}%</td>
                 <td>${q.level}</td>
                 <td>${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td>

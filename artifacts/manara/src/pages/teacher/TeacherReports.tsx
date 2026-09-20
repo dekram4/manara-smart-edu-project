@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ParentInfo, StudentInfo, QuizResult } from '../../types';
+import { CreatedQuiz, ParentInfo, StudentInfo, QuizResult } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getTeacherParents, getTeacherStudents } from '../../utils/scope';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { normalizeQuizType } from '../../utils/quizTypes';
 import { QuizType } from '../../types';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
+import { formatAcademicPath, quizResultPath } from '../../utils/academicPath';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -15,6 +16,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   const [parents, setParents] = useState<ParentInfo[]>([]);
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
+  const [createdQuizzes, setCreatedQuizzes] = useState<CreatedQuiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [teacherResultStudentFilter, setTeacherResultStudentFilter] = useState('all');
@@ -47,6 +49,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       setParents(teacherParents);
       setStudents(teacherStudents);
       setQuizResults(allQuizResults);
+      setCreatedQuizzes(JSON.parse(localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]'));
       setLoading(false);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -250,9 +253,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             <section class="result">
               <h2>${result.quizTitle || 'اختبار المعلم'}</h2>
               <div class="result-meta">
-                <span><b>المادة:</b> ${result.subject || '—'}</span>
-                <span><b>الوحدة:</b> ${result.unit || '—'}</span>
-                <span><b>الصف:</b> ${result.grade || '—'}</span>
+                <span><b>المسار:</b> ${formatAcademicPath(quizResultPath(result, createdQuizzes)) || '—'}</span>
                 <span><b>التاريخ:</b> ${new Date(result.createdAt).toLocaleString('ar-SA')}</span>
               </div>
               <div class="score">النتيجة: ${getQuizResultScore(result)} / ${result.total || 0} — ${getQuizResultPercentage(result)}% — ${result.level || '—'}</div>
@@ -601,7 +602,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                             <div key={result.id} className="bg-white rounded-xl p-3 border border-purple-100 flex items-center justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="font-black text-sm text-purple-900 truncate">{result.quizTitle || 'اختبار المعلم'}</p>
-                                <p className="text-[10px] text-purple-500 font-bold">{result.subject || '—'} • {result.unit || '—'} • {new Date(result.createdAt).toLocaleDateString('ar-SA')}</p>
+                                <p className="text-[10px] text-purple-500 font-bold">{formatAcademicPath(quizResultPath(result, createdQuizzes)) || '—'} • {new Date(result.createdAt).toLocaleDateString('ar-SA')}</p>
                               </div>
                               <div className="text-left shrink-0">
                                 <p className="font-black text-purple-700">{getQuizResultScore(result)} / {result.total || 0}</p>

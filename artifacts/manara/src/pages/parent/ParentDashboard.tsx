@@ -1,7 +1,7 @@
 
 import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParentInfo, StudentInfo, TeacherInfo, QuizResult, ParentMenuType, CertificateRecord, HierarchicalConfig, QuizType } from '../../types';
+import { ParentInfo, StudentInfo, TeacherInfo, QuizResult, ParentMenuType, CertificateRecord, CreatedQuiz, HierarchicalConfig, QuizType } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ParentLogin from './ParentLogin';
@@ -10,6 +10,7 @@ import { getEffectiveParentPermissions, getStudentPermissions, isLimitReached } 
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { refreshSupabaseSync, rehydrateFromServer } from '../../db/sync';
+import { formatAcademicPath, pathCell, quizResultPath } from '../../utils/academicPath';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
@@ -83,6 +84,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [gradeConfigs, setGradeConfigs] = useState<any[]>([]);
   const [hierarchicalConfigs, setHierarchicalConfigs] = useState<HierarchicalConfig[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  // النتيجة تحمل الصف والمادة والوحدة فقط؛ الفصل الدراسي والدرس في
+  // الاختبار نفسه، فيُقرأ ليكتمل المسار في كل موضع يُعرض فيه.
+  const [createdQuizzes, setCreatedQuizzes] = useState<CreatedQuiz[]>([]);
 
   useEffect(() => {
     loadAcademicSettings();
@@ -134,6 +138,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       const myChildren = getParentChildren(allStudents, activeUser);
       setChildren(myChildren);
       const childIds = new Set(myChildren.map(child => child.id));
+      setCreatedQuizzes(readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES));
       const allQuizzes = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
        setAllQuizzes(allQuizzes
          .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
@@ -192,6 +197,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
        const myChildren = getParentChildren(allStudents, activeUser);
       setChildren(myChildren);
       const childIds = new Set(myChildren.map(child => child.id));
+      setCreatedQuizzes(readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES));
       const allQuizzes = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
        setAllQuizzes(allQuizzes
          .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
@@ -654,7 +660,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       </div>
       ${studentCertificates.length > 0 ? `<div class="certificates"><h2>🏆 الشهادات الممنوحة</h2><div style="text-align:center;">${studentCertificates.map((cert: any) => `<div class="cert-item ${cert.type}"><div style="font-size:40px;margin-bottom:10px;">${cert.type === 'excellence' ? '🏆' : cert.type === 'appreciation' ? '⭐' : '🌟'}</div><strong style="font-size:16px;">${cert.type === 'excellence' ? 'شهادة تميز' : cert.type === 'appreciation' ? 'شهادة تقدير' : 'شهادة مشاركة'}</strong><p style="margin:10px 0 5px 0;font-size:14px;">المعلم: ${cert.teacherName || 'غير محدد'}</p><p style="margin:0;font-size:12px;color:#64748b;">${new Date(cert.date).toLocaleDateString('ar-SA')}</p></div>`).join('')}</div></div>` : ''}
        <div class="section-title">📋 تفاصيل جميع الاختبارات</div>
-       <table><thead><tr><th>نوع الاختبار</th><th>الوحدة</th><th>الصف</th><th>النتيجة</th><th>المستوى</th><th>التاريخ</th></tr></thead><tbody>${childQuizzes.map(q => `<tr><td style="font-weight:bold;">${getQuizTypeLabel(q.quizType)}</td><td>${q.unit || '-'}</td><td>${q.grade}</td><td style="font-weight:bold;font-size:18px;color:${q.percentage >= 80 ? '#10b981' : q.percentage >= 60 ? '#f59e0b' : '#ef4444'};">${q.percentage}%</td><td style="font-weight:bold;color:${q.percentage >= 60 ? '#10b981' : '#ef4444'};">${q.level}</td><td style="font-size:12px;color:#64748b;">${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td></tr>`).join('')}</tbody></table>
+       <table><thead><tr><th>الصف</th><th>المادة</th><th>الفصل الدراسي</th><th>الوحدة</th><th>الدرس</th><th>نوع الاختبار</th><th>النتيجة</th><th>المستوى</th><th>التاريخ</th></tr></thead><tbody>${childQuizzes.map(q => { const p = quizResultPath(q, createdQuizzes); return `<tr><td>${pathCell(p.grade)}</td><td>${pathCell(p.subject)}</td><td>${pathCell(p.term)}</td><td>${pathCell(p.unit)}</td><td style="font-weight:bold;">${pathCell(p.lesson)}</td><td>${getQuizTypeLabel(q.quizType)}</td><td style="font-weight:bold;font-size:18px;color:${q.percentage >= 80 ? '#10b981' : q.percentage >= 60 ? '#f59e0b' : '#ef4444'};">${q.percentage}%</td><td style="font-weight:bold;color:${q.percentage >= 60 ? '#10b981' : '#ef4444'};">${q.level}</td><td style="font-size:12px;color:#64748b;">${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td></tr>`; }).join('')}</tbody></table>
        <div class="summary"><div style="color:#64748b;font-size:16px;margin-bottom:10px;">📊 المعدل العام للمادة</div><div style="font-size:48px;color:${parseFloat(avg) >= 80 ? '#10b981' : parseFloat(avg) >= 60 ? '#f59e0b' : '#ef4444'};">${avg}%</div><div style="margin-top:15px;font-size:14px;color:#64748b;">إجمالي النتائج: ${childQuizzes.length} | أعلى درجة: ${childQuizzes.length > 0 ? Math.max(...childQuizzes.map(q => q.percentage)) : 0}% | أقل درجة: ${childQuizzes.length > 0 ? Math.min(...childQuizzes.map(q => q.percentage)) : 0}%</div></div>
       <div style="text-align:center;margin-top:40px;padding:20px;background:#f8fafc;border-radius:15px;color:#64748b;font-size:12px;"><p style="margin:0;">تم إنشاء هذا التقرير بواسطة منصة SmartEdu التعليمية</p><p style="margin:5px 0 0 0;">${new Date().toLocaleString('ar-SA')}</p></div>
       </body></html>
@@ -724,9 +730,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             <section class="result">
               <h2>${quiz.quizTitle || 'اختبار المعلم'}</h2>
               <div class="result-meta">
-                <span><b>المادة:</b> ${quiz.subject || '—'}</span>
-                <span><b>الوحدة:</b> ${quiz.unit || '—'}</span>
-                <span><b>الصف:</b> ${quiz.grade || '—'}</span>
+                <span><b>المسار:</b> ${formatAcademicPath(quizResultPath(quiz, createdQuizzes)) || '—'}</span>
                 <span><b>التاريخ:</b> ${new Date(quiz.createdAt).toLocaleString('ar-SA')}</span>
               </div>
               <div class="score">النتيجة: ${getQuizResultScore(quiz)} / ${quiz.total || 0} — ${getQuizResultPercentage(quiz)}% — ${quiz.level || '—'}</div>
@@ -994,7 +998,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                   <div key={quiz.id} className="bg-white p-3 rounded-xl border border-rose-100 flex items-center justify-between gap-3">
                                     <div className="min-w-0">
                                       <p className="font-black text-sm text-rose-800 truncate">{quiz.quizTitle || 'اختبار المعلم'}</p>
-                                      <p className="text-[10px] text-rose-400 font-bold">{quiz.subject || '—'} • {quiz.unit || '—'} • {new Date(quiz.createdAt).toLocaleDateString('ar-SA')}</p>
+                                      <p className="text-[10px] text-rose-400 font-bold">{formatAcademicPath(quizResultPath(quiz, createdQuizzes)) || '—'} • {new Date(quiz.createdAt).toLocaleDateString('ar-SA')}</p>
                                     </div>
                                     <div className="text-left shrink-0">
                                       <p className="font-black text-rose-700">{getQuizResultScore(quiz)} / {quiz.total || 0}</p>
@@ -1561,7 +1565,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                               myChildQuizzes.filter(q => q.subject === activeSubject).reverse().map((q, i) => (
                                 <div key={i} className="flex items-center justify-between p-3 bg-rose-50 rounded-xl border border-rose-100 hover:border-rose-300 transition-all">
                                   <div className="flex-1 min-w-0">
-                                    <h5 className="font-bold text-sm text-rose-800">{getQuizTypeLabel(q.quizType)} {q.unit ? '- ' + q.unit : ''}</h5>
+                                    <h5 className="font-bold text-sm text-rose-800">{getQuizTypeLabel(q.quizType)}</h5>
+                                    <p className="text-rose-500 font-bold text-[10px]">{formatAcademicPath(quizResultPath(q, createdQuizzes)) || '—'}</p>
                                     <p className="text-rose-400 font-bold text-[10px]">{new Date(q.createdAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}</p>
                                   </div>
                                   <div className="text-center mr-3 shrink-0">

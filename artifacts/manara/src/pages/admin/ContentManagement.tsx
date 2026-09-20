@@ -671,11 +671,11 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               </select>
 
               {/* الدرس - Lesson.
-                  يكمل التسلسل السداسي: الصف ← الترم ← المادة ← الفصل ←
+                  يكمل التسلسل الخماسي: الصف ← المادة ← الفصل الدراسي ←
                   الوحدة ← الدرس. قبل هذا الحقل كانت الوحدة تحمل درساً
                   واحداً فقط، فلا يمكن وضع درسين في وحدة واحدة إطلاقاً.
 
-                  قائمة مغلقة كبقية المستويات الخمسة ومصدرها الوحيد شجرة
+                  قائمة مغلقة كبقية المستويات الأربعة ومصدرها الوحيد شجرة
                   الإعدادات الأكاديمية: اسم مكتوب بحرية لا يطابق ما في
                   الشجرة يُنتج درساً لا يظهر للطالب في شاشة المسار، وهو
                   عطل صامت. من لم يعرّف دروساً بعد يراه فارغاً مع تنبيه
@@ -849,15 +849,15 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               placeholder="🔎 ابحث في المسار الأكاديمي"
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
-            <select value={listSubject} onChange={e => setListSubject(e.target.value)}
-              className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
-              <option value="all">📖 كل المواد</option>
-              {listFilterOptions.subjects.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
             <select value={listGrade} onChange={e => setListGrade(e.target.value)}
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
               <option value="all">🎓 كل الصفوف</option>
               {listFilterOptions.grades.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <select value={listSubject} onChange={e => setListSubject(e.target.value)}
+              className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
+              <option value="all">📖 كل المواد</option>
+              {listFilterOptions.subjects.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
             <select value={listKind} onChange={e => setListKind(e.target.value as typeof listKind)}
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
@@ -898,10 +898,15 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         <table className="dashboard-content-table text-right">
           <thead className="dashboard-content-table-head">
             <tr>
+              {/* الترتيب الهرمي كما يُقرأ: الصف ثم ما يتفرّع عنه حتى الدرس،
+                  ثم الأعمدة الوظيفية. وكان العنوان الثالث «الترم» — مستوى
+                  أُزيل من النظام — والعناوين خمسة والخلايا أربع، فانزاحت
+                  القيم عموداً: الوحدة تُقرأ تحت «الترم»، والدرس لا يظهر. */}
               <th className="px-6 py-5">الصف</th>
               <th className="px-6 py-5">المادة</th>
-              <th className="px-6 py-5">الترم</th>
+              <th className="px-6 py-5">الفصل الدراسي</th>
               <th className="px-6 py-5">الوحدة</th>
+              <th className="px-6 py-5">الدرس</th>
               {!teacherId && <th className="px-6 py-5">👨‍🏫 المنشئ</th>}
               <th className="px-6 py-5">الفيديو</th>
               <th className="px-6 py-5">الأفاتار</th>
@@ -914,7 +919,9 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               <tr key={l.id}>
                 <td className="px-6 py-5 font-black text-purple-800">{l.grade}</td>
                 <td className="px-6 py-5 font-bold text-purple-600">{l.subject}</td>
-                <td className="px-6 py-5 text-purple-500">{l.unit}</td>
+                <td className="px-6 py-5 text-purple-500">{l.term || '—'}</td>
+                <td className="px-6 py-5 text-purple-500">{l.unit || '—'}</td>
+                <td className="px-6 py-5 font-bold text-indigo-700">{l.lesson || '—'}</td>
                 {!teacherId && (
                   <td className="px-6 py-5">
                     <span className="bg-gradient-to-r from-purple-500 to-purple-500 text-white px-4 py-2 rounded-xl text-sm font-black inline-flex items-center gap-2">

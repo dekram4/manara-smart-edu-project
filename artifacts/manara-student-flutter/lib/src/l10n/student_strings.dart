@@ -133,7 +133,7 @@ class StudentStrings {
     'tutor.badMeetingLink': 'رابط اللقاء المباشر غير صالح',
     'tutor.pickPath': 'اختر مسارك الدراسي أولًا',
     'tutor.pickPathBody':
-        'اختر الصف والفصل والمادة والترم والوحدة، ثم افتح التجربة الخاصة بالدرس.',
+        'اختر الصف والمادة والفصل الدراسي والوحدة، ثم افتح التجربة الخاصة بالدرس.',
 
     // Challenge portal
     // العنوان يحمل اسم المادة المختارة من المسار. كان ثابتاً على 'العلوم'
@@ -168,9 +168,9 @@ class StudentStrings {
 
     // Scope sheet
     'scope.title': 'تغيير الدرس',
-    'scope.hint': 'اختر مادتك ثم الترم والوحدة والدرس.',
+    'scope.hint': 'اختر مادتك ثم الفصل الدراسي والوحدة والدرس.',
     'scope.subject': 'المادة',
-    'scope.term': 'الفصل',
+    'scope.term': 'الفصل الدراسي',
     'scope.unit': 'الوحدة',
     'scope.lesson': 'الدرس',
     'scope.noOptions': 'لا توجد خيارات هنا بعد.',
@@ -395,7 +395,7 @@ class StudentStrings {
     'path.unit': 'الوحدة',
     'path.grade': 'الصف',
     'path.subject': 'المادة',
-    'path.term': 'الفصل',
+    'path.term': 'الفصل الدراسي',
     'path.lesson': 'الدرس',
     'path.choose': 'اختر',
     'path.unavailable': 'غير متاح',
