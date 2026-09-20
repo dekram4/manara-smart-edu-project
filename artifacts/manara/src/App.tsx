@@ -7,7 +7,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import ParentDashboard from './pages/parent/ParentDashboard';
 import { STORAGE_KEYS } from './constants';
-import { initSupabaseSync } from './db/sync';
+import { initSupabaseSync, resetSyncState } from './db/sync';
 import { migratePasswordsToHash } from './db/migratePasswords';
 import { GameControls } from './components/GameControls';
 import { SyncStatusBanner } from './components/SyncStatusBanner';
@@ -211,6 +211,10 @@ const App: React.FC = () => {
   const leaveRole = () => {
     clearActiveSessions();
     clearAuthSessions();
+    // الطابور والدور وحالة الشريط: كلّها تخصّ الحساب الخارج وحده. بدون
+    // هذا كانت كتابة معلّقة من جلسة المشرف تُرسَل تحت جلسة المعلم التالي
+    // فيردّها الخادم، ويرى المعلم شريطاً أحمر على عمل ليس عمله.
+    resetSyncState();
     removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
     void Promise.all([

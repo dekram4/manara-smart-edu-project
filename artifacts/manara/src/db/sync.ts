@@ -233,9 +233,20 @@ function isReadOnlyActor(): boolean {
 
 let activeSyncContext: SyncContext | null = null;
 
+/**
+ * الطابور بعد تنقيته ممّا لا يملكه الحساب الحالي.
+ *
+ * عملية على جدول لا يكتبه هذا الدور لا تُعاد المحاولة فيها أبداً: الخادم
+ * سيردّها في كل مرة، فبقاؤها يعني شريطاً أحمر يتجدّد عند كل إقلاع. وهذا
+ * يشفي أيضاً المتصفّحات التي في طابورها اليوم عملية على `teachers` من
+ * بناء قديم — تُسقَط عند أول قراءة بلا تدخّل من أحد.
+ */
 function loadPending(): PendingOp[] {
   const parsed = safeParse(nativeGetItem(PENDING_KEY));
-  return Array.isArray(parsed) ? parsed : [];
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((op: PendingOp) =>
+    op?.type === 'kv' || canCurrentActorWriteTable((op as { table?: string })?.table ?? ''),
+  );
 }
 
 /**
@@ -286,6 +297,12 @@ function savePending(ops: PendingOp[]): void {
 const MAX_PENDING_OPS = 100;
 
 function appendPending(op: PendingOp): void {
+  // لا يدخل الطابور ما لن يُقبل: تخزينه يعني إعادة محاولة أبدية وشريطاً
+  // أحمر عند كل إقلاع، على كتابة لم يقصدها المستخدم أصلاً.
+  if (op.type !== 'kv' && !canCurrentActorWriteTable(op.table)) {
+    console.info(`[sync] لم تُخزَّن عملية على ${op.table}: هذا الدور لا يكتبه`);
+    return;
+  }
   const ops = loadPending();
   ops.push(op);
   if (ops.length > MAX_PENDING_OPS) {
@@ -372,6 +389,17 @@ export type SyncStatus = {
 let syncStatus: SyncStatus = { pending: 0, lastFailure: null, retrying: false, hydrating: false };
 const statusListeners = new Set<(status: SyncStatus) => void>();
 
+/** أسماء الجداول كما تَرِد في تسميات `withRetry`: «حفظ X»، «دمج X»… */
+const ROW_TABLES_BY_NAME = new Map(
+  Object.values(ROW_TABLES).map(table => [table, table]),
+);
+
+/** آخر كلمة في التسمية هي اسم الجدول، إن كانت تسمية جدول أصلاً. */
+function labelTable(label: string): string {
+  const parts = label.trim().split(/\s+/);
+  return parts[parts.length - 1] ?? '';
+}
+
 function emitStatus(patch: Partial<SyncStatus>): void {
   syncStatus = { ...syncStatus, ...patch, pending: patch.pending ?? loadPending().length };
   for (const listener of statusListeners) {
@@ -395,6 +423,14 @@ export function getSyncStatus(): SyncStatus {
 }
 
 function reportFailure(kind: SyncFailureKind, label: string, error: any): void {
+  // جدولٌ لا يكتبه هذا الدور ليس شأن المستخدم: المعلم لا يرفع جدول
+  // المعلمين ولا يُطلب منه ذلك، فلا معنى لأن يُقال له إن رفعه فشل. يبقى
+  // في سجلّ المتصفح لمن يصحّح، ولا يبلغ الشاشة.
+  const failedTable = ROW_TABLES_BY_NAME.get(labelTable(label));
+  if (failedTable && !canCurrentActorWriteTable(failedTable)) {
+    console.info(`[sync] أُسقط خطأ على ${failedTable}: هذا الدور لا يكتبه`);
+    return;
+  }
   const rawMessage = String(error?.message ?? error ?? '').slice(0, 300);
   // الخطأ الصامت هو «الخادم بلا Supabase» — رسالته إنجليزية تقنية لا تعني
   // المعلّم شيئاً، وكانت تظهر له حرفياً في شريط أحمر. تُصنَّف هنا حالةً
@@ -1085,6 +1121,36 @@ export async function rehydrateFromServer(): Promise<void> {
     return;
   }
   await hydrateFromSupabase(new Set(), new Set(), activeSyncContext);
+}
+
+/**
+ * يُنهي جلسة المزامنة عند الخروج: لا عملية معلّقة تعبر إلى الحساب التالي.
+ *
+ * الطابور يعيش في `localStorage` ولا يعرف صاحبه. فمشرفٌ خرج وفي طابوره
+ * كتابة على جدول المعلمين لم تصل، ثم دخل معلمٌ على المتصفح نفسه، كانت
+ * تُرسَل تحت جلسة المعلم فيردّها الخادم ويظهر الشريط الأحمر في وجهه —
+ * على عمل ليس عمله. وحالة الفشل الأخيرة كانت تعبر معها فتُعرض بعد الخروج.
+ *
+ * فيُمسح الطابور، ويُنسى الدور، وتُطوى حالة الشريط. أما نسخة الجداول في
+ * المتصفح فتبقى: شاشة الدخول تقرأ منها لتتعرّف على الحساب، ويعيد
+ * `initSupabaseSync` ملأها من الخادم بنطاق الحساب الجديد عند دخوله.
+ */
+export function resetSyncState(): void {
+  try {
+    nativeRemoveItem(PENDING_KEY);
+  } catch {
+    // تخزين محجوب: لا شيء يُمسح، ولا شيء يُعطَّل بسببه.
+  }
+  activeSyncContext = null;
+  syncInitializationPromise = null;
+  syncStatus = { pending: 0, lastFailure: null, retrying: false, hydrating: false };
+  for (const listener of statusListeners) {
+    try {
+      listener(syncStatus);
+    } catch {
+      // مستمع معطوب يجب ألا يوقف الخروج.
+    }
+  }
 }
 
 /**
