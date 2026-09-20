@@ -1,3 +1,4 @@
+import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { StudentInfo, QuizResult, ParentInfo, HierarchicalConfig, CertificateRecord, QuizType } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
@@ -136,7 +137,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   const getSubjectsForGrade = (grade: string) => {
     const set = new Set<string>();
     for (const cfg of academicConfigs.filter(c => c.grade === grade)) {
-      for (const s of cfg.subjects || []) set.add(s.subject);
+      for (const s of subjectsOfConfig(cfg)) set.add(s.subject);
     }
     return Array.from(set);
   };
@@ -144,7 +145,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   const getTermsForSubject = (grade: string, subject: string) => {
     const set = new Set<string>();
     for (const cfg of academicConfigs.filter(c => c.grade === grade)) {
-      const s = cfg.subjects?.find(x => x.subject === subject);
+      const s = subjectsOfConfig(cfg).find((x: any) => x.subject === subject);
       for (const t of s?.terms || []) set.add(t.term);
     }
     return Array.from(set);

@@ -631,7 +631,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                     }
                   }
                 setAvailableUnits([]);
-               }} className="dashboard-content-control" required disabled={!formData.subject}>
+               }} className="dashboard-content-control" required disabled={!formData.grade}>
                 <option value="">المادة</option>
                 {availableSubjects.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>

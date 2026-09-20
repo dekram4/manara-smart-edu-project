@@ -35,6 +35,16 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   const [selectedUnit, setSelectedUnit] = useState('');
   const [newLesson, setNewLesson] = useState('');
 
+  // ── تصفية الشجرة المعروضة ──
+  //
+  // صف واحد بمواده وفصوله ووحداته ودروسه يملأ الشاشة. هذه تضيّق
+  // المعروض وحده، ولا تمسّ البيانات: التعديل والحذف يُخاطبان الشجرة
+  // بالأسماء كما كانا.
+  const [filterGrade, setFilterGrade] = useState('');
+  const [filterSubject, setFilterSubject] = useState('');
+  const [treeSearch, setTreeSearch] = useState('');
+  const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
+
   // مسودة اسم الدرس لكل وحدة، ومفتاحها المسار الكامل للوحدة — فكل وحدة
   // على الشاشة لها حقلها الخاص، ولا تتشارك عدة وحدات مربع إدخال واحداً.
   //
@@ -692,6 +702,71 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     return term?.units || [];
   };
 
+  // ============ تصفية الشجرة ============
+
+  const matchesFilter = (value: unknown, selected: string) =>
+    !selected || normalizeScopeValue(value) === normalizeScopeValue(selected);
+
+  /// كل نصّ داخل الصف: اسمه، ومواده، وفصولها، ووحداتها، ودروسها.
+  const searchHaystack = (config: HierarchicalConfig): string => {
+    const parts: string[] = [config.grade];
+    (config.subjects || []).forEach(subject => {
+      parts.push(subject.subject);
+      (subject.terms || []).forEach(term => {
+        parts.push(term.term);
+        (term.units || []).forEach(unit => parts.push(unit));
+        Object.values(term.lessons || {}).forEach(names =>
+          (names || []).forEach(name => parts.push(name)),
+        );
+      });
+    });
+    return parts.map(part => normalizeScopeValue(part)).join(' ');
+  };
+
+  const subjectEntries = (config: HierarchicalConfig) =>
+    (config.subjects || []).filter(subject => matchesFilter(subject.subject, filterSubject));
+
+  const gradeShown = (config: HierarchicalConfig) => {
+    if (!matchesFilter(config.grade, filterGrade)) return false;
+    if (filterSubject && subjectEntries(config).length === 0) return false;
+    const query = normalizeScopeValue(treeSearch);
+    return !query || searchHaystack(config).includes(query);
+  };
+
+  const filterSubjectOptions = Array.from(
+    new Map(
+      myConfigs
+        .filter(config => matchesFilter(config.grade, filterGrade))
+        .flatMap(config => config.subjects || [])
+        .map(subject => [normalizeScopeValue(subject.subject), subject.subject]),
+    ).values(),
+  );
+
+  const isCollapsed = (config: HierarchicalConfig) =>
+    collapsedGrades[normalizeScopeValue(config.grade)] === true;
+
+  const toggleGrade = (config: HierarchicalConfig) =>
+    setCollapsedGrades(current => {
+      const key = normalizeScopeValue(config.grade);
+      return { ...current, [key]: !current[key] };
+    });
+
+  const setAllCollapsed = (collapsed: boolean) =>
+    setCollapsedGrades(
+      collapsed
+        ? Object.fromEntries(myConfigs.map(config => [normalizeScopeValue(config.grade), true]))
+        : {},
+    );
+
+  const countUnits = (config: HierarchicalConfig) =>
+    (config.subjects || []).reduce(
+      (total, subject) =>
+        total + (subject.terms || []).reduce((sum, term) => sum + (term.units || []).length, 0),
+      0,
+    );
+
+  const shownConfigs = myConfigs.filter(gradeShown);
+
   return (
     <div style={styles.container} className="dashboard-page dashboard-consistent-page">
        <div className="dashboard-section-header" style={styles.header}>
@@ -868,16 +943,76 @@ onChange={e => {
           <div className="teacher-academic-config-list" style={styles.card}>
             <h3 style={styles.cardTitle}>إعداداتي الحالية</h3>
             
-            {myConfigs.length === 0 ? (
+            {myConfigs.length > 0 && (
+              <div style={styles.treeFilters}>
+                <select
+                  value={filterGrade}
+                  onChange={e => { setFilterGrade(e.target.value); setFilterSubject(''); }}
+                  style={styles.treeFilterControl}
+                >
+                  <option value="">🏫 كل الصفوف</option>
+                  {Array.from(new Set(myConfigs.map(config => config.grade))).map(grade => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                </select>
+                <select
+                  value={filterSubject}
+                  onChange={e => setFilterSubject(e.target.value)}
+                  style={styles.treeFilterControl}
+                >
+                  <option value="">📚 كل المواد</option>
+                  {filterSubjectOptions.map(subject => (
+                    <option key={subject} value={subject}>{subject}</option>
+                  ))}
+                </select>
+                <input
+                  type="search"
+                  value={treeSearch}
+                  onChange={e => setTreeSearch(e.target.value)}
+                  placeholder="🔍 ابحث باسم صف أو مادة أو فصل أو وحدة أو درس"
+                  style={{ ...styles.treeFilterControl, flex: '2 1 200px' }}
+                />
+                <button onClick={() => setAllCollapsed(true)} style={styles.treeToolButton}>⊖ طيّ الكل</button>
+                <button onClick={() => setAllCollapsed(false)} style={styles.treeToolButton}>⊕ فتح الكل</button>
+                {(filterGrade || filterSubject || treeSearch) && (
+                  <button
+                    onClick={() => { setFilterGrade(''); setFilterSubject(''); setTreeSearch(''); }}
+                    style={styles.treeToolButton}
+                  >
+                    ✖ مسح
+                  </button>
+                )}
+              </div>
+            )}
+
+            {myConfigs.length > 0 && shownConfigs.length === 0 ? (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
+                <p>لا يطابق هذا البحث أي صف.</p>
+              </div>
+            ) : myConfigs.length === 0 ? (
               <div style={styles.emptyState}>
                 <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
                 <p>لا يوجد إعدادات أكاديمية خاصة بك بعد</p>
                 <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>ابدأ بإنشاء هيكلك الأكاديمي أو انسخ من الإعدادات العامة</p>
               </div>
             ) : (
-              myConfigs.map((config, idx) => (
+              myConfigs.map((config, idx) => {
+                if (!gradeShown(config)) return null;
+                const collapsed = isCollapsed(config);
+                const shownSubjects = subjectEntries(config);
+                return (
                 <div key={idx} style={styles.configCard}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => toggleGrade(config)}
+                        style={styles.treeToggle}
+                        title={collapsed ? 'فتح الصف' : 'طيّ الصف'}
+                        aria-expanded={!collapsed}
+                      >
+                        {collapsed ? '▶' : '▼'}
+                      </button>
                     {renderNodeName(
                       nodeKey('grade', config.grade),
                       config.grade,
@@ -885,6 +1020,10 @@ onChange={e => {
                       '🏫',
                       () => saveNodeEdit('grade', config.grade),
                     )}
+                      <span style={styles.treeCountBadge}>
+                        {(config.subjects || []).length} مادة · {countUnits(config)} وحدة
+                      </span>
+                    </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         onClick={() => setEditingNode({ key: nodeKey('grade', config.grade), value: config.grade })}
@@ -907,7 +1046,7 @@ onChange={e => {
                       📋 منسوخ من: {config.copiedFromName || 'المشرف'}
                     </div>
                   )}
-                  {config.subjects && config.subjects.map((subject, sIdx) => (
+                  {!collapsed && shownSubjects.map((subject, sIdx) => (
                         <div key={sIdx} style={styles.subjectCard}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                             {renderNodeName(
@@ -1075,7 +1214,8 @@ onChange={e => {
                         </div>
                       ))}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -1150,6 +1290,11 @@ onChange={e => {
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
+  treeFilters: { display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' },
+  treeFilterControl: { flex: '1 1 150px', minWidth: '140px', padding: '9px 12px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', backgroundColor: 'white' },
+  treeToolButton: { padding: '8px 12px', backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', whiteSpace: 'nowrap' },
+  treeToggle: { background: 'none', border: 'none', cursor: 'pointer', color: '#92400e', fontSize: '0.9rem', padding: '2px 4px', lineHeight: 1 },
+  treeCountBadge: { backgroundColor: '#fff7ed', color: '#9a3412', padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 'bold' },
   container: {
     padding: '30px',
     backgroundColor: '#f9fafb',

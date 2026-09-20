@@ -42,6 +42,20 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const [selectedUnit, setSelectedUnit] = useState('');
   const [newLesson, setNewLesson] = useState('');
 
+  // ── تصفية الشجرة المعروضة ──
+  //
+  // الشجرة تُعرض كاملة، وصف واحد بمواده وفصوله ووحداته ودروسه يملأ الشاشة.
+  // هذه الحقول تضيّق المعروض، ولا تمسّ البيانات: الفهارس المستعملة في
+  // التعديل والحذف تبقى فهارس المصفوفة الأصلية، فالمخفيّ مخفيّ عن العين
+  // وحدها.
+  const [filterGrade, setFilterGrade] = useState('');
+  const [filterSubject, setFilterSubject] = useState('');
+  const [treeSearch, setTreeSearch] = useState('');
+
+  /// الصفوف المطويّة، بمفتاح الصف واسمه. الافتراض مفتوح، فالمعلم صاحب صفّ
+  /// واحد يرى شجرته كما كان، ومن له صفوف كثيرة يطوي ما لا يعمل عليه.
+  const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
+
   // مسودة اسم الدرس لكل وحدة، ومفتاحها موضع الوحدة في الشجرة — فكل وحدة
   // لها حقلها الخاص ولا تتشارك عدة وحدات مربع إدخال واحداً.
   //
@@ -946,6 +960,78 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     });
   };
 
+  // ============ تصفية الشجرة ============
+
+  const matchesFilter = (value: unknown, selected: string) =>
+    !selected || normalizeScopeValue(value) === normalizeScopeValue(selected);
+
+  /// كل نصّ داخل الصف: اسمه، ومواده، وفصولها، ووحداتها، ودروسها. البحث
+  /// يطابق أيّها، فالمعلم الباحث عن وحدة لا يحتاج أن يتذكّر مادتها.
+  const searchHaystack = (config: HierarchicalConfig): string => {
+    const parts: string[] = [config.grade, config.createdByName ?? ''];
+    (config.subjects || []).forEach(subject => {
+      parts.push(subject.subject);
+      (subject.terms || []).forEach(term => {
+        parts.push(term.term);
+        (term.units || []).forEach(unit => parts.push(unit));
+        Object.values(term.lessons || {}).forEach(names =>
+          (names || []).forEach(name => parts.push(name)),
+        );
+      });
+    });
+    return parts.map(part => normalizeScopeValue(part)).join(' ');
+  };
+
+  const subjectsShown = (config: HierarchicalConfig) =>
+    (config.subjects || []).filter(subject => matchesFilter(subject.subject, filterSubject));
+
+  const gradeShown = (config: HierarchicalConfig) => {
+    if (!matchesFilter(config.grade, filterGrade)) return false;
+    if (filterSubject && subjectsShown(config).length === 0) return false;
+    const query = normalizeScopeValue(treeSearch);
+    return !query || searchHaystack(config).includes(query);
+  };
+
+  const shownConfigs = hierarchicalConfigs.filter(gradeShown);
+
+  /// المواد المعروضة في قائمة التصفية: مواد الصف المختار وحده إن اختير.
+  const filterSubjectOptions = Array.from(
+    new Map(
+      hierarchicalConfigs
+        .filter(config => matchesFilter(config.grade, filterGrade))
+        .flatMap(config => config.subjects || [])
+        .map(subject => [normalizeScopeValue(subject.subject), subject.subject]),
+    ).values(),
+  );
+
+  const isCollapsed = (config: HierarchicalConfig, index: number) =>
+    collapsedGrades[`${index}:${normalizeScopeValue(config.grade)}`] === true;
+
+  const toggleGrade = (config: HierarchicalConfig, index: number) =>
+    setCollapsedGrades(current => {
+      const key = `${index}:${normalizeScopeValue(config.grade)}`;
+      return { ...current, [key]: !current[key] };
+    });
+
+  const setAllCollapsed = (collapsed: boolean) =>
+    setCollapsedGrades(
+      collapsed
+        ? Object.fromEntries(
+            hierarchicalConfigs.map((config, index) => [
+              `${index}:${normalizeScopeValue(config.grade)}`,
+              true,
+            ]),
+          )
+        : {},
+    );
+
+  const countUnits = (config: HierarchicalConfig) =>
+    (config.subjects || []).reduce(
+      (total, subject) =>
+        total + (subject.terms || []).reduce((sum, term) => sum + (term.units || []).length, 0),
+      0,
+    );
+
   // ============ دوال الحصول على القوائم ============
 
   // الحصول على المواد للصف المحدد
@@ -1267,15 +1353,89 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', maxHeight: '800px', overflowY: 'auto' }}>
           <h3 style={{ fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '20px', color: '#111827' }}>الهيكل الحالي</h3>
           
-          {hierarchicalConfigs.length === 0 ? (
+          <div style={styles.treeHeader}>
+            {hierarchicalConfigs.length > 0 && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setAllCollapsed(true)} style={styles.treeToolButton}>⊖ طيّ الكل</button>
+                <button onClick={() => setAllCollapsed(false)} style={styles.treeToolButton}>⊕ فتح الكل</button>
+              </div>
+            )}
+          </div>
+
+          {hierarchicalConfigs.length > 0 && (
+            <div style={styles.treeFilters}>
+              <select
+                value={filterGrade}
+                onChange={e => {
+                  setFilterGrade(e.target.value);
+                  setFilterSubject('');
+                }}
+                style={styles.treeFilterControl}
+              >
+                <option value="">🏫 كل الصفوف</option>
+                {Array.from(new Set(hierarchicalConfigs.map(config => config.grade))).map(grade => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
+              </select>
+              <select
+                value={filterSubject}
+                onChange={e => setFilterSubject(e.target.value)}
+                style={styles.treeFilterControl}
+              >
+                <option value="">📚 كل المواد</option>
+                {filterSubjectOptions.map(subject => (
+                  <option key={subject} value={subject}>{subject}</option>
+                ))}
+              </select>
+              <input
+                type="search"
+                value={treeSearch}
+                onChange={e => setTreeSearch(e.target.value)}
+                placeholder="🔍 ابحث باسم صف أو مادة أو فصل أو وحدة أو درس"
+                style={{ ...styles.treeFilterControl, flex: '2 1 220px' }}
+              />
+              {(filterGrade || filterSubject || treeSearch) && (
+                <button
+                  onClick={() => { setFilterGrade(''); setFilterSubject(''); setTreeSearch(''); }}
+                  style={styles.treeToolButton}
+                >
+                  ✖ مسح
+                </button>
+              )}
+            </div>
+          )}
+
+          {hierarchicalConfigs.length > 0 && shownConfigs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
+              <p>لا يطابق هذا البحث أي صف. جرّب كلمة أخرى أو امسح التصفية.</p>
+            </div>
+          ) : hierarchicalConfigs.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
               <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
               <p>لا يوجد تكوين هرمي بعد. ابدأ بإضافة صف من القسم الأيسر</p>
             </div>
           ) : (
-            hierarchicalConfigs.map((gradeConfig, gradeIndex) => (
+            hierarchicalConfigs.map((gradeConfig, gradeIndex) => {
+              // الفهرس فهرس المصفوفة الأصلية دائماً، لا فهرس المعروض: كل
+              // تعديل وحذف في هذه الشاشة يُخاطب الشجرة به.
+              if (!gradeShown(gradeConfig)) return null;
+              const collapsed = isCollapsed(gradeConfig, gradeIndex);
+              const shownSubjectEntries = (gradeConfig.subjects || [])
+                .map((subject, subjectIndex) => ({ subject, subjectIndex }))
+                .filter(entry => matchesFilter(entry.subject.subject, filterSubject));
+              return (
               <div key={gradeIndex} style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '2px solid #3b82f6' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsed ? '0' : '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <button
+                      onClick={() => toggleGrade(gradeConfig, gradeIndex)}
+                      style={styles.treeToggle}
+                      title={collapsed ? 'فتح الصف' : 'طيّ الصف'}
+                      aria-expanded={!collapsed}
+                    >
+                      {collapsed ? '▶' : '▼'}
+                    </button>
                   <div>
                     <div style={{ marginBottom: '4px' }}>
                       {renderNodeName(
@@ -1297,7 +1457,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                           ✏️ يمكن التعديل (سينشئ نسخة)
                         </span>
                       )}
+                      <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                        {(gradeConfig.subjects || []).length} مادة · {countUnits(gradeConfig)} وحدة
+                      </span>
                     </div>
+                  </div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -1324,10 +1488,10 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                   </button>
                 </div>
 
-                {!gradeConfig.subjects || gradeConfig.subjects.length === 0 ? (
+                {collapsed ? null : shownSubjectEntries.length === 0 ? (
                   <div style={{ color: '#9ca3af', fontSize: '0.9rem', padding: '10px' }}>لا توجد مواد</div>
                 ) : (
-                  gradeConfig.subjects.map((subject, subjectIndex) => (
+                  shownSubjectEntries.map(({ subject, subjectIndex }) => (
                           <div key={subjectIndex} style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                               {renderNodeName(
@@ -1463,7 +1627,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                         ))
                       )}
               </div>
-            ))
+            );
+            })
           )}
         </div>
       </div>
@@ -1478,6 +1643,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
 
 const styles = {
+  treeHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' as const },
+  treeFilters: { display: 'flex', flexWrap: 'wrap' as const, gap: '8px', marginBottom: '16px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' },
+  treeFilterControl: { flex: '1 1 150px', minWidth: '140px', padding: '9px 12px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', backgroundColor: 'white' },
+  treeToolButton: { padding: '8px 12px', backgroundColor: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', whiteSpace: 'nowrap' as const },
+  treeToggle: { background: 'none', border: 'none', cursor: 'pointer', color: '#1e40af', fontSize: '0.9rem', padding: '2px 4px', lineHeight: 1 },
   container: { padding: '20px', maxWidth: '1400px', margin: '0 auto' },
   header: { marginBottom: '30px', textAlign: 'center' as const },
   title: { marginBottom: '10px', color: '#1F2937', fontSize: '2rem', fontWeight: 'bold' },

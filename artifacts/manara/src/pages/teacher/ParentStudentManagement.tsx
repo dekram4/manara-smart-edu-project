@@ -1,3 +1,4 @@
+import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig, ParentPermissions } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
@@ -102,7 +103,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     const cfg = configs.find((c: HierarchicalConfig) => c.grade === grade);
     if (!cfg) return subjects;
     const subs = new Set<string>();
-    cfg.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); });
+    subjectsOfConfig(cfg).forEach((s: any) => { if (s.subject) subs.add(s.subject); });
     return subs.size > 0 ? Array.from(subs) : subjects;
   };
 

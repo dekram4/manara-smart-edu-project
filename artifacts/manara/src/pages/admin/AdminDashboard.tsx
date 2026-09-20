@@ -1,4 +1,5 @@
 
+import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { AdminMenuType, SystemStats } from '../../types';
 import { COLORS, STORAGE_KEYS } from '../../constants';
@@ -122,7 +123,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const subjects = new Set<string>();
     configs.forEach((config: any) => {
       if (config.grade) grades.add(config.grade);
-      config.subjects?.forEach((subject: any) => {
+      subjectsOfConfig(config).forEach((subject: any) => {
         if (subject.subject) subjects.add(subject.subject);
       });
     });

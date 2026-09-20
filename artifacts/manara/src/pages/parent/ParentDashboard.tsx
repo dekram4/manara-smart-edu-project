@@ -1,4 +1,5 @@
 
+import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParentInfo, StudentInfo, TeacherInfo, QuizResult, ParentMenuType, CertificateRecord, HierarchicalConfig, QuizType } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
@@ -147,7 +148,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const cfg = configs.find((c: HierarchicalConfig) => c.grade === grade);
     if (!cfg) return subjects;
     const subs = new Set<string>();
-    cfg.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); });
+    subjectsOfConfig(cfg).forEach((s: any) => { if (s.subject) subs.add(s.subject); });
     return subs.size > 0 ? Array.from(subs) : subjects;
   };
 
@@ -451,7 +452,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         ? allConfigs.filter((c: any) => getRecordTeacherId(c) === teacherId)
         : studentScope.explicit ? [] : allConfigs;
       configs.filter((c: any) => c.grade === child.primaryGrade || c.grade === child.grade).forEach((cfg: any) => {
-        cfg.subjects?.forEach((s: any) => { if (s.subject) set.add(s.subject); });
+        subjectsOfConfig(cfg).forEach((s: any) => { if (s.subject) set.add(s.subject); });
       });
     } catch (e) { /* ignore */ }
     if (set.size === 0) {

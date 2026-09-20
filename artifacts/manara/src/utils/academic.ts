@@ -23,7 +23,7 @@ const uniqueNames = (values: unknown[]): string[] => {
  * الإعدادات المحفوظة قبل الترحيل ما زالت تحمله، فتُقرأ هنا بتسطيح مواد كل
  * «ترم» تحت الصف — حتى لا تختفي مادة من شاشة معلم لم تُرحَّل بياناته بعد.
  */
-const subjectsOfConfig = (rawConfig: any): any[] => {
+export const subjectsOfConfig = (rawConfig: any): any[] => {
   if (Array.isArray(rawConfig?.subjects)) return rawConfig.subjects;
   if (!Array.isArray(rawConfig?.atrams)) return [];
   return rawConfig.atrams.flatMap((rawAtram: any) =>
