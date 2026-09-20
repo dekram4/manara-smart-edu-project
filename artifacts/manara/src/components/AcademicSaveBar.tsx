@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '../constants';
 import { readKv, saveKvConfirmed } from '../db/confirmedSave';
+import { reopenTeacherSession } from '../utils/serverSession';
 
 /**
  * «حفظ وتثبيت الإعدادات الأكاديمية»، ومعه حالة الحفظ.
@@ -27,7 +28,10 @@ const readLocalTree = (): unknown[] => {
   }
 };
 
-const AcademicSaveBar: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
+const AcademicSaveBar: React.FC<{ onSaved?: () => void; teacherUsername?: string }> = ({
+  onSaved,
+  teacherUsername,
+}) => {
   const [state, setState] = useState<State>({ kind: 'idle' });
 
   const save = async (auto: boolean) => {
@@ -85,6 +89,22 @@ const AcademicSaveBar: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
 
   const busy = state.kind === 'saving' || state.kind === 'checking';
 
+  /// الرفض بـ 401 يعني جلسة منتهية أو غير مفتوحة أصلاً — وهي حالة
+  /// تُعالَج بإدخال كلمة المرور، لا بتسجيل خروج ودخول.
+  const looksLikeSession =
+    state.kind === 'failed' &&
+    /401|تسجيل الدخول|صلاحي|جلس/.test(state.reason);
+
+  const reopen = async () => {
+    if (!teacherUsername) return;
+    const result = await reopenTeacherSession(teacherUsername);
+    if (result.ok === false) {
+      setState({ kind: 'failed', reason: result.reason });
+      return;
+    }
+    await save(false);
+  };
+
   return (
     <div style={styles.bar}>
       <button onClick={() => void save(false)} disabled={busy} style={styles.button}>
@@ -93,6 +113,11 @@ const AcademicSaveBar: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
       <span style={{ ...styles.status, color: status.color, backgroundColor: status.background }}>
         {status.text}
       </span>
+      {looksLikeSession && teacherUsername && (
+        <button onClick={() => void reopen()} style={styles.sessionButton}>
+          🔑 إعادة فتح جلسة الحفظ ثم إعادة المحاولة
+        </button>
+      )}
       {state.kind === 'saved' && (
         <span style={styles.time}>
           {state.at.toLocaleTimeString('ar-SA')}
@@ -129,6 +154,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: '999px',
     fontSize: '0.82rem',
     fontWeight: 'bold',
+  },
+  sessionButton: {
+    padding: '9px 14px',
+    backgroundColor: '#b45309',
+    color: 'white',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '0.82rem',
   },
   time: { color: '#94a3b8', fontSize: '0.75rem' },
 };

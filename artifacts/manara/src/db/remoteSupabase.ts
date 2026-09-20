@@ -109,7 +109,13 @@ async function request<T>(url: string, init?: RequestInit): Promise<RemoteResult
       remoteUnavailableUntil = 0;
     } else {
       try {
-        const response = await fetchWithTimeout(url, init);
+        // الكعكة هي هوية الكاتب عند الخادم. الافتراض `same-origin` يرسلها
+        // في هذا التركيب، والتصريح بها يبقيها مرسَلة لو نُشرت الواجهة على
+        // أصل آخر يوماً.
+        const response = await fetchWithTimeout(url, {
+          credentials: 'same-origin',
+          ...init,
+        });
         const text = await response.text();
         let body: any = null;
         if (text) {

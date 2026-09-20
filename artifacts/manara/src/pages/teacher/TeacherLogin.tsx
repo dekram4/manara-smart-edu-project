@@ -1,10 +1,10 @@
+import { openTeacherSession } from '../../utils/serverSession';
 import React, { useState } from 'react';
 import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
 import ManaraBrand from '../../components/ManaraBrand';
 import { readStorageArray, writeActiveSession } from '../../utils/storage';
-import { establishTeacherMediaSession } from '../../utils/video';
 
 interface TeacherLoginProps {
   onLoginSuccess: (teacher: TeacherInfo) => void;
@@ -78,12 +78,18 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
       //
       // والرفع نفسه محميّ: `uploadMp4Video` يكتشف انتهاء الجلسة ويطلب
       // إعادة الدخول برسالته الخاصة عند الحاجة الحقيقية.
-      try {
-        await establishTeacherMediaSession(teacher.username, password);
-      } catch (sessionError) {
-        console.warn(
-          '[auth] تعذّر تهيئة جلسة رفع الفيديو؛ الدخول يكمل والرفع سيطلبها عند الحاجة:',
-          sessionError instanceof Error ? sessionError.message : sessionError,
+      //
+      // وهي أيضاً جلسة الحفظ: الخادم لا يعرف من يكتب إلا منها، فبدونها
+      // يردّ كل حفظ بـ 401 ولا يصل شيء إلى الطلاب. الدخول يكمل على أي
+      // حال — منعُه لا يصلح شيئاً — لكن الفشل يُقال للمعلم صراحةً بدل
+      // سطر في طرفية المتصفح لا يقرأه أحد.
+      const session = await openTeacherSession(teacher.username, password);
+      if (session.ok === false) {
+        alert(
+          '⚠️ دخلت إلى لوحتك، لكن الخادم لم يفتح جلسة الحفظ:\n' +
+            `${session.reason}\n\n` +
+            'ما تعدّله سيبقى في هذا المتصفح ولن يصل إلى الطلاب حتى تُفتح الجلسة. ' +
+            'راجع المشرف للتأكد من أن حسابك مسجَّل في الخادم، ثم أعد تسجيل الدخول.',
         );
       }
       writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, teacher);

@@ -16,6 +16,8 @@ interface MyAcademicSettingsProps {
 const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teacherProp }) => {
   const [teacherId, setTeacherId] = useState('');
   const [teacherName, setTeacherName] = useState('');
+  // اسم المستخدم لإعادة فتح جلسة الحفظ عند انتهائها، بلا تسجيل خروج.
+  const [teacherUsername, setTeacherUsername] = useState('');
   const [activeTab, setActiveTab] = useState<'my' | 'general'>('my');
   
   // My Settings States
@@ -134,6 +136,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     const teacher = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
     setTeacherId(teacher?.id || '');
     setTeacherName(teacher?.name || '');
+    setTeacherUsername(teacher?.username || '');
     loadSettings(teacher?.id || '');
   }, [teacherProp?.id, teacherProp?.name, teacherProp?.permissionPackageId]);
 
@@ -817,7 +820,10 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
         <p style={styles.subtitle}>إدارة الهيكل الأكاديمي الخاص بي</p>
       </div>
 
-      <AcademicSaveBar onSaved={() => loadSettings(teacherId)} />
+      <AcademicSaveBar
+        onSaved={() => loadSettings(teacherId)}
+        teacherUsername={teacherUsername}
+      />
 
       {/* Tabs */}
        <div className="dashboard-filter-surface" style={styles.tabs}>
