@@ -6,6 +6,7 @@ import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { dedupeHierarchicalConfigs } from '../../utils/academic';
+import { saveKvConfirmed } from '../../db/confirmedSave';
 import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
 
 interface AcademicSettingsProps {
@@ -79,6 +80,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   // ما يُسأل عنه قبل الحذف. window.confirm كان يُحجب صامتاً داخل الإطار
   // ويُرجع false، فيبدو زر الحذف معطّلاً بلا سبب ظاهر.
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
+
+  // نسخ شجرة معلم إلى معلم آخر: المعلم المستهدف، وطريقة النسخ.
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyTargetId, setCopyTargetId] = useState('');
+  const [copyMode, setCopyMode] = useState<'replace' | 'merge'>('merge');
+  const [copyBusy, setCopyBusy] = useState(false);
 
   const nodeKey = (kind: string, ...indexes: number[]) =>
     `${kind}:${indexes.join('|')}`;
@@ -159,8 +166,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const teachersWithSettings: any[] = [];
     
-    // جمع المعلمين الفريدين الذين لديهم إعدادات
-    const uniqueTeacherIds = new Set<string>();
+    // كل معلم، ومعه عدد إعداداته — والمعلم الذي لا شجرة له يُعرض بصفر
+    // حتى يستطيع المشرف فتحه وإنشاءها أو نسخها إليه.
+    const uniqueTeacherIds = new Set<string>(
+      teachers.map(teacher => normalizeScopeValue(teacher.id)).filter(Boolean),
+    );
     allConfigs.forEach((config: HierarchicalConfig) => {
       const owner = ownerOf(config);
       if (owner && owner !== 'admin') {
@@ -1005,6 +1015,73 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     });
   };
 
+  /**
+   * ينسخ شجرة المعلم المعروض إلى معلم آخر.
+   *
+   * النسخ يغيّر المالك: كل إعداد منسوخ يُكتب باسم المعلم المستهدف، فيراه
+   * هو وطلابه — فالطالب لا يرى إلا إعدادات معلمه. و«الدمج» يمرّ على
+   * `dedupeHierarchicalConfigs`، فالصف الموجود عند الاثنين يتّحد بمواده
+   * وفصوله ووحداته ودروسه بدل أن يتكرّر.
+   */
+  const copySettingsToTeacher = async () => {
+    const sourceId = normalizeScopeValue(selectedTeacherId);
+    const targetId = normalizeScopeValue(copyTargetId);
+    if (!sourceId || !targetId || sourceId === targetId) {
+      alert('اختر معلماً مستهدفاً مختلفاً عن صاحب الإعدادات.');
+      return;
+    }
+    const target = teachers.find(teacher => normalizeScopeValue(teacher.id) === targetId);
+    if (!target) return;
+
+    setCopyBusy(true);
+    try {
+      const all: HierarchicalConfig[] = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+      );
+      const source = all.filter(config => ownerOf(config) === sourceId);
+      if (source.length === 0) {
+        alert('لا توجد إعدادات لنسخها.');
+        return;
+      }
+      const sourceName = teachers.find(
+        teacher => normalizeScopeValue(teacher.id) === sourceId,
+      )?.name || 'معلم';
+
+      const copies: HierarchicalConfig[] = source.map(config => ({
+        ...JSON.parse(JSON.stringify(config)),
+        createdBy: target.id,
+        createdByName: target.name,
+        createdByAdmin: true,
+        copiedFrom: selectedTeacherId,
+        copiedFromName: sourceName,
+        createdAt: new Date().toISOString(),
+      }));
+
+      const others = all.filter(config => ownerOf(config) !== targetId);
+      const targetExisting = copyMode === 'merge'
+        ? all.filter(config => ownerOf(config) === targetId)
+        : [];
+      const next = dedupeHierarchicalConfigs([...others, ...targetExisting, ...copies]);
+
+      localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(next));
+      const outcome = await saveKvConfirmed(STORAGE_KEYS.HIERARCHICAL_CONFIGS, next);
+      if (outcome.ok === false) {
+        alert(`⚠️ نُسخت محلياً ولم تُحفظ على الخادم: ${outcome.reason}`);
+      } else {
+        alert(
+          `✅ نُسخت ${copies.length} إعداداً إلى «${target.name}»` +
+            (outcome.verified ? ' وحُفظت في قاعدة البيانات.' : ' وأُرسلت، وتعذّر التحقق.'),
+        );
+      }
+      setCopyOpen(false);
+      setCopyTargetId('');
+      loadSettings();
+      onUpdate();
+    } finally {
+      setCopyBusy(false);
+    }
+  };
+
   // ============ تصفية الشجرة ============
 
   const matchesFilter = (value: unknown, selected: string) =>
@@ -1105,6 +1182,80 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       </div>
 
       <AcademicSaveBar onSaved={loadSettings} />
+
+      {!teacherId && selectedTeacherId && (
+        <div style={styles.copyBar}>
+          <span style={{ fontWeight: 'bold', color: '#3730a3' }}>
+            📋 إعدادات «{selectedTeacherName || 'معلم'}»
+          </span>
+          <button onClick={() => setCopyOpen(true)} style={styles.copyButton}>
+            نسخ هذه الإعدادات لمعلم آخر
+          </button>
+        </div>
+      )}
+
+      {copyOpen && (
+        <div style={styles.copyOverlay} onClick={() => !copyBusy && setCopyOpen(false)}>
+          <div style={styles.copyDialog} onClick={event => event.stopPropagation()}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#111827' }}>
+              نسخ إعدادات «{selectedTeacherName || 'معلم'}» إلى معلم آخر
+            </h3>
+
+            <label style={styles.copyLabel}>المعلم المستهدف</label>
+            <select
+              value={copyTargetId}
+              onChange={event => setCopyTargetId(event.target.value)}
+              style={styles.copySelect}
+            >
+              <option value="">— اختر معلماً —</option>
+              {teachers
+                .filter(teacher => normalizeScopeValue(teacher.id) !== normalizeScopeValue(selectedTeacherId))
+                .map(teacher => (
+                  <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                ))}
+            </select>
+
+            <label style={styles.copyLabel}>طريقة النسخ</label>
+            <label style={styles.copyChoice}>
+              <input
+                type="radio"
+                checked={copyMode === 'merge'}
+                onChange={() => setCopyMode('merge')}
+              />
+              <span>
+                <strong>دمج</strong> — تُضاف الصفوف والمواد إلى شجرته الحالية، والمكرّر يتّحد.
+              </span>
+            </label>
+            <label style={styles.copyChoice}>
+              <input
+                type="radio"
+                checked={copyMode === 'replace'}
+                onChange={() => setCopyMode('replace')}
+              />
+              <span>
+                <strong>استبدال</strong> — تُحذف شجرته الحالية وتحلّ هذه محلّها.
+              </span>
+            </label>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+              <button
+                onClick={() => void copySettingsToTeacher()}
+                disabled={copyBusy || !copyTargetId}
+                style={styles.copyConfirm}
+              >
+                {copyBusy ? '⏳ جارٍ النسخ…' : '✅ نسخ وحفظ'}
+              </button>
+              <button
+                onClick={() => setCopyOpen(false)}
+                disabled={copyBusy}
+                style={styles.copyCancel}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* للمشرف فقط: قائمة المعلمين */}
       {!teacherId && (
@@ -1690,6 +1841,41 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
 
 const styles = {
+  copyBar: {
+    display: 'flex', flexWrap: 'wrap' as const, alignItems: 'center', justifyContent: 'space-between',
+    gap: '10px', padding: '12px 14px', marginBottom: '16px',
+    backgroundColor: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: '12px',
+  },
+  copyButton: {
+    padding: '9px 14px', backgroundColor: '#4338ca', color: 'white', border: 'none',
+    borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
+  },
+  copyOverlay: {
+    position: 'fixed' as const, inset: 0, backgroundColor: 'rgba(15,23,42,0.45)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', zIndex: 50,
+  },
+  copyDialog: {
+    width: 'min(460px, 100%)', backgroundColor: 'white', borderRadius: '16px',
+    padding: '20px', display: 'flex', flexDirection: 'column' as const, gap: '6px',
+    boxShadow: '0 20px 45px rgba(0,0,0,0.25)',
+  },
+  copyLabel: { marginTop: '12px', fontWeight: 'bold', fontSize: '0.85rem', color: '#374151' },
+  copySelect: {
+    padding: '10px 12px', border: '2px solid #d1d5db', borderRadius: '10px',
+    fontSize: '0.9rem', fontFamily: 'inherit',
+  },
+  copyChoice: {
+    display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '8px',
+    fontSize: '0.85rem', color: '#374151', cursor: 'pointer',
+  },
+  copyConfirm: {
+    flex: 1, padding: '11px', backgroundColor: '#059669', color: 'white', border: 'none',
+    borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold',
+  },
+  copyCancel: {
+    padding: '11px 16px', backgroundColor: '#f1f5f9', color: '#334155', border: 'none',
+    borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold',
+  },
   treeHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' as const },
   treeFilters: { display: 'flex', flexWrap: 'wrap' as const, gap: '8px', marginBottom: '16px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' },
   treeFilterControl: { flex: '1 1 150px', minWidth: '140px', padding: '9px 12px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', backgroundColor: 'white' },

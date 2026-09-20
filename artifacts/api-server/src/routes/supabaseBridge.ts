@@ -111,6 +111,31 @@ function mergeTeacherVideos(
   return [...retained, ...requestedById.values()];
 }
 
+const HIERARCHY_KEY = "smartEdu_hierarchicalConfigs";
+
+/**
+ * يدمج شجرة معلم مع شجرة المنصّة.
+ *
+ * كان المفتاح للمشرف وحده، فإعدادات المعلم لم تكن تصل إلى قاعدة
+ * البيانات أبداً: يبني شجرته في متصفّحه، ويراها أمامه، ولا يراها طلابه.
+ *
+ * والسماح له بالكتابة لا يعني تسليمه المفتاح كله: إعداداته وحدها تُستبدل،
+ * وما يملكه غيره يُحفظ كما هو من النسخة المخزّنة — نفس عقد `mergeTeacherVideos`.
+ */
+function mergeTeacherConfigs(
+  remoteValue: unknown,
+  requestedValue: unknown,
+  teacherId: string,
+): Record<string, unknown>[] {
+  const requested = asRecords(requestedValue).filter(
+    (config) => recordOwner(config) === teacherId,
+  );
+  const retained = asRecords(remoteValue).filter(
+    (config) => recordOwner(config) !== teacherId,
+  );
+  return [...retained, ...requested];
+}
+
 function mergeDeletedIds(remoteValue: unknown, requestedValue: unknown): string[] {
   return Array.from(new Set([
     ...(Array.isArray(remoteValue) ? remoteValue : []),
@@ -125,7 +150,10 @@ function isDeletedIdsKey(key: string): boolean {
 }
 
 function canWriteKv(key: string, actor: NonNullable<ReturnType<typeof getContentActor>>): boolean {
-  return actor.role === "admin" || key === VIDEO_KEY;
+  if (actor.role === "admin") return true;
+  // المعلم يكتب فيديوهاته وشجرته الأكاديمية؛ وكلاهما يُدمج أدناه
+  // فلا يمسّ ما يملكه غيره.
+  return key === VIDEO_KEY || key === HIERARCHY_KEY;
 }
 
 function recordIds(value: unknown): Set<string> {
@@ -351,6 +379,8 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
         ? actor.role === "admin"
           ? asRecords(row.value)
           : mergeTeacherVideos(remoteValue, row.value, actor.teacherId)
+        : key === HIERARCHY_KEY && actor.role !== "admin"
+          ? mergeTeacherConfigs(remoteValue, row.value, actor.teacherId)
         : isDeletedIdsKey(key)
           ? mergeDeletedIds(remoteValue, row.value)
           : row.value;
