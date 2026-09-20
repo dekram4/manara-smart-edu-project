@@ -128,4 +128,38 @@ void main() {
       expect(StudentAvatars.byId('nope').id, StudentAvatars.fallback.id);
     });
   });
+
+  group('a course with no lesson in it yet', () {
+    // The reported message: a teacher built the tree and the student was
+    // told no course was linked to their account, which sent them looking
+    // at the wrong thing. The two states are now told apart.
+    final path = AcademicPath(
+      grade: 'الصف الرابع',
+      subject: 'العلوم',
+      term: 'الفصل الثاني',
+      unit: 'الوحدة الأولى',
+    );
+
+    test('has a path, so the board is shown', () {
+      final data = AcademicSelectionData(paths: [path], lessons: const []);
+      expect(data.hasPaths, isTrue);
+      expect(data.hasLessons, isFalse,
+          reason: 'nothing has been published or named under it yet');
+    });
+
+    test('a lesson named in the settings counts as something to open', () {
+      final data = AcademicSelectionData(
+        paths: [path],
+        lessons: const [],
+        declaredLessons: [DeclaredLesson(path: path, name: 'الخلية')],
+      );
+      expect(data.hasLessons, isTrue);
+    });
+
+    test('no path at all is a different state', () {
+      const data = AcademicSelectionData(paths: [], lessons: []);
+      expect(data.hasPaths, isFalse);
+      expect(data.hasLessons, isFalse);
+    });
+  });
 }

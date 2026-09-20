@@ -106,13 +106,21 @@ class AcademicSelectionData {
   /// Optional and defaulted, so every existing caller is unaffected.
   final List<DeclaredLesson> declaredLessons;
 
-  /// A teacher who has named lessons in the settings but not published
-  /// content for any of them still has a usable course: the paths and the
-  /// lesson names are there to pick through. Counting only published
-  /// lessons here sent that teacher's students to the "no courses at all"
-  /// screen, which is the opposite of what the settings tree says.
-  bool get isEmpty =>
-      paths.isEmpty || (lessons.isEmpty && declaredLessons.isEmpty);
+  /// Whether the teacher's settings describe a course for this student at
+  /// all. Everything the student can choose comes from here.
+  bool get hasPaths => paths.isNotEmpty;
+
+  /// Whether anything is actually there to open: a published lesson, or a
+  /// lesson named in the settings tree.
+  ///
+  /// Kept apart from [hasPaths] because the two are different situations
+  /// with different answers. A teacher who has built the tree but not yet
+  /// added a lesson used to land their students on "no course is linked to
+  /// your account", which sent them to check their account when what was
+  /// missing was a lesson.
+  bool get hasLessons => lessons.isNotEmpty || declaredLessons.isNotEmpty;
+
+  bool get isEmpty => !hasPaths || !hasLessons;
 
   List<String> get grades => _values(paths.map((path) => path.grade));
 

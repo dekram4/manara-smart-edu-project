@@ -63,7 +63,15 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   String? _loadError;
   StudentGamification _gamification = const StudentGamification();
 
-  bool get _ready => !_loading && _data != null && !_data!.isEmpty;
+  /// The board is shown as soon as the teacher's settings describe a
+  /// course. A course with no lesson in it yet still draws: the student
+  /// sees their own grade and subjects, and one line says what is missing.
+  bool get _ready => !_loading && _data != null && _data!.hasPaths;
+
+  /// Set when the course exists but nothing has been added under it yet.
+  /// The start button stays disabled — there is nothing to open — and the
+  /// student is told which of the two it is.
+  bool get _awaitingLessons => _data != null && _data!.hasPaths && !_data!.hasLessons;
 
   @override
   void initState() {
@@ -120,13 +128,20 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       setState(() {
         _data = data;
         _loading = false;
-        if (data.isEmpty) {
-          _loadError =
-              tr('path.noPaths');
+        if (!data.hasPaths) {
+          // لا شجرة لهذا الحساب أصلاً: إمّا لم تُنشأ إعدادات، وإمّا أنها
+          // لمعلم آخر.
+          _loadError = tr('path.noPaths');
           _clearSelection();
           return;
         }
         _applyInitialSelection(data);
+        if (!data.hasLessons) {
+          // المسار موجود والدرس لا. الرسالة تقول ذلك بعينه بدل أن ترسل
+          // الطالب يفتّش في حسابه.
+          _loadError = tr('path.noLessonsYet');
+          return;
+        }
         if (data.hierarchyUnavailable) {
           _loadError =
               tr('path.treeFallback');
@@ -424,6 +439,20 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     // her, so it can never reach across and cover a book
                     // or the character the way a full-width band did on a
                     // short window.
+                    // A course with no lesson in it yet: the board is
+                    // there to look at, and this says what is missing
+                    // rather than leaving a dead start button.
+                    if (_ready && _awaitingLessons)
+                      Positioned(
+                        left: edge,
+                        right: edge,
+                        bottom: startBand + 6,
+                        child: _FlyAway(
+                          away: _leaving,
+                          angle: 0.12,
+                          child: _InfoBanner(message: tr('path.noLessonsYet')),
+                        ),
+                      ),
                     if (_ready)
                       Positioned(
                         left: edge,

@@ -383,7 +383,9 @@ class StudentStrings {
 
     // Academic path
     'path.noPaths':
-        'لا توجد مسارات أكاديمية مكتملة مرتبطة بدروس متاحة لحسابك حاليًا.',
+        'لا توجد إعدادات أكاديمية مرتبطة بحسابك بعد. اطلب من معلمك إضافة صفّك وموادك.',
+    'path.noLessonsYet':
+        'مسارك جاهز، ولم تُضف دروس بعد. اسأل معلمك عن موعد أول درس.',
     'path.treeFallback':
         'تعذر قراءة إعدادات الشجرة؛ تم عرض المسارات المكتملة من الدروس المتاحة فقط.',
     'path.loadError': 'تعذر تحميل البيانات الأكاديمية من Supabase: {error}',
@@ -923,7 +925,8 @@ class StudentStrings {
     'widget.soundOn': 'Turn sounds on',
     'widget.soundOff': 'Mute sounds',
 
-    'path.noPaths': 'No complete course with available lessons is linked to your account yet.',
+    'path.noPaths': 'No course is linked to your account yet. Ask your teacher to add your grade and subjects.',
+    'path.noLessonsYet': 'Your course is ready, and no lesson has been added yet. Ask your teacher when the first one arrives.',
     'path.treeFallback':
         'Could not read the course tree; only complete paths from available lessons are shown.',
     'path.loadError': 'Could not load the course data from Supabase: {error}',
