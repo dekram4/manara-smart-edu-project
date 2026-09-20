@@ -24,7 +24,7 @@ import '../services/student_sound_service.dart';
 import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
 import '../utils/student_route_observer.dart';
-import '../widgets/playful_text.dart';
+import '../widgets/bouncy_text.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
@@ -724,24 +724,21 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                   const SizedBox(height: 24),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Text(
+                    child: BouncyText(
                       tr('home.pickPortal'),
-                      style: TextStyle(
-                        color: StudentSurface.ink(context),
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      fontSize: 26,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 7),
+                  // الإرشاد أصغر وألطف من العنوان فوقه: يُقرأ جملةً لا
+                  // عنواناً ثانياً يزاحم الأول.
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Text(
+                    child: BouncyText(
                       tr('home.pickPortalHint'),
-                      style: TextStyle(
-                        color: StudentSurface.mutedInk(context),
-                        fontWeight: FontWeight.w700,
-                      ),
+                      fontSize: 15.5,
+                      maxScale: 1.08,
+                      minScale: 0.95,
                     ),
                   ),
                   const SizedBox(height: 13),
@@ -1243,19 +1240,18 @@ class _SectionTileState extends State<_SectionTile>
         const SizedBox(height: 6),
         // Scales down rather than wrapping or clipping, so a long
         // portal name cannot change the card's height.
+        // عنوان البطاقة بالحروف المتمايلة نفسها، بلا رقصة مستمرة: البطاقة
+        // تتمايل تحت الإصبع أصلاً، وعنوانٌ يقفز فوق بطاقة تقفز ضجيج.
+        // والتمايل هنا أهدأ لأن المساحة ضيّقة.
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: RainbowText(
+          child: BouncyText(
             widget.section.title,
             fontSize: 17,
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            shadowed: false,
-            colors: [
-              widget.section.colors.last,
-              Color.lerp(widget.section.accent, Colors.white, 0.18)!,
-              widget.section.colors.first,
-            ],
+            animate: false,
+            maxScale: 1.08,
+            minScale: 0.95,
+            alignment: WrapAlignment.center,
           ),
         ),
       ],
@@ -1715,20 +1711,18 @@ class _WelcomeCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  // الترحيب والاسم كتلة واحدة مرحة: كلاهما بالحروف
+                  // المتمايلة، والاسم أكبر لأنه ما يخصّ الطفل وحده.
+                  //
+                  // ولم يعد لونهما يتبع السمة: الحروف تحمل ألوانها الزاهية
+                  // وحدّاً أبيض حولها، فتُقرأ على الفاتح والداكن معاً.
+                  BouncyText(
                     tr('hub.welcome'),
-                    style: TextStyle(
-                      // Warm gold on the dark theme rather than grey: a muted
-                      // ink that reads as "secondary" on a light panel reads
-                      // as "switched off" on a dark one.
-                      color: StudentSurface.isDark(context)
-                          ? const Color(0xFFFFCF70)
-                          : StudentSurface.mutedInk(context),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    fontSize: 16,
+                    maxScale: 1.1,
+                    minScale: 0.94,
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 5),
                   // The student's own name, at a size that reads as a
                   // greeting rather than a caption.
                   //
@@ -1743,11 +1737,9 @@ class _WelcomeCard extends StatelessWidget {
                   // the one line that gets the playful face and the rainbow.
                   // The drop shadow lives inside RainbowText, outside the
                   // shader — a tinted shadow is just a coloured blur.
-                  RainbowText(
+                  BouncyText(
                     trf('path.greeting', {'name': profile.name}),
                     fontSize: 30,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
