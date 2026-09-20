@@ -1,5 +1,5 @@
 
-import { saveRowsConfirmed } from '../../db/confirmedSave';
+import { saveStudentConfirmed } from '../../db/confirmedSave';
 import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner, subjectsOfConfig } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -309,7 +309,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     // المزامنة ترسل من تلقاء نفسها، وإن فشل الإرسال دخل الطابور بصمت
     // وظنّ المستخدم أن الصف الجديد محفوظ — وهذا ما جعل السكربت يقرأ الصفّ
     // القديم. النافذة تُغلق عند نجاح الكتابة، وتبقى مفتوحة مع سبب الفشل.
-    const outcome = await saveRowsConfirmed('students', [{ id: student.id, data: student }]);
+    const outcome = await saveStudentConfirmed(student);
     if (outcome.ok === false) {
       alert(`⚠️ لم يُحفظ في قاعدة البيانات: ${outcome.reason}
 التعديل محفوظ في هذا المتصفّح وسيُعاد إرساله.`);

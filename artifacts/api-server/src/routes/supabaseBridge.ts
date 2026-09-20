@@ -493,7 +493,14 @@ router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {
       await rest(config, `${table}?on_conflict=id`, {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify(validRows.map((row) => ({ id: stringValue(row.id), data: row.data }))),
+        // و`updated_at` معهما: العمود له قيمة افتراضية عند الإنشاء وحده،
+        // فكان يبقى على تاريخ أوّل كتابة مهما عُدّل السجلّ بعدها — فلا يُعرف من الجدول
+        // متى تغيّر شيء، ولا يصلح للمفاضلة بين نسختين.
+        body: JSON.stringify(validRows.map((row) => ({
+          id: stringValue(row.id),
+          data: row.data,
+          updated_at: new Date().toISOString(),
+        }))),
       });
     }
     res.status(204).end();

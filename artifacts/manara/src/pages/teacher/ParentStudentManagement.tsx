@@ -1,4 +1,4 @@
-import { saveRowsConfirmed } from '../../db/confirmedSave';
+import { saveStudentConfirmed } from '../../db/confirmedSave';
 import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -350,9 +350,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     // ولا يُعلَن النجاح حتى يصل إلى قاعدة البيانات: الإرسال الفاشل كان
     // يدخل الطابور بصمت فيظنّ المعلم أن الصفّ الجديد محفوظ.
     if (savedStudent) {
-      const outcome = await saveRowsConfirmed('students', [
-        { id: savedStudent.id, data: savedStudent },
-      ]);
+      const outcome = await saveStudentConfirmed(savedStudent);
       if (outcome.ok === false) {
         loadData();
         alert(`⚠️ لم يُحفظ في قاعدة البيانات: ${outcome.reason}`);

@@ -70,3 +70,47 @@ export async function readKv(key: string): Promise<unknown | undefined> {
   const rows = Array.isArray(result.data) ? result.data : [];
   return rows.find(row => row?.key === key)?.value;
 }
+
+/** الحقول التي لا يُعدّ سجلّ الطالب محفوظاً بدونها. */
+export type StudentAcademicFields = {
+  id: string;
+  grade?: string;
+  primaryGrade?: string;
+  subject?: string;
+  teacherId?: string;
+};
+
+/**
+ * يحفظ سجلّ طالب في قاعدة البيانات ويقرأه للتأكيد.
+ *
+ * نقطة واحدة يمرّ منها حفظ الطالب من لوحة المعلم ومن لوحة المشرف، فيبقى
+ * السلوك واحداً: الصفّ يُكتب في `grade` و`primaryGrade` معاً — الشاشات
+ * القديمة تقرأ أحدهما والتطبيق يقرأ الآخر — ويُختم السجلّ بوقت التعديل،
+ * وهو ما يجعل نسخة المتصفح الأحدث تغلب النسخة البعيدة الأقدم عند الدمج
+ * بدل أن تُمحى.
+ *
+ * ولا يُعلَن النجاح إلا بعد قراءة الصفّ من الخادم ومطابقة الصفّ المحفوظ.
+ */
+export async function saveStudentConfirmed<T extends StudentAcademicFields>(
+  student: T,
+): Promise<SaveOutcome> {
+  const grade = (student.primaryGrade || student.grade || '').trim();
+  const record = {
+    ...student,
+    grade,
+    primaryGrade: grade,
+    lastActivity: new Date().toISOString(),
+  };
+
+  const written = await supabase.from('students').upsert([{ id: student.id, data: record }]);
+  if (written.error) return { ok: false, reason: describe(written.error) };
+
+  const readBack = await supabase.from('students').select('id,data');
+  if (readBack.error) return { ok: true, verified: false };
+  const rows = Array.isArray(readBack.data) ? readBack.data : [];
+  const stored = rows.find(row => String(row?.id) === String(student.id))?.data as
+    | Record<string, unknown>
+    | undefined;
+  const storedGrade = String(stored?.primaryGrade ?? stored?.grade ?? '').trim();
+  return { ok: true, verified: storedGrade === grade };
+}
