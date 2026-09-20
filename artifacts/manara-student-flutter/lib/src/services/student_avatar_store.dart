@@ -37,6 +37,14 @@ class StudentAvatars {
 
   static const _prefsKey = 'manara.student.avatarId';
 
+  /// Where the pick lives in the profile's `appearance` map on the server,
+  /// beside the character's shape and colour.
+  ///
+  /// It used to live only in this device's preferences, which is why a
+  /// student who signed out, or opened the app on another device, was met
+  /// by the default character again: nothing had ever left the phone.
+  static const appearanceKey = 'avatarId';
+
   /// Adding a character is one entry here. Nothing else enumerates them.
   static const all = <StudentAvatar>[
     StudentAvatar(id: 'a1', labelKey: 'avatar.a1', asset: 'assets/images/avatar_1.png'),
@@ -70,6 +78,25 @@ class StudentAvatars {
       if (avatar.id == key) return avatar;
     }
     return fallback;
+  }
+
+  /// The pick recorded in a profile's [appearanceKey], or `null` when that
+  /// profile has never chosen one.
+  static String? idFromAppearance(Map<String, dynamic>? appearance) {
+    final id = appearance?[appearanceKey]?.toString().trim();
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  /// Applies the pick stored with the student's profile.
+  ///
+  /// Called as a profile arrives — signing in, and opening the hub — so the
+  /// character follows the student rather than the phone. A profile with no
+  /// pick recorded yet leaves whatever this device remembers, so a student
+  /// who chose one before this was stored does not lose it.
+  static Future<void> adoptFromProfile(Map<String, dynamic>? appearance) async {
+    final id = idFromAppearance(appearance);
+    if (id == null) return;
+    await select(byId(id));
   }
 
   /// Reads the stored pick. Called once at startup; a storage failure

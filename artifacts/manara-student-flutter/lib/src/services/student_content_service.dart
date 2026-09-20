@@ -107,7 +107,13 @@ class StudentContentService {
       throw TeacherQuizAlreadySubmittedException(_asMap(decoded['result']));
     }
     final message = _text(decoded['error']);
-    throw StateError(message.isEmpty ? tr('auth.serviceUnreachable') : message);
+    // `detail` carries what the database actually said — a permissions
+    // refusal, a missing column, a value the table would not take. Without
+    // it every failed write reached the student as the same sentence, and
+    // there was nothing to act on.
+    final detail = _text(decoded['detail']);
+    final headline = message.isEmpty ? tr('auth.serviceUnreachable') : message;
+    throw StateError(detail.isEmpty ? headline : '$headline — $detail');
   }
 
   RewardResult _rewardFromResponse(Map<String, dynamic> payload) {
@@ -205,11 +211,50 @@ class StudentContentService {
         .where((lesson) => _matchesOwner(lesson, profile))
         .toList();
 
-    final hierarchyPaths = <AcademicPath>[
-      ..._pathsFromHierarchy(hierarchyValue, profile),
-      ...matchingLessons
-          .where(_hasCompleteAcademicPath)
-          .map(
+    final paths = academicPaths(
+      hierarchyValue: hierarchyValue,
+      hierarchyUnavailable: hierarchyUnavailable,
+      lessons: matchingLessons,
+      profile: profile,
+    );
+
+    return AcademicSelectionData(
+      paths: paths,
+      lessons: matchingLessons,
+      hierarchyUnavailable: hierarchyUnavailable,
+      declaredLessons: declaredLessonsFromHierarchy(hierarchyValue, profile),
+    );
+  }
+
+  /// The paths a student may choose between.
+  ///
+  /// Every grade/atram/subject/term/unit the teacher has configured in the
+  /// hierarchy tree is shown, whether or not a lesson has been published
+  /// under it yet — a branch with no lesson simply shows its own "no lessons
+  /// yet" state at the final step (see `_EmptyStageMessage` in
+  /// `academic_selection_screen.dart`) instead of being hidden upstream.
+  ///
+  /// **The tree decides, whenever it can be read.** Paths used to be the
+  /// tree *plus* whatever `lesson_configs` still mentioned, and that is why
+  /// an academic setting deleted by the teacher stayed on the student's
+  /// screen: the lessons filed under it were still there, and each one put
+  /// its own grade/subject/term back into the list. Lessons only supply
+  /// paths when there is no tree to read — an unreachable `app_kv`, or a
+  /// deployment that never wrote one — so those installations keep working
+  /// while a deletion now reaches the student on the next load.
+  @visibleForTesting
+  static List<AcademicPath> academicPaths({
+    required Object? hierarchyValue,
+    required bool hierarchyUnavailable,
+    required List<LessonContent> lessons,
+    required StudentProfile profile,
+  }) {
+    final fromTree = _pathsFromHierarchy(hierarchyValue, profile);
+    final treeIsAuthoritative = !hierarchyUnavailable && hierarchyValue != null;
+    if (treeIsAuthoritative) return _uniquePaths(fromTree);
+    return _uniquePaths(<AcademicPath>[
+      ...fromTree,
+      ...lessons.where(_hasCompleteAcademicPath).map(
             (lesson) => AcademicPath(
               grade: lesson.grade,
               atram: lesson.atram,
@@ -218,22 +263,7 @@ class StudentContentService {
               unit: lesson.unit,
             ),
           ),
-    ];
-    // Every grade/atram/subject/term/unit the teacher has configured in the
-    // hierarchy tree is shown to the student, whether or not a lesson has
-    // been published under it yet — the tree itself is the source of truth
-    // for which options exist, not lesson_configs. A branch with no lesson
-    // yet simply shows its own "no lessons yet" state at the final step
-    // (see _EmptyStageMessage in academic_selection_screen.dart) instead of
-    // being hidden entirely upstream.
-    final paths = _uniquePaths(hierarchyPaths);
-
-    return AcademicSelectionData(
-      paths: paths,
-      lessons: matchingLessons,
-      hierarchyUnavailable: hierarchyUnavailable,
-      declaredLessons: declaredLessonsFromHierarchy(hierarchyValue, profile),
-    );
+    ]);
   }
 
   Future<List<LessonContent>> fetchLessons(

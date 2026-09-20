@@ -47,7 +47,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
 
   Future<void> _saveAvatar() async {
     StudentSoundService.instance.play(StudentSoundCue.success);
-    await StudentAvatars.select(_staged);
+    await _chooseAvatar(_staged);
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
@@ -93,6 +93,34 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Applies the pick here and records it with the student's profile.
+  ///
+  /// Kept beside the shape and colour in the same `appearance` map, so one
+  /// save carries everything this screen decides — and the character is
+  /// waiting on the next sign-in, on this device or any other. A failed
+  /// save says so: it still applies locally, but silence would promise a
+  /// permanence that is not there.
+  Future<void> _chooseAvatar(StudentAvatar avatar) async {
+    await StudentAvatars.select(avatar);
+    final next = <String, dynamic>{
+      ..._appearance,
+      StudentAvatars.appearanceKey: avatar.id,
+    };
+    try {
+      await widget.contentService.saveAppearance(
+        profile: widget.profile,
+        appearance: next,
+      );
+      if (!mounted) return;
+      setState(() => _appearance = next);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(trf('character.saveFailed', {'error': error}))),
+      );
     }
   }
 
@@ -195,7 +223,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                   onTap: () {
                     StudentSoundService.instance.playTap();
                     setState(() => _staged = avatar);
-                    unawaited(StudentAvatars.select(avatar));
+                    unawaited(_chooseAvatar(avatar));
                   },
                 );
               },

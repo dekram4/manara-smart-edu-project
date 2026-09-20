@@ -63,6 +63,36 @@ function headers(extra: Record<string, string> = {}): Record<string, string> {
   };
 }
 
+/**
+ * يُرفَض الكتابة مبكراً إن لم يكن مفتاح الخدمة مضبوطاً.
+ *
+ * بعد تشديد RLS لم يعد لدور anon حقّ الكتابة في `students` ولا
+ * `quiz_results` ولا `interactions` — وهذا هو المقصود. فإن شُغِّل الخادم
+ * بمفتاح anon وحده، تُردّ كل كتابة من Supabase بـ 401/403، ويرى الطفل
+ * «تعذّر حفظ النتيجة» دون أن يذكر شيءٌ السبب. هذا الفحص يسمّيه.
+ */
+function assertWritable(): void {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY is not configured: student progress writes " +
+        "are refused by row-level security when the server holds only the anon key",
+    );
+  }
+}
+
+/** نصّ خطأ PostgREST كما ورد، مقصوصاً بما يكفي للسجلّ والرسالة. */
+async function failureDetail(
+  response: { status: number; text: () => Promise<string> },
+): Promise<string> {
+  let body = "";
+  try {
+    body = (await response.text()).trim();
+  } catch {
+    body = "";
+  }
+  return body === "" ? `${response.status}` : `${response.status} ${body.slice(0, 400)}`;
+}
+
 // ── قراءة صف الطالب ──────────────────────────────────────────────────────
 //
 // `StudentActor.id` قد يكون المعرّف المخزّن داخل `data` لا معرّف الصف، وهما
@@ -89,6 +119,7 @@ async function readStudentRow(student: StudentActor): Promise<StudentRow | null>
 }
 
 async function writeStudentData(rowId: string, data: Json): Promise<void> {
+  assertWritable();
   const settings = config();
   const response = await fetch(
     `${settings.url}/rest/v1/students?id=eq.${encodeURIComponent(rowId)}`,
@@ -99,11 +130,12 @@ async function writeStudentData(rowId: string, data: Json): Promise<void> {
     },
   );
   if (!response.ok) {
-    throw new Error(`Student write failed (${response.status})`);
+    throw new Error(`Student write failed (${await failureDetail(response)})`);
   }
 }
 
 async function upsertRow(table: string, row: Json): Promise<void> {
+  assertWritable();
   const settings = config();
   const response = await fetch(`${settings.url}/rest/v1/${table}`, {
     method: "POST",
@@ -111,7 +143,9 @@ async function upsertRow(table: string, row: Json): Promise<void> {
     body: JSON.stringify(row),
   });
   if (!response.ok) {
-    throw new Error(`${table} write failed (${response.status})`);
+    // مع نصّ الردّ: بدونه كان كل فشل يصل كرقم حالة وحده، فلا يُعرف
+    // أهو رفض صلاحيات أم عمود مفقود أم قيمة لا يقبلها الجدول.
+    throw new Error(`${table} write failed (${await failureDetail(response)})`);
   }
 }
 
@@ -605,8 +639,16 @@ router.post("/student/progress/quiz-result", async (req, res) => {
     });
     res.json({ result: safeResult });
   } catch (error) {
-    logger.error({ err: error }, "[student-progress] quiz result save failed");
-    res.status(503).json({ error: "تعذر حفظ نتيجة الاختبار الآن" });
+    logger.error(
+      { err: error, studentId: student.id, resultId: id },
+      "[student-progress] quiz result save failed",
+    );
+    // التفصيل يرافق الرسالة: حفظُ نتيجة اختبار يفشل صامتاً هو درجةٌ ضائعة،
+    // ولا سبيل لمعرفة السبب من جهاز طالب دون أن يُقال.
+    res.status(503).json({
+      error: "تعذر حفظ نتيجة الاختبار الآن",
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 

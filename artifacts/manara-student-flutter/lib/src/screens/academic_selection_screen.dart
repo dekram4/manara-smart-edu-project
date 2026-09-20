@@ -10,6 +10,7 @@ import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
@@ -82,6 +83,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _loadSelectionData();
     }
     _loadGamification();
+    unawaited(StudentAvatars.adoptFromProfile(widget.profile.appearance));
     // The screen greets the student once it is on screen, in the same voice
     // as the welcome before it and the hub after it.
     WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -19,6 +19,7 @@ import '../widgets/student_experience.dart';
 import '../widgets/dealt_card_entrance.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_avatar_view.dart';
+import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
@@ -101,6 +102,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     super.initState();
     _academicContext = widget.academicContext;
     _gamification = widget.profile.gamification;
+    // The character the student chose, as their profile records it — the
+    // pick used to live only on the phone that made it.
+    unawaited(StudentAvatars.adoptFromProfile(widget.profile.appearance));
     _contentService = StudentContentService(widget.authService.client,
         baseUrl: widget.apiBaseUrl, authService: widget.authService);
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
