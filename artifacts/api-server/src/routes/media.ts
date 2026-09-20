@@ -9,6 +9,7 @@ import {
   requireAdmin,
   requireContentManager,
   type ContentActor,
+  type WriteActor,
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
 
@@ -43,6 +44,8 @@ type UploadOwner = {
   role: ContentActor["role"];
   teacherId?: string;
 };
+
+/** مالك الملف المرفوع. ولي الأمر لا يرفع شيئاً، فلا يظهر هنا. */
 
 function supabaseStorageConfig(): { url: string; key: string; bucket: string } | null {
   const url = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
@@ -307,7 +310,7 @@ function ownerFilePath(fileName: string): string {
   return path.join(uploadDirectory, `${fileName}.owner.json`);
 }
 
-async function writeOwner(fileName: string, actor: ContentActor): Promise<void> {
+async function writeOwner(fileName: string, actor: WriteActor): Promise<void> {
   const owner: UploadOwner =
     actor.role === "admin"
       ? { role: "admin" }
@@ -509,7 +512,7 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
   }
   try {
     const storage = supabaseStorageConfig();
-    const actor = res.locals.contentActor as ContentActor;
+    const actor = res.locals.contentActor as WriteActor;
     const fileName = `${crypto.randomUUID()}.mp4`;
     const ownerKey = actor.role === "admin"
       ? "admin"

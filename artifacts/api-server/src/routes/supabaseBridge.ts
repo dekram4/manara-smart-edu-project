@@ -302,7 +302,9 @@ router.get("/supabase/app_kv", async (req: Request, res: Response) => {
       ].includes(key))
       .map(({ key, value }) => ({
         key,
-        value: key === VIDEO_KEY && actor.role !== "admin"
+        // المعلم يرى مقاطعه وحده. وولي الأمر لا يصل هنا أصلاً: مفتاح
+        // السينما ليس في `PARENT_READABLE_KV`، فلا يُجلب له.
+        value: key === VIDEO_KEY && actor.role === "teacher"
           ? asRecords(value).filter((video) => recordOwner(video) === actor.teacherId)
           : key === DELETED_VIDEO_KEY
             ? mergeDeletedIds([], value)

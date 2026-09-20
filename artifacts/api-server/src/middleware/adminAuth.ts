@@ -5,9 +5,19 @@ const ADMIN_SESSION_COOKIE = "manara_admin_session";
 export const TEACHER_SESSION_COOKIE = "manara_teacher_session";
 export const PARENT_SESSION_COOKIE = "manara_parent_session";
 
-export type ContentActor =
+/**
+ * من يملك الكتابة: المشرف والمعلم وحدهما.
+ *
+ * نوع مستقلّ لأن منع ولي الأمر من الكتابة كان تعليقاً يُصدَّق، فصار شرطاً
+ * يفحصه المترجم: كل مسار كتابة يأخذ هذا النوع، فتمريرُ ولي أمر إليه خطأ
+ * في البناء لا ثغرة تُكتشف بعد النشر.
+ */
+export type WriteActor =
   | { role: "admin" }
-  | { role: "teacher"; teacherId: string }
+  | { role: "teacher"; teacherId: string };
+
+export type ContentActor =
+  | WriteActor
   // ولي الأمر قارئ فقط. لا يملك أي مسار كتابة إطلاقاً، ونطاق قراءته محصور
   // بأبنائه — يُحسم ذلك في `supabaseBridge` لا هنا.
   | { role: "parent"; parentId: string };
@@ -57,7 +67,7 @@ export function verifyAdminSession(value: string): boolean {
   }
 }
 
-export function verifyTeacherSession(value: string): ContentActor | null {
+export function verifyTeacherSession(value: string): WriteActor | null {
   if (!value) return null;
   const [encoded, signature] = String(value).split(".");
   if (!encoded || !signature) return null;
@@ -132,7 +142,7 @@ export function verifyParentSession(value: string): ContentActor | null {
  * خارجها يجعل منعه من الكتابة خاصية في بنية الكود لا شرطاً قد يُنسى في
  * مسار جديد يُضاف لاحقاً.
  */
-export function getContentActor(req: Request): ContentActor | null {
+export function getContentActor(req: Request): WriteActor | null {
   if (verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE))) {
     return { role: "admin" };
   }
