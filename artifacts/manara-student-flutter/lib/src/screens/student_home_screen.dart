@@ -726,7 +726,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: BouncyText(
                       tr('home.pickPortal'),
-                      fontSize: 26,
+                      fontSize: 32,
                     ),
                   ),
                   const SizedBox(height: 7),
@@ -736,9 +736,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: BouncyText(
                       tr('home.pickPortalHint'),
-                      fontSize: 15.5,
-                      maxScale: 1.08,
-                      minScale: 0.95,
+                      fontSize: 19,
+                      maxScale: 1.12,
+                      minScale: 0.92,
                     ),
                   ),
                   const SizedBox(height: 13),
@@ -1247,10 +1247,10 @@ class _SectionTileState extends State<_SectionTile>
           fit: BoxFit.scaleDown,
           child: BouncyText(
             widget.section.title,
-            fontSize: 17,
+            fontSize: 21,
             animate: false,
-            maxScale: 1.08,
-            minScale: 0.95,
+            maxScale: 1.12,
+            minScale: 0.92,
             alignment: WrapAlignment.center,
           ),
         ),
@@ -1718,7 +1718,7 @@ class _WelcomeCard extends StatelessWidget {
                   // وحدّاً أبيض حولها، فتُقرأ على الفاتح والداكن معاً.
                   BouncyText(
                     tr('hub.welcome'),
-                    fontSize: 16,
+                    fontSize: 19.2,
                     maxScale: 1.1,
                     minScale: 0.94,
                   ),
@@ -1739,7 +1739,7 @@ class _WelcomeCard extends StatelessWidget {
                   // shader — a tinted shadow is just a coloured blur.
                   BouncyText(
                     trf('path.greeting', {'name': profile.name}),
-                    fontSize: 30,
+                    fontSize: 36,
                   ),
                 ],
               ),

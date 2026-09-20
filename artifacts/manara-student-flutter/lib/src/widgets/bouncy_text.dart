@@ -114,17 +114,21 @@ class BouncyText extends StatelessWidget {
   }
 }
 
-/// The bright, high-contrast set a child's eye picks out first: sky, mango,
-/// bubblegum, sunshine, grass, grape. Ordered so neighbours never share a
+/// Saturated cartoon ink, not pastel: electric cyan, fire orange, hot pink,
+/// golden yellow, emerald, vivid purple. Ordered so neighbours never share a
 /// hue family — adjacent pieces have to read as different colours, not as
 /// two shades of the same one.
+///
+/// The yellow is golden rather than lemon. At full brightness yellow carries
+/// the least contrast of any hue against a pale backdrop, and it is the one
+/// colour here that would go faint exactly where the rest go loud.
 const List<Color> kStudentCandy = [
-  Color(0xFF29B6F6), // sky blue
-  Color(0xFFFF8A29), // bright orange
-  Color(0xFFFF5D8F), // bubblegum pink
-  Color(0xFFFFC61A), // warm yellow
-  Color(0xFF3FBF5F), // grass green
-  Color(0xFF9B5DE5), // grape
+  Color(0xFF00B4FF), // electric cyan
+  Color(0xFFFF6A00), // fire orange
+  Color(0xFFFF1F8F), // hot pink
+  Color(0xFFFFB300), // golden yellow
+  Color(0xFF00C853), // emerald
+  Color(0xFF8B00FF), // vivid purple
 ];
 
 /// One word or one letter, tilted and lifted, with a rim and a drop.
@@ -151,16 +155,22 @@ class _BouncyPiece extends StatelessWidget {
   ///
   /// Four steps rather than two: strict alternation between one angle and
   /// its negative reads as a zigzag pattern, which is a machine again. The
-  /// cycle -4°, +3°, -2.5°, +4° keeps the hand-drawn look.
+  /// cycle -6°, +4.5°, -3.75°, +6° keeps the hand-drawn look.
+  ///
+  /// Six degrees is the ceiling on purpose. Past it the corners of a long
+  /// word start to climb out of the line box, and a `Wrap` measures the
+  /// upright word — so the tilt gets clipped or the line grows taller than
+  /// the text in it.
   double get _angle {
-    const degrees = [-4.0, 3.0, -2.5, 4.0];
+    const degrees = [-6.0, 4.5, -3.75, 6.0];
     return degrees[index % degrees.length] * math.pi / 180;
   }
 
-  /// The lift, in the 2–4px the design asks for, scaled with the type so a
-  /// small caption does not bounce as far as a headline.
+  /// The lift: pieces sit above and below the line rather than on it, so
+  /// the phrase reads as hopping. Scaled with the type, so a small caption
+  /// does not bounce as far as a headline.
   double get _dy {
-    const steps = [-3.0, 2.0, -2.0, 3.0];
+    const steps = [-5.0, 3.5, -3.5, 5.0];
     return steps[index % steps.length] * (fontSize / 26).clamp(0.6, 1.6);
   }
 
@@ -179,15 +189,31 @@ class _BouncyPiece extends StatelessWidget {
         angle: _angle,
         child: Stack(
           children: [
-            // The rim: the same glyphs drawn as a thick stroke underneath,
-            // so the fill on top leaves an even outline all the way round.
-            // A `Shadow` cannot do this — a blur is not an edge.
+            // The rim, in two layers: a dark stroke outermost, a light one
+            // inside it, then the fill on top. A single light rim keeps a
+            // bright letter off a dark background but vanishes on a pale
+            // one — and these colours are loud enough that losing their
+            // edge is what makes them look washed out. Two layers hold the
+            // letter's shape against any backdrop, and the dark ring is
+            // what a cartoon letter has always had.
+            //
+            // A `Shadow` cannot stand in for either: a blur is not an edge.
             Text(
               text,
               style: base.copyWith(
                 foreground: Paint()
                   ..style = PaintingStyle.stroke
-                  ..strokeWidth = size * 0.11
+                  ..strokeWidth = size * 0.22
+                  ..strokeJoin = StrokeJoin.round
+                  ..color = Color.lerp(color, Colors.black, 0.62)!,
+              ),
+            ),
+            Text(
+              text,
+              style: base.copyWith(
+                foreground: Paint()
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = size * 0.13
                   ..strokeJoin = StrokeJoin.round
                   ..color = outlineColor,
               ),
@@ -198,10 +224,12 @@ class _BouncyPiece extends StatelessWidget {
                 color: color,
                 shadows: [
                   // A hard offset drop, not a blur: cartoon lettering sits
-                  // on its shadow rather than floating over a haze.
+                  // on its shadow rather than floating over a haze. Deeper
+                  // and further down than the rim, so the letter reads as
+                  // standing off the page rather than printed on it.
                   Shadow(
-                    color: Color.lerp(color, Colors.black, 0.45)!,
-                    offset: Offset(0, size * 0.055),
+                    color: Color.lerp(color, Colors.black, 0.6)!,
+                    offset: Offset(0, size * 0.085),
                   ),
                 ],
               ),

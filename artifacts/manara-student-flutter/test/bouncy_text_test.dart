@@ -61,13 +61,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
     }
 
-    testWidgets('every piece is drawn twice: a rim and a fill over it',
+    testWidgets('every piece is drawn three times: two rims and a fill',
         (tester) async {
       await pump(tester, const BouncyText('أهلًا بك', fontSize: 24));
 
-      // Two words, each painted as an outline and then a fill.
-      expect(find.text('أهلًا'), findsNWidgets(2));
-      expect(find.text('بك'), findsNWidgets(2));
+      // A dark stroke outermost, a light one inside it, then the fill. The
+      // pair is what holds a loud colour legible on a pale background and a
+      // dark one alike — one rim alone disappears against half of them.
+      expect(find.text('أهلًا'), findsNWidgets(3));
+      expect(find.text('بك'), findsNWidgets(3));
     });
 
     testWidgets('pieces are tilted, and not all by the same angle',
