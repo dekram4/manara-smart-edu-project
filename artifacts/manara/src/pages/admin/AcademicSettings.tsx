@@ -1550,15 +1550,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         {/* قسم العرض */}
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', maxHeight: '800px', overflowY: 'auto' }}>
           <h3 style={{ fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '20px', color: '#111827' }}>الهيكل الحالي</h3>
-          
-          <div style={styles.treeHeader}>
-            {hierarchicalConfigs.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => setAllCollapsed(true)} style={styles.treeToolButton}>⊖ طيّ الكل</button>
-                <button onClick={() => setAllCollapsed(false)} style={styles.treeToolButton}>⊕ فتح الكل</button>
-              </div>
-            )}
-          </div>
 
           {hierarchicalConfigs.length > 0 && (
             <div style={styles.treeFilters}>
@@ -1592,6 +1583,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 placeholder="🔍 ابحث باسم صف أو مادة أو فصل أو وحدة أو درس"
                 style={{ ...styles.treeFilterControl, flex: '2 1 220px' }}
               />
+              <button onClick={() => setAllCollapsed(true)} style={styles.treeToolButton}>⊖ طيّ الكل</button>
+              <button onClick={() => setAllCollapsed(false)} style={styles.treeToolButton}>⊕ فتح الكل</button>
               {(filterGrade || filterSubject || treeSearch) && (
                 <button
                   onClick={() => { setFilterGrade(''); setFilterSubject(''); setTreeSearch(''); }}
@@ -1876,7 +1869,6 @@ const styles = {
     padding: '11px 16px', backgroundColor: '#f1f5f9', color: '#334155', border: 'none',
     borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold',
   },
-  treeHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' as const },
   treeFilters: { display: 'flex', flexWrap: 'wrap' as const, gap: '8px', marginBottom: '16px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' },
   treeFilterControl: { flex: '1 1 150px', minWidth: '140px', padding: '9px 12px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', backgroundColor: 'white' },
   treeToolButton: { padding: '8px 12px', backgroundColor: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', whiteSpace: 'nowrap' as const },
