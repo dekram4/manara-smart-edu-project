@@ -81,7 +81,6 @@ void main() {
   /// render and can be measured against one another.
   const path = AcademicPath(
     grade: 'الصف الرابع',
-    atram: 'الترم الأول',
     subject: 'العلوم',
     term: 'الفصل الثاني',
     unit: 'الوحدة الأولى',
@@ -94,7 +93,6 @@ void main() {
         id: 'l1',
         lessonId: 'l1',
         grade: path.grade,
-        atram: path.atram,
         subject: path.subject,
         term: path.term,
         unit: path.unit,
@@ -124,7 +122,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
-  testWidgets('every one of the six levels gets a book', (tester) async {
+  testWidgets('every one of the five levels gets a book', (tester) async {
     await pumpReady(tester, const Size(768, 1024));
 
     // The chapter used to share the red book with the unit, and only when
@@ -132,7 +130,6 @@ void main() {
     // a level they had filled in was not shown at all.
     for (final label in [
       tr('path.grade'),
-      tr('path.atram'),
       tr('path.subject'),
       tr('path.term'),
       tr('path.unit'),
@@ -179,8 +176,7 @@ void main() {
       // control is checked, not just the last one.
       for (final label in [
         tr('path.grade'),
-        tr('path.atram'),
-        tr('path.subject'),
+          tr('path.subject'),
         tr('path.term'),
         tr('path.unit'),
         tr('path.lesson'),

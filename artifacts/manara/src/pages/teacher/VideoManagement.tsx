@@ -17,7 +17,6 @@ interface VideoRecord {
   url: string;
   sourceType?: VideoSourceType;
   grade: string;
-  atram: string;
   subject: string;
   term: string;
   unit: string;
@@ -53,12 +52,12 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   const [teachers, setTeachers] = useState<Array<{ id: string; name: string; subject?: string }>>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedTeacherName, setSelectedTeacherName] = useState('');
-  const [filters, setFilters] = useState({ grade: '', atram: '', subject: '', term: '', unit: '', lesson: '' });
+  const [filters, setFilters] = useState({ grade: '', subject: '', term: '', unit: '', lesson: '' });
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     title: '', description: '', url: '', sourceType: 'embed' as VideoSourceType, file: null as File | null,
     pendingVideos: [] as CinemaVideoDraft[],
-    grade: '', atram: '', subject: '', term: '', unit: '', lesson: ''
+    grade: '', subject: '', term: '', unit: '', lesson: ''
   });
   const [editingVideo, setEditingVideo] = useState<VideoRecord | null>(null);
   /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
@@ -98,7 +97,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       file: null,
       pendingVideos: [],
       grade: video.grade,
-      atram: video.atram || '',
       subject: video.subject,
       term: video.term,
       unit: video.unit,
@@ -131,10 +129,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   const selectedGradeConfig = academicConfigs.find(
     config => config.grade === formData.grade,
   );
-  const selectedAtramConfig = selectedGradeConfig?.atrams.find(
-    atram => atram.atram === formData.atram,
-  );
-  const selectedSubjectConfig = selectedAtramConfig?.subjects.find(
+  const selectedSubjectConfig = selectedGradeConfig?.subjects.find(
     subject => subject.subject === formData.subject,
   );
   const selectedTermConfig = selectedSubjectConfig?.terms.find(
@@ -150,12 +145,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     Array.from(new Set(academicConfigs.map(config => config.grade))),
     formData.grade,
   );
-  const availableAtrams = withCurrentValue(
-    selectedGradeConfig?.atrams.map(atram => atram.atram) || [],
-    formData.atram,
-  );
   const availableSubjects = withCurrentValue(
-    selectedAtramConfig?.subjects.map(subject => subject.subject) || [],
+    selectedGradeConfig?.subjects.map(subject => subject.subject) || [],
     formData.subject,
   );
   const availableTerms = withCurrentValue(
@@ -178,17 +169,11 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   );
 
   const updateAcademicField = (
-    field: 'grade' | 'atram' | 'subject' | 'term' | 'unit' | 'lesson',
+    field: 'grade' | 'subject' | 'term' | 'unit' | 'lesson',
     value: string,
   ) => {
     const next = { ...formData, [field]: value };
     if (field === 'grade') {
-      next.atram = '';
-      next.subject = '';
-      next.term = '';
-      next.unit = '';
-      next.lesson = '';
-    } else if (field === 'atram') {
       next.subject = '';
       next.term = '';
       next.unit = '';
@@ -283,12 +268,11 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     e.preventDefault();
     if (
       !formData.grade ||
-      !formData.atram ||
       !formData.subject ||
       !formData.term ||
       !formData.unit
     ) {
-      alert('يرجى اختيار الصف والترم والمادة والفصل والوحدة');
+      alert('يرجى اختيار الصف والمادة والفصل والوحدة');
       return;
     }
 
@@ -353,7 +337,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         url: videoUrl,
         sourceType: formData.sourceType,
         grade: formData.grade,
-        atram: formData.atram,
         subject: formData.subject,
         term: formData.term,
         unit: formData.unit,
@@ -428,7 +411,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       const newVideos: VideoRecord[] = videosToCreate.map(video => ({
         ...video,
         grade: formData.grade,
-        atram: formData.atram,
         subject: formData.subject,
         term: formData.term,
         unit: formData.unit,
@@ -456,13 +438,12 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           notifs.push({
             id: `${Date.now()}-${newVideo.id}`,
             type: 'new_video',
-            message: `🎬 أضاف المعلم ${ownerName} فيديو جديد: "${newVideo.title}" (${formData.grade} • ${formData.atram} • ${formData.subject} • ${formData.term} • ${formData.unit})`,
+            message: `🎬 أضاف المعلم ${ownerName} فيديو جديد: "${newVideo.title}" (${formData.grade} • ${formData.subject} • ${formData.term} • ${formData.unit})`,
             teacherId: ownerId,
             teacherName: ownerName,
             videoId: newVideo.id,
             videoTitle: newVideo.title,
             grade: newVideo.grade,
-            atram: newVideo.atram,
             subject: newVideo.subject,
             term: newVideo.term,
             unit: newVideo.unit,
@@ -482,7 +463,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       file: null,
       pendingVideos: [],
       grade: '',
-      atram: '',
       subject: '',
       term: '',
       unit: '',
@@ -524,7 +504,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
   const filteredVideos = videos.filter((video) => {
     if (filters.grade && video.grade !== filters.grade) return false;
-    if (filters.atram && video.atram !== filters.atram) return false;
     if (filters.subject && video.subject !== filters.subject) return false;
     if (filters.term && video.term !== filters.term) return false;
     if (filters.unit && video.unit !== filters.unit) return false;
@@ -534,7 +513,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
   const filterOptions = {
     grades: Array.from(new Set(videos.map((video) => video.grade).filter(Boolean))),
-    atrams: Array.from(new Set(videos.map((video) => video.atram).filter(Boolean))),
     subjects: Array.from(new Set(videos.map((video) => video.subject).filter(Boolean))),
     terms: Array.from(new Set(videos.map((video) => video.term).filter(Boolean))),
     units: Array.from(new Set(videos.map((video) => video.unit).filter(Boolean))),
@@ -566,7 +544,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                  file: null,
                  pendingVideos: [],
                  grade: '',
-                 atram: '',
                  subject: '',
                  term: '',
                  unit: '',
@@ -585,7 +562,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
          <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-black text-amber-800">🔎 فلترة الفيديوهات</h3>
           <button
-            onClick={() => setFilters({ grade: '', atram: '', subject: '', term: '', unit: '', lesson: '' })}
+            onClick={() => setFilters({ grade: '', subject: '', term: '', unit: '', lesson: '' })}
              className="min-h-11 rounded-lg bg-white px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100 sm:min-h-0 sm:py-1"
           >
             مسح الفلاتر
@@ -595,10 +572,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
             <option value="">🎓 كل الصفوف</option>
             {filterOptions.grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
-          </select>
-          <select value={filters.atram} onChange={(e) => setFilters({ ...filters, atram: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
-            <option value="">📅 كل الأترام</option>
-            {filterOptions.atrams.map((atram) => <option key={atram} value={atram}>{atram}</option>)}
           </select>
           <select value={filters.subject} onChange={(e) => setFilters({ ...filters, subject: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
             <option value="">📖 كل المواد</option>
@@ -627,7 +600,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                 {editingVideo ? '✏️ تعديل فيديو سينما منارة' : '🎬 إضافة فيديوهات إلى سينما منارة'}
               </h3>
               <p className="mt-1 text-sm font-bold text-amber-600">
-                أضف أكثر من فيديو لنفس الصف والترم والمادة والفصل والوحدة قبل الحفظ.
+                أضف أكثر من فيديو لنفس الصف والمادة والفصل والوحدة قبل الحفظ.
               </p>
             </div>
             {formData.pendingVideos.length > 0 && (
@@ -803,20 +776,10 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               {availableGrades.map(grade => <option key={grade} value={grade}>{grade}</option>)}
             </select>
             <select
-              value={formData.atram}
-              onChange={e => updateAcademicField('atram', e.target.value)}
-              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              disabled={!formData.grade}
-              required
-            >
-              <option value="">📅 الترم</option>
-              {availableAtrams.map(atram => <option key={atram} value={atram}>{atram}</option>)}
-            </select>
-            <select
               value={formData.subject}
               onChange={e => updateAcademicField('subject', e.target.value)}
               className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              disabled={!formData.atram}
+              disabled={!formData.grade}
               required
             >
               <option value="">📖 المادة</option>
@@ -900,7 +863,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                 <div className="flex flex-wrap gap-2 mb-4">
                   {video.grade && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">📚 {video.grade}</span>}
                   {video.subject && <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold">📖 {video.subject}</span>}
-                  {video.atram && <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold">📅 {video.atram}</span>}
                   {video.term && <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-xs font-bold">📑 {video.term}</span>}
                   {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
                   {video.lesson && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-lg text-xs font-bold">📘 {video.lesson}</span>}

@@ -68,17 +68,15 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     password: '',
     studentIdNumber: '',
     primaryGrade: '',
-    gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; atram: string; term: string; unit: string }[] }[],
+    gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; term: string; unit: string }[] }[],
     currentGradeForEnrollment: '',
     enrollmentSubject: '',
-    enrollmentAtram: '',
     enrollmentTerm: '',
     enrollmentUnit: '',
   });
 
   const [grades, setGrades] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
-  const [atrams, setAtrams] = useState<string[]>([]);
   const [terms, setTerms] = useState<string[]>([]);
   const [units, setUnits] = useState<string[]>([]);
   const [gradeConfigs, setGradeConfigs] = useState<any[]>([]);
@@ -117,7 +115,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const loadAcademicSettings = () => {
     setGrades(readStorageArray<string>(STORAGE_KEYS.GRADES));
     setSubjects(readStorageArray<string>(STORAGE_KEYS.SUBJECTS));
-    setAtrams(readStorageArray<string>(STORAGE_KEYS.ATRAMS));
     setTerms(readStorageArray<string>(STORAGE_KEYS.TERMS));
     setUnits(readStorageArray<string>(STORAGE_KEYS.UNITS));
     setGradeConfigs(readStorageArray(STORAGE_KEYS.GRADE_CONFIGS));
@@ -130,7 +127,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       return (cfg.subjects || []).flatMap((s: any) => (s.enrollments || []).map((en: any, idx: number) => ({
         id: en.id || `gcfg-${Date.now()}-${idx}`,
         subject: s.subject,
-        atram: en.atram || '',
         term: en.term || '',
         unit: en.unit || ''
       })));
@@ -138,7 +134,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     return (cfg.enrollments || []).map((en: any, idx: number) => ({
       id: en.id || `gcfg-${Date.now()}-${idx}`,
       subject: en.subject,
-      atram: en.atram || '',
       term: en.term || '',
       unit: en.unit || ''
     }));
@@ -152,7 +147,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const cfg = configs.find((c: HierarchicalConfig) => c.grade === grade);
     if (!cfg) return subjects;
     const subs = new Set<string>();
-    cfg.atrams?.forEach((a: any) => a.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); }));
+    cfg.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); });
     return subs.size > 0 ? Array.from(subs) : subjects;
   };
 
@@ -341,7 +336,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       } catch (e) { /* ignore */ }
     }
     if (gradeEnrollments.length === 0) {
-      gradeEnrollments = [{ grade: newChild.primaryGrade, enrollments: [{ id: Date.now().toString(), subject: newChild.enrollmentSubject || subjects[0] || '', atram: atrams[0] || '', term: terms[0] || '', unit: units[0] || '' }] }];
+      gradeEnrollments = [{ grade: newChild.primaryGrade, enrollments: [{ id: Date.now().toString(), subject: newChild.enrollmentSubject || subjects[0] || '', term: terms[0] || '', unit: units[0] || '' }] }];
     }
 
     const child: StudentInfo = {
@@ -357,7 +352,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       gradeEnrollments: gradeEnrollments,
       grade: newChild.primaryGrade,
       subject: newChild.enrollmentSubject || gradeEnrollments[0]?.enrollments[0]?.subject || '',
-      atram: gradeEnrollments[0]?.enrollments[0]?.atram || '',
       term: gradeEnrollments[0]?.enrollments[0]?.term || '',
       unit: gradeEnrollments[0]?.enrollments[0]?.unit || '',
       canChangeGrade: false,
@@ -380,7 +374,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       setParent(refreshedParent);
     }
      if (parent) setChildren(getParentChildren(updatedStudents, parent));
-    setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' });
+    setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentTerm: '', enrollmentUnit: '' });
     setShowAddChildForm(false);
     alert(`تمت إضافة ${newChild.name} بنجاح!`);
   };
@@ -457,7 +451,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         ? allConfigs.filter((c: any) => getRecordTeacherId(c) === teacherId)
         : studentScope.explicit ? [] : allConfigs;
       configs.filter((c: any) => c.grade === child.primaryGrade || c.grade === child.grade).forEach((cfg: any) => {
-        if (cfg.atrams?.forEach) cfg.atrams.forEach((a: any) => a.subjects?.forEach((s: any) => { if (s.subject) set.add(s.subject); }));
+        cfg.subjects?.forEach((s: any) => { if (s.subject) set.add(s.subject); });
       });
     } catch (e) { /* ignore */ }
     if (set.size === 0) {
@@ -492,11 +486,11 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const date = new Date(cert.date).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
     const typeMap: Record<string, { title: string; emoji: string; color: string; grad: string; message: string }> = {
       excellence: { title: 'شهادة تفوق وامتياز', emoji: '🏆', color: '#FFD700', grad: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${cert.subject}</strong> للترم <strong>${cert.atram}</strong>، حيث حقق/ت معدلاً عاماً قدره <strong>${cert.average !== undefined ? cert.average + '%' : 'ممتاز'}</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.` },
+        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>، حيث حقق/ت معدلاً عاماً قدره <strong>${cert.average !== undefined ? cert.average + '%' : 'ممتاز'}</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.` },
       appreciation: { title: 'شهادة شكر وتقدير', emoji: '⭐', color: '#4169E1', grad: 'linear-gradient(135deg, #4169E1 0%, #1E90FF 100%)',
-        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${cert.studentName}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${cert.subject}</strong> للترم <strong>${cert.atram}</strong>، ولالتزامه/ها المتواصل في أداء واجباته/ها الدراسية. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.` },
+        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${cert.studentName}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>، ولالتزامه/ها المتواصل في أداء واجباته/ها الدراسية. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.` },
       participation: { title: 'شهادة مشاركة فعالة', emoji: '🌟', color: '#32CD32', grad: 'linear-gradient(135deg, #32CD32 0%, #228B22 100%)',
-        message: `نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${cert.subject}</strong> للترم <strong>${cert.atram}</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.` },
+        message: `نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.` },
     };
     const t = typeMap[cert.type];
     const w = window.open('', '_blank');
@@ -620,7 +614,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         .section-title { background: #3b82f6; color: white; padding: 15px 25px; border-radius: 15px; margin: 30px 0 20px 0; font-size: 20px; font-weight: bold; }
       </style></head><body>
       <div class="header"><h1 style="margin:0;color:#1e40af;font-size:32px;">📊 تقرير الأداء التعليمي الشامل</h1><h3 style="margin:10px 0 0 0;color:#64748b;">مادة ${subject}</h3></div>
-      <div class="info"><div><strong style="color:#64748b;">الاسم:</strong> <span style="font-size:18px;font-weight:bold;">${child.name}</span></div><div><strong style="color:#64748b;">الصف:</strong> <span style="font-size:18px;font-weight:bold;">${child.grade}</span></div><div><strong style="color:#64748b;">الترم:</strong> <span style="font-size:18px;font-weight:bold;">${child.atram}</span></div><div><strong style="color:#64748b;">التاريخ:</strong> <span style="font-size:18px;font-weight:bold;">${new Date().toLocaleDateString('ar-SA')}</span></div></div>
+      <div class="info"><div><strong style="color:#64748b;">الاسم:</strong> <span style="font-size:18px;font-weight:bold;">${child.name}</span></div><div><strong style="color:#64748b;">الصف:</strong> <span style="font-size:18px;font-weight:bold;">${child.grade}</span></div><div><strong style="color:#64748b;">الفصل:</strong> <span style="font-size:18px;font-weight:bold;">${child.term}</span></div><div><strong style="color:#64748b;">التاريخ:</strong> <span style="font-size:18px;font-weight:bold;">${new Date().toLocaleDateString('ar-SA')}</span></div></div>
       <div class="section-title">📈 ملخص الأداء حسب نوع الاختبار</div>
       <div class="stats-grid">
          <div class="stat-card unit"><h3>📘 الاختبار الدوري</h3><div class="value">${periodicAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد المحاولات: ${periodicQuizzes.length}</p></div>
@@ -736,7 +730,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   /* ===== Derived data ===== */
   const myChildQuizzes = activeChild ? allQuizzes.filter(q => q.studentId === activeChild.id) : [];
-  const subjectsOfChild = activeChild ? getChildSubjects(activeChild).map(s => ({ subject: s, atram: activeChild.atram || '' })) : [];
+  const subjectsOfChild = activeChild ? getChildSubjects(activeChild).map(s => ({ subject: s })) : [];
 
   /* ===== Render ===== */
   return (
@@ -1007,11 +1001,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           const level = subQuizzes.length === 0 ? 'لم يبدأ 📚' : parseInt(avg) >= 90 ? 'ممتاز 🌟' : parseInt(avg) >= 70 ? 'جيد جداً ⭐' : parseInt(avg) >= 60 ? 'جيد 👍' : 'يحتاج تحسين 📖';
                           const barColor = subQuizzes.length === 0 ? 'bg-rose-200' : parseInt(avg) >= 90 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : parseInt(avg) >= 70 ? 'bg-gradient-to-r from-blue-400 to-blue-600' : parseInt(avg) >= 60 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-red-400 to-red-600';
                           return (
-                            <div key={`${subObj.subject}-${subObj.atram}`} className="bg-white p-5 rounded-2xl shadow-md border border-rose-100 hover:shadow-lg hover:border-rose-300 transition-all">
+                            <div key={`${subObj.subject}`} className="bg-white p-5 rounded-2xl shadow-md border border-rose-100 hover:shadow-lg hover:border-rose-300 transition-all">
                               <div className="flex items-start justify-between mb-3">
                                 <div className="flex-1 min-w-0">
                                   <h4 className="text-base font-black text-rose-800 truncate">{subObj.subject}</h4>
-                                  {subObj.atram && <span className="inline-block mt-1 text-[10px] font-bold bg-rose-50 text-rose-500 px-2 py-0.5 rounded-full">{subObj.atram}</span>}
                                 </div>
                                 <div className={`text-white px-3 py-1.5 rounded-xl text-center shadow-md text-sm font-black ${subQuizzes.length === 0 ? 'bg-rose-300' : 'bg-rose-500'}`}>
                                   {avg}%
@@ -1470,11 +1463,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           const level = subQuizzes.length === 0 ? 'لم يبدأ 📚' : parseInt(avg as string) >= 90 ? 'ممتاز 🌟' : parseInt(avg as string) >= 70 ? 'جيد جداً ⭐' : parseInt(avg as string) >= 60 ? 'جيد 👍' : 'يحتاج تحسين 📖';
                           const barColor = subQuizzes.length === 0 ? 'bg-rose-200' : parseInt(avg as string) >= 90 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : parseInt(avg as string) >= 70 ? 'bg-gradient-to-r from-blue-400 to-blue-600' : parseInt(avg as string) >= 60 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-red-400 to-red-600';
                           return (
-                            <div key={`${subObj.subject}-${subObj.atram}`} className="bg-white p-4 rounded-2xl shadow-sm border border-rose-100 hover:shadow-md hover:border-rose-300 transition-all">
+                            <div key={`${subObj.subject}`} className="bg-white p-4 rounded-2xl shadow-sm border border-rose-100 hover:shadow-md hover:border-rose-300 transition-all">
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex-1 min-w-0">
                                   <h4 className="text-sm font-black text-rose-800 truncate">{subObj.subject}</h4>
-                                  {subObj.atram && <span className="inline-block mt-0.5 text-[10px] font-bold bg-rose-50 text-rose-500 px-1.5 py-0.5 rounded-full">{subObj.atram}</span>}
                                 </div>
                                 <div className={`text-white px-2 py-1 rounded-lg text-center shadow-md text-sm font-black ${subQuizzes.length === 0 ? 'bg-rose-300' : 'bg-rose-500'}`}>
                                   {avg}%
@@ -1510,7 +1502,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
                               <h2 className="text-lg font-black">📚 {activeSubject}</h2>
-                              <div className="flex gap-3 text-rose-200 font-bold text-xs mt-1"><span>{activeChild.name}</span><span>• {activeChild.grade}</span><span>• {activeChild.atram}</span></div>
+                              <div className="flex gap-3 text-rose-200 font-bold text-xs mt-1"><span>{activeChild.name}</span><span>• {activeChild.grade}</span><span>• {activeChild.term}</span></div>
                             </div>
                             {myChildQuizzes.filter(q => q.subject === activeSubject).length > 0 && (
                               <button onClick={() => printSubjectReport(activeChild, activeSubject)} className="bg-white text-rose-500 px-4 py-2 rounded-xl font-black shadow-lg hover:shadow-xl transition-all text-xs shrink-0">🖨️ طباعة</button>
@@ -1627,7 +1619,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="submit" className="flex-1 bg-rose-500 text-white px-5 py-2.5 rounded-xl font-black text-sm hover:bg-rose-600 shadow-md transition-all">✅ حفظ البيانات</button>
-                   <button type="button" onClick={() => setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: '' })} className="px-5 py-2.5 bg-rose-100 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-200 transition-all">إلغاء</button>
+                   <button type="button" onClick={() => setNewChild({ name: '', gender: 'male', username: '', password: '', studentIdNumber: '', primaryGrade: '', gradeEnrollments: [], currentGradeForEnrollment: '', enrollmentSubject: '', enrollmentTerm: '', enrollmentUnit: '' })} className="px-5 py-2.5 bg-rose-100 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-200 transition-all">إلغاء</button>
                 </div>
               </form>
             </div>
@@ -1716,7 +1708,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           </div>
                         </div>
                         <div className="space-y-0.5 text-[11px] font-bold text-rose-500 mb-3">
-                          <p className="truncate">📚 <span className="text-rose-700">{cert.subject}</span> · 📅 <span className="text-rose-700">{cert.atram}</span></p>
+                          <p className="truncate">📚 <span className="text-rose-700">{cert.subject}</span> · 📅 <span className="text-rose-700">{cert.term}</span></p>
                           <p className="truncate">🎓 <span className="text-rose-700">{cert.grade}</span> · 👨‍🏫 <span className="text-rose-700">{cert.teacherName || 'غير محدد'}</span></p>
                           <p>📅 <span className="text-rose-700">{new Date(cert.date).toLocaleDateString('ar-SA', {month:'short', day:'numeric'})}</span></p>
                         </div>
@@ -1800,7 +1792,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </div>
             <div className="space-y-2 text-right font-bold text-rose-700 mb-4 text-sm">
               <p className="bg-rose-50 p-2.5 rounded-xl">👤 الطالب: <span className="text-rose-700">{previewCert.studentName}</span></p>
-              <p className="bg-rose-50 p-2.5 rounded-xl">📚 المادة: <span className="text-rose-700">{previewCert.subject}</span> · 📅 <span className="text-rose-700">{previewCert.atram}</span></p>
+              <p className="bg-rose-50 p-2.5 rounded-xl">📚 المادة: <span className="text-rose-700">{previewCert.subject}</span> · 📅 <span className="text-rose-700">{previewCert.term}</span></p>
               <p className="bg-rose-50 p-2.5 rounded-xl">🎓 الصف: <span className="text-rose-700">{previewCert.grade}</span> · 👨‍🏫 <span className="text-rose-700">{previewCert.teacherName || 'غير محدد'}</span></p>
               <p className="bg-rose-50 p-2.5 rounded-xl">📅 التاريخ: <span className="text-rose-700">{new Date(previewCert.date).toLocaleDateString('ar-SA')}</span></p>
             </div>

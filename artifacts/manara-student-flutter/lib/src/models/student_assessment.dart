@@ -56,7 +56,6 @@ class StudentAssessmentRules {
   }) {
     final selected = <String, String?>{
       'grade': academicContext?.grade ?? profile.grade,
-      'atram': academicContext?.atram ?? profile.atram,
       'subject': academicContext?.subject ?? profile.subject,
       'term': academicContext?.term ?? profile.term,
       'unit': academicContext?.unit ?? profile.unit,
@@ -264,7 +263,7 @@ class StudentAssessmentRules {
     final secondOwner = ownerId(second);
     if (firstOwner != secondOwner) return false;
 
-    for (final field in ['grade', 'atram', 'subject', 'term', 'unit', 'lesson']) {
+    for (final field in ['grade', 'subject', 'term', 'unit', 'lesson']) {
       final left = _normalize(first[field]);
       final right = _normalize(second[field]);
       if (left.isNotEmpty && right.isNotEmpty && left != right) return false;
@@ -287,7 +286,7 @@ class StudentAssessmentRules {
       if (question['deleted'] == true || question['isActive'] == false) continue;
       final owner = ownerId(question);
       final type = quizTypeValue(question['quizType']);
-      final scope = ['grade', 'atram', 'subject', 'term', 'unit', 'lesson']
+      final scope = ['grade', 'subject', 'term', 'unit', 'lesson']
           .map((field) => _normalize(question[field]))
           .join('|');
       final id = _text(question['quizId']).isNotEmpty
@@ -318,7 +317,6 @@ class StudentAssessmentRules {
         'teacherId': first['teacherId'],
         'teacher_id': first['teacher_id'],
         'grade': first['grade'],
-        'atram': first['atram'],
         'subject': first['subject'],
         'term': first['term'],
         'unit': first['unit'],

@@ -231,7 +231,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
   // 🔗 الإعدادات الأكاديمية الهرمية
   const [availableGrades, setAvailableGrades] = useState<string[]>([]);
-  const [availableAtrams, setAvailableAtrams] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [availableTerms, setAvailableTerms] = useState<string[]>([]);
   const [availableUnits, setAvailableUnits] = useState<string[]>([]);
@@ -253,7 +252,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   const [quizFormData, setQuizFormData] = useState({
     title: '',
     grade: '',
-    atram: '',
     subject: '',
     term: '',
     unit: '',
@@ -314,7 +312,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setQuizFormData({
       title: '',
       grade: '',
-      atram: '',
       subject: '',
       term: '',
       unit: '',
@@ -326,7 +323,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setLessonContent('');
     setLessonFound(false);
     setAvailableGrades([]);
-    setAvailableAtrams([]);
     setAvailableSubjects([]);
     setAvailableTerms([]);
     setAvailableUnits([]);
@@ -346,50 +342,22 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
   // 🔄 تحديث الخيارات المتاحة
   const handleGradeChange = (newGrade: string) => {
-    setQuizFormData({ ...quizFormData, grade: newGrade, atram: '', subject: '', term: '', unit: '', lesson: '' });
+    setQuizFormData({ ...quizFormData, grade: newGrade, subject: '', term: '', unit: '', lesson: '' });
     setLessonContent('');
     setLessonFound(false);
 
     const hierarchicalConfigs = getFilteredConfigs();
     const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === newGrade);
 
-    if (gradeConfig) {
-      setAvailableAtrams(
-        uniqueAcademicValues(gradeConfig.atrams.map((a: any) => a.atram)),
-      );
-    } else {
-      setAvailableAtrams([]);
-    }
-    setAvailableSubjects([]);
+    setAvailableSubjects(
+      gradeConfig ? uniqueAcademicValues(gradeConfig.subjects.map((s: any) => s.subject)) : [],
+    );
     setAvailableTerms([]);
     setAvailableUnits([]);
     setAvailableLessons([]);
 
   };
 
-  const handleAtramChange = (newAtram: string) => {
-    setQuizFormData({ ...quizFormData, atram: newAtram, subject: '', term: '', unit: '', lesson: '' });
-    setLessonContent('');
-    setLessonFound(false);
-
-    const hierarchicalConfigs = getFilteredConfigs();
-    const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === quizFormData.grade);
-
-    if (gradeConfig) {
-      const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === newAtram);
-      if (atramConfig) {
-        setAvailableSubjects(
-          uniqueAcademicValues(atramConfig.subjects.map((s: any) => s.subject)),
-        );
-      } else {
-        setAvailableSubjects([]);
-      }
-    }
-    setAvailableTerms([]);
-    setAvailableUnits([]);
-    setAvailableLessons([]);
-
-  };
 
   const handleSubjectChange = (newSubject: string) => {
     setQuizFormData({ ...quizFormData, subject: newSubject, term: '', unit: '', lesson: '' });
@@ -400,9 +368,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === quizFormData.grade);
 
     if (gradeConfig) {
-      const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === quizFormData.atram);
-      if (atramConfig) {
-        const subjectConfig = atramConfig.subjects.find((s: any) => s.subject === newSubject);
+        const subjectConfig = gradeConfig.subjects.find((s: any) => s.subject === newSubject);
         if (subjectConfig) {
           setAvailableTerms(
             uniqueAcademicValues(subjectConfig.terms.map((t: any) => t.term)),
@@ -411,7 +377,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
           setAvailableTerms([]);
         }
       }
-    }
     setAvailableUnits([]);
     setAvailableLessons([]);
 
@@ -426,9 +391,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === quizFormData.grade);
 
     if (gradeConfig) {
-      const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === quizFormData.atram);
-      if (atramConfig) {
-        const subjectConfig = atramConfig.subjects.find((s: any) => s.subject === quizFormData.subject);
+        const subjectConfig = gradeConfig.subjects.find((s: any) => s.subject === quizFormData.subject);
         if (subjectConfig) {
           const termConfig = subjectConfig.terms.find((t: any) => t.term === newTerm);
           if (termConfig) {
@@ -440,7 +403,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
           }
         }
       }
-    }
   };
 
   /// دروس وحدة من الشجرة الهرمية — نفس عقد `term.lessons` المستعمل في إدارة
@@ -452,8 +414,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       ? all.filter((c: any) => getRecordTeacherId(c) === normalizeScopeValue(selectedTeacherId))
       : all;
     const grade = scoped.find((c: any) => c.grade === quizFormData.grade);
-    const atram = grade?.atrams?.find((a: any) => a.atram === quizFormData.atram);
-    const subject = atram?.subjects?.find((s: any) => s.subject === quizFormData.subject);
+    const subject = grade?.subjects?.find((s: any) => s.subject === quizFormData.subject);
     const term = subject?.terms?.find((t: any) => t.term === quizFormData.term);
     const lessons = term?.lessons?.[unit];
     return Array.isArray(lessons) ? uniqueAcademicValues(lessons) : [];
@@ -473,7 +434,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
      const foundLesson = lessonConfigs.find((l: LessonConfig) =>
        (!ownerId || getRecordTeacherId(l) === ownerId) &&
       normalize(l.grade) === normalize(quizFormData.grade) &&
-      normalize(l.atram) === normalize(quizFormData.atram) &&
       normalize(l.subject) === normalize(quizFormData.subject) &&
       normalize(l.term) === normalize(quizFormData.term) &&
       normalize(l.unit) === normalize(newUnit)
@@ -491,7 +451,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   const isSameQuizScope = (quiz: CreatedQuiz, formData = quizFormData) =>
     getRecordTeacherId(quiz) === normalizeScopeValue(selectedTeacherId) &&
     normalizeScopeValue(quiz.grade) === normalizeScopeValue(formData.grade) &&
-    normalizeScopeValue(quiz.atram) === normalizeScopeValue(formData.atram) &&
     normalizeScopeValue(quiz.subject) === normalizeScopeValue(formData.subject) &&
     normalizeScopeValue(quiz.term) === normalizeScopeValue(formData.term) &&
     normalizeScopeValue(quiz.unit) === normalizeScopeValue(formData.unit);
@@ -702,7 +661,6 @@ ${contentSummary}
       lessonId: 'generated',
       grade: quizFormData.grade,
       subject: quizFormData.subject,
-      atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
       quizType: normalizeQuizType(quizFormData.quizType),
@@ -717,7 +675,6 @@ ${contentSummary}
       title: quizFormData.title,
       grade: quizFormData.grade,
       subject: quizFormData.subject,
-      atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
       lesson: quizFormData.lesson.trim() || undefined,
@@ -761,7 +718,6 @@ ${contentSummary}
     setQuizFormData({
       title: '',
       grade: '',
-      atram: '',
       subject: '',
       term: '',
       unit: '',
@@ -802,7 +758,6 @@ ${contentSummary}
       title: quizFormData.title,
       grade: quizFormData.grade,
       subject: quizFormData.subject,
-      atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
       lesson: quizFormData.lesson.trim() || undefined,
@@ -842,7 +797,6 @@ ${contentSummary}
       lessonId: 'manual',
       grade: quizFormData.grade,
       subject: quizFormData.subject,
-      atram: quizFormData.atram,
       term: quizFormData.term,
       unit: quizFormData.unit,
       quizType: normalizeQuizType(quizFormData.quizType),
@@ -913,13 +867,8 @@ ${contentSummary}
       const hierarchicalConfigs = getFilteredConfigs();
       const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === quiz.grade);
       if (gradeConfig) {
-        setAvailableAtrams(
-          uniqueAcademicValues(gradeConfig.atrams.map((a: any) => a.atram)),
-        );
-        const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === quiz.atram);
-        if (atramConfig) {
-          setAvailableSubjects(atramConfig.subjects.map((s: any) => s.subject));
-          const subjectConfig = atramConfig.subjects.find((s: any) => s.subject === quiz.subject);
+          setAvailableSubjects(gradeConfig.subjects.map((s: any) => s.subject));
+          const subjectConfig = gradeConfig.subjects.find((s: any) => s.subject === quiz.subject);
           if (subjectConfig) {
             setAvailableTerms(subjectConfig.terms.map((t: any) => t.term));
             const termConfig = subjectConfig.terms.find((t: any) => t.term === quiz.term);
@@ -938,13 +887,11 @@ ${contentSummary}
             }
           }
         }
-      }
     }, 0);
 
     setQuizFormData({
       title: quiz.title,
       grade: quiz.grade,
-      atram: quiz.atram,
       subject: quiz.subject,
       term: quiz.term,
       unit: quiz.unit,
@@ -1108,24 +1055,13 @@ ${contentSummary}
                 {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
 
-              {/* الترم */}
-              <select
-                value={quizFormData.atram}
-                onChange={e => handleAtramChange(e.target.value)}
-                className="p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
-                disabled={!quizFormData.grade}
-                required
-              >
-                <option value="">📅 الترم</option>
-                {availableAtrams.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
 
               {/* المادة */}
               <select
                 value={quizFormData.subject}
                 onChange={e => handleSubjectChange(e.target.value)}
                 className="p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
-                disabled={!quizFormData.atram}
+                disabled={!quizFormData.grade}
                 required
               >
                 <option value="">📖 المادة</option>
@@ -1486,7 +1422,6 @@ ${contentSummary}
                 {/* ===== شارات الهيكل الأكاديمي الستة ===== */}
                 <div className="dashboard-record-badges">
                   <span className="dashboard-badge">{quiz.grade}</span>
-                  <span className="dashboard-badge">{quiz.atram}</span>
                   <span className="dashboard-badge">{quiz.subject}</span>
                   <span className="dashboard-badge">{quiz.term}</span>
                   <span className="dashboard-badge">{quiz.unit}</span>

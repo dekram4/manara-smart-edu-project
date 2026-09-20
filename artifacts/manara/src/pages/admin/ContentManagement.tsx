@@ -43,14 +43,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const [selectedTeacherName, setSelectedTeacherName] = useState<string>(teacherName || '');
   
   const [formData, setFormData] = useState({
-    grade: '', atram: '', subject: '', term: '', unit: '', lesson: '',
+    grade: '', subject: '', term: '', unit: '', lesson: '',
     explanationVideoUrl: '', explanationVideoType: 'embed' as VideoSourceType, explanationVideoFile: null as File | null,
     explanationVideos: [] as LessonVideoEntry[],
     avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: ''
   });
 
   const [options, setOptions] = useState<{ grades: string[] }>({ grades: [] });
-  const [availableAtrams, setAvailableAtrams] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [availableTerms, setAvailableTerms] = useState<string[]>([]);
   const [availableUnits, setAvailableUnits] = useState<string[]>([]);
@@ -65,14 +64,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   /// تعطي دروس وحدة أخرى.
   const getLessonsFor = (
     unit: string,
-    path?: { grade: string; atram: string; subject: string; term: string },
+    path?: { grade: string; subject: string; term: string },
   ): string[] => {
     if (!unit) return [];
     const scope = path ?? formData;
     const configs = getFilteredHierarchicalConfigs();
     const grade = configs.find((c: any) => c.grade === scope.grade);
-    const atram = grade?.atrams?.find((a: any) => a.atram === scope.atram);
-    const subject = atram?.subjects?.find((s: any) => s.subject === scope.subject);
+    const subject = grade?.subjects?.find((s: any) => s.subject === scope.subject);
     const term = subject?.terms?.find((t: any) => t.term === scope.term);
     const lessons = term?.lessons?.[unit];
     return Array.isArray(lessons) ? lessons : [];
@@ -250,7 +248,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       return;
     }
     
-    if (!formData.grade || !formData.subject || !formData.atram || !formData.term || !formData.unit) {
+    if (!formData.grade || !formData.subject || !formData.term || !formData.unit) {
       alert('يرجى اختيار جميع التصنيفات الأكاديمية');
       return;
     }
@@ -275,7 +273,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]',
     );
     const scopeMatches = (lesson: LessonConfig) =>
-      ['grade', 'atram', 'subject', 'term', 'unit'].every(field =>
+      ['grade', 'subject', 'term', 'unit'].every(field =>
         normalizeScopeValue(lesson[field as keyof LessonConfig])
         === normalizeScopeValue(formData[field as keyof typeof formData] as string),
       );
@@ -351,7 +349,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       id: editingLesson?.id || matchingLesson?.id || Date.now().toString(),
       grade: formData.grade.trim(),
       subject: formData.subject.trim(),
-      atram: formData.atram.trim(),
       term: formData.term.trim(),
       unit: formData.unit.trim(),
       lesson: formData.lesson.trim(),
@@ -385,7 +382,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     
     setShowForm(false);
     setEditingLesson(null);
-    setFormData({ grade: '', atram: '', subject: '', term: '', unit: '', lesson: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, explanationVideos: [], avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
+    setFormData({ grade: '', subject: '', term: '', unit: '', lesson: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, explanationVideos: [], avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
     loadData();
     onUpdate();
   };
@@ -405,7 +402,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const visibleLessons = lessons.filter(l => {
     const needle = listSearch.trim().toLowerCase();
     if (needle) {
-      const haystack = [l.grade, l.atram, l.subject, l.term, l.unit, l.lesson, l.createdByName]
+      const haystack = [l.grade, l.subject, l.term, l.unit, l.lesson, l.createdByName]
         .filter(Boolean).join(' ').toLowerCase();
       if (!haystack.includes(needle)) return false;
     }
@@ -427,7 +424,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     setEditingLesson(lesson);
     setFormData({
       grade: lesson.grade,
-      atram: lesson.atram,
       subject: lesson.subject,
       term: lesson.term,
       unit: lesson.unit,
@@ -441,17 +437,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       lessonContent: lesson.lessonContent
     });
     
-    // تحميل القوائم المترابطة بناءً على البيانات الموجودة - البنية الجديدة: Grade → Atram → Subject → Term → Unit
+    // تحميل القوائم المترابطة بناءً على البيانات الموجودة - البنية: Grade → Subject → Term → Unit
     const hierarchicalConfigs = getFilteredHierarchicalConfigs();
     const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === lesson.grade);
     if (gradeConfig) {
-      setAvailableAtrams(gradeConfig.atrams.map((a: any) => a.atram));
       
-      const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === lesson.atram);
-      if (atramConfig) {
-        setAvailableSubjects(atramConfig.subjects.map((s: any) => s.subject));
+        setAvailableSubjects(gradeConfig.subjects.map((s: any) => s.subject));
         
-        const subjectConfig = atramConfig.subjects.find((s: any) => s.subject === lesson.subject);
+        const subjectConfig = gradeConfig.subjects.find((s: any) => s.subject === lesson.subject);
         if (subjectConfig) {
           setAvailableTerms(subjectConfig.terms.map((t: any) => t.term));
           
@@ -462,7 +455,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               withCurrentValue(
                 getLessonsFor(lesson.unit, {
                   grade: lesson.grade,
-                  atram: lesson.atram,
                   subject: lesson.subject,
                   term: lesson.term,
                 }),
@@ -471,7 +463,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             );
           }
         }
-      }
     }
     
     setShowForm(true);
@@ -607,17 +598,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               {/* الصف - Grade */}
               <select value={formData.grade} onChange={e => {
                 const newGrade = e.target.value;
-                setFormData({...formData, grade: newGrade, atram: '', subject: '', term: '', unit: '', lesson: ''});
-                
-                // تحديث الأترام المتاحة بناءً على الصف المختار
+                setFormData({...formData, grade: newGrade, subject: '', term: '', unit: '', lesson: ''});
+
+                // تحديث المواد المتاحة بناءً على الصف المختار
                 const hierarchicalConfigs = getFilteredHierarchicalConfigs();
                 const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === newGrade);
-                if (gradeConfig) {
-                  setAvailableAtrams(gradeConfig.atrams.map((a: any) => a.atram));
-                } else {
-                  setAvailableAtrams([]);
-                }
-                setAvailableSubjects([]);
+                setAvailableSubjects(
+                  gradeConfig ? gradeConfig.subjects.map((s: any) => s.subject) : [],
+                );
                 setAvailableTerms([]);
                 setAvailableUnits([]);
                }} className="dashboard-content-control" required>
@@ -625,28 +613,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 {options.grades.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
 
-              {/* الترم - Atram */}
-              <select value={formData.atram} onChange={e => {
-                const newAtram = e.target.value;
-                setFormData({...formData, atram: newAtram, subject: '', term: '', unit: '', lesson: ''});
-                
-                // تحديث المواد المتاحة بناءً على الترم المختار
-                const hierarchicalConfigs = getFilteredHierarchicalConfigs();
-                const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === formData.grade);
-                if (gradeConfig) {
-                  const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === newAtram);
-                  if (atramConfig) {
-                    setAvailableSubjects(atramConfig.subjects.map((s: any) => s.subject));
-                  } else {
-                    setAvailableSubjects([]);
-                  }
-                }
-                setAvailableTerms([]);
-                setAvailableUnits([]);
-               }} className="dashboard-content-control" required disabled={!formData.grade}>
-                <option value="">الترم</option>
-                {availableAtrams.map((o,i) => <option key={i} value={o}>{o}</option>)}
-              </select>
 
               {/* المادة - Subject */}
               <select value={formData.subject} onChange={e => {
@@ -657,18 +623,15 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 const hierarchicalConfigs = getFilteredHierarchicalConfigs();
                 const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === formData.grade);
                 if (gradeConfig) {
-                  const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === formData.atram);
-                  if (atramConfig) {
-                    const subjectConfig = atramConfig.subjects.find((s: any) => s.subject === newSubject);
+                    const subjectConfig = gradeConfig.subjects.find((s: any) => s.subject === newSubject);
                     if (subjectConfig) {
                       setAvailableTerms(subjectConfig.terms.map((t: any) => t.term));
                     } else {
                       setAvailableTerms([]);
                     }
                   }
-                }
                 setAvailableUnits([]);
-               }} className="dashboard-content-control" required disabled={!formData.atram}>
+               }} className="dashboard-content-control" required disabled={!formData.subject}>
                 <option value="">المادة</option>
                 {availableSubjects.map((o,i) => <option key={i} value={o}>{o}</option>)}
               </select>
@@ -682,9 +645,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 const hierarchicalConfigs = getFilteredHierarchicalConfigs();
                 const gradeConfig = hierarchicalConfigs.find((c: any) => c.grade === formData.grade);
                 if (gradeConfig) {
-                  const atramConfig = gradeConfig.atrams.find((a: any) => a.atram === formData.atram);
-                  if (atramConfig) {
-                    const subjectConfig = atramConfig.subjects.find((s: any) => s.subject === formData.subject);
+                    const subjectConfig = gradeConfig.subjects.find((s: any) => s.subject === formData.subject);
                     if (subjectConfig) {
                       const termConfig = subjectConfig.terms.find((t: any) => t.term === newTerm);
                       if (termConfig) {
@@ -694,7 +655,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                       }
                     }
                   }
-                }
                }} className="dashboard-content-control" required disabled={!formData.subject}>
                 <option value="">الفصل</option>
                 {availableTerms.map((o,i) => <option key={i} value={o}>{o}</option>)}
@@ -954,7 +914,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               <tr key={l.id}>
                 <td className="px-6 py-5 font-black text-purple-800">{l.grade}</td>
                 <td className="px-6 py-5 font-bold text-purple-600">{l.subject}</td>
-                <td className="px-6 py-5 font-black text-purple-700">{l.atram}</td>
                 <td className="px-6 py-5 text-purple-500">{l.unit}</td>
                 {!teacherId && (
                   <td className="px-6 py-5">
@@ -1022,7 +981,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                     أربعة مستويات فقط ويسقط الفصل والدرس. */}
                 <div className="dashboard-record-badges">
                   <span className="dashboard-badge">{l.grade}</span>
-                  <span className="dashboard-badge">{l.atram}</span>
                   <span className="dashboard-badge">{l.subject}</span>
                   <span className="dashboard-badge">{l.term}</span>
                   <span className="dashboard-badge">{l.unit}</span>

@@ -28,7 +28,6 @@ void main() {
     id: id,
     lessonId: id,
     grade: 'الصف الرابع',
-    atram: 'الترم الأول',
     subject: 'العلوم',
     term: 'الفصل الثاني',
     unit: 'الوحدة الأولى',

@@ -9,7 +9,6 @@ void main() {
       id: 'lesson-1',
       lessonId: 'lesson-1',
       grade: 'السادس',
-      atram: 'الفصل الأول',
       subject: 'الرياضيات',
       term: 'الترم الأول',
       unit: 'الوحدة الأولى',
@@ -21,18 +20,17 @@ void main() {
 
     final complete = AcademicContext(
       grade: 'السادس',
-      atram: 'الفصل الأول',
       subject: 'الرياضيات',
       term: 'الترم الأول',
       unit: 'الوحدة الأولى',
       selectedLesson: lesson,
     );
+    // A level left blank — the unit here — is what makes a path partial.
     final partial = AcademicContext(
       grade: 'السادس',
-      atram: '',
       subject: 'الرياضيات',
       term: 'الترم الأول',
-      unit: 'الوحدة الأولى',
+      unit: '',
       selectedLesson: lesson,
     );
 

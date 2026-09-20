@@ -228,7 +228,7 @@ class StudentContentService {
 
   /// The paths a student may choose between.
   ///
-  /// Every grade/atram/subject/term/unit the teacher has configured in the
+  /// Every grade/subject/chapter/unit the teacher has configured in the
   /// hierarchy tree is shown, whether or not a lesson has been published
   /// under it yet — a branch with no lesson simply shows its own "no lessons
   /// yet" state at the final step (see `_EmptyStageMessage` in
@@ -257,7 +257,6 @@ class StudentContentService {
       ...lessons.where(_hasCompleteAcademicPath).map(
             (lesson) => AcademicPath(
               grade: lesson.grade,
-              atram: lesson.atram,
               subject: lesson.subject,
               term: lesson.term,
               unit: lesson.unit,
@@ -684,13 +683,11 @@ class StudentContentService {
     AcademicContext? academicContext,
   }) {
     final grade = academicContext?.grade ?? profile.grade;
-    final atram = academicContext?.atram ?? profile.atram;
     final subject = academicContext?.subject ?? profile.subject;
     final term = academicContext?.term ?? profile.term;
     final unit = academicContext?.unit ?? profile.unit;
     return _matchesOwner(lesson, profile) &&
         _matches(lesson.grade, grade) &&
-        _matches(lesson.atram, atram) &&
         _matches(lesson.subject, subject) &&
         _matches(lesson.term, term) &&
         _matches(lesson.unit, unit);
@@ -715,7 +712,6 @@ class StudentContentService {
     if (!ownerAllowed) return false;
 
     final grade = academicContext?.grade ?? profile.grade;
-    final atram = academicContext?.atram ?? profile.atram;
     final subject = academicContext?.subject ?? profile.subject;
     final term = academicContext?.term ?? profile.term;
     final unit = academicContext?.unit ?? profile.unit;
@@ -726,7 +722,6 @@ class StudentContentService {
     // no-one.
     final lesson = academicContext?.lesson;
     return _matches(_text(video['grade']), grade) &&
-        _matches(_text(video['atram']), atram) &&
         _matches(_text(video['subject']), subject) &&
         _matches(_text(video['term']), term) &&
         _matches(_text(video['unit']), unit) &&
@@ -745,7 +740,6 @@ class StudentContentService {
     AcademicContext context,
   ) {
     return _normalize(lesson.grade) == _normalize(context.grade) &&
-        _normalize(lesson.atram) == _normalize(context.atram) &&
         _normalize(lesson.subject) == _normalize(context.subject) &&
         _normalize(lesson.term) == _normalize(context.term) &&
         _normalize(lesson.unit) == _normalize(context.unit);
@@ -839,7 +833,6 @@ class StudentContentService {
     for (final lesson in lessons) {
       final key = [
         lesson.grade,
-        lesson.atram,
         lesson.subject,
         lesson.term,
         lesson.unit,
@@ -909,6 +902,29 @@ bool _isDeletedVideo(Map<String, dynamic> data) {
       status == 'removed';
 }
 
+/// The subjects a grade teaches, straight from its own `subjects` list.
+///
+/// The tree used to carry a level between the grade and the subject — the
+/// one shown as «الترم» — and it is gone: a grade now holds its subjects,
+/// each subject its chapters, each chapter its units. A settings blob
+/// written before that (`atrams: [{atram, subjects: [...]}]`) is still read,
+/// with every atram's subjects flattened into the grade, so a device that
+/// updates before the stored tree is migrated still shows a course rather
+/// than an empty screen.
+List<Map<String, dynamic>> _subjectsOfGrade(Map<String, dynamic> config) {
+  final subjects = config['subjects'];
+  if (subjects is List) return subjects.map(_asMap).toList();
+
+  final legacy = config['atrams'];
+  if (legacy is! List) return const [];
+  final flattened = <Map<String, dynamic>>[];
+  for (final rawAtram in legacy) {
+    final nested = _asMap(rawAtram)['subjects'];
+    if (nested is List) flattened.addAll(nested.map(_asMap));
+  }
+  return flattened;
+}
+
 List<AcademicPath> _pathsFromHierarchy(Object? value, StudentProfile profile) {
   if (value is! List) return const [];
 
@@ -918,40 +934,30 @@ List<AcademicPath> _pathsFromHierarchy(Object? value, StudentProfile profile) {
     if (!_matchesConfigOwner(config, profile)) continue;
 
     final grade = _value(config, ['grade', 'class', 'schoolGrade']);
-    final atrams = config['atrams'];
-    if (grade.isEmpty || atrams is! List) continue;
+    if (grade.isEmpty) continue;
 
-    for (final rawAtram in atrams) {
-      final atram = _asMap(rawAtram);
-      final atramName = _value(atram, ['atram', 'semester', 'term']);
-      final subjects = atram['subjects'];
-      if (atramName.isEmpty || subjects is! List) continue;
+    for (final subject in _subjectsOfGrade(config)) {
+      final subjectName = _value(subject, ['subject', 'course']);
+      final terms = subject['terms'];
+      if (subjectName.isEmpty || terms is! List) continue;
 
-      for (final rawSubject in subjects) {
-        final subject = _asMap(rawSubject);
-        final subjectName = _value(subject, ['subject', 'course']);
-        final terms = subject['terms'];
-        if (subjectName.isEmpty || terms is! List) continue;
+      for (final rawTerm in terms) {
+        final term = _asMap(rawTerm);
+        final termName = _value(term, ['term', 'chapter', 'name']);
+        final units = term['units'];
+        if (termName.isEmpty || units is! List) continue;
 
-        for (final rawTerm in terms) {
-          final term = _asMap(rawTerm);
-          final termName = _value(term, ['term', 'chapter', 'name']);
-          final units = term['units'];
-          if (termName.isEmpty || units is! List) continue;
-
-          for (final rawUnit in units) {
-            final unit = _text(rawUnit);
-            if (unit.isEmpty) continue;
-            paths.add(
-              AcademicPath(
-                grade: grade,
-                atram: atramName,
-                subject: subjectName,
-                term: termName,
-                unit: unit,
-              ),
-            );
-          }
+        for (final rawUnit in units) {
+          final unit = _text(rawUnit);
+          if (unit.isEmpty) continue;
+          paths.add(
+            AcademicPath(
+              grade: grade,
+              subject: subjectName,
+              term: termName,
+              unit: unit,
+            ),
+          );
         }
       }
     }
@@ -981,46 +987,36 @@ List<DeclaredLesson> declaredLessonsFromHierarchy(
     if (!_matchesConfigOwner(config, profile)) continue;
 
     final grade = _value(config, ['grade', 'class', 'schoolGrade']);
-    final atrams = config['atrams'];
-    if (grade.isEmpty || atrams is! List) continue;
+    if (grade.isEmpty) continue;
 
-    for (final rawAtram in atrams) {
-      final atram = _asMap(rawAtram);
-      final atramName = _value(atram, ['atram', 'semester', 'term']);
-      final subjects = atram['subjects'];
-      if (atramName.isEmpty || subjects is! List) continue;
+    for (final subject in _subjectsOfGrade(config)) {
+      final subjectName = _value(subject, ['subject', 'course']);
+      final terms = subject['terms'];
+      if (subjectName.isEmpty || terms is! List) continue;
 
-      for (final rawSubject in subjects) {
-        final subject = _asMap(rawSubject);
-        final subjectName = _value(subject, ['subject', 'course']);
-        final terms = subject['terms'];
-        if (subjectName.isEmpty || terms is! List) continue;
+      for (final rawTerm in terms) {
+        final term = _asMap(rawTerm);
+        final termName = _value(term, ['term', 'chapter', 'name']);
+        final lessonsByUnit = term['lessons'];
+        if (termName.isEmpty || lessonsByUnit is! Map) continue;
 
-        for (final rawTerm in terms) {
-          final term = _asMap(rawTerm);
-          final termName = _value(term, ['term', 'chapter', 'name']);
-          final lessonsByUnit = term['lessons'];
-          if (termName.isEmpty || lessonsByUnit is! Map) continue;
+        for (final entry in lessonsByUnit.entries) {
+          final unit = _text(entry.key);
+          final names = entry.value;
+          if (unit.isEmpty || names is! List) continue;
 
-          for (final entry in lessonsByUnit.entries) {
-            final unit = _text(entry.key);
-            final names = entry.value;
-            if (unit.isEmpty || names is! List) continue;
-
-            for (final rawName in names) {
-              final name = _text(rawName);
-              if (name.isEmpty) continue;
-              final path = AcademicPath(
-                grade: grade,
-                atram: atramName,
-                subject: subjectName,
-                term: termName,
-                unit: unit,
-              );
-              final lesson = DeclaredLesson(path: path, name: name);
-              if (!seen.add(lesson.placeholderId)) continue;
-              declared.add(lesson);
-            }
+          for (final rawName in names) {
+            final name = _text(rawName);
+            if (name.isEmpty) continue;
+            final path = AcademicPath(
+              grade: grade,
+              subject: subjectName,
+              term: termName,
+              unit: unit,
+            );
+            final lesson = DeclaredLesson(path: path, name: name);
+            if (!seen.add(lesson.placeholderId)) continue;
+            declared.add(lesson);
           }
         }
       }
@@ -1036,7 +1032,6 @@ List<AcademicPath> _uniquePaths(Iterable<AcademicPath> paths) {
     if (!_hasPathValues(path)) continue;
     final key = [
       path.grade,
-      path.atram,
       path.subject,
       path.term,
       path.unit,
@@ -1050,7 +1045,6 @@ bool _hasCompleteAcademicPath(LessonContent lesson) {
   return _hasPathValues(
     AcademicPath(
       grade: lesson.grade,
-      atram: lesson.atram,
       subject: lesson.subject,
       term: lesson.term,
       unit: lesson.unit,
@@ -1061,7 +1055,6 @@ bool _hasCompleteAcademicPath(LessonContent lesson) {
 bool _hasPathValues(AcademicPath path) {
   return [
     path.grade,
-    path.atram,
     path.subject,
     path.term,
     path.unit,
@@ -1150,7 +1143,6 @@ LessonContent parseLessonContent(
         ? _text(row['id'])
         : _value(data, ['lesson_id', 'lessonId', 'id']),
     grade: _text(data['grade']),
-    atram: _text(data['atram']),
     subject: _text(data['subject']),
     term: _text(data['term']),
     unit: _text(data['unit']),

@@ -14,7 +14,6 @@ import 'package:manara_student/src/models/student_content.dart';
 void main() {
   const path = AcademicPath(
     grade: 'الصف الرابع',
-    atram: 'الترم الأول',
     subject: 'العلوم',
     term: 'الفصل الثاني',
     unit: 'الوحدة الأولى',
@@ -24,7 +23,6 @@ void main() {
         id: 'row-$name',
         lessonId: 'row-$name',
         grade: path.grade,
-        atram: path.atram,
         subject: path.subject,
         term: path.term,
         unit: path.unit,
@@ -37,7 +35,6 @@ void main() {
 
   List<LessonContent> lessonsIn(AcademicSelectionData data) => data.lessonsFor(
         grade: path.grade,
-        atram: path.atram,
         subject: path.subject,
         term: path.term,
         unit: path.unit,
@@ -83,7 +80,6 @@ void main() {
   test('a declared lesson on another unit is not offered here', () {
     const elsewhere = AcademicPath(
       grade: 'الصف الرابع',
-      atram: 'الترم الأول',
       subject: 'العلوم',
       term: 'الفصل الثاني',
       unit: 'الوحدة الثانية',

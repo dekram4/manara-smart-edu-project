@@ -10,7 +10,6 @@ interface VideoNotification {
   videoId: string;
   videoTitle?: string;
   grade?: string;
-  atram?: string;
   subject?: string;
   term?: string;
   unit?: string;
@@ -20,7 +19,7 @@ interface VideoNotification {
 
 const AdminVideoNotifications: React.FC = () => {
   const [notifications, setNotifications] = useState<VideoNotification[]>([]);
-  const [filters, setFilters] = useState({ grade: '', atram: '', subject: '', term: '', unit: '' });
+  const [filters, setFilters] = useState({ grade: '', subject: '', term: '', unit: '' });
 
   useEffect(() => {
     loadNotifications();
@@ -55,7 +54,6 @@ const AdminVideoNotifications: React.FC = () => {
 
   const filteredNotifications = notifications.filter((n) => {
     if (filters.grade && n.grade !== filters.grade) return false;
-    if (filters.atram && n.atram !== filters.atram) return false;
     if (filters.subject && n.subject !== filters.subject) return false;
     if (filters.term && n.term !== filters.term) return false;
     if (filters.unit && n.unit !== filters.unit) return false;
@@ -64,7 +62,6 @@ const AdminVideoNotifications: React.FC = () => {
 
   const filterOptions = {
     grades: Array.from(new Set(notifications.map((n) => n.grade).filter(Boolean))) as string[],
-    atrams: Array.from(new Set(notifications.map((n) => n.atram).filter(Boolean))) as string[],
     subjects: Array.from(new Set(notifications.map((n) => n.subject).filter(Boolean))) as string[],
     terms: Array.from(new Set(notifications.map((n) => n.term).filter(Boolean))) as string[],
     units: Array.from(new Set(notifications.map((n) => n.unit).filter(Boolean))) as string[],
@@ -95,20 +92,16 @@ const AdminVideoNotifications: React.FC = () => {
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-lg font-black text-purple-800">🔎 فلترة إشعارات الفيديو</h3>
           <button
-            onClick={() => setFilters({ grade: '', atram: '', subject: '', term: '', unit: '' })}
+            onClick={() => setFilters({ grade: '', subject: '', term: '', unit: '' })}
             className="rounded-lg bg-white px-3 py-1 text-xs font-bold text-purple-700 hover:bg-purple-100"
           >
             مسح الفلاتر
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
             <option value="">🎓 كل الصفوف</option>
             {filterOptions.grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
-          </select>
-          <select value={filters.atram} onChange={(e) => setFilters({ ...filters, atram: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
-            <option value="">📅 كل الأترام</option>
-            {filterOptions.atrams.map((atram) => <option key={atram} value={atram}>{atram}</option>)}
           </select>
           <select value={filters.subject} onChange={(e) => setFilters({ ...filters, subject: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
             <option value="">📖 كل المواد</option>
@@ -143,7 +136,6 @@ const AdminVideoNotifications: React.FC = () => {
                 <div className="flex items-center gap-4 mt-3 text-sm text-purple-500 font-medium">
                   <span>👨‍🏫 {n.teacherName}</span>
                   {n.grade && <span>🎓 {n.grade}</span>}
-                  {n.atram && <span>📅 {n.atram}</span>}
                   {n.subject && <span>📖 {n.subject}</span>}
                   {n.term && <span>📑 {n.term}</span>}
                   {n.unit && <span>📦 {n.unit}</span>}

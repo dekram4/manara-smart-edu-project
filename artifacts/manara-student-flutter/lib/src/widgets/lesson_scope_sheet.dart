@@ -8,20 +8,12 @@ import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
 
 /// Picks a lesson by stepping down the academic hierarchy the teacher
-/// registered: المادة, الترم, الفصل, الوحدة, then الدرس.
+/// registered: المادة, الفصل, الوحدة, then الدرس.
 ///
-/// The labels are the teacher's own, from the Academic Settings screen,
-/// and they do NOT match the stored field names: `atram` is الترم and
-/// `term` is الفصل. Getting that backwards is what made an earlier
-/// version of this sheet incoherent — it labelled `term` as الترم and
-/// chose `atram` silently, so picking "الترم" looked like it skipped
-/// straight to الفصل.
-///
-/// The order here is the student's, not the database's. Storage nests
-/// subject inside الترم; asking for the subject first and then narrowing
-/// الترم to the ones that teach it gives the order a student expects
-/// while still only ever offering combinations that exist, because every
-/// level filters real registered paths.
+/// The labels are the teacher's own, from the Academic Settings screen.
+/// `term` is الفصل — the level once called الترم is gone from the whole
+/// system, so the subject now sits directly under the grade and every
+/// step here is one the student actually makes.
 ///
 /// Presented as a sheet of soft choice cards rather than a stack of
 /// dropdowns. A dropdown hides its options until it is opened and shows
@@ -64,7 +56,6 @@ class LessonScopeSheet extends StatefulWidget {
 
 class _LessonScopeSheetState extends State<LessonScopeSheet> {
   String? _grade;
-  String? _atram;
   String? _subject;
   String? _term;
   String? _unit;
@@ -79,55 +70,40 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
     // Grade is the student's own registration, not a choice: it is
     // carried through untouched and never offered as a step.
     _grade = current?.grade ?? widget.data.grades.firstOrNull;
-    _atram = current?.atram;
     _subject = current?.subject;
     _term = current?.term;
     _unit = current?.unit;
     _lesson = current?.selectedLesson;
   }
 
-  // The five levels, named as the teacher's own Academic Settings screen
-  // names them. The stored field names do not match those labels and that
-  // mismatch is what made this sheet nonsense: `atram` is الترم and
-  // `term` is الفصل, but this sheet used to label `term` as الترم and
-  // hide `atram` entirely by picking it silently — so choosing "الترم"
-  // appeared to jump straight to الفصل.
+  // The four levels, named as the teacher's own Academic Settings screen
+  // names them, each filtering the real registered paths so no combination
+  // is offered that does not exist.
   List<String> get _subjects =>
-      _grade == null ? const [] : widget.data.subjectsInGrade(_grade!);
+      _grade == null ? const [] : widget.data.subjectsFor(grade: _grade!);
 
-  List<String> get _atrams => (_grade == null || _subject == null)
+  List<String> get _terms => (_grade == null || _subject == null)
       ? const []
-      : widget.data.atramsForSubject(grade: _grade!, subject: _subject!);
-
-  List<String> get _terms =>
-      (_grade == null || _atram == null || _subject == null)
-          ? const []
-          : widget.data
-              .termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
+      : widget.data.termsFor(grade: _grade!, subject: _subject!);
 
   List<String> get _units =>
-      (_grade == null || _atram == null || _subject == null || _term == null)
+      (_grade == null || _subject == null || _term == null)
           ? const []
           : widget.data.unitsFor(
               grade: _grade!,
-              atram: _atram!,
               subject: _subject!,
               term: _term!,
             );
 
-  List<LessonContent> get _lessons => (_grade == null ||
-          _atram == null ||
-          _subject == null ||
-          _term == null ||
-          _unit == null)
-      ? const []
-      : widget.data.lessonsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-          term: _term!,
-          unit: _unit!,
-        );
+  List<LessonContent> get _lessons =>
+      (_grade == null || _subject == null || _term == null || _unit == null)
+          ? const []
+          : widget.data.lessonsFor(
+              grade: _grade!,
+              subject: _subject!,
+              term: _term!,
+              unit: _unit!,
+            );
 
   void _pick(VoidCallback change) {
     StudentSoundService.instance.play(StudentSoundCue.answerSelected);
@@ -167,9 +143,8 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // All five levels, each shown and each depending on
-                      // the one above it. Nothing is picked silently any
-                      // more — that was the "تداخل غير منطقي".
+                      // All four levels, each shown and each depending on
+                      // the one above it. Nothing is picked silently.
                       _step<String>(
                         step: 1,
                         title: tr('scope.subject'),
@@ -180,7 +155,6 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                         isSame: (a, b) => a == b,
                         onPick: (value) => _pick(() {
                           _subject = value;
-                          _atram = null;
                           _term = null;
                           _unit = null;
                           _lesson = null;
@@ -192,22 +166,6 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                       if (_subject != null)
                         _step<String>(
                           step: 2,
-                          title: tr('scope.atram'),
-                          icon: Icons.event_note_rounded,
-                          items: _atrams,
-                          labelOf: (value) => value,
-                          selected: _atram,
-                          isSame: (a, b) => a == b,
-                          onPick: (value) => _pick(() {
-                            _atram = value;
-                            _term = null;
-                            _unit = null;
-                            _lesson = null;
-                          }),
-                        ),
-                      if (_atram != null)
-                        _step<String>(
-                          step: 3,
                           title: tr('scope.term'),
                           icon: Icons.class_rounded,
                           items: _terms,
@@ -476,7 +434,6 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
                 : () => Navigator.of(context).pop(
                       AcademicContext(
                         grade: _grade!,
-                        atram: _atram!,
                         subject: _subject!,
                         term: _term!,
                         unit: _unit!,

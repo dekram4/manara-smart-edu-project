@@ -26,18 +26,13 @@ void main() {
         {
           'grade': 'الصف الرابع',
           'createdBy': 't1',
-          'atrams': [
+          'subjects': [
             {
-              'atram': 'الترم الأول',
-              'subjects': [
+              'subject': subject,
+              'terms': [
                 {
-                  'subject': subject,
-                  'terms': [
-                    {
-                      'term': 'الفصل الثاني',
-                      'units': ['الوحدة الأولى'],
-                    },
-                  ],
+                  'term': 'الفصل الثاني',
+                  'units': ['الوحدة الأولى'],
                 },
               ],
             },
@@ -49,7 +44,6 @@ void main() {
         id: 'l-$subject',
         lessonId: 'l-$subject',
         grade: 'الصف الرابع',
-        atram: 'الترم الأول',
         subject: subject,
         term: 'الفصل الثاني',
         unit: 'الوحدة الأولى',

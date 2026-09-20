@@ -51,20 +51,24 @@ class MasarStage {
 /// placed by guesswork leaves a sliver of what it was meant to hide.
 typedef _Frac = Rect;
 
+// The six boards in the artwork, in reading order: three across the top,
+// three across the bottom. The five levels fill the first five; the sixth
+// is scenery now that «الترم» is gone from the whole system, and the rail
+// stops at whichever board the last level lands on.
 const _Frac _tileGrade = Rect.fromLTRB(0.4045, 0.2961, 0.5167, 0.4453);
-const _Frac _tileAtram = Rect.fromLTRB(0.6011, 0.2961, 0.7111, 0.4453);
-const _Frac _tileSubject = Rect.fromLTRB(0.7939, 0.2961, 0.9039, 0.4453);
-const _Frac _tileTerm = Rect.fromLTRB(0.4045, 0.5945, 0.5167, 0.7437);
-const _Frac _tileUnit = Rect.fromLTRB(0.6011, 0.5945, 0.7111, 0.7429);
-const _Frac _tileLesson = Rect.fromLTRB(0.7961, 0.5945, 0.9039, 0.7429);
+const _Frac _tileSubject = Rect.fromLTRB(0.6011, 0.2961, 0.7111, 0.4453);
+const _Frac _tileTerm = Rect.fromLTRB(0.7939, 0.2961, 0.9039, 0.4453);
+const _Frac _tileUnit = Rect.fromLTRB(0.4045, 0.5945, 0.5167, 0.7437);
+const _Frac _tileLesson = Rect.fromLTRB(0.6011, 0.5945, 0.7111, 0.7429);
+const _Frac _tileSpare = Rect.fromLTRB(0.7961, 0.5945, 0.9039, 0.7429);
 
 const List<_Frac> _tiles = [
   _tileGrade,
-  _tileAtram,
   _tileSubject,
   _tileTerm,
   _tileUnit,
   _tileLesson,
+  _tileSpare,
 ];
 
 /// The three hanging signs, with their gold frames included so nothing of the

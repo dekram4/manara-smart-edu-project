@@ -25,7 +25,6 @@ void main() {
 
   AcademicContext contextFor(String lessonName) => AcademicContext(
     grade: 'الصف الرابع',
-    atram: 'الترم الأول',
     subject: 'العلوم',
     term: 'الفصل الثاني',
     unit: 'الوحدة الأولى',
@@ -33,7 +32,6 @@ void main() {
       id: 'row-$lessonName',
       lessonId: 'row-$lessonName',
       grade: 'الصف الرابع',
-      atram: 'الترم الأول',
       subject: 'العلوم',
       term: 'الفصل الثاني',
       unit: 'الوحدة الأولى',
@@ -47,7 +45,6 @@ void main() {
   Map<String, dynamic> quiz({String? lesson}) => <String, dynamic>{
     'id': 'q1',
     'grade': 'الصف الرابع',
-    'atram': 'الترم الأول',
     'subject': 'العلوم',
     'term': 'الفصل الثاني',
     'unit': 'الوحدة الأولى',

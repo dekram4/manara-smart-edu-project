@@ -8,7 +8,6 @@ type OwnedRecord = {
   teacher_id?: string;
   grade?: string;
   subject?: string;
-  atram?: string;
   term?: string;
   unit?: string;
 };
@@ -160,10 +159,10 @@ export const filterTeacherOwnedRecords = <T extends OwnedRecord>(
 
 export const matchesAcademicScope = (
   record: OwnedRecord | null | undefined,
-  path: Pick<OwnedRecord, 'grade' | 'subject' | 'atram' | 'term' | 'unit'>,
+  path: Pick<OwnedRecord, 'grade' | 'subject' | 'term' | 'unit'>,
 ) => {
   if (!record) return false;
-  const fields: (keyof typeof path)[] = ['grade', 'subject', 'atram', 'term', 'unit'];
+  const fields: (keyof typeof path)[] = ['grade', 'subject', 'term', 'unit'];
   return fields.every(field => {
     const expected = normalizeScopeValue(path[field]);
     if (!expected) return true;

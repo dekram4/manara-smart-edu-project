@@ -20,7 +20,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [terms, setTerms] = useState<string[]>([]);
   const [units, setUnits] = useState<string[]>([]);
-  const [atrams, setAtrams] = useState<string[]>([]);
   const [gradeConfigs, setGradeConfigs] = useState<any[]>([]);
   const [hierarchicalConfigs, setHierarchicalConfigs] = useState<HierarchicalConfig[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
@@ -42,10 +41,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     teacherId: '',
     studentIdNumber: '',
     primaryGrade: '',
-    gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; atram: string; term: string; unit: string }[] }[],
+    gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; term: string; unit: string }[] }[],
     currentGradeForEnrollment: '',
     enrollmentSubject: '',
-    enrollmentAtram: '',
     enrollmentTerm: '',
     enrollmentUnit: '',
     canChangeGrade: false,
@@ -86,7 +84,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     setSubjects(JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]'));
     setTerms(JSON.parse(localStorage.getItem(STORAGE_KEYS.TERMS) || '[]'));
     setUnits(JSON.parse(localStorage.getItem(STORAGE_KEYS.UNITS) || '[]'));
-    setAtrams(JSON.parse(localStorage.getItem(STORAGE_KEYS.ATRAMS) || '[]'));
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADE_CONFIGS) || '[]');
     const normalized = (raw || []).map((cfg: any) => {
       if (cfg.subjects) return cfg;
@@ -94,7 +91,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       (cfg.enrollments || []).forEach((en: any) => {
         const subj = en.subject || 'غير محدد';
         if (!grouped[subj]) grouped[subj] = [];
-        grouped[subj].push({ atram: en.atram || '', term: en.term || '', unit: en.unit || '', id: en.id || Date.now().toString() });
+        grouped[subj].push({ term: en.term || '', unit: en.unit || '', id: en.id || Date.now().toString() });
       });
       return { grade: cfg.grade, subjects: Object.keys(grouped).map(sub => ({ subject: sub, enrollments: grouped[sub] })) };
     });
@@ -112,7 +109,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     const cfg = configs.find((c: HierarchicalConfig) => c.grade === grade);
     if (!cfg) return subjects;
     const subs = new Set<string>();
-    cfg.atrams?.forEach((a: any) => a.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); }));
+    cfg.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); });
     return subs.size > 0 ? Array.from(subs) : subjects;
   };
 
@@ -128,7 +125,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     const newEnrollment = {
       id: Date.now().toString(),
       subject: studentForm.enrollmentSubject,
-      atram: studentForm.enrollmentAtram || '',
       term: studentForm.enrollmentTerm || '',
       unit: studentForm.enrollmentUnit || ''
     };
@@ -137,11 +133,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       // Add to existing grade
       const updated = [...studentForm.gradeEnrollments];
       updated[gradeIndex].enrollments.push(newEnrollment);
-      setStudentForm({...studentForm, gradeEnrollments: updated, enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: ''});
+      setStudentForm({...studentForm, gradeEnrollments: updated, enrollmentSubject: '', enrollmentTerm: '', enrollmentUnit: ''});
     } else {
       // Create new grade entry
       const updated = [...studentForm.gradeEnrollments, { grade: studentForm.currentGradeForEnrollment, enrollments: [newEnrollment] }];
-      setStudentForm({...studentForm, gradeEnrollments: updated, enrollmentSubject: '', enrollmentAtram: '', enrollmentTerm: '', enrollmentUnit: ''});
+      setStudentForm({...studentForm, gradeEnrollments: updated, enrollmentSubject: '', enrollmentTerm: '', enrollmentUnit: ''});
     }
   };
 
@@ -151,7 +147,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       return (cfg.subjects || []).flatMap((s: any) => (s.enrollments || []).map((en: any, idx: number) => ({
         id: en.id || `gcfg-${Date.now()}-${idx}`,
         subject: s.subject,
-        atram: en.atram || '',
         term: en.term || '',
         unit: en.unit || ''
       })));
@@ -160,7 +155,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     return (cfg.enrollments || []).map((en: any, idx: number) => ({
       id: en.id || `gcfg-${Date.now()}-${idx}`,
       subject: en.subject,
-      atram: en.atram || '',
       term: en.term || '',
       unit: en.unit || ''
     }));
@@ -178,15 +172,15 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     if (existingIdx >= 0) {
       const existing = updated[existingIdx].enrollments || [];
       const map = new Map<string, any>();
-      existing.forEach((ex: any) => map.set(`${ex.subject}|${ex.atram}|${ex.term}|${ex.unit}`, ex));
+      existing.forEach((ex: any) => map.set(`${ex.subject}|${ex.term}|${ex.unit}`, ex));
       foundEnrollments.forEach((fe: any) => {
-        const key = `${fe.subject}|${fe.atram}|${fe.term}|${fe.unit}`;
+        const key = `${fe.subject}|${fe.term}|${fe.unit}`;
         if (!map.has(key)) map.set(key, fe);
       });
       updated[existingIdx].enrollments = Array.from(map.values());
     } else {
       const map = new Map<string, any>();
-      foundEnrollments.forEach((fe: any) => map.set(`${fe.subject}|${fe.atram}|${fe.term}|${fe.unit}`, fe));
+      foundEnrollments.forEach((fe: any) => map.set(`${fe.subject}|${fe.term}|${fe.unit}`, fe));
       updated.push({ grade: studentForm.currentGradeForEnrollment, enrollments: Array.from(map.values()) });
     }
 
@@ -270,7 +264,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       // keep legacy fields in sync for existing components
       grade: studentForm.primaryGrade,
       subject: studentForm.enrollmentSubject || finalGradeEnrollments?.[0]?.enrollments?.[0]?.subject || '',
-      atram: finalGradeEnrollments?.[0]?.enrollments?.[0]?.atram || '',
       term: finalGradeEnrollments?.[0]?.enrollments?.[0]?.term || '',
       unit: finalGradeEnrollments?.[0]?.enrollments?.[0]?.unit || '',
       canChangeGrade: studentForm.canChangeGrade,
@@ -349,7 +342,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       gradeEnrollments: [],
       currentGradeForEnrollment: '',
       enrollmentSubject: '',
-      enrollmentAtram: '',
       enrollmentTerm: '',
       enrollmentUnit: '',
       canChangeGrade: false 
@@ -428,7 +420,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       gradeEnrollments: s.gradeEnrollments || [],
       currentGradeForEnrollment: '',
       enrollmentSubject: '',
-      enrollmentAtram: '',
       enrollmentTerm: '',
       enrollmentUnit: '',
       canChangeGrade: s.canChangeGrade || false,

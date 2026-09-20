@@ -89,7 +89,6 @@ export interface StudentInfo {
     enrollments: {
       id?: string;
       subject: string;
-      atram: string;
       term: string;
       unit: string;
     }[];
@@ -107,7 +106,6 @@ export interface StudentInfo {
   // للتوافقية مع الكود القديم
   grade?: string;
   subject?: string;
-  atram?: string;
   term?: string;
   unit?: string;
   enrollments?: any[];
@@ -138,34 +136,32 @@ export interface GradeConfig {
     subject: string;
     enrollments: {
       id?: string;
-      atram?: string;
       term?: string;
       unit?: string;
     }[];
   }[];
 }
 
-// البنية الهرمية المثالية: صف → ترم → مادة → فصل → وحدة
+// البنية الهرمية: صف → مادة → فصل → وحدة → درس
+//
+// كان بين الصف والمادة مستوىً يُعرض باسم «الترم»، وقد أُزيل من النظام
+// كله. الإعدادات المحفوظة قبل ذلك تُرحَّل بـ scripts/drop-atram.mjs.
 export interface HierarchicalConfig {
   grade: string;
-  atrams: {
-    atram: string;
-    subjects: {
-      subject: string;
-      terms: {
-        term: string;
-        units: string[];
-        /**
-         * أسماء الدروس داخل كل وحدة، مفهرسة باسم الوحدة.
-         *
-         * حقل إضافي اختياري عن قصد: تحويل `units` نفسها من نصوص إلى كائنات
-         * كان سيتطلب ترحيل كل الإعدادات المخزّنة لدى كل معلم، ويكسر قراءتها
-         * في تطبيق الطالب وفي إدارة المحتوى حتى يكتمل الترحيل. بهذا الشكل
-         * تبقى البيانات القديمة صالحة كما هي، وتظهر قائمة الدروس فقط حيث
-         * أضافها المعلم فعلاً.
-         */
-        lessons?: Record<string, string[]>;
-      }[];
+  subjects: {
+    subject: string;
+    terms: {
+      term: string;
+      units: string[];
+      /**
+       * أسماء الدروس داخل كل وحدة، مفهرسة باسم الوحدة.
+       *
+       * حقل إضافي اختياري عن قصد: تحويل `units` نفسها من نصوص إلى كائنات
+       * كان سيتطلب ترحيل كل الإعدادات المخزّنة لدى كل معلم، ويكسر قراءتها
+       * في تطبيق الطالب وفي إدارة المحتوى. بهذا الشكل تبقى البيانات
+       * القديمة صالحة كما هي، وتظهر قائمة الدروس فقط حيث أضافها المعلم.
+       */
+      lessons?: Record<string, string[]>;
     }[];
   }[];
   createdBy?: string; // معرف المعلم الذي أنشأ هذا الإعداد
@@ -180,7 +176,6 @@ export interface LessonConfig {
   id: string;
   grade: string;
   subject: string;
-  atram: string;
   term: string;
   unit: string;
   /**
@@ -219,7 +214,6 @@ export interface QuizQuestion {
   lessonId: string;
   grade: string;
   subject: string;
-  atram: string;
   term: string;
   unit: string;
   quizType: QuizType;
@@ -236,7 +230,6 @@ export interface CreatedQuiz {
   title: string;
   grade: string;
   subject: string;
-  atram: string;
   term: string;
   unit: string;
   /**
@@ -402,7 +395,6 @@ export interface CertificateRecord {
   type: 'excellence' | 'appreciation' | 'participation';
   subject: string;
   grade: string;
-  atram: string;
   term: string;
   date: string;
   average: number;

@@ -51,7 +51,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   late final StudentContentService _contentService;
   AcademicSelectionData? _data;
   String? _grade;
-  String? _atram;
   String? _subject;
   String? _term;
   String? _unit;
@@ -146,7 +145,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   void _clearSelection() {
     _grade = null;
-    _atram = null;
     _subject = null;
     _term = null;
     _unit = null;
@@ -155,34 +153,26 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   void _applyInitialSelection(AcademicSelectionData data) {
     final grade = _pick(data.grades, widget.profile.grade);
-    final atram = _pick(data.atramsFor(grade), widget.profile.atram);
     final subject = _pick(
-      data.subjectsFor(grade: grade, atram: atram),
+      data.subjectsFor(grade: grade),
       widget.profile.subject,
     );
     final term = _pick(
-      data.termsFor(grade: grade, atram: atram, subject: subject),
+      data.termsFor(grade: grade, subject: subject),
       widget.profile.term,
     );
     final unit = _pick(
-      data.unitsFor(
-        grade: grade,
-        atram: atram,
-        subject: subject,
-        term: term,
-      ),
+      data.unitsFor(grade: grade, subject: subject, term: term),
       widget.profile.unit,
     );
     final lessons = data.lessonsFor(
       grade: grade,
-      atram: atram,
       subject: subject,
       term: term,
       unit: unit,
     );
 
     _grade = grade;
-    _atram = atram;
     _subject = subject;
     _term = term;
     _unit = unit;
@@ -202,54 +192,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     if (data == null || grade == null) return;
     setState(() {
       _grade = grade;
-      _atram = _pick(data.atramsFor(grade), null);
-      _subject = _pick(
-        data.subjectsFor(grade: _grade!, atram: _atram!),
-        null,
-      );
+      _subject = _pick(data.subjectsFor(grade: _grade!), null);
       _term = _pick(
-        data.termsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-        ),
+        data.termsFor(grade: _grade!, subject: _subject!),
         null,
       );
       _unit = _pick(
-        data.unitsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-          term: _term!,
-        ),
-        null,
-      );
-      _lesson = _lessonsForSelection().firstOrNull;
-    });
-    _playSelectionFeedback();
-  }
-
-  void _selectAtram(String? atram) {
-    final data = _data;
-    if (data == null || _grade == null || atram == null) return;
-    setState(() {
-      _atram = atram;
-      _subject = _pick(data.subjectsFor(grade: _grade!, atram: atram), null);
-      _term = _pick(
-        data.termsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-        ),
-        null,
-      );
-      _unit = _pick(
-        data.unitsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-          term: _term!,
-        ),
+        data.unitsFor(grade: _grade!, subject: _subject!, term: _term!),
         null,
       );
       _lesson = _lessonsForSelection().firstOrNull;
@@ -259,20 +208,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   void _selectSubject(String? subject) {
     final data = _data;
-    if (data == null || _grade == null || _atram == null || subject == null) return;
+    if (data == null || _grade == null || subject == null) return;
     setState(() {
       _subject = subject;
-      _term = _pick(
-        data.termsFor(grade: _grade!, atram: _atram!, subject: subject),
-        null,
-      );
+      _term = _pick(data.termsFor(grade: _grade!, subject: subject), null);
       _unit = _pick(
-        data.unitsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-          term: _term!,
-        ),
+        data.unitsFor(grade: _grade!, subject: _subject!, term: _term!),
         null,
       );
       _lesson = _lessonsForSelection().firstOrNull;
@@ -282,22 +223,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   void _selectTerm(String? term) {
     final data = _data;
-    if (data == null ||
-        _grade == null ||
-        _atram == null ||
-        _subject == null ||
-        term == null) {
+    if (data == null || _grade == null || _subject == null || term == null) {
       return;
     }
     setState(() {
       _term = term;
       _unit = _pick(
-        data.unitsFor(
-          grade: _grade!,
-          atram: _atram!,
-          subject: _subject!,
-          term: _term!,
-        ),
+        data.unitsFor(grade: _grade!, subject: _subject!, term: _term!),
         null,
       );
       _lesson = _lessonsForSelection().firstOrNull;
@@ -334,7 +266,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     final data = _data;
     if (data == null ||
         _grade == null ||
-        _atram == null ||
         _subject == null ||
         _term == null ||
         _unit == null) {
@@ -342,7 +273,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
     return data.lessonsFor(
       grade: _grade!,
-      atram: _atram!,
       subject: _subject!,
       term: _term!,
       unit: _unit!,
@@ -353,7 +283,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     final lesson = _lesson;
     if (lesson == null ||
         _grade == null ||
-        _atram == null ||
         _subject == null ||
         _term == null ||
         _unit == null) {
@@ -361,7 +290,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
     return AcademicContext(
       grade: _grade!,
-      atram: _atram!,
       subject: _subject!,
       term: _term!,
       unit: _unit!,
@@ -375,41 +303,24 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// picked above it.
   List<String> get _gradeOptions => _data?.grades ?? const [];
 
-  List<String> get _atramOptions {
-    final data = _data;
-    if (data == null || _grade == null) return const [];
-    return data.atramsFor(_grade!);
-  }
-
   List<String> get _subjectOptions {
     final data = _data;
-    if (data == null || _grade == null || _atram == null) return const [];
-    return data.subjectsFor(grade: _grade!, atram: _atram!);
+    if (data == null || _grade == null) return const [];
+    return data.subjectsFor(grade: _grade!);
   }
 
   List<String> get _termOptions {
     final data = _data;
-    if (data == null || _grade == null || _atram == null || _subject == null) {
-      return const [];
-    }
-    return data.termsFor(grade: _grade!, atram: _atram!, subject: _subject!);
+    if (data == null || _grade == null || _subject == null) return const [];
+    return data.termsFor(grade: _grade!, subject: _subject!);
   }
 
   List<String> get _unitOptions {
     final data = _data;
-    if (data == null ||
-        _grade == null ||
-        _atram == null ||
-        _subject == null ||
-        _term == null) {
+    if (data == null || _grade == null || _subject == null || _term == null) {
       return const [];
     }
-    return data.unitsFor(
-      grade: _grade!,
-      atram: _atram!,
-      subject: _subject!,
-      term: _term!,
-    );
+    return data.unitsFor(grade: _grade!, subject: _subject!, term: _term!);
   }
 
   List<String> get _lessonOptions =>
@@ -619,7 +530,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// Freeing the navy book — the start button moved out from under the
   /// stack to its own band below — gave every level a book of its own and
   /// let the control read the same way at every level.
-  /// The six levels, in the order the cascade resolves them.
+  /// The five levels, in the order the cascade resolves them.
   ///
   /// Built fresh on each frame from the same fields the cascade writes, so
   /// the map can hold no stale copy of the tree. Every `onSelected` is the
@@ -638,17 +549,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           },
         ),
         MasarStage(
-          label: tr('path.atram'),
-          icon: Icons.calendar_month_rounded,
-          color: const Color(0xFFE8930C),
-          value: _atram,
-          options: _atramOptions,
-          onSelected: (value) {
-            _selectAtram(value);
-            _advanceJourney(1);
-          },
-        ),
-        MasarStage(
           label: tr('path.subject'),
           icon: Icons.menu_book_rounded,
           color: const Color(0xFFA974BE),
@@ -656,7 +556,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           options: _subjectOptions,
           onSelected: (value) {
             _selectSubject(value);
-            _advanceJourney(2);
+            _advanceJourney(1);
           },
         ),
         MasarStage(
@@ -667,7 +567,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           options: _termOptions,
           onSelected: (value) {
             _selectTerm(value);
-            _advanceJourney(3);
+            _advanceJourney(2);
           },
         ),
         MasarStage(
@@ -678,7 +578,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           options: _unitOptions,
           onSelected: (value) {
             _selectUnit(value);
-            _advanceJourney(4);
+            _advanceJourney(3);
           },
         ),
         MasarStage(
@@ -689,7 +589,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           options: _lessonOptions,
           onSelected: (value) {
             _selectLessonNamed(value);
-            _advanceJourney(5);
+            _advanceJourney(4);
           },
         ),
       ];

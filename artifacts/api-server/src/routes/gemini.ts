@@ -228,7 +228,6 @@ async function recordProblemSolverActivity(
         question,
         answer,
         grade: student.grade,
-        atram: student.atram,
         subject: student.subject,
         term: student.term,
         unit: student.unit,

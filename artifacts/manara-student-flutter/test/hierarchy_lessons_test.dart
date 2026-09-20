@@ -29,19 +29,14 @@ void main() {
         {
           'grade': 'الصف الرابع',
           'createdBy': 't1',
-          'atrams': [
+          'subjects': [
             {
-              'atram': 'الترم الأول',
-              'subjects': [
+              'subject': 'العلوم',
+              'terms': [
                 {
-                  'subject': 'العلوم',
-                  'terms': [
-                    {
-                      'term': 'الفصل الثاني',
-                      'units': ['الوحدة الأولى', 'الوحدة الثانية'],
-                      if (lessons != null) 'lessons': lessons,
-                    },
-                  ],
+                  'term': 'الفصل الثاني',
+                  'units': ['الوحدة الأولى', 'الوحدة الثانية'],
+                  if (lessons != null) 'lessons': lessons,
                 },
               ],
             },
@@ -61,7 +56,6 @@ void main() {
     expect(declared.length, 3);
     final first = declared.firstWhere((lesson) => lesson.name == 'الخلية');
     expect(first.path.grade, 'الصف الرابع');
-    expect(first.path.atram, 'الترم الأول');
     expect(first.path.subject, 'العلوم');
     expect(first.path.term, 'الفصل الثاني');
     expect(first.path.unit, 'الوحدة الأولى');
@@ -102,21 +96,16 @@ void main() {
       {
         'grade': 'الصف الرابع',
         'createdBy': 'someone-else',
-        'atrams': [
+        'subjects': [
           {
-            'atram': 'الترم الأول',
-            'subjects': [
+            'subject': 'العلوم',
+            'terms': [
               {
-                'subject': 'العلوم',
-                'terms': [
-                  {
-                    'term': 'الفصل الثاني',
-                    'units': ['الوحدة الأولى'],
-                    'lessons': {
-                      'الوحدة الأولى': ['درس ليس له'],
-                    },
-                  },
-                ],
+                'term': 'الفصل الثاني',
+                'units': ['الوحدة الأولى'],
+                'lessons': {
+                  'الوحدة الأولى': ['درس ليس له'],
+                },
               },
             ],
           },
@@ -149,5 +138,45 @@ void main() {
       'الوحدة الأولى': ['الخلية'],
     })];
     expect(declaredLessonsFromHierarchy(twice, profile).length, 1);
+  });
+
+  test('a tree written before the term level was removed still reads', () {
+    // The level once shown as «الترم» sat between the grade and the
+    // subject. It is gone, but a settings blob saved before the migration
+    // still has it, and a phone that updates first must not show an empty
+    // course: every atram's subjects are read straight into the grade.
+    final legacy = [
+      {
+        'grade': 'الصف الرابع',
+        'createdBy': 't1',
+        'atrams': [
+          {
+            'atram': 'الترم الأول',
+            'subjects': [
+              {
+                'subject': 'العلوم',
+                'terms': [
+                  {
+                    'term': 'الفصل الثاني',
+                    'units': ['الوحدة الأولى'],
+                    'lessons': {
+                      'الوحدة الأولى': ['الخلية'],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    final declared = declaredLessonsFromHierarchy(legacy, profile);
+    expect(declared.length, 1);
+    expect(declared.single.name, 'الخلية');
+    expect(declared.single.path.grade, 'الصف الرابع');
+    expect(declared.single.path.subject, 'العلوم');
+    expect(declared.single.path.term, 'الفصل الثاني');
+    expect(declared.single.path.unit, 'الوحدة الأولى');
   });
 }

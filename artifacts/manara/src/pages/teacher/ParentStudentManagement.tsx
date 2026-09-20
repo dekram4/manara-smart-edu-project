@@ -18,7 +18,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const [parents, setParents] = useState<ParentInfo[]>([]);
   const [grades, setGrades] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
-  const [atrams, setAtrams] = useState<string[]>([]);
   const [terms, setTerms] = useState<string[]>([]);
   const [units, setUnits] = useState<string[]>([]);
   const [hierarchicalConfigs, setHierarchicalConfigs] = useState<HierarchicalConfig[]>([]);
@@ -59,7 +58,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     studentIdNumber: '',
     nationalId: '',
     primaryGrade: '',
-    gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; atram: string; term: string; unit: string }[] }[],
+    gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; term: string; unit: string }[] }[],
     enrollmentSubject: '',
     permissionPackageId: '',
   });
@@ -90,7 +89,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const loadAcademicSettings = () => {
     setGrades(JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]'));
     setSubjects(JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]'));
-    setAtrams(JSON.parse(localStorage.getItem(STORAGE_KEYS.ATRAMS) || '[]'));
     setTerms(JSON.parse(localStorage.getItem(STORAGE_KEYS.TERMS) || '[]'));
     setUnits(JSON.parse(localStorage.getItem(STORAGE_KEYS.UNITS) || '[]'));
     setHierarchicalConfigs(JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]'));
@@ -104,7 +102,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     const cfg = configs.find((c: HierarchicalConfig) => c.grade === grade);
     if (!cfg) return subjects;
     const subs = new Set<string>();
-    cfg.atrams?.forEach((a: any) => a.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); }));
+    cfg.subjects?.forEach((s: any) => { if (s.subject) subs.add(s.subject); });
     return subs.size > 0 ? Array.from(subs) : subjects;
   };
 

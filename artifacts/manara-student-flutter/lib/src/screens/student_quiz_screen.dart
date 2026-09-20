@@ -120,7 +120,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         'quizType': 'periodic',
         'quizId': 'periodic_fallback_${lesson.id}',
         'grade': widget.academicContext?.grade ?? widget.profile.grade ?? '',
-        'atram': widget.academicContext?.atram ?? widget.profile.atram ?? '',
         'subject': widget.academicContext?.subject ?? widget.profile.subject ?? '',
         'term': widget.academicContext?.term ?? widget.profile.term ?? '',
         'unit': widget.academicContext?.unit ?? widget.profile.unit ?? '',
@@ -135,7 +134,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       'questionsPerAttempt': questions.length,
       'isActive': true,
       'grade': widget.academicContext?.grade ?? widget.profile.grade ?? '',
-      'atram': widget.academicContext?.atram ?? widget.profile.atram ?? '',
       'subject': widget.academicContext?.subject ?? widget.profile.subject ?? '',
       'term': widget.academicContext?.term ?? widget.profile.term ?? '',
       'unit': widget.academicContext?.unit ?? widget.profile.unit ?? '',
@@ -220,7 +218,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
           ? _text(widget.academicContext?.lesson)
           : _text(quiz['lesson']),
       'grade': _text(quiz['grade']),
-      'atram': _text(quiz['atram']),
       'term': _text(quiz['term']),
       'teacherId': StudentAssessmentRules.ownerId(quiz),
       'periodicNumber': quiz['periodicNumber'],

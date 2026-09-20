@@ -7,7 +7,6 @@ export type StudentActor = {
   password: unknown;
   teacherId: string;
   grade: string;
-  atram: string;
   subject: string;
   term: string;
   unit: string;
@@ -57,7 +56,6 @@ function fromRow(row: { id?: unknown; data?: unknown }): StudentActor | null {
     password: data.password,
     teacherId: normalize(data.teacherId ?? data.teacher_id),
     grade: text(data.grade),
-    atram: text(data.atram),
     subject: text(data.subject),
     term: text(data.term),
     unit: text(data.unit),
@@ -134,7 +132,7 @@ export function matchesStudentScope(
   if (owner && owner !== "admin" && owner !== "supervisor" && owner !== student.teacherId) {
     return false;
   }
-  for (const key of ["grade", "atram", "subject", "term", "unit"] as const) {
+  for (const key of ["grade", "subject", "term", "unit"] as const) {
     const expected = normalize(student[key]);
     const actual = normalize(record[key]);
     if (expected && actual && expected !== actual) return false;

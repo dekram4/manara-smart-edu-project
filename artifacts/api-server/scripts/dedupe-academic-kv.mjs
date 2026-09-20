@@ -70,6 +70,19 @@ const getRecordTeacherId = (record) => {
     normalizeScopeValue(record.createdBy);
 };
 
+/**
+ * مواد الصف. مستوى «الترم» (`atrams`) أُزيل من النظام؛ والشجرة المحفوظة
+ * قبل `drop-atram.mjs` ما زالت تحمله، فتُقرأ هنا بتسطيح مواد كل «ترم» تحت
+ * الصف — فيبقى هذا السكريبت صالحاً على المخزون قبل الترحيل وبعده.
+ */
+const subjectsOfConfig = (config) => {
+  if (Array.isArray(config?.subjects)) return config.subjects;
+  if (!Array.isArray(config?.atrams)) return [];
+  return config.atrams.flatMap((atram) =>
+    Array.isArray(atram?.subjects) ? atram.subjects : [],
+  );
+};
+
 const uniqueNames = (values) => {
   const seen = new Set();
   const result = [];
@@ -95,26 +108,15 @@ export function dedupeHierarchicalConfigs(value) {
     const owner = getRecordTeacherId(rawConfig);
     const key = `${owner || 'admin'}::${normalizeScopeValue(grade)}`;
     if (!grouped.has(key)) {
-      grouped.set(key, { ...rawConfig, grade, atrams: [] });
+      const { atrams: _legacy, ...rest } = rawConfig;
+      grouped.set(key, { ...rest, grade, subjects: [] });
     }
 
     const target = grouped.get(key);
-    const atrams = Array.isArray(rawConfig.atrams) ? rawConfig.atrams : [];
-    const targetAtrams = Array.isArray(target.atrams) ? target.atrams : [];
+    const subjects = subjectsOfConfig(rawConfig);
+    const targetSubjects = Array.isArray(target.subjects) ? target.subjects : [];
 
-    atrams.forEach((rawAtram) => {
-      const atramName = cleanName(rawAtram?.atram);
-      if (!atramName) return;
-      let targetAtram = targetAtrams.find(
-        (item) => normalizeScopeValue(item.atram) === normalizeScopeValue(atramName),
-      );
-      if (!targetAtram) {
-        targetAtram = { atram: atramName, subjects: [] };
-        targetAtrams.push(targetAtram);
-      }
-
-      const subjects = Array.isArray(rawAtram?.subjects) ? rawAtram.subjects : [];
-      const targetSubjects = Array.isArray(targetAtram.subjects) ? targetAtram.subjects : [];
+    {
       subjects.forEach((rawSubject) => {
         const subjectName = cleanName(rawSubject?.subject);
         if (!subjectName) return;
@@ -165,10 +167,8 @@ export function dedupeHierarchicalConfigs(value) {
         });
         targetSubject.terms = targetTerms;
       });
-      targetAtram.subjects = targetSubjects;
-    });
-
-    target.atrams = targetAtrams;
+      target.subjects = targetSubjects;
+    }
   });
 
   return Array.from(grouped.values());
@@ -182,8 +182,8 @@ export function collectLessonPaths(configs) {
   (Array.isArray(configs) ? configs : []).forEach((config) => {
     const owner = getRecordTeacherId(config) || 'admin';
     const grade = normalizeScopeValue(config?.grade);
-    (config?.atrams || []).forEach((atram) => {
-      (atram?.subjects || []).forEach((subject) => {
+    {
+      subjectsOfConfig(config).forEach((subject) => {
         (subject?.terms || []).forEach((term) => {
           const lessons = term?.lessons && typeof term.lessons === 'object' ? term.lessons : {};
           Object.entries(lessons).forEach(([unit, names]) => {
@@ -191,7 +191,6 @@ export function collectLessonPaths(configs) {
               if (!cleanName(name)) return;
               paths.add([
                 owner, grade,
-                normalizeScopeValue(atram?.atram),
                 normalizeScopeValue(subject?.subject),
                 normalizeScopeValue(term?.term),
                 normalizeScopeValue(unit),
@@ -201,7 +200,7 @@ export function collectLessonPaths(configs) {
           });
         });
       });
-    });
+    }
   });
   return paths;
 }

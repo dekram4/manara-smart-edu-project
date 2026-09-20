@@ -9,7 +9,6 @@ export const STORAGE_KEYS = {
   GRADE_CONFIGS: 'smartEdu_gradeConfigs',
   HIERARCHICAL_CONFIGS: 'smartEdu_hierarchicalConfigs',
   TERMS: 'smartEdu_terms',
-  ATRAMS: 'smartEdu_atrams',
   UNITS: 'smartEdu_units',
   ACTIVE_STUDENT: 'smartEdu_activeStudent',
   ACTIVE_PARENT: 'smartEdu_activeParent',

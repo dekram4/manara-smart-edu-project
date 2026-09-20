@@ -36,7 +36,6 @@ const KV_KEYS = [
   'smartEdu_grades',
   'smartEdu_subjects',
   'smartEdu_terms',
-  'smartEdu_atrams',
   'smartEdu_units',
   'smartEdu_hierarchicalConfigs',
   'smartEdu_gradeConfigs',

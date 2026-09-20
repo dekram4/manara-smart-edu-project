@@ -26,7 +26,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   const [issueStudent, setIssueStudent] = useState<StudentInfo | null>(null);
   const [issueType, setIssueType] = useState<CertificateRecord['type'] | null>(null);
   const [issueSubject, setIssueSubject] = useState('');
-  const [issueAtram, setIssueAtram] = useState('');
+  const [issueTerm, setIssueTerm] = useState('');
   const [issueGrade, setIssueGrade] = useState('');
 
   /* edit modal */
@@ -121,13 +121,13 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     setEditCert(null);
   };
 
-  /* ===== Issue Modal helpers (Grade → Subject → Atram) ===== */
+  /* ===== Issue Modal helpers (Grade → Subject → Term) ===== */
   const openIssueModal = (student: StudentInfo, type: CertificateRecord['type']) => {
     setIssueStudent(student);
     setIssueType(type);
     setIssueGrade('');
     setIssueSubject('');
-    setIssueAtram('');
+    setIssueTerm('');
     setIssueModalOpen(true);
   };
 
@@ -136,50 +136,32 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   const getSubjectsForGrade = (grade: string) => {
     const set = new Set<string>();
     for (const cfg of academicConfigs.filter(c => c.grade === grade)) {
-      for (const a of cfg.atrams || []) {
-        for (const s of a.subjects || []) set.add(s.subject);
-      }
+      for (const s of cfg.subjects || []) set.add(s.subject);
     }
     return Array.from(set);
   };
 
-  const getAtramsForSubject = (grade: string, subject: string) => {
+  const getTermsForSubject = (grade: string, subject: string) => {
     const set = new Set<string>();
     for (const cfg of academicConfigs.filter(c => c.grade === grade)) {
-      for (const a of cfg.atrams || []) {
-        if (a.subjects?.some(s => s.subject === subject)) set.add(a.atram);
-      }
+      const s = cfg.subjects?.find(x => x.subject === subject);
+      for (const t of s?.terms || []) set.add(t.term);
     }
     return Array.from(set);
-  };
-
-  const resolveTerm = (grade: string, subject: string, atram: string) => {
-    for (const cfg of academicConfigs.filter(c => c.grade === grade)) {
-      const a = cfg.atrams?.find(x => x.atram === atram);
-      if (!a) continue;
-      const s = a.subjects?.find(x => x.subject === subject);
-      if (!s) continue;
-      return s.terms?.[0]?.term || '';
-    }
-    return '';
   };
 
   const confirmIssue = () => {
-    if (!issueStudent || !issueType || !issueGrade || !issueSubject || !issueAtram) {
-      alert('الرجاء تحديد الصف والمادة والترم');
+    if (!issueStudent || !issueType || !issueGrade || !issueSubject || !issueTerm) {
+      alert('الرجاء تحديد الصف والمادة والفصل');
       return;
     }
-    const term = resolveTerm(issueGrade, issueSubject, issueAtram);
-    if (!term) {
-      alert('لم يتم العثور على بيانات مرتبطة بهذا الصف والمادة والترم في إعداداتك');
-      return;
-    }
+    const term = issueTerm;
     if (hasDuplicate(issueStudent.id, issueType, issueGrade, issueSubject, term)) {
-      alert(`تم إصدار شهادة ${issueType === 'excellence' ? 'تفوق' : issueType === 'appreciation' ? 'شكر' : 'مشاركة'} مسبقاً للطالب ${issueStudent.name} في نفس المادة والترم.`);
+      alert(`تم إصدار شهادة ${issueType === 'excellence' ? 'تفوق' : issueType === 'appreciation' ? 'شكر' : 'مشاركة'} مسبقاً للطالب ${issueStudent.name} في نفس المادة والفصل.`);
       return;
     }
     setIssueModalOpen(false);
-    doPrintCertificate(issueStudent, issueType, issueGrade, issueAtram, issueSubject, term);
+    doPrintCertificate(issueStudent, issueType, issueGrade, issueSubject, term);
   };
 
   /* ===== Print / Save Certificate ===== */
@@ -187,7 +169,6 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     student: StudentInfo,
     type: 'excellence' | 'appreciation' | 'participation',
     grade: string,
-    atram: string,
     subject: string,
     term: string
   ) => {
@@ -204,7 +185,6 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
       type,
       subject,
       grade,
-      atram,
       term,
       date: new Date().toISOString(),
       average,
@@ -223,21 +203,21 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
         emoji: '🏆',
         color: '#FFD700',
         gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.`,
+        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.`,
       },
       appreciation: {
         title: 'شهادة شكر وتقدير',
         emoji: '⭐',
         color: '#4169E1',
         gradient: 'linear-gradient(135deg, #4169E1 0%, #1E90FF 100%)',
-        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${student.name}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.`,
+        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${student.name}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.`,
       },
       participation: {
         title: 'شهادة مشاركة فعالة',
         emoji: '🌟',
         color: '#32CD32',
         gradient: 'linear-gradient(135deg, #32CD32 0%, #228B22 100%)',
-        message: `نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${subject}</strong> للترم <strong>${atram}</strong>، وحقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.`,
+        message: `نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، وحقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.`,
       },
     };
 
@@ -309,7 +289,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
             <div class="content">
               <p>${cert.message}</p>
               <div class="academic-info">
-                <p>المادة: <strong>${subject}</strong> · الصف: <strong>${grade}</strong> · الترم: <strong>${atram}</strong></p>
+                <p>المادة: <strong>${subject}</strong> · الصف: <strong>${grade}</strong> · الفصل: <strong>${term}</strong></p>
                 <p>نسبة نتائج اختبارات المعلم للمادة: <strong style="font-size:22px;color:${cert.color};">${average}%</strong></p>
               </div>
             </div>
@@ -520,14 +500,14 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
             <h3 className="text-2xl font-black text-amber-900 mb-2">
               {issueType === 'excellence' ? '🏆 إصدار شهادة تفوق' : issueType === 'appreciation' ? '⭐ إصدار شهادة شكر' : '🌟 إصدار شهادة مشاركة'}
             </h3>
-            <p className="text-amber-500 text-sm mb-6">{issueStudent.name} — اختر المادة والترم من إعداداتك الأكاديمية</p>
+            <p className="text-amber-500 text-sm mb-6">{issueStudent.name} — اختر المادة والفصل من إعداداتك الأكاديمية</p>
 
             <div className="space-y-4 text-right">
               <div>
                 <label className="block text-sm font-bold text-amber-700 mb-2">🎓 الصف</label>
                 <select
                   value={issueGrade}
-                  onChange={e => { setIssueGrade(e.target.value); setIssueSubject(''); setIssueAtram(''); }}
+                  onChange={e => { setIssueGrade(e.target.value); setIssueSubject(''); setIssueTerm(''); }}
                   className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-lg"
                 >
                   <option value="">اختر الصف...</option>
@@ -538,7 +518,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
                 <label className="block text-sm font-bold text-amber-700 mb-2">📖 المادة</label>
                 <select
                   value={issueSubject}
-                  onChange={e => { setIssueSubject(e.target.value); setIssueAtram(''); }}
+                  onChange={e => { setIssueSubject(e.target.value); setIssueTerm(''); }}
                   className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-lg"
                   disabled={!issueGrade}
                 >
@@ -547,15 +527,15 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-amber-700 mb-2">📅 الترم</label>
+                <label className="block text-sm font-bold text-amber-700 mb-2">📅 الفصل</label>
                 <select
-                  value={issueAtram}
-                  onChange={e => setIssueAtram(e.target.value)}
+                  value={issueTerm}
+                  onChange={e => setIssueTerm(e.target.value)}
                   className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-lg"
                   disabled={!issueSubject}
                 >
-                  <option value="">اختر الترم...</option>
-                  {getAtramsForSubject(issueGrade, issueSubject).map(a => <option key={a} value={a}>{a}</option>)}
+                  <option value="">اختر الفصل...</option>
+                  {getTermsForSubject(issueGrade, issueSubject).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             </div>

@@ -15,7 +15,6 @@ void main() {
 
   final context = AcademicContext(
     grade: 'السادس',
-    atram: 'الفصل الأول',
     subject: 'الرياضيات',
     term: 'الترم الأول',
     unit: 'الوحدة الأولى',
@@ -117,10 +116,10 @@ void main() {
     test('requires a complete academic selection', () {
       final partialContext = AcademicContext(
         grade: 'السادس',
-        atram: '',
         subject: 'الرياضيات',
         term: 'الترم الأول',
-        unit: 'الوحدة الأولى',
+        // The unit was never reached: an incomplete path.
+        unit: '',
         selectedLesson: _lesson(id: 'partial-selected', ownerId: 'teacher-1'),
       );
       final selection = select(
@@ -184,7 +183,6 @@ LessonContent _lesson({
   required String id,
   required String? ownerId,
   String grade = 'السادس',
-  String atram = 'الفصل الأول',
   String subject = 'الرياضيات',
   String term = 'الترم الأول',
   String unit = 'الوحدة الأولى',
@@ -196,7 +194,6 @@ LessonContent _lesson({
     id: id,
     lessonId: id,
     grade: grade,
-    atram: atram,
     subject: subject,
     term: term,
     unit: unit,

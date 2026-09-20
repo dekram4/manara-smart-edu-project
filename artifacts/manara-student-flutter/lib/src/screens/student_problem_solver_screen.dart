@@ -62,7 +62,6 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     return StudentAssessmentRules.matchesAcademicScope(
       {
         'grade': lesson.grade,
-        'atram': lesson.atram,
         'subject': lesson.subject,
         'term': lesson.term,
         'unit': lesson.unit,

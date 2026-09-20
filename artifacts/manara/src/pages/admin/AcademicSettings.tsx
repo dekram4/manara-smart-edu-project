@@ -31,11 +31,9 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>(teacherId || '');
   const [selectedTeacherName, setSelectedTeacherName] = useState<string>(teacherName || '');
   
-  // للتكوين الهرمي الجديد: صف → ترم → مادة → فصل → وحدة
+  // للتكوين الهرمي الجديد: صف → مادة → فصل → وحدة
   const [selectedGrade, setSelectedGrade] = useState('');
   const [newGrade, setNewGrade] = useState('');
-  const [selectedAtram, setSelectedAtram] = useState('');
-  const [newAtram, setNewAtram] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [newSubject, setNewSubject] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
@@ -135,11 +133,10 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   const unitKeyOf = (
     gradeIndex: number,
-    atramIndex: number,
     subjectIndex: number,
     termIndex: number,
     unit: string,
-  ) => `${gradeIndex}|${atramIndex}|${subjectIndex}|${termIndex}|${unit}`;
+  ) => `${gradeIndex}|${subjectIndex}|${termIndex}|${unit}`;
 
   // دالة للحصول على المعلمين الذين لديهم إعدادات أكاديمية
   const getTeachersWithSettings = () => {
@@ -291,7 +288,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // إعادة تعيين الاختيارات
     setSelectedGrade('');
-    setSelectedAtram('');
     setSelectedSubject('');
     setSelectedTerm('');
     setSelectedUnit('');
@@ -318,7 +314,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
     const newConfig: HierarchicalConfig = {
       grade: newGrade.trim(),
-      atrams: [],
+      subjects: [],
       createdBy: teacherId || selectedTeacherId || 'admin',
       createdByName: teacherName || selectedTeacherName || 'المشرف',
       createdAt: new Date().toISOString(),
@@ -368,121 +364,10 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     alert('تم الحذف بنجاح');
   };
 
-  // 3. إضافة ترم لصف محدد
-  const handleAddAtram = () => {
-    if (!selectedGrade) {
-      alert('الرجاء اختيار الصف أولاً');
-      return;
-    }
-    
-    if (!newAtram.trim()) {
-      alert('الرجاء إدخال اسم الترم');
-      return;
-    }
-    
-    const gradeIndex = hierarchicalConfigs.findIndex(c => c.grade === selectedGrade);
-    if (gradeIndex === -1) return;
-    
-    const grade = hierarchicalConfigs[gradeIndex];
-    
-    // إذا كان معلم آخر، منع التعديل
-    if (teacherId && !isGeneralConfig(grade) && !belongsToTeacher(grade, teacherId)) {
-      alert('⚠️ لا يمكنك تعديل إعدادات معلم آخر.');
-      return;
-    }
-    
-    // التأكد من وجود مصفوفة atrams
-    if (!grade.atrams) {
-      grade.atrams = [];
-    }
-    
-    const atramExists = grade.atrams.some(a => a.atram === newAtram.trim());
-    if (atramExists) {
-      alert('هذا الترم موجود مسبقاً في هذا الصف');
-      return;
-    }
-    
-    // إذا كان إعداد عام (admin): استخدم Copy-on-Write
-    // إذا كان إعداد خاص بالمعلم نفسه: عدل مباشرة
-    const isGeneralSetting = isGeneralConfig(grade);
-    const isOwnSetting = belongsToTeacher(grade, teacherId);
-    
-    if (teacherId && isGeneralSetting) {
-      // محاولة إنشاء نسخة للإعداد العام
-      const copied = createTeacherCopy(grade, (config) => {
-        if (!config.atrams) config.atrams = [];
-        config.atrams.push({
-          atram: newAtram.trim(),
-          subjects: []
-        });
-      });
-      
-      if (copied) {
-        setNewAtram('');
-        loadSettings();
-        onUpdate();
-        alert('✅ تم إضافة الترم إلى نسختك الخاصة (لن يظهر عند المشرف)');
-        return;
-      }
-    }
-
-    // التعديل المباشر (للمشرف أو للمعلم على إعداداته الخاصة)
-    const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
-    const configIndexInAll = allConfigs.findIndex((c: HierarchicalConfig) => 
-      c.grade === grade.grade && ownerOf(c) === ownerOf(grade)
-    );
-    
-    if (configIndexInAll !== -1) {
-      allConfigs[configIndexInAll].atrams.push({
-        atram: newAtram.trim(),
-        subjects: []
-      });
-      localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
-    }
-
-    setNewAtram('');
-    loadSettings();
-    onUpdate();
-    
-    // رسائل مختلفة حسب نوع الإعداد
-    if (isOwnSetting) {
-      alert('✅ تم إضافة الترم بنجاح (سيظهر عند المشرف)');
-    } else {
-      alert('تم إضافة الترم بنجاح');
-    }
-  };
-
-  // 4. حذف ترم
-  const handleDeleteAtram = (gradeIndex: number, atramIndex: number) => {
-    const grade = hierarchicalConfigs[gradeIndex];
-    
-    // منع المعلم من حذف إعدادات ليست له
-    if (teacherId && !belongsToTeacher(grade, teacherId)) {
-      alert('⚠️ لا يمكنك حذف هذا الإعداد. يمكنك فقط حذف الإعدادات التي أنشأتها بنفسك.');
-      return;
-    }
-    
-    setConfirmRequest({
-      title: 'حذف الترم',
-      message: `سيُحذف «${grade.atrams[atramIndex].atram}» وكل ما تحته من مواد وفصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
-      onConfirm: () => performDeleteAtram(gradeIndex, atramIndex),
-    });
-  };
-
-  const performDeleteAtram = (gradeIndex: number, atramIndex: number) => {
-    const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams.splice(atramIndex, 1);
-    
-    setHierarchicalConfigs(updatedConfigs);
-    localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
-    onUpdate();
-    alert('تم الحذف بنجاح');
-  };
-
   // 5. إضافة مادة لترم محدد
   const handleAddSubject = () => {
-    if (!selectedGrade || !selectedAtram) {
-      alert('الرجاء اختيار الصف والترم أولاً');
+    if (!selectedGrade) {
+      alert('الرجاء اختيار الصف أولاً');
       return;
     }
     
@@ -502,16 +387,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       return;
     }
 
-    if (!grade.atrams) grade.atrams = [];
-    const atramIndex = grade.atrams.findIndex(a => a.atram === selectedAtram);
-    if (atramIndex === -1) return;
-
-    const atram = grade.atrams[atramIndex];
-    if (!atram.subjects) atram.subjects = [];
+    if (!grade.subjects) grade.subjects = [];
+    if (!grade.subjects) grade.subjects = [];
     
-    const subjectExists = atram.subjects.some(s => s.subject === newSubject.trim());
+    const subjectExists = grade.subjects.some(s => s.subject === newSubject.trim());
     if (subjectExists) {
-      alert('هذه المادة موجودة مسبقاً في هذا الترم');
+      alert('هذه المادة موجودة مسبقاً في هذا الصف');
       return;
     }
     
@@ -522,14 +403,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     // إذا كان إعداد عام والمستخدم معلم: استخدم Copy-on-Write
     if (teacherId && isGeneralSetting) {
       const copied = createTeacherCopy(grade, (config) => {
-        const atramIdx = config.atrams.findIndex(a => a.atram === selectedAtram);
-        if (atramIdx !== -1) {
-          if (!config.atrams[atramIdx].subjects) config.atrams[atramIdx].subjects = [];
-          config.atrams[atramIdx].subjects.push({
-            subject: newSubject.trim(),
-            terms: []
-          });
-        }
+        if (!config.subjects) config.subjects = [];
+        config.subjects.push({
+          subject: newSubject.trim(),
+          terms: []
+        });
       });
       
       if (copied) {
@@ -548,14 +426,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     );
     
     if (configIndexInAll !== -1) {
-      const atramIdx = allConfigs[configIndexInAll].atrams.findIndex((a: any) => a.atram === selectedAtram);
-      if (atramIdx !== -1) {
-        allConfigs[configIndexInAll].atrams[atramIdx].subjects.push({
-          subject: newSubject.trim(),
-          terms: []
-        });
-        localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
-      }
+      allConfigs[configIndexInAll].subjects.push({
+        subject: newSubject.trim(),
+        terms: []
+      });
+      localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
     }
 
     setNewSubject('');
@@ -571,19 +446,19 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   };
 
   // 6. حذف مادة
-  const handleDeleteSubject = (gradeIndex: number, atramIndex: number, subjectIndex: number) => {
+  const handleDeleteSubject = (gradeIndex: number, subjectIndex: number) => {
     const subject =
-      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex];
+      hierarchicalConfigs[gradeIndex].subjects[subjectIndex];
     setConfirmRequest({
       title: 'حذف المادة',
       message: `ستُحذف «${subject.subject}» وكل ما تحتها من فصول ووحدات ودروس. لا يمكن التراجع عن هذا.`,
-      onConfirm: () => performDeleteSubject(gradeIndex, atramIndex, subjectIndex),
+      onConfirm: () => performDeleteSubject(gradeIndex, subjectIndex),
     });
   };
 
-  const performDeleteSubject = (gradeIndex: number, atramIndex: number, subjectIndex: number) => {
+  const performDeleteSubject = (gradeIndex: number, subjectIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams[atramIndex].subjects.splice(subjectIndex, 1);
+    updatedConfigs[gradeIndex].subjects.splice(subjectIndex, 1);
     
     setHierarchicalConfigs(updatedConfigs);
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
@@ -593,8 +468,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   // 7. إضافة فصل لمادة محددة
   const handleAddTerm = () => {
-    if (!selectedGrade || !selectedAtram || !selectedSubject) {
-      alert('الرجاء اختيار الصف والترم والمادة أولاً');
+    if (!selectedGrade || !selectedSubject) {
+      alert('الرجاء اختيار الصف والمادة أولاً');
       return;
     }
     if (!newTerm.trim()) {
@@ -613,17 +488,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       return;
     }
 
-    if (!grade.atrams) return;
+    if (!grade.subjects) return;
 
-    const atramIndex = grade.atrams.findIndex(a => a.atram === selectedAtram);
-    if (atramIndex === -1) return;
 
-    if (!grade.atrams[atramIndex].subjects) return;
+    if (!grade.subjects) return;
 
-    const subjectIndex = grade.atrams[atramIndex].subjects.findIndex(s => s.subject === selectedSubject);
+    const subjectIndex = grade.subjects.findIndex(s => s.subject === selectedSubject);
     if (subjectIndex === -1) return;
 
-    const subject = grade.atrams[atramIndex].subjects[subjectIndex];
+    const subject = grade.subjects[subjectIndex];
     
     // التأكد من وجود مصفوفة terms
     if (!subject.terms) {
@@ -644,16 +517,13 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     // إذا كان إعداد عام والمستخدم معلم: استخدم Copy-on-Write
     if (teacherId && isGeneralSetting) {
       const copied = createTeacherCopy(grade, (config) => {
-        const aIdx = config.atrams.findIndex(a => a.atram === selectedAtram);
-        if (aIdx !== -1) {
-          const sIdx = config.atrams[aIdx].subjects.findIndex(s => s.subject === selectedSubject);
-          if (sIdx !== -1) {
-            if (!config.atrams[aIdx].subjects[sIdx].terms) config.atrams[aIdx].subjects[sIdx].terms = [];
-            config.atrams[aIdx].subjects[sIdx].terms.push({
-              term: newTerm.trim(),
-              units: []
-            });
-          }
+        const sIdx = config.subjects.findIndex(s => s.subject === selectedSubject);
+        if (sIdx !== -1) {
+          if (!config.subjects[sIdx].terms) config.subjects[sIdx].terms = [];
+          config.subjects[sIdx].terms.push({
+            term: newTerm.trim(),
+            units: []
+          });
         }
       });
       
@@ -673,19 +543,16 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     );
     
     if (configIndexInAll !== -1) {
-      const aIdx = allConfigs[configIndexInAll].atrams.findIndex((a: any) => a.atram === selectedAtram);
-      if (aIdx !== -1) {
-        const sIdx = allConfigs[configIndexInAll].atrams[aIdx].subjects.findIndex((s: any) => s.subject === selectedSubject);
-        if (sIdx !== -1) {
-          if (!allConfigs[configIndexInAll].atrams[aIdx].subjects[sIdx].terms) {
-            allConfigs[configIndexInAll].atrams[aIdx].subjects[sIdx].terms = [];
-          }
-          allConfigs[configIndexInAll].atrams[aIdx].subjects[sIdx].terms.push({
-            term: newTerm.trim(),
-            units: []
-          });
-          localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
+      const sIdx = allConfigs[configIndexInAll].subjects.findIndex((s: any) => s.subject === selectedSubject);
+      if (sIdx !== -1) {
+        if (!allConfigs[configIndexInAll].subjects[sIdx].terms) {
+          allConfigs[configIndexInAll].subjects[sIdx].terms = [];
         }
+        allConfigs[configIndexInAll].subjects[sIdx].terms.push({
+          term: newTerm.trim(),
+          units: []
+        });
+        localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
       }
     }
 
@@ -702,19 +569,19 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   };
 
   // 8. حذف فصل
-  const handleDeleteTerm = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number) => {
+  const handleDeleteTerm = (gradeIndex: number, subjectIndex: number, termIndex: number) => {
     const term =
-      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+      hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     setConfirmRequest({
       title: 'حذف الفصل',
       message: `سيُحذف «${term.term}» وكل وحداته ودروسها. لا يمكن التراجع عن هذا.`,
-      onConfirm: () => performDeleteTerm(gradeIndex, atramIndex, subjectIndex, termIndex),
+      onConfirm: () => performDeleteTerm(gradeIndex, subjectIndex, termIndex),
     });
   };
 
-  const performDeleteTerm = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number) => {
+  const performDeleteTerm = (gradeIndex: number, subjectIndex: number, termIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
-    updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms.splice(termIndex, 1);
+    updatedConfigs[gradeIndex].subjects[subjectIndex].terms.splice(termIndex, 1);
     
     setHierarchicalConfigs(updatedConfigs);
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
@@ -729,8 +596,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
    * تُحلّ إلى فهارس هنا تماماً كما تفعل إضافة الوحدة فوقها.
    */
   const handleAddLessonFromForm = () => {
-    if (!selectedGrade || !selectedAtram || !selectedSubject || !selectedTerm || !selectedUnit) {
-      alert('الرجاء اختيار الصف والترم والمادة والفصل والوحدة أولاً');
+    if (!selectedGrade || !selectedSubject || !selectedTerm || !selectedUnit) {
+      alert('الرجاء اختيار الصف والمادة والفصل والوحدة أولاً');
       return;
     }
     const name = newLesson.trim();
@@ -748,24 +615,22 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       return;
     }
 
-    const atramIndex = grade.atrams?.findIndex(a => a.atram === selectedAtram) ?? -1;
-    if (atramIndex === -1) return;
     const subjectIndex =
-      grade.atrams[atramIndex].subjects?.findIndex(s => s.subject === selectedSubject) ?? -1;
+      grade.subjects?.findIndex(s => s.subject === selectedSubject) ?? -1;
     if (subjectIndex === -1) return;
     const termIndex =
-      grade.atrams[atramIndex].subjects[subjectIndex].terms
+      grade.subjects[subjectIndex].terms
         ?.findIndex(t => t.term === selectedTerm) ?? -1;
     if (termIndex === -1) return;
 
-    const term = grade.atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    const term = grade.subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, selectedUnit);
     if (current.some(lesson => lesson === name)) {
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
       return;
     }
 
-    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, selectedUnit, [
+    writeLessons(gradeIndex, subjectIndex, termIndex, selectedUnit, [
       ...current,
       name,
     ]);
@@ -775,8 +640,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   // 9. إضافة وحدة لفصل محدد
   const handleAddUnit = () => {
-    if (!selectedGrade || !selectedAtram || !selectedSubject || !selectedTerm) {
-      alert('الرجاء اختيار الصف والترم والمادة والفصل أولاً');
+    if (!selectedGrade || !selectedSubject || !selectedTerm) {
+      alert('الرجاء اختيار الصف والمادة والفصل أولاً');
       return;
     }
     if (!newUnit.trim()) {
@@ -795,22 +660,20 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       return;
     }
 
-    if (!grade.atrams) return;
+    if (!grade.subjects) return;
 
-    const atramIndex = grade.atrams.findIndex(a => a.atram === selectedAtram);
-    if (atramIndex === -1) return;
 
-    if (!grade.atrams[atramIndex].subjects) return;
+    if (!grade.subjects) return;
 
-    const subjectIndex = grade.atrams[atramIndex].subjects.findIndex(s => s.subject === selectedSubject);
+    const subjectIndex = grade.subjects.findIndex(s => s.subject === selectedSubject);
     if (subjectIndex === -1) return;
 
-    if (!grade.atrams[atramIndex].subjects[subjectIndex].terms) return;
+    if (!grade.subjects[subjectIndex].terms) return;
 
-    const termIndex = grade.atrams[atramIndex].subjects[subjectIndex].terms.findIndex(t => t.term === selectedTerm);
+    const termIndex = grade.subjects[subjectIndex].terms.findIndex(t => t.term === selectedTerm);
     if (termIndex === -1) return;
 
-    const term = grade.atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+    const term = grade.subjects[subjectIndex].terms[termIndex];
     
     // التأكد من وجود مصفوفة units
     if (!term.units) {
@@ -831,17 +694,14 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     // إذا كان إعداد عام والمستخدم معلم: استخدم Copy-on-Write
     if (teacherId && isGeneralSetting) {
       const copied = createTeacherCopy(grade, (config) => {
-        const aIdx = config.atrams.findIndex(a => a.atram === selectedAtram);
-        if (aIdx !== -1) {
-          const sIdx = config.atrams[aIdx].subjects.findIndex(s => s.subject === selectedSubject);
-          if (sIdx !== -1) {
-            const tIdx = config.atrams[aIdx].subjects[sIdx].terms.findIndex(t => t.term === selectedTerm);
-            if (tIdx !== -1) {
-              if (!config.atrams[aIdx].subjects[sIdx].terms[tIdx].units) {
-                config.atrams[aIdx].subjects[sIdx].terms[tIdx].units = [];
-              }
-              config.atrams[aIdx].subjects[sIdx].terms[tIdx].units.push(newUnit.trim());
+        const sIdx = config.subjects.findIndex(s => s.subject === selectedSubject);
+        if (sIdx !== -1) {
+          const tIdx = config.subjects[sIdx].terms.findIndex(t => t.term === selectedTerm);
+          if (tIdx !== -1) {
+            if (!config.subjects[sIdx].terms[tIdx].units) {
+              config.subjects[sIdx].terms[tIdx].units = [];
             }
+            config.subjects[sIdx].terms[tIdx].units.push(newUnit.trim());
           }
         }
       });
@@ -862,18 +722,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     );
     
     if (configIndexInAll !== -1) {
-      const aIdx = allConfigs[configIndexInAll].atrams.findIndex((a: any) => a.atram === selectedAtram);
-      if (aIdx !== -1) {
-        const sIdx = allConfigs[configIndexInAll].atrams[aIdx].subjects.findIndex((s: any) => s.subject === selectedSubject);
-        if (sIdx !== -1) {
-          const tIdx = allConfigs[configIndexInAll].atrams[aIdx].subjects[sIdx].terms.findIndex((t: any) => t.term === selectedTerm);
-          if (tIdx !== -1) {
-            if (!allConfigs[configIndexInAll].atrams[aIdx].subjects[sIdx].terms[tIdx].units) {
-              allConfigs[configIndexInAll].atrams[aIdx].subjects[sIdx].terms[tIdx].units = [];
-            }
-            allConfigs[configIndexInAll].atrams[aIdx].subjects[sIdx].terms[tIdx].units.push(newUnit.trim());
-            localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
+      const sIdx = allConfigs[configIndexInAll].subjects.findIndex((s: any) => s.subject === selectedSubject);
+      if (sIdx !== -1) {
+        const tIdx = allConfigs[configIndexInAll].subjects[sIdx].terms.findIndex((t: any) => t.term === selectedTerm);
+        if (tIdx !== -1) {
+          if (!allConfigs[configIndexInAll].subjects[sIdx].terms[tIdx].units) {
+            allConfigs[configIndexInAll].subjects[sIdx].terms[tIdx].units = [];
           }
+          allConfigs[configIndexInAll].subjects[sIdx].terms[tIdx].units.push(newUnit.trim());
+          localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
         }
       }
     }
@@ -891,19 +748,19 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   };
 
   // 10. حذف وحدة
-  const handleDeleteUnit = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
+  const handleDeleteUnit = (gradeIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
     setConfirmRequest({
       title: 'حذف الوحدة',
-      message: `ستُحذف «${hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex].units[unitIndex]}» وكل دروسها. لا يمكن التراجع عن هذا.`,
+      message: `ستُحذف «${hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex].units[unitIndex]}» وكل دروسها. لا يمكن التراجع عن هذا.`,
       onConfirm: () =>
-        performDeleteUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex),
+        performDeleteUnit(gradeIndex, subjectIndex, termIndex, unitIndex),
     });
   };
 
-  const performDeleteUnit = (gradeIndex: number, atramIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
+  const performDeleteUnit = (gradeIndex: number, subjectIndex: number, termIndex: number, unitIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
     const term =
-      updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+      updatedConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const removedUnit = term.units[unitIndex];
     term.units.splice(unitIndex, 1);
     // خريطة الدروس مفتاحها اسم الوحدة، فحذف الوحدة وحدها كان يترك دروسها
@@ -940,9 +797,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   /** يحفظ الاسم المكتوب في محرّر السطر المفتوح على العقدة المحددة. */
   const saveNodeEdit = (
-    kind: 'grade' | 'atram' | 'subject' | 'term' | 'unit',
+    kind: 'grade' | 'subject' | 'term' | 'unit',
     gradeIndex: number,
-    atramIndex = -1,
     subjectIndex = -1,
     termIndex = -1,
     unitIndex = -1,
@@ -954,18 +810,13 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
     const updatedConfigs = [...hierarchicalConfigs];
     const grade = updatedConfigs[gradeIndex];
-    const atram = atramIndex >= 0 ? grade.atrams[atramIndex] : null;
-    const subject = subjectIndex >= 0 && atram ? atram.subjects[subjectIndex] : null;
+    const subject = subjectIndex >= 0 ? grade.subjects[subjectIndex] : null;
     const term = termIndex >= 0 && subject ? subject.terms[termIndex] : null;
 
     switch (kind) {
       case 'grade':
         if (grade.grade === newName) return setEditingNode(null);
         grade.grade = newName;
-        break;
-      case 'atram':
-        if (!atram || atram.atram === newName) return setEditingNode(null);
-        atram.atram = newName;
         break;
       case 'subject':
         if (!subject || subject.subject === newName) return setEditingNode(null);
@@ -1004,7 +855,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   /** يكتب خريطة الدروس ويحفظ، مع الحفاظ على بقية الشجرة كما هي. */
   const writeLessons = (
     gradeIndex: number,
-    atramIndex: number,
     subjectIndex: number,
     termIndex: number,
     unit: string,
@@ -1012,7 +862,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   ) => {
     const updatedConfigs = [...hierarchicalConfigs];
     const term =
-      updatedConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+      updatedConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     term.lessons = { ...(term.lessons ?? {}), [unit]: next };
     setHierarchicalConfigs(updatedConfigs);
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
@@ -1022,22 +872,21 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   /** يضيف الدرس المكتوب في حقل هذه الوحدة. */
   const handleAddLesson = (
     gradeIndex: number,
-    atramIndex: number,
     subjectIndex: number,
     termIndex: number,
     unit: string,
   ) => {
-    const unitKey = unitKeyOf(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+    const unitKey = unitKeyOf(gradeIndex, subjectIndex, termIndex, unit);
     const name = (lessonDrafts[unitKey] ?? '').trim();
     if (!name) return;
     const term =
-      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+      hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
     if (current.some(lesson => lesson === name)) {
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
       return;
     }
-    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, [
+    writeLessons(gradeIndex, subjectIndex, termIndex, unit, [
       ...current,
       name,
     ]);
@@ -1048,7 +897,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   /** يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس. */
   const handleSaveLessonEdit = (
     gradeIndex: number,
-    atramIndex: number,
     subjectIndex: number,
     termIndex: number,
     unit: string,
@@ -1058,7 +906,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const newName = editing.value.trim();
     if (!newName) return;
     const term =
-      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+      hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
     if (current[editing.index] === newName) {
       setEditingLesson(null);
@@ -1070,20 +918,19 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     }
     const next = [...current];
     next[editing.index] = newName;
-    writeLessons(gradeIndex, atramIndex, subjectIndex, termIndex, unit, next);
+    writeLessons(gradeIndex, subjectIndex, termIndex, unit, next);
     setEditingLesson(null);
   };
 
   const handleDeleteLesson = (
     gradeIndex: number,
-    atramIndex: number,
     subjectIndex: number,
     termIndex: number,
     unit: string,
     lessonIndex: number,
   ) => {
     const term =
-      hierarchicalConfigs[gradeIndex].atrams[atramIndex].subjects[subjectIndex].terms[termIndex];
+      hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
     setConfirmRequest({
       title: 'حذف الدرس',
@@ -1091,7 +938,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       onConfirm: () =>
         writeLessons(
           gradeIndex,
-          atramIndex,
           subjectIndex,
           termIndex,
           unit,
@@ -1102,39 +948,21 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   // ============ دوال الحصول على القوائم ============
 
-  // الحصول على الأترام للصف المحدد
-  const getAtramsForGrade = () => {
+  // الحصول على المواد للصف المحدد
+  const getSubjectsForGrade = () => {
     const grade = hierarchicalConfigs.find(c => c.grade === selectedGrade);
-    return grade && grade.atrams ? grade.atrams : [];
-  };
-
-  // الحصول على المواد للترم المحدد
-  const getSubjectsForAtram = () => {
-    const grade = hierarchicalConfigs.find(c => c.grade === selectedGrade);
-    if (!grade || !grade.atrams) return [];
-    const atram = grade.atrams.find(a => a.atram === selectedAtram);
-    return atram && atram.subjects ? atram.subjects : [];
+    return grade && grade.subjects ? grade.subjects : [];
   };
 
   // الحصول على الفصول للمادة المحددة
   const getTermsForSubject = () => {
-    const grade = hierarchicalConfigs.find(c => c.grade === selectedGrade);
-    if (!grade || !grade.atrams) return [];
-    const atram = grade.atrams.find(a => a.atram === selectedAtram);
-    if (!atram || !atram.subjects) return [];
-    const subject = atram.subjects.find(s => s.subject === selectedSubject);
+    const subject = getSubjectsForGrade().find(s => s.subject === selectedSubject);
     return subject && subject.terms ? subject.terms : [];
   };
 
   // الحصول على الوحدات للفصل المحدد
   const getUnitsForTerm = () => {
-    const grade = hierarchicalConfigs.find(c => c.grade === selectedGrade);
-    if (!grade || !grade.atrams) return [];
-    const atram = grade.atrams.find(a => a.atram === selectedAtram);
-    if (!atram || !atram.subjects) return [];
-    const subject = atram.subjects.find(s => s.subject === selectedSubject);
-    if (!subject || !subject.terms) return [];
-    const term = subject.terms.find(t => t.term === selectedTerm);
+    const term = getTermsForSubject().find(t => t.term === selectedTerm);
     return term && term.units ? term.units : [];
   };
 
@@ -1142,7 +970,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     <div style={styles.container} className="dashboard-page animate-fadeIn">
       <div style={styles.header}>
         <h1 style={styles.title}>الإعدادات الأكاديمية - النظام الهرمي</h1>
-        <p style={styles.subtitle}>إدارة البنية الهرمية: صف → ترم → مادة → فصل → وحدة → درس</p>
+        <p style={styles.subtitle}>إدارة البنية الهرمية: صف → مادة → فصل → وحدة → درس</p>
       </div>
 
       {/* للمشرف فقط: قائمة المعلمين */}
@@ -1315,12 +1143,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
           {/* 2. اختيار صف وإضافة ترم */}
           <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>2️⃣ اختر صف وأضف ترم</label>
+            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>2️⃣ اختر صف وأضف مادة</label>
             <select 
               value={selectedGrade} 
               onChange={e => {
                 setSelectedGrade(e.target.value);
-                setSelectedAtram('');
                 setSelectedSubject('');
                 setSelectedTerm('');
                 setSelectedUnit('');
@@ -1333,45 +1160,14 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                value={newAtram}
-                onChange={e => setNewAtram(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && !e.currentTarget.disabled && handleAddAtram()}
-                placeholder="مثال: الترم الأول"
-                style={{ ...styles.addInput, flex: 1 }}
-                disabled={!selectedGrade}
-              />
-              <button onClick={handleAddAtram} style={styles.addButton} disabled={!selectedGrade}>➕</button>
-            </div>
-          </div>
-
-          {/* 3. اختيار ترم وإضافة مادة */}
-          <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>3️⃣ اختر ترم وأضف مادة</label>
-            <select 
-              value={selectedAtram} 
-              onChange={e => {
-                setSelectedAtram(e.target.value);
-                setSelectedSubject('');
-                setSelectedTerm('');
-                setSelectedUnit('');
-              }}
-              style={{ ...styles.addInput, marginBottom: '8px' }}
-              disabled={!selectedGrade}
-            >
-              <option value="">-- اختر الترم --</option>
-              {getAtramsForGrade().map((a, i) => <option key={i} value={a.atram}>{a.atram}</option>)}
-            </select>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
                 value={newSubject}
                 onChange={e => setNewSubject(e.target.value)}
                 onKeyPress={e => e.key === 'Enter' && !e.currentTarget.disabled && handleAddSubject()}
                 placeholder="مثال: الرياضيات"
                 style={{ ...styles.addInput, flex: 1 }}
-                disabled={!selectedAtram}
+                disabled={!selectedGrade}
               />
-              <button onClick={handleAddSubject} style={styles.addButton} disabled={!selectedAtram}>➕</button>
+              <button onClick={handleAddSubject} style={styles.addButton} disabled={!selectedGrade}>➕</button>
             </div>
           </div>
 
@@ -1386,10 +1182,10 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 setSelectedUnit('');
               }}
               style={{ ...styles.addInput, marginBottom: '8px' }}
-              disabled={!selectedAtram}
+              disabled={!selectedGrade}
             >
               <option value="">-- اختر المادة --</option>
-              {getSubjectsForAtram().map((s, i) => <option key={i} value={s.subject}>{s.subject}</option>)}
+              {getSubjectsForGrade().map((s, i) => <option key={i} value={s.subject}>{s.subject}</option>)}
             </select>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -1528,41 +1324,22 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                   </button>
                 </div>
 
-                {!gradeConfig.atrams || gradeConfig.atrams.length === 0 ? (
-                  <div style={{ color: '#9ca3af', fontSize: '0.9rem', padding: '10px' }}>لا توجد أترام</div>
+                {!gradeConfig.subjects || gradeConfig.subjects.length === 0 ? (
+                  <div style={{ color: '#9ca3af', fontSize: '0.9rem', padding: '10px' }}>لا توجد مواد</div>
                 ) : (
-                  gradeConfig.atrams.map((atram, atramIndex) => (
-                    <div key={atramIndex} style={{ marginBottom: '12px', padding: '12px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        {renderNodeName(
-                          nodeKey('atram', gradeIndex, atramIndex),
-                          atram.atram,
-                          { fontWeight: 'bold', color: '#7c3aed' },
-                          '🏷️',
-                          () => saveNodeEdit('atram', gradeIndex, atramIndex),
-                        )}
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => setEditingNode({ key: nodeKey('atram', gradeIndex, atramIndex), value: atram.atram })} style={{ ...styles.iconButton, color: COLORS.primary }} title="تعديل اسم الترم">✏️</button>
-                          <button onClick={() => handleDeleteAtram(gradeIndex, atramIndex)} style={{ ...styles.iconButton, color: COLORS.danger }}>✖</button>
-                        </div>
-                      </div>
-
-                      {!atram.subjects || atram.subjects.length === 0 ? (
-                        <div style={{ color: '#9ca3af', fontSize: '0.85rem', padding: '8px' }}>لا توجد مواد</div>
-                      ) : (
-                        atram.subjects.map((subject, subjectIndex) => (
+                  gradeConfig.subjects.map((subject, subjectIndex) => (
                           <div key={subjectIndex} style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                               {renderNodeName(
-                                nodeKey('subject', gradeIndex, atramIndex, subjectIndex),
+                                nodeKey('subject', gradeIndex, subjectIndex),
                                 subject.subject,
                                 { fontWeight: 'bold', fontSize: '0.95rem', color: '#059669' },
                                 '📚',
-                                () => saveNodeEdit('subject', gradeIndex, atramIndex, subjectIndex),
+                                () => saveNodeEdit('subject', gradeIndex, subjectIndex),
                               )}
                               <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={() => setEditingNode({ key: nodeKey('subject', gradeIndex, atramIndex, subjectIndex), value: subject.subject })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.8rem' }} title="تعديل اسم المادة">✏️</button>
-                                <button onClick={() => handleDeleteSubject(gradeIndex, atramIndex, subjectIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.8rem' }}>✖</button>
+                                <button onClick={() => setEditingNode({ key: nodeKey('subject', gradeIndex, subjectIndex), value: subject.subject })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.8rem' }} title="تعديل اسم المادة">✏️</button>
+                                <button onClick={() => handleDeleteSubject(gradeIndex, subjectIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.8rem' }}>✖</button>
                               </div>
                             </div>
 
@@ -1573,15 +1350,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                 <div key={termIndex} style={{ marginBottom: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                                     {renderNodeName(
-                                      nodeKey('term', gradeIndex, atramIndex, subjectIndex, termIndex),
+                                      nodeKey('term', gradeIndex, subjectIndex, termIndex),
                                       term.term,
                                       { fontWeight: 'bold', fontSize: '0.9rem', color: '#92400e' },
                                       '📅',
-                                      () => saveNodeEdit('term', gradeIndex, atramIndex, subjectIndex, termIndex),
+                                      () => saveNodeEdit('term', gradeIndex, subjectIndex, termIndex),
                                     )}
                                     <div style={{ display: 'flex', gap: '6px' }}>
-                                      <button onClick={() => setEditingNode({ key: nodeKey('term', gradeIndex, atramIndex, subjectIndex, termIndex), value: term.term })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.75rem' }} title="تعديل اسم الفصل">✏️</button>
-                                      <button onClick={() => handleDeleteTerm(gradeIndex, atramIndex, subjectIndex, termIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.75rem' }}>✖</button>
+                                      <button onClick={() => setEditingNode({ key: nodeKey('term', gradeIndex, subjectIndex, termIndex), value: term.term })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.75rem' }} title="تعديل اسم الفصل">✏️</button>
+                                      <button onClick={() => handleDeleteTerm(gradeIndex, subjectIndex, termIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.75rem' }}>✖</button>
                                     </div>
                                   </div>
 
@@ -1593,20 +1370,20 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                         <div key={unitIndex} style={{ width: '100%', padding: '6px 8px', backgroundColor: '#dbeafe', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '6px' }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             {renderNodeName(
-                                              nodeKey('unit', gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex),
+                                              nodeKey('unit', gradeIndex, subjectIndex, termIndex, unitIndex),
                                               unit,
                                               { flex: 1 },
                                               '📖',
-                                              () => saveNodeEdit('unit', gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex),
+                                              () => saveNodeEdit('unit', gradeIndex, subjectIndex, termIndex, unitIndex),
                                             )}
-                                            <button onClick={() => setEditingNode({ key: nodeKey('unit', gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex), value: unit })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل اسم الوحدة">✏️</button>
-                                            <button onClick={() => handleDeleteUnit(gradeIndex, atramIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
+                                            <button onClick={() => setEditingNode({ key: nodeKey('unit', gradeIndex, subjectIndex, termIndex, unitIndex), value: unit })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل اسم الوحدة">✏️</button>
+                                            <button onClick={() => handleDeleteUnit(gradeIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
                                           </div>
 
                                           {/* حقل إضافة الدرس: مربع إدخال ظاهر وزر صريح، لا نافذة prompt.
                                               لكل وحدة حقلها الخاص حتى يكون واضحاً أين سيُضاف الدرس. */}
                                           {(() => {
-                                            const unitKey = unitKeyOf(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                            const unitKey = unitKeyOf(gradeIndex, subjectIndex, termIndex, unit);
                                             const draft = lessonDrafts[unitKey] ?? '';
                                             return (
                                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px', padding: '7px 9px', borderRadius: '8px', backgroundColor: '#eef2ff', border: '1px dashed #a5b4fc' }}>
@@ -1621,14 +1398,14 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                                   onKeyDown={e => {
                                                     if (e.key === 'Enter') {
                                                       e.preventDefault();
-                                                      handleAddLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                                      handleAddLesson(gradeIndex, subjectIndex, termIndex, unit);
                                                     }
                                                   }}
                                                   placeholder={`اسم الدرس داخل وحدة "${unit}"`}
                                                   style={{ flex: '1 1 180px', minWidth: '150px', padding: '6px 10px', fontSize: '0.82rem', borderRadius: '8px', border: '1px solid #c7d2fe', outline: 'none', fontFamily: 'inherit' }}
                                                 />
                                                 <button
-                                                  onClick={() => handleAddLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit)}
+                                                  onClick={() => handleAddLesson(gradeIndex, subjectIndex, termIndex, unit)}
                                                   disabled={!draft.trim()}
                                                   style={{ padding: '6px 12px', fontSize: '0.8rem', fontWeight: 800, backgroundColor: draft.trim() ? '#4f46e5' : '#c7d2fe', color: draft.trim() ? '#ffffff' : '#6366f1', border: 'none', borderRadius: '8px', cursor: draft.trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
                                                   title="إضافة درس إلى هذه الوحدة"
@@ -1644,7 +1421,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                           ) : (
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', paddingRight: '18px', marginTop: '5px' }}>
                                               {lessonsOf(term, unit).map((lesson, lessonIndex) => {
-                                                const unitKey = unitKeyOf(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                                const unitKey = unitKeyOf(gradeIndex, subjectIndex, termIndex, unit);
                                                 const isEditing = editingLesson?.unitKey === unitKey && editingLesson?.index === lessonIndex;
                                                 return isEditing ? (
                                                   <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', flex: '1 1 220px' }}>
@@ -1656,20 +1433,20 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                                                       onKeyDown={e => {
                                                         if (e.key === 'Enter') {
                                                           e.preventDefault();
-                                                          handleSaveLessonEdit(gradeIndex, atramIndex, subjectIndex, termIndex, unit);
+                                                          handleSaveLessonEdit(gradeIndex, subjectIndex, termIndex, unit);
                                                         }
                                                         if (e.key === 'Escape') setEditingLesson(null);
                                                       }}
                                                       style={{ flex: 1, minWidth: '120px', padding: '5px 9px', fontSize: '0.78rem', borderRadius: '5px', border: '1px solid #93c5fd', outline: 'none', fontFamily: 'inherit' }}
                                                     />
-                                                    <button onClick={() => handleSaveLessonEdit(gradeIndex, atramIndex, subjectIndex, termIndex, unit)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="حفظ">✅</button>
+                                                    <button onClick={() => handleSaveLessonEdit(gradeIndex, subjectIndex, termIndex, unit)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="حفظ">✅</button>
                                                     <button onClick={() => setEditingLesson(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="إلغاء">↩️</button>
                                                   </div>
                                                 ) : (
                                                   <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', backgroundColor: '#ffffff', border: '1px solid #93c5fd', borderRadius: '8px', fontSize: '0.78rem' }}>
                                                     <span>📝 {lesson}</span>
                                                     <button onClick={() => setEditingLesson({ unitKey, index: lessonIndex, value: lesson })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل الدرس">✏️</button>
-                                                    <button onClick={() => handleDeleteLesson(gradeIndex, atramIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="حذف الدرس">✖</button>
+                                                    <button onClick={() => handleDeleteLesson(gradeIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="حذف الدرس">✖</button>
                                                   </div>
                                                 );
                                               })}
@@ -1685,9 +1462,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                           </div>
                         ))
                       )}
-                    </div>
-                  ))
-                )}
               </div>
             ))
           )}

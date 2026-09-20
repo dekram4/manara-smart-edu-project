@@ -3,7 +3,6 @@ import 'student_content.dart';
 class AcademicContext {
   const AcademicContext({
     required this.grade,
-    required this.atram,
     required this.subject,
     required this.term,
     required this.unit,
@@ -11,7 +10,6 @@ class AcademicContext {
   });
 
   final String grade;
-  final String atram;
   final String subject;
   final String term;
   final String unit;
@@ -22,10 +20,10 @@ class AcademicContext {
 
   /// The tutor and live-meeting experiences must never guess a partial scope.
   /// Requiring every path level keeps links from another class or unit hidden.
-  bool get hasCompletePath => [grade, atram, subject, term, unit]
+  bool get hasCompletePath => [grade, subject, term, unit]
       .every((value) => value.trim().isNotEmpty);
 
-  String get label => [grade, atram, subject, term, unit, lesson]
+  String get label => [grade, subject, term, unit, lesson]
       .where((value) => value.trim().isNotEmpty)
       .join(' • ');
 }
@@ -47,34 +45,29 @@ class DeclaredLesson {
   /// declared lesson and coming back reaches the same entry. Prefixed so
   /// it can never collide with a real `lesson_configs` row id.
   String get placeholderId => 'declared:'
-      '${path.grade}|${path.atram}|${path.subject}|'
-      '${path.term}|${path.unit}|$name';
+      '${path.grade}|${path.subject}|${path.term}|${path.unit}|$name';
 }
 
 class AcademicPath {
   const AcademicPath({
     required this.grade,
-    required this.atram,
     required this.subject,
     required this.term,
     required this.unit,
   });
 
   final String grade;
-  final String atram;
   final String subject;
   final String term;
   final String unit;
 
   bool matches({
     String? grade,
-    String? atram,
     String? subject,
     String? term,
     String? unit,
   }) {
     return _matches(this.grade, grade) &&
-        _matches(this.atram, atram) &&
         _matches(this.subject, subject) &&
         _matches(this.term, term) &&
         _matches(this.unit, unit);
@@ -102,7 +95,7 @@ class AcademicSelectionData {
   /// published content for yet.
   ///
   /// The settings tree is already the source of truth for which grades,
-  /// terms, subjects and units exist — a branch with no lesson shows its
+  /// subjects, chapters and units exist — a branch with no lesson shows its
   /// own empty state rather than being hidden. The lesson level now works
   /// the same way: a lesson named in the settings is offered to the
   /// student the moment it is saved, and opening it shows the same "no
@@ -123,66 +116,25 @@ class AcademicSelectionData {
 
   List<String> get grades => _values(paths.map((path) => path.grade));
 
-  List<String> atramsFor(String grade) => _values(
-        paths
-            .where((path) => path.matches(grade: grade))
-            .map((path) => path.atram),
-      );
-
-  /// Every subject taught in a grade, across all of its terms.
-  ///
-  /// The stored hierarchy nests subject *inside* atram (الترم), so the
-  /// only way to offer the subject first — which is how a student thinks
-  /// about it — is to gather subjects across the grade and then narrow
-  /// the term to those that actually teach the chosen one. Both of these
-  /// filter real paths, so no combination is offered that does not exist.
-  List<String> subjectsInGrade(String grade) => _values(
+  /// Every subject taught in a grade.
+  List<String> subjectsFor({required String grade}) => _values(
         paths
             .where((path) => path.matches(grade: grade))
             .map((path) => path.subject),
       );
 
-  /// The terms in which [subject] is taught in [grade].
-  List<String> atramsForSubject({
+  List<String> termsFor({
     required String grade,
     required String subject,
   }) =>
       _values(
         paths
             .where((path) => path.matches(grade: grade, subject: subject))
-            .map((path) => path.atram),
-      );
-
-  List<String> subjectsFor({
-    required String grade,
-    required String atram,
-  }) =>
-      _values(
-        paths
-            .where((path) => path.matches(grade: grade, atram: atram))
-            .map((path) => path.subject),
-      );
-
-  List<String> termsFor({
-    required String grade,
-    required String atram,
-    required String subject,
-  }) =>
-      _values(
-        paths
-            .where(
-              (path) => path.matches(
-                grade: grade,
-                atram: atram,
-                subject: subject,
-              ),
-            )
             .map((path) => path.term),
       );
 
   List<String> unitsFor({
     required String grade,
-    required String atram,
     required String subject,
     required String term,
   }) =>
@@ -191,7 +143,6 @@ class AcademicSelectionData {
             .where(
               (path) => path.matches(
                 grade: grade,
-                atram: atram,
                 subject: subject,
                 term: term,
               ),
@@ -201,7 +152,6 @@ class AcademicSelectionData {
 
   List<LessonContent> lessonsFor({
     required String grade,
-    required String atram,
     required String subject,
     required String term,
     required String unit,
@@ -210,7 +160,6 @@ class AcademicSelectionData {
         .where(
           (lesson) =>
               _matches(lesson.grade, grade) &&
-              _matches(lesson.atram, atram) &&
               _matches(lesson.subject, subject) &&
               _matches(lesson.term, term) &&
               _matches(lesson.unit, unit),
@@ -229,7 +178,6 @@ class AcademicSelectionData {
 
     for (final declared in declaredLessons) {
       if (!_matches(declared.path.grade, grade) ||
-          !_matches(declared.path.atram, atram) ||
           !_matches(declared.path.subject, subject) ||
           !_matches(declared.path.term, term) ||
           !_matches(declared.path.unit, unit)) {
@@ -241,7 +189,6 @@ class AcademicSelectionData {
           id: declared.placeholderId,
           lessonId: declared.placeholderId,
           grade: declared.path.grade,
-          atram: declared.path.atram,
           subject: declared.path.subject,
           term: declared.path.term,
           unit: declared.path.unit,

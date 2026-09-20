@@ -122,11 +122,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const subjects = new Set<string>();
     configs.forEach((config: any) => {
       if (config.grade) grades.add(config.grade);
-      config.atrams?.forEach((atram: any) =>
-        atram.subjects?.forEach((subject: any) => {
-          if (subject.subject) subjects.add(subject.subject);
-        }),
-      );
+      config.subjects?.forEach((subject: any) => {
+        if (subject.subject) subjects.add(subject.subject);
+      });
     });
 
     setStats({
