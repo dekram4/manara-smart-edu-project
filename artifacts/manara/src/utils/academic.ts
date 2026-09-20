@@ -151,3 +151,51 @@ export const readHierarchicalConfigs = (
     return [];
   }
 };
+
+/**
+ * إعدادات الشجرة التي يملكها هذا المستخدم، ومعها إعدادات المشرف العامة.
+ *
+ * مصدر واحد لكل قائمة صفوف أو مواد في اللوحات. وكانت شاشات الحسابات تقرأ
+ * قائمة `smartEdu_grades` المسطّحة، وهي نسخة جانبية لا تُكتب إلا حين يفتح
+ * **المشرف** شاشة الإعدادات الأكاديمية — فالمعلم الذي يبني شجرته في شاشته
+ * الخاصة لا يكتبها أبداً، فتبقى قائمة الصفوف فارغة عنده وعند طلابه في
+ * نموذج الحساب. القراءة من الشجرة تزيل ذلك الوسيط.
+ *
+ * [teacherId] فارغ يعني مشرفاً: يرى كل الإعدادات.
+ */
+export const configsForOwner = (teacherId?: string): HierarchicalConfig[] => {
+  const all = readHierarchicalConfigs();
+  const owner = normalizeScopeValue(teacherId);
+  if (!owner || owner === 'admin') return all;
+  return all.filter(config => {
+    const configOwner = getRecordTeacherId(config);
+    return !configOwner || configOwner === 'admin' || configOwner === owner;
+  });
+};
+
+/** الصفوف التي يملكها هذا المستخدم، بلا تكرار. */
+export const gradesForOwner = (teacherId?: string): string[] =>
+  Array.from(
+    new Map(
+      configsForOwner(teacherId).map(config => [
+        normalizeScopeValue(config.grade),
+        config.grade,
+      ]),
+    ).values(),
+  ).filter(Boolean);
+
+/** مواد صفٍّ بعينه، أو كل المواد إن لم يُحدَّد صف. */
+export const subjectsForOwner = (teacherId?: string, grade?: string): string[] => {
+  const wanted = normalizeScopeValue(grade);
+  return Array.from(
+    new Map(
+      configsForOwner(teacherId)
+        .filter(config => !wanted || normalizeScopeValue(config.grade) === wanted)
+        .flatMap(config => subjectsOfConfig(config))
+        .map((subject: any) => [
+          normalizeScopeValue(subject?.subject),
+          String(subject?.subject ?? ''),
+        ]),
+    ).values(),
+  ).filter(Boolean);
+};

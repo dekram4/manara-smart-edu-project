@@ -1,5 +1,5 @@
+import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
-import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig, ParentPermissions } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
@@ -89,23 +89,25 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   };
 
   const loadAcademicSettings = () => {
-    setGrades(JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]'));
+    // صفوف هذا المعلم من شجرته، ومعها صفوف المشرف. القائمة المسطّحة
+    // احتياط: لا يكتبها إلا المشرف حين يفتح شاشة الإعدادات.
+    const fromTree = gradesForOwner(teacherId);
+    setGrades(
+      fromTree.length > 0
+        ? fromTree
+        : JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]'),
+    );
     setSubjects(JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]'));
     setTerms(JSON.parse(localStorage.getItem(STORAGE_KEYS.TERMS) || '[]'));
     setUnits(JSON.parse(localStorage.getItem(STORAGE_KEYS.UNITS) || '[]'));
-    setHierarchicalConfigs(JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]'));
+    setHierarchicalConfigs(readHierarchicalConfigs());
   };
 
   const getSubjectsForGrade = (grade: string) => {
-    if (!grade || !hierarchicalConfigs.length) return subjects;
-    const configs = hierarchicalConfigs.filter((c: HierarchicalConfig) =>
-      getRecordTeacherId(c) === normalizeScopeValue(teacherId)
-    );
-    const cfg = configs.find((c: HierarchicalConfig) => c.grade === grade);
-    if (!cfg) return subjects;
-    const subs = new Set<string>();
-    subjectsOfConfig(cfg).forEach((s: any) => { if (s.subject) subs.add(s.subject); });
-    return subs.size > 0 ? Array.from(subs) : subjects;
+    if (!grade) return subjects;
+    // مواد هذا المعلم في هذا الصف، ومعها مواد المشرف.
+    const fromTree = subjectsForOwner(teacherId, grade);
+    return fromTree.length > 0 ? fromTree : subjects;
   };
 
   const handleSaveParent = () => {

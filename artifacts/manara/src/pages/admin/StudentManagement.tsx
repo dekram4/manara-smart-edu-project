@@ -1,6 +1,6 @@
 
+import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner, subjectsOfConfig } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
-import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig } from '../../types';
 import { STORAGE_KEYS, COLORS, DEFAULT_PASSWORD } from '../../constants';
@@ -82,7 +82,15 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   };
 
   const loadAcademicSettings = () => {
-    setGrades(JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]'));
+    // من الشجرة الأكاديمية مباشرةً. القائمة المسطّحة تبقى احتياطاً وحدها:
+    // هي نسخة جانبية لا تُكتب إلا حين يفتح المشرف شاشة الإعدادات، فصفوف
+    // المعلم الذي بناها في شاشته الخاصة كانت تغيب عن هذا النموذج.
+    const fromTree = gradesForOwner();
+    setGrades(
+      fromTree.length > 0
+        ? fromTree
+        : JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]'),
+    );
     setSubjects(JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]'));
     setTerms(JSON.parse(localStorage.getItem(STORAGE_KEYS.TERMS) || '[]'));
     setUnits(JSON.parse(localStorage.getItem(STORAGE_KEYS.UNITS) || '[]'));
@@ -98,21 +106,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       return { grade: cfg.grade, subjects: Object.keys(grouped).map(sub => ({ subject: sub, enrollments: grouped[sub] })) };
     });
     setGradeConfigs(normalized);
-    setHierarchicalConfigs(JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]'));
+    // مدموجة ومسطّحة عند القراءة: نفس ما تراه شاشة الإعدادات.
+    setHierarchicalConfigs(readHierarchicalConfigs());
   };
 
   const getSubjectsForGrade = (grade: string, teacherId?: string) => {
-    if (!grade || !hierarchicalConfigs.length) return subjects;
-    const configs = teacherId
-      ? hierarchicalConfigs.filter((c: HierarchicalConfig) =>
-          getRecordTeacherId(c) === normalizeScopeValue(teacherId)
-        )
-      : hierarchicalConfigs;
-    const cfg = configs.find((c: HierarchicalConfig) => c.grade === grade);
-    if (!cfg) return subjects;
-    const subs = new Set<string>();
-    subjectsOfConfig(cfg).forEach((s: any) => { if (s.subject) subs.add(s.subject); });
-    return subs.size > 0 ? Array.from(subs) : subjects;
+    if (!grade) return subjects;
+    const fromTree = subjectsForOwner(teacherId, grade);
+    return fromTree.length > 0 ? fromTree : subjects;
   };
 
   

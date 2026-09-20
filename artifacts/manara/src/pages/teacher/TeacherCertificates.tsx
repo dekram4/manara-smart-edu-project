@@ -1,4 +1,4 @@
-import { subjectsOfConfig } from '../../utils/academic';
+import { readHierarchicalConfigs, subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { StudentInfo, QuizResult, ParentInfo, HierarchicalConfig, CertificateRecord, QuizType } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
@@ -62,10 +62,11 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
         : teacherStudentIds.has(cert.studentId),
     ));
 
-    const allConfigs: HierarchicalConfig[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
-    setAcademicConfigs(allConfigs.filter((c: HierarchicalConfig) =>
-      getRecordTeacherId(c) === normalizeScopeValue(teacherId),
-    ));
+    setAcademicConfigs(
+      readHierarchicalConfigs().filter((c: HierarchicalConfig) =>
+        getRecordTeacherId(c) === normalizeScopeValue(teacherId),
+      ),
+    );
   };
 
   const getStudentAverage = (studentId: string) => {

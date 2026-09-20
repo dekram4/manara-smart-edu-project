@@ -187,9 +187,22 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       getRecordTeacherId(c) === normalizeScopeValue(tId)
     );
     setMyConfigs(mySettings);
-    setMyGrades(Array.from(new Map(
+    const gradeNames = Array.from(new Map(
       mySettings.map((c: HierarchicalConfig) => [normalizeScopeValue(c.grade), c.grade]),
-    ).values()));
+    ).values());
+    setMyGrades(gradeNames);
+    // والقائمة المسطّحة كذلك: شاشة المشرف تكتبها منذ البداية، وما كان
+    // يكتبها أحد حين يبني المعلم شجرته هنا — فتبقى فارغة لكل شاشة قديمة
+    // ما زالت تقرأها.
+    const flat = JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]');
+    const merged = Array.from(new Map(
+      [...(Array.isArray(flat) ? flat : []), ...gradeNames]
+        .filter(Boolean)
+        .map((grade: string) => [normalizeScopeValue(grade), grade]),
+    ).values());
+    if (JSON.stringify(merged) !== JSON.stringify(flat)) {
+      localStorage.setItem(STORAGE_KEYS.GRADES, JSON.stringify(merged));
+    }
     
     // General Settings: الإعدادات العامة أو الإعدادات الخاصة بهذا المعلم من المشرف
     const generalSettings = allConfigs.filter((c: HierarchicalConfig) =>
