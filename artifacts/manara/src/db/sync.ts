@@ -78,17 +78,40 @@ function safeParse(raw: string | null): any {
   }
 }
 
-function mergeArrayRecords(remote: any[], local: any[]): any[] {
+/** آخر وقت مذكور في السجلّ، للمفاضلة بين نسختين منه. */
+function recordStamp(record: any): number {
+  const raw = record?.lastActivity ?? record?.updatedAt ?? record?.createdAt;
+  const parsed = Date.parse(String(raw ?? ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * يدمج مصفوفتي سجلات.
+ *
+ * [preferNewer] يجعل النسخة الأحدث تفوز حين يوجد السجلّ في الطرفين. بدونه
+ * كانت النسخة البعيدة تفوز دائماً: تعديل لم يصل إلى الخادم (جلسة منتهية،
+ * أو انقطاع) يُمحى من المتصفح عند أول تحميل — فيضغط المستخدم «حفظ»، ولا
+ * يتغيّر شيء في قاعدة البيانات، ولا يبقى أثر للتعديل يُعاد إرساله.
+ */
+function mergeArrayRecords(remote: any[], local: any[], preferNewer = false): any[] {
   const merged = [...remote];
-  const remoteIds = new Set(
-    remote
-      .filter((item) => item && typeof item === 'object' && item.id != null)
-      .map((item) => String(item.id)),
-  );
+  const remoteIndexById = new Map<string, number>();
+  remote.forEach((item, index) => {
+    if (item && typeof item === 'object' && item.id != null) {
+      remoteIndexById.set(String(item.id), index);
+    }
+  });
+  const remoteIds = new Set(remoteIndexById.keys());
 
   for (const item of local) {
     if (item && typeof item === 'object' && item.id != null) {
-      if (!remoteIds.has(String(item.id))) merged.push(item);
+      const id = String(item.id);
+      if (!remoteIds.has(id)) {
+        merged.push(item);
+      } else if (preferNewer) {
+        const index = remoteIndexById.get(id)!;
+        if (recordStamp(item) > recordStamp(merged[index])) merged[index] = item;
+      }
       continue;
     }
     if (!merged.some((existing) => JSON.stringify(existing) === JSON.stringify(item))) {
@@ -620,10 +643,20 @@ async function hydrateRowTable(
       : storageKey === 'smartEdu_students'
         ? removeDeletedStudents(localArr, deletedStudentIds)
         : localArr;
-  const merged = mergeArrayRecords(filteredRemote, filteredLocal);
-  const remoteIds = new Set(filteredRemote.map((item: any) => String(item?.id)));
+  // الأحدث يفوز: سجلّ عُدّل هنا ولم يصل بعد لا يجوز أن تمحوه النسخة
+  // البعيدة الأقدم.
+  const merged = mergeArrayRecords(filteredRemote, filteredLocal, true);
+  const remoteById = new Map(
+    filteredRemote
+      .filter((item: any) => item?.id != null)
+      .map((item: any) => [String(item.id), JSON.stringify(item)]),
+  );
+  // يُرفع كل ما يختلف عن النسخة البعيدة، لا الجديد وحده: التعديل على سجلّ
+  // موجود كان لا يُرفع من هنا إطلاقاً، فيعتمد كلّه على نجاح الإرسال لحظة
+  // الحفظ — وإن فشل ضاع بلا إشعار.
   const localOnly = merged
-    .filter((item: any) => item?.id != null && !remoteIds.has(String(item.id)))
+    .filter((item: any) => item?.id != null &&
+      remoteById.get(String(item.id)) !== JSON.stringify(item))
     .map((item: any) => ({ id: String(item.id), data: item }));
 
   if (localOnly.length && canCurrentActorWriteTable(table)) {
