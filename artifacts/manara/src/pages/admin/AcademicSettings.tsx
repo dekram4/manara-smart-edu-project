@@ -1,4 +1,5 @@
 ﻿
+import AcademicSaveBar from '../../components/AcademicSaveBar';
 import React, { useState, useEffect } from 'react';
 import { markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
 import { STORAGE_KEYS, COLORS } from '../../constants';
@@ -1102,6 +1103,8 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         <h1 style={styles.title}>الإعدادات الأكاديمية - النظام الهرمي</h1>
         <p style={styles.subtitle}>إدارة البنية الهرمية: صف → مادة → فصل → وحدة → درس</p>
       </div>
+
+      <AcademicSaveBar onSaved={loadSettings} />
 
       {/* للمشرف فقط: قائمة المعلمين */}
       {!teacherId && (

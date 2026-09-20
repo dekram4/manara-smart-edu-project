@@ -1,3 +1,4 @@
+import { saveRowsConfirmed } from '../../db/confirmedSave';
 import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
 import React, { useState, useEffect } from 'react';
@@ -210,7 +211,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     alert('تم حفظ ولي الأمر بنجاح!');
   };
 
-  const handleSaveStudent = () => {
+  const handleSaveStudent = async () => {
     if (!studentForm.name || !studentForm.parentId || !studentForm.primaryGrade || !studentForm.username) {
       alert('الرجاء ملء الحقول المطلوبة (الاسم، ولي الأمر، الصف، اسم المستخدم)');
       return;
@@ -334,9 +335,23 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     }
 
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(allStudents));
+
+    // ولا يُعلَن النجاح حتى يصل إلى قاعدة البيانات: الإرسال الفاشل كان
+    // يدخل الطابور بصمت فيظنّ المعلم أن الصفّ الجديد محفوظ.
+    if (savedStudent) {
+      const outcome = await saveRowsConfirmed('students', [
+        { id: savedStudent.id, data: savedStudent },
+      ]);
+      if (outcome.ok === false) {
+        loadData();
+        alert(`⚠️ لم يُحفظ في قاعدة البيانات: ${outcome.reason}`);
+        return;
+      }
+    }
+
     loadData();
     resetStudentForm();
-    alert('تم حفظ الطالب بنجاح!');
+    alert('تم حفظ الطالب في قاعدة البيانات ✅');
   };
 
   const handleDeleteParent = (parentId: string) => {    if (!permissions.canDeleteParents) {

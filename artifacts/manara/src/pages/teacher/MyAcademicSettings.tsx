@@ -1,3 +1,4 @@
+import AcademicSaveBar from '../../components/AcademicSaveBar';
 import React, { useState, useEffect } from 'react';
 import { markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
 import { STORAGE_KEYS, COLORS } from '../../constants';
@@ -815,6 +816,8 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
         <h1 style={styles.title}>إعداداتي الأكاديمية</h1>
         <p style={styles.subtitle}>إدارة الهيكل الأكاديمي الخاص بي</p>
       </div>
+
+      <AcademicSaveBar onSaved={() => loadSettings(teacherId)} />
 
       {/* Tabs */}
        <div className="dashboard-filter-surface" style={styles.tabs}>

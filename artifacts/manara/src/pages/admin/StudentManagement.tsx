@@ -1,4 +1,5 @@
 
+import { saveRowsConfirmed } from '../../db/confirmedSave';
 import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner, subjectsOfConfig } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
 import React, { useState, useEffect } from 'react';
@@ -200,7 +201,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     setStudentForm({...studentForm, gradeEnrollments: updated});
   };
 
-  const handleAddStudent = (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentForm.name || !studentForm.studentIdNumber || !studentForm.primaryGrade) {
       alert('يرجى ملء الاسم والهوية والصف الأساسي');
@@ -294,9 +295,27 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
     }
 
+    // الحفظ ليس كاملاً حتى يصل إلى قاعدة البيانات.
+    //
+    // المزامنة ترسل من تلقاء نفسها، وإن فشل الإرسال دخل الطابور بصمت
+    // وظنّ المستخدم أن الصف الجديد محفوظ — وهذا ما جعل السكربت يقرأ الصفّ
+    // القديم. النافذة تُغلق عند نجاح الكتابة، وتبقى مفتوحة مع سبب الفشل.
+    const outcome = await saveRowsConfirmed('students', [{ id: student.id, data: student }]);
+    if (outcome.ok === false) {
+      alert(`⚠️ لم يُحفظ في قاعدة البيانات: ${outcome.reason}
+التعديل محفوظ في هذا المتصفّح وسيُعاد إرساله.`);
+      onUpdate();
+      return;
+    }
+
     resetStudentForm();
     onUpdate();
-    alert(editingStudent ? 'تم التحديث بنجاح' : 'تمت إضافة الطالب بنجاح');
+    alert(
+      (editingStudent ? 'تم التحديث' : 'تمت الإضافة') +
+        (outcome.verified
+          ? ' والحفظ في قاعدة البيانات ✅'
+          : ' — أُرسل وتعذّر التحقّق من القراءة'),
+    );
   };
 
   const handleAddParent = (e: React.FormEvent) => {
