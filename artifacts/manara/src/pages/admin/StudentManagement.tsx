@@ -1,4 +1,5 @@
 
+import { markStudentDeleted } from '../../utils/students';
 import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig } from '../../types';
@@ -372,6 +373,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
 
   const handleDeleteStudent = (id: string) => {
     if (!confirm('حذف الطالب؟')) return;
+    // العلامة قبل الإزالة، وإلا أعادته المزامنة من النسخة البعيدة وظهر
+    // عند المعلم وولي الأمر وفي التقارير بعد حذفه.
+    markStudentDeleted(id);
     const updated = students.filter(s => s.id !== id);
     setStudents(updated);
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));

@@ -32,6 +32,7 @@ const SYNC_KV_KEYS = new Set([
   "smartEdu_quizQuestions",
   "smartEdu_videos",
   "smartEdu_deletedVideos",
+  "smartEdu_deletedStudents",
   "smartEdu_deletedLessons",
   "smartEdu_deletedQuizzes",
   "smartEdu_videoNotifications",

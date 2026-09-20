@@ -1,5 +1,6 @@
 ﻿
 import React, { useState, useEffect } from 'react';
+import { markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
@@ -364,6 +365,9 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   const performDeleteGrade = (gradeIndex: number) => {
     const gradeToDelete = hierarchicalConfigs[gradeIndex];
+    // ومعه دروسه: درس بلا عقدة في الشجرة لا يراه طالب ولا يظهر في
+    // الإعدادات، فيبقى محجوباً إلى الأبد.
+    markLessonsDeletedUnder({ grade: gradeToDelete.grade });
 
     // تحميل جميع الإعدادات للحذف الصحيح
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
@@ -472,6 +476,11 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   const performDeleteSubject = (gradeIndex: number, subjectIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
+    const removed = updatedConfigs[gradeIndex].subjects[subjectIndex];
+    markLessonsDeletedUnder({
+      grade: updatedConfigs[gradeIndex].grade,
+      subject: removed.subject,
+    });
     updatedConfigs[gradeIndex].subjects.splice(subjectIndex, 1);
     
     setHierarchicalConfigs(updatedConfigs);
@@ -595,6 +604,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
 
   const performDeleteTerm = (gradeIndex: number, subjectIndex: number, termIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
+    const subject = updatedConfigs[gradeIndex].subjects[subjectIndex];
+    markLessonsDeletedUnder({
+      grade: updatedConfigs[gradeIndex].grade,
+      subject: subject.subject,
+      term: subject.terms[termIndex].term,
+    });
     updatedConfigs[gradeIndex].subjects[subjectIndex].terms.splice(termIndex, 1);
     
     setHierarchicalConfigs(updatedConfigs);
@@ -776,6 +791,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const term =
       updatedConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const removedUnit = term.units[unitIndex];
+    markLessonsDeletedUnder({
+      grade: updatedConfigs[gradeIndex].grade,
+      subject: updatedConfigs[gradeIndex].subjects[subjectIndex].subject,
+      term: term.term,
+      unit: removedUnit,
+    });
     term.units.splice(unitIndex, 1);
     // خريطة الدروس مفتاحها اسم الوحدة، فحذف الوحدة وحدها كان يترك دروسها
     // معلّقة في الإعداد إلى الأبد — غير مرئية، وتعود للظهور إذا أُنشئت وحدة
@@ -827,23 +848,46 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const subject = subjectIndex >= 0 ? grade.subjects[subjectIndex] : null;
     const term = termIndex >= 0 && subject ? subject.terms[termIndex] : null;
 
+    // الدروس تحمل مسارها نصّاً، فإعادة تسمية عقدة تنتقل إليها أيضاً —
+    // وإلا بقيت معلقة على الاسم القديم، فلا يراها الطالب ولا تظهر في الإعدادات.
     switch (kind) {
       case 'grade':
         if (grade.grade === newName) return setEditingNode(null);
+        renameLessonsPath({ grade: grade.grade }, 'grade', newName);
         grade.grade = newName;
         break;
       case 'subject':
         if (!subject || subject.subject === newName) return setEditingNode(null);
+        renameLessonsPath(
+          { grade: grade.grade, subject: subject.subject },
+          'subject',
+          newName,
+        );
         subject.subject = newName;
         break;
       case 'term':
         if (!term || term.term === newName) return setEditingNode(null);
+        renameLessonsPath(
+          { grade: grade.grade, subject: subject!.subject, term: term.term },
+          'term',
+          newName,
+        );
         term.term = newName;
         break;
       case 'unit': {
         if (!term) return setEditingNode(null);
         const oldName = term.units[unitIndex];
         if (oldName === newName) return setEditingNode(null);
+        renameLessonsPath(
+          {
+            grade: grade.grade,
+            subject: subject!.subject,
+            term: term.term,
+            unit: oldName,
+          },
+          'unit',
+          newName,
+        );
         term.units[unitIndex] = newName;
         // الدروس مفهرسة باسم الوحدة، فلا بد أن تتبعها عند إعادة التسمية.
         if (term.lessons && oldName in term.lessons) {

@@ -159,6 +159,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // came straight back out, it stops with them.
     unawaited(StudentSoundService.instance.stopSpeaking());
     StudentSoundService.instance.resumeAmbient();
+    // The course may have changed while the student was inside a card —
+    // a teacher adds a unit or renames one mid-session. The cached copy is
+    // dropped so the next lesson switch reads the tree again rather than
+    // offering what the hub happened to fetch an hour ago.
+    _selectionData = null;
+    unawaited(_loadGamification());
   }
 
   Future<void> _loadGamification() async {
@@ -359,9 +365,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// Opens the lesson switcher and, if the student confirms, swaps the
   /// lesson every card works against.
   ///
-  /// The hierarchy is fetched once and kept: it does not change while a
-  /// student is looking at it, and re-fetching on every open would put a
-  /// spinner in front of a menu.
+  /// The hierarchy is fetched when it is needed and kept until the student
+  /// leaves the hub and comes back — see [didPopNext], which drops it. Held
+  /// that long because re-fetching on every open would put a spinner in
+  /// front of a menu; dropped that often because a teacher editing the
+  /// course mid-session should reach the student on their next move, not on
+  /// their next sign-in.
   Future<void> _changeLesson() async {
     StudentSoundService.instance.playTap();
     final messenger = ScaffoldMessenger.of(context);

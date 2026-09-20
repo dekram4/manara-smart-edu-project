@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig, TeacherInfo, TeacherPermissions } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
@@ -339,6 +340,8 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const performDeleteGrade = (gradeName: string) => {
+    // ودروسه معه: درس بلا عقدة في الشجرة لا يراه طالب ولا يظهر هنا.
+    markLessonsDeletedUnder({ grade: gradeName });
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const updatedConfigs = allConfigs.filter((c: HierarchicalConfig) => 
@@ -359,6 +362,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const performDeleteSubject = (gradeName: string, subjectName: string) => {
+    markLessonsDeletedUnder({ grade: gradeName, subject: subjectName });
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
@@ -384,6 +388,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const performDeleteTerm = (gradeName: string, subjectName: string, termName: string) => {
+    markLessonsDeletedUnder({ grade: gradeName, subject: subjectName, term: termName });
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
@@ -412,6 +417,12 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   };
 
   const performDeleteUnit = (gradeName: string, subjectName: string, termName: string, unitName: string) => {
+    markLessonsDeletedUnder({
+      grade: gradeName,
+      subject: subjectName,
+      term: termName,
+      unit: unitName,
+    });
     
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
@@ -472,23 +483,41 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     const subject = subjectName ? config?.subjects?.find((s: any) => s.subject === subjectName) : null;
     const term = termName ? subject?.terms?.find((t: any) => t.term === termName) : null;
 
+    // الدروس تحمل مسارها نصّاً، فإعادة التسمية تنتقل إليها أيضاً — وإلا
+    // بقيت معلقة على الاسم القديم فلا يراها الطالب ولا تظهر في الإعدادات.
     switch (kind) {
       case 'grade':
         if (config.grade === newName) return setEditingNode(null);
+        renameLessonsPath({ grade: config.grade }, 'grade', newName);
         config.grade = newName;
         break;
       case 'subject':
         if (!subject || subject.subject === newName) return setEditingNode(null);
+        renameLessonsPath(
+          { grade: config.grade, subject: subject.subject },
+          'subject',
+          newName,
+        );
         subject.subject = newName;
         break;
       case 'term':
         if (!term || term.term === newName) return setEditingNode(null);
+        renameLessonsPath(
+          { grade: config.grade, subject: subjectName, term: term.term },
+          'term',
+          newName,
+        );
         term.term = newName;
         break;
       case 'unit': {
         if (!term?.units) return setEditingNode(null);
         const unitIndex = term.units.indexOf(unitName);
         if (unitIndex === -1 || unitName === newName) return setEditingNode(null);
+        renameLessonsPath(
+          { grade: config.grade, subject: subjectName, term: termName, unit: unitName },
+          'unit',
+          newName,
+        );
         term.units[unitIndex] = newName;
         // الدروس مفهرسة باسم الوحدة، فلا بد أن تتبعها عند إعادة التسمية.
         if (term.lessons && unitName in term.lessons) {

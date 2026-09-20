@@ -1,3 +1,4 @@
+import { markStudentDeleted } from '../../utils/students';
 import { subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect } from 'react';
 import { StudentInfo, ParentInfo, HierarchicalConfig, ParentPermissions } from '../../types';
@@ -359,6 +360,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       return;
     }    if (!confirm('هل أنت متأكد من حذف الطالب؟')) return;
     
+    // العلامة قبل الإزالة، وإلا أعادته المزامنة من النسخة البعيدة.
+    markStudentDeleted(studentId);
     let allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
     allStudents = allStudents.filter(s => s.id !== studentId);
     

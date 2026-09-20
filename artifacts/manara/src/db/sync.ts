@@ -49,6 +49,7 @@ const KV_KEYS = [
   'smartEdu_deletedVideos',
   'smartEdu_deletedLessons',
   'smartEdu_deletedQuizzes',
+  'smartEdu_deletedStudents',
   'smartEdu_videoNotifications',
 ];
 
@@ -122,6 +123,21 @@ function removeDeletedLessons(value: any, deletedLessonIds: Set<string>): any[] 
   if (!Array.isArray(value)) return [];
   return value.filter(
     (lesson) => lesson?.id == null || !deletedLessonIds.has(String(lesson.id)),
+  );
+}
+
+/**
+ * يسقط الطلاب المحذوفين.
+ *
+ * الدمج اتحاد: ما حُذف محلياً وما زال عن بُعد يعود في أول
+ * مزامنة. الدروس والاختبارات والفيديو لها قوائم حذف تمنع ذلك منذ
+ * مدة؛ والطالب لم تكن له واحدة — وهذا سبب ظهوره بعد حذفه في بقية
+ * البوابات وفي اللوحة نفسها بعد تحديث الصفحة.
+ */
+function removeDeletedStudents(value: any, deletedStudentIds: Set<string>): any[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (student) => student?.id == null || !deletedStudentIds.has(String(student.id)),
   );
 }
 
@@ -526,6 +542,9 @@ async function hydrateRowTable(
   const deletedQuizIds = new Set(
     stringIdArray(safeParse(nativeGetItem('smartEdu_deletedQuizzes'))),
   );
+  const deletedStudentIds = new Set(
+    stringIdArray(safeParse(nativeGetItem('smartEdu_deletedStudents'))),
+  );
   if (storageKey === 'smartEdu_createdQuizzes') {
     const previousDeletedQuizCount = deletedQuizIds.size;
     remote
@@ -550,17 +569,25 @@ async function hydrateRowTable(
       }
     }
   }
-  const deletedIds = storageKey === 'smartEdu_createdQuizzes' ? deletedQuizIds : deletedLessonIds;
+  const deletedIds = storageKey === 'smartEdu_createdQuizzes'
+    ? deletedQuizIds
+    : storageKey === 'smartEdu_students'
+      ? deletedStudentIds
+      : deletedLessonIds;
   const filteredRemote = storageKey === 'smartEdu_lessonConfigs'
     ? removeDeletedLessons(remote, deletedLessonIds)
     : storageKey === 'smartEdu_createdQuizzes'
       ? removeDeletedQuizzes(remote, deletedQuizIds)
-      : remote;
+      : storageKey === 'smartEdu_students'
+        ? removeDeletedStudents(remote, deletedStudentIds)
+        : remote;
   const filteredLocal = storageKey === 'smartEdu_lessonConfigs'
     ? removeDeletedLessons(localArr, deletedLessonIds)
     : storageKey === 'smartEdu_createdQuizzes'
       ? removeDeletedQuizzes(localArr, deletedQuizIds)
-      : localArr;
+      : storageKey === 'smartEdu_students'
+        ? removeDeletedStudents(localArr, deletedStudentIds)
+        : localArr;
   const merged = mergeArrayRecords(filteredRemote, filteredLocal);
   const remoteIds = new Set(filteredRemote.map((item: any) => String(item?.id)));
   const localOnly = merged
@@ -578,7 +605,8 @@ async function hydrateRowTable(
 
   if (
     (storageKey === 'smartEdu_lessonConfigs' && deletedLessonIds.size) ||
-    (storageKey === 'smartEdu_createdQuizzes' && deletedQuizIds.size)
+    (storageKey === 'smartEdu_createdQuizzes' && deletedQuizIds.size) ||
+    (storageKey === 'smartEdu_students' && deletedStudentIds.size)
   ) {
     const staleRemoteIds = remote
       .filter((item: any) => item?.id != null && deletedIds.has(String(item.id)))
@@ -587,6 +615,8 @@ async function hydrateRowTable(
       const res = await withRetry(
         storageKey === 'smartEdu_createdQuizzes'
           ? 'حذف الاختبارات المحذوفة من created_quizzes'
+          : storageKey === 'smartEdu_students'
+            ? 'حذف الطلاب المحذوفين من students'
           : 'حذف المحتوى المحذوف من lesson_configs',
         () =>
         supabase.from(table).delete().in('id', staleRemoteIds),
@@ -622,6 +652,10 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
     ...stringIdArray(byKey.get('smartEdu_deletedQuizzes')),
     ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedQuizzes'))),
   ]);
+  const deletedStudentIds = new Set([
+    ...stringIdArray(byKey.get('smartEdu_deletedStudents')),
+    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedStudents'))),
+  ]);
 
   for (const key of KV_KEYS) {
     if (pendingKv.has(key)) continue; // تغييرات محلية معلّقة، لا تطمسها
@@ -634,6 +668,8 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
             ? Array.from(deletedLessonIds)
             : key === 'smartEdu_deletedQuizzes'
               ? Array.from(deletedQuizIds)
+            : key === 'smartEdu_deletedStudents'
+              ? Array.from(deletedStudentIds)
           : key === 'smartEdu_videos'
             ? removeDeletedVideos(mergeSharedValue(byKey.get(key), localVal), deletedVideoIds)
             : key === 'smartEdu_lessonConfigs'
@@ -656,6 +692,8 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
                 ? Array.from(deletedLessonIds)
                 : key === 'smartEdu_deletedQuizzes'
                   ? Array.from(deletedQuizIds)
+                : key === 'smartEdu_deletedStudents'
+                  ? Array.from(deletedStudentIds)
               : localVal;
         nativeSetItem(key, JSON.stringify(value));
         if (canCurrentActorWriteKv(key)) {
