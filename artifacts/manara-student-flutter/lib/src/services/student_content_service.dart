@@ -197,6 +197,8 @@ class StudentContentService {
       hierarchyUnavailable = true;
     }
 
+    final identities = await _teacherIdentities(profile);
+
     final response = await client
         .from('lesson_configs')
         .select('id,data')
@@ -208,7 +210,7 @@ class StudentContentService {
           (row) =>
               parseLessonContent(row, baseUrl: baseUrl, storageClient: client),
         )
-        .where((lesson) => _matchesOwner(lesson, profile))
+        .where((lesson) => _ownerAllowed(lesson.ownerId ?? '', identities))
         .toList();
 
     final paths = academicPaths(
@@ -216,13 +218,15 @@ class StudentContentService {
       hierarchyUnavailable: hierarchyUnavailable,
       lessons: matchingLessons,
       profile: profile,
+      identities: identities,
     );
 
     return AcademicSelectionData(
       paths: paths,
       lessons: matchingLessons,
       hierarchyUnavailable: hierarchyUnavailable,
-      declaredLessons: declaredLessonsFromHierarchy(hierarchyValue, profile),
+      declaredLessons:
+          declaredLessonsFromHierarchy(hierarchyValue, profile, identities),
     );
   }
 
@@ -248,8 +252,9 @@ class StudentContentService {
     required bool hierarchyUnavailable,
     required List<LessonContent> lessons,
     required StudentProfile profile,
+    Set<String> identities = const {},
   }) {
-    final fromTree = _pathsFromHierarchy(hierarchyValue, profile);
+    final fromTree = _pathsFromHierarchy(hierarchyValue, profile, identities);
     final treeIsAuthoritative = !hierarchyUnavailable && hierarchyValue != null;
     if (treeIsAuthoritative) return _uniquePaths(fromTree);
     return _uniquePaths(<AcademicPath>[
@@ -669,6 +674,55 @@ class StudentContentService {
     }
   }
 
+  /// Everything the student's teacher is known by: the id their record
+  /// carries, and the id, username and name on the teacher's own row.
+  ///
+  /// One teacher is written down in more than one way across this system —
+  /// a record may carry `teacher_1699…`, the username, or the display name,
+  /// depending on which screen created it. Matching on the student's stored
+  /// value alone therefore hid a teacher's own lessons from their own
+  /// student whenever the two records disagreed about which of those to
+  /// use. Resolving the teacher's row once and accepting any of its names
+  /// removes that whole class of failure without widening who can be seen:
+  /// only this student's teacher is ever resolved.
+  Future<Set<String>> _teacherIdentities(StudentProfile profile) {
+    final stored = _normalize(profile.teacherId);
+    if (stored.isEmpty) return Future.value(const <String>{});
+    return _identities ??= () async {
+      final identities = <String>{stored};
+      try {
+        final rows = await client
+            .from('teachers')
+            .select('id,data')
+            .limit(500)
+            .timeout(_requestTimeout);
+        for (final row in rows.whereType<Map>()) {
+          final data = _asMap(row['data']);
+          final names = <String>{
+            _normalize(row['id']),
+            _normalize(data['id']),
+            _normalize(data['username']),
+            _normalize(data['name']),
+            _normalize(data['fullName']),
+          }..removeWhere((name) => name.isEmpty);
+          if (names.contains(stored)) identities.addAll(names);
+        }
+      } catch (_) {
+        // The teachers table is unreadable on this deployment: fall back to
+        // the single value the student's record carries.
+      }
+      return identities;
+    }();
+  }
+
+  Future<Set<String>>? _identities;
+
+  static bool _ownerAllowed(String ownerId, Set<String> identities) {
+    final owner = _normalize(ownerId);
+    if (owner.isEmpty || owner == 'admin' || owner == 'supervisor') return true;
+    return identities.contains(owner);
+  }
+
   bool _matchesOwner(LessonContent lesson, StudentProfile profile) {
     final owner = _normalize(lesson.ownerId);
     final teacher = _normalize(profile.teacherId);
@@ -925,13 +979,17 @@ List<Map<String, dynamic>> _subjectsOfGrade(Map<String, dynamic> config) {
   return flattened;
 }
 
-List<AcademicPath> _pathsFromHierarchy(Object? value, StudentProfile profile) {
+List<AcademicPath> _pathsFromHierarchy(
+  Object? value,
+  StudentProfile profile, [
+  Set<String> identities = const {},
+]) {
   if (value is! List) return const [];
 
   final paths = <AcademicPath>[];
   for (final rawConfig in value) {
     final config = _asMap(rawConfig);
-    if (!_matchesConfigOwner(config, profile)) continue;
+    if (!_matchesConfigOwner(config, profile, identities)) continue;
 
     final grade = _value(config, ['grade', 'class', 'schoolGrade']);
     if (grade.isEmpty) continue;
@@ -975,8 +1033,9 @@ List<AcademicPath> _pathsFromHierarchy(Object? value, StudentProfile profile) {
 @visibleForTesting
 List<DeclaredLesson> declaredLessonsFromHierarchy(
   Object? value,
-  StudentProfile profile,
-) {
+  StudentProfile profile, [
+  Set<String> identities = const {},
+]) {
   if (value is! List) return const [];
 
   final declared = <DeclaredLesson>[];
@@ -984,7 +1043,7 @@ List<DeclaredLesson> declaredLessonsFromHierarchy(
 
   for (final rawConfig in value) {
     final config = _asMap(rawConfig);
-    if (!_matchesConfigOwner(config, profile)) continue;
+    if (!_matchesConfigOwner(config, profile, identities)) continue;
 
     final grade = _value(config, ['grade', 'class', 'schoolGrade']);
     if (grade.isEmpty) continue;
@@ -1062,13 +1121,19 @@ bool _hasPathValues(AcademicPath path) {
 }
 
 
-bool _matchesConfigOwner(Map<String, dynamic> config, StudentProfile profile) {
+bool _matchesConfigOwner(
+  Map<String, dynamic> config,
+  StudentProfile profile, [
+  Set<String> identities = const {},
+]) {
   final owner = _normalize(
     config['teacherId'] ?? config['teacher_id'] ?? config['createdBy'],
   );
-  final teacher = _normalize(profile.teacherId);
   if (owner.isEmpty || owner == 'admin' || owner == 'supervisor') return true;
-  return teacher.isNotEmpty && owner == teacher;
+  final teacher = _normalize(profile.teacherId);
+  if (teacher.isNotEmpty && owner == teacher) return true;
+  // The same teacher, written down under another of their names.
+  return identities.contains(owner);
 }
 
 String _value(Map<String, dynamic> data, List<String> keys) {

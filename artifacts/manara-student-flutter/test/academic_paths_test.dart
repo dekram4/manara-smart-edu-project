@@ -162,4 +162,74 @@ void main() {
       expect(data.hasLessons, isFalse);
     });
   });
+
+  group('the same teacher, written down under another name', () {
+    // A teacher is recorded as an id on one screen and as a username or a
+    // display name on another. Matching the student's stored value alone
+    // hid a teacher's own course from their own student whenever the two
+    // records disagreed about which to use.
+    const byUsername = StudentProfile(
+      id: 's2',
+      name: 'طالب',
+      username: 'j',
+      role: 'student',
+      teacherId: 'test',
+    );
+
+    List<Object?> treeOwnedBy(String owner) => [
+          {
+            'grade': 'الصف الرابع',
+            'createdBy': owner,
+            'subjects': [
+              {
+                'subject': 'العلوم',
+                'terms': [
+                  {
+                    'term': 'الفصل الثاني',
+                    'units': ['الوحدة الأولى'],
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+
+    test('the id on the record reaches a student who stores the username', () {
+      final paths = StudentContentService.academicPaths(
+        hierarchyValue: treeOwnedBy('teacher_1699'),
+        hierarchyUnavailable: false,
+        lessons: const [],
+        profile: byUsername,
+        // What the teachers table says this teacher is called.
+        identities: const {'test', 'teacher_1699', 'أ. تجريبي'},
+      );
+
+      expect(paths, hasLength(1));
+      expect(paths.single.subject, 'العلوم');
+    });
+
+    test('another teacher is still another teacher', () {
+      final paths = StudentContentService.academicPaths(
+        hierarchyValue: treeOwnedBy('teacher_other'),
+        hierarchyUnavailable: false,
+        lessons: const [],
+        profile: byUsername,
+        identities: const {'test', 'teacher_1699'},
+      );
+
+      expect(paths, isEmpty);
+    });
+
+    test("the supervisor's own settings reach everyone", () {
+      final paths = StudentContentService.academicPaths(
+        hierarchyValue: treeOwnedBy('admin'),
+        hierarchyUnavailable: false,
+        lessons: const [],
+        profile: byUsername,
+        identities: const {},
+      );
+
+      expect(paths, hasLength(1));
+    });
+  });
 }
