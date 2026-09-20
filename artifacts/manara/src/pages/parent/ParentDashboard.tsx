@@ -9,7 +9,7 @@ import ParentAccountSetup from './ParentAccountSetup';
 import { getEffectiveParentPermissions, getStudentPermissions, isLimitReached } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
-import { refreshSupabaseSync } from '../../db/sync';
+import { refreshSupabaseSync, rehydrateFromServer } from '../../db/sync';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
 import PermissionPackageManagement from '../shared/PermissionPackageManagement';
@@ -89,11 +89,42 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     loadData();
   }, []);
 
+  /**
+   * قراءة ولي الأمر تأتي من الخادم، لا من نسخة متصفّح قديمة.
+   *
+   * كانت الشاشة تُعيد قراءة localStorage كل خمس ثوانٍ، وهي نسخة تُملأ مرة
+   * واحدة عند تحميل الصفحة: فنتيجة اختبار يحلّها الابن بعد دخول أبيه
+   * بدقيقة، أو شهادة يُصدرها المعلم، أو نقاط يكسبها الطالب — كلّها في
+   * Supabase ولا يرى الأب منها شيئاً حتى يُحدّث الصفحة بنفسه.
+   *
+   * فصار السحب من الخادم أولاً ثم القراءة: مرة عند فتح اللوحة ليظهر
+   * الأبناء فوراً، وكل نصف دقيقة بعدها، وكلما عاد إلى التبويب — فالعودة
+   * إلى الصفحة أصدق إشارة على أنه ينتظر جديداً.
+   */
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      if (isAuthenticated) loadChildrenOnly();
-    }, 5000);
-    return () => window.clearInterval(interval);
+    if (!isAuthenticated) return;
+
+    let alive = true;
+    const pullThenRead = async () => {
+      await rehydrateFromServer().catch(error =>
+        console.warn('[parent] تعذّر تحديث البيانات من الخادم:', error?.message || error),
+      );
+      if (alive) loadChildrenOnly();
+    };
+
+    void pullThenRead();
+    const pull = window.setInterval(() => { void pullThenRead(); }, 30000);
+    // القراءة المحلية تبقى سريعة بينهما، فتظهر تغييرات هذه اللوحة فوراً.
+    const read = window.setInterval(() => { if (alive) loadChildrenOnly(); }, 5000);
+    const onFocus = () => { void pullThenRead(); };
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      alive = false;
+      window.clearInterval(pull);
+      window.clearInterval(read);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [isAuthenticated, activeChild]);
 
   const loadChildrenOnly = () => {

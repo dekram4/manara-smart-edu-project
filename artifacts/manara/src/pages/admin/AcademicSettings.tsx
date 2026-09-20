@@ -1,5 +1,7 @@
 ﻿
 import AcademicSaveBar from '../../components/AcademicSaveBar';
+import AcademicTreeViewer, { GradeNode, SubjectNode, TermNode, UnitNode, LessonNode }
+  from '../../components/AcademicTreeViewer';
 import React, { useState, useEffect } from 'react';
 import { markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
 import { STORAGE_KEYS, COLORS } from '../../constants';
@@ -59,24 +61,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   /// واحد يرى شجرته كما كان، ومن له صفوف كثيرة يطوي ما لا يعمل عليه.
   const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
 
-  // مسودة اسم الدرس لكل وحدة، ومفتاحها موضع الوحدة في الشجرة — فكل وحدة
-  // لها حقلها الخاص ولا تتشارك عدة وحدات مربع إدخال واحداً.
-  //
-  // كانت الإضافة والتعديل تستدعيان window.prompt: لا يظهر في الصفحة حقل
-  // ولا زر، والنافذة نفسها تُحجب صامتاً داخل إطار iframe فتبدو الضغطة بلا
-  // أثر. الحقل الآن جزء من الواجهة.
-  const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
-  const [editingLesson, setEditingLesson] = useState<
-    { unitKey: string; index: number; value: string } | null
-  >(null);
-
-  // العقدة المفتوحة للتحرير في الشجرة (صف/ترم/مادة/فصل/وحدة)، واحدة في
-  // كل مرة. مفتاحها نوعها وموضعها، فلا يلتبس فصلان يحملان الاسم نفسه في
-  // مادتين مختلفتين.
-  const [editingNode, setEditingNode] = useState<
-    { key: string; value: string } | null
-  >(null);
-
   // ما يُسأل عنه قبل الحذف. window.confirm كان يُحجب صامتاً داخل الإطار
   // ويُرجع false، فيبدو زر الحذف معطّلاً بلا سبب ظاهر.
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
@@ -86,80 +70,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const [copyTargetId, setCopyTargetId] = useState('');
   const [copyMode, setCopyMode] = useState<'replace' | 'merge'>('merge');
   const [copyBusy, setCopyBusy] = useState(false);
-
-  const nodeKey = (kind: string, ...indexes: number[]) =>
-    `${kind}:${indexes.join('|')}`;
-
-  /**
-   * اسم العقدة: نصاً عادياً، أو مربع إدخال حين تكون هذه العقدة قيد التحرير.
-   *
-   * دالة تُعيد JSX لا مكوّناً متداخلاً عن قصد: المكوّن المعرَّف داخل الـ
-   * render يكون نوعاً جديداً في كل تمريرة، فيُفكّك React المدخل ويعيد
-   * تركيبه مع كل حرف ويضيع التركيز.
-   */
-  const renderNodeName = (
-    key: string,
-    name: string,
-    labelStyle: React.CSSProperties,
-    icon: string,
-    onSave: () => void,
-  ): React.ReactNode => {
-    if (editingNode?.key !== key) {
-      return <span style={labelStyle}>{icon} {name}</span>;
-    }
-    return (
-      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-        <input
-          type="text"
-          autoFocus
-          value={editingNode.value}
-          onChange={e =>
-            setEditingNode(current =>
-              current ? { ...current, value: e.target.value } : current,
-            )
-          }
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onSave();
-            }
-            if (e.key === 'Escape') setEditingNode(null);
-          }}
-          style={{
-            flex: 1,
-            minWidth: '120px',
-            padding: '5px 9px',
-            fontSize: '0.85rem',
-            borderRadius: '8px',
-            border: `1px solid ${COLORS.primary}`,
-            outline: 'none',
-            fontFamily: 'inherit',
-          }}
-        />
-        <button
-          onClick={onSave}
-          style={{ ...styles.iconButton, color: COLORS.primary }}
-          title="حفظ"
-        >
-          ✅
-        </button>
-        <button
-          onClick={() => setEditingNode(null)}
-          style={{ ...styles.iconButton, color: COLORS.danger }}
-          title="إلغاء"
-        >
-          ↩️
-        </button>
-      </span>
-    );
-  };
-
-  const unitKeyOf = (
-    gradeIndex: number,
-    subjectIndex: number,
-    termIndex: number,
-    unit: string,
-  ) => `${gradeIndex}|${subjectIndex}|${termIndex}|${unit}`;
 
   // دالة للحصول على المعلمين الذين لديهم إعدادات أكاديمية
   const getTeachersWithSettings = () => {
@@ -833,25 +743,22 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   // `smartEdu_hierarchicalConfigs` من مفاتيح المزامنة، فاعتراض الكتابة في
   // db/sync يرسل التغيير إلى Supabase فور حدوثه بلا استدعاء إضافي.
 
-  /** يكتب الشجرة بعد تعديلها ويغلق محرّر السطر. */
+  /** يكتب الشجرة بعد تعديلها. */
   const commitTree = (updatedConfigs: HierarchicalConfig[]) => {
     setHierarchicalConfigs(updatedConfigs);
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
     onUpdate();
-    setEditingNode(null);
   };
 
   /** يحفظ الاسم المكتوب في محرّر السطر المفتوح على العقدة المحددة. */
   const saveNodeEdit = (
     kind: 'grade' | 'subject' | 'term' | 'unit',
+    newName: string,
     gradeIndex: number,
     subjectIndex = -1,
     termIndex = -1,
     unitIndex = -1,
   ) => {
-    const editing = editingNode;
-    if (!editing) return;
-    const newName = editing.value.trim();
     if (!newName) return;
 
     const updatedConfigs = [...hierarchicalConfigs];
@@ -863,12 +770,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     // وإلا بقيت معلقة على الاسم القديم، فلا يراها الطالب ولا تظهر في الإعدادات.
     switch (kind) {
       case 'grade':
-        if (grade.grade === newName) return setEditingNode(null);
+        if (grade.grade === newName) return;
         renameLessonsPath({ grade: grade.grade }, 'grade', newName);
         grade.grade = newName;
         break;
       case 'subject':
-        if (!subject || subject.subject === newName) return setEditingNode(null);
+        if (!subject || subject.subject === newName) return;
         renameLessonsPath(
           { grade: grade.grade, subject: subject.subject },
           'subject',
@@ -877,7 +784,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         subject.subject = newName;
         break;
       case 'term':
-        if (!term || term.term === newName) return setEditingNode(null);
+        if (!term || term.term === newName) return;
         renameLessonsPath(
           { grade: grade.grade, subject: subject!.subject, term: term.term },
           'term',
@@ -886,9 +793,9 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         term.term = newName;
         break;
       case 'unit': {
-        if (!term) return setEditingNode(null);
+        if (!term) return;
         const oldName = term.units[unitIndex];
-        if (oldName === newName) return setEditingNode(null);
+        if (oldName === newName) return;
         renameLessonsPath(
           {
             grade: grade.grade,
@@ -944,23 +851,21 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     subjectIndex: number,
     termIndex: number,
     unit: string,
-  ) => {
-    const unitKey = unitKeyOf(gradeIndex, subjectIndex, termIndex, unit);
-    const name = (lessonDrafts[unitKey] ?? '').trim();
-    if (!name) return;
+    name: string,
+  ): boolean => {
+    if (!name) return false;
     const term =
       hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
     if (current.some(lesson => lesson === name)) {
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
-      return;
+      return false;
     }
     writeLessons(gradeIndex, subjectIndex, termIndex, unit, [
       ...current,
       name,
     ]);
-    // الحقل يُفرَّغ ليستقبل الدرس التالي مباشرة.
-    setLessonDrafts(drafts => ({ ...drafts, [unitKey]: '' }));
+    return true;
   };
 
   /** يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس. */
@@ -969,26 +874,21 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     subjectIndex: number,
     termIndex: number,
     unit: string,
+    lessonIndex: number,
+    newName: string,
   ) => {
-    const editing = editingLesson;
-    if (!editing) return;
-    const newName = editing.value.trim();
     if (!newName) return;
     const term =
       hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
-    if (current[editing.index] === newName) {
-      setEditingLesson(null);
-      return;
-    }
-    if (current.some((lesson, index) => index !== editing.index && lesson === newName)) {
+    if (current[lessonIndex] === newName) return;
+    if (current.some((lesson, index) => index !== lessonIndex && lesson === newName)) {
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
       return;
     }
     const next = [...current];
-    next[editing.index] = newName;
+    next[lessonIndex] = newName;
     writeLessons(gradeIndex, subjectIndex, termIndex, unit, next);
-    setEditingLesson(null);
   };
 
   const handleDeleteLesson = (
@@ -1114,8 +1014,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     return !query || searchHaystack(config).includes(query);
   };
 
-  const shownConfigs = hierarchicalConfigs.filter(gradeShown);
-
   /// المواد المعروضة في قائمة التصفية: مواد الصف المختار وحده إن اختير.
   const filterSubjectOptions = Array.from(
     new Map(
@@ -1145,13 +1043,6 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             ]),
           )
         : {},
-    );
-
-  const countUnits = (config: HierarchicalConfig) =>
-    (config.subjects || []).reduce(
-      (total, subject) =>
-        total + (subject.terms || []).reduce((sum, term) => sum + (term.units || []).length, 0),
-      0,
     );
 
   // ============ دوال الحصول على القوائم ============
@@ -1596,231 +1487,69 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             </div>
           )}
 
-          {hierarchicalConfigs.length > 0 && shownConfigs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}>
-              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
-              <p>لا يطابق هذا البحث أي صف. جرّب كلمة أخرى أو امسح التصفية.</p>
-            </div>
-          ) : hierarchicalConfigs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
-              <p>لا يوجد تكوين هرمي بعد. ابدأ بإضافة صف من القسم الأيسر</p>
-            </div>
-          ) : (
-            hierarchicalConfigs.map((gradeConfig, gradeIndex) => {
-              // الفهرس فهرس المصفوفة الأصلية دائماً، لا فهرس المعروض: كل
-              // تعديل وحذف في هذه الشاشة يُخاطب الشجرة به.
-              if (!gradeShown(gradeConfig)) return null;
-              const collapsed = isCollapsed(gradeConfig, gradeIndex);
-              const shownSubjectEntries = (gradeConfig.subjects || [])
-                .map((subject, subjectIndex) => ({ subject, subjectIndex }))
-                .filter(entry => matchesFilter(entry.subject.subject, filterSubject));
-              return (
-              <div key={gradeIndex} style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '2px solid #3b82f6' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsed ? '0' : '15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <button
-                      onClick={() => toggleGrade(gradeConfig, gradeIndex)}
-                      style={styles.treeToggle}
-                      title={collapsed ? 'فتح الصف' : 'طيّ الصف'}
-                      aria-expanded={!collapsed}
-                    >
-                      {collapsed ? '▶' : '▼'}
-                    </button>
-                  <div>
-                    <div style={{ marginBottom: '4px' }}>
-                      {renderNodeName(
-                        nodeKey('grade', gradeIndex),
-                        gradeConfig.grade,
-                        { fontWeight: 'bold', fontSize: '1.1rem', color: '#1e40af' },
-                        '🏫',
-                        () => saveNodeEdit('grade', gradeIndex),
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      {gradeConfig.createdByName && (
-                        <span style={{ backgroundColor: '#f1f5f9', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                          👨‍🏫 {gradeConfig.createdByName}
-                        </span>
-                      )}
-                      {teacherId && isGeneralConfig(gradeConfig) && (
-                        <span style={{ backgroundColor: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                          ✏️ يمكن التعديل (سينشئ نسخة)
-                        </span>
-                      )}
-                      <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                        {(gradeConfig.subjects || []).length} مادة · {countUnits(gradeConfig)} وحدة
-                      </span>
-                    </div>
-                  </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    onClick={() => setEditingNode({ key: nodeKey('grade', gradeIndex), value: gradeConfig.grade })}
-                    title="تعديل اسم الصف"
-                    style={{ 
-                      ...styles.iconButton, 
-                      color: COLORS.primary
-                    }}
-                  >
-                    ✏️
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteGrade(gradeIndex)} 
-                    style={{ 
-                      ...styles.iconButton, 
-                      color: teacherId && !isGeneralConfig(gradeConfig) && !belongsToTeacher(gradeConfig, teacherId) ? '#d1d5db' : COLORS.danger,
-                      cursor: teacherId && !isGeneralConfig(gradeConfig) && !belongsToTeacher(gradeConfig, teacherId) ? 'not-allowed' : 'pointer'
-                    }}
-                    disabled={Boolean(teacherId && !isGeneralConfig(gradeConfig) && !belongsToTeacher(gradeConfig, teacherId))}
-                  >
-                    🗑️
-                  </button>
-                </div>
-
-                {collapsed ? null : shownSubjectEntries.length === 0 ? (
-                  <div style={{ color: '#9ca3af', fontSize: '0.9rem', padding: '10px' }}>لا توجد مواد</div>
-                ) : (
-                  shownSubjectEntries.map(({ subject, subjectIndex }) => (
-                          <div key={subjectIndex} style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              {renderNodeName(
-                                nodeKey('subject', gradeIndex, subjectIndex),
-                                subject.subject,
-                                { fontWeight: 'bold', fontSize: '0.95rem', color: '#059669' },
-                                '📚',
-                                () => saveNodeEdit('subject', gradeIndex, subjectIndex),
-                              )}
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={() => setEditingNode({ key: nodeKey('subject', gradeIndex, subjectIndex), value: subject.subject })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.8rem' }} title="تعديل اسم المادة">✏️</button>
-                                <button onClick={() => handleDeleteSubject(gradeIndex, subjectIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.8rem' }}>✖</button>
-                              </div>
-                            </div>
-
-                            {!subject.terms || subject.terms.length === 0 ? (
-                              <div style={{ color: '#9ca3af', fontSize: '0.8rem', padding: '6px' }}>لا توجد فصول</div>
-                            ) : (
-                              subject.terms.map((term, termIndex) => (
-                                <div key={termIndex} style={{ marginBottom: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                    {renderNodeName(
-                                      nodeKey('term', gradeIndex, subjectIndex, termIndex),
-                                      term.term,
-                                      { fontWeight: 'bold', fontSize: '0.9rem', color: '#92400e' },
-                                      '📅',
-                                      () => saveNodeEdit('term', gradeIndex, subjectIndex, termIndex),
-                                    )}
-                                    <div style={{ display: 'flex', gap: '6px' }}>
-                                      <button onClick={() => setEditingNode({ key: nodeKey('term', gradeIndex, subjectIndex, termIndex), value: term.term })} style={{ ...styles.iconButton, color: COLORS.primary, fontSize: '0.75rem' }} title="تعديل اسم الفصل">✏️</button>
-                                      <button onClick={() => handleDeleteTerm(gradeIndex, subjectIndex, termIndex)} style={{ ...styles.iconButton, color: COLORS.danger, fontSize: '0.75rem' }}>✖</button>
-                                    </div>
-                                  </div>
-
-                                  {!term.units || term.units.length === 0 ? (
-                                    <div style={{ color: '#9ca3af', fontSize: '0.75rem', padding: '4px' }}>لا توجد وحدات</div>
-                                  ) : (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                      {term.units.map((unit, unitIndex) => (
-                                        <div key={unitIndex} style={{ width: '100%', padding: '6px 8px', backgroundColor: '#dbeafe', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '6px' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            {renderNodeName(
-                                              nodeKey('unit', gradeIndex, subjectIndex, termIndex, unitIndex),
-                                              unit,
-                                              { flex: 1 },
-                                              '📖',
-                                              () => saveNodeEdit('unit', gradeIndex, subjectIndex, termIndex, unitIndex),
-                                            )}
-                                            <button onClick={() => setEditingNode({ key: nodeKey('unit', gradeIndex, subjectIndex, termIndex, unitIndex), value: unit })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل اسم الوحدة">✏️</button>
-                                            <button onClick={() => handleDeleteUnit(gradeIndex, subjectIndex, termIndex, unitIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }}>✖</button>
-                                          </div>
-
-                                          {/* حقل إضافة الدرس: مربع إدخال ظاهر وزر صريح، لا نافذة prompt.
-                                              لكل وحدة حقلها الخاص حتى يكون واضحاً أين سيُضاف الدرس. */}
-                                          {(() => {
-                                            const unitKey = unitKeyOf(gradeIndex, subjectIndex, termIndex, unit);
-                                            const draft = lessonDrafts[unitKey] ?? '';
-                                            return (
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px', padding: '7px 9px', borderRadius: '8px', backgroundColor: '#eef2ff', border: '1px dashed #a5b4fc' }}>
-                                                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#4338ca', whiteSpace: 'nowrap' }}>الدرس:</span>
-                                                <input
-                                                  type="text"
-                                                  value={draft}
-                                                  onChange={e => {
-                                                    const value = e.target.value;
-                                                    setLessonDrafts(drafts => ({ ...drafts, [unitKey]: value }));
-                                                  }}
-                                                  onKeyDown={e => {
-                                                    if (e.key === 'Enter') {
-                                                      e.preventDefault();
-                                                      handleAddLesson(gradeIndex, subjectIndex, termIndex, unit);
-                                                    }
-                                                  }}
-                                                  placeholder={`اسم الدرس داخل وحدة "${unit}"`}
-                                                  style={{ flex: '1 1 180px', minWidth: '150px', padding: '6px 10px', fontSize: '0.82rem', borderRadius: '8px', border: '1px solid #c7d2fe', outline: 'none', fontFamily: 'inherit' }}
-                                                />
-                                                <button
-                                                  onClick={() => handleAddLesson(gradeIndex, subjectIndex, termIndex, unit)}
-                                                  disabled={!draft.trim()}
-                                                  style={{ padding: '6px 12px', fontSize: '0.8rem', fontWeight: 800, backgroundColor: draft.trim() ? '#4f46e5' : '#c7d2fe', color: draft.trim() ? '#ffffff' : '#6366f1', border: 'none', borderRadius: '8px', cursor: draft.trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
-                                                  title="إضافة درس إلى هذه الوحدة"
-                                                >
-                                                  ➕ إضافة درس
-                                                </button>
-                                              </div>
-                                            );
-                                          })()}
-
-                                          {lessonsOf(term, unit).length === 0 ? (
-                                            <div style={{ color: '#6b7280', fontSize: '0.72rem', paddingRight: '18px', marginTop: '4px' }}>لا توجد دروس في هذه الوحدة بعد — اكتب اسم الدرس أعلاه ثم اضغط «إضافة درس».</div>
-                                          ) : (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', paddingRight: '18px', marginTop: '5px' }}>
-                                              {lessonsOf(term, unit).map((lesson, lessonIndex) => {
-                                                const unitKey = unitKeyOf(gradeIndex, subjectIndex, termIndex, unit);
-                                                const isEditing = editingLesson?.unitKey === unitKey && editingLesson?.index === lessonIndex;
-                                                return isEditing ? (
-                                                  <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', flex: '1 1 220px' }}>
-                                                    <input
-                                                      type="text"
-                                                      autoFocus
-                                                      value={editingLesson!.value}
-                                                      onChange={e => setEditingLesson(current => (current ? { ...current, value: e.target.value } : current))}
-                                                      onKeyDown={e => {
-                                                        if (e.key === 'Enter') {
-                                                          e.preventDefault();
-                                                          handleSaveLessonEdit(gradeIndex, subjectIndex, termIndex, unit);
-                                                        }
-                                                        if (e.key === 'Escape') setEditingLesson(null);
-                                                      }}
-                                                      style={{ flex: 1, minWidth: '120px', padding: '5px 9px', fontSize: '0.78rem', borderRadius: '5px', border: '1px solid #93c5fd', outline: 'none', fontFamily: 'inherit' }}
-                                                    />
-                                                    <button onClick={() => handleSaveLessonEdit(gradeIndex, subjectIndex, termIndex, unit)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="حفظ">✅</button>
-                                                    <button onClick={() => setEditingLesson(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="إلغاء">↩️</button>
-                                                  </div>
-                                                ) : (
-                                                  <div key={lessonIndex} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', backgroundColor: '#ffffff', border: '1px solid #93c5fd', borderRadius: '8px', fontSize: '0.78rem' }}>
-                                                    <span>📝 {lesson}</span>
-                                                    <button onClick={() => setEditingLesson({ unitKey, index: lessonIndex, value: lesson })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.primary, padding: '0 2px' }} title="تعديل الدرس">✏️</button>
-                                                    <button onClick={() => handleDeleteLesson(gradeIndex, subjectIndex, termIndex, unit, lessonIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.danger, padding: '0 2px' }} title="حذف الدرس">✖</button>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        ))
-                      )}
+          <AcademicTreeViewer
+            configs={hierarchicalConfigs}
+            gradeShown={config => gradeShown(config)}
+            subjectEntries={config =>
+              (config.subjects || [])
+                .map((subject: any, subjectIndex: number) => ({ subject, subjectIndex }))
+                .filter((entry: any) => matchesFilter(entry.subject.subject, filterSubject))
+            }
+            isCollapsed={(config, gradeIndex) => isCollapsed(config, gradeIndex)}
+            onToggleGrade={(config, gradeIndex) => toggleGrade(config, gradeIndex)}
+            gradeBadges={config => (
+              <>
+                {config.createdByName && (
+                  <span style={styles.ownerBadge}>👨‍🏫 {config.createdByName}</span>
+                )}
+                {teacherId && isGeneralConfig(config) && (
+                  <span style={styles.copyHintBadge}>✏️ يمكن التعديل (سينشئ نسخة)</span>
+                )}
+              </>
+            )}
+            canDeleteGrade={config =>
+              !(teacherId && !isGeneralConfig(config) && !belongsToTeacher(config, teacherId))
+            }
+            onRenameGrade={(node: GradeNode, name: string) =>
+              saveNodeEdit('grade', name, node.gradeIndex)}
+            onRenameSubject={(node: SubjectNode, name: string) =>
+              saveNodeEdit('subject', name, node.gradeIndex, node.subjectIndex)}
+            onRenameTerm={(node: TermNode, name: string) =>
+              saveNodeEdit('term', name, node.gradeIndex, node.subjectIndex, node.termIndex)}
+            onRenameUnit={(node: UnitNode, name: string) =>
+              saveNodeEdit('unit', name, node.gradeIndex, node.subjectIndex, node.termIndex, node.unitIndex)}
+            onRenameLesson={(node: LessonNode, name: string) =>
+              handleSaveLessonEdit(
+                node.gradeIndex, node.subjectIndex, node.termIndex,
+                node.unit, node.lessonIndex, name,
+              )}
+            onDeleteGrade={(node: GradeNode) => handleDeleteGrade(node.gradeIndex)}
+            onDeleteSubject={(node: SubjectNode) =>
+              handleDeleteSubject(node.gradeIndex, node.subjectIndex)}
+            onDeleteTerm={(node: TermNode) =>
+              handleDeleteTerm(node.gradeIndex, node.subjectIndex, node.termIndex)}
+            onDeleteUnit={(node: UnitNode) =>
+              handleDeleteUnit(node.gradeIndex, node.subjectIndex, node.termIndex, node.unitIndex)}
+            onDeleteLesson={(node: LessonNode) =>
+              handleDeleteLesson(
+                node.gradeIndex, node.subjectIndex, node.termIndex,
+                node.unit, node.lessonIndex,
+              )}
+            onAddLesson={(node: UnitNode, name: string) =>
+              handleAddLesson(node.gradeIndex, node.subjectIndex, node.termIndex, node.unit, name)}
+            emptyState={
+              <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
+                <p>لا يوجد تكوين هرمي بعد. ابدأ بإضافة صف من القسم الأيسر</p>
               </div>
-            );
-            })
-          )}
+            }
+            noMatchState={
+              <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
+                <p>لا يطابق هذا البحث أي صف. جرّب كلمة أخرى أو امسح التصفية.</p>
+              </div>
+            }
+          />
         </div>
       </div>
 
@@ -1884,6 +1613,16 @@ const styles = {
   addInput: { flex: 1, padding: '12px 15px', border: '2px solid #d1d5db', borderRadius: '8px', fontSize: '1rem', width: '100%' },
   addButton: { padding: '12px 20px', backgroundColor: COLORS.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold', whiteSpace: 'nowrap' as const },
   listItem: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', marginBottom: '8px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e5e7eb' },
+  // شارات بجانب اسم الصف في الشجرة المشتركة: مالك الإعداد، والتنبيه إلى
+  // أن تعديل إعداد عام ينشئ نسخة خاصة بالمعلم بدل تغيير الأصل.
+  ownerBadge: {
+    backgroundColor: '#f1f5f9', color: '#92400e', padding: '2px 8px',
+    borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold',
+  },
+  copyHintBadge: {
+    backgroundColor: '#dbeafe', color: '#1e40af', padding: '2px 8px',
+    borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold',
+  },
   iconButton: { padding: '6px 10px', backgroundColor: 'white', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem' },
   saveButton: { padding: '8px 12px', backgroundColor: '#10B981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap' as const },
   cancelButton: { padding: '8px 12px', backgroundColor: '#EF4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' },

@@ -469,20 +469,41 @@ function canCurrentActorWriteKv(key: string): boolean {
 }
 
 /**
- * الجداول التي لا يكتبها إلا المشرف.
+ * ما يكتبه المعلم، مذكوراً باسمه.
  *
- * `teachers` منها: حسابات المعلمين يديرها المشرف وحده. ولوحة المعلم كانت
- * تحاول كتابته مع كل دخول — تسجيل الدخول يحدّث `lastActivity` في نسخة
- * المتصفح، فينطلق حفظ للجدول كلّه — فيردّه الخادم ويظهر الشريط الأحمر
- * «حفظ teachers» في وجه المعلم قبل أن يفعل شيئاً. ولا شيء يضيع بمنعه:
- * المعلم لا يملك تعديل حسابات المعلمين أصلاً.
+ * قائمة سماح لا قائمة منع: الجدول الذي لا يرد هنا لا يُرسَل من لوحة
+ * المعلم مهما كان. لو كانت قائمة منع لكان كل جدول يُضاف لاحقاً مسموحاً
+ * للمعلم بالسهو، وعاد الشريط الأحمر من حيث لا نحتسب.
+ *
+ * و`teachers` خارجها عمداً: حسابات المعلمين يديرها المشرف. لوحة المعلم
+ * كانت تحاول كتابته مع كل دخول — تسجيل الدخول يحدّث `lastActivity` في
+ * نسخة المتصفح، فينطلق حفظ للجدول كلّه — فيردّه الخادم بـ 401 ويظهر
+ * الشريط الأحمر «حفظ teachers» في وجه المعلم قبل أن يفعل شيئاً.
+ *
+ * أما البقية فهي عمل المعلم اليومي: طلابه وأولياء أمورهم، ودروسه
+ * واختباراته ونتائجها، ورسائله وشهاداته. حصر الكتابة في ثلاثة جداول
+ * وحدها كان يُسكت الشريط ويُسقط معه إنشاء الاختبارات وإصدار الشهادات
+ * وإضافة أولياء الأمور، فيصير الخلل أكبر من العَرَض.
  */
-const ADMIN_ONLY_TABLES = new Set(['teachers']);
+const TEACHER_WRITABLE_TABLES = new Set([
+  'students',
+  'parents',
+  'lesson_configs',
+  'created_quizzes',
+  'quiz_results',
+  'interactions',
+  'private_messages',
+  'public_messages',
+  'certificates',
+]);
 
 function canCurrentActorWriteTable(table: string): boolean {
   if (isReadOnlyActor()) return false;
-  if (!ADMIN_ONLY_TABLES.has(table)) return true;
-  return activeSyncContext?.role === 'admin';
+  const role = activeSyncContext?.role;
+  if (role === 'admin') return true;
+  // المعلم، ومن لم يثبت دوره بعد لأن الجلسة ما زالت تُفتح: كلاهما محصور
+  // في قائمة السماح، فلا تنطلق كتابة على جدول الحسابات في تلك الفجوة.
+  return TEACHER_WRITABLE_TABLES.has(table);
 }
 
 function executeOp(op: PendingOp): PromiseLike<{ error: any }> {
@@ -921,6 +942,11 @@ export function installWriteThrough(): void {
 
     if (ROW_TABLES[key]) {
       const table = ROW_TABLES[key];
+      // الجدول الذي لا يكتبه هذا الدور لا يدخل الطابور أصلاً: لا مقارنة
+      // ولا طلب ولا خطأ يُعرض. تسجيل دخول المعلم يحدّث `lastActivity` في
+      // نسخة المتصفح من جدول المعلمين، وهذه هي النقطة التي كان ينطلق منها
+      // «حفظ teachers» قبل أن يلمس المعلم شيئاً.
+      if (!canCurrentActorWriteTable(table)) return;
       const oldArr = Array.isArray(safeParse(oldRaw)) ? safeParse(oldRaw) : [];
       const newArr = Array.isArray(safeParse(value)) ? safeParse(value) : [];
       void enqueue(key, () => syncRowTable(table, oldArr, newArr));
@@ -1039,6 +1065,26 @@ export function initSupabaseSync(): Promise<void> {
   })();
 
   return syncInitializationPromise;
+}
+
+/**
+ * يسحب أحدث نسخة من Supabase إلى المتصفح، بلا فتح جلسة من جديد.
+ *
+ * لوحة ولي الأمر تقرأ من نسخة المتصفح، وهذه النسخة كانت تُملأ مرة واحدة
+ * عند تحميل الصفحة. فنتيجة اختبار يحلّها الابن بعد دخول أبيه بدقيقة،
+ * وشهادة يُصدرها المعلم، ونقاط يكسبها الطالب — كلّها في قاعدة البيانات
+ * ولا شيء منها يظهر للأب حتى يُحدّث الصفحة يدوياً. قراءة المتصفح كل خمس
+ * ثوانٍ لا تُصلح ذلك: تعيد قراءة النسخة القديمة نفسها.
+ *
+ * هذه الدالة تسحب الجداول من جديد فتصير القراءة التالية على بيانات
+ * الخادم. ولا تمسّ الجلسة ولا الطابور، فيصحّ استدعاؤها دورياً.
+ */
+export async function rehydrateFromServer(): Promise<void> {
+  if (!activeSyncContext) {
+    await initSupabaseSync();
+    return;
+  }
+  await hydrateFromSupabase(new Set(), new Set(), activeSyncContext);
 }
 
 /**

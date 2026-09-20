@@ -2,6 +2,8 @@ import AcademicSaveBar from '../../components/AcademicSaveBar';
 import React, { useState, useEffect } from 'react';
 import { markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
 import { STORAGE_KEYS, COLORS } from '../../constants';
+import AcademicTreeViewer, { GradeNode, SubjectNode, TermNode, UnitNode, LessonNode }
+  from '../../components/AcademicTreeViewer';
 import { HierarchicalConfig, TeacherInfo, TeacherPermissions } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissionDetails } from '../../permissions';
@@ -49,88 +51,9 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   const [treeSearch, setTreeSearch] = useState('');
   const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
 
-  // مسودة اسم الدرس لكل وحدة، ومفتاحها المسار الكامل للوحدة — فكل وحدة
-  // على الشاشة لها حقلها الخاص، ولا تتشارك عدة وحدات مربع إدخال واحداً.
-  //
-  // الإضافة والتعديل كانا يستدعيان window.prompt، وهو ليس عنصراً مرئياً
-  // في الصفحة أصلاً: لا يظهر حقل ولا زر، ويُحجب صامتاً داخل إطار iframe
-  // فتبدو الضغطة وكأنها لا تفعل شيئاً. الحقل الآن جزء من الواجهة نفسها.
-  const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
-  const [editingLesson, setEditingLesson] = useState<
-    { unitKey: string; index: number; value: string } | null
-  >(null);
-
-  const unitKeyOf = (
-    grade: string,
-    subject: string,
-    term: string,
-    unit: string,
-  ) => [grade, subject, term, unit].join('|');
-
-  // العقدة المفتوحة للتحرير في الشجرة (صف/ترم/مادة/فصل/وحدة)، واحدة في
-  // كل مرة. مفتاحها نوعها ومسارها الكامل، فلا يلتبس فصلان يحملان الاسم
-  // نفسه في مادتين مختلفتين.
-  const [editingNode, setEditingNode] = useState<
-    { key: string; value: string } | null
-  >(null);
-
   // ما يُسأل عنه قبل الحذف. window.confirm كان يُحجب صامتاً داخل الإطار
   // ويُرجع false، فيبدو زر الحذف معطّلاً بلا سبب ظاهر.
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
-
-  const nodeKey = (kind: string, ...names: string[]) =>
-    `${kind}:${names.join('|')}`;
-
-  /**
-   * اسم العقدة: نصاً عادياً، أو مربع إدخال حين تكون هذه العقدة قيد التحرير.
-   *
-   * دالة تُعيد JSX لا مكوّناً متداخلاً عن قصد: المكوّن المعرَّف داخل الـ
-   * render يكون نوعاً جديداً في كل تمريرة، فيُفكّك React المدخل ويعيد
-   * تركيبه مع كل حرف ويضيع التركيز.
-   */
-  const renderNodeName = (
-    key: string,
-    name: string,
-    labelStyle: React.CSSProperties,
-    icon: string,
-    onSave: () => void,
-  ): React.ReactNode => {
-    if (editingNode?.key !== key) {
-      return <span style={labelStyle}>{icon} {name}</span>;
-    }
-    return (
-      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-        <input
-          type="text"
-          autoFocus
-          value={editingNode.value}
-          onChange={e =>
-            setEditingNode(current =>
-              current ? { ...current, value: e.target.value } : current,
-            )
-          }
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onSave();
-            }
-            if (e.key === 'Escape') setEditingNode(null);
-          }}
-          style={styles.nodeInput}
-        />
-        <button onClick={onSave} style={styles.tinyEditButton} title="حفظ">
-          ✅
-        </button>
-        <button
-          onClick={() => setEditingNode(null)}
-          style={styles.tinyDeleteButton}
-          title="إلغاء"
-        >
-          ↩️
-        </button>
-      </span>
-    );
-  };
 
   useEffect(() => {
     const teacher = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
@@ -481,21 +404,19 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   /** يحفظ الاسم المكتوب في محرّر السطر المفتوح على العقدة المحددة. */
   const saveNodeEdit = (
     kind: 'grade' | 'subject' | 'term' | 'unit',
+    newName: string,
     gradeName: string,
     subjectName = '',
     termName = '',
     unitName = '',
   ) => {
-    const editing = editingNode;
-    if (!editing) return;
-    const newName = editing.value.trim();
     if (!newName) return;
 
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
     const config = allConfigs.find((c: HierarchicalConfig) =>
       c.grade === gradeName && getRecordTeacherId(c) === normalizeScopeValue(teacherId)
     );
-    if (!config) return setEditingNode(null);
+    if (!config) return;
 
     const subject = subjectName ? config?.subjects?.find((s: any) => s.subject === subjectName) : null;
     const term = termName ? subject?.terms?.find((t: any) => t.term === termName) : null;
@@ -504,12 +425,12 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     // بقيت معلقة على الاسم القديم فلا يراها الطالب ولا تظهر في الإعدادات.
     switch (kind) {
       case 'grade':
-        if (config.grade === newName) return setEditingNode(null);
+        if (config.grade === newName) return;
         renameLessonsPath({ grade: config.grade }, 'grade', newName);
         config.grade = newName;
         break;
       case 'subject':
-        if (!subject || subject.subject === newName) return setEditingNode(null);
+        if (!subject || subject.subject === newName) return;
         renameLessonsPath(
           { grade: config.grade, subject: subject.subject },
           'subject',
@@ -518,7 +439,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
         subject.subject = newName;
         break;
       case 'term':
-        if (!term || term.term === newName) return setEditingNode(null);
+        if (!term || term.term === newName) return;
         renameLessonsPath(
           { grade: config.grade, subject: subjectName, term: term.term },
           'term',
@@ -527,9 +448,9 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
         term.term = newName;
         break;
       case 'unit': {
-        if (!term?.units) return setEditingNode(null);
+        if (!term?.units) return;
         const unitIndex = term.units.indexOf(unitName);
-        if (unitIndex === -1 || unitName === newName) return setEditingNode(null);
+        if (unitIndex === -1 || unitName === newName) return;
         renameLessonsPath(
           { grade: config.grade, subject: subjectName, term: termName, unit: unitName },
           'unit',
@@ -547,7 +468,6 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
 
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
     loadSettings(teacherId);
-    setEditingNode(null);
   };
 
 
@@ -637,38 +557,55 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     alert('✅ تم إضافة الدرس بنجاح');
   };
 
+  /// يضيف درساً إلى وحدة بعينها من داخل بطاقتها في الشجرة.
+  /// الخطوة السادسة في عمود الإنشاء تبقى كما هي؛ هذا طريق أقصر لمن يكتب
+  /// دروس وحدة بعد الأخرى وهو ينظر إليها.
+  const handleAddLessonToUnit = (
+    gradeName: string,
+    subjectName: string,
+    termName: string,
+    unit: string,
+    name: string,
+  ): boolean => {
+    if (!name) return false;
+    const allConfigs = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
+    );
+    const term = findTerm(allConfigs, gradeName, subjectName, termName);
+    if (!term) return false;
+    const current = lessonsOf(term, unit);
+    if (current.some(lesson => lesson === name)) {
+      alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
+      return false;
+    }
+    writeLessons(gradeName, subjectName, termName, unit, [...current, name]);
+    return true;
+  };
+
   /// يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس.
   const handleSaveLessonEdit = (
     gradeName: string,
     subjectName: string,
     termName: string,
     unit: string,
+    lessonIndex: number,
+    newLesson: string,
   ) => {
-    const editing = editingLesson;
-    if (!editing) return;
-    const newLesson = editing.value.trim();
     if (!newLesson) return;
     const allConfigs = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]',
     );
     const term = findTerm(allConfigs, gradeName, subjectName, termName);
-    if (!term) {
-      setEditingLesson(null);
-      return;
-    }
+    if (!term) return;
     const current = lessonsOf(term, unit);
-    if (current[editing.index] === newLesson) {
-      setEditingLesson(null);
-      return;
-    }
-    if (current.some((lesson, index) => index !== editing.index && lesson === newLesson)) {
+    if (current[lessonIndex] === newLesson) return;
+    if (current.some((lesson, index) => index !== lessonIndex && lesson === newLesson)) {
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
       return;
     }
     const next = [...current];
-    next[editing.index] = newLesson;
+    next[lessonIndex] = newLesson;
     writeLessons(gradeName, subjectName, termName, unit, next);
-    setEditingLesson(null);
   };
 
   const handleDeleteLesson = (
@@ -803,15 +740,6 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
         ? Object.fromEntries(myConfigs.map(config => [normalizeScopeValue(config.grade), true]))
         : {},
     );
-
-  const countUnits = (config: HierarchicalConfig) =>
-    (config.subjects || []).reduce(
-      (total, subject) =>
-        total + (subject.terms || []).reduce((sum, term) => sum + (term.units || []).length, 0),
-      0,
-    );
-
-  const shownConfigs = myConfigs.filter(gradeShown);
 
   return (
     <div style={styles.container} className="dashboard-page dashboard-consistent-page">
@@ -1036,238 +964,66 @@ onChange={e => {
               </div>
             )}
 
-            {myConfigs.length > 0 && shownConfigs.length === 0 ? (
-              <div style={styles.emptyState}>
-                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
-                <p>لا يطابق هذا البحث أي صف.</p>
-              </div>
-            ) : myConfigs.length === 0 ? (
-              <div style={styles.emptyState}>
-                <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
-                <p>لا يوجد إعدادات أكاديمية خاصة بك بعد</p>
-                <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>ابدأ بإنشاء هيكلك الأكاديمي أو انسخ من الإعدادات العامة</p>
-              </div>
-            ) : (
-              myConfigs.map((config, idx) => {
-                if (!gradeShown(config)) return null;
-                const collapsed = isCollapsed(config);
-                const shownSubjects = subjectEntries(config);
-                return (
-                <div key={idx} style={styles.configCard}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button
-                        onClick={() => toggleGrade(config)}
-                        style={styles.treeToggle}
-                        title={collapsed ? 'فتح الصف' : 'طيّ الصف'}
-                        aria-expanded={!collapsed}
-                      >
-                        {collapsed ? '▶' : '▼'}
-                      </button>
-                    {renderNodeName(
-                      nodeKey('grade', config.grade),
-                      config.grade,
-                      styles.configTitle,
-                      '🏫',
-                      () => saveNodeEdit('grade', config.grade),
-                    )}
-                      <span style={styles.treeCountBadge}>
-                        {(config.subjects || []).length} مادة · {countUnits(config)} وحدة
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => setEditingNode({ key: nodeKey('grade', config.grade), value: config.grade })}
-                        style={styles.editButton}
-                        title="تعديل الصف"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGrade(config.grade)}
-                        style={styles.deleteButton}
-                        title="حذف الصف"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                  {config.copiedFrom && (
-                    <div style={styles.copiedBadge}>
-                      📋 منسوخ من: {config.copiedFromName || 'المشرف'}
-                    </div>
-                  )}
-                  {!collapsed && shownSubjects.map((subject, sIdx) => (
-                        <div key={sIdx} style={styles.subjectCard}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            {renderNodeName(
-                              nodeKey('subject', config.grade, subject.subject),
-                              subject.subject,
-                              {},
-                              '📖',
-                              () => saveNodeEdit('subject', config.grade, subject.subject),
-                            )}
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button
-                                onClick={() => setEditingNode({ key: nodeKey('subject', config.grade, subject.subject), value: subject.subject })}
-                                style={styles.smallEditButton}
-                                title="تعديل المادة"
-                              >
-                                ✏️
-                              </button>
-                              <button
-                                onClick={() => handleDeleteSubject(config.grade, subject.subject)}
-                                style={styles.smallDeleteButton}
-                                title="حذف المادة"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          </div>
-                          {subject.terms && subject.terms.map((term, tIdx) => (
-                            <div key={tIdx} style={styles.termCard}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                {renderNodeName(
-                                  nodeKey('term', config.grade, subject.subject, term.term),
-                                  term.term,
-                                  {},
-                                  '📚',
-                                  () => saveNodeEdit('term', config.grade, subject.subject, term.term),
-                                )}
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                  <button
-                                    onClick={() => setEditingNode({ key: nodeKey('term', config.grade, subject.subject, term.term), value: term.term })}
-                                    style={styles.smallEditButton}
-                                    title="تعديل الفصل"
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteTerm(config.grade, subject.subject, term.term)}
-                                    style={styles.smallDeleteButton}
-                                    title="حذف الفصل"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </div>
-                              {/* الدروس تسكن داخل وحداتها، فبلا وحدة لا مكان
-                                  لحقل الدرس. قول ذلك صراحةً أفضل من إخفاء
-                                  القسم كله وترك المعلم يبحث عن حقل غير موجود. */}
-                              {!term.units || term.units.length === 0 ? (
-                                <div style={styles.noUnitsHint}>
-                                  لا توجد وحدات في هذا الفصل — أضف وحدة أولاً، ثم يظهر حقل إضافة الدرس داخلها.
-                                </div>
-                              ) : (
-                                <div style={styles.unitsContainer}>
-                                  {term.units.map((unit, uIdx) => (
-                                    <div key={uIdx} style={styles.unitBlock}>
-                                      <div style={styles.unitBadgeWithButtons}>
-                                        {renderNodeName(
-                                          nodeKey('unit', config.grade, subject.subject, term.term, unit),
-                                          unit,
-                                          styles.unitBadge,
-                                          '📄',
-                                          () => saveNodeEdit('unit', config.grade, subject.subject, term.term, unit),
-                                        )}
-                                        <button
-                                          onClick={() => setEditingNode({ key: nodeKey('unit', config.grade, subject.subject, term.term, unit), value: unit })}
-                                          style={styles.tinyEditButton}
-                                          title="تعديل الوحدة"
-                                        >
-                                          ✏️
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteUnit(config.grade, subject.subject, term.term, unit)}
-                                          style={styles.tinyDeleteButton}
-                                          title="حذف الوحدة"
-                                        >
-                                          ❌
-                                        </button>
-                                      </div>
-
-                                      {lessonsOf(term, unit).length === 0 ? (
-                                        <div style={styles.noLessonsHint}>
-                                          لا توجد دروس في هذه الوحدة بعد — أضفها من الخطوة 6 في عمود الإنشاء.
-                                        </div>
-                                      ) : (
-                                        <div style={styles.lessonsRow}>
-                                          {lessonsOf(term, unit).map((lesson, lessonIndex) => {
-                                            const unitKey = unitKeyOf(config.grade, subject.subject, term.term, unit);
-                                            const isEditing =
-                                              editingLesson?.unitKey === unitKey &&
-                                              editingLesson?.index === lessonIndex;
-                                            return isEditing ? (
-                                              <div key={lessonIndex} style={styles.lessonEditChip}>
-                                                <input
-                                                  type="text"
-                                                  autoFocus
-                                                  value={editingLesson!.value}
-                                                  onChange={e =>
-                                                    setEditingLesson(current =>
-                                                      current ? { ...current, value: e.target.value } : current,
-                                                    )
-                                                  }
-                                                  onKeyDown={e => {
-                                                    if (e.key === 'Enter') {
-                                                      e.preventDefault();
-                                                      handleSaveLessonEdit(config.grade, subject.subject, term.term, unit);
-                                                    }
-                                                    if (e.key === 'Escape') setEditingLesson(null);
-                                                  }}
-                                                  style={styles.lessonInput}
-                                                />
-                                                <button
-                                                  onClick={() => handleSaveLessonEdit(config.grade, subject.subject, term.term, unit)}
-                                                  style={styles.tinyEditButton}
-                                                  title="حفظ"
-                                                >
-                                                  ✅
-                                                </button>
-                                                <button
-                                                  onClick={() => setEditingLesson(null)}
-                                                  style={styles.tinyDeleteButton}
-                                                  title="إلغاء"
-                                                >
-                                                  ↩️
-                                                </button>
-                                              </div>
-                                            ) : (
-                                              <div key={lessonIndex} style={styles.lessonChip}>
-                                                <span style={styles.lessonName}>📘 {lesson}</span>
-                                                <button
-                                                  onClick={() =>
-                                                    setEditingLesson({ unitKey, index: lessonIndex, value: lesson })
-                                                  }
-                                                  style={styles.tinyEditButton}
-                                                  title="تعديل الدرس"
-                                                >
-                                                  ✏️
-                                                </button>
-                                                <button
-                                                  onClick={() => handleDeleteLesson(config.grade, subject.subject, term.term, unit, lessonIndex)}
-                                                  style={styles.tinyDeleteButton}
-                                                  title="حذف الدرس"
-                                                >
-                                                  ❌
-                                                </button>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ))}
+            <AcademicTreeViewer
+              configs={myConfigs}
+              gradeShown={config => gradeShown(config)}
+              subjectEntries={config => {
+                const entries = subjectEntries(config);
+                return entries.map((subject: any) => ({
+                  subject,
+                  subjectIndex: (config.subjects || []).indexOf(subject),
+                }));
+              }}
+              isCollapsed={config => isCollapsed(config)}
+              onToggleGrade={config => toggleGrade(config)}
+              gradeBadges={config =>
+                config.copiedFrom ? (
+                  <span style={styles.copiedBadge}>
+                    📋 منسوخ من: {config.copiedFromName || 'المشرف'}
+                  </span>
+                ) : null
+              }
+              onRenameGrade={(node: GradeNode, name: string) =>
+                saveNodeEdit('grade', name, node.grade)}
+              onRenameSubject={(node: SubjectNode, name: string) =>
+                saveNodeEdit('subject', name, node.grade, node.subject)}
+              onRenameTerm={(node: TermNode, name: string) =>
+                saveNodeEdit('term', name, node.grade, node.subject, node.term)}
+              onRenameUnit={(node: UnitNode, name: string) =>
+                saveNodeEdit('unit', name, node.grade, node.subject, node.term, node.unit)}
+              onRenameLesson={(node: LessonNode, name: string) =>
+                handleSaveLessonEdit(
+                  node.grade, node.subject, node.term, node.unit, node.lessonIndex, name,
+                )}
+              onDeleteGrade={(node: GradeNode) => handleDeleteGrade(node.grade)}
+              onDeleteSubject={(node: SubjectNode) =>
+                handleDeleteSubject(node.grade, node.subject)}
+              onDeleteTerm={(node: TermNode) =>
+                handleDeleteTerm(node.grade, node.subject, node.term)}
+              onDeleteUnit={(node: UnitNode) =>
+                handleDeleteUnit(node.grade, node.subject, node.term, node.unit)}
+              onDeleteLesson={(node: LessonNode) =>
+                handleDeleteLesson(
+                  node.grade, node.subject, node.term, node.unit, node.lessonIndex,
+                )}
+              onAddLesson={(node: UnitNode, name: string) =>
+                handleAddLessonToUnit(node.grade, node.subject, node.term, node.unit, name)}
+              emptyState={
+                <div style={styles.emptyState}>
+                  <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
+                  <p>لا يوجد إعدادات أكاديمية خاصة بك بعد</p>
+                  <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>
+                    ابدأ بإنشاء هيكلك الأكاديمي أو انسخ من الإعدادات العامة
+                  </p>
                 </div>
-                );
-              })
-            )}
+              }
+              noMatchState={
+                <div style={styles.emptyState}>
+                  <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
+                  <p>لا يطابق هذا البحث أي صف.</p>
+                </div>
+              }
+            />
           </div>
         </div>
       )}
