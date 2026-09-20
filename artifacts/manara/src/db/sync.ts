@@ -378,9 +378,15 @@ function reportFailure(kind: SyncFailureKind, label: string, error: any): void {
   // مستقلة برسالة عربية مفهومة ونبرة إخبارية.
   const isSilent = Boolean((error as { silent?: boolean } | null)?.silent);
   const effectiveKind: SyncFailureKind = isSilent ? 'offline' : kind;
+  // الـ 401 ليس مسألة صلاحيات على جدول؛ معناه أن الخادم لا يعرف من يكتب:
+  // جلسة غير مفتوحة أو انتهت. وقولها باسم الجدول وحده كان يوجّه المعلم إلى
+  // صلاحياته بدل جلسته.
+  const isSession = /401/.test(rawMessage) || rawMessage.includes('تسجيل الدخول');
   const message = isSilent
     ? 'الخادم غير مهيّأ للمزامنة حالياً — تعديلاتك محفوظة في المتصفح وستُرسل عند عودة الاتصال.'
-    : rawMessage;
+    : isSession
+      ? 'جلسة الحفظ على الخادم منتهية أو غير مفتوحة. أعد تسجيل الدخول، أو افتح الإعدادات الأكاديمية واضغط «إعادة فتح جلسة الحفظ».'
+      : rawMessage;
   const tone = effectiveKind === 'dropped'
     ? 'فشل نهائي'
     : effectiveKind === 'offline'
@@ -433,6 +439,23 @@ function canCurrentActorWriteKv(key: string): boolean {
   // لأن الاستثناء التالي غير مقيّد بدور.
   if (isReadOnlyActor()) return false;
   return activeSyncContext?.role === 'admin' || key === 'smartEdu_videos';
+}
+
+/**
+ * الجداول التي لا يكتبها إلا المشرف.
+ *
+ * `teachers` منها: حسابات المعلمين يديرها المشرف وحده. ولوحة المعلم كانت
+ * تحاول كتابته مع كل دخول — تسجيل الدخول يحدّث `lastActivity` في نسخة
+ * المتصفح، فينطلق حفظ للجدول كلّه — فيردّه الخادم ويظهر الشريط الأحمر
+ * «حفظ teachers» في وجه المعلم قبل أن يفعل شيئاً. ولا شيء يضيع بمنعه:
+ * المعلم لا يملك تعديل حسابات المعلمين أصلاً.
+ */
+const ADMIN_ONLY_TABLES = new Set(['teachers']);
+
+function canCurrentActorWriteTable(table: string): boolean {
+  if (isReadOnlyActor()) return false;
+  if (!ADMIN_ONLY_TABLES.has(table)) return true;
+  return activeSyncContext?.role === 'admin';
 }
 
 function executeOp(op: PendingOp): PromiseLike<{ error: any }> {
@@ -495,6 +518,11 @@ async function flushPending(context: SyncContext): Promise<{ pendingTables: Set<
     if (op.scope !== context.scope) {
       if (!op.scope) console.warn('[sync] تم تجاهل عملية قديمة بلا نطاق حساب');
       else remaining.push(op);
+      continue;
+    }
+    if ((op.type === 'row_upsert' || op.type === 'row_delete') &&
+        !canCurrentActorWriteTable(op.table)) {
+      console.info(`[sync] تجاهل عملية معلّقة على ${op.table}: هذا الدور لا يكتبه`);
       continue;
     }
     const res = await withRetry('إرسال عملية معلّقة', () => executeOp(op));
@@ -594,7 +622,7 @@ async function hydrateRowTable(
     .filter((item: any) => item?.id != null && !remoteIds.has(String(item.id)))
     .map((item: any) => ({ id: String(item.id), data: item }));
 
-  if (localOnly.length) {
+  if (localOnly.length && canCurrentActorWriteTable(table)) {
     const res = await withRetry(`دمج ${table}`, () =>
       supabase.from(table).upsert(localOnly, { onConflict: 'id' }),
     );
@@ -752,6 +780,9 @@ async function syncRowTable(table: string, oldArr: any[], newArr: any[]): Promis
   for (const r of newArr) if (r && r.id != null) newById.set(String(r.id), r);
 
   const context = activeSyncContext;
+  // جدول لا يملك هذا الدور كتابته إطلاقاً: لا تُرسل منه كتابة ولا يُعرض
+  // له خطأ. القراءة تبقى كما هي، فالمعلم يرى حسابه.
+  if (!canCurrentActorWriteTable(table)) return;
   const writable = (record: any): boolean =>
     !context || recordBelongsToContext(record, context, table);
 
