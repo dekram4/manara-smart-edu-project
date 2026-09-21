@@ -45,9 +45,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     primaryGrade: '',
     gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; term: string; unit: string }[] }[],
     currentGradeForEnrollment: '',
-    enrollmentSubject: '',
-    enrollmentTerm: '',
-    enrollmentUnit: '',
     /// المواد المسموح بها. فارغة = جميع مواد المعلم.
     assignedSubjects: [] as string[],
     canChangeGrade: false,
@@ -63,6 +60,13 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     () => subjectsForOwner(studentForm.teacherId, studentForm.primaryGrade),
     [studentForm.teacherId, studentForm.primaryGrade, hierarchicalConfigs],
   );
+
+  /// المادة التي يُفتح عليها حساب الطالب.
+  ///
+  /// كان يختارها المشرف من قائمة مفردة إلى جانب مربّعات المواد المتاحة،
+  /// فحقلان يقولان الشيء نفسه ويجوز أن يتناقضا: مادة مفردة ليست من
+  /// المواد المؤشَّرة. صارت تُشتقّ من المربّعات وحدها.
+  const primarySubject = studentForm.assignedSubjects[0] || availableSubjects[0] || '';
 
   const [parentForm, setParentForm] = useState({
     name: '',
@@ -129,32 +133,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   };
 
   
-
-  const handleAddEnrollmentToGrade = () => {
-    if (!studentForm.currentGradeForEnrollment || !studentForm.enrollmentSubject) {
-      alert('اختر الصف والمادة أولاً');
-      return;
-    }
-    
-    const gradeIndex = studentForm.gradeEnrollments.findIndex(g => g.grade === studentForm.currentGradeForEnrollment);
-    const newEnrollment = {
-      id: Date.now().toString(),
-      subject: studentForm.enrollmentSubject,
-      term: studentForm.enrollmentTerm || '',
-      unit: studentForm.enrollmentUnit || ''
-    };
-    
-    if (gradeIndex >= 0) {
-      // Add to existing grade
-      const updated = [...studentForm.gradeEnrollments];
-      updated[gradeIndex].enrollments.push(newEnrollment);
-      setStudentForm({...studentForm, gradeEnrollments: updated, enrollmentSubject: '', enrollmentTerm: '', enrollmentUnit: ''});
-    } else {
-      // Create new grade entry
-      const updated = [...studentForm.gradeEnrollments, { grade: studentForm.currentGradeForEnrollment, enrollments: [newEnrollment] }];
-      setStudentForm({...studentForm, gradeEnrollments: updated, enrollmentSubject: '', enrollmentTerm: '', enrollmentUnit: ''});
-    }
-  };
 
   const flattenGradeConfig = (cfg: any) => {
     if (!cfg) return [] as any[];
@@ -278,7 +256,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       gradeEnrollments: finalGradeEnrollments,
       // keep legacy fields in sync for existing components
       grade: studentForm.primaryGrade,
-      subject: studentForm.enrollmentSubject || finalGradeEnrollments?.[0]?.enrollments?.[0]?.subject || '',
+      // ‏مادة الطالب الافتراضية: أولى المواد المسندة إليه، أو أولى مواد
+      // ‏صفّه حين تكون كلها متاحة له. حقلها اختفى من النموذج، ولم يختفِ
+      // ‏الحقل نفسه من السجلّ: تطبيق الطالب يفتح عليها شاشة المسار
+      // ‏ويسندها إلى نتائج الاختبارات حين لا يكون قد اختار مساراً بعد.
+      subject: primarySubject || finalGradeEnrollments?.[0]?.enrollments?.[0]?.subject || '',
       assignedSubjects: studentForm.assignedSubjects,
       term: finalGradeEnrollments?.[0]?.enrollments?.[0]?.term || '',
       unit: finalGradeEnrollments?.[0]?.enrollments?.[0]?.unit || '',
@@ -375,9 +357,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       primaryGrade: '',
       gradeEnrollments: [],
       currentGradeForEnrollment: '',
-      enrollmentSubject: '',
-      enrollmentTerm: '',
-      enrollmentUnit: '',
       assignedSubjects: [],
       canChangeGrade: false 
       ,permissionPackageId: ''
@@ -445,11 +424,8 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   };
 
   const handleEditStudent = (s: StudentInfo) => {
-    // المادة المسجّلة للطالب تُعرَض كما هي: فتح نافذة التعديل على حقل
-    // فارغ يُلزِم إعادة اختيارها لتغيير الصف وحده.
-    const firstEnrollment = (s.gradeEnrollments || [])
-      .find(entry => entry.grade === s.primaryGrade)?.enrollments?.[0]
-      ?? (s.gradeEnrollments || [])[0]?.enrollments?.[0];
+    // ‏لم تعد تُقرأ مادةٌ مفردة لتُعرَض: النافذة تفتح على المواد المسندة
+    // ‏نفسها، وهي المحفوظة في السجلّ.
     setStudentForm({
       name: s.name,
       gender: s.gender || 'male',
@@ -462,9 +438,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       primaryGrade: s.primaryGrade,
       gradeEnrollments: s.gradeEnrollments || [],
       currentGradeForEnrollment: '',
-      enrollmentSubject: firstEnrollment?.subject || s.subject || '',
-      enrollmentTerm: '',
-      enrollmentUnit: '',
       assignedSubjects: s.assignedSubjects || [],
       canChangeGrade: s.canChangeGrade || false,
       permissionPackageId: s.permissionPackageId || '',
@@ -581,32 +554,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                </div>
                <div style={styles.formGroup}>
                   <label style={styles.label}>الصف الأساسي *</label>
-                  <select value={studentForm.primaryGrade} onChange={e => setStudentForm({...studentForm, primaryGrade: e.target.value, enrollmentSubject: ''})} style={styles.select} required>
+                  <select value={studentForm.primaryGrade} onChange={e => setStudentForm({...studentForm, primaryGrade: e.target.value, assignedSubjects: []})} style={styles.select} required>
                     <option value="">اختر الصف الأساسي</option>
                     {grades.map((g,i) => <option key={i} value={g}>{g}</option>)}
-                  </select>
-               </div>
-               <div style={styles.formGroup}>
-                  <label style={styles.label}>
-                    المادة {availableSubjects.length > 0 ? '*' : '(لا مواد لهذا الصف بعد)'}
-                  </label>
-                  {/* إجباري متى وُجدت مواد. والصف الذي لا مواد له في
-                      الشجرة لا يجوز أن يمنع حفظ الطالب. */}
-                  <select
-                    value={studentForm.enrollmentSubject}
-                    onChange={e => setStudentForm({...studentForm, enrollmentSubject: e.target.value})}
-                    style={styles.select}
-                    required={availableSubjects.length > 0}
-                    disabled={!studentForm.primaryGrade}
-                  >
-                    <option value="">
-                      {!studentForm.primaryGrade
-                        ? 'اختر الصف أولاً'
-                        : availableSubjects.length === 0
-                          ? 'لا توجد مواد مسجّلة لهذا الصف'
-                          : 'اختر المادة'}
-                    </option>
-                    {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
                   </select>
                </div>
                 <div style={styles.formGroup}>

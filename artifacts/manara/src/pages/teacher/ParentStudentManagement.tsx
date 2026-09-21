@@ -62,7 +62,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     nationalId: '',
     primaryGrade: '',
     gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; term: string; unit: string }[] }[],
-    enrollmentSubject: '',
     /// المواد المسموح بها. فارغة = جميع مواد المعلم.
     assignedSubjects: [] as string[],
     permissionPackageId: '',
@@ -75,6 +74,9 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     () => subjectsForOwner(teacherId, studentForm.primaryGrade),
     [teacherId, studentForm.primaryGrade, hierarchicalConfigs],
   );
+
+  /// المادة التي يُفتح عليها حساب الطالب — من المربّعات وحدها.
+  const primarySubject = studentForm.assignedSubjects[0] || availableSubjects[0] || '';
 
   useEffect(() => {
     loadData();
@@ -323,7 +325,9 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         // القديمة بعد تغيير الصف من هنا.
         grade: studentForm.primaryGrade,
         gradeEnrollments: studentForm.gradeEnrollments,
-        subject: studentForm.enrollmentSubject || '',
+        // ‏تُشتقّ من المواد المسندة: حقل المادة المفرد كان يجوز أن
+        // ‏يناقضها، وتطبيق الطالب يقرأ هذه لا تلك.
+        subject: primarySubject,
         assignedSubjects: studentForm.assignedSubjects,
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
@@ -468,7 +472,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       nationalId: '',
       primaryGrade: '',
       gradeEnrollments: [],
-      enrollmentSubject: '',
       assignedSubjects: [],
       permissionPackageId: '',
     });
@@ -728,7 +731,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                              <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -839,7 +842,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -924,7 +927,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 <label className="block text-sm font-bold text-gray-700 mb-2">الصف الأساسي *</label>
                 <select
                   value={studentForm.primaryGrade}
-                  onChange={(e) => setStudentForm({ ...studentForm, primaryGrade: e.target.value, enrollmentSubject: '' })}
+                  onChange={(e) => setStudentForm({ ...studentForm, primaryGrade: e.target.value, assignedSubjects: [] })}
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
                 >
                   <option value="">اختر الصف</option>
@@ -932,31 +935,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                     <option key={grade} value={grade}>
                       {grade}
                     </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  المادة {availableSubjects.length > 0 ? '*' : '(لا مواد لهذا الصف بعد)'}
-                </label>
-                {/* إجباري متى وُجدت مواد، وإلا منع حفظ الطالب على صفّ لم
-                    تُسجَّل مواده في الشجرة بعد. */}
-                <select
-                  value={studentForm.enrollmentSubject || ''}
-                  onChange={(e) => setStudentForm({ ...studentForm, enrollmentSubject: e.target.value })}
-                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 outline-none"
-                  required={availableSubjects.length > 0}
-                  disabled={!studentForm.primaryGrade}
-                >
-                  <option value="">
-                    {!studentForm.primaryGrade
-                      ? 'اختر الصف أولاً'
-                      : availableSubjects.length === 0
-                        ? 'لا توجد مواد مسجّلة لهذا الصف'
-                        : 'اختر المادة'}
-                  </option>
-                  {availableSubjects.map((s, i) => (
-                    <option key={i} value={s}>{s}</option>
                   ))}
                 </select>
               </div>
