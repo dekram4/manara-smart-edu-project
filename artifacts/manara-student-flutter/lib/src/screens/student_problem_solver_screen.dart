@@ -158,6 +158,15 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
        }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final message = payload is Map ? payload['error']?.toString() : null;
+        // ‏رفضٌ يشرح نفسه — درسٌ بلا نصّ، أو خارج المسار، أو خدمة غير
+        // ‏مهيّأة — يُعرض كما قاله الخادم. كان يُبتلع كله في «تحقّق من
+        // ‏الاتصال»، وهي جملة تُرسل الطفل ومعلّمه إلى الشبكة بينما
+        // ‏الخادم قال شيئاً آخر تماماً وقابلاً للتصرّف.
+        final explained = response.statusCode >= 400 && response.statusCode < 500 ||
+            (payload is Map && payload['code'] == 'ai_not_configured');
+        if (explained && message != null && message.trim().isNotEmpty) {
+          throw _ExplainedFailure(message.trim());
+        }
         throw Exception(
             message?.trim().isNotEmpty == true ? message : tr('solver.serviceSilent'));
       }
@@ -442,7 +451,16 @@ class _MessageCard extends StatelessWidget {
       );
 }
 
+/// رفضٌ شرح الخادمُ سببَه، فيُعرض نصّه بلا تبديل.
+class _ExplainedFailure implements Exception {
+  const _ExplainedFailure(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 String _studentSafeError(Object error) {
+  if (error is _ExplainedFailure) return error.message;
   final message = error.toString().replaceFirst('Exception: ', '').trim();
   // These three are thrown by this screen itself, from the same
   // dictionary the comparison reads, so they match in either language;

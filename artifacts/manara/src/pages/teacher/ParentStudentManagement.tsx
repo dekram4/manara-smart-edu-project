@@ -63,6 +63,8 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     primaryGrade: '',
     gradeEnrollments: [] as { grade: string; enrollments: { id?: string; subject: string; term: string; unit: string }[] }[],
     enrollmentSubject: '',
+    /// المواد المسموح بها. فارغة = جميع مواد المعلم.
+    assignedSubjects: [] as string[],
     permissionPackageId: '',
   });
 
@@ -322,6 +324,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         grade: studentForm.primaryGrade,
         gradeEnrollments: studentForm.gradeEnrollments,
         subject: studentForm.enrollmentSubject || '',
+        assignedSubjects: studentForm.assignedSubjects,
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
         canChangeGrade: false,
@@ -466,6 +469,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       primaryGrade: '',
       gradeEnrollments: [],
       enrollmentSubject: '',
+      assignedSubjects: [],
       permissionPackageId: '',
     });
     setShowStudentForm(false);
@@ -724,7 +728,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                              <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -835,7 +839,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], enrollmentSubject: student.subject || '', assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -955,6 +959,59 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                     <option key={i} value={s}>{s}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                {/* المواد المتاحة للطالب.
+                    لا شيء مؤشَّر = جميع مواد المعلم، وهي الحالة
+                    الافتراضية لكل طالب مسجَّل قبل وجود هذا الحقل. */}
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  📚 المواد المتاحة للطالب
+                  <span className="font-normal text-gray-500 text-xs">
+                    {' '}— {studentForm.assignedSubjects.length === 0
+                      ? 'جميع المواد'
+                      : `${studentForm.assignedSubjects.length} مادة محددة`}
+                  </span>
+                </label>
+                {availableSubjects.length === 0 ? (
+                  <div className="text-gray-400 text-sm p-2">اختر الصف أولاً لعرض مواده.</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 rounded-lg border-2 border-gray-200 bg-gray-50 p-3">
+                    <label className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 font-bold ${
+                      studentForm.assignedSubjects.length === 0
+                        ? 'border-blue-200 bg-blue-100' : 'border-gray-300 bg-white'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={studentForm.assignedSubjects.length === 0}
+                        onChange={() => setStudentForm({ ...studentForm, assignedSubjects: [] })}
+                      />
+                      جميع المواد
+                    </label>
+                    {availableSubjects.map((subject) => {
+                      const checked = studentForm.assignedSubjects.includes(subject);
+                      return (
+                        <label
+                          key={subject}
+                          className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 font-bold ${
+                            checked ? 'border-green-300 bg-green-100' : 'border-gray-300 bg-white'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setStudentForm({
+                              ...studentForm,
+                              assignedSubjects: checked
+                                ? studentForm.assignedSubjects.filter(item => item !== subject)
+                                : [...studentForm.assignedSubjects, subject],
+                            })}
+                          />
+                          {subject}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">رقم الطالب</label>

@@ -1,6 +1,21 @@
 import 'academic_context.dart';
 import 'student_gamification.dart';
 
+/// أسماء نظيفة من قيمة قد تكون قائمة أو نصاً مفصولاً بفواصل.
+List<String> _asNameList(Object? value) {
+  final raw = value is List
+      ? value
+      : value is String
+          ? value.split(',')
+          : const [];
+  final names = <String>[];
+  for (final item in raw) {
+    final name = item?.toString().trim() ?? '';
+    if (name.isNotEmpty) names.add(name);
+  }
+  return names;
+}
+
 class StudentProfile {
   const StudentProfile({
     required this.id,
@@ -16,6 +31,7 @@ class StudentProfile {
     this.appearance,
     this.canAccessChat = true,
     this.canAccessLiveMeeting = true,
+    this.assignedSubjects = const [],
     this.gamification = const StudentGamification(),
   });
 
@@ -38,6 +54,7 @@ class StudentProfile {
       appearance: _asMap(data['appearance']),
       canAccessChat: _asBool(data['canAccessChat'], fallback: true),
       canAccessLiveMeeting: _asBool(data['canAccessLiveMeeting'], fallback: true),
+      assignedSubjects: _asNameList(data['assignedSubjects']),
       gamification: StudentGamification.fromMap(data['gamification']),
     );
   }
@@ -81,6 +98,25 @@ class StudentProfile {
   final Map<String, dynamic>? appearance;
   final bool canAccessChat;
   final bool canAccessLiveMeeting;
+
+  /// المواد التي يُسمح لهذا الطالب بدخولها، من مواد معلّمه.
+  ///
+  /// قائمة فارغة تعني «كل المواد» — وهي حال كل طالب سُجِّل قبل وجود هذا
+  /// الحقل. فالسجلّات القديمة تبقى مفتوحة كما كانت، ولا يُغلَق باب كان
+  /// مفتوحاً لطفل لمجرّد أن حقلاً أُضيف إلى النظام.
+  final List<String> assignedSubjects;
+
+  /// هل هذه المادة من نصيب هذا الطالب؟
+  ///
+  /// نقطة واحدة يسألها كل من يعرض المواد — شاشة المسار وورقة تغيير
+  /// الدرس — فلا تفترق القاعدة بين موضع وآخر فيرى الطالب في إحداهما ما
+  /// مُنع منه في الأخرى.
+  bool allowsSubject(String subject) {
+    if (assignedSubjects.isEmpty) return true;
+    final wanted = subject.trim().toLowerCase();
+    return assignedSubjects.any((item) => item.trim().toLowerCase() == wanted);
+  }
+
   final StudentGamification gamification;
 
   StudentAcademicValues get academicValues => StudentAcademicValues(

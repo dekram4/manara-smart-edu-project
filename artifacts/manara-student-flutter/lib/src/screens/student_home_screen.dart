@@ -400,6 +400,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       context,
       data: data,
       current: _academicContext,
+      allowsSubject: widget.profile.allowsSubject,
     );
     if (chosen == null || !mounted) return;
     setState(() => _academicContext = chosen);

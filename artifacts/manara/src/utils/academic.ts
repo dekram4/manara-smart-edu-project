@@ -199,3 +199,18 @@ export const subjectsForOwner = (teacherId?: string, grade?: string): string[] =
     ).values(),
   ).filter(Boolean);
 };
+
+/**
+ * هل يرى هذا الطالب هذه المادة؟
+ *
+ * قائمة فارغة أو غائبة = كل المواد. مصدر واحد يقرأ منه كل من يصفّي
+ * المواد، فلا تفترق القاعدة بين لوحة وأخرى وبين الويب والتطبيق.
+ */
+export const studentSeesSubject = (
+  assigned: string[] | undefined | null,
+  subject: string,
+): boolean => {
+  if (!Array.isArray(assigned) || assigned.length === 0) return true;
+  const wanted = normalizeScopeValue(subject);
+  return assigned.some(item => normalizeScopeValue(item) === wanted);
+};

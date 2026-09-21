@@ -318,10 +318,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// picked above it.
   List<String> get _gradeOptions => _data?.grades ?? const [];
 
+  /// مواد الصف، محصورةً بما أُسند إلى هذا الطالب.
+  ///
+  /// التصفية هنا لا في العرض: ما لا يظهر في الخيارات لا يُختار، ولا
+  /// يصل إلى بقية المستويات أصلاً.
   List<String> get _subjectOptions {
     final data = _data;
     if (data == null || _grade == null) return const [];
-    return data.subjectsFor(grade: _grade!);
+    return data
+        .subjectsFor(grade: _grade!)
+        .where(widget.profile.allowsSubject)
+        .toList();
   }
 
   List<String> get _termOptions {

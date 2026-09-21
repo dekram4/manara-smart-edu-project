@@ -29,11 +29,18 @@ class LessonScopeSheet extends StatefulWidget {
   const LessonScopeSheet({
     required this.data,
     required this.current,
+    this.allowsSubject,
     super.key,
   });
 
   final AcademicSelectionData data;
   final AcademicContext? current;
+
+  /// ما يُسمح للطالب بمادته. الغياب يعني «كل المواد».
+  ///
+  /// تُمرَّر قاعدةً لا قائمةً: القاعدة تسكن في حساب الطالب، وتمريرها
+  /// كما هي يمنع أن تُحسب هنا مرة وهناك مرة فتختلفا.
+  final bool Function(String subject)? allowsSubject;
 
   /// Opens the sheet and returns the chosen scope, or null if the student
   /// backed out.
@@ -41,12 +48,17 @@ class LessonScopeSheet extends StatefulWidget {
     BuildContext context, {
     required AcademicSelectionData data,
     required AcademicContext? current,
+    bool Function(String subject)? allowsSubject,
   }) {
     return showModalBottomSheet<AcademicContext>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => LessonScopeSheet(data: data, current: current),
+      builder: (_) => LessonScopeSheet(
+        data: data,
+        current: current,
+        allowsSubject: allowsSubject,
+      ),
     );
   }
 
@@ -79,8 +91,12 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
   // The four levels, named as the teacher's own Academic Settings screen
   // names them, each filtering the real registered paths so no combination
   // is offered that does not exist.
-  List<String> get _subjects =>
-      _grade == null ? const [] : widget.data.subjectsFor(grade: _grade!);
+  List<String> get _subjects {
+    if (_grade == null) return const [];
+    final all = widget.data.subjectsFor(grade: _grade!);
+    final allows = widget.allowsSubject;
+    return allows == null ? all : all.where(allows).toList();
+  }
 
   List<String> get _terms => (_grade == null || _subject == null)
       ? const []

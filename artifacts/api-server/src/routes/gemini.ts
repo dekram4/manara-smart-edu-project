@@ -175,12 +175,23 @@ function getGeminiText(data: any): string | null {
   );
 }
 
+/**
+ * الدرس، أو سبب تعذّره.
+ *
+ * كانت تُعيد `null` في ثلاث حالات مختلفة — لا سجلّ بهذا المعرّف، ودرسٌ
+ * خارج نطاق الطالب، ودرسٌ بلا نصّ مكتوب — فيخرج منها ردٌّ واحد لا يفرّق
+ * بينها. ولا يُشخَّص العطل من الخارج إن كان الخادم نفسه لا يميّزه.
+ */
+type LessonLookup =
+  | { id: string; text: string; reason?: undefined }
+  | { reason: "not_found" | "out_of_scope" | "no_text"; id?: undefined; text?: undefined };
+
 async function resolveStudentLesson(
   lessonId: string,
   student: StudentActor,
-): Promise<{ id: string; text: string } | null> {
+): Promise<LessonLookup> {
   const config = apiSupabaseConfig();
-  if (!config || !lessonId) return null;
+  if (!config || !lessonId) return { reason: "not_found" };
   const url = new URL(`${config.url}/rest/v1/lesson_configs`);
   url.searchParams.set("select", "id,data");
   url.searchParams.set("id", `eq.${lessonId}`);
@@ -191,14 +202,16 @@ async function resolveStudentLesson(
   const rows = await response.json();
   const row = Array.isArray(rows) ? rows[0] : null;
   const data = row?.data && typeof row.data === "object" ? row.data : null;
-  if (!data || !matchesStudentScope(data, student)) return null;
+  if (!data) return { reason: "not_found" };
+  if (!matchesStudentScope(data, student)) return { reason: "out_of_scope" };
   const lesson = data as Record<string, unknown>;
   const text = typeof lesson.lessonContent === "string"
     ? lesson.lessonContent.trim()
     : typeof lesson.lessonText === "string"
       ? lesson.lessonText.trim()
       : "";
-  return text ? { id: String(row.id || lessonId), text } : null;
+  if (!text) return { reason: "no_text" };
+  return { id: String(row.id || lessonId), text };
 }
 
 async function recordProblemSolverActivity(
@@ -244,27 +257,64 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
   const question =
     typeof req.body?.question === "string" ? req.body.question.trim() : "";
   if (!lessonId || !question || question.length > 2000) {
-    return res.status(400).json({ error: "معرّف الدرس أو السؤال غير صالح" });
+    // ‏أيّ الحقلين أسقط الطلب: سؤالٌ فارغ وسؤالٌ أطول من الحدّ ومعرّفٌ
+    // ‏مفقود كانت ترجع الرسالة نفسها، فلا يُعرف أيّها وقع.
+    logger.warn(
+      { hasLessonId: Boolean(lessonId), questionLength: question.length },
+      "[gemini] answer rejected: bad request",
+    );
+    return res.status(400).json({
+      error: !lessonId
+        ? "لم يصل معرّف الدرس مع السؤال"
+        : !question
+          ? "السؤال فارغ"
+          : "السؤال أطول من الحدّ المسموح (2000 حرف)",
+      code: "bad_request",
+    });
   }
   try {
     const student = res.locals.student as StudentActor;
     const lesson = await resolveStudentLesson(lessonId, student);
-    if (!lesson) {
-      return res.status(403).json({ error: "هذا الدرس غير متاح لحسابك أو لا يحتوي على شرح نصي." });
+    if (lesson.reason) {
+      logger.warn(
+        { lessonId, studentId: student.id, reason: lesson.reason },
+        "[gemini] answer rejected: lesson unavailable",
+      );
+      const messages = {
+        not_found: "لم يُعثر على هذا الدرس في قاعدة البيانات.",
+        out_of_scope: "هذا الدرس ليس ضمن مسار حسابك.",
+        no_text: "هذا الدرس لا يحتوي على شرح نصي بعد — اطلب من معلمك إضافته.",
+      } as const;
+      return res.status(403).json({ error: messages[lesson.reason], code: lesson.reason });
     }
     const prompt = `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
     const data = await callGemini(prompt);
     const answer = getGeminiText(data);
-    if (!answer) return res.status(502).json({ error: "لم تصل إجابة صالحة من خدمة الذكاء الاصطناعي" });
+    if (!answer) {
+      logger.warn({ lessonId }, "[gemini] answer rejected: empty completion");
+      return res.status(502).json({
+        error: "لم تصل إجابة صالحة من خدمة الذكاء الاصطناعي",
+        code: "empty_answer",
+      });
+    }
     await recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
       logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
     );
     return res.json({ answer });
   } catch (error: any) {
-    logger.error({ err: error }, "[gemini] answer failed");
-    return res
-      .status(error?.statusCode || 500)
-      .json({ error: "تعذر الاتصال بخدمة الذكاء الاصطناعي" });
+    // ‏المفتاح الغائب ليس انقطاع اتصال: إرساله تحت الرسالة نفسها كان
+    // ‏يدفع المعلّم إلى فحص شبكته بينما الخادم ينقصه إعداد.
+    const notConfigured = error?.statusCode === 503;
+    logger.error(
+      { err: error, lessonId, statusCode: error?.statusCode, notConfigured },
+      "[gemini] answer failed",
+    );
+    return res.status(error?.statusCode || 500).json({
+      error: notConfigured
+        ? "خدمة الذكاء الاصطناعي غير مهيّأة على الخادم (GEMINI_API_KEY)."
+        : "تعذر الاتصال بخدمة الذكاء الاصطناعي",
+      code: notConfigured ? "ai_not_configured" : "ai_unavailable",
+    });
   }
 });
 

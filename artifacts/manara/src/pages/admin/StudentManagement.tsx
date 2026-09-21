@@ -48,6 +48,8 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     enrollmentSubject: '',
     enrollmentTerm: '',
     enrollmentUnit: '',
+    /// المواد المسموح بها. فارغة = جميع مواد المعلم.
+    assignedSubjects: [] as string[],
     canChangeGrade: false,
     permissionPackageId: '',
   });
@@ -277,6 +279,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       // keep legacy fields in sync for existing components
       grade: studentForm.primaryGrade,
       subject: studentForm.enrollmentSubject || finalGradeEnrollments?.[0]?.enrollments?.[0]?.subject || '',
+      assignedSubjects: studentForm.assignedSubjects,
       term: finalGradeEnrollments?.[0]?.enrollments?.[0]?.term || '',
       unit: finalGradeEnrollments?.[0]?.enrollments?.[0]?.unit || '',
       canChangeGrade: studentForm.canChangeGrade,
@@ -375,6 +378,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       enrollmentSubject: '',
       enrollmentTerm: '',
       enrollmentUnit: '',
+      assignedSubjects: [],
       canChangeGrade: false 
       ,permissionPackageId: ''
     });
@@ -461,6 +465,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       enrollmentSubject: firstEnrollment?.subject || s.subject || '',
       enrollmentTerm: '',
       enrollmentUnit: '',
+      assignedSubjects: s.assignedSubjects || [],
       canChangeGrade: s.canChangeGrade || false,
       permissionPackageId: s.permissionPackageId || '',
     });
@@ -604,6 +609,66 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                     {availableSubjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
                   </select>
                </div>
+                <div style={styles.formGroup}>
+                  {/* المواد المتاحة للطالب.
+                      لا شيء مؤشَّر = جميع مواد المعلم، وهي الحالة
+                      الافتراضية لكل طالب مسجَّل قبل وجود هذا الحقل. */}
+                  <label style={styles.label}>
+                    📚 المواد المتاحة للطالب
+                    <span style={{ fontWeight: 'normal', color: '#6b7280', fontSize: '0.8rem' }}>
+                      {' '}— {studentForm.assignedSubjects.length === 0
+                        ? 'جميع المواد'
+                        : `${studentForm.assignedSubjects.length} مادة محددة`}
+                    </span>
+                  </label>
+                  {availableSubjects.length === 0 ? (
+                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', padding: '8px' }}>
+                      اختر الصف أولاً لعرض مواده.
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px',
+                      border: '2px solid #e5e7eb', borderRadius: '10px', backgroundColor: '#f9fafb',
+                    }}>
+                      <label style={{
+                        display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold',
+                        cursor: 'pointer', padding: '4px 10px', borderRadius: '999px',
+                        backgroundColor: studentForm.assignedSubjects.length === 0 ? '#dbeafe' : 'white',
+                        border: '1px solid #bfdbfe',
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={studentForm.assignedSubjects.length === 0}
+                          onChange={() => setStudentForm({ ...studentForm, assignedSubjects: [] })}
+                        />
+                        جميع المواد
+                      </label>
+                      {availableSubjects.map((subject) => {
+                        const checked = studentForm.assignedSubjects.includes(subject);
+                        return (
+                          <label key={subject} style={{
+                            display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold',
+                            cursor: 'pointer', padding: '4px 10px', borderRadius: '999px',
+                            backgroundColor: checked ? '#dcfce7' : 'white',
+                            border: '1px solid #d1d5db',
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setStudentForm({
+                                ...studentForm,
+                                assignedSubjects: checked
+                                  ? studentForm.assignedSubjects.filter(item => item !== subject)
+                                  : [...studentForm.assignedSubjects, subject],
+                              })}
+                            />
+                            {subject}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
                 <div style={styles.formGroup}>
                     <label style={styles.label}>🔐 إدارة صلاحيات الطالب</label>
                    <select value={studentForm.permissionPackageId} onChange={e => setStudentForm({...studentForm, permissionPackageId: e.target.value})} style={styles.select}>
