@@ -240,6 +240,20 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     }
   };
 
+  /// معرّف جديد لا يحمله سجلّ قائم.
+  ///
+  /// `Date.now()` وحده يتكرّر حين يُحفظ سجلّان في الملّي ثانية نفسها —
+  /// وارد عند الحفظ المتتابع أو استيراد دفعة — والمعرّف مفتاح الصفّ في
+  /// Supabase، فتصادمه يكتب أحدهما فوق الآخر بلا أثر يُرى.
+  const freshLessonId = (existing: LessonConfig[]): string => {
+    const taken = new Set(existing.map(item => String(item.id)));
+    let candidate = Date.now().toString();
+    while (taken.has(candidate)) {
+      candidate = `${candidate}-${Math.random().toString(36).slice(2, 7)}`;
+    }
+    return candidate;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -272,8 +286,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     const allLessons: LessonConfig[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]',
     );
+    // ‏المسار الذي يُعرّف المحتوى: خمسة مستويات، آخرها الدرس.
+    //
+    // ‏كان يقف عند الوحدة. فالدرس الثاني في الوحدة نفسها كان يجد سجلّ
+    // ‏الأول «مطابقاً» فيحلّ محلّه — يُضاف درسٌ فيُمحى آخر، ويبقى الجدول
+    // ‏يعرض محتوًى واحداً مهما أُضيف. المستوى الخامس أُضيف إلى النموذج
+    // ‏لاحقاً ولم يُضَف إلى هذه المقارنة معه.
     const scopeMatches = (lesson: LessonConfig) =>
-      ['grade', 'subject', 'term', 'unit'].every(field =>
+      ['grade', 'subject', 'term', 'unit', 'lesson'].every(field =>
         normalizeScopeValue(lesson[field as keyof LessonConfig])
         === normalizeScopeValue(formData[field as keyof typeof formData] as string),
       );
@@ -346,7 +366,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     const primaryVideo = nextVideos.at(-1);
     const preservedLesson = matchingLesson || editingLesson;
     const lesson: LessonConfig = {
-      id: editingLesson?.id || matchingLesson?.id || Date.now().toString(),
+      id: editingLesson?.id || matchingLesson?.id || freshLessonId(allLessons),
       grade: formData.grade.trim(),
       subject: formData.subject.trim(),
       term: formData.term.trim(),
