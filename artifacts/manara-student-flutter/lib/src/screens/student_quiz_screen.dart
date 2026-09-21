@@ -9,6 +9,7 @@ import '../l10n/student_strings.dart';
 import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
+import '../widgets/unit_exam_gate.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
@@ -147,7 +148,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
   List<Map<String, dynamic>> _quizQuestions(Map<String, dynamic> quiz) =>
       StudentAssessmentRules.questionsForStudent(quiz, studentId: widget.profile.id);
 
-  void _openQuiz(Map<String, dynamic> quiz) {
+  Future<void> _openQuiz(Map<String, dynamic> quiz) async {
     final quizId = _text(quiz['id']);
     Map<String, dynamic>? previous;
     for (final result in _results) {
@@ -169,6 +170,13 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         SnackBar(content: Text(tr('quiz.noQuestions'))),
       );
       return;
+    }
+    // اختبار الوحدة يُؤدّى مرة واحدة — يُسأل عنه قبل فتحه لا بعد تسليمه.
+    // ويُسأل هنا، بعد التحقّق من وجود أسئلة: لا معنى لسؤال الطفل عن
+    // استعداده لاختبار فارغ.
+    if (_isTeacherQuiz(quiz)) {
+      final ready = await confirmUnitExam(context);
+      if (!ready || !mounted) return;
     }
     setState(() {
       _activeQuiz = quiz;

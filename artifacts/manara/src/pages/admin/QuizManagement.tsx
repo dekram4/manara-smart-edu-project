@@ -243,6 +243,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   const [listSearch, setListSearch] = useState('');
   const [listSubject, setListSubject] = useState('all');
   const [listGrade, setListGrade] = useState('all');
+  const [listTerm, setListTerm] = useState('all');
   const [listStatus, setListStatus] = useState<'all' | 'active' | 'locked'>('all');
 
   // 📝 محتوى الدرس المسحوب
@@ -891,6 +892,11 @@ ${contentSummary}
   const listFilterOptions = {
     subjects: uniqueAcademicValues(createdQuizzes.map(q => q.subject)),
     grades: uniqueAcademicValues(createdQuizzes.map(q => q.grade)),
+    // ‏أسماء الفصول تأتي من شجرة المعلم لا من قائمة ثابتة: هو من يسمّيها
+    // ‏حين ينشئها، فقد تكون «الفصل الدراسي الأول» أو «الفصل الأول» أو
+    // ‏«الترم الثاني». خياران مكتوبان في الشيفرة كانا سيُظهران فلتراً لا
+    // ‏يطابق شيئاً عند من سمّاها على غير ما توقّعناه.
+    terms: uniqueAcademicValues(createdQuizzes.map(q => q.term)),
   };
 
   const visibleQuizzes = createdQuizzes.filter(quiz => {
@@ -904,13 +910,15 @@ ${contentSummary}
     }
     if (listSubject !== 'all' && quiz.subject !== listSubject) return false;
     if (listGrade !== 'all' && quiz.grade !== listGrade) return false;
+    if (listTerm !== 'all' && quiz.term !== listTerm) return false;
     if (listStatus === 'active' && !quiz.isActive) return false;
     if (listStatus === 'locked' && quiz.isActive) return false;
     return true;
   });
 
   const listFiltersActive =
-    Boolean(listSearch.trim()) || listSubject !== 'all' || listGrade !== 'all' || listStatus !== 'all';
+    Boolean(listSearch.trim()) || listSubject !== 'all' || listGrade !== 'all'
+    || listTerm !== 'all' || listStatus !== 'all';
 
   const handleEdit = (quiz: CreatedQuiz) => {
     setEditingQuiz(quiz);
@@ -1433,6 +1441,14 @@ ${contentSummary}
                 {listFilterOptions.grades.map(v => <option key={v} value={v}>{v}</option>)}
               </select>
               <select
+                value={listTerm}
+                onChange={e => setListTerm(e.target.value)}
+                className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
+              >
+                <option value="all">📅 كل الفصول الدراسية</option>
+                {listFilterOptions.terms.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+              <select
                 value={listStatus}
                 onChange={e => setListStatus(e.target.value as 'all' | 'active' | 'locked')}
                 className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
@@ -1445,7 +1461,10 @@ ${contentSummary}
             {listFiltersActive && (
               <button
                 type="button"
-                onClick={() => { setListSearch(''); setListSubject('all'); setListGrade('all'); setListStatus('all'); }}
+                onClick={() => {
+                  setListSearch(''); setListSubject('all'); setListGrade('all');
+                  setListTerm('all'); setListStatus('all');
+                }}
                 className="mt-3 rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-200"
               >
                 مسح الفلاتر
