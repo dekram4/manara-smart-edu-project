@@ -1,5 +1,5 @@
 
-import { subjectsOfConfig } from '../../utils/academic';
+import { readHierarchicalConfigs, subjectsOfConfig } from '../../utils/academic';
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParentInfo, StudentInfo, TeacherInfo, QuizResult, ParentMenuType, CertificateRecord, CreatedQuiz, HierarchicalConfig, QuizType } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
@@ -438,7 +438,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const students = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
     const teacherId = parent ? getParentTeacherId(parent, students) : '';
     if (!teacherId) { alert('⚠️ لم يتم العثور على معلم مرتبط بحسابك'); return; }
-    const hierarchicalConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
+    const hierarchicalConfigs = readHierarchicalConfigs();
      const teacherConfigs = hierarchicalConfigs.filter((config: any) => getRecordTeacherId(config) === teacherId);
     const gradesSet = new Set<string>();
     teacherConfigs.forEach((config: any) => { if (config.grade) gradesSet.add(config.grade); });
@@ -476,7 +476,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const getChildSubjects = (child: StudentInfo) => {
     const set = new Set<string>();
     try {
-      const allConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
+      const allConfigs = readHierarchicalConfigs();
       const studentScope = getStudentTeacherScope(child);
       const teacherId = studentScope.teacherId || (
         studentScope.explicit

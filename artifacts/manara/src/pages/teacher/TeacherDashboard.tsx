@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
+import { readHierarchicalConfigs, subjectsOfConfig } from '../../utils/academic';
+import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { TeacherInfo, TeacherMenuType, ParentInfo, StudentInfo, LessonConfig } from '../../types';
 import { COLORS, STORAGE_KEYS } from '../../constants';
 import TeacherLogin from './TeacherLogin';
@@ -36,7 +38,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     studentsCount: 0,
     lessonsCount: 0,
     academicSettingsCount: 0,
+    academicSubjectsCount: 0,
   });
+  /// هل ما زالت الشجرة في طريقها من الخادم؟ العدّ قبل وصولها ليس عدّاً.
+  const hydrating = useSyncHydrating();
 
   useEffect(() => {
     const savedTeacher = readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
@@ -80,10 +85,24 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       getRecordTeacherId(l) === normalizeScopeValue(currentTeacher.id)
     );
 
-    // Load academic settings
-    const hierarchicalConfigs = readStorageArray(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
-    const teacherConfigs = hierarchicalConfigs.filter((c: any) =>
+    // ‏الشجرة تُقرأ مدموجة، كما تقرؤها كل شاشة أخرى.
+    //
+    // ‏كانت تُقرأ خاماً هنا وحدها. والمصفوفة الخام تحمل أكثر من مدخل للصف
+    // ‏الواحد — يتراكم ذلك من دمج المزامنة — فكانت البطاقة تعدّ المكرّرات
+    // ‏وتُظهر خمسة حيث صفٌّ واحد. ثم يفتح المعلم شاشة الإعدادات، وهي تدمج
+    // ‏وتعيد الكتابة، فيعود فيجد واحداً. لم يكن الرقم يتذبذب: كان الأول
+    // ‏خطأً والثاني صواباً.
+    const teacherConfigs = readHierarchicalConfigs().filter((c: any) =>
       getRecordTeacherId(c) === normalizeScopeValue(currentTeacher.id)
+    );
+    // ‏المواد عبر صفوفه كلها، بلا تكرار: البطاقة تقول «الصفوف والمواد»،
+    // ‏فيجب أن يكون للمواد عدد حقيقي لا أن تبقى الكلمة بلا رقم.
+    const teacherSubjects = new Set(
+      teacherConfigs.flatMap((config: any) =>
+        subjectsOfConfig(config)
+          .map((subject: any) => String(subject?.subject ?? '').trim())
+          .filter(Boolean),
+      ),
     );
 
     setDashboardStats({
@@ -91,6 +110,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       studentsCount: teacherStudents.length,
       lessonsCount: teacherLessons.length,
       academicSettingsCount: teacherConfigs.length,
+      academicSubjectsCount: teacherSubjects.size,
     });
   };
 
@@ -181,8 +201,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
                   <h3 className="text-lg font-black text-orange-900">الإعدادات الأكاديمية</h3>
                   <div className="text-3xl">⚙️</div>
                 </div>
-                <p className="dashboard-stat-value text-orange-700">{dashboardStats.academicSettingsCount}</p>
-                <p className="text-orange-600 text-sm font-medium">الصفوف والمواد</p>
+                <p className="dashboard-stat-value text-orange-700">
+                  {hydrating ? '…' : dashboardStats.academicSettingsCount}
+                </p>
+                <p className="text-orange-600 text-sm font-medium">
+                  {hydrating
+                    ? 'جارٍ التحميل من الخادم'
+                    : `${dashboardStats.academicSettingsCount} صف · ${dashboardStats.academicSubjectsCount} مادة`}
+                </p>
               </div>
             </div>
 
