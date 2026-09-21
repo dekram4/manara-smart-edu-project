@@ -87,6 +87,63 @@ void main() {
           reason: 'every piece carries the same tilt, so nothing dances');
     });
 
+    testWidgets('a line reserves room for its own hop', (tester) async {
+      // Transform.translate paints elsewhere without telling the parent, so
+      // the lift has to be paid for in padding or the piece hangs outside
+      // the box that measured it — and lands on whatever sits above.
+      await pump(tester, const BouncyText('أهلًا', fontSize: 30));
+
+      final box = tester.getRect(find.byType(BouncyText));
+      final ink = tester.getRect(find.text('أهلًا').first);
+      expect(box.height, greaterThan(ink.height),
+          reason: 'the line is no taller than upright text, so nothing is '
+              'reserved for the hop');
+      expect(box.height - ink.height,
+          greaterThanOrEqualTo(BouncyText.reservedLift(30)));
+    });
+
+    testWidgets('two stacked lines never touch, with no gap between them',
+        (tester) async {
+      // The header stacks the welcome over the student's name. It used to
+      // overlap once the offsets grew; this holds the fix even at zero
+      // spacing, so no call site has to know the magic number.
+      await pump(
+        tester,
+        const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            BouncyText('أهلًا بك في منارة المعرفة', fontSize: 19.2),
+            BouncyText('أهلًا جوري داود', fontSize: 36),
+          ],
+        ),
+      );
+
+      final rects = tester
+          .widgetList<BouncyText>(find.byType(BouncyText))
+          .map((w) => tester.getRect(find.byWidget(w)))
+          .toList();
+      expect(rects.first.bottom, lessThanOrEqualTo(rects.last.top),
+          reason: 'the two header lines overlap');
+    });
+
+    testWidgets('a long phrase wraps on a narrow phone without overflowing',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await pump(
+        tester,
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 18),
+          child: BouncyText('المس أي بطاقة لتبدأ رحلتك', fontSize: 19),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('reduced motion leaves the letters still', (tester) async {
       await pump(
         tester,

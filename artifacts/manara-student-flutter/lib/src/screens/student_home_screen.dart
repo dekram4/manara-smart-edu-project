@@ -1722,7 +1722,7 @@ class _WelcomeCard extends StatelessWidget {
                     maxScale: 1.1,
                     minScale: 0.94,
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 10),
                   // The student's own name, at a size that reads as a
                   // greeting rather than a caption.
                   //

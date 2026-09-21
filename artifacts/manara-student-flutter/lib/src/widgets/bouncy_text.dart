@@ -77,6 +77,13 @@ class BouncyText extends StatelessWidget {
     return out;
   }
 
+  /// The vertical room one piece reserves for its own hop, at this size.
+  ///
+  /// Public so a test can prove the box grew, and so a caller stacking two
+  /// of these knows the gap is already paid for.
+  static double reservedLift(double fontSize) =>
+      _BouncyPiece.reservedLift(fontSize);
+
   /// Does this word belong to a script whose letters connect?
   ///
   /// Arabic and its extensions, plus the presentation-form blocks that some
@@ -169,10 +176,30 @@ class _BouncyPiece extends StatelessWidget {
   /// The lift: pieces sit above and below the line rather than on it, so
   /// the phrase reads as hopping. Scaled with the type, so a small caption
   /// does not bounce as far as a headline.
-  double get _dy {
-    const steps = [-5.0, 3.5, -3.5, 5.0];
-    return steps[index % steps.length] * (fontSize / 26).clamp(0.6, 1.6);
-  }
+  double get _dy => _steps[index % _steps.length] * _liftScale(fontSize);
+
+  static const _steps = [-5.0, 3.5, -3.5, 5.0];
+
+  static double _liftScale(double fontSize) =>
+      (fontSize / 26).clamp(0.6, 1.6).toDouble();
+
+  /// The furthest any piece of this size can travel from the baseline.
+  ///
+  /// `Transform.translate` paints somewhere else; it does not tell the
+  /// parent it moved. So a lifted piece used to hang outside the line box
+  /// that measured it, and the phrase above — which had reserved only the
+  /// height of upright text — got sat on. Raising the offsets made the
+  /// collision plain, but the gap was always there.
+  ///
+  /// Reserving the travel as padding is what fixes it: the line box becomes
+  /// as tall as the movement, so any number of these can stack with nothing
+  /// between them and never touch. It includes the idle bob, which lifts a
+  /// further 2.5 on top of the offset.
+  static double reservedLift(double fontSize) =>
+      _steps.map((s) => s.abs()).reduce(math.max) * _liftScale(fontSize) +
+      _bobTravel;
+
+  static const _bobTravel = 2.5;
 
   @override
   Widget build(BuildContext context) {
@@ -239,16 +266,26 @@ class _BouncyPiece extends StatelessWidget {
       ),
     );
 
-    if (!moving) return piece;
+    // الحشوة تحجز مدى الحركة في القياس نفسه، فيعلو صندوق السطر بقدر ما
+    // ترتفع القطعة وتنخفض. بدونها تُقاس القطعة قائمةً وتُرسم مرتفعة،
+    // فتقع على السطر الذي فوقها.
+    final reserved = Padding(
+      padding: EdgeInsets.symmetric(
+        vertical: reservedLift(fontSize),
+      ),
+      child: piece,
+    );
+
+    if (!moving) return reserved;
 
     // Each piece starts a little later than the one before it, so the line
     // ripples along instead of heaving as one block. The delay wraps every
     // six pieces to keep a long phrase from starting its tail a second in.
-    return piece
+    return reserved
         .animate(onPlay: (c) => c.repeat(reverse: true))
         .moveY(
           begin: 0,
-          end: -2.5,
+          end: -_bobTravel,
           duration: 1700.ms,
           delay: (120 * (index % 6)).ms,
           curve: Curves.easeInOut,
