@@ -248,6 +248,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   // 📝 محتوى الدرس المسحوب
   const [lessonContent, setLessonContent] = useState('');
   const [lessonFound, setLessonFound] = useState(false);
+  /// كم درساً دُمجت نصوصه في الحقل — يعرف المعلم حجم ما يولّد منه.
+  const [mergedLessons, setMergedLessons] = useState(0);
 
   const [quizFormData, setQuizFormData] = useState({
     title: '',
@@ -420,40 +422,91 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     return Array.isArray(lessons) ? uniqueAcademicValues(lessons) : [];
   };
 
-  const handleUnitChange = (newUnit: string) => {
-    setQuizFormData({ ...quizFormData, unit: newUnit, lesson: '' });
-    setAvailableLessons(getLessonsFor(newUnit));
+  /**
+   * نصّ الدروس على هذا المسار، ومعه عددها.
+   *
+   * ‏بدرسٍ محدَّد: نصّ ذلك الدرس وحده. وبلا درس: نصوص دروس الوحدة كلها
+   * ‏مجموعة، كلٌّ تحت عنوانه — فاختبار الوحدة يُولَّد من الوحدة كلها، لا
+   * ‏من أوّل درس يصادفه البحث كما كان.
+   *
+   * ‏وكان `find` يأخذ أوّل سجلّ يطابق الوحدة ويتجاهل أيّ درس هو، فيُبنى
+   * ‏اختبار «الوحدة» من درس واحد منها.
+   */
+  const collectLessonContent = (
+    path: { grade: string; subject: string; term: string; unit: string; lesson?: string },
+  ): { text: string; lessonCount: number } => {
+    const lessonConfigs: LessonConfig[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]',
+    );
+    const normalize = (value: any) => (value || '').toString().trim().toLowerCase();
+    const ownerId = selectedTeacherId && selectedTeacherId !== 'admin'
+      ? normalizeScopeValue(selectedTeacherId)
+      : '';
 
-    // 🔍 سحب محتوى الدرس
-    const lessonConfigs: LessonConfig[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]');
-    const normalize = (s: any) => (s || '').toString().trim().toLowerCase();
-
-     const ownerId = selectedTeacherId && selectedTeacherId !== 'admin'
-       ? normalizeScopeValue(selectedTeacherId)
-       : '';
-     const foundLesson = lessonConfigs.find((l: LessonConfig) =>
-       (!ownerId || getRecordTeacherId(l) === ownerId) &&
-      normalize(l.grade) === normalize(quizFormData.grade) &&
-      normalize(l.subject) === normalize(quizFormData.subject) &&
-      normalize(l.term) === normalize(quizFormData.term) &&
-      normalize(l.unit) === normalize(newUnit)
+    const inUnit = lessonConfigs.filter((item: LessonConfig) =>
+      (!ownerId || getRecordTeacherId(item) === ownerId) &&
+      normalize(item.grade) === normalize(path.grade) &&
+      normalize(item.subject) === normalize(path.subject) &&
+      normalize(item.term) === normalize(path.term) &&
+      normalize(item.unit) === normalize(path.unit),
     );
 
-    if (foundLesson && foundLesson.lessonContent) {
-      setLessonContent(foundLesson.lessonContent);
-      setLessonFound(true);
-    } else {
-      setLessonContent('');
-      setLessonFound(false);
+    const wanted = path.lesson
+      ? inUnit.filter((item) => normalize(item.lesson) === normalize(path.lesson))
+      : inUnit;
+
+    const withText = wanted.filter((item) => (item.lessonContent || '').trim());
+    if (withText.length === 0) return { text: '', lessonCount: 0 };
+    if (withText.length === 1) {
+      return { text: withText[0].lessonContent.trim(), lessonCount: 1 };
     }
+    // ‏كل درس تحت عنوانه: النموذج المولِّد يقرأ نصّاً واحداً، والعناوين
+    // ‏هي ما يبقي حدود الدروس ظاهرة فيه.
+    return {
+      text: withText
+        .map((item) => `## ${item.lesson || item.unit}\n${item.lessonContent.trim()}`)
+        .join('\n\n'),
+      lessonCount: withText.length,
+    };
   };
 
+  /// يملأ حقل النصّ من المسار الحالي، ويضبط نوع الاختبار على مستواه.
+  const applyScope = (next: typeof quizFormData) => {
+    const found = collectLessonContent(next);
+    setLessonContent(found.text);
+    setLessonFound(found.lessonCount > 0);
+    setMergedLessons(found.lessonCount);
+    // ‏المستوى يحدّد النوع: درسٌ بعينه اختبار دوري تدريبي يُعاد، والوحدة
+    // ‏كاملةً اختبار شامل يُؤدّى مرة. وتطبيق الطالب يمنع إعادة اختبار
+    // ‏المعلم ويسمح بإعادة الدوري، فالنوع هو ما ينفَّذ فعلاً لا الرايتان.
+    setQuizFormData({
+      ...next,
+      quizType: next.lesson.trim() ? QuizType.PERIODIC : QuizType.TEACHER,
+    });
+  };
+
+  const handleUnitChange = (newUnit: string) => {
+    setAvailableLessons(getLessonsFor(newUnit));
+    applyScope({ ...quizFormData, unit: newUnit, lesson: '' });
+  };
+
+  const handleLessonChange = (newLesson: string) => {
+    applyScope({ ...quizFormData, lesson: newLesson });
+  };
+
+  /// هل يقع هذا الاختبار على المسار المعروض في النموذج الآن؟
+  ///
+  /// ‏يشمل الدرس. فبدونه كان درسان في وحدة واحدة يُعدّان مساراً واحداً،
+  /// ‏فيمنع «أُنشئ الاختبار الدوري لهذا المسار مسبقاً» إنشاء اختبار
+  /// ‏للدرس الثاني، ويختلّ ترقيم الاختبارات الدورية بينهما. واختبارات
+  /// ‏الوحدة تبقى مجموعة معاً، فالدرس فيها فارغ عند الطرفين.
   const isSameQuizScope = (quiz: CreatedQuiz, formData = quizFormData) =>
     getRecordTeacherId(quiz) === normalizeScopeValue(selectedTeacherId) &&
     normalizeScopeValue(quiz.grade) === normalizeScopeValue(formData.grade) &&
     normalizeScopeValue(quiz.subject) === normalizeScopeValue(formData.subject) &&
     normalizeScopeValue(quiz.term) === normalizeScopeValue(formData.term) &&
-    normalizeScopeValue(quiz.unit) === normalizeScopeValue(formData.unit);
+    normalizeScopeValue(quiz.unit) === normalizeScopeValue(formData.unit) &&
+    normalizeScopeValue(quiz.lesson) === normalizeScopeValue(formData.lesson);
 
   const getSavedQuizzes = (): CreatedQuiz[] => {
     try {
@@ -679,6 +732,11 @@ ${contentSummary}
       unit: quizFormData.unit,
       lesson: quizFormData.lesson.trim() || undefined,
       quizType: normalizeQuizType(quizFormData.quizType),
+      // ‏الرايتان مكتوبتان صراحةً ليقرأهما التقرير والخادم بلا أن يستنتجا
+      // ‏النوع. والتنفيذ يبقى على `quizType`: تطبيق الطالب يمنع إعادة
+      // ‏اختبار المعلم ويسمح بإعادة الدوري، وهو ما يعمل اليوم.
+      isRepeatable: Boolean(quizFormData.lesson.trim()),
+      allowRetake: Boolean(quizFormData.lesson.trim()),
       questionCount: quizQuestions.length,
       isActive: quizFormData.isActive,
       questions: quizQuestions,
@@ -762,6 +820,11 @@ ${contentSummary}
       unit: quizFormData.unit,
       lesson: quizFormData.lesson.trim() || undefined,
       quizType: normalizeQuizType(quizFormData.quizType),
+      // ‏الرايتان مكتوبتان صراحةً ليقرأهما التقرير والخادم بلا أن يستنتجا
+      // ‏النوع. والتنفيذ يبقى على `quizType`: تطبيق الطالب يمنع إعادة
+      // ‏اختبار المعلم ويسمح بإعادة الدوري، وهو ما يعمل اليوم.
+      isRepeatable: Boolean(quizFormData.lesson.trim()),
+      allowRetake: Boolean(quizFormData.lesson.trim()),
       questionCount: normalizedQuestions.length,
       isActive: quizFormData.isActive,
       questions: normalizedQuestions,
@@ -1098,7 +1161,7 @@ ${contentSummary}
                   مشروعة. ومن يختار درساً يُقيَّد الاختبار به. */}
               <select
                 value={quizFormData.lesson}
-                onChange={e => setQuizFormData({ ...quizFormData, lesson: e.target.value })}
+                onChange={e => handleLessonChange(e.target.value)}
                 className="p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
                 disabled={!quizFormData.unit}
               >
@@ -1110,11 +1173,40 @@ ${contentSummary}
             {/* معلومات المحتوى */}
             {quizFormData.unit && (
               <div className="p-6 bg-white rounded-[30px] border-2 border-purple-200">
+                {/* طبيعة الاختبار كما اشتُقّت من المسار، قبل المحتوى:
+                    المعلم يعرف ما يصنعه وهو يصنعه، لا بعد الحفظ. */}
+                <div
+                  className={`mb-4 flex flex-wrap items-center gap-2 rounded-2xl border-2 p-4 font-black ${
+                    quizFormData.lesson
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : 'border-amber-300 bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  <span className="text-2xl">{quizFormData.lesson ? '🔁' : '📋'}</span>
+                  <span>
+                    {quizFormData.lesson
+                      ? `اختبار دوري للدرس «${quizFormData.lesson}» — قابل للإعادة`
+                      : `اختبار شامل لوحدة «${quizFormData.unit}» — يُؤدّى مرة واحدة`}
+                  </span>
+                  <span className="text-sm font-bold opacity-80">
+                    {quizFormData.lesson
+                      ? 'يعيده الطالب ليحسّن درجته'
+                      : 'لا يُعاد بعد تسليمه'}
+                  </span>
+                </div>
+
                 {lessonFound ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-green-700 font-black">
                       <span className="text-2xl">✅</span>
-                      <span>تم العثور على محتوى الدرس</span>
+                      <span>
+                        {mergedLessons > 1
+                          ? `دُمجت نصوص ${mergedLessons} دروس من هذه الوحدة`
+                          : 'تم العثور على محتوى الدرس'}
+                      </span>
+                      <span className="text-sm font-bold text-purple-500">
+                        ({lessonContent.length.toLocaleString('ar-EG')} حرفاً)
+                      </span>
                     </div>
                     <div className="bg-green-50 p-4 rounded-2xl text-sm text-purple-700">
                       {lessonContent.substring(0, 300)}...
@@ -1123,7 +1215,11 @@ ${contentSummary}
                 ) : (
                   <div className="flex items-center gap-2 text-orange-600 font-bold">
                     <span className="text-2xl">⚠️</span>
-                    <span>لم يتم العثور على محتوى! أضف الدرس في إدارة المحتوى أولاً</span>
+                    <span>
+                      {quizFormData.lesson
+                        ? 'لا يوجد نصّ مكتوب لهذا الدرس! أضفه في إدارة المحتوى أولاً'
+                        : 'لا يوجد نصّ لأي درس في هذه الوحدة! أضفه في إدارة المحتوى أولاً'}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1134,14 +1230,16 @@ ${contentSummary}
               {/* نوع الاختبار */}
               <div>
                 <label className="block font-black text-purple-900 mb-2">🎯 نوع الاختبار</label>
-                <select
-                  value={quizFormData.quizType}
-                  onChange={e => setQuizFormData({ ...quizFormData, quizType: e.target.value as QuizType })}
-                  className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
-                >
-                  <option value={QuizType.PERIODIC}>الاختبار الدوري</option>
-                  <option value={QuizType.TEACHER}>اختبار المعلم</option>
-                </select>
+                {/* النوع يتبع المسار ولا يُختار: اختيار «دوري» لاختبار
+                    وحدة كان يجعله قابلاً للإعادة، واختيار «اختبار المعلم»
+                    لدرس يمنع إعادته — فيتناقض ما يراه المعلم في الشارة مع
+                    ما يجده الطالب. مصدر واحد أصدق من حقلين يختلفان. */}
+                <div className="w-full p-4 border-2 border-purple-200 rounded-2xl bg-purple-50 font-bold text-purple-800">
+                  {quizFormData.lesson ? '🔁 الاختبار الدوري (للدرس)' : '📋 اختبار الوحدة الشامل'}
+                  <span className="block text-xs font-bold text-purple-500 mt-1">
+                    يُحدَّد تلقائياً: باختيار درس يصير دورياً، وبتركه فارغاً يصير شاملاً للوحدة.
+                  </span>
+                </div>
               </div>
 
               {/* عدد الأسئلة */}

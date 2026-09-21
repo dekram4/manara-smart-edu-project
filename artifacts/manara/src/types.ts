@@ -247,6 +247,15 @@ export interface CreatedQuiz {
   creationMode?: 'manual' | 'ai';
   /** Periodic quiz number within the same owner and academic path. */
   periodicNumber?: number;
+  /**
+   * هل يُعيد الطالب هذا الاختبار؟
+   *
+   * مشتقّة من مستواه: اختبار درسٍ بعينه تدريبيّ يُعاد، واختبار الوحدة
+   * شاملٌ يُؤدّى مرة. مكتوبة في السجلّ ليقرأها التقرير والخادم مباشرة،
+   * والتنفيذ يجري على `quizType` الذي يقرؤه تطبيق الطالب.
+   */
+  isRepeatable?: boolean;
+  allowRetake?: boolean;
   /** Number of questions shown to one student from the question bank. */
   questionsPerAttempt?: number;
   /** Tombstone used to keep a deleted quiz from returning during sync. */
