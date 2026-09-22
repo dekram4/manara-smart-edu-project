@@ -72,6 +72,81 @@ void main() {
         reason: 'a leftover lesson must not put a deleted subject back');
   });
 
+  group("the student sees their own teacher's tree", () {
+    // ‏إعداد المشرف — وكل إعداد بلا مالك — كان يُعرض لكل طالب مهما كان
+    // ‏معلّمه. فيظهر في شاشة الطالب صفٌّ لا يعرفه معلّمه ولا يجده في
+    // ‏إعداداته حين يبحث عنه، وهو ما وقع فعلاً مع «الصف الأول الابتدائي».
+    List<Object?> ownedBy(String owner, String grade) => [
+          {
+            'grade': grade,
+            'createdBy': owner,
+            'subjects': [
+              {
+                'subject': 'العلوم',
+                'terms': [
+                  {'term': 'الأول', 'units': ['و١']},
+                ],
+              },
+            ],
+          },
+        ];
+
+    List<String> gradesOf(List<AcademicPath> paths) =>
+        paths.map((path) => path.grade).toSet().toList();
+
+    test('a grade from another tree does not reach them', () {
+      final paths = StudentContentService.academicPaths(
+        hierarchyValue: [
+          ...ownedBy('t1', 'الصف الرابع'),
+          ...ownedBy('admin', 'الصف الأول الابتدائي'),
+        ],
+        hierarchyUnavailable: false,
+        lessons: const [],
+        profile: profile,
+      );
+
+      expect(gradesOf(paths), ['الصف الرابع']);
+      expect(gradesOf(paths), isNot(contains('الصف الأول الابتدائي')));
+    });
+
+    test('an unowned entry is treated the same way', () {
+      final paths = StudentContentService.academicPaths(
+        hierarchyValue: [
+          ...ownedBy('t1', 'الصف الرابع'),
+          {
+            'grade': 'صفّ قديم بلا مالك',
+            'subjects': [
+              {
+                'subject': 'العلوم',
+                'terms': [
+                  {'term': 'الأول', 'units': ['و١']},
+                ],
+              },
+            ],
+          },
+        ],
+        hierarchyUnavailable: false,
+        lessons: const [],
+        profile: profile,
+      );
+
+      expect(gradesOf(paths), ['الصف الرابع']);
+    });
+
+    test('where the teacher has no tree, the shared one still shows', () {
+      // ‏التركيب الذي يكتب فيه المشرف الشجرة وحده: التضييق يجب ألّا
+      // ‏يُفرغ شاشة الطالب فيه.
+      final paths = StudentContentService.academicPaths(
+        hierarchyValue: ownedBy('admin', 'الصف الأول الابتدائي'),
+        hierarchyUnavailable: false,
+        lessons: const [],
+        profile: profile,
+      );
+
+      expect(gradesOf(paths), ['الصف الأول الابتدائي']);
+    });
+  });
+
   test('an empty tree leaves the student nothing to choose', () {
     // The teacher deleted everything. Read successfully, and empty.
     final paths = StudentContentService.academicPaths(

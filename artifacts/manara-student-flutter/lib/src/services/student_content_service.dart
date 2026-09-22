@@ -985,11 +985,12 @@ List<AcademicPath> _pathsFromHierarchy(
   Set<String> identities = const {},
 ]) {
   if (value is! List) return const [];
+  final hasOwnTree = _studentHasOwnTree(value, profile, identities);
 
   final paths = <AcademicPath>[];
   for (final rawConfig in value) {
     final config = _asMap(rawConfig);
-    if (!_matchesConfigOwner(config, profile, identities)) continue;
+    if (!_matchesConfigOwner(config, profile, identities, hasOwnTree)) continue;
 
     final grade = _value(config, ['grade', 'class', 'schoolGrade']);
     if (grade.isEmpty) continue;
@@ -1037,13 +1038,14 @@ List<DeclaredLesson> declaredLessonsFromHierarchy(
   Set<String> identities = const {},
 ]) {
   if (value is! List) return const [];
+  final hasOwnTree = _studentHasOwnTree(value, profile, identities);
 
   final declared = <DeclaredLesson>[];
   final seen = <String>{};
 
   for (final rawConfig in value) {
     final config = _asMap(rawConfig);
-    if (!_matchesConfigOwner(config, profile, identities)) continue;
+    if (!_matchesConfigOwner(config, profile, identities, hasOwnTree)) continue;
 
     final grade = _value(config, ['grade', 'class', 'schoolGrade']);
     if (grade.isEmpty) continue;
@@ -1121,19 +1123,55 @@ bool _hasPathValues(AcademicPath path) {
 }
 
 
+/// هل يملك هذا الطالب رؤية هذا الإعداد؟
+///
+/// شجرة معلّمه إن كانت له شجرة. وكان إعداد المشرف — وكل إعداد بلا مالك —
+/// يُعرض لكل طالب مهما كان معلّمه، فيظهر في شاشته صفٌّ لا يعرفه معلّمه
+/// ولا يجده في إعداداته حين يبحث عنه.
+///
+/// و[hasOwnTree] هو ما يمنع هذا التضييق من أن يُفرغ الشاشة: التركيب الذي
+/// يكتب فيه المشرف الشجرة ويعمل المعلمون عليها ليس فيه شجرة للمعلم
+/// أصلاً، فيبقى على ما كان. أما حيث للمعلم شجرته — وهو ما تقصده ميزة
+/// «نسخ إلى إعداداتي» — فهي وحدها ما يراه طلابه.
 bool _matchesConfigOwner(
   Map<String, dynamic> config,
   StudentProfile profile, [
   Set<String> identities = const {},
+  bool hasOwnTree = false,
 ]) {
   final owner = _normalize(
     config['teacherId'] ?? config['teacher_id'] ?? config['createdBy'],
   );
-  if (owner.isEmpty || owner == 'admin' || owner == 'supervisor') return true;
   final teacher = _normalize(profile.teacherId);
   if (teacher.isNotEmpty && owner == teacher) return true;
   // The same teacher, written down under another of their names.
-  return identities.contains(owner);
+  if (identities.contains(owner)) return true;
+  if (owner.isEmpty || owner == 'admin' || owner == 'supervisor') {
+    return !hasOwnTree;
+  }
+  return false;
+}
+
+/// هل في الشجرة إعدادٌ يملكه معلّم هذا الطالب؟
+bool _studentHasOwnTree(
+  Object? value,
+  StudentProfile profile,
+  Set<String> identities,
+) {
+  if (value is! List) return false;
+  final teacher = _normalize(profile.teacherId);
+  for (final rawConfig in value) {
+    final owner = _normalize(
+      _asMap(rawConfig)['teacherId'] ??
+          _asMap(rawConfig)['teacher_id'] ??
+          _asMap(rawConfig)['createdBy'],
+    );
+    if (owner.isEmpty) continue;
+    if ((teacher.isNotEmpty && owner == teacher) || identities.contains(owner)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 String _value(Map<String, dynamic> data, List<String> keys) {
