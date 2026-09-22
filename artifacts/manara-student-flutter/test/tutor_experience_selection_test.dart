@@ -177,7 +177,106 @@ void main() {
       expect(selection.url, 'https://teacher.example/meeting');
     });
   });
+
+  group('the live meeting follows the lesson the student opened', () {
+    // ‏المطابقة كانت تقف عند الوحدة، فيُفتح للطالب لقاءُ أي درس فيها:
+    // ‏يختار «خصائص الجمع» فيدخل اجتماع درس آخر من الوحدة نفسها.
+    AcademicContext contextForLesson(String lessonName) => AcademicContext(
+          grade: 'السادس',
+          subject: 'الرياضيات',
+          term: 'الترم الأول',
+          unit: 'الوحدة الأولى',
+          selectedLesson: _lesson(
+            id: 'selected',
+            ownerId: 'teacher-1',
+            lessonName: lessonName,
+          ),
+        );
+
+    test('it takes the link of that lesson, not of its neighbour', () {
+      final selection = select(
+        [
+          _lesson(
+            id: 'other',
+            ownerId: 'teacher-1',
+            lessonName: 'الطرح',
+            liveMeetingUrl: 'https://meet.example.com/other',
+            createdAt: '2026-02-01T00:00:00Z',
+          ),
+          _lesson(
+            id: 'chosen',
+            ownerId: 'teacher-1',
+            lessonName: 'خصائص الجمع',
+            liveMeetingUrl: 'https://meet.example.com/chosen',
+          ),
+        ],
+        selectedContext: contextForLesson('خصائص الجمع'),
+        type: TutorExperienceType.liveMeeting,
+      );
+
+      expect(selection.status, TutorExperienceStatus.ready);
+      expect(selection.url, 'https://meet.example.com/chosen');
+    });
+
+    test('a lesson with no meeting of its own offers none', () {
+      final selection = select(
+        [
+          _lesson(
+            id: 'other',
+            ownerId: 'teacher-1',
+            lessonName: 'الطرح',
+            liveMeetingUrl: 'https://meet.example.com/other',
+          ),
+        ],
+        selectedContext: contextForLesson('خصائص الجمع'),
+        type: TutorExperienceType.liveMeeting,
+      );
+
+      expect(selection.status, TutorExperienceStatus.unavailable);
+    });
+
+    test('content saved before lessons existed still serves its unit', () {
+      // ‏محتوى قديم لا يحمل اسم درس: صالح على مستوى وحدته كما كان، فلا
+      // ‏يسقط ويترك الوحدة بلا لقاء.
+      final selection = select(
+        [
+          _lesson(
+            id: 'legacy',
+            ownerId: 'teacher-1',
+            lessonName: '',
+            liveMeetingUrl: 'https://meet.example.com/legacy',
+          ),
+        ],
+        selectedContext: contextForLesson('خصائص الجمع'),
+        type: TutorExperienceType.liveMeeting,
+      );
+
+      expect(selection.url, 'https://meet.example.com/legacy');
+    });
+
+    test('a hamza in the path does not hide the meeting', () {
+      // ‏«الترم الأول» و«الترم الاول» اسم واحد عند من كتبهما.
+      final selection = select(
+        [
+          _lesson(
+            id: 'chosen',
+            ownerId: 'teacher-1',
+            term: 'الترم الاول',
+            lessonName: 'خصائص الجمع',
+            liveMeetingUrl: 'https://meet.example.com/chosen',
+          ),
+        ],
+        selectedContext: contextForLesson('خصائص الجمع'),
+        type: TutorExperienceType.liveMeeting,
+      );
+
+      expect(selection.status, TutorExperienceStatus.ready);
+    });
+  });
 }
+
+/// الدرس المفتوح في كل حالات هذا الملف، ما لم يُذكر غيره.
+const _openLesson = 'الدرس المختار';
 
 LessonContent _lesson({
   required String id,
@@ -189,6 +288,7 @@ LessonContent _lesson({
   String createdAt = '2026-01-01T00:00:00Z',
   String? avatarUrl,
   String? liveMeetingUrl,
+  String lessonName = _openLesson,
 }) {
   return LessonContent(
     id: id,
@@ -197,7 +297,7 @@ LessonContent _lesson({
     subject: subject,
     term: term,
     unit: unit,
-    lessonName: 'الدرس $id',
+    lessonName: lessonName,
     createdAt: createdAt,
     ownerId: ownerId,
     avatarInteractionUrl: avatarUrl,

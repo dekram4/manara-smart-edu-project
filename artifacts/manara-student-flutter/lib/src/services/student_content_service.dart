@@ -789,14 +789,29 @@ class StudentContentService {
     return content == selected;
   }
 
+  /// هل هذا المحتوى هو محتوى الدرس المفتوح الآن؟
+  ///
+  /// خمسة مستويات لا أربعة. كانت المطابقة تقف عند الوحدة، فيُفتح للطالب
+  /// لقاءُ أي درس فيها — يختار «خصائص الجمع» فيدخل اجتماع درس آخر من
+  /// الوحدة نفسها، بلا أن يُنبَّه أنه في غير درسه.
+  ///
+  /// والدرس يُقارن حين يذكره الطرفان: المحتوى المحفوظ قبل أن يوجد مستوى
+  /// الدرس لا يحمله، وهو صالح على مستوى وحدته كما كان — فيُقبل لها بدل
+  /// أن يسقط ويترك الوحدة بلا لقاء.
   static bool _matchesExactTutorPath(
     LessonContent lesson,
     AcademicContext context,
   ) {
-    return _normalize(lesson.grade) == _normalize(context.grade) &&
+    final samePath = _normalize(lesson.grade) == _normalize(context.grade) &&
         _normalize(lesson.subject) == _normalize(context.subject) &&
         _normalize(lesson.term) == _normalize(context.term) &&
         _normalize(lesson.unit) == _normalize(context.unit);
+    if (!samePath) return false;
+
+    final lessonName = _normalize(lesson.lessonName);
+    final chosen = _normalize(context.selectedLesson.lessonName);
+    if (lessonName.isEmpty || chosen.isEmpty) return true;
+    return lessonName == chosen;
   }
 
   static bool _isAdministratorOrLegacyLesson(LessonContent lesson) {
@@ -1342,8 +1357,37 @@ VideoSourceType _videoType(Object? value, String url) {
   return VideoSourceType.embed;
 }
 
-String _normalize(Object? value) =>
-    value?.toString().trim().toLowerCase() ?? '';
+/// تسوية عربية للمقارنة، لا للعرض.
+///
+/// الاسم يُكتب مرة في لوحة المعلم ويُقارن مرة هنا، ولا يمرّ بينهما تدقيق
+/// إملائي. فـ«الفصل الأول» و«الفصل الاول» اسمان مختلفان في المقارنة
+/// النصّية وهما شيء واحد عند من كتبهما — فيُحجب الدرس عن صاحبه بسبب همزة.
+///
+/// وهي نظيرة `normalize` في `api-server/src/lib/studentAccess.ts`: الطرفان
+/// يقيسان المسار نفسه، فاختلاف القاعدة بينهما يعني أن يعرض التطبيق درساً
+/// يردّه الخادم.
+String _normalize(Object? value) {
+  final raw = value?.toString().trim().toLowerCase() ?? '';
+  return raw
+      // الحركات والتطويل: زينة كتابية لا تغيّر الكلمة.
+      .replaceAll(RegExp('[\u064B-\u0652\u0670\u0640]'), '')
+      // صور الألف: أ إ آ ٱ ← ا
+      .replaceAll(RegExp('[\u0623\u0625\u0622\u0671]'), '\u0627')
+      // الألف المقصورة ← ياء، والتاء المربوطة ← هاء.
+      .replaceAll('\u0649', '\u064A')
+      .replaceAll('\u0629', '\u0647')
+      // الأرقام العربية والفارسية ← الهندية الغربية.
+      .replaceAllMapped(
+        RegExp('[\u0660-\u0669]'),
+        (m) => '${m[0]!.codeUnitAt(0) - 0x0660}',
+      )
+      .replaceAllMapped(
+        RegExp('[\u06F0-\u06F9]'),
+        (m) => '${m[0]!.codeUnitAt(0) - 0x06F0}',
+      )
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
 
 String _text(Object? value) => value?.toString().trim() ?? '';
 
