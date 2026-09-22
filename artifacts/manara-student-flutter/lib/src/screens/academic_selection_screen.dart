@@ -386,6 +386,40 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
   }
 
+  /// يخرج الطفل من هذه الشاشة بلا أن يسقط من التطبيق.
+  ///
+  /// الشاشة تُفتح بـ `pushReplacement` بعد تسجيل الدخول، فهي وحدها على
+  /// المكدّس و`canPop` كاذبة فيها دائماً. ولو دفعنا الزرّ إلى `pop` لخرج
+  /// الطفل من التطبيق إلى شاشة سوداء — وهو ما يمنعه `StudentNoBack` من
+  /// زرّ النظام أصلاً.
+  ///
+  /// فالرجوع هنا تقدّمٌ إلى لوحة البطاقات: يأخذ معه المسار إن كان قد
+  /// اكتمل اختياره، فلا يضيع ما اختاره، ويمضي بلا مسار إن لم يختر بعد —
+  /// واللوحة تعرف حالها بلا مسار وتدعوه إلى اختياره من «تغيير الدرس».
+  ///
+  /// و`pop` تبقى مكتوبة لطريق يُفتح منه لاحقاً: من فتح هذه الشاشة فوق
+  /// أخرى يجب أن يعود إليها هي، لا أن يُدفع إلى اللوحة.
+  Future<void> _leaveScreen() async {
+    if (_isEntering) return;
+    StudentSoundService.instance.playTap();
+    unawaited(StudentSoundService.instance.stopPathVoice());
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    await navigator.pushReplacement(
+      StudentPageRoute<void>(
+        builder: (_) => StudentHomeScreen(
+          profile: widget.profile,
+          authService: widget.authService,
+          apiBaseUrl: widget.apiBaseUrl,
+          academicContext: _selection,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StudentNoBack(
@@ -484,6 +518,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           ),
                         ),
                       ),
+                    // في الجهة المقابلة لشريط الجواهر: كلاهما في الأعلى،
+                    // فلو تجاورا تزاحما على هاتف ضيّق.
+                    //
+                    // ويسارٌ صريح لا `end`: الشريط مثبَّت يميناً بالجهة
+                    // الفيزيائية، فلو تبع هذا الزرّ اتجاه اللغة لجلس فوقه
+                    // في الإنجليزية — تقابلٌ في العربية وتزاحمٌ في غيرها.
+                    Positioned(
+                      top: 4,
+                      left: 8,
+                      child: _LeaveButton(onPressed: _leaveScreen),
+                    ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -657,6 +702,71 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     setState(() => _journeyStage = next);
   }
 
+}
+
+/// الخروج من شاشة المسار إلى لوحة البطاقات.
+///
+/// بلا سهم: السهم يَعِد بالرجوع، وهذه الشاشة أوّل ما يُفتح بعد الدخول فلا
+/// شيء وراءها يُرجَع إليه — والزرّ يمضي بالطفل إلى البطاقات لا يعيده.
+/// فالأيقونة بطاقات والكلمة «البطاقات»، يقولان ما يحدث فعلاً. وطفلٌ لا
+/// يقرأ بعدُ يعرف الوجهة من الشكل.
+class _LeaveButton extends StatelessWidget {
+  const _LeaveButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: tr('path.leaveTooltip'),
+      child: Tooltip(
+        message: tr('path.leaveTooltip'),
+        child: StudentPressScale(
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(22),
+              child: Ink(
+                // مساحة لمس مريحة لإصبع صغير: أربعون نقطة ارتفاعاً.
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2FA8BE),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF12406B).withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dashboard_rounded,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      tr('path.leave'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// The chunky 3D "start the adventure" button on the lower books.

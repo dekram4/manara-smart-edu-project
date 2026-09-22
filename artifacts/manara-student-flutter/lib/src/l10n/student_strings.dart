@@ -435,6 +435,8 @@ class StudentStrings {
     'portal.challenge.voice': 'تَحَدِّي الْيَوْمِ بِانْتِظَارِك! أَثْبِتْ أَنَّكَ الْأَفْضَل.',
     'path.preparing': 'نجهّز رحلتك...',
     'path.start': 'ابدأ المغامرة!',
+    'path.leave': 'البطاقات',
+    'path.leaveTooltip': 'اذهب إلى شاشة البطاقات',
     'path.mascot': 'اختر صفك لنبدأ الرحلة يا بطل! ✨',
 
     // Character
@@ -981,6 +983,8 @@ class StudentStrings {
         "Today's challenge is waiting! Prove you are the best.",
     'path.preparing': 'Getting your journey ready…',
     'path.start': 'Start the adventure!',
+    'path.leave': 'Cards',
+    'path.leaveTooltip': 'Go to the cards screen',
     'path.mascot': 'Pick your grade and let\'s begin! ✨',
 
     'character.saved': 'Character saved: {label} ✨',
