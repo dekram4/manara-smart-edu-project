@@ -301,7 +301,19 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           studentIdNumber: studentForm.studentIdNumber,
           nationalId: studentForm.nationalId?.trim() || '',
           primaryGrade: studentForm.primaryGrade,
+          // و`grade` معه: شاشات الويب تقرأ هذا الحقل، ولا يكفي أن يُكتب
+          // عند الإنشاء وحده.
+          grade: studentForm.primaryGrade,
           gradeEnrollments: studentForm.gradeEnrollments,
+          // ‏هذان كانا في فرع الإنشاء وحده.
+          //
+          // ‏فالمعلم يُنشئ الطالب فتُحفظ مواده المسندة، ثم يعدّلها فلا
+          // ‏يُكتب شيء: الفرع الآخر لا يذكر الحقل، و`...` تُبقي القيمة
+          // ‏القديمة كما هي. ولوحة المشرف تبني كائناً واحداً للإنشاء
+          // ‏والتعديل معاً، فتكتبه دائماً — ولهذا نجح حفظ المشرف وحده
+          // ‏على السجلّ نفسه.
+          subject: primarySubject,
+          assignedSubjects: studentForm.assignedSubjects,
           teacherId,
           createdBy: teacherId,
           permissionPackageId: studentForm.permissionPackageId || allStudents[index].permissionPackageId || undefined,
