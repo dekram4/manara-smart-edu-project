@@ -182,8 +182,40 @@ async function main() {
   const kvRows = await readJson(
     `/rest/v1/app_kv?select=key,value&key=eq.${encodeURIComponent(HIERARCHY_KEY)}`,
   );
-  const tree = Array.isArray(kvRows?.[0]?.value) ? kvRows[0].value : [];
+  const rawTree = kvRows?.[0]?.value;
+  // قراءةٌ متسامحة، ووقوفٌ عند الغموض.
+  //
+  // كان الاشتراط مصفوفةً والارتداد إلى الفراغ عند غيرها، فقيمةٌ
+  // محفوظةٌ نصّاً تُقرأ «لا شيء» ثم يُكتب فوق الموجود. والصواب أن
+  // يُفكّ النصّ، وأن يُوقَف إن بقي ما لا يُفهم: التوقّف أرخص من المحو.
+  let tree = [];
+  if (Array.isArray(rawTree)) tree = rawTree;
+  else if (typeof rawTree === "string" && rawTree.trim()) {
+    try {
+      const parsed = JSON.parse(rawTree);
+      if (Array.isArray(parsed)) tree = parsed;
+    } catch {
+      /* يُعالَج أدناه */
+    }
+    if (!tree.length) {
+      console.error("❌ قيمة الشجرة محفوظةٌ بشكلٍ لا يُقرأ. شغّل scripts/rebuild-academic-tree.mjs.");
+      process.exit(1);
+    }
+  } else if (rawTree != null && !Array.isArray(rawTree)) {
+    console.error("❌ قيمة الشجرة ليست مصفوفة. شغّل scripts/rebuild-academic-tree.mjs.");
+    process.exit(1);
+  }
   line(`المدخلات الآن: ${tree.length}`);
+
+  // ما كان لكلّ مالكٍ من موادّ قبل الكتابة، ليُقارَن به بعدها.
+  const subjectsBefore = new Map(
+    tree
+      .filter((config) => norm(config?.grade) === norm(GRADE))
+      .map((config) => [
+        ownerOf(config),
+        (config.subjects ?? []).map((item) => norm(item?.subject)).filter(Boolean),
+      ]),
+  );
 
   let next = tree;
   for (const [id, name] of [[owner, TEACHER_NAME], [ADMIN, "المشرف"]]) {
@@ -272,9 +304,13 @@ async function main() {
   const problems = [];
   for (const id of [owner, ADMIN]) {
     if (!subjectsOf(id).includes(norm(SUBJECT))) problems.push(`العلوم غائبة عن «${id}»`);
-    // الرياضيات شرطُ سلامةٍ لا زينة: هذا السكربت يضيف ولا يحذف.
-    if (!subjectsOf(id).includes(norm("الرياضيات"))) {
-      line(`  ⚠️ «${id}» بلا مادة الرياضيات — لم تكن موجودة قبل التشغيل.`);
+    // ما كان موجوداً قبل التشغيل فقدانُه خطأ لا تحذير.
+    //
+    // كان غياب الرياضيات يُطبع سطراً أصفر ثم يُعلن النجاح، فمرّ محوُ منهجٍ
+    // كامل في سطرٍ لا يقرؤه أحد. والمقياس الصحيح ليس «هل الرياضيات
+    // موجودة؟» بل «هل سقط شيءٌ كان هنا قبل أن أبدأ؟».
+    for (const was of subjectsBefore.get(norm(id)) ?? []) {
+      if (!subjectsOf(id).includes(was)) problems.push(`سقطت «${was}» من «${id}»`);
     }
   }
   if (mine.length !== GRADE4_SCIENCE_CURRICULUM.length) {

@@ -8,6 +8,7 @@ import { HierarchicalConfig, TeacherInfo, TeacherPermissions } from '../../types
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissionDetails } from '../../permissions';
 import { dedupeHierarchicalConfigs } from '../../utils/academic';
+import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { readActiveSession } from '../../utils/storage';
 import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
 
@@ -54,13 +55,22 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
   // ويُرجع false، فيبدو زر الحذف معطّلاً بلا سبب ظاهر.
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
 
+  const hydrating = useSyncHydrating();
+
+  // إعادة القراءة حين ينتهي التحميل الأوّل من الخادم.
+  //
+  // هذه الشاشة تقرأ الشجرة من التخزين المحليّ قراءةً متزامنةً مرّةً عند
+  // الفتح. والتحميل من الخادم غير متزامن، ويسبقه محوُ النسخة القديمة
+  // عند اختلاف ختم المحتوى. فمن فتحها في تلك الثواني قرأ فراغاً وبقي عليه:
+  // شجرةٌ كاملة في قاعدة البيانات، وصفرٌ على الشاشة، حتى يُغادرها ويعود.
+  // الراية في قائمة التبعيّات تجعل القراءة تُعاد مرّةً واحدة حين تصل البيانات.
   useEffect(() => {
     const teacher = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
     setTeacherId(teacher?.id || '');
     setTeacherName(teacher?.name || '');
     setTeacherUsername(teacher?.username || '');
     loadSettings(teacher?.id || '');
-  }, [teacherProp?.id, teacherProp?.name, teacherProp?.permissionPackageId]);
+  }, [teacherProp?.id, teacherProp?.name, teacherProp?.permissionPackageId, hydrating]);
 
   const resolvedTeacher: TeacherInfo | null = (() => {
     const fallback = teacherProp || readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
@@ -991,11 +1001,17 @@ onChange={e => {
                 )}
               emptyState={
                 <div style={styles.emptyState}>
-                  <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
-                  <p>لا يوجد إعدادات أكاديمية خاصة بك بعد</p>
-                  <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>
-                    ابدأ بإنشاء هيكلك الأكاديمي أو انسخ من الإعدادات العامة
+                  <div style={{ fontSize: '3rem', marginBottom: '10px' }}>{hydrating ? '⏳' : '📚'}</div>
+                  <p>
+                    {hydrating
+                      ? 'جارٍ تحميل إعداداتك من الخادم…'
+                      : 'لا يوجد إعدادات أكاديمية خاصة بك بعد'}
                   </p>
+                  {!hydrating && (
+                    <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>
+                      ابدأ بإنشاء هيكلك الأكاديمي أو انسخ من الإعدادات العامة
+                    </p>
+                  )}
                 </div>
               }
               noMatchState={
