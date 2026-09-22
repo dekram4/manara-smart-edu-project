@@ -58,6 +58,54 @@ const KV_SET = new Set(KV_KEYS);
 // مفتاح محلي فقط لحفظ العمليات المعلّقة (غير مُزامَن إطلاقاً)
 const PENDING_KEY = 'smartEdu_pendingSync';
 
+/**
+ * ختم المحتوى: رقمٌ في `app_kv` يرفعه من ينظّف قاعدة البيانات.
+ *
+ * ── لماذا ──
+ * نسخة الجهاز تُدمج مع ما في الخادم اتحاداً، وما ليس في الخادم يُرفع
+ * إليه. فجهازٌ لم يُفتح منذ التنظيف لا يعرض المحذوف فحسب: يرفعه من جديد
+ * فيعود إلى الجميع. ولا تكفي قوائم الحذف (`smartEdu_deletedLessons`)،
+ * فهي لا تُكتب إلا حين يُحذف الدرس من الواجهة — ومن حذف مباشرةً من
+ * قاعدة البيانات لا يترك لها أثراً.
+ *
+ * ── كيف ──
+ * الخادم يحمل الختم، والجهاز يحمل آخر ختم رآه. فإن اختلفا سقطت نسخة
+ * الجهاز كلّها وأُخذ ما في الخادم كما هو، ثم حُفظ الختم الجديد. مرةً
+ * واحدة لكل تنظيف، ثم يعود الدمج المعتاد.
+ *
+ * والختم المرئي يُقرأ من `app_kv` ولا يُكتب من المتصفح: من ينظّف يرفعه
+ * بسكربت. وما رآه الجهاز محليٌّ خالص لا يُزامَن، وإلا لَحمل جهازٌ ختمَ
+ * غيره فظنّ أنه رأى ما لم يره.
+ */
+const CONTENT_EPOCH_KEY = 'smartEdu_contentEpoch';
+const CONTENT_EPOCH_SEEN_KEY = 'smartEdu_contentEpochSeen';
+
+/**
+ * هل يُؤخذ ما في الخادم كما هو، بلا دمج مع نسخة الجهاز؟
+ *
+ * تُضبط مرة في بداية كل تحميل، فتقرؤها `hydrateKv` و`hydrateRowTable`
+ * معاً — فلا يقع أن يُصفَّر جدولٌ ويبقى آخر على نسخته القديمة.
+ */
+let takeServerCopy = false;
+
+/** يقارن ختم الخادم بما رآه الجهاز، ويقرّر. */
+async function resolveContentEpoch(): Promise<void> {
+  takeServerCopy = false;
+  // القراءة بلا ترشيح على الخادم: جسر `app_kv` هنا يقرأ المفاتيح كلّها
+  // ولا يقبل شرطاً، فيُرشَّح المفتاح بعد وصوله كما تفعل `hydrateKv`.
+  const { data, error } = await supabase.from('app_kv').select('key,value');
+  if (error) return;
+  const rows = Array.isArray(data) ? data : [];
+  const remote = rows.find((row: any) => row?.key === CONTENT_EPOCH_KEY)?.value;
+  const stamp = remote == null ? '' : String(remote);
+  if (!stamp) return;
+  if (nativeGetItem(CONTENT_EPOCH_SEEN_KEY) === stamp) return;
+
+  takeServerCopy = true;
+  console.info(`[sync] ختم محتوى جديد (${stamp}) — تُؤخذ نسخة الخادم كما هي.`);
+  nativeSetItem(CONTENT_EPOCH_SEEN_KEY, stamp);
+}
+
 // المفاتيح المحلية فقط (جلسة الدخول الحالية + علامات القراءة) — لا تُزامَن
 // activeStudent / currentTeacher / activeParent / LAST_READ_MESSAGE_*
 
@@ -702,7 +750,13 @@ async function hydrateRowTable(
         : localArr;
   // الأحدث يفوز: سجلّ عُدّل هنا ولم يصل بعد لا يجوز أن تمحوه النسخة
   // البعيدة الأقدم.
-  const merged = mergeArrayRecords(filteredRemote, filteredLocal, true);
+  //
+  // إلا بعد تنظيف: الختم يقول إن ما في الخادم هو الحال، فتُترك نسخة
+  // الجهاز كلّها. ولا يضيع بذلك عملٌ لم يُرفع — الجدول الذي له عمليات
+  // معلّقة يخرج من هذه الدالة في أوّل سطر منها.
+  const merged = takeServerCopy
+    ? filteredRemote
+    : mergeArrayRecords(filteredRemote, filteredLocal, true);
   const remoteById = new Map(
     filteredRemote
       .filter((item: any) => item?.id != null)
@@ -813,7 +867,7 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
             // ولا يضيع بهذا عملٌ لم يُرفع: المفتاح الذي له تغييرات معلّقة
             // يُتخطّى قبل هذا السطر (`pendingKv`)، فبلوغُنا هنا يعني أن
             // لا شيء محلياً ينتظر الرفع.
-            : key === 'smartEdu_hierarchicalConfigs'
+            : key === 'smartEdu_hierarchicalConfigs' || takeServerCopy
               ? byKey.get(key)
             : mergeSharedValue(byKey.get(key), localVal);
       nativeSetItem(key, JSON.stringify(merged));
@@ -862,6 +916,11 @@ export async function hydrateFromSupabase(
   pendingKv: Set<string> = new Set(),
   context: SyncContext = activeSyncContext ?? { role: 'admin', scope: 'admin' },
 ): Promise<void> {
+  // قبل كل شيء: هل نُظّفت قاعدة البيانات منذ آخر مرة فُتح فيها هذا
+  // الجهاز؟ الجواب يحكم على التحميل كلّه، فيُسأل مرة قبل أن يبدأ.
+  await resolveContentEpoch().catch((e) =>
+    console.error('[sync] تعذّرت قراءة ختم المحتوى:', e?.message || e)
+  );
   await hydrateKv(pendingKv).catch((e) =>
     console.error('[sync] خطأ أثناء تحميل app_kv:', e?.message || e)
   );
