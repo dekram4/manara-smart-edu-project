@@ -181,29 +181,22 @@ export function matchesStudentScope(
     return false;
   }
 
-  // والمادة تُقاس بما أُسند إليه، لا بالمادة المفردة المحفوظة في سجلّه.
+  // المادة تُقاس بالمواد المسندة وحدها. والقائمة الفارغة تعني كل مواد
+  // معلّمه، فلا يُضيَّق على من لم يُقيَّد.
   //
-  // تلك المفردة موضعٌ كذلك: تُكتب عند إنشاء الحساب وتبقى، فطالبةٌ أُسندت
-  // إليها «العلوم» وفي سجلّها «الرياضيات» من قبلُ كانت تُمنع من دروس
-  // العلوم كلّها — من المادة التي أُعطيت لها هي وحدها. والقائمة الفارغة
-  // تعني كل مواد معلّمه، فلا يُضيَّق على من لم يُقيَّد.
+  // و`student.subject` لا تُقاس به البتّة: هو المادة التي يُفتح عليها
+  // حسابه — موضعٌ لا إذن، يُكتب مرة عند إنشاء الحساب ويبقى. وكان يُقاس
+  // به حين تخلو قائمة المواد، فطالبٌ لا قيد عليه أصلاً يُمنع من كل مادة
+  // سوى تلك الواحدة المحفوظة في سجلّه: «الدرس الرياضيات ومادة الحساب
+  // العلوم» — ومن لم يُقيَّد لا يُمنع من شيء.
   const recordSubject = normalize(record.subject);
-  if (recordSubject) {
-    if (student.assignedSubjects.length > 0) {
-      const allowed = student.assignedSubjects.map((item) => normalize(item));
-      if (!allowed.includes(recordSubject)) {
-        lastScopeRejection =
-          `المادة: الدرس «${text(record.subject)}» وليست من المواد المسندة ` +
-          `[${student.assignedSubjects.join("، ")}]`;
-        return false;
-      }
-    } else {
-      const subject = normalize(student.subject);
-      if (subject && subject !== recordSubject) {
-        lastScopeRejection =
-          `المادة: الدرس «${text(record.subject)}» ومادة الحساب «${text(student.subject)}»`;
-        return false;
-      }
+  if (recordSubject && student.assignedSubjects.length > 0) {
+    const allowed = student.assignedSubjects.map((item) => normalize(item));
+    if (!allowed.includes(recordSubject)) {
+      lastScopeRejection =
+        `المادة: الدرس «${text(record.subject)}» وليست من المواد المسندة ` +
+        `[${student.assignedSubjects.join("، ")}]`;
+      return false;
     }
   }
   lastScopeRejection = "";

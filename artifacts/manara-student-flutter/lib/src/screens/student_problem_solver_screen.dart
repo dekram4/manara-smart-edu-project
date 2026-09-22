@@ -425,24 +425,44 @@ class _MessageCard extends StatelessWidget {
   final Color color;
   final String text;
 
+  /// الخلفية والحبر من السمة، لا لونان ثابتان.
+  ///
+  /// كانت الخلفية بيضاء مكتوبة في الشيفرة، والنصّ بلا لون فيرث لون السمة
+  /// — وهو فاتحٌ في الوضع الداكن. فالإجابة تُكتب أبيضَ على أبيض، ولا
+  /// تظهر للطفل إلا إن ظلّلها بإصبعه.
+  ///
+  /// و`StudentSurface` هي ما تقرؤه بقية الشاشات، فيصير هذا الكرت مثلها
+  /// في الوضعين بدل أن يكون له لونه الخاص.
   @override
   Widget build(BuildContext context) => Student3DCard(
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: StudentSurface.card(context),
             border: Border.all(color: color.withAlpha(100)),
             borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: color),
+              // الأيقونة تحتفظ بلونها الدالّ — أخضر للإجابة وأحمر للخطأ —
+              // لكنها تُفتَّح في الوضع الداكن لئلّا تغرق في الخلفية.
+              Icon(
+                icon,
+                color: StudentSurface.isDark(context)
+                    ? Color.lerp(color, Colors.white, 0.45)
+                    : color,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: SelectableText(
                   text,
-                  style: const TextStyle(height: 1.65, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: StudentSurface.ink(context),
+                    height: 1.65,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15.5,
+                  ),
                 ),
               ),
             ],
