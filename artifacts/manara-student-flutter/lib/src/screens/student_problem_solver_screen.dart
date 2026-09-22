@@ -7,7 +7,6 @@ import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
-import '../models/student_gamification.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
@@ -174,38 +173,24 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       if (answer == null || answer.isEmpty) {
         throw Exception(tr('solver.noAnswer'));
       }
-      RewardResult? reward;
+      // السؤال يُسجَّل ولا يُكافأ.
+      //
+      // كانت البطاقة تمنح جواهر على كل سؤال جديد، وهي بطاقة شرح ومساعدة:
+      // الجائزة على السؤال تعلّم الطفل أن يسأل ليكسب لا ليفهم، ويكفي أن
+      // يكتب أي كلام جديد ليأخذ جواهره. والتسجيل يبقى لأنه ليس مكافأة:
+      // منه يعرف المعلم وولي الأمر بمَ استعان الطفل.
       try {
         await widget.contentService.saveProblemSolverInteraction(
           profile: widget.profile,
           lessonId: lesson.id,
           question: question,
         );
-        reward = await widget.contentService.rewardActivity(
-          profile: widget.profile,
-          activityType: 'problem',
-          activityId: '${lesson.id}:${question.toLowerCase()}',
-        );
       } catch (_) {
         // The answer itself is still useful when progress sync is temporarily offline.
       }
       if (!mounted) return;
       setState(() => _answer = answer);
-      if (reward != null) {
-        StudentSoundService.instance.play(StudentSoundCue.success);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              reward.alreadyRewarded
-                  ? tr('solver.saved')
-                  : trf('reward.earned',
-                      {'xp': reward.xp, 'gems': reward.gems}),
-            ),
-          ),
-        );
-      } else {
-        StudentSoundService.instance.playTap();
-      }
+      StudentSoundService.instance.playTap();
     } catch (error) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       if (!mounted) return;

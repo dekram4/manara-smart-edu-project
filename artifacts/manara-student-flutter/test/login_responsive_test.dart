@@ -49,7 +49,8 @@ void main() {
     });
   }
 
-  testWidgets('the board form is not scrollable', (tester) async {
+  testWidgets('the board does not drag where it already fits',
+      (tester) async {
     tester.view.physicalSize = const Size(1024, 768);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -57,18 +58,41 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pump(const Duration(milliseconds: 350));
 
-    // The form used to sit in a SingleChildScrollView, which is what gave
-    // tablets a vertical drag over the chalkboard. It is now scaled to fit
-    // instead. (Text fields carry their own internal Scrollable for
-    // horizontal caret movement, so this asserts on the scroll view that
-    // was actually removed rather than on Scrollable in general.)
-    expect(find.byType(SingleChildScrollView), findsNothing);
+    // ‏ما كان يُشكى منه هو السحب الرأسي فوق السبورة على التابلت، لا وجود
+    // ‏`SingleChildScrollView` في الشجرة. وقد عاد المكوّن ليحمل المشهد
+    // ‏حين يفيض عن نافذة قصيرة — وفيزياؤه `NeverScrollable` ما دام
+    // ‏يسعها، فلا سحب. والقياس على السلوك أصدق من القياس على غياب ويدجت:
+    // ‏الغياب كان وسيلةً إلى هذا الشرط لا الشرط نفسه.
+    final scene = tester.widget<SingleChildScrollView>(
+      find.byType(SingleChildScrollView),
+    );
+    expect(scene.physics, isA<NeverScrollableScrollPhysics>());
 
-    // Every Scrollable still in the tree must belong to a text field.
-    final scrollables = tester.widgetList<Scrollable>(find.byType(Scrollable));
-    for (final scrollable in scrollables) {
-      expect(scrollable.axisDirection, AxisDirection.right);
+    // ‏وكل تمرير رأسي في الشجرة لا يستجيب للإصبع. أما الأفقي فهو تمرير
+    // ‏المؤشّر داخل حقول النصّ، ولم يكن يوماً موضع الشكوى.
+    for (final scrollable in tester.widgetList<Scrollable>(find.byType(Scrollable))) {
+      if (scrollable.axisDirection == AxisDirection.right) continue;
+      expect(scrollable.axisDirection, AxisDirection.down);
+      expect(scrollable.physics, isA<NeverScrollableScrollPhysics>());
     }
+  });
+
+  testWidgets('a short landscape window scrolls instead of shrinking',
+      (tester) async {
+    // ‏في الوضع الأفقي على هاتف كان المشهد يُقاس على نافذة قصيرة فتخرج
+    // ‏سبورة محشورة. صار له حدٌّ أدنى، وما فاض يُمرَّر.
+    tester.view.physicalSize = const Size(851, 393);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app());
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final scene = tester.widget<SingleChildScrollView>(
+      find.byType(SingleChildScrollView),
+    );
+    expect(scene.physics, isA<ClampingScrollPhysics>());
+    expect(tester.takeException(), isNull);
   });
 
   // The reported problem: on a phone or tablet in landscape the soft

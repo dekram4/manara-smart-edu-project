@@ -147,7 +147,31 @@ class _LoginScreenState extends State<LoginScreen> {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final areaSize = constraints.biggest;
+                final windowSize = constraints.biggest;
+
+                // ‏أرضيةٌ لا ينزل المشهد تحتها، وما فاض عن النافذة
+                // ‏يُمرَّر بالإصبع: في الوضع الأفقي على هاتف كان المشهد
+                // ‏يُقاس على نافذة قصيرة فتخرج سبورة صغيرة محشورة.
+                //
+                // ‏والأرضية تتبع العرض لا رقماً ثابتاً: هي ما يلزم لتبدو
+                // ‏السبورة بحجمها المعتاد، ولا تتجاوز ما يسعه العرض فلا
+                // ‏يصير التمرير عادةً على الشاشات الواسعة.
+                //
+                // ‏وتسقط تماماً حين يكتب الطفل. جرّبتُ إبقاءها فسقط اختبار
+                // ‏«الحقل يجب أن ينتهي فوق الكيبورد»: المشهد يعلو، فينزل
+                // ‏الحقل تحت المفاتيح من جديد. وسبورةٌ أكبر لا يُرى ما
+                // ‏يُكتب فيها أسوأ من سبورة صغيرة يُكتب فيها — وهي
+                // ‏المفاضلة نفسها التي بُني عليها هذا التخطيط.
+                final sceneFloor = typing
+                    ? windowSize.height
+                    : math.min(
+                        windowSize.width * 1.05,
+                        math.max(windowSize.height, 420.0),
+                      );
+                final areaSize = Size(
+                  windowSize.width,
+                  math.max(windowSize.height, sceneFloor),
+                );
 
                 // The board asset is a 3000x3000 square, but the drawing
                 // inside it is not: tracing its alpha shows the artwork
@@ -178,8 +202,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 // iterating a few times rather than algebraically, which
                 // the clamps would make wrong at the extremes.
                 double boardSize = math.min(
-                  areaSize.height * 0.97 / (stackSpan + 0.19),
-                  areaSize.width * 0.96 / artW,
+                  areaSize.height * 0.99 / (stackSpan + 0.19),
+                  areaSize.width * 0.99 / artW,
                 );
                 // While the keyboard is open the brand steps aside and
                 // gives the board its height (see `typing`, read above the
@@ -201,11 +225,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? 0.0
                       : logoSize + logoNameGap + logoNameHeight;
                   boardSize = math.min(
-                    (areaSize.height * 0.97 -
+                    (areaSize.height * 0.99 -
                             logoBlockHeight -
                             (typing ? 0.0 : logoGap)) /
                         stackSpan,
-                    areaSize.width * 0.96 / artW,
+                    areaSize.width * 0.99 / artW,
                   );
                 }
                 boardSize = math.max(boardSize, 1.0);
@@ -244,7 +268,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     : math.max(0.0, boardRect.bottom - areaSize.height + 10);
                 final lift = math.min(overlap, math.max(0.0, stackTop));
 
-                return Transform.translate(
+                return SingleChildScrollView(
+                  // ‏لا يُمرَّر إلا حين يفيض المشهد عن النافذة فعلاً،
+                  // ‏فيبقى ثابتاً تحت الإصبع في الحال المعتادة.
+                  physics: areaSize.height > windowSize.height
+                      ? const ClampingScrollPhysics()
+                      : const NeverScrollableScrollPhysics(),
+                  child: SizedBox(
+                    width: areaSize.width,
+                    height: areaSize.height,
+                    child: Transform.translate(
                   offset: Offset(0, -lift),
                   child: Stack(
                   clipBehavior: Clip.none,
@@ -435,6 +468,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
+                  ),
+                    ),
                   ),
                 );
               },
