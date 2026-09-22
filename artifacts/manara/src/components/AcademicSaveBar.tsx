@@ -3,6 +3,8 @@ import { STORAGE_KEYS } from '../constants';
 import { ownedTreeArrived, readKv, saveKvConfirmed } from '../db/confirmedSave';
 import { getRecordTeacherId } from '../utils/scope';
 import { reopenTeacherSession } from '../utils/serverSession';
+import { useSyncHydrating } from '../hooks/useSyncHydrating';
+import { rehydrateFromServer } from '../db/sync';
 
 /**
  * «حفظ وتثبيت الإعدادات الأكاديمية»، ومعه حالة الحفظ.
@@ -29,6 +31,28 @@ const readLocalTree = (): unknown[] => {
   }
 };
 
+/**
+ * ثِقَل الشجرة: عدد مدخلاتها وعدد دروسها معاً.
+ *
+ * الرفع التلقائي كان يقيس بعدد المدخلات وحده، ويكتفي بالاختلاف سبباً
+ * للرفع. فشجرةٌ محليةٌ فيها مادةٌ واحدة تُرفع فوق شجرةٍ في قاعدة
+ * البيانات فيها مادّتان: العددان متساويان والمحتوى مختلف، فيُكتب
+ * الأفقر فوق الأغنى ويضيع منهجٌ كامل. والدروس هي ما يُقاس حقاً.
+ */
+const weigh = (tree: unknown[]): { configs: number; lessons: number } => {
+  let lessons = 0;
+  for (const config of tree as any[]) {
+    for (const subject of config?.subjects ?? []) {
+      for (const term of subject?.terms ?? []) {
+        for (const names of Object.values(term?.lessons ?? {})) {
+          lessons += Array.isArray(names) ? names.length : 0;
+        }
+      }
+    }
+  }
+  return { configs: tree.length, lessons };
+};
+
 const AcademicSaveBar: React.FC<{
   onSaved?: () => void;
   teacherUsername?: string;
@@ -37,6 +61,7 @@ const AcademicSaveBar: React.FC<{
   teacherId?: string;
 }> = ({ onSaved, teacherUsername, teacherId }) => {
   const [state, setState] = useState<State>({ kind: 'idle' });
+  const hydrating = useSyncHydrating();
 
   const save = async (auto: boolean) => {
     const local = readLocalTree();
@@ -54,9 +79,28 @@ const AcademicSaveBar: React.FC<{
     onSaved?.();
   };
 
+  /** يسحب نسخة قاعدة البيانات إلى هذا الجهاز ثم يعيد قراءة الشاشة. */
+  const pull = async () => {
+    setState({ kind: 'checking' });
+    try {
+      await rehydrateFromServer();
+      const arrived = readLocalTree();
+      setState({ kind: 'saved', verified: arrived.length > 0, at: new Date() });
+      onSaved?.();
+    } catch (error) {
+      setState({
+        kind: 'failed',
+        reason: error instanceof Error ? error.message : 'تعذّر الجلب من الخادم',
+      });
+    }
+  };
+
   // عند فتح الصفحة: إن كانت قاعدة البيانات تحمل أقلّ مما يحمله المتصفح،
-  // ارفع الفرق فوراً بلا انتظار ضغطة.
+  // ارفع الفرق فوراً بلا انتظار ضغطة. وإن كانت تحمل أكثر، فلا تمسّها.
   useEffect(() => {
+    // التحميل الأول لم ينتهِ: نسخة المتصفح ليست بعدُ نسخةَ الخادم،
+    // ورفعُها الآن رفعُ ما قبلَه لا ما بعده.
+    if (hydrating) return;
     let cancelled = false;
     (async () => {
       const local = readLocalTree();
@@ -64,9 +108,27 @@ const AcademicSaveBar: React.FC<{
       setState({ kind: 'checking' });
       const remote = await readKv(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
       if (cancelled) return;
-      const remoteCount = Array.isArray(remote) ? remote.length : 0;
-      if (remoteCount >= local.length && JSON.stringify(remote) === JSON.stringify(local)) {
+      const remoteTree = Array.isArray(remote) ? remote : [];
+      if (JSON.stringify(remoteTree) === JSON.stringify(local)) {
         setState({ kind: 'saved', verified: true, at: new Date() });
+        return;
+      }
+
+      // الأفقر لا يُكتب فوق الأغنى من تلقائه.
+      //
+      // الفرق بين النسختين لا يقول أيّهما الأحدث. وحين تكون نسخة قاعدة
+      // البيانات أغنى — مادةٌ حُقنت من سكربت، أو صفٌّ أضافه المشرف من
+      // جهازٍ آخر — فالأرجح أن هذا الجهاز هو المتخلّف. فيُترك الأمر
+      // لصاحب الشاشة: الزرّ أمامه إن أراد أن يُثبّت ما يرى.
+      const here = weigh(local);
+      const there = weigh(remoteTree);
+      if (there.lessons > here.lessons || there.configs > here.configs) {
+        setState({
+          kind: 'failed',
+          reason:
+            `قاعدة البيانات أغنى مما في هذا الجهاز (${there.lessons} درساً مقابل ${here.lessons}). ` +
+            'لم يُرفع شيء حتى لا يُمحى. حدّث الصفحة لتأخذ نسختها.',
+        });
         return;
       }
       await save(true);
@@ -74,9 +136,9 @@ const AcademicSaveBar: React.FC<{
     return () => {
       cancelled = true;
     };
-    // مرة واحدة عند فتح الشاشة.
+    // مرة واحدة بعد انتهاء التحميل الأول.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hydrating]);
 
   const status = (() => {
     switch (state.kind) {
@@ -117,6 +179,12 @@ const AcademicSaveBar: React.FC<{
     <div style={styles.bar}>
       <button onClick={() => void save(false)} disabled={busy} style={styles.button}>
         💾 حفظ وتثبيت الإعدادات الأكاديمية
+      </button>
+      {/* الاتجاه المعاكس: من قاعدة البيانات إلى الشاشة. وكان الشريط
+          يعرف الرفع وحده، فمن كانت نسخته متخلّفة لا حيلة له إلا أن
+          يمسح بيانات الموقع بيده. */}
+      <button onClick={() => void pull()} disabled={busy} style={styles.sessionButton}>
+        🔄 جلب نسخة قاعدة البيانات
       </button>
       <span style={{ ...styles.status, color: status.color, backgroundColor: status.background }}>
         {status.text}
