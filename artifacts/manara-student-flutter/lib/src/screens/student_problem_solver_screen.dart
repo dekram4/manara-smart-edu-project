@@ -156,18 +156,23 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
          throw Exception(tr('solver.badResponse'));
        }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final message = payload is Map ? payload['error']?.toString() : null;
-        // ‏رفضٌ يشرح نفسه — درسٌ بلا نصّ، أو خارج المسار، أو خدمة غير
-        // ‏مهيّأة — يُعرض كما قاله الخادم. كان يُبتلع كله في «تحقّق من
-        // ‏الاتصال»، وهي جملة تُرسل الطفل ومعلّمه إلى الشبكة بينما
-        // ‏الخادم قال شيئاً آخر تماماً وقابلاً للتصرّف.
-        final explained = response.statusCode >= 400 && response.statusCode < 500 ||
-            (payload is Map && payload['code'] == 'ai_not_configured');
-        if (explained && message != null && message.trim().isNotEmpty) {
-          throw _ExplainedFailure(message.trim());
+        final message = payload is Map ? payload['error']?.toString().trim() : null;
+        // ‏كل ما قاله الخادم يُعرض كما قاله، مهما كان رمز الحالة.
+        //
+        // ‏كان يُعرض رفض الـ 4xx وحده، ويُبتلع ما سواه في «تعذّر حل
+        // ‏السؤال، تحقّق من الاتصال» — وهناك بالضبط تقع أعطال الذكاء
+        // ‏الاصطناعي: 502 حين لا تصل إجابة، و500 حين يسقط الطلب إلى
+        // ‏Gemini، و503 حين ينقص المفتاح. فتُرسَل الشكوى إلى الشبكة
+        // ‏والشبكة سليمة، ولا يُعرف أن الخادم قال شيئاً محدّداً.
+        //
+        // ‏ولا يبقى للرسالة العامة إلا موضعها الصحيح: انقطاعٌ فعليّ لا
+        // ‏يصل معه ردّ أصلاً، فيُرمى من `http.post` قبل بلوغ هذا السطر.
+        if (message != null && message.isNotEmpty) {
+          throw _ExplainedFailure(message);
         }
-        throw Exception(
-            message?.trim().isNotEmpty == true ? message : tr('solver.serviceSilent'));
+        throw _ExplainedFailure(
+          '${tr('solver.serviceSilent')} (${response.statusCode})',
+        );
       }
       final answer = payload is Map ? payload['answer']?.toString().trim() : null;
       if (answer == null || answer.isEmpty) {

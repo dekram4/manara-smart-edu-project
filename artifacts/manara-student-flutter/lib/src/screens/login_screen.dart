@@ -162,12 +162,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 // ‏الحقل تحت المفاتيح من جديد. وسبورةٌ أكبر لا يُرى ما
                 // ‏يُكتب فيها أسوأ من سبورة صغيرة يُكتب فيها — وهي
                 // ‏المفاضلة نفسها التي بُني عليها هذا التخطيط.
+                // ‏والرقم مشتقٌّ لا مُجرَّب: السبورة تُقاس بأصغر البُعدين،
+                // ‏وفي الوضع الأفقي يكون الارتفاع هو القيد فتخرج ضيّقة —
+                // ‏٧٢٪ من عرض تابلت 1280×800، و٥٣٪ من هاتف أفقي. ولكي
+                // ‏تبلغ نحو ٨٧٪ من العرض يلزم أن يكون ارتفاع المشهد
+                // ‏0.75 من عرضه: (0.87 ÷ 0.942) × 0.814.
+                //
+                // ‏فيعلو المشهد إلى ذلك ويُمرَّر ما فاض، بدل أن تُحشر
+                // ‏السبورة في نافذة قصيرة. وفي الوضع الرأسي لا يتغيّر
+                // ‏شيء: الارتفاع هناك وافر أصلاً.
                 final sceneFloor = typing
                     ? windowSize.height
-                    : math.min(
-                        windowSize.width * 1.05,
-                        math.max(windowSize.height, 420.0),
-                      );
+                    : math.max(windowSize.height, windowSize.width * 0.75);
                 final areaSize = Size(
                   windowSize.width,
                   math.max(windowSize.height, sceneFloor),
@@ -658,7 +664,7 @@ class _BoardLoginForm extends StatelessWidget {
                 child: Text(
                   errorMessage!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 16, fontWeight: FontWeight.w800),
+                  style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 18, fontWeight: FontWeight.w800),
                 ),
               ),
             if (!isConfigured && initializationError != null)
@@ -667,7 +673,7 @@ class _BoardLoginForm extends StatelessWidget {
                 child: Text(
                   initializationError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFFCD34D), fontSize: 16, fontWeight: FontWeight.w800),
+                  style: const TextStyle(color: Color(0xFFFCD34D), fontSize: 18, fontWeight: FontWeight.w800),
                 ),
               ),
             const SizedBox(height: 8),
@@ -708,12 +714,12 @@ class _BoardLoginForm extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     // Grew with the type so the taller caption is not
                     // pressed against the pill's edges.
-                    minimumSize: const Size.fromHeight(40),
+                    minimumSize: const Size.fromHeight(54),
                     backgroundColor:
                         loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    textStyle: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                    textStyle: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
                     shape: const StadiumBorder(),
                   ),
                 ),
@@ -761,7 +767,7 @@ class _SolidField extends StatelessWidget {
     return Container(
       // An exact 42px field, so the whole block's height is predictable
       // and provably fits inside the green area.
-      height: 42,
+      height: 52,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
@@ -777,14 +783,14 @@ class _SolidField extends StatelessWidget {
         onFieldSubmitted: onFieldSubmitted,
         validator: validator,
         cursorColor: Colors.black54,
-        style: const TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.w700),
+        style: const TextStyle(color: Colors.black87, fontSize: 22, fontWeight: FontWeight.w700),
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w600),
+          hintStyle: const TextStyle(color: Colors.black54, fontSize: 19, fontWeight: FontWeight.w600),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           prefixIcon: Padding(
             padding: const EdgeInsets.all(6),
             child: Container(

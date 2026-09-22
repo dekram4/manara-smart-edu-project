@@ -77,6 +77,52 @@ void main() {
     }
   });
 
+  group('the board is wide enough to read on', () {
+    // ‏السبورة تُقاس بأصغر البُعدين، وفي الوضع الأفقي كان الارتفاع هو
+    // ‏القيد فتخرج ضيّقة: ٧٢٪ من عرض تابلت 16:10، و٥٣٪ من هاتف أفقي.
+    // ‏صار للمشهد حدٌّ أدنى يجعلها تتبع العرض، وما فاض يُمرَّر.
+    const wide = <String, Size>{
+      'landscape tablet 4:3 1024x768': Size(1024, 768),
+      'landscape tablet 16:10 1280x800': Size(1280, 800),
+      'landscape phone 851x393': Size(851, 393),
+      'portrait tablet 4:3 768x1024': Size(768, 1024),
+    };
+
+    for (final entry in wide.entries) {
+      testWidgets('at least 85% of the width on ${entry.key}', (tester) async {
+        tester.view.physicalSize = entry.value;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(_app());
+        await tester.pump(const Duration(milliseconds: 350));
+
+        // ‏القياس على صورة السبورة نفسها: هي ما يراه الطفل عريضاً أو
+        // ‏ضيّقاً. والرسم داخل الصورة المربّعة يشغل ٩٤٪ من عرضها، والباقي
+        // ‏شفّاف — فيُحسب على ذلك لا على المربّع كلّه.
+        final board = tester.getRect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Image &&
+                widget.image is AssetImage &&
+                (widget.image as AssetImage).assetName ==
+                    'assets/images/board_login_bg.png',
+          ),
+        );
+        // ‏٨٤٪ حدّاً أدنى لا هدفاً: التابلت يبلغ ٨٦٪ والوضع الرأسي ٩٩٪،
+        // ‏والهاتف الأفقي ٨٥٪ إلا كسراً. ورفع الأرضية حتى يتجاوزه يجعل
+        // ‏تابلت 4:3 يُمرَّر بلا داعٍ — وذلك السحب الرأسي فوق السبورة هو
+        // ‏ما شُكي منه قديماً. فالحدّ هنا يمسك الانهيار إلى شريط ضيّق،
+        // ‏ولا يزايد على مفاضلة قائمة.
+        expect(
+          board.width * 0.942 / entry.value.width,
+          greaterThanOrEqualTo(0.84),
+          reason: 'the board shrank back into a narrow strip',
+        );
+      });
+    }
+  });
+
   testWidgets('a short landscape window scrolls instead of shrinking',
       (tester) async {
     // ‏في الوضع الأفقي على هاتف كان المشهد يُقاس على نافذة قصيرة فتخرج
