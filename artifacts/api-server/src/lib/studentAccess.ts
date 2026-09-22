@@ -10,6 +10,8 @@ export type StudentActor = {
   subject: string;
   term: string;
   unit: string;
+  /** المواد المسندة إليه. فارغة = كل مواد معلّمه. */
+  assignedSubjects: string[];
   canAccessChat: boolean;
 };
 
@@ -41,6 +43,16 @@ async function readStudents(filter: string): Promise<Array<{ id?: unknown; data?
   return Array.isArray(rows) ? rows : [];
 }
 
+/** أسماء نظيفة من قيمة قد تكون قائمة أو نصاً مفصولاً بفواصل. */
+function nameList(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
+  return raw.map((item) => text(item)).filter(Boolean);
+}
+
 function fromRow(row: { id?: unknown; data?: unknown }): StudentActor | null {
   const data = row.data && typeof row.data === "object"
     ? row.data as Record<string, unknown>
@@ -59,6 +71,7 @@ function fromRow(row: { id?: unknown; data?: unknown }): StudentActor | null {
     subject: text(data.subject),
     term: text(data.term),
     unit: text(data.unit),
+    assignedSubjects: nameList(data.assignedSubjects),
     canAccessChat: data.canAccessChat !== false && data.can_access_chat !== false,
   };
 }
@@ -132,10 +145,28 @@ export function matchesStudentScope(
   if (owner && owner !== "admin" && owner !== "supervisor" && owner !== student.teacherId) {
     return false;
   }
-  for (const key of ["grade", "subject", "term", "unit"] as const) {
-    const expected = normalize(student[key]);
-    const actual = normalize(record[key]);
-    if (expected && actual && expected !== actual) return false;
+  // الصفّ حقّ، والمادة حقّ. أما الفصل والوحدة فموضع وقف عنده الطالب آخر
+  // مرة لا إذنٌ مُنِحه: حصر الوصول بهما كان يمنعه من درس في وحدة أخرى من
+  // مادته هو — وهذا أحد وجوه «هذا الدرس ليس ضمن مسار حسابك».
+  const grade = normalize(student.grade);
+  const recordGrade = normalize(record.grade);
+  if (grade && recordGrade && grade !== recordGrade) return false;
+
+  // والمادة تُقاس بما أُسند إليه، لا بالمادة المفردة المحفوظة في سجلّه.
+  //
+  // تلك المفردة موضعٌ كذلك: تُكتب عند إنشاء الحساب وتبقى، فطالبةٌ أُسندت
+  // إليها «العلوم» وفي سجلّها «الرياضيات» من قبلُ كانت تُمنع من دروس
+  // العلوم كلّها — من المادة التي أُعطيت لها هي وحدها. والقائمة الفارغة
+  // تعني كل مواد معلّمه، فلا يُضيَّق على من لم يُقيَّد.
+  const recordSubject = normalize(record.subject);
+  if (recordSubject) {
+    if (student.assignedSubjects.length > 0) {
+      const allowed = student.assignedSubjects.map((item) => normalize(item));
+      if (!allowed.includes(recordSubject)) return false;
+    } else {
+      const subject = normalize(student.subject);
+      if (subject && subject !== recordSubject) return false;
+    }
   }
   return true;
 }

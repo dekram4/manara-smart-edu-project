@@ -169,7 +169,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   void _applyInitialSelection(AcademicSelectionData data) {
     final grade = _pick(data.grades, widget.profile.grade);
     final subject = _pick(
-      data.subjectsFor(grade: grade),
+      _allowedSubjects(data, grade),
       widget.profile.subject,
     );
     final term = _pick(
@@ -207,7 +207,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     if (data == null || grade == null) return;
     setState(() {
       _grade = grade;
-      _subject = _pick(data.subjectsFor(grade: _grade!), null);
+      _subject = _pick(_allowedSubjects(data, _grade), null);
       _term = _pick(
         data.termsFor(grade: _grade!, subject: _subject!),
         null,
@@ -318,17 +318,24 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// picked above it.
   List<String> get _gradeOptions => _data?.grades ?? const [];
 
-  /// مواد الصف، محصورةً بما أُسند إلى هذا الطالب.
+  /// مواد صفٍّ ما، محصورةً بما أُسند إلى هذا الطالب.
   ///
-  /// التصفية هنا لا في العرض: ما لا يظهر في الخيارات لا يُختار، ولا
-  /// يصل إلى بقية المستويات أصلاً.
+  /// كل من يقرأ المواد في هذه الشاشة يمرّ من هنا: القائمة المعروضة،
+  /// والاختيار الأول عند الفتح، والاختيار التلقائي عند تبديل الصف. كانت
+  /// القائمة وحدها مُصفّاة والاثنان الآخران يقرآن الشجرة كاملة، فيقع
+  /// الاختيار التلقائي على مادة ممنوعة ثم تُبنى عليها بقية المستويات —
+  /// فيرى الطالب مساراً لا يملكه دون أن يختاره.
+  List<String> _allowedSubjects(AcademicSelectionData data, String? grade) {
+    if (grade == null) return const [];
+    return data.subjectsFor(grade: grade).where(widget.profile.allowsSubject).toList();
+  }
+
+  /// مواد الصف المختار. مادةٌ واحدة مسندة تعني قائمةً من عنصر واحد،
+  /// و`_pick` تختاره من تلقائه — فتُحدَّد المادة بلا أن يلمسها الطفل.
   List<String> get _subjectOptions {
     final data = _data;
-    if (data == null || _grade == null) return const [];
-    return data
-        .subjectsFor(grade: _grade!)
-        .where(widget.profile.allowsSubject)
-        .toList();
+    if (data == null) return const [];
+    return _allowedSubjects(data, _grade);
   }
 
   List<String> get _termOptions {

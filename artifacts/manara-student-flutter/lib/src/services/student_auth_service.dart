@@ -46,11 +46,20 @@ class StudentAuthService {
           .select('id,role,full_name,name,grade,student_id_number')
           .eq('id', user.id)
           .maybeSingle();
-      final profile = StudentProfile.fromAuthProfile(
+      var profile = StudentProfile.fromAuthProfile(
         id: user.id,
         profile: _asMap(profileRow),
         username: user.email ?? '',
       );
+      // ‏جدول `profiles` مرآة للمصادقة: فيه الاسم والدور والصف، وليس فيه
+      // ‏المواد المسندة ولا مسار الطالب. فاستعادة جلسة كانت تُرجِع حساباً
+      // ‏ناقصاً — بلا قيد على المواد — فيرى الطالب عند فتح التطبيق من
+      // ‏جديد ما لا يراه عند تسجيل دخوله. السجلّ نفسه هو المرجع.
+      final row = await _findStudentById(user.id);
+      if (row != null) {
+        final full = StudentProfile.fromStudentRow(row);
+        if (full.isStudent) profile = full;
+      }
       if (!profile.isStudent) {
         await client.auth.signOut();
         return null;
@@ -193,6 +202,32 @@ class StudentAuthService {
       throw StudentAuthException(tr('auth.sessionFailed'));
     }
     _apiSessionToken = token;
+  }
+
+  /// سجلّ الطالب بمعرّفه، أو null إن لم يوجد أو تعذّرت القراءة.
+  ///
+  /// المعرّف قد يكون مفتاح الصفّ أو المعرّف المكتوب داخل `data`، فيُسأل
+  /// عنهما معاً: الحسابات المنشأة من اللوحة تحمل الثاني.
+  Future<Map<String, dynamic>?> _findStudentById(String id) async {
+    if (id.isEmpty) return null;
+    try {
+      final byKey = await client
+          .from('students')
+          .select('id,data')
+          .eq('id', id)
+          .limit(1);
+      if (byKey.isNotEmpty) return _asMap(byKey.first);
+
+      final byData = await client
+          .from('students')
+          .select('id,data')
+          .eq('data->>id', id)
+          .limit(1);
+      return byData.isEmpty ? null : _asMap(byData.first);
+    } catch (_) {
+      // تعذّرت القراءة: تبقى الجلسة على ما استُعيد من المصادقة.
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>?> _findStudent(String username) async {

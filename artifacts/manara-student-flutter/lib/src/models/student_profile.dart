@@ -81,6 +81,12 @@ class StudentProfile {
         profile['can_access_live_meeting'] ?? profile['canAccessLiveMeeting'],
         fallback: true,
       ),
+      // ‏بالاسمين: جدول `profiles` يكتب بالشرطة السفلية وسجلّ الطالب
+      // ‏بالسنام. وإغفاله هنا كان يعني قائمةً فارغة تُقرأ «كل المواد»،
+      // ‏فينفتح للطالب ما قُيّد عنه — والخطأ في اتجاه التوسيع لا يُرى.
+      assignedSubjects: _asNameList(
+        profile['assignedSubjects'] ?? profile['assigned_subjects'],
+      ),
       gamification: StudentGamification.fromMap(profile['gamification']),
     );
   }

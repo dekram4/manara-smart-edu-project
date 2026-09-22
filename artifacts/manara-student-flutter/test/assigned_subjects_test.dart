@@ -51,6 +51,34 @@ void main() {
     });
   });
 
+  group('the auth profile carries the restriction too', () {
+    // ‏للحساب مصنعان: سجلّ الطالب عند تسجيل الدخول، وملف المصادقة عند
+    // ‏استعادة الجلسة. وإغفال الحقل في أحدهما لا يُرى في أي فحص: القائمة
+    // ‏تُقرأ فارغة، والفارغة تعني «كل المواد» — فينفتح للطالب ما قُيّد
+    // ‏عنه كلّما أعاد فتح التطبيق بدل أن يسجّل دخوله.
+    StudentProfile authProfile(Map<String, dynamic> profile) =>
+        StudentProfile.fromAuthProfile(
+          id: 's1',
+          profile: {'role': 'student', 'name': 'روز', ...profile},
+          username: 'rose',
+        );
+
+    test('camelCase, as the student record writes it', () {
+      final profile = authProfile({'assignedSubjects': ['العلوم']});
+      expect(profile.allowsSubject('العلوم'), isTrue);
+      expect(profile.allowsSubject('الرياضيات'), isFalse);
+    });
+
+    test('snake_case, as the profiles table writes it', () {
+      final profile = authProfile({'assigned_subjects': ['العلوم']});
+      expect(profile.allowsSubject('الرياضيات'), isFalse);
+    });
+
+    test('absent still means every subject', () {
+      expect(authProfile({}).allowsSubject('الرياضيات'), isTrue);
+    });
+  });
+
   group('reading the field', () {
     test('blank entries are dropped rather than becoming a subject', () {
       expect(profileWith(['العلوم', '', '   ']).assignedSubjects, ['العلوم']);
