@@ -53,26 +53,52 @@ const norm = (value) => text(value).toLowerCase();
 const ownerOf = (record) =>
   norm(record?.teacherId ?? record?.teacher_id ?? record?.createdBy) || "(بلا مالك)";
 
+/** بادئة معرّفات ما يكتبه البذر: `g4math_<رقم الدرس>_<المالك>`. */
+const SEED_PREFIX = "g4math_";
+
 /**
  * هل هذا السجلّ من دروس المنهج المعتمد؟
  *
- * يُعرف بمساره لا بمعرّفه: المعرّف يحمل اسم المالك، فنسخة الدرس نفسها
- * عند معلّم آخر معرّفها مختلف — وهي منهجٌ معتمد كذلك. والمسار هو ما
- * يُقارَن: الصف والمادة واسم الدرس.
+ * ── لماذا لا يكفي المسار ──
+ * كانت المقارنة بالمسار وحده — الصف والمادة واسم الدرس — لتبقى نسخة
+ * الدرس عند معلّم آخر، فهي منهجٌ معتمد كذلك. لكن سجلاً قديماً كُتب بيد
+ * المعلّم تحت الاسم نفسه يمرّ من هذا الباب: أربعة منها نجت من التنظيف
+ * وبقيت في الجدول خمسة وعشرين بدل واحد وعشرين، ونصوصها مبتورة (١٧٢ إلى
+ * ٤١٦ حرفاً) بينما نصوص المنهج أطول من ذلك بكثير — فيقرأ الطالب نصفَ
+ * درس، ويولّد منه الذكاءُ الاصطناعي نصفَ اختبار.
+ *
+ * ── فما يُعتمد ──
+ * أن يكون على مسار المنهج، **و** أن يحمل بادئة البذر أو نصَّ المنهج
+ * حرفاً بحرف. فنسخ البذر تبقى مهما كان مالكها — معرّفاتها كلّها تبدأ
+ * بالبادئة — ويسقط ما كُتب باليد تحت الاسم نفسه.
  */
-export function isCurriculumLesson(data, names) {
-  return (
+export function isCurriculumLesson(data, names, texts, id) {
+  const onPath =
     norm(data?.grade) === norm(GRADE) &&
     norm(data?.subject) === norm(SUBJECT) &&
-    names.has(norm(data?.lesson))
+    names.has(norm(data?.lesson));
+  if (!onPath) return false;
+  return (
+    text(id).startsWith(SEED_PREFIX) || texts.has(norm(data?.lessonContent))
   );
 }
 
-export function partitionLessons(rows, names) {
+/** سبب الإسقاط، ليُطبع بجانب السجلّ فيُعرف لماذا ذهب. */
+export function dropReason(data, names, texts, id) {
+  if (norm(data?.grade) !== norm(GRADE)) return `صفّ آخر: ${text(data?.grade) || "—"}`;
+  if (norm(data?.subject) !== norm(SUBJECT)) return `مادة أخرى: ${text(data?.subject) || "—"}`;
+  if (!names.has(norm(data?.lesson))) return `درس خارج المنهج: ${text(data?.lesson) || "—"}`;
+  if (!text(id).startsWith(SEED_PREFIX) && !texts.has(norm(data?.lessonContent))) {
+    return `نسخة قديمة بالاسم نفسه (${text(data?.lessonContent).length} حرفاً)`;
+  }
+  return "—";
+}
+
+export function partitionLessons(rows, names, texts) {
   const kept = [];
   const dropped = [];
   for (const row of Array.isArray(rows) ? rows : []) {
-    (isCurriculumLesson(row?.data, names) ? kept : dropped).push(row);
+    (isCurriculumLesson(row?.data, names, texts, row?.id) ? kept : dropped).push(row);
   }
   return { kept, dropped };
 }
@@ -134,13 +160,14 @@ async function main() {
   }
 
   const names = new Set(curriculumRows().map((row) => norm(row.name)));
+  const texts = new Set(curriculumRows().map((row) => norm(row.text)));
   line(EXECUTE ? "✍️ تنفيذ فعلي." : "🔍 معاينة — لن يُكتب شيء. أضف --execute للتنفيذ.");
   line(`المنهج المعتمد: ${names.size} درساً في «${SUBJECT}» لـ«${GRADE}».`);
 
   // ── الدروس ──────────────────────────────────────────────────────────
   head("الدروس");
   const lessons = await readJson("/rest/v1/lesson_configs?select=id,data&limit=10000");
-  const { kept, dropped } = partitionLessons(lessons, names);
+  const { kept, dropped } = partitionLessons(lessons, names, texts);
   line(`الإجمالي: ${lessons.length}   يبقى: ${kept.length}   يُحذف: ${dropped.length}`);
 
   const byOwner = new Map();
@@ -152,6 +179,10 @@ async function main() {
     line("المحذوف بحسب المالك:");
     for (const [owner, count] of [...byOwner].sort((a, b) => b[1] - a[1])) {
       line(`  • ${owner}: ${count}`);
+    }
+    line("وبالتفصيل:");
+    for (const row of dropped) {
+      line(`  ✖ id=${row.id}  «${text(row?.data?.lesson) || "—"}»  — ${dropReason(row?.data, names, texts, row?.id)}`);
     }
   }
   const keptOwners = new Map();
@@ -257,7 +288,7 @@ async function main() {
   // ── التحقّق ─────────────────────────────────────────────────────────
   head("التحقّق");
   const after = await readJson("/rest/v1/lesson_configs?select=id,data&limit=10000");
-  const left = partitionLessons(after, names);
+  const left = partitionLessons(after, names, texts);
   const afterQuizzes = await readJson("/rest/v1/created_quizzes?select=id&limit=10000");
   const afterEpoch = await readJson(
     `/rest/v1/app_kv?select=key,value&key=eq.${encodeURIComponent(EPOCH_KEY)}`,
