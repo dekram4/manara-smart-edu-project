@@ -133,9 +133,10 @@ void main() {
       expect(gradesOf(paths), ['الصف الرابع']);
     });
 
-    test('where the teacher has no tree, the shared one still shows', () {
-      // ‏التركيب الذي يكتب فيه المشرف الشجرة وحده: التضييق يجب ألّا
-      // ‏يُفرغ شاشة الطالب فيه.
+    test('a teacher with no tree leaves the student an empty screen', () {
+      // ‏وهو الصواب: الشاشة الفارغة تقول «معلّمك لم يُعدّ مسارك بعد»،
+      // ‏بينما شاشة ممتلئة بمحتوى لم يختره أحد لهذا الطفل تُخفي أن شيئاً
+      // ‏ناقص، فلا يعلم به المعلم ولا يُسأل عنه.
       final paths = StudentContentService.academicPaths(
         hierarchyValue: ownedBy('admin', 'الصف الأول الابتدائي'),
         hierarchyUnavailable: false,
@@ -143,7 +144,7 @@ void main() {
         profile: profile,
       );
 
-      expect(gradesOf(paths), ['الصف الأول الابتدائي']);
+      expect(paths, isEmpty);
     });
   });
 
@@ -295,7 +296,10 @@ void main() {
       expect(paths, isEmpty);
     });
 
-    test("the supervisor's own settings reach everyone", () {
+    test("the supervisor's settings are a template, not a syllabus", () {
+      // ‏شجرة المشرف قالب: المعلم ينسخها إلى إعداداته فتصير باسمه،
+      // ‏وعندها يراها طلابه — لأنها صارت شجرته هو. أما قبل أن يأخذها
+      // ‏فعرضها عليهم معناه أن يُدرَّس الطفل ما لم يقرّره معلّمه.
       final paths = StudentContentService.academicPaths(
         hierarchyValue: treeOwnedBy('admin'),
         hierarchyUnavailable: false,
@@ -304,7 +308,7 @@ void main() {
         identities: const {},
       );
 
-      expect(paths, hasLength(1));
+      expect(paths, isEmpty);
     });
   });
 }
