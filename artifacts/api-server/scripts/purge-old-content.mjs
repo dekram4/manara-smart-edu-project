@@ -33,11 +33,13 @@ import { curriculumRows, GRADE, SUBJECT } from "./grade4-math-curriculum.mjs";
 const args = process.argv.slice(2);
 const EXECUTE = args.includes("--execute");
 const WITH_QUIZZES = args.includes("--with-quizzes");
+const WITH_TREE = args.includes("--with-tree");
 
 const SUPABASE_URL = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
 const EPOCH_KEY = "smartEdu_contentEpoch";
+const HIERARCHY_KEY = "smartEdu_hierarchicalConfigs";
 
 const headers = () => ({
   apikey: SERVICE_KEY,
@@ -73,6 +75,42 @@ export function partitionLessons(rows, names) {
     (isCurriculumLesson(row?.data, names) ? kept : dropped).push(row);
   }
   return { kept, dropped };
+}
+
+/**
+ * الشجرة بعد إسقاط كل ما ليس الصفّ والمادة المعتمدين، من كل مالك.
+ *
+ * الشجرة هي ما يملأ قوائم إدارة المحتوى وشاشة الطالب، فصفٌّ أو مادة
+ * باقية فيها تظهر للمستخدم ولو لم يبقَ تحتها درس — وذلك ما يُرى «محتوًى
+ * قديماً لم يُحذف».
+ *
+ * والمدخل الذي يحمل الصفّ المعتمد يُنقّى ولا يُحذف: تُترك فيه المادة
+ * المعتمدة وتُسقط سائر المواد، فلا تضيع شجرة معلّم بنى عليها.
+ */
+export function pruneTree(configs) {
+  const kept = [];
+  const notes = [];
+  for (const config of Array.isArray(configs) ? configs : []) {
+    if (!config || typeof config !== "object") continue;
+    const owner = ownerOf(config);
+    if (norm(config.grade) !== norm(GRADE)) {
+      notes.push(`حُذف صفّ «${text(config.grade)}» [${owner}]`);
+      continue;
+    }
+    const subjects = Array.isArray(config.subjects) ? config.subjects : [];
+    const mine = subjects.filter((item) => norm(item?.subject) === norm(SUBJECT));
+    for (const item of subjects) {
+      if (norm(item?.subject) !== norm(SUBJECT)) {
+        notes.push(`حُذفت مادة «${text(item?.subject)}» من «${text(config.grade)}» [${owner}]`);
+      }
+    }
+    if (mine.length === 0) {
+      notes.push(`حُذف «${text(config.grade)}» [${owner}] — لا مادة معتمدة فيه`);
+      continue;
+    }
+    kept.push({ ...config, subjects: mine });
+  }
+  return { kept, notes };
 }
 
 async function readJson(path) {
@@ -139,6 +177,24 @@ async function main() {
       : `الإجمالي: ${quizzes.length} — تبقى كما هي (أضف --with-quizzes لحذفها).`,
   );
 
+  // ── الشجرة الأكاديمية ───────────────────────────────────────────────
+  head("الشجرة الأكاديمية");
+  const kvRows = await readJson(
+    `/rest/v1/app_kv?select=key,value&key=eq.${encodeURIComponent(HIERARCHY_KEY)}`,
+  );
+  const tree = Array.isArray(kvRows?.[0]?.value) ? kvRows[0].value : [];
+  const pruned = pruneTree(tree);
+  if (!WITH_TREE) {
+    line(`المدخلات: ${tree.length} — تبقى كما هي (أضف --with-tree لتنقيتها).`);
+    const wouldDrop = tree.length - pruned.kept.length;
+    if (wouldDrop > 0 || pruned.notes.length) {
+      line(`  (لو نُقّيت: تبقى ${pruned.kept.length}، وتُحذف ${wouldDrop})`);
+    }
+  } else {
+    line(`المدخلات: ${tree.length} → تبقى ${pruned.kept.length}`);
+    for (const note of pruned.notes) line(`  • ${note}`);
+  }
+
   const stamp = new Date().toISOString();
   head("ختم المحتوى");
   line(`سيُرفع إلى: ${stamp}`);
@@ -170,6 +226,22 @@ async function main() {
       if (!response.ok) throw new Error(`تعذّر حذف الاختبار ${row.id}: ${response.status}`);
     }
     line(`حُذف ${quizzes.length} اختباراً.`);
+  }
+
+  if (WITH_TREE) {
+    const treeResponse = await fetch(`${SUPABASE_URL}/rest/v1/app_kv?on_conflict=key`, {
+      method: "POST",
+      headers: { ...headers(), Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        key: HIERARCHY_KEY,
+        value: pruned.kept,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    if (!treeResponse.ok) {
+      throw new Error(`تعذّرت كتابة الشجرة: ${treeResponse.status}`);
+    }
+    line(`نُقّيت الشجرة: ${pruned.kept.length} مدخلاً.`);
   }
 
   const epochResponse = await fetch(`${SUPABASE_URL}/rest/v1/app_kv?on_conflict=key`, {
