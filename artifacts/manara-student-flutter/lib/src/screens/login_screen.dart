@@ -115,22 +115,23 @@ class _LoginScreenState extends State<LoginScreen> {
     // insets to it, having already dealt with them. Asking from inside
     // would always answer "no keyboard", which is exactly the trap that
     // made the first attempt at this do nothing at all.
-    final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final typing = keyboard > 0;
 
     return StudentNoBack(
       child: Scaffold(
       backgroundColor: StudentSurface.coolGround(context),
-      // The keyboard shortens the window and the scene is re-measured
-      // against what is left, so the board and the writing on it are
-      // always inside the part of the screen the student can still see.
+      // ‏النافذة تبقى بكامل ارتفاعها، والكيبورد يُرفع عنه المشهد رفعاً.
       //
-      // This used to be false, to keep the board a steady size while
-      // typing. That is what put the fields under the keys: on a phone in
-      // landscape the keyboard takes well over half the height, and a
-      // scene measured against the full window puts its middle — where
-      // the fields are — squarely behind them. A smaller board that can
-      // be written on beats a handsome one that cannot.
-      resizeToAvoidBottomInset: true,
+      // ‏كانت `true`: يقتطع الكيبورد من ارتفاع الجسم، ويُعاد قياس المشهد
+      // ‏على ما بقي — فتنكمش السبورة وما عليها إلى شريط مشوّه في الوضع
+      // ‏الأفقي، وهو ما شُكي منه. ثم جُرّبت `false` قديماً فاختفت الحقول
+      // ‏خلف المفاتيح، لأن لا شيء كان يرفع المشهد حينها.
+      //
+      // ‏فالآن الاثنان معاً: حجمٌ لا يتغيّر بظهور الكيبورد، ورفعٌ محسوب
+      // ‏يُبقي الحقول فوقه. السبورة تعلو ويُقتطع من رأسها — وأعلاها إطار
+      // ‏وخشب — ولا تُمسّ أبعادها.
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           const Positioned.fill(
@@ -162,22 +163,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 // ‏الحقل تحت المفاتيح من جديد. وسبورةٌ أكبر لا يُرى ما
                 // ‏يُكتب فيها أسوأ من سبورة صغيرة يُكتب فيها — وهي
                 // ‏المفاضلة نفسها التي بُني عليها هذا التخطيط.
-                // ‏والرقم مشتقٌّ لا مُجرَّب: السبورة تُقاس بأصغر البُعدين،
-                // ‏وفي الوضع الأفقي يكون الارتفاع هو القيد فتخرج ضيّقة —
-                // ‏٧٢٪ من عرض تابلت 1280×800، و٥٣٪ من هاتف أفقي. ولكي
-                // ‏تبلغ نحو ٨٧٪ من العرض يلزم أن يكون ارتفاع المشهد
-                // ‏0.75 من عرضه: (0.87 ÷ 0.942) × 0.814.
+                // ‏المشهد بمقاس النافذة تماماً: ملء الشاشة بلا تمرير.
                 //
-                // ‏فيعلو المشهد إلى ذلك ويُمرَّر ما فاض، بدل أن تُحشر
-                // ‏السبورة في نافذة قصيرة. وفي الوضع الرأسي لا يتغيّر
-                // ‏شيء: الارتفاع هناك وافر أصلاً.
-                final sceneFloor = typing
-                    ? windowSize.height
-                    : math.max(windowSize.height, windowSize.width * 0.75);
-                final areaSize = Size(
-                  windowSize.width,
-                  math.max(windowSize.height, sceneFloor),
-                );
+                // ‏جُرّبت أرضيةٌ تعلو بالمشهد فوق النافذة ليتّسع، فكبرت
+                // ‏السبورة ولزم النزول والطلوع لرؤيتها. والتمرير في شاشة
+                // ‏دخولٍ لطفل ثمنٌ أغلى من بضع نقاط عرض — وقد نُزع بدله
+                // ‏من مكان أصدق: كتلة الشعار أعلاه.
+                final areaSize = windowSize;
 
                 // The board asset is a 3000x3000 square, but the drawing
                 // inside it is not: tracing its alpha shows the artwork
@@ -221,19 +213,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 double logoNameHeight = 0;
                 double logoBlockHeight = 0;
                 for (var pass = 0; pass < 3; pass++) {
-                  logoSize = typing
+                  // ‏في الوضع الأفقي الارتفاع هو القيد، وكتلة الشعار
+                  // ‏تأكل نحو خُمسه — فتخرج السبورة ضيّقة بلا داعٍ.
+                  // ‏فتتنحّى هناك كما تتنحّى أثناء الكتابة، وتعود في
+                  // ‏الوضع الرأسي حيث الارتفاع وافر.
+                  final hideBrand = typing || areaSize.width > areaSize.height;
+                  logoSize = hideBrand
                       ? 0.0
                       : (boardSize * 0.145).clamp(44.0, 130.0).toDouble();
-                  logoNameHeight = typing
+                  logoNameHeight = hideBrand
                       ? 0.0
                       : (boardSize * 0.045).clamp(14.0, 34.0).toDouble();
-                  logoBlockHeight = typing
+                  logoBlockHeight = hideBrand
                       ? 0.0
                       : logoSize + logoNameGap + logoNameHeight;
                   boardSize = math.min(
                     (areaSize.height * 0.99 -
                             logoBlockHeight -
-                            (typing ? 0.0 : logoGap)) /
+                            (hideBrand ? 0.0 : logoGap)) /
                         stackSpan,
                     areaSize.width * 0.99 / artW,
                   );
@@ -263,23 +260,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     (boardSize * 0.212).clamp(60.0, 200.0).toDouble();
                 final brandWidth = math.min(areaSize.width * 0.92, 380.0);
 
-                // The Scaffold has already taken the keyboard out of the
-                // height above, so the scene is laid out inside what
-                // remains and the fields cannot be behind the keys. This
-                // last lift only absorbs rounding at the edges, and is
-                // capped at the slack above the scene so the composition
-                // is never pushed off the top instead.
-                final overlap = !typing
+                // ‏الرفع: ما يلزم ليبقى أسفل السبورة فوق المفاتيح.
+                //
+                // ‏النافذة لم تُقتطع (`resizeToAvoidBottomInset: false`)،
+                // ‏فالكيبورد يغطّي آخر `keyboard` نقطة منها. وأسفل
+                // ‏السبورة يجب أن يعلو ذلك الحدّ.
+                //
+                // ‏ولا يُقيَّد الرفع بالفراغ فوق المشهد: في الوضع الأفقي
+                // ‏لا فراغ يُذكر، وتقييده به كان يعني ألّا يرتفع شيء.
+                // ‏فيُقتطع من رأس السبورة بدلاً منه — وأعلاها إطار وخشب،
+                // ‏وأسفلها الحقول وزرّ الدخول.
+                final visibleBottom = areaSize.height - keyboard;
+                final lift = !typing
                     ? 0.0
-                    : math.max(0.0, boardRect.bottom - areaSize.height + 10);
-                final lift = math.min(overlap, math.max(0.0, stackTop));
+                    : math.max(0.0, boardRect.bottom - visibleBottom + 12);
 
-                return SingleChildScrollView(
-                  // ‏لا يُمرَّر إلا حين يفيض المشهد عن النافذة فعلاً،
-                  // ‏فيبقى ثابتاً تحت الإصبع في الحال المعتادة.
-                  physics: areaSize.height > windowSize.height
-                      ? const ClampingScrollPhysics()
-                      : const NeverScrollableScrollPhysics(),
+                return ClipRect(
                   child: SizedBox(
                     width: areaSize.width,
                     height: areaSize.height,

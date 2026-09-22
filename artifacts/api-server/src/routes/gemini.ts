@@ -88,6 +88,17 @@ async function getGeminiModels(apiKey: string): Promise<string[]> {
   return geminiModelsPromise;
 }
 
+/**
+ * ما ينتظره الخادم كلّه قبل أن يردّ بالفشل.
+ *
+ * أقصر ممّا ينتظره التطبيق (٦٠ ثانية) بهامش: الخادم يجب أن يتكلّم أولاً،
+ * وإلا رأى الطفلُ انقطاعَ اتصالٍ مكان سببٍ مكتوب.
+ */
+const GEMINI_BUDGET_MS = 50_000;
+
+/** سقف المحاولة الواحدة، فلا يبتلع نموذجٌ بطيء الميزانية كلّها. */
+const GEMINI_SINGLE_TRY_MS = 30_000;
+
 async function callGemini(
   prompt: string,
   {
@@ -108,7 +119,24 @@ async function callGemini(
   const models = (await getGeminiModels(apiKey)).slice(0, 6);
   let lastUnavailableMessage = "";
 
+  // ميزانية واحدة للطلب كلّه، لا مهلة لكل نموذج على حدة.
+  //
+  // كانت ستة نماذج × ١٨ ثانية = ١٠٨ ثوانٍ في أسوأ الحالات، والتطبيق
+  // ينتظر ٢٥ — فيقطع الاتصال والخادم ما زال يجرّب. ومن هنا جاء «يجيب
+  // أحياناً ويتعذّر أحياناً»: تُجاب المسألة إن وفّق أوّلُ نموذج، وتسقط
+  // إن تجاوزه إلى الثاني.
+  //
+  // فصار للطلب حدٌّ أقصى واحد أقصر ممّا ينتظره التطبيق، ويتقاسمه ما
+  // يُجرَّب من النماذج: ينتهي الخادم دائماً قبل أن ييأس العميل، فيصل
+  // سببُ الفشل بدل أن ينقطع الخيط.
+  const deadline = Date.now() + GEMINI_BUDGET_MS;
+
   for (const model of models) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 2_000) {
+      logger.warn(`[gemini] budget spent before trying ${model}`);
+      break;
+    }
     let response: Response;
     try {
       response = await fetch(
@@ -124,7 +152,11 @@ async function callGemini(
               ...(json ? { responseMimeType: "application/json" } : {}),
             },
           }),
-          signal: AbortSignal.timeout(18_000),
+          // ما بقي من الميزانية، وبسقف لنموذج واحد حتى لا يبتلعها أوّلُ
+          // نموذج بطيء ويحرم البقية من محاولة.
+          signal: AbortSignal.timeout(
+            Math.min(remaining, GEMINI_SINGLE_TRY_MS),
+          ),
         },
       );
     } catch (error: any) {

@@ -49,96 +49,92 @@ void main() {
     });
   }
 
-  testWidgets('the board does not drag where it already fits',
-      (tester) async {
-    tester.view.physicalSize = const Size(1024, 768);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(_app());
-    await tester.pump(const Duration(milliseconds: 350));
-
-    // ‏ما كان يُشكى منه هو السحب الرأسي فوق السبورة على التابلت، لا وجود
-    // ‏`SingleChildScrollView` في الشجرة. وقد عاد المكوّن ليحمل المشهد
-    // ‏حين يفيض عن نافذة قصيرة — وفيزياؤه `NeverScrollable` ما دام
-    // ‏يسعها، فلا سحب. والقياس على السلوك أصدق من القياس على غياب ويدجت:
-    // ‏الغياب كان وسيلةً إلى هذا الشرط لا الشرط نفسه.
-    final scene = tester.widget<SingleChildScrollView>(
-      find.byType(SingleChildScrollView),
+  /// عرض رسم السبورة على الشاشة، نسبةً إلى عرض النافذة.
+  ///
+  /// الرسم يشغل ٩٤٪ من عرض الصورة المربّعة والباقي شفّاف، فيُحسب عليه
+  /// لا على المربّع كلّه.
+  double boardShare(WidgetTester tester, Size window) {
+    final board = tester.getRect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'assets/images/board_login_bg.png',
+      ),
     );
-    expect(scene.physics, isA<NeverScrollableScrollPhysics>());
+    return board.width * 0.942 / window.width;
+  }
 
-    // ‏وكل تمرير رأسي في الشجرة لا يستجيب للإصبع. أما الأفقي فهو تمرير
-    // ‏المؤشّر داخل حقول النصّ، ولم يكن يوماً موضع الشكوى.
-    for (final scrollable in tester.widgetList<Scrollable>(find.byType(Scrollable))) {
-      if (scrollable.axisDirection == AxisDirection.right) continue;
-      expect(scrollable.axisDirection, AxisDirection.down);
-      expect(scrollable.physics, isA<NeverScrollableScrollPhysics>());
-    }
-  });
-
-  group('the board is wide enough to read on', () {
-    // ‏السبورة تُقاس بأصغر البُعدين، وفي الوضع الأفقي كان الارتفاع هو
-    // ‏القيد فتخرج ضيّقة: ٧٢٪ من عرض تابلت 16:10، و٥٣٪ من هاتف أفقي.
-    // ‏صار للمشهد حدٌّ أدنى يجعلها تتبع العرض، وما فاض يُمرَّر.
-    const wide = <String, Size>{
-      'landscape tablet 4:3 1024x768': Size(1024, 768),
-      'landscape tablet 16:10 1280x800': Size(1280, 800),
-      'landscape phone 851x393': Size(851, 393),
-      'portrait tablet 4:3 768x1024': Size(768, 1024),
+  group('the board fills the window without a scroll', () {
+    // ‏جُرّبت أرضيةٌ تعلو بالمشهد فوق النافذة ليتّسع، فكبرت السبورة ولزم
+    // ‏النزول والطلوع لرؤيتها. فنُزع التمرير، وأُخذ العرض من مكان أصدق:
+    // ‏كتلة الشعار تتنحّى في الوضع الأفقي حيث الارتفاع هو القيد.
+    const expectations = <String, ({Size size, double atLeast})>{
+      'landscape tablet 4:3 1024x768': (size: Size(1024, 768), atLeast: 0.9),
+      'landscape tablet 16:10 1280x800': (size: Size(1280, 800), atLeast: 0.9),
+      'portrait tablet 4:3 768x1024': (size: Size(768, 1024), atLeast: 0.9),
+      'portrait phone 393x851': (size: Size(393, 851), atLeast: 0.9),
+      // ‏الهاتف الأفقي لا يبلغها: ٣٩٣ نقطة ارتفاعاً لا تتّسع لأكثر، وبلوغها
+      // ‏يقتضي تمريراً — وهو ما نُزع عمداً. ٦٥٪ تمسك الانهيار إلى شريط،
+      // ‏وكان ٥٣٪ قبل أن يتنحّى الشعار.
+      'landscape phone 851x393': (size: Size(851, 393), atLeast: 0.65),
     };
 
-    for (final entry in wide.entries) {
-      testWidgets('at least 85% of the width on ${entry.key}', (tester) async {
-        tester.view.physicalSize = entry.value;
+    for (final entry in expectations.entries) {
+      testWidgets(entry.key, (tester) async {
+        tester.view.physicalSize = entry.value.size;
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
 
         await tester.pumpWidget(_app());
         await tester.pump(const Duration(milliseconds: 350));
 
-        // ‏القياس على صورة السبورة نفسها: هي ما يراه الطفل عريضاً أو
-        // ‏ضيّقاً. والرسم داخل الصورة المربّعة يشغل ٩٤٪ من عرضها، والباقي
-        // ‏شفّاف — فيُحسب على ذلك لا على المربّع كلّه.
-        final board = tester.getRect(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is Image &&
-                widget.image is AssetImage &&
-                (widget.image as AssetImage).assetName ==
-                    'assets/images/board_login_bg.png',
-          ),
-        );
-        // ‏٨٤٪ حدّاً أدنى لا هدفاً: التابلت يبلغ ٨٦٪ والوضع الرأسي ٩٩٪،
-        // ‏والهاتف الأفقي ٨٥٪ إلا كسراً. ورفع الأرضية حتى يتجاوزه يجعل
-        // ‏تابلت 4:3 يُمرَّر بلا داعٍ — وذلك السحب الرأسي فوق السبورة هو
-        // ‏ما شُكي منه قديماً. فالحدّ هنا يمسك الانهيار إلى شريط ضيّق،
-        // ‏ولا يزايد على مفاضلة قائمة.
         expect(
-          board.width * 0.942 / entry.value.width,
-          greaterThanOrEqualTo(0.84),
+          boardShare(tester, entry.value.size),
+          greaterThanOrEqualTo(entry.value.atLeast),
           reason: 'the board shrank back into a narrow strip',
         );
+        // ‏ولا تمرير في الشجرة كلّها: ملء الشاشة لا نزولاً وطلوعاً.
+        expect(find.byType(SingleChildScrollView), findsNothing);
+        expect(tester.takeException(), isNull);
       });
     }
   });
 
-  testWidgets('a short landscape window scrolls instead of shrinking',
-      (tester) async {
-    // ‏في الوضع الأفقي على هاتف كان المشهد يُقاس على نافذة قصيرة فتخرج
-    // ‏سبورة محشورة. صار له حدٌّ أدنى، وما فاض يُمرَّر.
-    tester.view.physicalSize = const Size(851, 393);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  group('the keyboard does not shrink the board', () {
+    // ‏كان المشهد يُقاس على ما يبقى من الارتفاع بعد الكيبورد، فتنكمش
+    // ‏السبورة وما عليها إلى شريط مشوّه في الوضع الأفقي. صارت النافذة
+    // ‏تبقى بكامل ارتفاعها والمشهد يُرفع رفعاً، فلا تتغيّر أبعاده.
+    const sizes = <String, Size>{
+      'landscape tablet 4:3 1024x768': Size(1024, 768),
+      'landscape phone 851x393': Size(851, 393),
+      'portrait phone 393x851': Size(393, 851),
+    };
 
-    await tester.pumpWidget(_app());
-    await tester.pump(const Duration(milliseconds: 350));
+    for (final entry in sizes.entries) {
+      testWidgets(entry.key, (tester) async {
+        tester.view.physicalSize = entry.value;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
 
-    final scene = tester.widget<SingleChildScrollView>(
-      find.byType(SingleChildScrollView),
-    );
-    expect(scene.physics, isA<ClampingScrollPhysics>());
-    expect(tester.takeException(), isNull);
+        await tester.pumpWidget(_app());
+        await tester.pump(const Duration(milliseconds: 350));
+        final before = boardShare(tester, entry.value);
+
+        tester.view.viewInsets =
+            FakeViewPadding(bottom: entry.value.height * 0.6);
+        addTearDown(() => tester.view.resetViewInsets());
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        expect(
+          boardShare(tester, entry.value),
+          closeTo(before, 0.001),
+          reason: 'the board changed size when the keyboard opened',
+        );
+      });
+    }
   });
 
   // The reported problem: on a phone or tablet in landscape the soft

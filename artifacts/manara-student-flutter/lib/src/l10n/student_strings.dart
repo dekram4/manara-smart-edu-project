@@ -248,7 +248,7 @@ class StudentStrings {
     'solver.questionLabel': 'اكتب مسألتك أو سؤالك',
     'solver.questionHint': 'مثال: كيف نحل هذه المسألة؟',
     'solver.ask': 'ساعدني في الحل',
-    'solver.thinking': 'جارٍ التفكير...',
+    'solver.thinking': 'جارٍ التفكير وحلّ المسألة...',
     'solver.writeFirst': 'اكتب سؤالك أولًا.',
     'solver.noLesson': 'لا توجد مادة تعليمية صالحة للمساعدة فيها الآن.',
     'solver.noText':
@@ -808,7 +808,7 @@ class StudentStrings {
     'solver.questionLabel': 'Write your question',
     'solver.questionHint': 'For example: how do we solve this?',
     'solver.ask': 'Help me solve it',
-    'solver.thinking': 'Thinking…',
+    'solver.thinking': 'Thinking it through and solving…',
     'solver.writeFirst': 'Write your question first.',
     'solver.noLesson': 'There is no lesson text to answer from right now.',
     'solver.noText':

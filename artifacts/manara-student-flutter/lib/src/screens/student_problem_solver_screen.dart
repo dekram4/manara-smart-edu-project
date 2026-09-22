@@ -140,7 +140,10 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
             'Authorization': 'Bearer $token',
           },
           body: jsonEncode({'lessonId': lesson.id, 'question': question}),
-        ).timeout(const Duration(seconds: 25));
+        // ‏دقيقة كاملة: الخادم له ميزانية خمسين ثانية يجرّب فيها أكثر
+        // ‏من نموذج، فقطعُ الخيط قبلها يُسقط إجابةً كانت في طريقها —
+        // ‏وهو ما جعل البطاقة تجيب أحياناً وتتعذّر أحياناً.
+        ).timeout(const Duration(seconds: 60));
         final transientFailure = response.statusCode == 408 ||
             response.statusCode == 429 ||
             response.statusCode == 500 ||
