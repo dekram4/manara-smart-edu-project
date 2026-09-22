@@ -796,6 +796,25 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
             ? removeDeletedVideos(mergeSharedValue(byKey.get(key), localVal), deletedVideoIds)
             : key === 'smartEdu_lessonConfigs'
               ? removeDeletedLessons(mergeSharedValue(byKey.get(key), localVal), deletedLessonIds)
+            // الشجرة الأكاديمية: ما في الخادم هو الحال، لا اتحاده مع ما
+            // في هذا الجهاز.
+            //
+            // بقيّة المفاتيح تُدمج اتحاداً: ما في المتصفح وليس في الخادم
+            // يُضاف ثم يُرفع. وهو صواب لقوائم تنمو ولا تُنقَص. أما الشجرة
+            // فتُنقَص — يحذف المعلم صفاً — والاتحاد لا يفرّق بين «صفٌّ
+            // أُنشئ هنا ولم يُرفع» و«صفٌّ حُذف هناك»: يُعيد الثاني كما
+            // يرفع الأول.
+            //
+            // وأثره أن جهازاً لم يُفتح منذ الحذف يُحيي المحذوف لكل
+            // الأجهزة: يفتح المعلم شاشته على الجوال فيُدمج ما في ذاكرته
+            // القديمة ويُرفع إلى الخادم، فيعود الصفّ إلى اللابتوب وإلى
+            // الطلاب. حذفٌ يُنقض من جهاز لم يشارك فيه.
+            //
+            // ولا يضيع بهذا عملٌ لم يُرفع: المفتاح الذي له تغييرات معلّقة
+            // يُتخطّى قبل هذا السطر (`pendingKv`)، فبلوغُنا هنا يعني أن
+            // لا شيء محلياً ينتظر الرفع.
+            : key === 'smartEdu_hierarchicalConfigs'
+              ? byKey.get(key)
             : mergeSharedValue(byKey.get(key), localVal);
       nativeSetItem(key, JSON.stringify(merged));
       if (JSON.stringify(merged) !== JSON.stringify(byKey.get(key))) {
