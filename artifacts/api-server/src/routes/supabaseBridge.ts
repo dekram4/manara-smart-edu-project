@@ -78,6 +78,29 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * تسوية اسم المالك للمقارنة.
+ *
+ * كانت المقارنة قصّ مسافات لا غير: «Test» و«test» مالكان مختلفان عندها،
+ * وكذلك «برداوي» و«برداوى». وأثرها هنا أسوأ من حجب: إعداد المعلم يُعدّ
+ * لغيره فيُحفظ في `retained` **ويُضاف** إليه ما أرسله، فيتضاعف الصفّ في
+ * الشجرة عند كل حفظ.
+ */
+function normalizeOwner(value: unknown): string {
+  return stringValue(value)
+    .toLowerCase()
+    .replace(/[\u064B-\u0652\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622\u0671]/g, "\u0627")
+    .replace(/\u0649/g, "\u064A")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function ownerKey(value: unknown): string {
+  return normalizeOwner(recordOwner(value));
+}
+
 function recordOwner(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   const record = value as Record<string, unknown>;
@@ -125,15 +148,61 @@ const HIERARCHY_KEY = "smartEdu_hierarchicalConfigs";
 function mergeTeacherConfigs(
   remoteValue: unknown,
   requestedValue: unknown,
-  teacherId: string,
+  identities: Set<string>,
 ): Record<string, unknown>[] {
-  const requested = asRecords(requestedValue).filter(
-    (config) => recordOwner(config) === teacherId,
-  );
-  const retained = asRecords(remoteValue).filter(
-    (config) => recordOwner(config) !== teacherId,
-  );
+  const mine = (config: unknown) => identities.has(ownerKey(config));
+  // ما أرسله المعلم هو حاله كاملاً: ما حذفه ليس فيه، فلا يعود.
+  const requested = asRecords(requestedValue).filter(mine);
+  // وما لا يملكه يُحفظ كما هو من النسخة المخزّنة — قوالب المشرف وشجرات
+  // بقية المعلمين — فلا يمحوها حفظُ أحدهم.
+  const retained = asRecords(remoteValue).filter((config) => !mine(config));
   return [...retained, ...requested];
+}
+
+/**
+ * الأسماء التي يُعرف بها هذا المعلم في سجلّات الملكية.
+ *
+ * الملكية تُكتب نصّاً: معرّفاً أحياناً، واسم دخول أو اسماً معروضاً أحياناً
+ * أخرى. فإذا أُعيدت تسمية المعلم صار لنفس الشخص مالكان — والقديم يقع
+ * خارج «ما يملكه» فيُحفظ في `retained` عند كل حفظ: يحذفه المعلم من شاشته
+ * فيعود إليه عند الحفظ التالي، ولا سبيل له إلى إزالته أبداً.
+ *
+ * واسمٌ يتقاسمه معلّمان يسقط من القائمة: لو بقي لاستطاع أحدهما أن يمحو
+ * شجرة الآخر بحفظ واحد. المعرّف وحده مضمون التفرّد، وما سواه يُقبل بشرط
+ * ألّا يدلّ على غيره.
+ */
+async function teacherIdentities(
+  config: SupabaseConfig,
+  teacherId: string,
+): Promise<Set<string>> {
+  const identities = new Set<string>([normalizeOwner(teacherId)]);
+  identities.delete("");
+  try {
+    const rows = asRecords(await rest(config, "teachers?select=id,data&limit=2000"));
+    const mine: string[] = [];
+    const others = new Set<string>();
+    for (const row of rows) {
+      const data = (row.data && typeof row.data === "object"
+        ? row.data
+        : {}) as Record<string, unknown>;
+      const names = [row.id, data.id, data.username, data.name]
+        .map(normalizeOwner)
+        .filter(Boolean);
+      const isMine = names.includes(normalizeOwner(teacherId));
+      for (const name of names) {
+        if (isMine) mine.push(name);
+        else others.add(name);
+      }
+    }
+    for (const name of mine) {
+      if (!others.has(name)) identities.add(name);
+    }
+  } catch (error) {
+    // تعذّرت القراءة: يبقى المعرّف وحده. الحفظ يمضي، وأسوأ ما يقع أن
+    // يبقى سجلٌّ باسم قديم كما كان قبل اليوم — لا أن يُفقد عمل أحد.
+    logger.warn({ err: error, teacherId }, "[supabase] teacher identities unavailable");
+  }
+  return identities;
 }
 
 function mergeDeletedIds(remoteValue: unknown, requestedValue: unknown): string[] {
@@ -380,7 +449,11 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
           ? asRecords(row.value)
           : mergeTeacherVideos(remoteValue, row.value, actor.teacherId)
         : key === HIERARCHY_KEY && actor.role !== "admin"
-          ? mergeTeacherConfigs(remoteValue, row.value, actor.teacherId)
+          ? mergeTeacherConfigs(
+              remoteValue,
+              row.value,
+              await teacherIdentities(config, actor.teacherId),
+            )
         : isDeletedIdsKey(key)
           ? mergeDeletedIds(remoteValue, row.value)
           : row.value;
