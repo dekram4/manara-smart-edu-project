@@ -130,11 +130,19 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       localStorage.setItem(STORAGE_KEYS.GRADES, JSON.stringify(merged));
     }
     
-    // General Settings: الإعدادات العامة أو الإعدادات الخاصة بهذا المعلم من المشرف
-    const generalSettings = allConfigs.filter((c: HierarchicalConfig) =>
-      (getRecordTeacherId(c) === 'admin' || !c.createdBy) ||
-      (getRecordTeacherId(c) === normalizeScopeValue(tId) && c.createdByAdmin)
-    );
+    // «الإعدادات العامة» = ما يملكه المشرف. لا أكثر.
+    //
+    // كان الشرط يقبل أيضاً كل إعداد بلا `createdBy`. والمالك يُقرأ من
+    // `teacher_id ?? teacherId ?? createdBy`، فسجلٌّ قديم مالكه اسمٌ
+    // مكتوب — اسم المعلم قبل أن يُغيَّر — يمرّ من تلك الفتحة ويظهر للمعلم
+    // في تبويب «العامة» كأنه من المشرف. وهو إعداده هو باسمه القديم.
+    //
+    // وكان يقبل إعدادات هذا المعلم الموسومة `createdByAdmin`، وهي تظهر
+    // في تبويبه الخاص أصلاً لأنه مالكها — فتُعرض مرتين.
+    const generalSettings = allConfigs.filter((c: HierarchicalConfig) => {
+      const owner = getRecordTeacherId(c);
+      return owner === 'admin' || owner === 'supervisor';
+    });
     setGeneralConfigs(generalSettings);
   }
 
@@ -725,6 +733,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       <AcademicSaveBar
         onSaved={() => loadSettings(teacherId)}
         teacherUsername={teacherUsername}
+        teacherId={teacherId}
       />
 
       {/* Tabs */}

@@ -25,8 +25,25 @@ function describe(error: unknown): string {
   return String(error);
 }
 
-/** يحفظ مفتاحاً في `app_kv` ثم يقرأه ليتأكّد من وصوله. */
-export async function saveKvConfirmed(key: string, value: unknown): Promise<SaveOutcome> {
+/**
+ * يحفظ مفتاحاً في `app_kv` ثم يقرأه ليتأكّد من وصوله.
+ *
+ * و[arrived] هو ما يُسأل عمّا وصل. افتراضه التطابق الحرفي، وهو الصواب
+ * لمفتاح يُكتب كما هو. لكن شجرة الإعدادات لا تُكتب كما هي: الخادم يدمجها
+ * بالمالك — يُبقي إعدادات غير هذا المعلم كما هي في قاعدة البيانات ويضع
+ * فوقها إعداداته هو — فما يعود مختلفٌ عمّا أُرسل ترتيباً ومحتوى، ولو
+ * وصل كل حرف من عمل المعلم.
+ *
+ * فكان الشريط يقول «أُرسلت وتعذّر التحقق» بعد كل حفظ ناجح: إنذارٌ دائم
+ * لا يدلّ على خلل، وهو أسوأ من لا إنذار — يعتاده المعلم فيتجاهل الحقيقي
+ * حين يقع.
+ */
+export async function saveKvConfirmed(
+  key: string,
+  value: unknown,
+  arrived: (stored: unknown, sent: unknown) => boolean = (stored, sent) =>
+    JSON.stringify(stored ?? null) === JSON.stringify(sent ?? null),
+): Promise<SaveOutcome> {
   const written = await supabase.from('app_kv').upsert({ key, value });
   if (written.error) return { ok: false, reason: describe(written.error) };
 
@@ -37,7 +54,36 @@ export async function saveKvConfirmed(key: string, value: unknown): Promise<Save
   }
   const rows = Array.isArray(readBack.data) ? readBack.data : [];
   const stored = rows.find(row => row?.key === key)?.value;
-  return { ok: true, verified: JSON.stringify(stored ?? null) === JSON.stringify(value ?? null) };
+  return { ok: true, verified: arrived(stored, value) };
+}
+
+/**
+ * هل وصل كل ما يملكه هذا المعلم من الشجرة؟
+ *
+ * يُقاس بالمعرّف لا بالاسم: الاسم يتغيّر — يُعاد تسمية المعلم فتبقى
+ * سجلّاته باسمه القديم — والمعرّف لا يتغيّر. ويُقارن الصفّ بالصفّ، فترتيب
+ * المصفوفة بعد الدمج لا يعني شيئاً.
+ *
+ * وما يملكه غيره لا يُسأل عنه: لم يُرسله ولا يملك تغييره.
+ */
+export function ownedTreeArrived(
+  teacherId: string,
+  ownerOf: (config: unknown) => string,
+): (stored: unknown, sent: unknown) => boolean {
+  const owner = teacherId.trim().toLowerCase();
+  return (stored, sent) => {
+    if (!owner) {
+      return JSON.stringify(stored ?? null) === JSON.stringify(sent ?? null);
+    }
+    const mine = (value: unknown) =>
+      (Array.isArray(value) ? value : [])
+        .filter(config => ownerOf(config) === owner)
+        .map(config => JSON.stringify(config))
+        .sort();
+    const sentMine = mine(sent);
+    const storedMine = new Set(mine(stored));
+    return sentMine.every(config => storedMine.has(config));
+  };
 }
 
 /** يحفظ صفوفاً في جدول ثم يقرأ الجدول ليتأكّد من وجودها. */

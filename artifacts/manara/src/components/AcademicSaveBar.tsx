@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '../constants';
-import { readKv, saveKvConfirmed } from '../db/confirmedSave';
+import { ownedTreeArrived, readKv, saveKvConfirmed } from '../db/confirmedSave';
+import { getRecordTeacherId } from '../utils/scope';
 import { reopenTeacherSession } from '../utils/serverSession';
 
 /**
@@ -28,16 +29,23 @@ const readLocalTree = (): unknown[] => {
   }
 };
 
-const AcademicSaveBar: React.FC<{ onSaved?: () => void; teacherUsername?: string }> = ({
-  onSaved,
-  teacherUsername,
-}) => {
+const AcademicSaveBar: React.FC<{
+  onSaved?: () => void;
+  teacherUsername?: string;
+  /// صاحب الشجرة، ليُقاس ما وصل بما يملكه هو. بلا معرّف يعود التحقّق
+  /// إلى التطابق الحرفي، وهو الصواب للوحة المشرف: هي تكتب الشجرة كلّها.
+  teacherId?: string;
+}> = ({ onSaved, teacherUsername, teacherId }) => {
   const [state, setState] = useState<State>({ kind: 'idle' });
 
   const save = async (auto: boolean) => {
     const local = readLocalTree();
     setState({ kind: auto ? 'checking' : 'saving' });
-    const outcome = await saveKvConfirmed(STORAGE_KEYS.HIERARCHICAL_CONFIGS, local);
+    const outcome = await saveKvConfirmed(
+      STORAGE_KEYS.HIERARCHICAL_CONFIGS,
+      local,
+      teacherId ? ownedTreeArrived(teacherId, getRecordTeacherId) : undefined,
+    );
     if (outcome.ok === false) {
       setState({ kind: 'failed', reason: outcome.reason });
       return;
