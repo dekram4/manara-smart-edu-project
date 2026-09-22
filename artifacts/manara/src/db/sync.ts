@@ -103,6 +103,25 @@ async function resolveContentEpoch(): Promise<void> {
 
   takeServerCopy = true;
   console.info(`[sync] ختم محتوى جديد (${stamp}) — تُؤخذ نسخة الخادم كما هي.`);
+
+  // وتُمحى نسخة المحتوى من الجهاز فوراً، لا بعد أن يكتمل التحميل.
+  //
+  // الشاشات تقرأ التخزين المحلي قراءةً متزامنة عند فتحها، والتحميل من
+  // الخادم يأتي بعدها. فلو تُركت النسخة القديمة إلى حين وصوله لعُرضت
+  // أولاً — ولهذا بقي المعلّم يرى «٨٢ درساً» بعد أن نُظّفت قاعدة
+  // البيانات. ومحوها هنا يجعل أسوأ ما يُرى شاشةً فارغة تمتلئ بعد لحظة،
+  // لا عدداً خاطئاً يثق به.
+  //
+  // ويقع المحو بعد قراءة الختم بنجاح، أي بعد ثبوت الاتصال: فلا تُمحى
+  // نسخة جهازٍ منقطع لا سبيل له إلى بديل.
+  for (const key of ['smartEdu_lessonConfigs', 'smartEdu_hierarchicalConfigs',
+    'smartEdu_createdQuizzes', 'smartEdu_videos']) {
+    try {
+      nativeRemoveItem(key);
+    } catch {
+      // تخزين محجوب: التحميل التالي يكتب فوقه على كل حال.
+    }
+  }
   nativeSetItem(CONTENT_EPOCH_SEEN_KEY, stamp);
 }
 
@@ -770,7 +789,24 @@ async function hydrateRowTable(
       remoteById.get(String(item.id)) !== JSON.stringify(item))
     .map((item: any) => ({ id: String(item.id), data: item }));
 
-  if (localOnly.length && canCurrentActorWriteTable(table)) {
+  // جدولٌ عامر لا يُبعث إليه من نسخة الجهاز شيء.
+  //
+  // رفعُ ما ليس عند الخادم كان لهجرةٍ أولى: أوّل نشر يجد الجدول خالياً
+  // وفي المتصفّح بياناتٌ لا موضع لها غيره، فتُرفع. ثم بقي يعمل بعدها،
+  // فصار كلُّ حذفٍ من قاعدة البيانات يُنقَض من أول جهاز يُفتح: يجد
+  // المحذوف عنده ولا يجده في الخادم فيُعيده — إلى الجميع.
+  //
+  // فصار الرفع محصوراً بحاله الأولى: جدولٌ خالٍ. وما دام فيه صفّ واحد
+  // فهو المرجع، والحذف منه نهائي. ولا يضيع بهذا عملٌ لم يُرفع: الكتابة
+  // تُرسل لحظتها، وما فشل منها يدخل الطابور ويُعاد إرساله قبل التحميل.
+  const remoteIsEmpty = filteredRemote.length === 0;
+  if (localOnly.length && !remoteIsEmpty) {
+    console.info(
+      `[sync] لم يُرفع ${localOnly.length} سجلاً من ${table}: الخادم هو المرجع.`,
+    );
+  }
+
+  if (localOnly.length && remoteIsEmpty && canCurrentActorWriteTable(table)) {
     const res = await withRetry(`دمج ${table}`, () =>
       supabase.from(table).upsert(localOnly, { onConflict: 'id' }),
     );
