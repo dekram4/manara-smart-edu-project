@@ -283,6 +283,7 @@ class StudentStrings {
     'content.rewardTaken': 'تم استلام مكافأة هذا الدرس',
     'content.savingCompletion': 'جارٍ حفظ الإتمام...',
     'content.finishLesson': 'أنهيت الدرس — احصل على 5 جواهر',
+    'content.noLessonYet': 'لم يُضَف شرح هذا الدرس بعد',
     'content.gamesTitle': 'الألعاب التعليمية',
     'game.badge.brain': '🧠 لعبة ذكاء',
     'game.badge.challenge': '⚡ تحدٍّ',
@@ -435,8 +436,7 @@ class StudentStrings {
     'portal.challenge.voice': 'تَحَدِّي الْيَوْمِ بِانْتِظَارِك! أَثْبِتْ أَنَّكَ الْأَفْضَل.',
     'path.preparing': 'نجهّز رحلتك...',
     'path.start': 'ابدأ المغامرة!',
-    'path.leave': 'البطاقات',
-    'path.leaveTooltip': 'اذهب إلى شاشة البطاقات',
+    'path.leave': 'خروج',
     'path.mascot': 'اختر صفك لنبدأ الرحلة يا بطل! ✨',
 
     // Character
@@ -844,6 +844,7 @@ class StudentStrings {
     'content.rewardTaken': 'Reward already collected',
     'content.savingCompletion': 'Saving…',
     'content.finishLesson': 'Finish the lesson — get 5 gems',
+    'content.noLessonYet': 'This lesson has no explanation yet',
     'content.gamesTitle': 'Learning games',
     'game.badge.brain': '🧠 Brain game',
     'game.badge.challenge': '⚡ Challenge',
@@ -983,8 +984,7 @@ class StudentStrings {
         "Today's challenge is waiting! Prove you are the best.",
     'path.preparing': 'Getting your journey ready…',
     'path.start': 'Start the adventure!',
-    'path.leave': 'Cards',
-    'path.leaveTooltip': 'Go to the cards screen',
+    'path.leave': 'Sign out',
     'path.mascot': 'Pick your grade and let\'s begin! ✨',
 
     'character.saved': 'Character saved: {label} ✨',

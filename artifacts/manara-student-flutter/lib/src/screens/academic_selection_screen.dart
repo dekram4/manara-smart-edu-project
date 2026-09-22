@@ -18,6 +18,7 @@ import '../widgets/masar_path_board.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_mascot.dart';
+import 'login_screen.dart';
 import 'student_home_screen.dart';
 
 class AcademicSelectionScreen extends StatefulWidget {
@@ -386,37 +387,36 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
   }
 
-  /// يخرج الطفل من هذه الشاشة بلا أن يسقط من التطبيق.
+  /// يخرج من الحساب ويعود بالطفل إلى شاشة الدخول.
   ///
   /// الشاشة تُفتح بـ `pushReplacement` بعد تسجيل الدخول، فهي وحدها على
-  /// المكدّس و`canPop` كاذبة فيها دائماً. ولو دفعنا الزرّ إلى `pop` لخرج
-  /// الطفل من التطبيق إلى شاشة سوداء — وهو ما يمنعه `StudentNoBack` من
-  /// زرّ النظام أصلاً.
+  /// المكدّس و`canPop` كاذبة فيها دائماً — ولا شيء وراءها يُرجَع إليه.
+  /// فالخروج من الحساب هو الطريق الوحيد إلى الوراء منها حقاً.
   ///
-  /// فالرجوع هنا تقدّمٌ إلى لوحة البطاقات: يأخذ معه المسار إن كان قد
-  /// اكتمل اختياره، فلا يضيع ما اختاره، ويمضي بلا مسار إن لم يختر بعد —
-  /// واللوحة تعرف حالها بلا مسار وتدعوه إلى اختياره من «تغيير الدرس».
+  /// والمكدّس يُفرَّغ بـ `pushAndRemoveUntil`: لو بقيت هذه الشاشة تحت
+  /// شاشة الدخول لعاد إليها زرُّ الرجوع بحساب خرج منه صاحبه.
   ///
-  /// و`pop` تبقى مكتوبة لطريق يُفتح منه لاحقاً: من فتح هذه الشاشة فوق
-  /// أخرى يجب أن يعود إليها هي، لا أن يُدفع إلى اللوحة.
-  Future<void> _leaveScreen() async {
+  /// والخروج من Supabase قد يرمي حين تنقطع الشبكة، ويُبتلع عمداً: جلسة
+  /// الواجهة تُمسح على كل حال ويصل الطفل إلى شاشة الدخول. أن يعلق في
+  /// حساب لا يريده لأن الشبكة سقطت أسوأ من خروج لم يبلغ الخادم بعد.
+  Future<void> _signOut() async {
     if (_isEntering) return;
     StudentSoundService.instance.playTap();
     unawaited(StudentSoundService.instance.stopPathVoice());
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-      return;
-    }
-    await navigator.pushReplacement(
+    try {
+      await widget.authService.client.auth.signOut();
+    } catch (_) {}
+    widget.authService.clearApiSession();
+    if (!mounted) return;
+    await Navigator.of(context).pushAndRemoveUntil(
       StudentPageRoute<void>(
-        builder: (_) => StudentHomeScreen(
-          profile: widget.profile,
+        builder: (_) => LoginScreen(
           authService: widget.authService,
+          initializationError: null,
           apiBaseUrl: widget.apiBaseUrl,
-          academicContext: _selection,
         ),
       ),
+      (_) => false,
     );
   }
 
@@ -527,7 +527,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     Positioned(
                       top: 4,
                       left: 8,
-                      child: _LeaveButton(onPressed: _leaveScreen),
+                      child: _LeaveButton(onPressed: _signOut),
                     ),
                     Positioned(
                       top: 4,
@@ -704,12 +704,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
 }
 
-/// الخروج من شاشة المسار إلى لوحة البطاقات.
+/// الخروج من الحساب، من شاشة المسار.
 ///
-/// بلا سهم: السهم يَعِد بالرجوع، وهذه الشاشة أوّل ما يُفتح بعد الدخول فلا
-/// شيء وراءها يُرجَع إليه — والزرّ يمضي بالطفل إلى البطاقات لا يعيده.
-/// فالأيقونة بطاقات والكلمة «البطاقات»، يقولان ما يحدث فعلاً. وطفلٌ لا
-/// يقرأ بعدُ يعرف الوجهة من الشكل.
+/// أحمرُ لا أزرق: هذا الزرّ يُنهي جلسة الطفل، وهو الفعل الوحيد في الشاشة
+/// الذي يكلّفه شيئاً — فيلبس لون ما لا يُفعل بلا قصد. والأيقونة باب خروج
+/// والكلمة «خروج»، يعرفهما من لا يقرأ بعد.
 class _LeaveButton extends StatelessWidget {
   const _LeaveButton({required this.onPressed});
 
@@ -719,9 +718,9 @@ class _LeaveButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: tr('path.leaveTooltip'),
+      label: tr('home.signOut'),
       child: Tooltip(
-        message: tr('path.leaveTooltip'),
+        message: tr('home.signOut'),
         child: StudentPressScale(
           child: Material(
             color: Colors.transparent,
@@ -733,12 +732,12 @@ class _LeaveButton extends StatelessWidget {
                 // مساحة لمس مريحة لإصبع صغير: أربعون نقطة ارتفاعاً.
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2FA8BE),
+                  color: const Color(0xFFE05A5A),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF12406B).withValues(alpha: 0.35),
+                      color: const Color(0xFF7F1D1D).withValues(alpha: 0.35),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -747,7 +746,7 @@ class _LeaveButton extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.dashboard_rounded,
+                    const Icon(Icons.logout_rounded,
                         color: Colors.white, size: 18),
                     const SizedBox(width: 6),
                     Text(

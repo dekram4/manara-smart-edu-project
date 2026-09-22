@@ -518,14 +518,25 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = !_completed && !_saving;
+    // ‏درسٌ لم يضع معلّمه فيه شرحاً لا يُكافأ على إنهائه: لا شيء أُنهي.
+    // ‏وكان الزرّ يعمل على أي درس، فيكسب الطفل جواهر من فتح درس فارغ —
+    // ‏ويتعلّم أن الجواهر تأتي من الضغط لا من التعلّم.
+    final empty = !widget.lesson.hasExplanation;
+    final enabled = !empty && !_completed && !_saving;
     // Gold while the reward is still to be claimed, emerald once it has
     // been — the colour carries the state, so the label does not have to
-    // work alone.
-    final gradient = _completed
-        ? const [Color(0xFF0E9F6E), Color(0xFF067A54)]
-        : const [Color(0xFFFFC542), Color(0xFFF08C1E)];
-    final ledge = _completed ? const Color(0xFF04543A) : const Color(0xFFB4630C);
+    // work alone. A lesson with nothing in it is grey: the colour says it
+    // is not waiting for the child, it is waiting for the teacher.
+    final gradient = empty
+        ? const [Color(0xFFB6BEC6), Color(0xFF98A2AD)]
+        : _completed
+            ? const [Color(0xFF0E9F6E), Color(0xFF067A54)]
+            : const [Color(0xFFFFC542), Color(0xFFF08C1E)];
+    final ledge = empty
+        ? const Color(0xFF6B7280)
+        : _completed
+            ? const Color(0xFF04543A)
+            : const Color(0xFFB4630C);
 
     return StudentPressScale(
       child: GestureDetector(
@@ -571,9 +582,11 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                     border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
                   ),
                   child: Icon(
-                    _completed
-                        ? Icons.verified_rounded
-                        : Icons.diamond_rounded,
+                    empty
+                        ? Icons.hourglass_empty_rounded
+                        : _completed
+                            ? Icons.verified_rounded
+                            : Icons.diamond_rounded,
                     color: Colors.white,
                     size: 19,
                   ),
@@ -583,11 +596,13 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      tr(_completed
-                          ? 'content.rewardTaken'
-                          : _saving
-                              ? 'content.savingCompletion'
-                              : 'content.finishLesson'),
+                      tr(empty
+                          ? 'content.noLessonYet'
+                          : _completed
+                              ? 'content.rewardTaken'
+                              : _saving
+                                  ? 'content.savingCompletion'
+                                  : 'content.finishLesson'),
                       maxLines: 1,
                       style: const TextStyle(
                         color: Colors.white,

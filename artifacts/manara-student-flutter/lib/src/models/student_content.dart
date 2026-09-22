@@ -90,6 +90,20 @@ class LessonContent {
   final List<LessonVideo> videos;
   final List<HtmlGame> games;
 
+  /// هل في هذا الدرس شرحٌ يُدرَس؟
+  ///
+  /// نصٌّ مكتوب، أو فيديو، أو معلّم افتراضي، أو لقاء مباشر. والألعاب
+  /// ليست منه: اللعبة مرافقة للدرس لا شرحٌ له، ودرسٌ لا يحمل إلا لعبة
+  /// لم يشرحه معلّمه بعد.
+  ///
+  /// تسكن في النموذج لا في الشاشة: المكافأة تُمنع بها، وأي شاشة تسأل
+  /// السؤال نفسه لاحقاً يجب أن تسأله بالتعريف نفسه.
+  bool get hasExplanation =>
+      (lessonText?.trim().isNotEmpty ?? false) ||
+      videos.isNotEmpty ||
+      (avatarInteractionUrl?.trim().isNotEmpty ?? false) ||
+      (liveMeetingUrl?.trim().isNotEmpty ?? false);
+
   String get scopeLabel => [grade, subject, term, unit, lessonName]
       .where((value) => value.trim().isNotEmpty)
       .join(' • ');

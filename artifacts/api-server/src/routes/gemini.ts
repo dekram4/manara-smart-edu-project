@@ -5,6 +5,7 @@ import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
 import {
   apiSupabaseConfig,
+  lastScopeRejectionReason,
   matchesStudentScope,
   type StudentActor,
 } from "../lib/studentAccess";
@@ -183,8 +184,13 @@ function getGeminiText(data: any): string | null {
  * بينها. ولا يُشخَّص العطل من الخارج إن كان الخادم نفسه لا يميّزه.
  */
 type LessonLookup =
-  | { id: string; text: string; reason?: undefined }
-  | { reason: "not_found" | "out_of_scope" | "no_text"; id?: undefined; text?: undefined };
+  | { id: string; text: string; reason?: undefined; detail?: undefined }
+  | {
+      reason: "not_found" | "out_of_scope" | "no_text";
+      detail?: string;
+      id?: undefined;
+      text?: undefined;
+    };
 
 async function resolveStudentLesson(
   lessonId: string,
@@ -203,7 +209,29 @@ async function resolveStudentLesson(
   const row = Array.isArray(rows) ? rows[0] : null;
   const data = row?.data && typeof row.data === "object" ? row.data : null;
   if (!data) return { reason: "not_found" };
-  if (!matchesStudentScope(data, student)) return { reason: "out_of_scope" };
+  if (!matchesStudentScope(data, student)) {
+    // المسار كاملاً من الطرفين: أي حقل اختلف، وبأي قيمتين. بدونه يبقى
+    // «خارج المسار» جملةً لا يُشخَّص منها شيء.
+    logger.warn(
+      {
+        lessonId,
+        studentId: student.id,
+        lesson: {
+          grade: data.grade, subject: data.subject,
+          term: data.term, unit: data.unit, lesson: data.lesson,
+          owner: data.teacherId ?? data.teacher_id ?? data.createdBy,
+        },
+        student: {
+          grade: student.grade, subject: student.subject,
+          assignedSubjects: student.assignedSubjects,
+          teacherId: student.teacherId,
+        },
+        mismatch: lastScopeRejectionReason(),
+      },
+      "[gemini] lesson rejected: outside the student's scope",
+    );
+    return { reason: "out_of_scope", detail: lastScopeRejectionReason() };
+  }
   const lesson = data as Record<string, unknown>;
   const text = typeof lesson.lessonContent === "string"
     ? lesson.lessonContent.trim()
@@ -282,7 +310,9 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       );
       const messages = {
         not_found: "لم يُعثر على هذا الدرس في قاعدة البيانات.",
-        out_of_scope: "هذا الدرس ليس ضمن مسار حسابك.",
+        out_of_scope: lesson.detail
+          ? `هذا الدرس ليس ضمن مسار حسابك — ${lesson.detail}`
+          : "هذا الدرس ليس ضمن مسار حسابك.",
         no_text: "هذا الدرس لا يحتوي على شرح نصي بعد — اطلب من معلمك إضافته.",
       } as const;
       return res.status(403).json({ error: messages[lesson.reason], code: lesson.reason });

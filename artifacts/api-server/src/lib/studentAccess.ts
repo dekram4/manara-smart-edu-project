@@ -21,8 +21,32 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * تسوية عربية للمقارنة، لا للعرض.
+ *
+ * الاسم يُكتب مرة في لوحة المعلم ويُقارن مرة في الخادم، ولا يمرّ بينهما
+ * تدقيق إملائي. فـ«الفصل الأول» و«الفصل الاول» اسمان مختلفان في المقارنة
+ * النصّية وهما شيء واحد عند من كتبهما — وكانت المقارنة قصاً للمسافات
+ * وخفضاً للحروف لا غير، فيُحجب الدرس عن صاحبه بسبب همزة.
+ *
+ * فتُوحَّد صور الألف والياء والتاء المربوطة، وتُسقط الحركات والتطويل،
+ * وتُردّ الأرقام العربية إلى نظيراتها، وتُجمع المسافات المتتابعة في واحدة.
+ */
 function normalize(value: unknown): string {
-  return text(value).toLowerCase();
+  return text(value)
+    .toLowerCase()
+    // الحركات وعلامة الوصل: زينة كتابية لا تغيّر الكلمة.
+    .replace(/[\u064B-\u0652\u0670\u0640]/g, "")
+    // صور الألف: أ إ آ ٱ ← ا
+    .replace(/[\u0623\u0625\u0622\u0671]/g, "\u0627")
+    // الألف المقصورة ← ياء، والتاء المربوطة ← هاء.
+    .replace(/\u0649/g, "\u064A")
+    .replace(/\u0629/g, "\u0647")
+    // الأرقام العربية والفارسية ← الهندية الغربية.
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function config(): StudentSupabaseConfig | null {
@@ -143,6 +167,8 @@ export function matchesStudentScope(
 ): boolean {
   const owner = normalize(record.teacher_id ?? record.teacherId ?? record.createdBy);
   if (owner && owner !== "admin" && owner !== "supervisor" && owner !== student.teacherId) {
+    lastScopeRejection =
+      `المالك: الدرس لـ «${owner}» ومعلّم الطالب «${student.teacherId}»`;
     return false;
   }
   // الصفّ حقّ، والمادة حقّ. أما الفصل والوحدة فموضع وقف عنده الطالب آخر
@@ -150,7 +176,10 @@ export function matchesStudentScope(
   // مادته هو — وهذا أحد وجوه «هذا الدرس ليس ضمن مسار حسابك».
   const grade = normalize(student.grade);
   const recordGrade = normalize(record.grade);
-  if (grade && recordGrade && grade !== recordGrade) return false;
+  if (grade && recordGrade && grade !== recordGrade) {
+    lastScopeRejection = `الصف: الدرس «${text(record.grade)}» وحساب الطالب «${text(student.grade)}»`;
+    return false;
+  }
 
   // والمادة تُقاس بما أُسند إليه، لا بالمادة المفردة المحفوظة في سجلّه.
   //
@@ -162,13 +191,36 @@ export function matchesStudentScope(
   if (recordSubject) {
     if (student.assignedSubjects.length > 0) {
       const allowed = student.assignedSubjects.map((item) => normalize(item));
-      if (!allowed.includes(recordSubject)) return false;
+      if (!allowed.includes(recordSubject)) {
+        lastScopeRejection =
+          `المادة: الدرس «${text(record.subject)}» وليست من المواد المسندة ` +
+          `[${student.assignedSubjects.join("، ")}]`;
+        return false;
+      }
     } else {
       const subject = normalize(student.subject);
-      if (subject && subject !== recordSubject) return false;
+      if (subject && subject !== recordSubject) {
+        lastScopeRejection =
+          `المادة: الدرس «${text(record.subject)}» ومادة الحساب «${text(student.subject)}»`;
+        return false;
+      }
     }
   }
+  lastScopeRejection = "";
   return true;
+}
+
+/**
+ * سبب آخر رفض، لسجلّ الخادم وحده.
+ *
+ * `matchesStudentScope` تُرجع منطقاً واحداً، فلا يُعرف من ردّها أي حقل
+ * اختلف ولا بأي قيمتين — وذلك بالضبط ما يحتاجه من يشخّص «هذا الدرس ليس
+ * ضمن مسار حسابك». ويُقرأ فور الرفض، قبل أي مقارنة أخرى تكتب فوقه.
+ */
+let lastScopeRejection = "";
+
+export function lastScopeRejectionReason(): string {
+  return lastScopeRejection;
 }
 
 export function studentToken(studentId: string, ttlSeconds = 60 * 60 * 12): string {
