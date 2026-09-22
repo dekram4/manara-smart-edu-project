@@ -29,6 +29,11 @@
  */
 
 import { curriculumRows, GRADE, SUBJECT } from "./grade4-math-curriculum.mjs";
+import {
+  GRADE4_SCIENCE_CURRICULUM,
+  ID_PREFIX as SCIENCE_PREFIX,
+  SUBJECT as SCIENCE_SUBJECT,
+} from "./curriculum/grade4-science-curriculum.mjs";
 
 const args = process.argv.slice(2);
 const EXECUTE = args.includes("--execute");
@@ -53,8 +58,43 @@ const norm = (value) => text(value).toLowerCase();
 const ownerOf = (record) =>
   norm(record?.teacherId ?? record?.teacher_id ?? record?.createdBy) || "(بلا مالك)";
 
-/** بادئة معرّفات ما يكتبه البذر: `g4math_<رقم الدرس>_<المالك>`. */
-const SEED_PREFIX = "g4math_";
+/**
+ * المناهج المعتمدة: لكلٍّ مادته وبادئة معرّفاته وأسماء دروسه ونصوصها.
+ *
+ * تُقرأ من ملفَّي المنهج نفسيهما، فإضافة مادة ثالثة لاحقاً تُضاف هنا
+ * بسطر ولا تُنسَخ أسماؤها في موضعين يفترقان.
+ */
+const CURRICULA = [
+  {
+    subject: SUBJECT,
+    prefix: "g4math_",
+    lessons: curriculumRows().map((row) => ({ name: row.name, text: row.text })),
+  },
+  {
+    subject: SCIENCE_SUBJECT,
+    prefix: SCIENCE_PREFIX,
+    lessons: GRADE4_SCIENCE_CURRICULUM.map((item) => ({
+      name: item.lesson,
+      text: item.content,
+    })),
+  },
+];
+
+/** فهرسٌ بالمادة: أسماء دروسها ونصوصها وبادئتها. */
+const BY_SUBJECT = new Map(
+  CURRICULA.map((entry) => [
+    normSubject(entry.subject),
+    {
+      prefix: entry.prefix,
+      names: new Set(entry.lessons.map((lesson) => norm(lesson.name))),
+      texts: new Set(entry.lessons.map((lesson) => norm(lesson.text))),
+    },
+  ]),
+);
+
+function normSubject(value) {
+  return norm(value);
+}
 
 /**
  * هل هذا السجلّ من دروس المنهج المعتمد؟
@@ -72,23 +112,29 @@ const SEED_PREFIX = "g4math_";
  * حرفاً بحرف. فنسخ البذر تبقى مهما كان مالكها — معرّفاتها كلّها تبدأ
  * بالبادئة — ويسقط ما كُتب باليد تحت الاسم نفسه.
  */
-export function isCurriculumLesson(data, names, texts, id) {
-  const onPath =
-    norm(data?.grade) === norm(GRADE) &&
-    norm(data?.subject) === norm(SUBJECT) &&
-    names.has(norm(data?.lesson));
-  if (!onPath) return false;
+export function isCurriculumLesson(data, _names, _texts, id) {
+  if (norm(data?.grade) !== norm(GRADE)) return false;
+  const curriculum = BY_SUBJECT.get(normSubject(data?.subject));
+  if (!curriculum) return false;
+  if (!curriculum.names.has(norm(data?.lesson))) return false;
   return (
-    text(id).startsWith(SEED_PREFIX) || texts.has(norm(data?.lessonContent))
+    text(id).startsWith(curriculum.prefix) ||
+    curriculum.texts.has(norm(data?.lessonContent))
   );
 }
 
 /** سبب الإسقاط، ليُطبع بجانب السجلّ فيُعرف لماذا ذهب. */
-export function dropReason(data, names, texts, id) {
+export function dropReason(data, _names, _texts, id) {
   if (norm(data?.grade) !== norm(GRADE)) return `صفّ آخر: ${text(data?.grade) || "—"}`;
-  if (norm(data?.subject) !== norm(SUBJECT)) return `مادة أخرى: ${text(data?.subject) || "—"}`;
-  if (!names.has(norm(data?.lesson))) return `درس خارج المنهج: ${text(data?.lesson) || "—"}`;
-  if (!text(id).startsWith(SEED_PREFIX) && !texts.has(norm(data?.lessonContent))) {
+  const curriculum = BY_SUBJECT.get(normSubject(data?.subject));
+  if (!curriculum) return `مادة خارج المناهج المعتمدة: ${text(data?.subject) || "—"}`;
+  if (!curriculum.names.has(norm(data?.lesson))) {
+    return `درس خارج المنهج: ${text(data?.lesson) || "—"}`;
+  }
+  if (
+    !text(id).startsWith(curriculum.prefix) &&
+    !curriculum.texts.has(norm(data?.lessonContent))
+  ) {
     return `نسخة قديمة بالاسم نفسه (${text(data?.lessonContent).length} حرفاً)`;
   }
   return "—";
@@ -124,9 +170,9 @@ export function pruneTree(configs) {
       continue;
     }
     const subjects = Array.isArray(config.subjects) ? config.subjects : [];
-    const mine = subjects.filter((item) => norm(item?.subject) === norm(SUBJECT));
+    const mine = subjects.filter((item) => BY_SUBJECT.has(normSubject(item?.subject)));
     for (const item of subjects) {
-      if (norm(item?.subject) !== norm(SUBJECT)) {
+      if (!BY_SUBJECT.has(normSubject(item?.subject))) {
         notes.push(`حُذفت مادة «${text(item?.subject)}» من «${text(config.grade)}» [${owner}]`);
       }
     }
@@ -159,10 +205,14 @@ async function main() {
     process.exit(1);
   }
 
-  const names = new Set(curriculumRows().map((row) => norm(row.name)));
-  const texts = new Set(curriculumRows().map((row) => norm(row.text)));
+  const names = null;
+  const texts = null;
+  const total = CURRICULA.reduce((sum, entry) => sum + entry.lessons.length, 0);
   line(EXECUTE ? "✍️ تنفيذ فعلي." : "🔍 معاينة — لن يُكتب شيء. أضف --execute للتنفيذ.");
-  line(`المنهج المعتمد: ${names.size} درساً في «${SUBJECT}» لـ«${GRADE}».`);
+  line(`المناهج المعتمدة لـ«${GRADE}»: ${total} درساً —`);
+  for (const entry of CURRICULA) {
+    line(`  • ${entry.subject}: ${entry.lessons.length} درساً، بادئتها ${entry.prefix}`);
+  }
 
   // ── الدروس ──────────────────────────────────────────────────────────
   head("الدروس");
