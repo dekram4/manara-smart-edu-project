@@ -364,6 +364,20 @@ router.get("/supabase/context", (req: Request, res: Response) => {
  * مفاتيح `app_kv` المتاحة لولي الأمر: بنية أكاديمية لا بيانات أشخاص.
  * لوحته تحتاجها لعرض أسماء الصفوف والمواد في تقدّم أبنائه.
  */
+/**
+ * ختم المحتوى: يُقرأ ولا يُكتب من المتصفح.
+ *
+ * ولم يكن يُقرأ أصلاً. الجسر لا يخدم إلا مفاتيح `SYNC_KV_KEYS`، وهذا
+ * ليس منها، فكان المتصفح يسأل عن الختم فلا يجده، فيمضي على نسخته
+ * القديمة. وكل ختمٍ رُفع بعد تنظيف قاعدة البيانات ذهب بلا أثر: لا
+ * جهازٌ أسقط نسخته، ولا معلّمٌ رأى ما نُظّف. وهذا وحده كان يُبقي
+ * الدروس المحذوفة ظاهرةً بعد حذفها.
+ *
+ * وهو خارج `SYNC_KV_KEYS` عمداً: مفتاحٌ لا يعرفه الرفع يُتخطّى صامتاً،
+ * فيبقى الختم بيد من ينظّف وحده ولا يكتبه متصفّحٌ فوق نفسه.
+ */
+const CONTENT_EPOCH_KEY = "smartEdu_contentEpoch";
+
 const PARENT_READABLE_KV = new Set([
   "smartEdu_grades",
   "smartEdu_subjects",
@@ -390,6 +404,8 @@ router.get("/supabase/app_kv", async (req: Request, res: Response) => {
     const keys = actor.role === "parent"
       ? Array.from(SYNC_KV_KEYS).filter((key) => PARENT_READABLE_KV.has(key))
       : Array.from(SYNC_KV_KEYS);
+    // الختم لكل دور: من لا يقرؤه لا يعرف أن نسخته بطلت.
+    keys.push(CONTENT_EPOCH_KEY);
     const values = await Promise.all(keys.map(async (key) => ({ key, value: await readValue(config, key) })));
     res.json(values
       .filter(({ key }) => actor.role === "admin" || ![

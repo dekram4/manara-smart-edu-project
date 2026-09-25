@@ -177,9 +177,20 @@ class StudentAssessmentRules {
     };
   }
 
+  /// The questions one student sees in one attempt, drawn from the bank.
+  ///
+  /// [attempt] is how many times this student has already taken the quiz. It
+  /// enters the shuffle so a retake draws a different slice of the bank —
+  /// without it a child who repeats a lesson quiz meets the same five
+  /// questions forever, and the other ten in the bank are never asked.
+  ///
+  /// Within one attempt the order stays fixed: the same arguments always give
+  /// the same list, so a rebuild mid-quiz cannot swap the question under the
+  /// child's finger.
   static List<Map<String, dynamic>> questionsForStudent(
     Map<String, dynamic> quiz, {
     required String studentId,
+    int attempt = 0,
   }) {
     final questions = _questions(normalizeQuiz(quiz))
         .where(
@@ -193,11 +204,12 @@ class StudentAssessmentRules {
       fallback: questions.length,
     ).clamp(0, questions.length).toInt();
     final quizId = _text(quiz['id']);
+    final round = attempt < 0 ? 0 : attempt;
     questions.sort((left, right) {
       final leftId = questionId(left, 0);
       final rightId = questionId(right, 0);
-      final comparison = _stableHash('$studentId:$quizId:$leftId')
-          .compareTo(_stableHash('$studentId:$quizId:$rightId'));
+      final comparison = _stableHash('$studentId:$quizId:$round:$leftId')
+          .compareTo(_stableHash('$studentId:$quizId:$round:$rightId'));
       return comparison != 0 ? comparison : leftId.compareTo(rightId);
     });
     return questions.take(requested).toList();

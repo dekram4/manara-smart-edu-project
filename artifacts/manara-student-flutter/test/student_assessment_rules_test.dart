@@ -203,6 +203,61 @@ void main() {
       expect(first, hasLength(2));
     });
 
+    test('a retake draws a different slice of the question bank', () {
+      // بنك خمسة عشر سؤالاً يُعرض منه خمسة — وهو ما يولّده سكربت
+      // الاختبارات لكل درس.
+      final bank = {
+        'id': 'lesson-bank',
+        'title': 'اختبار الدرس',
+        'createdBy': 'teacher-1',
+        'quizType': 'periodic',
+        'grade': 'السادس',
+        'subject': 'الرياضيات',
+        'term': 'الترم الأول',
+        'unit': 'الوحدة الأولى',
+        'isActive': true,
+        'questionsPerAttempt': 5,
+        'questions': [
+          for (var index = 0; index < 15; index += 1)
+            {
+              'id': 'bank-q$index',
+              'question': 'سؤال رقم $index',
+              'options': const ['أ', 'ب', 'ج', 'د'],
+              'correctAnswer': 'أ',
+            },
+        ],
+      };
+
+      List<String> draw(int attempt) => StudentAssessmentRules.questionsForStudent(
+            bank,
+            studentId: 'student-1',
+            attempt: attempt,
+          ).map((item) => item['id'] as String).toList();
+
+      // المحاولة الواحدة ثابتة: إعادةُ البناء أثناء الاختبار لا تبدّل
+      // السؤال تحت إصبع الطفل.
+      expect(draw(0), draw(0));
+      expect(draw(0), hasLength(5));
+
+      // والمحاولة الثانية تختلف عن الأولى.
+      expect(draw(1), isNot(equals(draw(0))));
+
+      // وعلى خمس محاولات يُرى أكثر من ثلثَي البنك، لا خمسُه وحده.
+      final seen = <String>{};
+      for (var attempt = 0; attempt < 5; attempt += 1) {
+        seen.addAll(draw(attempt));
+      }
+      expect(seen.length, greaterThan(10));
+
+      // وبلا رقم محاولة يبقى السلوك القديم كما هو.
+      expect(
+        StudentAssessmentRules.questionsForStudent(bank, studentId: 'student-1')
+            .map((item) => item['id'])
+            .toList(),
+        draw(0),
+      );
+    });
+
     test('scores letter, index, and answer-text formats consistently', () {
       final assessment = quiz(id: 'scoring', owner: 'teacher-1');
       final questions = assessment['questions'] as List<Map<String, dynamic>>;

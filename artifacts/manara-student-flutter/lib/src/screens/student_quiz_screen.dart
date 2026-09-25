@@ -145,8 +145,23 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
   bool _isTeacherQuiz(Map<String, dynamic> quiz) =>
       StudentAssessmentRules.isTeacherQuiz(quiz);
 
+  /// كم مرّة أدّى هذا الطالب هذا الاختبار من قبل.
+  ///
+  /// تدخل في القرعة، فتختلف الأسئلة عند الإعادة. ودرسٌ بنك أسئلته خمسة
+  /// عشر سؤالاً يُعرض منها خمسة: بلا هذا العدد يلقى الطفل الخمسةَ نفسها
+  /// كلّما أعاد، فلا يرى العشرة الباقية أبداً.
+  int _attemptsTaken(Map<String, dynamic> quiz) {
+    final quizId = _text(quiz['id']);
+    if (quizId.isEmpty) return 0;
+    return _results.where((result) => _text(result['quizId']) == quizId).length;
+  }
+
   List<Map<String, dynamic>> _quizQuestions(Map<String, dynamic> quiz) =>
-      StudentAssessmentRules.questionsForStudent(quiz, studentId: widget.profile.id);
+      StudentAssessmentRules.questionsForStudent(
+        quiz,
+        studentId: widget.profile.id,
+        attempt: _attemptsTaken(quiz),
+      );
 
   Future<void> _openQuiz(Map<String, dynamic> quiz) async {
     final quizId = _text(quiz['id']);

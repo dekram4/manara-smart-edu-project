@@ -19,6 +19,17 @@
  *     node scripts/inspect-content.mjs
  */
 
+import { curriculumRows } from "./grade4-math-curriculum.mjs";
+import { GRADE4_SCIENCE_CURRICULUM } from "./curriculum/grade4-science-curriculum.mjs";
+import { GRADE4_ENGLISH_CURRICULUM } from "./curriculum/grade4-english-curriculum.mjs";
+
+/** البادئات المعتمدة وعدد دروس كل منهج، ليُقارن بها ما في الجدول. */
+const EXPECTED = [
+  { prefix: "g4math_", subject: "الرياضيات", count: curriculumRows().length },
+  { prefix: "g4sci_", subject: "العلوم", count: GRADE4_SCIENCE_CURRICULUM.length },
+  { prefix: "g4eng_", subject: "اللغة الإنجليزية", count: GRADE4_ENGLISH_CURRICULUM.length },
+];
+
 const SUPABASE_URL = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
@@ -93,6 +104,35 @@ async function main() {
   const lessons = await readJson("/rest/v1/lesson_configs?select=id,data&limit=10000");
   const rows = Array.isArray(lessons) ? lessons : [];
   line(`عدد السجلّات: ${rows.length}`);
+
+  // ما يطابق البادئات المعتمدة، وما لا يطابقها — وهو ما يُشكّ فيه.
+  line();
+  line("بحسب البادئة المعتمدة:");
+  let recognised = 0;
+  for (const entry of EXPECTED) {
+    const found = rows.filter((r) => String(r.id ?? "").startsWith(entry.prefix));
+    recognised += found.length;
+    const mark = found.length === entry.count ? "✅" : "⚠️";
+    line(`  ${mark} ${entry.prefix} (${entry.subject}): ${found.length} من ${entry.count}`);
+  }
+  const strangers = rows.filter(
+    (r) => !EXPECTED.some((e) => String(r.id ?? "").startsWith(e.prefix)),
+  );
+  line(`  ${strangers.length === 0 ? "✅" : "⚠️"} بلا بادئة معتمدة: ${strangers.length}`);
+  if (strangers.length) {
+    for (const row of strangers) {
+      line(`      ✖ id=${row.id}  «${text(row?.data?.lesson) || "—"}»  [${ownerOf(row?.data)}]`);
+    }
+  }
+  line(`  المجموع المعتمد: ${recognised} من ${EXPECTED.reduce((s, e) => s + e.count, 0)}`);
+
+  // ترميز المعادلات في نصّ درس: علامةُ دولارٍ تسرّبت من أداةٍ في الطريق،
+  // فيصل إلى الطالب رمزٌ لا معنى له. تُرصد هنا لأنّها لا تُرى إلا بالعدّ.
+  const withMarkup = rows.filter((r) => text(r?.data?.lessonContent).includes("$"));
+  line(`  ${withMarkup.length === 0 ? "✅" : "⚠️"} دروس فيها ترميز معادلات ($): ${withMarkup.length}`);
+  for (const row of withMarkup) {
+    line(`      ✖ id=${row.id}  «${text(row?.data?.lesson) || "—"}»`);
+  }
 
   if (rows.length) {
     line();

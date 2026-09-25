@@ -8,6 +8,7 @@ import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { dedupeHierarchicalConfigs } from '../../utils/academic';
+import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { saveKvConfirmed } from '../../db/confirmedSave';
 import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
 
@@ -28,6 +29,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const belongsToTeacher = (config: HierarchicalConfig, id?: string) =>
     Boolean(id) && ownerOf(config) === normalizeScopeValue(id);
   
+  const hydrating = useSyncHydrating();
   const [hierarchicalConfigs, setHierarchicalConfigs] = useState<HierarchicalConfig[]>([]);
   const [grades, setGrades] = useState<string[]>([]);
   
@@ -150,9 +152,15 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         configs.map((c: HierarchicalConfig) => [normalizeScopeValue(c.grade), c.grade]),
       ).values());
       setGrades(gradesList);
-      
-      // حفظ الصفوف في localStorage للتوافقية
-      localStorage.setItem(STORAGE_KEYS.GRADES, JSON.stringify(gradesList));
+
+      // حفظ الصفوف في localStorage للتوافقية — إلا وهي فارغة.
+      //
+      // الكتابة تمرّ بالمزامنة فتصعد إلى الخادم. وكانت تجري بلا شرط، فمن
+      // فتح الشاشة قبل أن يصل التحميل الأول كتب قائمةً خاليةً فوق قائمة
+      // الصفوف عند الجميع. والفراغ هنا لا يعني «لا صفوف» بل «لم تصل بعد».
+      if (gradesList.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.GRADES, JSON.stringify(gradesList));
+      }
     } catch (error) {
       console.error('Error in loadSettings:', error);
     }
@@ -168,7 +176,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     }
     
     loadSettings();
-  }, [teacherId, selectedTeacherId]); // إعادة التحميل عند تغيير المعلم المختار
+  }, [teacherId, selectedTeacherId, hydrating]); // وعند وصول بيانات الخادم
 
   // دالة مساعدة: نسخ إعداد عام لحساب المعلم (Copy-on-Write)
   const createTeacherCopy = (gradeConfig: HierarchicalConfig, modifyFn: (config: HierarchicalConfig) => void): boolean => {
@@ -1514,8 +1522,12 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
               )}
             emptyState={
               <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📚</div>
-                <p>لا يوجد تكوين هرمي بعد. ابدأ بإضافة صف من القسم الأيسر</p>
+                <div style={{ fontSize: '3rem', marginBottom: '10px' }}>{hydrating ? '⏳' : '📚'}</div>
+                <p>
+                  {hydrating
+                    ? 'جارٍ تحميل الإعدادات من الخادم…'
+                    : 'لا يوجد تكوين هرمي بعد. ابدأ بإضافة صف من القسم الأيسر'}
+                </p>
               </div>
             }
             noMatchState={
