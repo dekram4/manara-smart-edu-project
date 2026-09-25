@@ -257,7 +257,7 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                     {!subject.terms || subject.terms.length === 0 ? (
                       <div style={styles.noUnitsHint}>لا توجد فصول في هذه المادة.</div>
                     ) : (
-                      subject.terms.map((term, termIndex) => {
+                      subject.terms.map((term: any, termIndex: number) => {
                         const termNode: TermNode = { ...subjectNode, termIndex, term: term.term };
                         const termKey = keyOf(
                           'term', gradeIndex, subjectIndex, termIndex, term.term,
@@ -295,7 +295,7 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                               </div>
                             ) : (
                               <div style={styles.unitsContainer}>
-                                {term.units.map((unit, unitIndex) => {
+                                {term.units.map((unit: any, unitIndex: number) => {
                                   const unitNode: UnitNode = { ...termNode, unitIndex, unit };
                                   const unitKey = keyOf(
                                     'unit', gradeIndex, subjectIndex, termIndex, unit,
