@@ -8,6 +8,10 @@
  * محاولة، ويُعاد الاختبار. ولكل وحدة: بنكٌ من ثلاثين سؤالاً تراكمياً
  * على دروسها كلّها، يُعرض منها عشرة، ويُؤدّى مرّة واحدة.
  *
+ * ويُطلب من النموذج أكثر ممّا يُحفظ — عشرون للدرس وأربعون للوحدة —
+ * لأن التصفية تردّ نحو الربع. وما نقص بعد ذلك يُستكمَل بطلب الباقي
+ * وحده، لا بإسقاط الاختبار كلّه.
+ *
  * والفرق بينهما في النظام ليس عدداً بل نوعاً: اختبار الدرس `periodic`
  * ويحمل اسم درسه، واختبار الوحدة `teacher` ولا يحمل درساً — وتطبيق
  * الطالب يمنع إعادة الثاني ويسمح بإعادة الأول. وهو ما تفعله شاشة إدارة
@@ -61,6 +65,25 @@ export const LESSON_BANK = 15;
 export const LESSON_PER_ATTEMPT = 5;
 export const UNIT_BANK = 30;
 export const UNIT_PER_ATTEMPT = 10;
+
+/**
+ * ما يُطلب من النموذج، وهو أكثر ممّا يُحفظ.
+ *
+ * التصفية تردّ نحو الربع: خياراتٌ ثلاثة، أو إجابةٌ ليست من الخيارات، أو
+ * سؤالان متشابهان. فطلبُ خمسةَ عشرَ يُبقي أحدَ عشر، والبنك يخرج ناقصاً.
+ * وطلبُ عشرين يُبقي خمسةَ عشرَ بهامش.
+ */
+export const LESSON_ASK = 20;
+export const UNIT_ASK = 40;
+
+/**
+ * كم مرّةً يُسأل النموذج عن الباقي إن نقص البنك.
+ *
+ * الزيادة في الطلب وحدها لا تكفي دائماً: درسٌ نصُّه قصير قد لا يحتمل
+ * عشرين سؤالاً متمايزاً من محاولة واحدة. فيُسأل عن الناقص وحده، ومعه
+ * أسئلتُه السابقة كي لا يعيدها.
+ */
+const TOP_UP_ROUNDS = 2;
 
 const SUBJECT_CODES = [
   { match: "الرياضيات", code: "math", english: false },
@@ -146,11 +169,25 @@ const SCHEMA = `أعد JSON فقط، بلا أي نصّ قبله أو بعده،
 {"questions":[{"question":"...","options":["...","...","...","..."],"correctAnswer":"...","explanation":"..."}]}
 حيث "correctAnswer" نصُّ الخيار الصحيح حرفاً بحرف كما كُتب في "options".`;
 
-export function lessonPrompt({ subject, unit, lesson, content, english }) {
+/**
+ * ما سبق أن قُبل، يُذكر للنموذج كي لا يعيده.
+ *
+ * طلبُ الباقي بلا هذا يعيد الأسئلة الأولى نفسها، فتردّها تصفيةُ التكرار
+ * ويبقى البنك ناقصاً كما كان.
+ */
+function avoidClause(already, english) {
+  if (!already?.length) return "";
+  const list = already.map((item) => `- ${item.question}`).join("\n");
+  return english
+    ? `\n\nDo NOT repeat or rephrase any of these questions, which are already in the bank:\n${list}`
+    : `\n\nلا تُعِد ولا تُعِد صياغة أيٍّ من هذه الأسئلة، فهي في البنك بالفعل:\n${list}`;
+}
+
+export function lessonPrompt({ subject, unit, lesson, content, english }, ask = LESSON_ASK, already = []) {
   const rules = english ? ENGLISH_RULES : ARABIC_RULES;
   const head = english
-    ? `You are an experienced grade-four English teacher. Write ${LESSON_BANK} multiple-choice questions for this lesson.`
-    : `أنت معلّمٌ خبيرٌ للصف الرابع الابتدائي. اكتب ${LESSON_BANK} سؤال اختيارٍ من متعدّد لهذا الدرس.`;
+    ? `You are an experienced grade-four English teacher. Write ${ask} multiple-choice questions for this lesson.`
+    : `أنت معلّمٌ خبيرٌ للصف الرابع الابتدائي. اكتب ${ask} سؤال اختيارٍ من متعدّد لهذا الدرس.`;
   return `${head}
 
 المادة: ${subject}
@@ -163,16 +200,16 @@ ${content}
 """
 
 ${rules}
-- ${LESSON_BANK} سؤالاً، لا أقلّ ولا أكثر، ولا سؤالان متشابهان.
+- ${ask} سؤالاً، لا أقلّ ولا أكثر، ولا سؤالان متشابهان.${avoidClause(already, english)}
 
 ${SCHEMA}`;
 }
 
-export function unitPrompt({ subject, unit, lessons, english }) {
+export function unitPrompt({ subject, unit, lessons, english }, ask = UNIT_ASK, already = []) {
   const rules = english ? ENGLISH_RULES : ARABIC_RULES;
   const head = english
-    ? `You are an experienced grade-four English teacher. Write ${UNIT_BANK} multiple-choice questions for a cumulative end-of-unit exam.`
-    : `أنت معلّمٌ خبيرٌ للصف الرابع الابتدائي. اكتب ${UNIT_BANK} سؤال اختيارٍ من متعدّد لاختبار وحدةٍ شاملٍ تراكمي.`;
+    ? `You are an experienced grade-four English teacher. Write ${ask} multiple-choice questions for a cumulative end-of-unit exam.`
+    : `أنت معلّمٌ خبيرٌ للصف الرابع الابتدائي. اكتب ${ask} سؤال اختيارٍ من متعدّد لاختبار وحدةٍ شاملٍ تراكمي.`;
   const body = lessons
     .map((item, index) => `--- الدرس ${index + 1}: ${item.lesson} ---\n${item.content}`)
     .join("\n\n");
@@ -188,9 +225,9 @@ ${body}
 """
 
 ${rules}
-- ${UNIT_BANK} سؤالاً، لا أقلّ ولا أكثر، ولا سؤالان متشابهان.
+- ${ask} سؤالاً، لا أقلّ ولا أكثر، ولا سؤالان متشابهان.
 - وزّعها على دروس الوحدة كلّها بالعدل، فلا يُهمَل درس.
-- اجعل ثلثها أسئلةَ تطبيقٍ تجمع بين درسين من الوحدة.
+- اجعل ثلثها أسئلةَ تطبيقٍ تجمع بين درسين من الوحدة.${avoidClause(already, english)}
 
 ${SCHEMA}`;
 }
@@ -240,7 +277,16 @@ const MODELS = [
  * نموذجٍ آخر ثم على مهلةٍ متصاعدة. والانتظار قبل كل إعادة لا بعدها:
  * حدُّ المعدّل يُعالَج بالصبر لا بالإلحاح.
  */
-export async function askGemini(prompt, { tries = 3 } = {}) {
+/**
+ * سقف المخرجات بحسب عدد الأسئلة المطلوبة.
+ *
+ * كان ثابتاً عند تسعة آلاف، وهو سقف الخادم لطلبٍ واحد من الشاشة. وأربعون
+ * سؤالاً عربياً بخياراتها وتفسيراتها تتجاوزه، فيُقطع الردّ في منتصفه
+ * ويعود JSON ناقصاً لا يُفكّ — فيبدو الخطأ خطأَ نموذجٍ وهو خطأُ سقف.
+ */
+export const outputBudget = (ask) => Math.min(420 * ask + 2000, 32000);
+
+export async function askGemini(prompt, { tries = 3, maxOutputTokens = 9000 } = {}) {
   let lastError = null;
   for (let round = 0; round < tries; round += 1) {
     for (const model of MODELS) {
@@ -254,7 +300,7 @@ export async function askGemini(prompt, { tries = 3 } = {}) {
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {
                 temperature: 0.8,
-                maxOutputTokens: 9000,
+                maxOutputTokens,
                 responseMimeType: "application/json",
               },
             }),
@@ -443,6 +489,7 @@ export function planFrom(rows, owner) {
       english: info.english,
       code: info.code,
       bank: LESSON_BANK,
+      ask: LESSON_ASK,
       perAttempt: LESSON_PER_ATTEMPT,
     });
 
@@ -459,6 +506,7 @@ export function planFrom(rows, owner) {
         english: info.english,
         code: info.code,
         bank: UNIT_BANK,
+        ask: UNIT_ASK,
         perAttempt: UNIT_PER_ATTEMPT,
         lessons: [],
       });
@@ -528,8 +576,8 @@ async function main() {
   }
   for (const [subject, entry] of bySubject) {
     line(
-      `  • ${subject}: ${entry.lessons} اختبار درس (${LESSON_BANK}←${LESSON_PER_ATTEMPT})` +
-        ` و${entry.units} اختبار وحدة (${UNIT_BANK}←${UNIT_PER_ATTEMPT})`,
+      `  • ${subject}: ${entry.lessons} اختبار درس (يُطلب ${LESSON_ASK} ← يُحفظ ${LESSON_BANK} ← يُعرض ${LESSON_PER_ATTEMPT})` +
+        ` و${entry.units} اختبار وحدة (يُطلب ${UNIT_ASK} ← يُحفظ ${UNIT_BANK} ← يُعرض ${UNIT_PER_ATTEMPT})`,
     );
   }
   const totalQuestions = plan.reduce((sum, item) => sum + item.bank, 0);
@@ -566,8 +614,8 @@ async function main() {
     }
     head(`عيّنة: ${item.title}`);
     const prompt =
-      item.kind === "lesson" ? lessonPrompt(item) : unitPrompt(item);
-    const raw = await askGemini(prompt);
+      item.kind === "lesson" ? lessonPrompt(item, item.ask) : unitPrompt(item, item.ask);
+    const raw = await askGemini(prompt, { maxOutputTokens: outputBudget(item.ask) });
     let kept = 0;
     for (const candidate of raw.slice(0, 5)) {
       const verdict = acceptQuestion(candidate, item);
@@ -591,31 +639,56 @@ async function main() {
 
   // ── التوليد والحفظ ──────────────────────────────────────────────────
   head("التوليد");
-  const stats = { saved: 0, failed: 0, questions: 0, rejected: 0, short: 0 };
+  const stats = { saved: 0, failed: 0, questions: 0, rejected: 0, short: 0, topUps: 0, reasons: new Map() };
   const failures = [];
 
   for (const [index, item] of work.entries()) {
     const label = `[${index + 1}/${work.length}] ${item.title}`;
     try {
-      const prompt = item.kind === "lesson" ? lessonPrompt(item) : unitPrompt(item);
-      const raw = await askGemini(prompt);
-
       const questions = [];
       const seenText = new Set();
-      for (const candidate of raw) {
-        const verdict = acceptQuestion(candidate, item);
-        if (!verdict.ok) {
-          stats.rejected += 1;
-          continue;
+
+      /** يصفّي ما عاد من النموذج ويضيف المقبول حتى يمتلئ البنك. */
+      const absorb = (raw) => {
+        for (const candidate of raw) {
+          if (questions.length >= item.bank) break;
+          const verdict = acceptQuestion(candidate, item);
+          if (!verdict.ok) {
+            stats.rejected += 1;
+            stats.reasons.set(verdict.why, (stats.reasons.get(verdict.why) ?? 0) + 1);
+            continue;
+          }
+          const key = norm(verdict.question.question);
+          if (seenText.has(key)) {
+            stats.rejected += 1;
+            stats.reasons.set("سؤال مكرّر", (stats.reasons.get("سؤال مكرّر") ?? 0) + 1);
+            continue;
+          }
+          seenText.add(key);
+          questions.push(verdict.question);
         }
-        const key = norm(verdict.question.question);
-        if (seenText.has(key)) {
-          stats.rejected += 1;
-          continue;
-        }
-        seenText.add(key);
-        questions.push(verdict.question);
-        if (questions.length >= item.bank) break;
+      };
+
+      const build = (ask, already) =>
+        item.kind === "lesson" ? lessonPrompt(item, ask, already) : unitPrompt(item, ask, already);
+
+      absorb(
+        await askGemini(build(item.ask, []), { maxOutputTokens: outputBudget(item.ask) }),
+      );
+
+      // ونقصُ البنك يُستكمَل بطلب الباقي، لا يُترك.
+      //
+      // كان الاختبار يسقط كلّه إن ردّت التصفيةُ ما ردّت — فدرسٌ عاد منه
+      // تسعةُ أسئلةٍ مقبولة يُهدَر، وتُهدَر معه الأسئلةُ التسعة. وسؤالُ
+      // النموذج عن الناقص وحده أرخص من إعادة الدرس من أوّله، وأقرب إلى
+      // أن ينجح: الطلب أصغر، ومعه ما لا يُعاد.
+      for (let round = 0; round < TOP_UP_ROUNDS && questions.length < item.bank; round += 1) {
+        const missing = item.bank - questions.length;
+        line(`     ↻ ${label} — ${questions.length}/${item.bank}، يُطلب ${missing} إضافياً.`);
+        stats.topUps += 1;
+        await sleep(1200);
+        const ask = Math.max(missing + 4, 6);
+        absorb(await askGemini(build(ask, questions), { maxOutputTokens: outputBudget(ask) }));
       }
 
       // بنكٌ دون ثلثي المطلوب لا يُحفظ: اختبارٌ ناقصٌ أسوأ من غيابه،
@@ -681,7 +754,11 @@ async function main() {
   line(`  اختبارات حُفظت: ${stats.saved}`);
   line(`  أسئلة حُفظت: ${stats.questions}`);
   line(`  بنوكٌ نقصت عن المطلوب لكنها قُبلت: ${stats.short}`);
+  line(`  طلبات استكمال: ${stats.topUps}`);
   line(`  أسئلة رُدّت في التصفية: ${stats.rejected}`);
+  for (const [why, count] of [...stats.reasons].sort((a, b) => b[1] - a[1])) {
+    line(`      • ${why}: ${count}`);
+  }
   line(`  اختبارات فشلت: ${stats.failed}`);
   for (const failure of failures) line(`      ✖ ${failure}`);
 
