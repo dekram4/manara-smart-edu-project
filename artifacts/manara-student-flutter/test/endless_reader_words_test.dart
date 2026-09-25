@@ -292,6 +292,7 @@ void main() {
                   'sort:${(sorting.items.keys.toList()..sort()).join(",")}',
                 MatchRound(:final pairs) =>
                   'match:${(pairs.map((p) => p.term).toList()..sort()).join(",")}',
+                QuizRound(:final question) => 'quiz:${question.question}',
               })
           .join('|');
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/academic_context.dart';
+import '../services/student_challenge_service.dart';
 import '../services/student_settings.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
@@ -390,6 +391,24 @@ class MatchRound extends ChallengeRound {
   final List<LessonDefinition> pairs;
 }
 
+/// Answer a question generated from the lesson text by the server.
+///
+/// The three rounds above are cut from the lesson's own sentences by
+/// rules that run on the device: they always work, offline included, but
+/// they can only ask what the shape of a sentence allows. This one asks
+/// what the lesson *means* — apply the rule, spot the phenomenon, pick
+/// the word that fits — and it is different every round, because it is
+/// generated rather than drawn from a fixed bank.
+///
+/// It is added to a run, never the whole of it. The generator needs the
+/// network and a lesson with text; when either is missing the run is the
+/// three offline rounds exactly as before, so a child on a bad connection
+/// still has a game rather than an error.
+class QuizRound extends ChallengeRound {
+  const QuizRound(this.question);
+  final ChallengeQuestion question;
+}
+
 /// Builds one run of the challenge from the current lesson.
 ///
 /// Two things matter here and neither was true before. A run is a fixed
@@ -410,6 +429,7 @@ class ChallengeSession {
   static List<ChallengeRound> build({
     required String? lessonText,
     required int seed,
+    List<ChallengeQuestion> generated = const [],
   }) {
     final rng = math.Random(seed);
 
@@ -437,8 +457,14 @@ class ChallengeSession {
     final classifies = _classifyRounds(grouping, rng);
     final matches = _matchRounds(definitions, rng);
 
+    // أسئلة الخادم بركةٌ رابعة تدخل التناوب نفسه، فتتخلّل الجولات
+    // الثلاث ولا تتكدّس في أوّل الجولة ولا في آخرها.
+    final quizzes = <ChallengeRound>[
+      for (final question in generated) QuizRound(question),
+    ];
+
     final plan = <ChallengeRound>[];
-    final pools = [fills, classifies, matches]
+    final pools = [fills, classifies, matches, quizzes]
         .where((pool) => pool.isNotEmpty)
         .toList()
       ..shuffle(rng);
@@ -677,10 +703,15 @@ class EndlessReaderSentences {
 class StudentEndlessReaderScreen extends StatefulWidget {
   const StudentEndlessReaderScreen({
     required this.academicContext,
+    this.challengeService,
     super.key,
   });
 
   final AcademicContext? academicContext;
+
+  /// مولّد أسئلة الجولة. غيابه يعني لعبةً بالجولات الثلاث وحدها — وهو
+  /// ما يجري في الاختبارات وفي أي مسارٍ لا يملك جلسةً للخادم.
+  final StudentChallengeService? challengeService;
 
   @override
   State<StudentEndlessReaderScreen> createState() =>
@@ -710,11 +741,29 @@ class _StudentEndlessReaderScreenState
   /// Changed on every retry so the next run samples a different hand.
   int _seed = DateTime.now().microsecondsSinceEpoch;
 
+  /// أسئلة الخادم لهذه الجولة، وحالةُ جلبها.
+  ///
+  /// الجلب لا يوقف اللعب: تُبنى الجولات الثلاث فوراً ويبدأ الطفل، فإذا
+  /// وصلت الأسئلة أُعيد بناء الخطة بها. وانتظارُ الشبكة قبل عرض شيءٍ
+  /// يجعل بطاقةً تُفتح بضغطة تبدو معطّلةً عشر ثوانٍ.
+  List<ChallengeQuestion> _generated = const [];
+  bool _fetching = false;
+
+  /// يزيد مع كل توزيع، فتُهمل نتيجةُ جلبٍ سبقه.
+  int _dealToken = 0;
+
+  /// الإجابة التي اختارها الطفل في جولة الأسئلة، إن اختار.
+  String? _picked;
+
   ChallengeRound? get _round =>
       _wordIndex < _plan.length ? _plan[_wordIndex] : null;
 
   bool get _onSorting => _round is ClassifyRound;
   bool get _onMatching => _round is MatchRound;
+  bool get _onQuiz => _round is QuizRound;
+
+  ChallengeQuestion? get _question =>
+      _round is QuizRound ? (_round! as QuizRound).question : null;
 
   EndlessReaderSentence get _sentence => (_round as FillRound).sentence;
   EndlessReaderSorting? get _sorting =>
@@ -766,15 +815,56 @@ class _StudentEndlessReaderScreenState
     _plan = ChallengeSession.build(
       lessonText: widget.academicContext?.selectedLesson.lessonText,
       seed: _seed,
+      generated: _generated,
     );
     _wordIndex = 0;
     _startRound();
+    _fetchGenerated();
+  }
+
+  /// يطلب جولةً جديدة من الخادم ويعيد بناء الخطة بها.
+  ///
+  /// كل توزيعٍ يحمل رقمه، فإن ضغط الطفل «تحدٍّ جديد» قبل وصول الجلب
+  /// أُهملت نتيجتُه بدل أن تُقحَم في جولةٍ بدأت بعدها. والفشل صامت:
+  /// الجولات الثلاث تكفي لعبةً، وشريطُ خطأٍ فوق لعبةٍ تعمل إزعاجٌ بلا
+  /// فائدة.
+  Future<void> _fetchGenerated() async {
+    final service = widget.challengeService;
+    final lesson = widget.academicContext?.selectedLesson;
+    final lessonId = lesson?.id ?? '';
+    final hasText = (lesson?.lessonText ?? '').trim().isNotEmpty;
+    if (service == null || lessonId.isEmpty || !hasText) return;
+
+    final token = ++_dealToken;
+    setState(() => _fetching = true);
+    try {
+      final questions = await service.fetchRound(lessonId: lessonId);
+      if (!mounted || token != _dealToken) return;
+      setState(() {
+        _generated = questions;
+        _plan = ChallengeSession.build(
+          lessonText: lesson?.lessonText,
+          seed: _seed,
+          generated: questions,
+        );
+        // الطفل قد يكون أجاب عن جولةٍ أو جولتين قبل وصول الأسئلة؛
+        // موضعُه يبقى كما هو ولا يُعاد إلى الصفر.
+        if (_wordIndex >= _plan.length) _wordIndex = _plan.length - 1;
+        if (_wordIndex < 0) _wordIndex = 0;
+        _fetching = false;
+      });
+      _startRound();
+    } catch (_) {
+      if (!mounted || token != _dealToken) return;
+      setState(() => _fetching = false);
+    }
   }
 
   void _startRound() {
     _sorted.clear();
     _matched.clear();
     _filled = null;
+    _picked = null;
     _celebrating = false;
     // The definition cards are ordered per round rather than per run, so
     // meeting the same pair again in a later round still reads as a new
@@ -962,6 +1052,20 @@ class _StudentEndlessReaderScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             _progress(),
+            // الجلب لا يوقف اللعب، لكنّه يُعلَن: الطفل الذي بدأ بجولةٍ
+            // من جولات الجهاز يرى أن أسئلةً في الطريق بدل أن تظهر فجأةً
+            // في منتصف اللعب بلا سبب.
+            if (_fetching) ...[
+              const SizedBox(height: 8),
+              Text(
+                tr('challenge.loadingMore'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF6D28D9),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             Text(
               _celebrating ? _doneLine() : _promptLine(),
@@ -975,7 +1079,9 @@ class _StudentEndlessReaderScreenState
               ),
             ),
             const SizedBox(height: 18),
-            if (_onSorting)
+            if (_onQuiz)
+              _questionCard()
+            else if (_onSorting)
               _sortingBoard()
             else if (_onMatching)
               _matchingBoard()
@@ -984,6 +1090,8 @@ class _StudentEndlessReaderScreenState
             const SizedBox(height: 24),
             if (_celebrating)
               _afterWordActions()
+            else if (_onQuiz)
+              _optionTray()
             else if (_onSorting)
               _sortingTray()
             else if (_onMatching)
@@ -997,12 +1105,14 @@ class _StudentEndlessReaderScreenState
   }
 
   String _promptLine() {
+    if (_onQuiz) return tr('challenge.pickPrompt');
     if (_onSorting) return _sorting?.prompt ?? tr('challenge.classifyPrompt');
     if (_onMatching) return tr('challenge.matchPrompt');
     return tr('challenge.dragWord');
   }
 
   String _doneLine() {
+    if (_onQuiz) return tr('challenge.pickDone');
     if (_onSorting) return tr('challenge.sortDone');
     if (_onMatching) return tr('challenge.matchDone');
     return tr('challenge.sentenceDone');
@@ -1334,6 +1444,141 @@ class _StudentEndlessReaderScreenState
   /// The sentence with its gap, as one readable line. The gap is a drop
   /// target sized to the answer, so the line does not jump when a word
   /// lands in it.
+  /// نصّ السؤال المولّد، ومعه تفسيرُه بعد الإجابة.
+  ///
+  /// السؤال من مادة الدرس ولغتِه: الإنجليزية تصل إنجليزيةً بالكامل من
+  /// الخادم، فيُترك اتّجاه النصّ للغة المحتوى لا للواجهة — وإلا قُرئ
+  /// السؤال الإنجليزي معكوس الترقيم داخل واجهةٍ عربية.
+  Widget _questionCard() {
+    final question = _question;
+    if (question == null) return const SizedBox.shrink();
+    final latin = RegExp(r'[A-Za-z]').hasMatch(question.question);
+    final arabic = RegExp(r'[؀-ۿ]').hasMatch(question.question);
+    final direction = latin && !arabic ? TextDirection.ltr : TextDirection.rtl;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 620),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+      decoration: BoxDecoration(
+        color: StudentSurface.glass(context, 0.92),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF6D28D9), width: 2),
+        boxShadow: const [
+          BoxShadow(color: Color(0x22000000), blurRadius: 16, offset: Offset(0, 7)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Directionality(
+            textDirection: direction,
+            child: Text(
+              question.question,
+              textAlign: TextAlign.center,
+              style: _sentenceStyle(context),
+            ),
+          ),
+          if (_celebrating && question.explanation.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Directionality(
+              textDirection: direction,
+              child: Text(
+                question.explanation,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF15803D),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// الخيارات الأربعة.
+  ///
+  /// الخطأ لا يُعاقَب ولا يُنهي الجولة: يُومَض أحمرَ ويُترك الزرّ
+  /// مفتوحاً ليحاول ثانيةً — وهي قاعدة الجولات الثلاث الأخرى نفسها،
+  /// فالإفلات الخاطئ فيها يرتدّ ولا يُحسب خطأً. لعبةٌ لطفلٍ تُشجّع على
+  /// المحاولة لا تُحصي السقطات.
+  Widget _optionTray() {
+    final question = _question;
+    if (question == null) return const SizedBox.shrink();
+    final latin = RegExp(r'[A-Za-z]').hasMatch(question.options.join(' '));
+    final arabic = RegExp(r'[؀-ۿ]').hasMatch(question.options.join(' '));
+    final direction = latin && !arabic ? TextDirection.ltr : TextDirection.rtl;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final option in question.options)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _optionButton(option, question, direction),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _optionButton(
+    String option,
+    ChallengeQuestion question,
+    TextDirection direction,
+  ) {
+    final wrong = _picked == option && option != question.correctAnswer;
+    return GestureDetector(
+      onTap: () => _onOptionTap(option, question),
+      child: StudentPressScale(
+        child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: wrong
+              ? const Color(0xFFFEE2E2)
+              : StudentSurface.glass(context, 0.88),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: wrong ? const Color(0xFFDC2626) : const Color(0xFF8B5CF6),
+            width: 2,
+          ),
+        ),
+        child: Directionality(
+          textDirection: direction,
+          child: Text(
+            option,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF3B2A6B),
+            ),
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onOptionTap(String option, ChallengeQuestion question) {
+    if (_celebrating) return;
+    if (option == question.correctAnswer) {
+      setState(() => _picked = option);
+      HapticFeedback.lightImpact();
+      StudentSoundService.instance.play(StudentSoundCue.success);
+      _finishWord();
+      return;
+    }
+    setState(() => _picked = option);
+    HapticFeedback.selectionClick();
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+  }
+
   Widget _sentenceCard() {
     final sentence = _sentence;
     final filled = _filled;

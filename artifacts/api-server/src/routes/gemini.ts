@@ -9,10 +9,22 @@ import {
   matchesStudentScope,
   type StudentActor,
 } from "../lib/studentAccess";
+import {
+  buildPrompt,
+  detectSubject,
+  outputBudget,
+  parseQuestions,
+  type ChallengeQuestion,
+} from "../lib/challengeQuestions";
 
 // 20 AI-answer requests per IP per minute — prevents Gemini quota abuse
 // while still allowing normal student lesson use
 const answerRateLimit = createRateLimit(20);
+
+// التحدي جولةٌ واحدة تُطلب ثمّ تُلعب، فالمعدّل أقلّ من معدّل السؤال:
+// طفلٌ يُعيد اللعب بسرعة لا يتجاوز بضع جولاتٍ في الدقيقة، وما زاد فهو
+// إمّا زرٌّ عالق أو استنزافٌ لحصّة Gemini.
+const challengeRateLimit = createRateLimit(12);
 
 const router = Router();
 
@@ -216,7 +228,18 @@ function getGeminiText(data: any): string | null {
  * بينها. ولا يُشخَّص العطل من الخارج إن كان الخادم نفسه لا يميّزه.
  */
 type LessonLookup =
-  | { id: string; text: string; reason?: undefined; detail?: undefined }
+  | {
+      id: string;
+      text: string;
+      // المسار يصحب النصّ لأن التحدي يبني توجيهه على المادة: مسألةٌ
+      // ذهنية للرياضيات، وظاهرةٌ للعلوم، وسؤالٌ إنجليزيّ بالكامل
+      // للإنجليزية. وقراءتُه هنا تغني عن قراءة السجلّ مرّتين.
+      subject: string;
+      unit: string;
+      lesson: string;
+      reason?: undefined;
+      detail?: undefined;
+    }
   | {
       reason: "not_found" | "out_of_scope" | "no_text";
       detail?: string;
@@ -271,7 +294,13 @@ async function resolveStudentLesson(
       ? lesson.lessonText.trim()
       : "";
   if (!text) return { reason: "no_text" };
-  return { id: String(row.id || lessonId), text };
+  return {
+    id: String(row.id || lessonId),
+    text,
+    subject: typeof lesson.subject === "string" ? lesson.subject : "",
+    unit: typeof lesson.unit === "string" ? lesson.unit : "",
+    lesson: typeof lesson.lesson === "string" ? lesson.lesson : "",
+  };
 }
 
 async function recordProblemSolverActivity(
@@ -382,6 +411,113 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
 
 // Quiz generation is available to the teacher who is creating the assessment
 // and to administrators. The caller still needs a signed content session.
+/**
+ * جولةُ «بطاقة التحدي»: أسئلةٌ تُولَّد الآن من نصّ درس الطالب نفسه.
+ *
+ * ── لماذا لا تُقرأ من بنكٍ محفوظ ──
+ * البنك يصلح للاختبار: أسئلةٌ ثابتةٌ تُصحَّح وتُقارَن بين طالبٍ وآخر.
+ * والتحدي لعبةٌ تُعاد، وإعادتُها على الأسئلة نفسها تُحوّلها من تفكيرٍ
+ * إلى حفظِ ترتيب. فتُولَّد عند كل طلب، وتُمرَّر معها الأسئلةُ التي رآها
+ * اللاعب قبل قليل كي لا تعود.
+ *
+ * ── ولماذا نصّ الدرس شرطٌ لا زينة ──
+ * النموذج إن لم يُعطَ نصّاً ولّد من معرفته العامة، فيسأل طفلاً عمّا لم
+ * يدرسه ويُخطئه على ما لم يُعلَّم. فالدرس يُقرأ من `lesson_configs`،
+ * ويُردّ الطلبُ إن لم يكن له نصّ — ولا يُولَّد شيءٌ بلا مصدر.
+ *
+ * والنطاق مُحكم كإحكامه في «حل المسائل»: `resolveStudentLesson` ترفض
+ * درساً خارج مسار الطالب، فلا يبلغ تحدّي صفٍّ آخر طفلاً ليس منه.
+ */
+router.post(
+  "/gemini/challenge",
+  challengeRateLimit,
+  requireStudentSession,
+  async (req, res) => {
+    const student = (req as any).student as StudentActor;
+    const lessonId =
+      typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
+    const requested = Number(req.body?.count);
+    const count = Number.isFinite(requested)
+      ? Math.min(Math.max(Math.trunc(requested), 3), 10)
+      : 6;
+    const seed =
+      typeof req.body?.seed === "string" && req.body.seed.trim()
+        ? req.body.seed.trim().slice(0, 64)
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const exclude = Array.isArray(req.body?.exclude)
+      ? req.body.exclude
+          .map((item: unknown) => String(item ?? "").trim())
+          .filter(Boolean)
+          .slice(0, 24)
+      : [];
+
+    if (!lessonId) {
+      return res.status(400).json({ error: "لم يصل معرّف الدرس" });
+    }
+
+    try {
+      const lesson = await resolveStudentLesson(lessonId, student);
+      if (lesson.reason) {
+        const message =
+          lesson.reason === "not_found"
+            ? "لم يُعثر على هذا الدرس"
+            : lesson.reason === "out_of_scope"
+              ? "هذا الدرس ليس ضمن مسار حسابك"
+              : "لم يضف المعلّم نصّ هذا الدرس بعد";
+        logger.warn(
+          { lessonId, studentId: student.id, reason: lesson.reason, detail: lesson.detail },
+          "[gemini] challenge rejected",
+        );
+        return res.status(lesson.reason === "not_found" ? 404 : 422).json({ error: message });
+      }
+
+      const subject = detectSubject(lesson.subject);
+      // يُطلب أكثر ممّا يُعرض لأن التصفية تردّ بعضه، فلا تخرج الجولة
+      // ناقصةً من أوّل ردّ.
+      const ask = Math.min(count + 4, 14);
+      const data = await callGemini(
+        buildPrompt({
+          subject: lesson.subject,
+          unit: lesson.unit,
+          lesson: lesson.lesson,
+          lessonText: lesson.text,
+          count: ask,
+          seed,
+          exclude,
+        }),
+        { temperature: 1, maxOutputTokens: outputBudget(ask), json: true },
+      );
+
+      const { questions, rejected } = parseQuestions(
+        typeof data === "string" ? data : (getGeminiText(data) ?? data),
+        subject,
+        count,
+        exclude,
+      );
+
+      if (questions.length === 0) {
+        logger.warn({ lessonId, subject, rejected }, "[gemini] challenge produced nothing");
+        return res.status(502).json({ error: "تعذّر توليد أسئلة التحدي، حاول مرة أخرى" });
+      }
+      if (Object.keys(rejected).length) {
+        logger.info({ lessonId, subject, rejected }, "[gemini] challenge filtered");
+      }
+
+      return res.json({
+        lessonId: lesson.id,
+        subject: lesson.subject,
+        seed,
+        questions: questions as ChallengeQuestion[],
+      });
+    } catch (error: any) {
+      logger.error({ err: error, lessonId }, "[gemini] challenge failed");
+      return res
+        .status(error?.statusCode || 502)
+        .json({ error: "تعذّر توليد أسئلة التحدي، حاول مرة أخرى" });
+    }
+  },
+);
+
 router.post("/gemini/generate-quiz", requireContentManager, async (req, res) => {
   const prompt =
     typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
