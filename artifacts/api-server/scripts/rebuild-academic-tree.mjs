@@ -45,6 +45,12 @@ import {
   GRADE4_SCIENCE_CURRICULUM,
   scienceTermsForTree,
 } from "./curriculum/grade4-science-curriculum.mjs";
+import {
+  SUBJECT as ENGLISH_SUBJECT,
+  ID_PREFIX as ENGLISH_PREFIX,
+  GRADE4_ENGLISH_CURRICULUM,
+  englishTermsForTree,
+} from "./curriculum/grade4-english-curriculum.mjs";
 
 const args = process.argv.slice(2);
 const EXECUTE = args.includes("--execute");
@@ -128,13 +134,14 @@ export function mathTermsForTree() {
   return terms;
 }
 
-/** المنهجان المعتمدان: مرجعُ التسمية والترتيب لمادّتَي الصف الرابع. */
+/** المناهج المعتمدة: مرجعُ التسمية والترتيب لموادّ الصف الرابع. */
 export const KNOWN_SUBJECTS = [
   { subject: MATH_SUBJECT, terms: () => mathTermsForTree() },
   { subject: SCIENCE_SUBJECT, terms: () => scienceTermsForTree() },
+  { subject: ENGLISH_SUBJECT, terms: () => englishTermsForTree() },
 ];
 
-/** معرّفات دروس المنهجين، لتنقية قائمة المحذوفات منها. */
+/** معرّفات دروس المناهج، لتنقية قائمة المحذوفات منها. */
 export function curriculumLessonIds(owners) {
   const ids = new Set();
   for (const owner of owners) {
@@ -143,6 +150,9 @@ export function curriculumLessonIds(owners) {
     }
     for (const item of GRADE4_SCIENCE_CURRICULUM) {
       ids.add(`${SCIENCE_PREFIX}${item.idSuffix}_${owner}`);
+    }
+    for (const item of GRADE4_ENGLISH_CURRICULUM) {
+      ids.add(`${ENGLISH_PREFIX}${item.idSuffix}_${owner}`);
     }
   }
   return ids;
@@ -479,6 +489,7 @@ async function main() {
   const expected = [
     { subject: MATH_SUBJECT, lessons: curriculumRows().length },
     { subject: SCIENCE_SUBJECT, lessons: GRADE4_SCIENCE_CURRICULUM.length },
+    { subject: ENGLISH_SUBJECT, lessons: GRADE4_ENGLISH_CURRICULUM.length },
   ];
   const problems = [];
   for (const id of [owner, ADMIN]) {

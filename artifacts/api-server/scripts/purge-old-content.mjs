@@ -34,6 +34,11 @@ import {
   ID_PREFIX as SCIENCE_PREFIX,
   SUBJECT as SCIENCE_SUBJECT,
 } from "./curriculum/grade4-science-curriculum.mjs";
+import {
+  GRADE4_ENGLISH_CURRICULUM,
+  ID_PREFIX as ENGLISH_PREFIX,
+  SUBJECT as ENGLISH_SUBJECT,
+} from "./curriculum/grade4-english-curriculum.mjs";
 
 const args = process.argv.slice(2);
 const EXECUTE = args.includes("--execute");
@@ -74,6 +79,14 @@ const CURRICULA = [
     subject: SCIENCE_SUBJECT,
     prefix: SCIENCE_PREFIX,
     lessons: GRADE4_SCIENCE_CURRICULUM.map((item) => ({
+      name: item.lesson,
+      text: item.content,
+    })),
+  },
+  {
+    subject: ENGLISH_SUBJECT,
+    prefix: ENGLISH_PREFIX,
+    lessons: GRADE4_ENGLISH_CURRICULUM.map((item) => ({
       name: item.lesson,
       text: item.content,
     })),

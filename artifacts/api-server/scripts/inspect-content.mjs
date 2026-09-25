@@ -21,11 +21,13 @@
 
 import { curriculumRows } from "./grade4-math-curriculum.mjs";
 import { GRADE4_SCIENCE_CURRICULUM } from "./curriculum/grade4-science-curriculum.mjs";
+import { GRADE4_ENGLISH_CURRICULUM } from "./curriculum/grade4-english-curriculum.mjs";
 
 /** البادئات المعتمدة وعدد دروس كل منهج، ليُقارن بها ما في الجدول. */
 const EXPECTED = [
   { prefix: "g4math_", subject: "الرياضيات", count: curriculumRows().length },
   { prefix: "g4sci_", subject: "العلوم", count: GRADE4_SCIENCE_CURRICULUM.length },
+  { prefix: "g4eng_", subject: "اللغة الإنجليزية", count: GRADE4_ENGLISH_CURRICULUM.length },
 ];
 
 const SUPABASE_URL = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
@@ -123,6 +125,14 @@ async function main() {
     }
   }
   line(`  المجموع المعتمد: ${recognised} من ${EXPECTED.reduce((s, e) => s + e.count, 0)}`);
+
+  // ترميز المعادلات في نصّ درس: علامةُ دولارٍ تسرّبت من أداةٍ في الطريق،
+  // فيصل إلى الطالب رمزٌ لا معنى له. تُرصد هنا لأنّها لا تُرى إلا بالعدّ.
+  const withMarkup = rows.filter((r) => text(r?.data?.lessonContent).includes("$"));
+  line(`  ${withMarkup.length === 0 ? "✅" : "⚠️"} دروس فيها ترميز معادلات ($): ${withMarkup.length}`);
+  for (const row of withMarkup) {
+    line(`      ✖ id=${row.id}  «${text(row?.data?.lesson) || "—"}»`);
+  }
 
   if (rows.length) {
     line();
