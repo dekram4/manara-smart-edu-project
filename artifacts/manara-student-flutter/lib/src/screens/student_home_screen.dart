@@ -12,6 +12,7 @@ import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_challenge_service.dart';
+import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/lesson_scope_sheet.dart';
 import '../widgets/manara_logo.dart';
@@ -69,6 +70,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
   late final StudentChallengeService _challengeService;
+  late final StudentLeaderboardService _leaderboardService;
   late final ConfettiController _rewardController;
 
   /// يعيش خارج البطاقات لأن القائمة تتخلّص منها عند السحب. بدونه تعيد كل
@@ -113,6 +115,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // خدمةٌ واحدة تعيش مع الشاشة لا واحدةٌ لكل فتحة: ذاكرةُ ما رآه
     // الطفل من أسئلة تسكن فيها، فلا تُعاد عليه بين جولةٍ وأخرى.
     _challengeService = StudentChallengeService(
+      apiBaseUrl: widget.apiBaseUrl,
+      authService: widget.authService,
+    );
+    _leaderboardService = StudentLeaderboardService(
       apiBaseUrl: widget.apiBaseUrl,
       authService: widget.authService,
     );
@@ -682,6 +688,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                   builder: (_) => StudentProgressScreen(
                     profile: widget.profile,
                     stats: _gamification,
+                    leaderboardService: _leaderboardService,
                   ),
                 ),
               );

@@ -3,15 +3,25 @@
 import '../l10n/student_strings.dart';
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
+import '../services/student_leaderboard_service.dart';
 import '../services/student_settings.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 
 class StudentProgressScreen extends StatelessWidget {
-  const StudentProgressScreen({required this.profile, this.stats, super.key});
+  const StudentProgressScreen({
+    required this.profile,
+    this.stats,
+    this.leaderboardService,
+    super.key,
+  });
 
   final StudentProfile profile;
   final StudentGamification? stats;
+
+  /// قارئ لوحة الصدارة. غيابه يعني شاشةً بأرقام الطفل وحدها — وهو ما
+  /// يجري في الاختبارات وفي أي مسارٍ لا جلسةَ خادمٍ له.
+  final StudentLeaderboardService? leaderboardService;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +53,8 @@ class StudentProgressScreen extends StatelessWidget {
               delay: const Duration(milliseconds: 90),
               child: _CheerCard(stats: stats),
             ),
+            if (leaderboardService != null)
+              _LeaderboardSection(service: leaderboardService!),
           ],
         ),
       ),
@@ -140,4 +152,345 @@ class _CheerCard extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// لوحة صدارة الجواهر بين زملاء الصفّ.
+///
+/// ── قسمٌ لا شاشة ──
+/// تُعرض داخل شاشة الجواهر لا في شاشةٍ ثانية: الطفل يفتح هذه الشاشة ليرى
+/// رصيده، والسؤال الذي يليه مباشرةً هو «وأين أنا من أصحابي؟». ووضعُها
+/// خلف زرٍّ آخر يجعل الجواب يحتاج نيّة.
+///
+/// ── وفشلُها صامت ──
+/// إن تعذّرت القراءة اختفى القسم وبقيت أرقام الطفل. صفٌّ لا يُقرأ يجب أن
+/// يُخفي بطاقةً لا أن يضع شريط خطأ فوق رصيدٍ سليم.
+class _LeaderboardSection extends StatefulWidget {
+  const _LeaderboardSection({required this.service});
+  final StudentLeaderboardService service;
+
+  @override
+  State<_LeaderboardSection> createState() => _LeaderboardSectionState();
+}
+
+class _LeaderboardSectionState extends State<_LeaderboardSection> {
+  Leaderboard? _board;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final board = await widget.service.fetch();
+    if (!mounted) return;
+    setState(() {
+      _board = board;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final board = _board;
+    // صفٌّ فيه طفلٌ واحد ليس صدارةً، ولا يُعرض له تتويجٌ على نفسه.
+    if (board == null || board.total < 2) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            const Text('🏆', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr('board.title'),
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                  color: StudentSurface.ink(context),
+                ),
+              ),
+            ),
+            Text(
+              trf('board.count', {'n': '${board.total}'}),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        StudentEntrance(child: _Podium(board: board)),
+        if (board.rest.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          for (final entry in board.rest)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _RankRow(entry: entry),
+            ),
+        ],
+        if (board.listed) ...[
+          const SizedBox(height: 14),
+          StudentEntrance(
+            delay: const Duration(milliseconds: 120),
+            child: _MyStanding(board: board),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// منصّة التتويج: الثلاثة الأوائل، والأول في الوسط وأعلى.
+class _Podium extends StatelessWidget {
+  const _Podium({required this.board});
+  final Leaderboard board;
+
+  static const _medals = ['🥇', '🥈', '🥉'];
+  static const _colors = [
+    Color(0xFFF59E0B),
+    Color(0xFF94A3B8),
+    Color(0xFFB45309),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final podium = board.podium;
+    if (podium.isEmpty) return const SizedBox.shrink();
+    // الترتيب البصري: الثاني ثم الأول ثم الثالث، فيتوسّط المتصدّرُ
+    // المنصّة كما في التتويج الحقيقي. ومع نقصان العدد يُطوى ما لا وجود له.
+    final order = <int>[if (podium.length > 1) 1, 0, if (podium.length > 2) 2];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (final index in order)
+          Expanded(
+            child: _PodiumStep(
+              entry: podium[index],
+              medal: _medals[index],
+              color: _colors[index],
+              height: index == 0 ? 132.0 : (index == 1 ? 110.0 : 96.0),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PodiumStep extends StatelessWidget {
+  const _PodiumStep({
+    required this.entry,
+    required this.medal,
+    required this.color,
+    required this.height,
+  });
+
+  final LeaderboardEntry entry;
+  final String medal;
+  final Color color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(medal, style: const TextStyle(fontSize: 30)),
+            const SizedBox(height: 4),
+            Text(
+              entry.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: entry.isMe ? FontWeight.w900 : FontWeight.w700,
+                color: StudentSurface.ink(context),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              height: height,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [color, color.withValues(alpha: 0.72)],
+                ),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(14)),
+                border: entry.isMe
+                    ? Border.all(color: const Color(0xFF0B8693), width: 3)
+                    : null,
+              ),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${entry.gems}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Text('💎', style: TextStyle(fontSize: 15)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+/// صفٌّ في بقيّة القائمة.
+class _RankRow extends StatelessWidget {
+  const _RankRow({required this.entry});
+  final LeaderboardEntry entry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: entry.isMe
+              ? const Color(0xFF0B8693).withValues(alpha: 0.12)
+              : StudentSurface.glass(context, 0.86),
+          borderRadius: BorderRadius.circular(14),
+          border: entry.isMe
+              ? Border.all(color: const Color(0xFF0B8693), width: 2)
+              : null,
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 32,
+              child: Text(
+                '${entry.rank}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: entry.isMe
+                      ? const Color(0xFF0B8693)
+                      : const Color(0xFF64748B),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                entry.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: entry.isMe ? FontWeight.w900 : FontWeight.w700,
+                  color: StudentSurface.ink(context),
+                ),
+              ),
+            ),
+            Text(
+              '${entry.gems} 💎',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: StudentSurface.ink(context),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+/// بطاقة الطالب نفسه: مركزه، والفارق، وعبارةٌ تتبع مركزه.
+class _MyStanding extends StatelessWidget {
+  const _MyStanding({required this.board});
+  final Leaderboard board;
+
+  /// العبارة بحسب المركز.
+  ///
+  /// ثلاث حالات لا واحدة: المتصدّر يُمدح على ما بلغ، والقريب يُدلّ على ما
+  /// بقي، والبعيد يُوعَد بما يقرّبه. وعبارةٌ واحدةٌ للجميع تقول للمتصدّر
+  /// «اجمع أكثر لتصل» وهو في القمّة.
+  String _cheer() {
+    if (board.myRank == 1) return tr('board.cheer.first');
+    if (board.gemsToNext > 0 && board.gemsToNext <= 10) {
+      return trf('board.cheer.close', {'n': '${board.gemsToNext}'});
+    }
+    return tr('board.cheer.climb');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final me = board.me;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0B8693), Color(0xFF075E68)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                board.myRank == 1 ? '👑' : '🎯',
+                style: const TextStyle(fontSize: 26),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  trf('board.myRank', {
+                    'rank': '${board.myRank}',
+                    'total': '${board.total}',
+                  }),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              if (me != null)
+                Text(
+                  '${me.gems} 💎',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _cheer(),
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.55,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

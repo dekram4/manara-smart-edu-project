@@ -3,6 +3,7 @@ import { apiSupabaseConfig, type StudentActor } from "../lib/studentAccess";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
+import { buildLeaderboard, isClassmate } from "../lib/leaderboard";
 
 /**
  * كتابات تقدّم الطالب — الوجه الخادمي.
@@ -461,6 +462,52 @@ router.post("/student/progress/reward", async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, "[student-progress] reward failed");
     res.status(503).json({ error: "تعذر حفظ التقدّم الآن" });
+  }
+});
+
+/**
+ * لوحة صدارة زملاء الصفّ بالجواهر.
+ *
+ * ── من يظهر فيها ──
+ * طلاب المعلّم نفسه في الصفّ نفسه. لا المادة ولا الفصل الدراسي: الجواهر
+ * تُجمع من كل ما يفعله الطفل في المنصّة، فترشيحُ اللوحة بالمادة يُخرج
+ * زميلاً يجلس بجانبه لأنه يدرس مادةً أخرى.
+ *
+ * ── ولماذا قراءةٌ واحدة تُرشَّح هنا ──
+ * جدول `students` يحمل الصفّ والمالك داخل `data` لا في أعمدة، فلا
+ * يُرشَّح على الخادم بشرطٍ واحد موثوق. والترشيح بعد القراءة يقرأ أكثر
+ * ممّا يحتاج، لكنه الوحيد الذي يطبّق التسوية العربية نفسها التي تطبّقها
+ * بقيّة المنظومة — والهمزة وحدها كانت تُخرج نصف الفصل.
+ *
+ * ولا يخرج من هنا ما لا يلزم اللوحة: الاسم والشخصية والجواهر والخبرة
+ * والمستوى. لا اسم مستخدم ولا كلمة مرور ولا وليّ أمر.
+ */
+router.get("/student/progress/leaderboard", async (_req, res) => {
+  const student = activeStudent(res);
+  try {
+    const settings = config();
+    const response = await fetch(
+      `${settings.url}/rest/v1/students?select=id,data&limit=5000`,
+      { headers: headers() },
+    );
+    if (!response.ok) {
+      throw new Error(`Students read failed (${await failureDetail(response)})`);
+    }
+    const rows = await response.json();
+    const classmates = (Array.isArray(rows) ? rows : []).filter((row: any) =>
+      isClassmate(asMap(row?.data), student.teacherId, student.grade),
+    );
+    const board = buildLeaderboard(classmates, student.id);
+    res.json({
+      ...board,
+      grade: student.grade,
+      // الطالب قد لا يظهر في القائمة إن كان سجلّه بصفٍّ مختلفٍ عن جلسته؛
+      // يُقال ذلك صراحةً بدل أن يُعرض «المركز 0».
+      listed: board.myRank > 0,
+    });
+  } catch (error) {
+    logger.error({ err: error, studentId: student.id }, "[student-progress] leaderboard failed");
+    res.status(503).json({ error: "تعذر تحميل لوحة الصدارة الآن" });
   }
 });
 
