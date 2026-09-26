@@ -174,7 +174,7 @@ class _LeaderboardSection extends StatefulWidget {
 }
 
 class _LeaderboardSectionState extends State<_LeaderboardSection> {
-  Leaderboard? _board;
+  LeaderboardResult? _result;
   bool _loading = true;
 
   @override
@@ -184,13 +184,50 @@ class _LeaderboardSectionState extends State<_LeaderboardSection> {
   }
 
   Future<void> _load() async {
-    final board = await widget.service.fetch();
+    if (!_loading) setState(() => _loading = true);
+    final result = await widget.service.fetch();
     if (!mounted) return;
     setState(() {
-      _board = board;
+      _result = result;
       _loading = false;
     });
   }
+
+  /// عنوان القسم وما تحته، أيّاً كان ما تحته.
+  Widget _shell(BuildContext context, {required Widget child}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              const Text('🏆', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('board.title'),
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    color: StudentSurface.ink(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      );
+
+  /// سببُ التعذّر بعبارةٍ يفهمها من يقرؤها على الشاشة.
+  String _problemLine(LeaderboardProblem problem) => switch (problem) {
+        LeaderboardProblem.noService => tr('board.error.noService'),
+        LeaderboardProblem.noSession => tr('board.error.noSession'),
+        LeaderboardProblem.notDeployed => tr('board.error.notDeployed'),
+        LeaderboardProblem.refused => tr('board.error.refused'),
+        LeaderboardProblem.badResponse => tr('board.error.badResponse'),
+        LeaderboardProblem.offline => tr('board.error.offline'),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -200,9 +237,29 @@ class _LeaderboardSectionState extends State<_LeaderboardSection> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    final board = _board;
-    // صفٌّ فيه طفلٌ واحد ليس صدارةً، ولا يُعرض له تتويجٌ على نفسه.
-    if (board == null || board.total < 2) return const SizedBox.shrink();
+    final result = _result;
+    // القسم لا يختفي عند التعثّر، بل يقول ما جرى.
+    //
+    // كان يُخفي نفسه في كل تعذّر، فيرى الطفل شاشةً بلا صدارة ويرى
+    // صاحبُ المنصّة ميزةً «لم تُبنَ». والعنوانُ يبقى ظاهراً في الحالين،
+    // فيُعرف أن هنا شيئاً وأنه متعثّر لا غائب.
+    if (result == null || !result.ok) {
+      return _shell(
+        context,
+        child: _Trouble(
+          message: result == null
+              ? tr('board.error.badResponse')
+              : _problemLine(result.problem!),
+          detail: result?.detail,
+          onRetry: _load,
+        ),
+      );
+    }
+    final board = result.board!;
+    // صفٌّ فيه طفلٌ واحد: لا تتويج على النفس، لكن يُقال ذلك ولا يُصمَت.
+    if (board.total < 2) {
+      return _shell(context, child: _Trouble(message: tr('board.alone')));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -508,4 +565,68 @@ class _MyStanding extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// بطاقةُ تعثّرٍ في مكان اللوحة: ما جرى، وزرُّ إعادة محاولة.
+///
+/// ليست شريط خطأٍ أحمر: الطفل ليس من يُصلح هذا، ولونُ الإنذار يُقلقه بلا
+/// فائدة. والتفصيل — ما قاله الخادم حرفياً — يُعرض بخطٍّ أصغر لمن يقرؤه
+/// من الكبار، فهو ما يُشخَّص منه العطل.
+class _Trouble extends StatelessWidget {
+  const _Trouble({required this.message, this.detail, this.onRetry});
+
+  final String message;
+  final String? detail;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: StudentSurface.glass(context, 0.86),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF0B8693).withValues(alpha: 0.35),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          children: [
+            const Text('🏅', style: TextStyle(fontSize: 30)),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                fontWeight: FontWeight.w700,
+                color: StudentSurface.ink(context),
+              ),
+            ),
+            if (detail != null && detail!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                detail!,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+            if (onRetry != null) ...[
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(tr('board.retry')),
+              ),
+            ],
+          ],
+        ),
+      );
 }

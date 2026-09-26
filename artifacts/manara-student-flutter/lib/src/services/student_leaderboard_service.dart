@@ -141,26 +141,96 @@ class StudentLeaderboardService {
         : Uri.tryParse('$base/api/student/progress/leaderboard');
   }
 
-  /// The board, or null when it cannot be read.
+  /// نتيجةُ الطلب: لوحةٌ أو سببُ تعذّرها.
   ///
-  /// Null rather than a thrown error: the leaderboard is a section inside a
-  /// screen whose own numbers are already on it. A class that cannot be
-  /// reached should hide one card, not replace the child's own gem count
-  /// with a failure.
-  Future<Leaderboard?> fetch() async {
+  /// كانت تُعيد `null` في خمس حالاتٍ مختلفة — لا عنوانَ خادم، ولا جلسة،
+  /// ورفضٌ من الخادم، وانقطاعٌ في الشبكة، وردٌّ لا يُفكّ — فيُخفي القسمُ
+  /// نفسَه في كلها. والإخفاء يقول للطفل «لا صدارة» ويقول للمطوّر لا شيء،
+  /// فيُظنّ أن الميزة لم تُبنَ أصلاً.
+  Future<LeaderboardResult> fetch() async {
     final target = endpoint;
-    if (target == null) return null;
+    if (target == null) {
+      return const LeaderboardResult.failed(LeaderboardProblem.noService);
+    }
     final token = await authService.ensureApiSession();
-    if (token == null || token.isEmpty) return null;
+    if (token == null || token.isEmpty) {
+      return LeaderboardResult.failed(
+        LeaderboardProblem.noSession,
+        detail: authService.apiSessionError,
+      );
+    }
     try {
       final response = await _client.get(
         target,
         headers: {'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 20));
-      if (response.statusCode < 200 || response.statusCode >= 300) return null;
-      return Leaderboard.fromJson(jsonDecode(response.body));
+
+      if (response.statusCode == 404) {
+        // المسار غير منشور على الخادم — وهي حالةٌ تُشخَّص من الرمز
+        // وحده، فتُسمّى بدل أن تُخلط بانقطاع الشبكة.
+        return const LeaderboardResult.failed(LeaderboardProblem.notDeployed);
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        String? message;
+        try {
+          final payload = jsonDecode(response.body);
+          if (payload is Map) message = payload['error']?.toString().trim();
+        } catch (_) {
+          message = null;
+        }
+        return LeaderboardResult.failed(
+          LeaderboardProblem.refused,
+          detail: message == null || message.isEmpty
+              ? '${response.statusCode}'
+              : message,
+        );
+      }
+      final board = Leaderboard.fromJson(jsonDecode(response.body));
+      if (board == null) {
+        return const LeaderboardResult.failed(LeaderboardProblem.badResponse);
+      }
+      return LeaderboardResult.ready(board);
     } catch (_) {
-      return null;
+      return const LeaderboardResult.failed(LeaderboardProblem.offline);
     }
   }
+}
+
+
+/// لماذا تعذّرت اللوحة. يُعرض للطفل بعبارةٍ واحدة، ويُقرأ في السجلّ.
+enum LeaderboardProblem {
+  /// لا عنوان خادمٍ في هذا البناء.
+  noService,
+
+  /// لم تُفتح جلسةٌ مع الخادم.
+  noSession,
+
+  /// الخادم ردّ 404: المسار ليس منشوراً عليه بعد.
+  notDeployed,
+
+  /// الخادم ردّ برفضٍ مفهوم.
+  refused,
+
+  /// ردٌّ لا يُفكّ.
+  badResponse,
+
+  /// لم يصل ردٌّ أصلاً.
+  offline,
+}
+
+/// لوحةٌ جاهزة، أو سببُ تعذّرها.
+class LeaderboardResult {
+  const LeaderboardResult.ready(Leaderboard this.board)
+      : problem = null,
+        detail = null;
+
+  const LeaderboardResult.failed(this.problem, {this.detail}) : board = null;
+
+  final Leaderboard? board;
+  final LeaderboardProblem? problem;
+
+  /// ما قاله الخادم، حين قال شيئاً.
+  final String? detail;
+
+  bool get ok => board != null;
 }

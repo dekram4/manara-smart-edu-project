@@ -194,6 +194,7 @@ void main() {
         'audio/masar.mp3',
         'audio/start.mp3',
         'audio/happychild.mp3',
+        'audio/shater.mp3',
       ]) {
         expect(
           File('assets/$asset').existsSync(),

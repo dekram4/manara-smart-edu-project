@@ -749,6 +749,13 @@ class _StudentEndlessReaderScreenState
   List<ChallengeQuestion> _generated = const [];
   bool _fetching = false;
 
+  /// سببُ تعذّر التوليد، إن تعذّر.
+  ///
+  /// كان الفشل صامتاً وتُعرض جولاتُ الجهاز مكانه. وهي جولاتٌ تُقتطع من
+  /// شكل الجملة لا من معناها — «طابق» و«صنّف» — فيظنّ الناظر أن هذا هو
+  /// التحدي، ويشكو من سطحيّته. فصار يُقال ما جرى.
+  String? _failure;
+
   /// يزيد مع كل توزيع، فتُهمل نتيجةُ جلبٍ سبقه.
   int _dealToken = 0;
 
@@ -812,11 +819,23 @@ class _StudentEndlessReaderScreenState
   /// a new seed, which is what makes the second attempt a different set of
   /// questions rather than a replay of the first.
   void _deal() {
-    _plan = ChallengeSession.build(
-      lessonText: widget.academicContext?.selectedLesson.lessonText,
-      seed: _seed,
-      generated: _generated,
-    );
+    // بلا مولّد: الجولات الثلاث كما كانت — وهو ما يجري في الاختبارات
+    // وفي أي مسارٍ لا جلسةَ خادمٍ له.
+    if (widget.challengeService == null) {
+      _plan = ChallengeSession.build(
+        lessonText: widget.academicContext?.selectedLesson.lessonText,
+        seed: _seed,
+      );
+      _wordIndex = 0;
+      _startRound();
+      return;
+    }
+    // ومعه: أسئلةُ الدرس وحدها.
+    //
+    // لا تُخلط بجولات الجهاز ولا يُرتدّ إليها عند الفشل. الأسئلة
+    // المولَّدة تسأل عمّا يعنيه الدرس، وتلك تسأل عن شكل جملةٍ فيه —
+    // وخلطُهما يجعل نصف التحدي سطحياً، والارتدادُ إليها يجعله كلَّه.
+    _plan = [for (final question in _generated) QuizRound(question)];
     _wordIndex = 0;
     _startRound();
     _fetchGenerated();
@@ -832,33 +851,67 @@ class _StudentEndlessReaderScreenState
     final service = widget.challengeService;
     final lesson = widget.academicContext?.selectedLesson;
     final lessonId = lesson?.id ?? '';
-    final hasText = (lesson?.lessonText ?? '').trim().isNotEmpty;
-    if (service == null || lessonId.isEmpty || !hasText) return;
+    if (service == null) return;
+
+    if (lessonId.isEmpty) {
+      setState(() {
+        _failure = tr('challenge.emptyNoLesson');
+        _fetching = false;
+      });
+      return;
+    }
+    // درسٌ بلا نصّ: يُقال صراحةً أن المعلّم لم يضف محتواه، ولا تُولَّد
+    // أسئلةٌ من لا شيء — النموذج بلا نصٍّ يسأل من معرفته العامة، فيُخطئ
+    // طفلاً على ما لم يُعلَّم.
+    if ((lesson?.lessonText ?? '').trim().isEmpty) {
+      setState(() {
+        _failure = tr('challenge.emptyNoText');
+        _fetching = false;
+      });
+      return;
+    }
 
     final token = ++_dealToken;
-    setState(() => _fetching = true);
+    setState(() {
+      _fetching = true;
+      _failure = null;
+    });
     try {
       final questions = await service.fetchRound(lessonId: lessonId);
       if (!mounted || token != _dealToken) return;
       setState(() {
         _generated = questions;
-        _plan = ChallengeSession.build(
-          lessonText: lesson?.lessonText,
-          seed: _seed,
-          generated: questions,
-        );
-        // الطفل قد يكون أجاب عن جولةٍ أو جولتين قبل وصول الأسئلة؛
-        // موضعُه يبقى كما هو ولا يُعاد إلى الصفر.
-        if (_wordIndex >= _plan.length) _wordIndex = _plan.length - 1;
-        if (_wordIndex < 0) _wordIndex = 0;
+        _plan = [for (final question in questions) QuizRound(question)];
+        _wordIndex = 0;
+        _failure = null;
         _fetching = false;
       });
       _startRound();
+    } on ChallengeFailure catch (error) {
+      if (!mounted || token != _dealToken) return;
+      setState(() {
+        _failure = _explain(error.message);
+        _fetching = false;
+      });
     } catch (_) {
       if (!mounted || token != _dealToken) return;
-      setState(() => _fetching = false);
+      setState(() {
+        _failure = tr('challenge.error.offline');
+        _fetching = false;
+      });
     }
   }
+
+  /// رمزُ الفشل بعبارةٍ تُقرأ، أو ما قاله الخادم إن كان كلاماً.
+  String _explain(String code) => switch (code) {
+        'noService' => tr('challenge.error.noService'),
+        'sessionFailed' => tr('challenge.error.noSession'),
+        'offline' => tr('challenge.error.offline'),
+        'badResponse' || 'serviceSilent' => tr('challenge.error.badResponse'),
+        'notDeployed' => tr('challenge.error.notDeployed'),
+        'empty' => tr('challenge.error.empty'),
+        _ => code,
+      };
 
   void _startRound() {
     _sorted.clear();
@@ -984,7 +1037,11 @@ class _StudentEndlessReaderScreenState
               opacity: 0.24,
             ),
             SafeArea(
-              child: _stageCount == 0 ? _emptyState() : _game(),
+              child: _stageCount > 0
+                  ? _game()
+                  : _fetching
+                      ? _waiting()
+                      : _emptyState(),
             ),
             Align(
               alignment: Alignment.topCenter,
@@ -1025,9 +1082,12 @@ class _StudentEndlessReaderScreenState
               ),
               const SizedBox(height: 10),
               Text(
-                widget.academicContext == null
-                    ? tr('challenge.emptyNoLesson')
-                    : tr('challenge.emptyNoText'),
+                // سببُ التعذّر بعينه إن عُرف، لا جملةً عامّة تصلح لكل
+                // حال ولا تشرح أيّها وقع.
+                _failure ??
+                    (widget.academicContext == null
+                        ? tr('challenge.emptyNoLesson')
+                        : tr('challenge.emptyNoText')),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: StudentSurface.mutedInk(context),
@@ -1035,8 +1095,38 @@ class _StudentEndlessReaderScreenState
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              if (_failure != null && widget.challengeService != null) ...[
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: _restart,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: Text(tr('challenge.retry')),
+                ),
+              ],
             ],
           ),
+        ),
+      );
+
+  /// أثناء انتظار أسئلة الدرس.
+  ///
+  /// شاشةٌ تقول «لا يوجد تحدٍّ» وهي تنتظر كذبٌ صغير يدفع الطفل إلى
+  /// المغادرة قبل أن تصل الأسئلة.
+  Widget _waiting() => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: Color(0xFF6D28D9)),
+            const SizedBox(height: 18),
+            Text(
+              tr('challenge.loadingMore'),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: StudentSurface.ink(context),
+              ),
+            ),
+          ],
         ),
       );
 

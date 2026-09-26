@@ -80,6 +80,35 @@ void main() {
     });
   });
 
+  group('LeaderboardResult', () {
+    test('النجاح يحمل اللوحة ولا يحمل سبباً', () {
+      final board = Leaderboard.fromJson({'entries': []})!;
+      final result = LeaderboardResult.ready(board);
+      expect(result.ok, isTrue);
+      expect(result.board, same(board));
+      expect(result.problem, isNull);
+    });
+
+    test('كل تعذّرٍ يحمل سببه، فلا تُخلط خمسُ حالاتٍ في اختفاءٍ واحد', () {
+      // كانت `fetch` تُعيد null في خمس حالات مختلفة، فيُخفي القسم نفسه
+      // في كلها ولا يُعرف أيّها وقع.
+      for (final problem in LeaderboardProblem.values) {
+        final result = LeaderboardResult.failed(problem);
+        expect(result.ok, isFalse, reason: '$problem');
+        expect(result.problem, problem);
+        expect(result.board, isNull);
+      }
+    });
+
+    test('ما قاله الخادم يُحمل معه', () {
+      const result = LeaderboardResult.failed(
+        LeaderboardProblem.refused,
+        detail: 'تعذر تحميل لوحة الصدارة الآن',
+      );
+      expect(result.detail, 'تعذر تحميل لوحة الصدارة الآن');
+    });
+  });
+
   group('podium and rest', () {
     List<Map<String, Object?>> classOf(int n) => [
           for (var index = 0; index < n; index += 1)

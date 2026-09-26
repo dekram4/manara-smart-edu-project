@@ -165,9 +165,14 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
       // بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً ثانياً.
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
       final bundled = manifest.listAssets().toSet();
-      final asset = bundled.contains('assets/audio/tarheeb.mp3')
-          ? 'audio/tarheeb.mp3'
-          : 'audio/welcome.mp3';
+      // الأحدث أوّلاً، ثم ما قبله، ثم الأصل. سلسلةٌ لا شرطٌ واحد:
+      // التسليم يأتي على دفعات، وجهازٌ بُني قبل وصول الملف الجديد يجب
+      // أن يُرحّب بما عنده لا أن يصمت.
+      const welcomes = ['audio/shater.mp3', 'audio/tarheeb.mp3', 'audio/welcome.mp3'];
+      final asset = welcomes.firstWhere(
+        (candidate) => bundled.contains('assets/$candidate'),
+        orElse: () => welcomes.last,
+      );
 
       // طولُ المقطع يصل بعد أن يفكّه المشغّل، لا قبله. فيُسمع أولاً ثم
       // تُمدّ المهلة عند وصول الطول — والمهلةُ الأولى قائمةٌ طوال ذلك،

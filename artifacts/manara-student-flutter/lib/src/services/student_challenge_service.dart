@@ -147,6 +147,11 @@ class StudentChallengeService {
       throw const ChallengeFailure('badResponse');
     }
 
+    if (response.statusCode == 404) {
+      // المسار غير منشور على الخادم. يُسمّى من الرمز وحده، فلا يُخلط
+      // بانقطاع شبكةٍ ولا برفضٍ مفهوم.
+      throw const ChallengeFailure('notDeployed');
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message =
           payload is Map ? (payload['error']?.toString().trim() ?? '') : '';
