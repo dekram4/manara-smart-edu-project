@@ -28,6 +28,34 @@ Widget _app() => const MaterialApp(
     );
 
 void main() {
+  // اسم المنصّة يُرى في الوضعين.
+  //
+  // كان يُخفى في الوضع الأفقي إخفاءً تامّاً — حلّاً لضيق الارتفاع —
+  // فيفتح الطفل التطبيق أفقياً فلا يرى اسم منصّته إطلاقاً. وهو الآن
+  // يُرسم في الركن بمقياس الارتفاع، فيُرى ولا يزاحم السبورة.
+  for (final entry in _landscapeSizes.entries) {
+    testWidgets('اسم المنصّة ظاهرٌ على ${entry.key}', (tester) async {
+      tester.view.physicalSize = entry.value;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(_app());
+      await tester.pump(const Duration(milliseconds: 350));
+
+      final name = find.text('منارة المعرفة التعليمية');
+      expect(name, findsOneWidget, reason: entry.key);
+
+      // ظاهرٌ فعلاً لا مرسومٌ خارج الشاشة.
+      final box = tester.getRect(name);
+      final window = Offset.zero & tester.view.physicalSize;
+      expect(box.left, greaterThanOrEqualTo(window.left - 1), reason: entry.key);
+      expect(box.right, lessThanOrEqualTo(window.right + 1), reason: entry.key);
+      expect(box.top, greaterThanOrEqualTo(window.top - 1), reason: entry.key);
+      expect(box.bottom, lessThanOrEqualTo(window.bottom + 1), reason: entry.key);
+      expect(box.width, greaterThan(0), reason: entry.key);
+    });
+  }
+
   for (final entry in _landscapeSizes.entries) {
     testWidgets('login screen lays out without overflow on ${entry.key}',
         (tester) async {

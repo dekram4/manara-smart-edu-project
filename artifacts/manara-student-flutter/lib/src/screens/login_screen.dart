@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 
@@ -40,7 +41,18 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    // خلفيةُ الشاشة تبدأ مع ظهورها. وتُؤجَّل إلى ما بعد أوّل إطار كي لا
+    // يزاحم فكُّ المقطع رسمَ الشاشة الأول.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(StudentSoundService.instance.speakLogin()),
+    );
+  }
+
+  @override
   void dispose() {
+    unawaited(StudentSoundService.instance.stopLoginVoice());
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -209,15 +221,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 // window survives the keyboard, and spending a third of
                 // that on a logo leaves writing the student cannot read.
                 // It comes straight back when the keyboard closes.
+                final landscape = areaSize.width > areaSize.height;
                 double logoSize = 0;
                 double logoNameHeight = 0;
                 double logoBlockHeight = 0;
                 for (var pass = 0; pass < 3; pass++) {
                   // ‏في الوضع الأفقي الارتفاع هو القيد، وكتلة الشعار
-                  // ‏تأكل نحو خُمسه — فتخرج السبورة ضيّقة بلا داعٍ.
-                  // ‏فتتنحّى هناك كما تتنحّى أثناء الكتابة، وتعود في
-                  // ‏الوضع الرأسي حيث الارتفاع وافر.
-                  final hideBrand = typing || areaSize.width > areaSize.height;
+                  // ‏فوق السبورة تأكل نحو خُمسه — فتخرج السبورة ضيّقة.
+                  // ‏فلا تُوضع فوقها هناك، بل في الفراغ الجانبي الذي
+                  // ‏يفيض في ذلك الوضع: العرض واسعٌ والسبورة مربّعة.
+                  //
+                  // ‏وكان الشعار يُخفى هناك إخفاءً تامّاً، فيفتح الطفل
+                  // ‏التطبيق أفقياً فلا يرى اسم المنصّة إطلاقاً. القيد
+                  // ‏كان على الارتفاع وحده، والحلّ إخراجُه من عمود
+                  // ‏الارتفاع لا حذفُه.
+                  //
+                  // ‏أما أثناء الكتابة فيتنحّى في الوضعين: الكيبورد لا
+                  // ‏يُبقي إلا نحو مئةٍ وخمسين نقطة، وإنفاقُ شيءٍ منها
+                  // ‏على شعارٍ يترك كتابةً لا تُقرأ.
+                  final hideBrand = typing || landscape;
                   logoSize = hideBrand
                       ? 0.0
                       : (boardSize * 0.145).clamp(44.0, 130.0).toDouble();
@@ -305,7 +327,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     // while the keyboard is open, when that budget goes to
                     // the board instead and this comes off the screen with
                     // it.
-                    if (!typing)
+                    if (!typing && landscape)
+                      // ‏الشعار في الوضع الأفقي: في الركن العلوي، مرسوماً
+                      // ‏بمقياس الارتفاع لا العرض، فلا يخرج عن الشاشة
+                      // ‏مهما ضاقت. ولا يزاحم السبورة لأنه خارج عمودها.
+                      Positioned(
+                        top: 10,
+                        left: 14,
+                        right: 14,
+                        child: Align(
+                          alignment: AlignmentDirectional.topStart,
+                          child: _LandscapeBrand(
+                            // ‏نحو سُبع الارتفاع، وبحدّين: لا يتضخّم على
+                            // ‏تابلت ولا يتلاشى على هاتف.
+                            markSize:
+                                (areaSize.height * 0.15).clamp(28.0, 64.0).toDouble(),
+                            maxWidth: areaSize.width * 0.55,
+                          ),
+                        ),
+                      ),
+                    if (!typing && !landscape)
                     Positioned(
                       left: imageRect.center.dx - brandWidth / 2,
                       width: brandWidth,
@@ -815,4 +856,67 @@ class _SolidField extends StatelessWidget {
       ),
     );
   }
+}
+
+/// شعار المنصّة في الوضع الأفقي: العلامة واسمها جنباً إلى جنب.
+///
+/// أفقيٌّ لا رأسيّ لأن القيد هناك هو الارتفاع. والمقاس يُشتقّ من ارتفاع
+/// الشاشة لا من عرضها، فالشاشة الأقصر تُعطي شعاراً أصغر بدل أن تدفعه
+/// خارج حدّها — وهو ما كان يحدث حين كانت أبعاده ثابتة.
+class _LandscapeBrand extends StatelessWidget {
+  const _LandscapeBrand({required this.markSize, required this.maxWidth});
+
+  final double markSize;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        // يتقلّص كاملاً بدل أن يفيض: نصٌّ عربيّ طويل في شاشةٍ ضيّقة
+        // كان سيُقصّ من طرفه.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DecoratedBox(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Colors.white, blurRadius: 14, spreadRadius: 2),
+                    BoxShadow(color: Colors.white70, blurRadius: 22, spreadRadius: 4),
+                  ],
+                ),
+                child: ColorFiltered(
+                  colorFilter: const ColorFilter.mode(
+                    StudentPalette.brandBlue,
+                    BlendMode.srcIn,
+                  ),
+                  child: Image.asset(
+                    'assets/images/manara-logo-mark-transparent.png',
+                    width: markSize,
+                    height: markSize,
+                    fit: BoxFit.contain,
+                    errorBuilder: _emptyImageFallback,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                tr('app.name'),
+                style: TextStyle(
+                  color: _brandInk,
+                  fontSize: markSize * 0.46,
+                  height: 1.15,
+                  fontWeight: FontWeight.w900,
+                  shadows: const [
+                    Shadow(color: Colors.white, blurRadius: 8),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 }

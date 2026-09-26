@@ -429,6 +429,37 @@ class StudentSoundService with WidgetsBindingObserver {
     return bundled.contains('assets/$override') ? override : fallback;
   }
 
+  /// خلفية شاشة تسجيل الدخول، تبدأ مع ظهور الشاشة.
+  ///
+  /// مقطعٌ طويل يُسمع تحت الشاشة ما دام الطفل عليها، ويُقطع عند مغادرتها.
+  /// ولذلك يُشغَّل على مشغّل الصوت لا على المؤثّرات: المؤثّرات نقراتٌ
+  /// قصيرة يقطع بعضُها بعضاً، وهذا يبقى.
+  Future<void> speakLogin() async {
+    if (muted.value || _backgrounded) return;
+    try {
+      final bundled = await _bundledAssets();
+      if (!bundled.contains('assets/$_loginClip')) return;
+      await _voicePlayer.stop();
+      _voiceClip = _loginClip;
+      await _voicePlayer.play(
+        AssetSource(_loginClip),
+        volume: voiceVolume(_loginClip),
+      );
+    } catch (_) {
+      // لا صوت على هذا الجهاز: الشاشة تُفتح صامتة.
+    }
+  }
+
+  /// يوقف خلفية الدخول إن كانت هي ما يُسمع.
+  ///
+  /// هذا المقطع وحده، لا كلُّ صوت: الشاشة تُغادَر بعد نجاح الدخول
+  /// وجرسُ النجاح يكون قد بدأ على المشغّل نفسه، فإيقافٌ شاملٌ هنا
+  /// يقطعه بدل أن يقطع الخلفية.
+  Future<void> stopLoginVoice() async {
+    if (_voiceClip != _loginClip) return;
+    await stopSpeaking();
+  }
+
   /// يُسمع مقطع لوحة البطاقات عند فتحها.
   ///
   /// اللوحة لم يكن لها صوتٌ خاص: تُفتح على ترحيب المحور. وبقي الترحيب
@@ -576,8 +607,13 @@ class StudentSoundService with WidgetsBindingObserver {
         StudentSoundCue.answerSelected => 'audio/answer-selected.wav',
         StudentSoundCue.success => 'audio/success-reward.wav',
         StudentSoundCue.warning => 'audio/gentle-warning.wav',
-        StudentSoundCue.loginSuccess =>
-          _supplied(_loginClip, 'audio/manara-login-chime.mp3', bundled),
+        // جرسُ النجاح يبقى جرساً.
+        //
+        // كان `signin.mp3` موضوعاً هنا، وهو مقطعُ خلفيةٍ لشاشة الدخول
+        // طوله دقيقتان. فكان يبدأ لحظةَ نجاح الدخول ثم تُغادر الشاشة
+        // بعد ثلث ثانية فيُقطع — فلا يُسمع منه شيء، ويبدو أنه «لم يعمل
+        // نهائياً». موضعُه الصحيح فتحُ الشاشة لا الخروج منها.
+        StudentSoundCue.loginSuccess => 'audio/manara-login-chime.mp3',
         StudentSoundCue.welcome =>
           _supplied(_welcomeClip, 'audio/manara-arabic-student-welcome.mp3', bundled),
         StudentSoundCue.gameReward => 'audio/success-reward.wav',
@@ -592,9 +628,7 @@ class StudentSoundService with WidgetsBindingObserver {
         // المقطع المورَّد يمرّ بمقياس الصوت نفسه الذي يوحّد علوّ البقيّة،
         // فلا يصرخ واحدٌ ويهمس آخر. والنغمتان الأصليّتان تبقيان على 0.78.
         volume: isVoice
-            ? (asset == _loginClip || asset == _welcomeClip
-                ? voiceVolume(asset)
-                : 0.78)
+            ? (asset == _welcomeClip ? voiceVolume(asset) : 0.78)
             : 0.56,
       );
     } catch (_) {

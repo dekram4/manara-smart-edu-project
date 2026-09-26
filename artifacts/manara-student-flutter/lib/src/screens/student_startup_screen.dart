@@ -43,22 +43,44 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// bounce does, not before, so the greeting lands with the movement.
   static const _entrance = Duration(milliseconds: 900);
 
-  /// The greeting lasts exactly this long unless the student skips it.
+  /// The floor: the splash never costs less than this, even in silence.
   ///
-  /// It is a fixed timer rather than "however long the voice runs" on
-  /// purpose: the audio finishing is not a reliable signal (a missing
-  /// asset, a muted device, or a platform that never reports completion
-  /// would leave a child sitting on the splash), and a predictable seven
-  /// seconds is what the app should cost on every launch.
+  /// It was also the ceiling, and that cut the greeting off. The recorded
+  /// welcome runs past seven seconds, so the route changed mid-sentence —
+  /// the child heard half a greeting on every launch.
   static const _dwell = Duration(seconds: 7);
+
+  /// The ceiling, and the reason the floor is not simply "when the voice
+  /// ends".
+  ///
+  /// The audio finishing is not a signal that can be waited on alone: a
+  /// missing asset, a muted device, or a platform that never reports
+  /// completion would leave a child sitting on the splash forever. So the
+  /// clip's own length is read and honoured *within* this bound, and a
+  /// timer set to it runs from the first frame whatever the audio does.
+  static const _maxDwell = Duration(seconds: 12);
+
+  /// A breath after the last word before the screen changes. Cutting on
+  /// the exact sample sounds clipped.
+  static const _tail = Duration(milliseconds: 400);
 
   /// The screen runs in two halves. For the first two seconds the
   /// character simply hovers in place; at this mark it begins to spin
-  /// away, and the spin is timed to land exactly on [_dwell] so the
-  /// composition is gone at the moment the route changes rather than
-  /// being cut off mid-movement.
+  /// away, and the spin is timed to land exactly on the moment of leaving
+  /// so the composition is gone as the route changes rather than being cut
+  /// off mid-movement. It is recomputed when the clip's length is known.
   static const _spinAt = Duration(seconds: 2);
-  static const _spinFor = Duration(seconds: 5);
+
+  /// How long the spin-out takes. Not const: it stretches to land on the
+  /// new leaving time when the greeting turns out to be longer than the
+  /// floor.
+  Duration _spinFor = const Duration(seconds: 5);
+
+  /// When the screen will leave, measured from the first frame.
+  Duration _leaveAt = _dwell;
+
+  /// Ticks from the first frame, so a reschedule knows what is left.
+  final _clock = Stopwatch();
 
   // Created only when the voice is actually played. Constructing an
   // AudioPlayer talks to the platform, so building it eagerly would make
@@ -67,6 +89,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   AudioPlayer? _player;
   final _destination = Completer<Widget>();
   StreamSubscription<void>? _completionSub;
+  StreamSubscription<Duration>? _durationSub;
   Timer? _voiceTimer;
   Timer? _dwellTimer;
   Timer? _spinTimer;
@@ -80,6 +103,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _clock.start();
     _resolveDestination();
     _voiceTimer = Timer(_entrance, _playWelcomeVoice);
     _spinTimer = Timer(_spinAt, () {
@@ -91,10 +115,12 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _clock.stop();
     _voiceTimer?.cancel();
     _dwellTimer?.cancel();
     _spinTimer?.cancel();
     _completionSub?.cancel();
+    _durationSub?.cancel();
     // Releases the platform player as well as the Dart object; without
     // this the decoder stays alive for the rest of the session.
     _player?.dispose();
@@ -126,6 +152,14 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
       final asset = bundled.contains('assets/audio/tarheeb.mp3')
           ? 'audio/tarheeb.mp3'
           : 'audio/welcome.mp3';
+
+      // طولُ المقطع يصل بعد أن يفكّه المشغّل، لا قبله. فيُسمع أولاً ثم
+      // تُمدّ المهلة عند وصول الطول — والمهلةُ الأولى قائمةٌ طوال ذلك،
+      // فجهازٌ لا يُخبر بالطول أبداً يخرج عند الحدّ الأدنى كما كان.
+      _durationSub = player.onDurationChanged.listen(
+        _stretchToClip,
+        onError: (_) {},
+      );
       await player.play(AssetSource(asset), volume: 0.85);
     } catch (_) {
       // No audio is not a reason to block the app: fall through and let
@@ -168,6 +202,33 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// navigating. By the time the dwell timer fires the spin-out has
   /// already finished on screen; and a tap is meant to be immediate, so
   /// making it wait for a farewell animation is the opposite of skipping.
+  /// يمدّ بقاء الشاشة إلى نهاية الترحيب، في حدود السقف.
+  ///
+  /// يُنادى حين يُعلن المشغّل طولَ المقطع. ولا يُقصّر البقاء أبداً: طولٌ
+  /// أقصر من الحدّ الأدنى يُترك، فالشاشة لها كلفةٌ دنيا لا علاقة لها
+  /// بالصوت.
+  void _stretchToClip(Duration clip) {
+    if (!mounted || _leaving || clip <= Duration.zero) return;
+    var end = _entrance + clip + _tail;
+    if (end > _maxDwell) end = _maxDwell;
+    if (end <= _leaveAt) return;
+
+    final elapsed = _clock.elapsed;
+    final remaining = end - elapsed;
+    if (remaining <= Duration.zero) return;
+
+    setState(() {
+      _leaveAt = end;
+      // الدوران يهبط على لحظة المغادرة نفسها: لو بقي على خمس ثوانٍ
+      // لانتهى قبلها فتجمد الصورة ثانيةً وشيئاً في مكانها.
+      final spin = end - _spinAt;
+      if (spin > Duration.zero) _spinFor = spin;
+    });
+
+    _dwellTimer?.cancel();
+    _dwellTimer = Timer(remaining, _leave);
+  }
+
   Future<void> _leave() async {
     if (_leaving || !mounted) return;
     _leaving = true;
