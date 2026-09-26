@@ -15,7 +15,19 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    // نقطتا دخول لا واحدة.
+    //
+    // الثانية وحدةُ بنك التحدي، تُخرَج إلى `dist/lib/challengeBank.mjs`
+    // ليستوردها سكربت التوليد. ولولا ذلك لما وُجد لها ملفٌّ أصلاً: هذا
+    // البناء يحزم كل شيء في `dist/index.mjs`، فلا مجلّد `dist/lib` فيه.
+    //
+    // والبديل — أن يكرّر السكربت قواعد القبول — يجعل تصفيةَ الدفعة
+    // تفترق عن تصفية الخادم عند أوّل تعديل في إحداهما، فيُحفظ في البنك
+    // ما يردّه المسار.
+    entryPoints: [
+      path.resolve(artifactDir, "src/index.ts"),
+      path.resolve(artifactDir, "src/lib/challengeBank.ts"),
+    ],
     platform: "node",
     bundle: true,
     format: "esm",

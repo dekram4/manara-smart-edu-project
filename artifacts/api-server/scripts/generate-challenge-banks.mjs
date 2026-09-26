@@ -22,6 +22,11 @@
  * ثم أضف --execute للتوليد والحفظ.
  */
 
+import { existsSync, rmSync } from "node:fs";
+import nodePath from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
 const args = process.argv.slice(2);
 const EXECUTE = args.includes("--execute");
 const FORCE = args.includes("--force");
@@ -36,8 +41,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const GEMINI_KEY = process.env.GEMINI_API_KEY?.trim();
 
-const BANK_VERSION = 1;
-const BANK_SIZE = 20;
 const EPOCH_KEY = "smartEdu_contentEpoch";
 
 const text = (value) => (value == null ? "" : String(value).trim());
@@ -122,6 +125,71 @@ async function askGemini(prompt, { tries = 3 } = {}) {
   throw lastError ?? new Error("تعذّر التوليد");
 }
 
+/**
+ * يحمّل وحدة قواعد القبول — وحدةَ الخادم نفسها لا نسخةً منها.
+ *
+ * تكرارُ القواعد هنا يجعل تصفيةَ الدفعة تفترق عن تصفية المسار عند أوّل
+ * تعديلٍ في إحداهما، فيُحفظ في البنك ما يردّه الخادم عند العرض.
+ *
+ * ── ثلاثة مسالك، بالترتيب ──
+ * ١. `dist/lib/challengeBank.mjs` — ما صار `npm run build` يُخرجه.
+ * ٢. `.js` — احتياطاً لبناءٍ بامتدادٍ آخر.
+ * ٣. ترجمةٌ عابرة بـ esbuild من المصدر مباشرةً.
+ *
+ * والثالث هو ما يجعله يعمل بلا بناءٍ أصلاً: الوحدة نقيّةٌ بلا استيراد،
+ * فترجمتُها سطر. وكان السكربت يقف عند المسلك الأول وحده ويطلب بناءً
+ * يحزم كل شيء في `dist/index.mjs` ولا يُخرج هذا الملف — فلا يعمل أبداً.
+ */
+async function loadBankRules() {
+  const here = nodePath.dirname(fileURLToPath(import.meta.url));
+  for (const candidate of [
+    "../dist/lib/challengeBank.mjs",
+    "../dist/lib/challengeBank.js",
+  ]) {
+    const target = nodePath.resolve(here, candidate);
+    if (!existsSync(target)) continue;
+    try {
+      return await import(pathToFileURL(target).href);
+    } catch {
+      // ملفٌّ موجودٌ لا يُستورد: جرّب ما بعده.
+    }
+  }
+
+  const source = nodePath.resolve(here, "../src/lib/challengeBank.ts");
+  if (!existsSync(source)) {
+    console.error("لا `src/lib/challengeBank.ts` ولا نسخةٌ مبنيّة منه.");
+    process.exit(1);
+  }
+  try {
+    const { build } = await import("esbuild");
+    const out = nodePath.join(tmpdir(), `challengeBank.${process.pid}.mjs`);
+    await build({
+      entryPoints: [source],
+      outfile: out,
+      format: "esm",
+      platform: "node",
+      target: "node20",
+      bundle: false,
+      logLevel: "silent",
+    });
+    // يُحذف عند الخروج مهما كان سببه، فلا يتراكم في مجلّد المؤقّتات.
+    process.on("exit", () => {
+      try {
+        rmSync(out, { force: true });
+      } catch {
+        /* لا يضرّ بقاؤه */
+      }
+    });
+    return await import(pathToFileURL(out).href);
+  } catch (error) {
+    console.error(
+      "تعذّر تحميل قواعد القبول. شغّل `npm run build` أولاً، أو ثبّت " +
+        `التبعيات ليتوفّر esbuild. السبب: ${error.message}`,
+    );
+    process.exit(1);
+  }
+}
+
 const line = (t = "") => console.log(t);
 const head = (t) => {
   line();
@@ -138,17 +206,8 @@ async function main() {
     process.exit(1);
   }
 
-  // وحدةُ القواعد نفسها التي يستعملها الخادم، فلا تفترق تصفيةُ السكربت
-  // عن تصفية المسار.
-  const lib = await import("../dist/lib/challengeBank.js").catch(() => null);
-  if (!lib) {
-    console.error(
-      "لم يُبنَ dist بعد. شغّل `npm run build` أولاً — هذا السكربت يستعمل\n" +
-        "قواعد القبول نفسها التي يستعملها الخادم، ولا يكرّرها.",
-    );
-    process.exit(1);
-  }
-  const { bankPrompt, parseBank, readBank } = lib;
+  const { BANK_SIZE, BANK_VERSION, bankPrompt, parseBank, readBank } =
+      await loadBankRules();
 
   line(EXECUTE ? "✍️ توليد وحفظ." : "🔍 الخطة وحدها — لا استدعاء نموذج ولا كتابة.");
 
