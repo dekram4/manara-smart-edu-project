@@ -1,6 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { getContentActor, getReaderActor } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
+import {
+  BANK_SIZE,
+  BANK_VERSION,
+  detectSubject,
+  parseBank,
+  readBank,
+} from "../lib/challengeBank";
+import { generateChallengeBank } from "../lib/geminiBank";
 
 const router = Router();
 
@@ -554,6 +562,80 @@ router.get("/supabase/:table", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * يولّد بنك جولات التحدي للدروس التي تغيّر نصُّها، في الخلفية.
+ *
+ * ── متى يُعاد التوليد ──
+ * حين لا يكون للدرس بنك، أو حين يتغيّر نصّه. والنصّ يُبصَم بطوله وأوّله
+ * وآخره في البنك نفسه: مقارنةُ البصمة أرخص من الاحتفاظ بنسخةٍ ثانية من
+ * النصّ، ومعلّمٌ يصحّح فاصلةً لا يُنفق عليه توليدٌ جديد لأن الطول تغيّر
+ * — بل يُنفق، وذلك مقبول: التصحيح نادر والتوليد رخيص، والبديل بنكٌ
+ * يسأل عن نصٍّ لم يعد موجوداً.
+ *
+ * ── ولا يُنتظر ──
+ * يعمل بعد أن يردّ المسار. فشلُه يُسجَّل ولا يُرى، والبنك يُولَّد عند
+ * أوّل فتحةٍ للتحدي إن لم يُولَّد هنا.
+ */
+async function refreshChallengeBanks(rows: Record<string, unknown>[]): Promise<void> {
+  const config = getSupabaseConfig();
+  if (!config || !process.env.GEMINI_API_KEY?.trim()) return;
+
+  for (const row of rows) {
+    const id = stringValue(row.id);
+    const data = row.data && typeof row.data === "object"
+      ? (row.data as Record<string, unknown>)
+      : null;
+    if (!id || !data) continue;
+    const text = stringValue(data.lessonContent) || stringValue(data.lessonText);
+    if (!text) continue;
+
+    const stamp = lessonStamp(text);
+    const existing = readBank(data.challengeBank);
+    if (existing && (existing as any).lessonStamp === stamp) continue;
+
+    try {
+      const raw = await generateChallengeBank({
+        subject: stringValue(data.subject),
+        unit: stringValue(data.unit),
+        lesson: stringValue(data.lesson),
+        lessonText: text,
+      });
+      const { rounds } = parseBank(raw, detectSubject(data.subject));
+      if (rounds.length < BANK_SIZE / 2) {
+        logger.warn({ id, got: rounds.length }, "[bridge] bank too small to save");
+        continue;
+      }
+      await rest(config, `lesson_configs?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          // السجلّ كاملاً ومعه البنك: `PATCH` على `data` يستبدلها، فكتابةُ
+          // البنك وحده تمحو نصّ الدرس ومساره.
+          data: {
+            ...data,
+            challengeBank: {
+              version: BANK_VERSION,
+              generatedAt: new Date().toISOString(),
+              subject: stringValue(data.subject),
+              lessonStamp: stamp,
+              rounds,
+            },
+          },
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      logger.info({ id, rounds: rounds.length }, "[bridge] challenge bank refreshed");
+    } catch (error) {
+      logger.error({ err: error, id }, "[bridge] challenge bank generation failed");
+    }
+  }
+}
+
+/** بصمةُ نصٍّ: طولُه وطرفاه. تكفي لكشف تغيّره بلا حفظ نسخةٍ منه. */
+function lessonStamp(text: string): string {
+  return `${text.length}:${text.slice(0, 24)}:${text.slice(-24)}`;
+}
+
 router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {
   const actor = getContentActor(req);
   const table = tableName(req);
@@ -609,6 +691,18 @@ router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {
       });
     }
     res.status(204).end();
+
+    // بنك التحدي يُولَّد في الخلفية بعد حفظ الدرس.
+    //
+    // بعد الردّ لا قبله: المعلّم يحفظ درسه فيرى «حُفظ» في لحظته، ولا
+    // ينتظر نموذجاً لغوياً يبني عشرين جولة. وفشلُ التوليد لا يُسقط
+    // الحفظ — الدرس محفوظٌ على كل حال، والبنك يُولَّد عند أوّل فتحةٍ
+    // للتحدي إن لم يُولَّد هنا.
+    if (table === "lesson_configs") {
+      void refreshChallengeBanks(validRows).catch((error) =>
+        logger.error({ err: error }, "[bridge] challenge banks not refreshed"),
+      );
+    }
   } catch (error) {
     logger.error({ err: error, table }, "Failed to persist Supabase rows");
     res.status(502).json({ error: "تعذر حفظ البيانات المشتركة" });

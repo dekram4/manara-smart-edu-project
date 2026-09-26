@@ -168,7 +168,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
       // الأحدث أوّلاً، ثم ما قبله، ثم الأصل. سلسلةٌ لا شرطٌ واحد:
       // التسليم يأتي على دفعات، وجهازٌ بُني قبل وصول الملف الجديد يجب
       // أن يُرحّب بما عنده لا أن يصمت.
-      const welcomes = ['audio/shater.mp3', 'audio/tarheeb.mp3', 'audio/welcome.mp3'];
+      const welcomes = ['audio/tarheeb.mp3', 'audio/shater.mp3', 'audio/welcome.mp3'];
       final asset = welcomes.firstWhere(
         (candidate) => bundled.contains('assets/$candidate'),
         orElse: () => welcomes.last,

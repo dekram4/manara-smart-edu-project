@@ -419,6 +419,14 @@ class StudentSoundService with WidgetsBindingObserver {
 
   /// مقاطع الشاشات — ما ليس بطاقةً في اللوحة.
   static const _loginClip = 'audio/signin.mp3';
+
+  /// علوّ خلفية شاشة الدخول.
+  ///
+  /// مضبوطٌ صراحةً لا مقيساً بجدول `voiceRms`: ذاك يوحّد علوّ الجمل
+  /// المنطوقة على علوّ ترحيب المحور، وهذه موسيقى لا جملة — والمقياس
+  /// الذي يصلح للكلام يخفض الموسيقى تحت ما يُسمع. وهي خلفيةٌ تحت شاشةٍ
+  /// لا كلام فوقها، فتحتمل علوّاً ظاهراً.
+  static const _loginVolume = 0.85;
   static const _welcomeClip = 'audio/tarheeb.mp3';
   static const _pathOverride = 'audio/masar.mp3';
   static const _dashboardClip = 'audio/start.mp3';
@@ -441,10 +449,7 @@ class StudentSoundService with WidgetsBindingObserver {
       if (!bundled.contains('assets/$_loginClip')) return;
       await _voicePlayer.stop();
       _voiceClip = _loginClip;
-      await _voicePlayer.play(
-        AssetSource(_loginClip),
-        volume: voiceVolume(_loginClip),
-      );
+      await _voicePlayer.play(AssetSource(_loginClip), volume: _loginVolume);
     } catch (_) {
       // لا صوت على هذا الجهاز: الشاشة تُفتح صامتة.
     }

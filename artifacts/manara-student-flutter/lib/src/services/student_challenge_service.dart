@@ -4,48 +4,106 @@ import 'package:http/http.dart' as http;
 
 import 'student_auth_service.dart';
 
-/// One generated challenge question.
+/// جولةٌ حركية واحدة، كما يرسلها الخادم من بنك الدرس.
 ///
-/// Plain and immutable so the screen can hold it in a round and a test can
-/// build one without a network.
-class ChallengeQuestion {
-  const ChallengeQuestion({
-    required this.question,
-    required this.options,
-    required this.correctAnswer,
-    this.explanation = '',
-  });
+/// ثلاثة أنواع لا رابع: اسحب الكلمة إلى فراغها، وافرز العناصر في
+/// مجموعاتها، وطابق المصطلح بتعريفه. وليس فيها سؤالُ اختيارٍ من متعدّد:
+/// ذاك امتحانٌ مصغّر، وهذه لعبة — والإفلات الخاطئ فيها يرتدّ ولا يُحسب
+/// خطأً، فلا عقوبةَ على المحاولة.
+sealed class RemoteRound {
+  const RemoteRound();
 
-  final String question;
-  final List<String> options;
-  final String correctAnswer;
-  final String explanation;
-
-  /// Builds one from the server's JSON, or returns null when the shape is
-  /// wrong.
+  /// يبني جولةً من JSON، أو `null` إن كان شكلُها غير ما يُنتظر.
   ///
-  /// The server filters already; this is the second gate, because a client
-  /// that trusts a shape it did not check shows a child four blank buttons
-  /// when the contract drifts.
-  static ChallengeQuestion? fromJson(Object? raw) {
+  /// الخادم يصفّي قبلها؛ وهذه بوّابةٌ ثانية، لأن عميلاً يثق بشكلٍ لم
+  /// يفحصه يعرض على طفلٍ لوحةً لا تُلعب حين يتغيّر العقد.
+  static RemoteRound? fromJson(Object? raw) {
     if (raw is! Map) return null;
-    final question = _text(raw['question']);
-    final options = (raw['options'] is List ? raw['options'] as List : const [])
-        .map(_text)
-        .where((option) => option.isNotEmpty)
-        .toList();
-    final answer = _text(raw['correctAnswer']);
-    if (question.isEmpty || options.length < 2) return null;
-    if (!options.any((option) => option == answer)) return null;
-    return ChallengeQuestion(
-      question: question,
-      options: options,
-      correctAnswer: answer,
-      explanation: _text(raw['explanation']),
-    );
+    switch (_text(raw['kind'])) {
+      case 'fill':
+        final answer = _text(raw['answer']);
+        final distractors = _list(raw['distractors']);
+        if (answer.isEmpty || distractors.length < 2) return null;
+        return RemoteFill(
+          before: _text(raw['before']),
+          after: _text(raw['after']),
+          answer: answer,
+          distractors: distractors,
+        );
+      case 'classify':
+        final buckets = _list(raw['buckets']);
+        final rawItems = raw['items'];
+        if (buckets.length < 2 || rawItems is! Map) return null;
+        final items = <String, String>{};
+        for (final entry in rawItems.entries) {
+          final name = _text(entry.key);
+          final bucket = _text(entry.value);
+          if (name.isEmpty || !buckets.contains(bucket)) continue;
+          items[name] = bucket;
+        }
+        if (items.length < 3) return null;
+        return RemoteClassify(
+          prompt: _text(raw['prompt']),
+          buckets: buckets,
+          items: items,
+        );
+      case 'match':
+        final pairs = <({String term, String meaning})>[];
+        for (final entry in _rawList(raw['pairs'])) {
+          if (entry is! Map) continue;
+          final term = _text(entry['term']);
+          final meaning = _text(entry['meaning']);
+          if (term.isEmpty || meaning.isEmpty) continue;
+          pairs.add((term: term, meaning: meaning));
+        }
+        if (pairs.length < 2) return null;
+        return RemoteMatch(pairs: pairs);
+      default:
+        return null;
+    }
   }
 
   static String _text(Object? value) => (value ?? '').toString().trim();
+  static List<Object?> _rawList(Object? value) =>
+      value is List ? value : const [];
+  static List<String> _list(Object? value) => _rawList(value)
+      .map(_text)
+      .where((item) => item.isNotEmpty)
+      .toList();
+}
+
+/// اسحب الكلمة الناقصة إلى فراغها في جملة الدرس.
+class RemoteFill extends RemoteRound {
+  const RemoteFill({
+    required this.before,
+    required this.after,
+    required this.answer,
+    required this.distractors,
+  });
+
+  final String before;
+  final String after;
+  final String answer;
+  final List<String> distractors;
+}
+
+/// افرز عناصر الدرس في مجموعاتها.
+class RemoteClassify extends RemoteRound {
+  const RemoteClassify({
+    required this.prompt,
+    required this.buckets,
+    required this.items,
+  });
+
+  final String prompt;
+  final List<String> buckets;
+  final Map<String, String> items;
+}
+
+/// طابق كل مصطلحٍ بتعريفه.
+class RemoteMatch extends RemoteRound {
+  const RemoteMatch({required this.pairs});
+  final List<({String term, String meaning})> pairs;
 }
 
 /// Why a round could not be fetched, in words the screen can show.
@@ -75,12 +133,6 @@ class StudentChallengeService {
   final StudentAuthService authService;
   final http.Client _client;
 
-  /// Questions from earlier rounds in this sitting, newest last.
-  ///
-  /// Kept here rather than in the screen so a replay carries them without
-  /// the screen having to thread them through its own state.
-  final List<String> _seen = <String>[];
-
   /// The endpoint, resolved the way the problem solver resolves its own:
   /// an explicit base when the build has one, else the origin the web
   /// build is served from.
@@ -97,10 +149,8 @@ class StudentChallengeService {
     return base.isEmpty ? null : Uri.tryParse('$base/api/gemini/challenge');
   }
 
-  void forget() => _seen.clear();
-
-  /// One round for [lessonId], or throws [ChallengeFailure] with a reason.
-  Future<List<ChallengeQuestion>> fetchRound({
+  /// جولاتُ لعبةٍ واحدة لهذا الدرس، أو [ChallengeFailure] بسببها.
+  Future<List<RemoteRound>> fetchRound({
     required String lessonId,
     int count = 6,
     String? seed,
@@ -128,7 +178,6 @@ class StudentChallengeService {
               // ما رآه اللاعب قبل قليل.
               'seed': seed ??
                   DateTime.now().microsecondsSinceEpoch.toRadixString(36),
-              'exclude': _seen.reversed.take(24).toList(),
             }),
           )
           // الخادم له ميزانية خمسين ثانية يجرّب فيها أكثر من نموذج، فقطعُ
@@ -158,22 +207,15 @@ class StudentChallengeService {
       throw ChallengeFailure(message.isEmpty ? 'serviceSilent' : message);
     }
 
-    final list = payload is Map && payload['questions'] is List
-        ? payload['questions'] as List
+    final list = payload is Map && payload['rounds'] is List
+        ? payload['rounds'] as List
         : const [];
-    final questions = <ChallengeQuestion>[];
+    final rounds = <RemoteRound>[];
     for (final item in list) {
-      final question = ChallengeQuestion.fromJson(item);
-      if (question != null) questions.add(question);
+      final round = RemoteRound.fromJson(item);
+      if (round != null) rounds.add(round);
     }
-    if (questions.isEmpty) throw const ChallengeFailure('empty');
-
-    for (final question in questions) {
-      _seen.add(question.question);
-    }
-    // ذاكرةٌ قصيرة تكفي: ما يُرسل منها أربعةٌ وعشرون، والاحتفاظ بأكثر
-    // يُثقل الجلسة بلا أثر.
-    if (_seen.length > 60) _seen.removeRange(0, _seen.length - 60);
-    return questions;
+    if (rounds.isEmpty) throw const ChallengeFailure('empty');
+    return rounds;
   }
 }

@@ -10,12 +10,16 @@ import {
   type StudentActor,
 } from "../lib/studentAccess";
 import {
-  buildPrompt,
+  BANK_SIZE,
+  BANK_VERSION,
+  ROUNDS_PER_PLAY,
+  bankPrompt,
   detectSubject,
-  outputBudget,
-  parseQuestions,
-  type ChallengeQuestion,
-} from "../lib/challengeQuestions";
+  drawRounds,
+  parseBank,
+  readBank,
+  type ChallengeBank,
+} from "../lib/challengeBank";
 
 // 20 AI-answer requests per IP per minute — prevents Gemini quota abuse
 // while still allowing normal student lesson use
@@ -237,6 +241,8 @@ type LessonLookup =
       subject: string;
       unit: string;
       lesson: string;
+      /** بنك جولات التحدي المحفوظ مع الدرس، إن وُلّد من قبل. */
+      challengeBank?: unknown;
       reason?: undefined;
       detail?: undefined;
     }
@@ -300,7 +306,51 @@ async function resolveStudentLesson(
     subject: typeof lesson.subject === "string" ? lesson.subject : "",
     unit: typeof lesson.unit === "string" ? lesson.unit : "",
     lesson: typeof lesson.lesson === "string" ? lesson.lesson : "",
+    challengeBank: lesson.challengeBank,
   };
+}
+
+/**
+ * يحفظ البنك داخل `data` من سجلّ الدرس.
+ *
+ * داخل `data` لا في عمودٍ خاص: الجدول `(id, data jsonb)` ولا عمود
+ * `challenge_bank` فيه، وإضافةُ عمودٍ تحتاج ترحيلاً على قاعدةٍ تعمل.
+ * والقراءة تُسلَّم من `data` نفسها فلا فرق عند الاستعمال.
+ *
+ * ويُقرأ السجلّ قبل الكتابة ويُدمج: `PATCH` على `data` يستبدلها كاملةً،
+ * فكتابةُ البنك وحده تمحو نصّ الدرس ومساره.
+ */
+async function persistBank(lessonId: string, bank: ChallengeBank): Promise<void> {
+  const config = apiSupabaseConfig();
+  if (!config) return;
+  const headers = {
+    apikey: config.key,
+    Authorization: `Bearer ${config.key}`,
+    "Content-Type": "application/json",
+  };
+  const read = await fetch(
+    `${config.url}/rest/v1/lesson_configs?select=data&id=eq.${encodeURIComponent(lessonId)}`,
+    { headers },
+  );
+  if (!read.ok) throw new Error(`bank read failed (${read.status})`);
+  const rows = await read.json();
+  const data = Array.isArray(rows) && rows[0]?.data && typeof rows[0].data === "object"
+    ? (rows[0].data as Record<string, unknown>)
+    : null;
+  if (!data) throw new Error("lesson row vanished before the bank was saved");
+
+  const write = await fetch(
+    `${config.url}/rest/v1/lesson_configs?id=eq.${encodeURIComponent(lessonId)}`,
+    {
+      method: "PATCH",
+      headers: { ...headers, Prefer: "return=minimal" },
+      body: JSON.stringify({
+        data: { ...data, challengeBank: bank },
+        updated_at: new Date().toISOString(),
+      }),
+    },
+  );
+  if (!write.ok) throw new Error(`bank write failed (${write.status})`);
 }
 
 async function recordProblemSolverActivity(
@@ -439,7 +489,7 @@ router.post(
     const requested = Number(req.body?.count);
     const count = Number.isFinite(requested)
       ? Math.min(Math.max(Math.trunc(requested), 3), 10)
-      : 6;
+      : ROUNDS_PER_PLAY;
     const seed =
       typeof req.body?.seed === "string" && req.body.seed.trim()
         ? req.body.seed.trim().slice(0, 64)
@@ -472,42 +522,60 @@ router.post(
       }
 
       const subject = detectSubject(lesson.subject);
-      // يُطلب أكثر ممّا يُعرض لأن التصفية تردّ بعضه، فلا تخرج الجولة
-      // ناقصةً من أوّل ردّ.
-      const ask = Math.min(count + 4, 14);
-      const data = await callGemini(
-        buildPrompt({
+
+      // البنك المحفوظ أولاً.
+      //
+      // التوليد عند كل فتحة كان يُجلس طفلاً أمام انتظارٍ عشر ثوانٍ،
+      // ويُسقط البطاقة كلّها إن تعثّر النموذج. والبنك يُولَّد مرّةً
+      // ويُحفظ مع الدرس، فتُسحب منه جولاتٌ فوراً، وإعادةُ التحدي تسحب
+      // غيرها — فالتجدّد من سَعة البنك لا من طلبٍ جديد.
+      let bank = readBank(lesson.challengeBank);
+      let generated = false;
+
+      if (!bank) {
+        const raw = await callGemini(
+          bankPrompt({
+            subject: lesson.subject,
+            unit: lesson.unit,
+            lesson: lesson.lesson,
+            lessonText: lesson.text,
+          }),
+          { temperature: 0.9, maxOutputTokens: 32000, json: true },
+        );
+        const { rounds, rejected } = parseBank(
+          typeof raw === "string" ? raw : (getGeminiText(raw) ?? raw),
+          subject,
+        );
+        if (rounds.length === 0) {
+          logger.warn({ lessonId, subject, rejected }, "[gemini] challenge bank empty");
+          return res
+            .status(502)
+            .json({ error: "تعذّر توليد جولات التحدي، حاول مرة أخرى" });
+        }
+        if (Object.keys(rejected).length) {
+          logger.info({ lessonId, subject, rejected }, "[gemini] challenge bank filtered");
+        }
+        bank = {
+          version: BANK_VERSION,
+          generatedAt: new Date().toISOString(),
           subject: lesson.subject,
-          unit: lesson.unit,
-          lesson: lesson.lesson,
-          lessonText: lesson.text,
-          count: ask,
-          seed,
-          exclude,
-        }),
-        { temperature: 1, maxOutputTokens: outputBudget(ask), json: true },
-      );
-
-      const { questions, rejected } = parseQuestions(
-        typeof data === "string" ? data : (getGeminiText(data) ?? data),
-        subject,
-        count,
-        exclude,
-      );
-
-      if (questions.length === 0) {
-        logger.warn({ lessonId, subject, rejected }, "[gemini] challenge produced nothing");
-        return res.status(502).json({ error: "تعذّر توليد أسئلة التحدي، حاول مرة أخرى" });
-      }
-      if (Object.keys(rejected).length) {
-        logger.info({ lessonId, subject, rejected }, "[gemini] challenge filtered");
+          rounds,
+        };
+        generated = true;
+        // الحفظ لا يُنتظَر ولا يُسقط الردّ: الطفل ينتظر جولاته، وفشلُ
+        // الكتابة يعني توليداً ثانياً في المرة القادمة لا شاشةً فارغة.
+        void persistBank(lessonId, bank).catch((error) =>
+          logger.error({ err: error, lessonId }, "[gemini] bank not saved"),
+        );
       }
 
       return res.json({
         lessonId: lesson.id,
         subject: lesson.subject,
         seed,
-        questions: questions as ChallengeQuestion[],
+        bankSize: bank.rounds.length,
+        generated,
+        rounds: drawRounds(bank, count, Number.parseInt(seed.slice(-8), 36) || Date.now()),
       });
     } catch (error: any) {
       logger.error({ err: error, lessonId }, "[gemini] challenge failed");

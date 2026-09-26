@@ -391,22 +391,37 @@ class MatchRound extends ChallengeRound {
   final List<LessonDefinition> pairs;
 }
 
-/// Answer a question generated from the lesson text by the server.
+/// يحوّل جولةً جاءت من الخادم إلى جولةٍ تعرفها هذه الشاشة.
 ///
-/// The three rounds above are cut from the lesson's own sentences by
-/// rules that run on the device: they always work, offline included, but
-/// they can only ask what the shape of a sentence allows. This one asks
-/// what the lesson *means* — apply the rule, spot the phenomenon, pick
-/// the word that fits — and it is different every round, because it is
-/// generated rather than drawn from a fixed bank.
-///
-/// It is added to a run, never the whole of it. The generator needs the
-/// network and a lesson with text; when either is missing the run is the
-/// three offline rounds exactly as before, so a child on a bad connection
-/// still has a game rather than an error.
-class QuizRound extends ChallengeRound {
-  const QuizRound(this.question);
-  final ChallengeQuestion question;
+/// الأنواع الثلاثة هي أنواعُها نفسها، فلا ويدجت جديدة: ما يتغيّر مصدرُ
+/// الجولة لا شكلُها. كانت تُقتطع من نصّ الدرس بقواعدَ تعمل على الجهاز،
+/// وصارت تُولَّد منه بالذكاء الاصطناعي وتُحفظ في بنكٍ مع الدرس.
+ChallengeRound? roundFromRemote(RemoteRound remote, math.Random rng) {
+  switch (remote) {
+    case RemoteFill():
+      // الجواب مع مشتّتاته، مخلوطين — ولولا الخلط لكان في أوّل الصفّ
+      // دائماً.
+      final choices = [remote.answer, ...remote.distractors]..shuffle(rng);
+      return FillRound(EndlessReaderSentence(
+        before: remote.before,
+        after: remote.after,
+        answer: remote.answer,
+        choices: choices,
+      ));
+    case RemoteClassify():
+      return ClassifyRound(EndlessReaderSorting(
+        prompt: remote.prompt.isEmpty
+            ? tr('challenge.classifyPrompt')
+            : remote.prompt,
+        buckets: remote.buckets,
+        items: remote.items,
+      ));
+    case RemoteMatch():
+      return MatchRound([
+        for (final pair in remote.pairs)
+          LessonDefinition(term: pair.term, meaning: pair.meaning),
+      ]);
+  }
 }
 
 /// Builds one run of the challenge from the current lesson.
@@ -429,7 +444,6 @@ class ChallengeSession {
   static List<ChallengeRound> build({
     required String? lessonText,
     required int seed,
-    List<ChallengeQuestion> generated = const [],
   }) {
     final rng = math.Random(seed);
 
@@ -457,14 +471,8 @@ class ChallengeSession {
     final classifies = _classifyRounds(grouping, rng);
     final matches = _matchRounds(definitions, rng);
 
-    // أسئلة الخادم بركةٌ رابعة تدخل التناوب نفسه، فتتخلّل الجولات
-    // الثلاث ولا تتكدّس في أوّل الجولة ولا في آخرها.
-    final quizzes = <ChallengeRound>[
-      for (final question in generated) QuizRound(question),
-    ];
-
     final plan = <ChallengeRound>[];
-    final pools = [fills, classifies, matches, quizzes]
+    final pools = [fills, classifies, matches]
         .where((pool) => pool.isNotEmpty)
         .toList()
       ..shuffle(rng);
@@ -746,7 +754,7 @@ class _StudentEndlessReaderScreenState
   /// الجلب لا يوقف اللعب: تُبنى الجولات الثلاث فوراً ويبدأ الطفل، فإذا
   /// وصلت الأسئلة أُعيد بناء الخطة بها. وانتظارُ الشبكة قبل عرض شيءٍ
   /// يجعل بطاقةً تُفتح بضغطة تبدو معطّلةً عشر ثوانٍ.
-  List<ChallengeQuestion> _generated = const [];
+  List<RemoteRound> _generated = const [];
   bool _fetching = false;
 
   /// سببُ تعذّر التوليد، إن تعذّر.
@@ -759,19 +767,12 @@ class _StudentEndlessReaderScreenState
   /// يزيد مع كل توزيع، فتُهمل نتيجةُ جلبٍ سبقه.
   int _dealToken = 0;
 
-  /// الإجابة التي اختارها الطفل في جولة الأسئلة، إن اختار.
-  String? _picked;
 
   ChallengeRound? get _round =>
       _wordIndex < _plan.length ? _plan[_wordIndex] : null;
 
   bool get _onSorting => _round is ClassifyRound;
   bool get _onMatching => _round is MatchRound;
-  bool get _onQuiz => _round is QuizRound;
-
-  ChallengeQuestion? get _question =>
-      _round is QuizRound ? (_round! as QuizRound).question : null;
-
   EndlessReaderSentence get _sentence => (_round as FillRound).sentence;
   EndlessReaderSorting? get _sorting =>
       _round is ClassifyRound ? (_round! as ClassifyRound).sorting : null;
@@ -830,12 +831,16 @@ class _StudentEndlessReaderScreenState
       _startRound();
       return;
     }
-    // ومعه: أسئلةُ الدرس وحدها.
+    // ومعه: جولاتُ بنك الدرس وحدها.
     //
-    // لا تُخلط بجولات الجهاز ولا يُرتدّ إليها عند الفشل. الأسئلة
-    // المولَّدة تسأل عمّا يعنيه الدرس، وتلك تسأل عن شكل جملةٍ فيه —
-    // وخلطُهما يجعل نصف التحدي سطحياً، والارتدادُ إليها يجعله كلَّه.
-    _plan = [for (final question in _generated) QuizRound(question)];
+    // لا تُخلط بجولات الجهاز ولا يُرتدّ إليها عند الفشل. جولاتُ البنك
+    // مبنيّةٌ على معنى الدرس، وتلك على شكل جملةٍ فيه — وخلطُهما يجعل
+    // نصف التحدي سطحياً، والارتدادُ إليها يجعله كلَّه.
+    final rng = math.Random(_seed);
+    _plan = [
+      for (final remote in _generated)
+        if (roundFromRemote(remote, rng) case final round?) round,
+    ];
     _wordIndex = 0;
     _startRound();
     _fetchGenerated();
@@ -877,11 +882,15 @@ class _StudentEndlessReaderScreenState
       _failure = null;
     });
     try {
-      final questions = await service.fetchRound(lessonId: lessonId);
+      final rounds = await service.fetchRound(lessonId: lessonId);
       if (!mounted || token != _dealToken) return;
+      final rng = math.Random(_seed);
       setState(() {
-        _generated = questions;
-        _plan = [for (final question in questions) QuizRound(question)];
+        _generated = rounds;
+        _plan = [
+          for (final remote in rounds)
+            if (roundFromRemote(remote, rng) case final round?) round,
+        ];
         _wordIndex = 0;
         _failure = null;
         _fetching = false;
@@ -917,7 +926,6 @@ class _StudentEndlessReaderScreenState
     _sorted.clear();
     _matched.clear();
     _filled = null;
-    _picked = null;
     _celebrating = false;
     // The definition cards are ordered per round rather than per run, so
     // meeting the same pair again in a later round still reads as a new
@@ -1169,9 +1177,7 @@ class _StudentEndlessReaderScreenState
               ),
             ),
             const SizedBox(height: 18),
-            if (_onQuiz)
-              _questionCard()
-            else if (_onSorting)
+            if (_onSorting)
               _sortingBoard()
             else if (_onMatching)
               _matchingBoard()
@@ -1180,8 +1186,6 @@ class _StudentEndlessReaderScreenState
             const SizedBox(height: 24),
             if (_celebrating)
               _afterWordActions()
-            else if (_onQuiz)
-              _optionTray()
             else if (_onSorting)
               _sortingTray()
             else if (_onMatching)
@@ -1195,14 +1199,12 @@ class _StudentEndlessReaderScreenState
   }
 
   String _promptLine() {
-    if (_onQuiz) return tr('challenge.pickPrompt');
     if (_onSorting) return _sorting?.prompt ?? tr('challenge.classifyPrompt');
     if (_onMatching) return tr('challenge.matchPrompt');
     return tr('challenge.dragWord');
   }
 
   String _doneLine() {
-    if (_onQuiz) return tr('challenge.pickDone');
     if (_onSorting) return tr('challenge.sortDone');
     if (_onMatching) return tr('challenge.matchDone');
     return tr('challenge.sentenceDone');
@@ -1534,141 +1536,6 @@ class _StudentEndlessReaderScreenState
   /// The sentence with its gap, as one readable line. The gap is a drop
   /// target sized to the answer, so the line does not jump when a word
   /// lands in it.
-  /// نصّ السؤال المولّد، ومعه تفسيرُه بعد الإجابة.
-  ///
-  /// السؤال من مادة الدرس ولغتِه: الإنجليزية تصل إنجليزيةً بالكامل من
-  /// الخادم، فيُترك اتّجاه النصّ للغة المحتوى لا للواجهة — وإلا قُرئ
-  /// السؤال الإنجليزي معكوس الترقيم داخل واجهةٍ عربية.
-  Widget _questionCard() {
-    final question = _question;
-    if (question == null) return const SizedBox.shrink();
-    final latin = RegExp(r'[A-Za-z]').hasMatch(question.question);
-    final arabic = RegExp(r'[؀-ۿ]').hasMatch(question.question);
-    final direction = latin && !arabic ? TextDirection.ltr : TextDirection.rtl;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 620),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-      decoration: BoxDecoration(
-        color: StudentSurface.glass(context, 0.92),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF6D28D9), width: 2),
-        boxShadow: const [
-          BoxShadow(color: Color(0x22000000), blurRadius: 16, offset: Offset(0, 7)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Directionality(
-            textDirection: direction,
-            child: Text(
-              question.question,
-              textAlign: TextAlign.center,
-              style: _sentenceStyle(context),
-            ),
-          ),
-          if (_celebrating && question.explanation.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Directionality(
-              textDirection: direction,
-              child: Text(
-                question.explanation,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF15803D),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// الخيارات الأربعة.
-  ///
-  /// الخطأ لا يُعاقَب ولا يُنهي الجولة: يُومَض أحمرَ ويُترك الزرّ
-  /// مفتوحاً ليحاول ثانيةً — وهي قاعدة الجولات الثلاث الأخرى نفسها،
-  /// فالإفلات الخاطئ فيها يرتدّ ولا يُحسب خطأً. لعبةٌ لطفلٍ تُشجّع على
-  /// المحاولة لا تُحصي السقطات.
-  Widget _optionTray() {
-    final question = _question;
-    if (question == null) return const SizedBox.shrink();
-    final latin = RegExp(r'[A-Za-z]').hasMatch(question.options.join(' '));
-    final arabic = RegExp(r'[؀-ۿ]').hasMatch(question.options.join(' '));
-    final direction = latin && !arabic ? TextDirection.ltr : TextDirection.rtl;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 620),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final option in question.options)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _optionButton(option, question, direction),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _optionButton(
-    String option,
-    ChallengeQuestion question,
-    TextDirection direction,
-  ) {
-    final wrong = _picked == option && option != question.correctAnswer;
-    return GestureDetector(
-      onTap: () => _onOptionTap(option, question),
-      child: StudentPressScale(
-        child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: wrong
-              ? const Color(0xFFFEE2E2)
-              : StudentSurface.glass(context, 0.88),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: wrong ? const Color(0xFFDC2626) : const Color(0xFF8B5CF6),
-            width: 2,
-          ),
-        ),
-        child: Directionality(
-          textDirection: direction,
-          child: Text(
-            option,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF3B2A6B),
-            ),
-          ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _onOptionTap(String option, ChallengeQuestion question) {
-    if (_celebrating) return;
-    if (option == question.correctAnswer) {
-      setState(() => _picked = option);
-      HapticFeedback.lightImpact();
-      StudentSoundService.instance.play(StudentSoundCue.success);
-      _finishWord();
-      return;
-    }
-    setState(() => _picked = option);
-    HapticFeedback.selectionClick();
-    StudentSoundService.instance.play(StudentSoundCue.warning);
-  }
-
   Widget _sentenceCard() {
     final sentence = _sentence;
     final filled = _filled;
