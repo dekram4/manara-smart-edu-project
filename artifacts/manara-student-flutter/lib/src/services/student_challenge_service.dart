@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'student_auth_service.dart';
 
@@ -126,19 +129,35 @@ class StudentChallengeService {
   StudentChallengeService({
     required this.apiBaseUrl,
     required this.authService,
+    SupabaseClient? database,
     http.Client? client,
-  }) : _client = client ?? http.Client();
+  })  : _database = database,
+        _client = client ?? http.Client();
 
   final String apiBaseUrl;
   final StudentAuthService authService;
+
+  /// قاعدة البيانات مباشرةً، حيث يسكن البنك.
+  final SupabaseClient? _database;
   final http.Client _client;
+
+  /// كم جولةً تُعرض في اللعبة الواحدة.
+  static const roundsPerPlay = 5;
+
+  /// أكثر ما يُنتظر من قاعدة البيانات.
+  static const _readTimeout = Duration(seconds: 12);
 
   /// The endpoint, resolved the way the problem solver resolves its own:
   /// an explicit base when the build has one, else the origin the web
   /// build is served from.
+  /// عنوان مولّد البنك، أو `null` إن لم يكن لهذا البناء خادم.
+  ///
+  /// `Uri.base` تصلح للويب وحده: في APK ليست أصلَ موقعٍ بل مسارَ ملف،
+  /// فالاعتماد عليها خارج المتصفّح يُخرج عنواناً لا يُطلب — وهو ما كان
+  /// يجعل الطلب لا يُرسل أصلاً فلا يظهر في سجلّ الخادم شيء.
   Uri? get endpoint {
     var base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
-    if (base.isEmpty) {
+    if (base.isEmpty && kIsWeb) {
       final current = Uri.base;
       if (current.scheme == 'http' || current.scheme == 'https') {
         base = current.host == 'localhost' || current.host == '127.0.0.1'
@@ -150,9 +169,54 @@ class StudentChallengeService {
   }
 
   /// جولاتُ لعبةٍ واحدة لهذا الدرس، أو [ChallengeFailure] بسببها.
+  ///
+  /// ── قاعدةُ البيانات أوّلاً ──
+  /// البنك مخزَّنٌ مع الدرس في `lesson_configs`، وهذا الجدول يقرؤه
+  /// التطبيق أصلاً ليعرض نصّ الدرس. فقراءتُه منه مباشرةً أسرع وأقلّ
+  /// عطباً: لا جلسةَ خادمٍ تُفتح، ولا عنوانَ خادمٍ يجب أن يكون مضبوطاً
+  /// في البناء، ولا نموذجَ لغويّ يُنتظر. وبنكٌ محفوظٌ لا يحتاج خادماً
+  /// ليُقرأ.
+  ///
+  /// ── والخادمُ للتوليد وحده ──
+  /// درسٌ لا بنك له بعد يُطلب من الخادم فيولّده ويحفظه، ثم تصير
+  /// القراءةُ التالية من قاعدة البيانات مباشرةً. فدورُ الخادم أن يملأ
+  /// البنك مرّةً لا أن يقف في طريق كل لعبة.
   Future<List<RemoteRound>> fetchRound({
     required String lessonId,
-    int count = 6,
+    int count = roundsPerPlay,
+    String? seed,
+  }) async {
+    final stored = await _fromDatabase(lessonId, count);
+    if (stored != null && stored.isNotEmpty) return stored;
+    return _fromServer(lessonId: lessonId, count: count, seed: seed);
+  }
+
+  /// البنك المحفوظ مع الدرس، أو `null` إن لم يكن هناك بنك.
+  ///
+  /// كلُّ تعذّرٍ هنا يعود بـ `null` لا برمية: هذا مسلكٌ أوّل، وسقوطُه
+  /// يعني أن يُجرَّب الخادم — لا أن تسقط اللعبة.
+  Future<List<RemoteRound>?> _fromDatabase(String lessonId, int count) async {
+    final database = _database;
+    if (database == null || lessonId.isEmpty) return null;
+    try {
+      final rows = await database
+          .from('lesson_configs')
+          .select('id,data')
+          .eq('id', lessonId)
+          .limit(1)
+          .timeout(_readTimeout);
+      final row = rows.whereType<Map>().firstOrNull;
+      final data = row?['data'];
+      if (data is! Map) return null;
+      return drawFromBank(data['challengeBank'], count);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<RemoteRound>> _fromServer({
+    required String lessonId,
+    required int count,
     String? seed,
   }) async {
     final target = endpoint;
@@ -218,4 +282,33 @@ class StudentChallengeService {
     if (rounds.isEmpty) throw const ChallengeFailure('empty');
     return rounds;
   }
+}
+
+
+/// يقرأ بنكاً محفوظاً ويسحب منه [count] جولةً بلا تكرار.
+///
+/// ── لماذا السحب هنا لا في الخادم ──
+/// البنك يُقرأ من قاعدة البيانات مباشرةً في المسلك الأول، فلا خادم
+/// يسحب. والسحبُ عشوائيٌّ في كل مرّة: إعادةُ التحدي تُخرج خمساً غير
+/// الخمس، وذلك كلّ الفائدة من بنكٍ بعشرين.
+///
+/// يعود فارغاً إن لم يكن ثَمّ بنكٌ صالح، فيُجرَّب الخادم.
+List<RemoteRound> drawFromBank(Object? raw, int count, {math.Random? random}) {
+  if (raw is! Map) return const [];
+  // صيغةٌ أقدم من التي يفهمها هذا البناء: تُترك ليولّد الخادم غيرها،
+  // فقراءتُها بقواعدَ تغيّرت تُخرج لوحةً لا تُلعب.
+  if ((raw['version'] as num?)?.toInt() != 1) return const [];
+  final list = raw['rounds'];
+  if (list is! List) return const [];
+
+  final rounds = <RemoteRound>[];
+  for (final item in list) {
+    final round = RemoteRound.fromJson(item);
+    if (round != null) rounds.add(round);
+  }
+  if (rounds.isEmpty) return const [];
+
+  final rng = random ?? math.Random();
+  rounds.shuffle(rng);
+  return rounds.take(count).toList();
 }

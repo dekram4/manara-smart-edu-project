@@ -25,11 +25,19 @@ class SupabaseConfig {
         anonKey = const String.fromEnvironment('SUPABASE_ANON_KEY'),
         apiBaseUrl = const String.fromEnvironment(
           'API_BASE_URL',
-          // Flutter Web's development server runs on a random localhost port,
-          // but the protected API is served by the Replit API workflow. Using
-          // its public development origin keeps chat and Gemini reachable
-          // from Chrome, while release builds can override this with
-          // --dart-define=API_BASE_URL=<their API origin>.
+          // عنوان الخادم المعتمد، مكتوبٌ هنا لا متروكاً فارغاً.
+          //
+          // البناء لا يمرّر `API_BASE_URL` إلا إذا كان السرّ مضبوطاً في
+          // المستودع، وهو ليس مضبوطاً — فلولا هذه القيمة لخرج كل APK
+          // بلا عنوان خادم، ولَما وصل طلبٌ واحد. وفي الويب وحده يُستعاض
+          // عنها بأصل الموقع حين تُترك فارغة؛ وفي APK لا أصلَ يُستعاض
+          // به، فالقيمة هنا هي كلّ ما هناك.
+          //
+          // وليست سرّاً: عنوانٌ عامّ يُستخرج من أي APK بفكّ ضغطه، وما
+          // يحميه المصادقةُ على كل مسار لا إخفاءُ العنوان.
+          //
+          // وتُتجاوز عند البناء بـ:
+          //   --dart-define=API_BASE_URL=<عنوان الخادم>
           defaultValue:
               'https://3daed49c-74e9-464a-89fa-0dd61cae7661-00-1r2hrmhp8fjuc.sisko.replit.dev',
         );

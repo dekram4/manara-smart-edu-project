@@ -117,6 +117,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _challengeService = StudentChallengeService(
       apiBaseUrl: widget.apiBaseUrl,
       authService: widget.authService,
+      // البنك يُقرأ من `lesson_configs` مباشرةً، وهو الجدول الذي يقرؤه
+      // التطبيق أصلاً لنصّ الدرس — فلا جلسةَ خادمٍ ولا انتظار.
+      database: widget.authService.client,
     );
     _leaderboardService = StudentLeaderboardService(
       apiBaseUrl: widget.apiBaseUrl,
