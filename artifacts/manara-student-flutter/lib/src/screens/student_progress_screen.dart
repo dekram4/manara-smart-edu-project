@@ -6,6 +6,7 @@ import '../models/student_profile.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_settings.dart';
 import '../theme/student_theme.dart';
+import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 
 class StudentProgressScreen extends StatelessWidget {
@@ -308,8 +309,15 @@ class _PodiumStep extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(medal, style: const TextStyle(fontSize: 30)),
+            // شخصيةُ الزميل كما اختارها هو، بالويدجت نفسه الذي يرسم
+            // شخصية صاحب الجهاز — فلا يفترق مظهرُ الاثنين.
+            StudentAvatarView(
+              size: height >= 130 ? 56 : 46,
+              appearance: entry.appearance,
+            ),
             const SizedBox(height: 4),
+            Text(medal, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 2),
             Text(
               entry.name,
               maxLines: 1,
@@ -390,7 +398,12 @@ class _RankRow extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            StudentAvatarView(
+              size: 34,
+              showRing: false,
+              appearance: entry.appearance,
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 entry.name,
@@ -450,11 +463,13 @@ class _MyStanding extends StatelessWidget {
         children: [
           Row(
             children: [
+              StudentAvatarView(size: 44, appearance: me?.appearance),
+              const SizedBox(width: 6),
               Text(
                 board.myRank == 1 ? '👑' : '🎯',
-                style: const TextStyle(fontSize: 26),
+                style: const TextStyle(fontSize: 22),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   trf('board.myRank', {

@@ -14,7 +14,7 @@ class LeaderboardEntry {
     required this.level,
     required this.rank,
     required this.isMe,
-    this.shape,
+    this.appearance,
   });
 
   final String id;
@@ -25,14 +25,19 @@ class LeaderboardEntry {
   final int rank;
   final bool isMe;
 
-  /// The character shape this classmate picked, when their record has one.
-  final String? shape;
+  /// كامل ما اختاره هذا الزميل في «شخصيتي»: الشكل ولونه، والأفاتار
+  /// المختار، والصورة المبنيّة إن بناها.
+  ///
+  /// تُمرَّر كما هي لا مُنتقاةً: الشاشة ترسمها بويدجت الأفاتار نفسه الذي
+  /// يرسم شخصية صاحب الجهاز، فما يفهمه ذلك الويدجت اليوم أو غداً يصل
+  /// إليه بلا وسيطٍ يُسقط حقلاً لم يكن موجوداً حين كُتب.
+  final Map<String, dynamic>? appearance;
 
   static LeaderboardEntry? fromJson(Object? raw) {
     if (raw is! Map) return null;
     final id = _text(raw['id']);
     if (id.isEmpty) return null;
-    final appearance = raw['appearance'];
+    final look = raw['appearance'];
     return LeaderboardEntry(
       id: id,
       name: _text(raw['name']),
@@ -41,7 +46,9 @@ class LeaderboardEntry {
       level: _int(raw['level']),
       rank: _int(raw['rank']),
       isMe: raw['isMe'] == true,
-      shape: appearance is Map ? _text(appearance['shape']) : null,
+      appearance: look is Map
+          ? look.map((key, value) => MapEntry(key.toString(), value))
+          : null,
     );
   }
 

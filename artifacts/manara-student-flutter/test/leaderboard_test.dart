@@ -19,7 +19,7 @@ void main() {
         'level': gems ~/ 10,
         'rank': rank,
         'isMe': me,
-        'appearance': {'shape': 'fox'},
+        'appearance': {'shape': '🦊', 'color': '#F97316', 'avatarId': 'a2'},
       };
 
   group('Leaderboard.fromJson', () {
@@ -42,7 +42,13 @@ void main() {
       expect(board.gemsToNext, 20);
       expect(board.listed, isTrue);
       expect(board.me?.name, 'جوري');
-      expect(board.entries.first.shape, 'fox');
+      // كامل المظهر يصل لا الشكل وحده: الشاشة ترسمه بويدجت الأفاتار
+      // نفسه، وهو يقرأ اللون والأفاتار المختار والصورة المبنيّة.
+      expect(board.entries.first.appearance, {
+        'shape': '🦊',
+        'color': '#F97316',
+        'avatarId': 'a2',
+      });
     });
 
     test('drops an entry with no id rather than showing a blank row', () {
@@ -55,6 +61,17 @@ void main() {
       })!;
       expect(board.entries, hasLength(1));
       expect(board.entries.single.name, 'أحمد');
+    });
+
+    test('زميلٌ بلا مظهرٍ محفوظ يصل بمظهرٍ فارغ لا بانهيار', () {
+      final board = Leaderboard.fromJson({
+        'entries': [
+          {'id': 'a', 'name': 'أحمد', 'gems': 5, 'rank': 1},
+          {'id': 'b', 'name': 'بدر', 'gems': 4, 'rank': 2, 'appearance': 'خطأ'},
+        ],
+      })!;
+      expect(board.entries[0].appearance, isNull);
+      expect(board.entries[1].appearance, isNull);
     });
 
     test('survives a payload that is not a board at all', () {
