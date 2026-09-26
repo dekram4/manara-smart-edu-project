@@ -87,6 +87,19 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   // this screen unmountable anywhere the plugin is absent — a widget test
   // included.
   AudioPlayer? _player;
+
+  /// مشغّلٌ ثانٍ للموسيقى تحت الترحيب.
+  ///
+  /// منفصلٌ لا مشترك: المشغّل الواحد يقطع ما فيه عند تشغيل ملفٍ ثانٍ،
+  /// فوضعُ الصوتين عليه يعني أن يُسكت أحدهما الآخر. ويُنشأ عند الحاجة
+  /// كأخيه، فالشاشة تبقى قابلةً للتركيب حيث لا إضافةَ صوت — واختبارُ
+  /// ودجةٍ من ذلك.
+  AudioPlayer? _music;
+
+  /// الموسيقى أخفضُ من الترحيب بكثير: هي مصاحبةٌ لا مُنافِسة. والكلمة
+  /// المنطوقة يجب أن تُفهَم من فوقها بلا إجهاد.
+  static const _musicVolume = 0.16;
+  static const _musicAsset = 'audio/happychild.mp3';
   final _destination = Completer<Widget>();
   StreamSubscription<void>? _completionSub;
   StreamSubscription<Duration>? _durationSub;
@@ -125,6 +138,8 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     // this the decoder stays alive for the rest of the session.
     _player?.dispose();
     _player = null;
+    _music?.dispose();
+    _music = null;
     super.dispose();
   }
 
@@ -136,8 +151,9 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) return;
     _voiceTimer?.cancel();
-    final player = _player;
-    if (player != null) unawaited(player.stop().catchError((_) {}));
+    for (final player in [_player, _music]) {
+      if (player != null) unawaited(player.stop().catchError((_) {}));
+    }
   }
 
   Future<void> _playWelcomeVoice() async {
@@ -160,6 +176,9 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
         _stretchToClip,
         onError: (_) {},
       );
+      // الموسيقى تبدأ أولاً بجزءٍ من الثانية، فتكون قائمةً تحت أوّل كلمة
+      // بدل أن تدخل بعدها فتُسمع كأنها بدأت متأخّرة.
+      unawaited(_playMusic(bundled));
       await player.play(AssetSource(asset), volume: 0.85);
     } catch (_) {
       // No audio is not a reason to block the app: fall through and let
@@ -202,6 +221,22 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// navigating. By the time the dwell timer fires the spin-out has
   /// already finished on screen; and a tap is meant to be immediate, so
   /// making it wait for a farewell animation is the opposite of skipping.
+  /// موسيقى الخلفية تحت الترحيب.
+  ///
+  /// فشلُها لا يمسّ الترحيب: هي مصاحبةٌ، وغيابُها يُسمع ترحيباً نظيفاً
+  /// لا شاشةً صامتة. ولا تُعاد من أوّلها إن انتهت — سبعون ثانية أطول من
+  /// أيّ بقاءٍ على هذه الشاشة، فالتكرار لا يقع أصلاً.
+  Future<void> _playMusic(Set<String> bundled) async {
+    if (_leaving || !bundled.contains('assets/$_musicAsset')) return;
+    try {
+      final music = _music ??= AudioPlayer();
+      await music.setReleaseMode(ReleaseMode.stop);
+      await music.play(AssetSource(_musicAsset), volume: _musicVolume);
+    } catch (_) {
+      // لا موسيقى: الترحيب وحده يكفي.
+    }
+  }
+
   /// يمدّ بقاء الشاشة إلى نهاية الترحيب، في حدود السقف.
   ///
   /// يُنادى حين يُعلن المشغّل طولَ المقطع. ولا يُقصّر البقاء أبداً: طولٌ
@@ -239,8 +274,12 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     // call is slow, or never answers on a platform without the plugin, the
     // student would be stuck staring at the splash. `dispose` releases the
     // player regardless.
-    final stopping = _player?.stop();
-    if (stopping != null) unawaited(stopping.catchError((_) {}));
+    // الصوتان معاً، وبلا انتظار: التخطّي استجابةٌ لنقرة ولا يجوز أن
+    // ينتظر خلفيةَ الصوت لتُقرّ بالإيقاف. و`dispose` يُحرّر المشغّلين
+    // على كل حال.
+    for (final stopping in [_player?.stop(), _music?.stop()]) {
+      if (stopping != null) unawaited(stopping.catchError((_) {}));
+    }
     final destination = await _destination.future;
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
