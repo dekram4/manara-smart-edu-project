@@ -130,4 +130,70 @@ void main() {
       'audio/voice/generic_en.mp3',
     );
   });
+
+  group('المقاطع المورَّدة', () {
+    const overrides = StudentSoundService.arabicVoiceOverrides;
+
+    test('لكل بطاقة في اللوحة مقطعٌ مورَّد باسمه', () {
+      // الأسماء كما سُلِّمت. تغييرُ أحدها في الجدول بلا تغييره هنا يمرّ
+      // صامتاً، فيبحث التطبيق عن ملفٍّ لم يُسقطه أحد ويعود إلى القديم.
+      expect(overrides, {
+        'portal.lesson': 'audio/sharh.mp3',
+        'portal.cinema': 'audio/cinemahejaz.mp3',
+        'portal.tutor': 'audio/avatarhejaz.mp3',
+        'portal.solver': 'audio/halhejaz.mp3',
+        'portal.games': 'audio/alaab.mp3',
+        'portal.quiz': 'audio/quezhejaz.mp3',
+        'portal.chat': 'audio/chathejaz.mp3',
+        'portal.meeting': 'audio/meethejaz.mp3',
+        'portal.challenge': 'audio/tahadde.mp3',
+        'portal.personality': 'audio/profhejaz.mp3',
+      });
+    });
+
+    test('المقطع المورَّد يسبق القديم متى كان في الحزمة', () {
+      final bundled = {
+        'assets/audio/sharh.mp3',
+        'assets/audio/voice/lesson_ar.mp3',
+      };
+      expect(
+        StudentSoundService.portalVoiceAsset('portal.lesson', 'ar', bundled),
+        'audio/sharh.mp3',
+      );
+    });
+
+    test('وغيابُه يعيد الأمر إلى القديم لا إلى الصمت', () {
+      // من يضع سبعةً من أربعةَ عشرَ يسمع السبعة الجديدة والسبعة القديمة.
+      final bundled = {'assets/audio/voice/lesson_ar.mp3'};
+      expect(
+        StudentSoundService.portalVoiceAsset('portal.lesson', 'ar', bundled),
+        'audio/voice/lesson_ar.mp3',
+      );
+    });
+
+    test('الإنجليزية لا تأخذ المقطع العربي', () {
+      // تسجيلاتٌ عربية، وطفلٌ يقرأ بالإنجليزية لا يفهمها.
+      final bundled = {
+        'assets/audio/sharh.mp3',
+        'assets/audio/voice/lesson_en.mp3',
+      };
+      expect(
+        StudentSoundService.portalVoiceAsset('portal.lesson', 'en', bundled),
+        'audio/voice/lesson_en.mp3',
+      );
+    });
+
+    test('كل بطاقة في اللوحة مذكورة في الجدول', () {
+      // بطاقةٌ تُضاف بلا مقطعٍ لها تبقى على القديم، وذلك مقصود — لكن
+      // بطاقةً موجودةً اليوم بلا مقطعٍ في الخريطة المطلوبة خطأُ نقل.
+      const cards = [
+        'portal.lesson', 'portal.cinema', 'portal.games', 'portal.personality',
+        'portal.tutor', 'portal.quiz', 'portal.solver', 'portal.meeting',
+        'portal.chat', 'portal.challenge',
+      ];
+      for (final card in cards) {
+        expect(overrides.containsKey(card), isTrue, reason: card);
+      }
+    });
+  });
 }

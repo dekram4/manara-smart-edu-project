@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/student_profile.dart';
@@ -117,7 +118,15 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     try {
       final player = _player ??= AudioPlayer();
       await player.setReleaseMode(ReleaseMode.stop);
-      await player.play(AssetSource('audio/welcome.mp3'), volume: 0.85);
+      // المقطع المورَّد أوّلاً، والقديم إن لم يُسقَط بعد. الفحص من
+      // بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ الفاشلة على
+      // بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً ثانياً.
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final bundled = manifest.listAssets().toSet();
+      final asset = bundled.contains('assets/audio/tarheeb.mp3')
+          ? 'audio/tarheeb.mp3'
+          : 'audio/welcome.mp3';
+      await player.play(AssetSource(asset), volume: 0.85);
     } catch (_) {
       // No audio is not a reason to block the app: fall through and let
       // the dwell timer move on.

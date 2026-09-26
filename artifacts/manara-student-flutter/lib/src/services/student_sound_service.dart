@@ -353,7 +353,8 @@ class StudentSoundService with WidgetsBindingObserver {
   /// back when the line ends or is stopped — the sentence is the point here.
   Future<void> speakPath() async {
     if (muted.value || _backgrounded) return;
-    final asset = _pathClip(StudentSettings.isArabic ? 'ar' : 'en');
+    final fallback = _pathClip(StudentSettings.isArabic ? 'ar' : 'en');
+    final asset = _supplied(_pathOverride, fallback, await _bundledAssets());
     try {
       await _voicePlayer.stop();
       _voiceClip = asset;
@@ -376,8 +377,99 @@ class StudentSoundService with WidgetsBindingObserver {
   /// would cut the hub's greeting off instead.
   Future<void> stopPathVoice() async {
     final clip = _voiceClip;
-    if (clip == null || !clip.startsWith('audio/voice/path_')) return;
+    // الاسمان معاً: المقطع المورَّد والقديم. ولولا ذلك لبقي `masar.mp3`
+    // يتكلّم فوق ترحيب المحور بعد مغادرة الشاشة.
+    if (clip == null ||
+        !(clip.startsWith('audio/voice/path_') || clip == _pathOverride)) {
+      return;
+    }
     await stopSpeaking();
+  }
+
+  /// الملفات الصوتية المورَّدة بأسمائها، لكل شاشةٍ وبطاقة.
+  ///
+  /// ── لماذا جدولٌ لا إعادةُ تسمية ──
+  /// المقاطع المسجّلة تصل بأسمائها التي سُجّلت بها، وإعادةُ تسميتها إلى
+  /// اصطلاح `voice/<اسم>_ar.mp3` عملٌ يدويّ يُنسى عند أوّل مقطعٍ جديد.
+  /// والجدول يجعل الاسم المورَّد هو المرجع، فيكفي إسقاط الملف في
+  /// `assets/audio/` ليُسمع.
+  ///
+  /// ── ولماذا العربية وحدها ──
+  /// هذه تسجيلاتٌ عربية. والتطبيق يعمل بالإنجليزية أيضاً، وله مقاطعه
+  /// الإنجليزية في `voice/<اسم>_en.mp3`. فلو حلّ المقطع العربي محلّهما
+  /// معاً لسمع طفلٌ يقرأ بالإنجليزية عربيةً لا يفهمها.
+  ///
+  /// ── والملف الغائب لا يُسكت البطاقة ──
+  /// يُفحص وجودُه في حزمة البناء قبل تشغيله، فإن لم يُسقَط بعدُ عاد
+  /// الأمر إلى المقطع القديم. فمن يضع سبعةً من أربعةَ عشرَ يسمع السبعة
+  /// الجديدة والسبعة القديمة، لا سبعةً وصمتاً.
+  @visibleForTesting
+  static const Map<String, String> arabicVoiceOverrides = {
+    'portal.lesson': 'audio/sharh.mp3',
+    'portal.cinema': 'audio/cinemahejaz.mp3',
+    'portal.tutor': 'audio/avatarhejaz.mp3',
+    'portal.solver': 'audio/halhejaz.mp3',
+    'portal.games': 'audio/alaab.mp3',
+    'portal.quiz': 'audio/quezhejaz.mp3',
+    'portal.chat': 'audio/chathejaz.mp3',
+    'portal.meeting': 'audio/meethejaz.mp3',
+    'portal.challenge': 'audio/tahadde.mp3',
+    'portal.personality': 'audio/profhejaz.mp3',
+  };
+
+  /// مقاطع الشاشات — ما ليس بطاقةً في اللوحة.
+  static const _loginClip = 'audio/signin.mp3';
+  static const _welcomeClip = 'audio/tarheeb.mp3';
+  static const _pathOverride = 'audio/masar.mp3';
+  static const _dashboardClip = 'audio/start.mp3';
+
+  /// المقطع المورَّد إن كان في حزمة البناء، وإلا القديم.
+  String _supplied(String? override, String fallback, Set<String> bundled) {
+    if (override == null || !StudentSettings.isArabic) return fallback;
+    return bundled.contains('assets/$override') ? override : fallback;
+  }
+
+  /// يُسمع مقطع لوحة البطاقات عند فتحها.
+  ///
+  /// اللوحة لم يكن لها صوتٌ خاص: تُفتح على ترحيب المحور. وبقي الترحيب
+  /// في مكانه، وهذا يُضاف إليه لا يحلّ محلّه — فإن لم يُسقَط `start.mp3`
+  /// لم يتغيّر شيء.
+  Future<void> speakDashboard({VoidCallback? onComplete}) async {
+    if (muted.value || _backgrounded) {
+      onComplete?.call();
+      return;
+    }
+    try {
+      final bundled = await _bundledAssets();
+      final has = StudentSettings.isArabic &&
+          bundled.contains('assets/$_dashboardClip');
+      // غيابُ المقطع يعيد اللوحةَ إلى ترحيبها القديم لا إلى الصمت: من
+      // لم يُسقط `start.mp3` بعد يسمع ما كان يسمعه.
+      if (!has) {
+        speakWelcome(onComplete: onComplete);
+        return;
+      }
+      var fired = false;
+      void finish() {
+        if (fired) return;
+        fired = true;
+        onComplete?.call();
+      }
+
+      await _voicePlayer.stop();
+      _voiceClip = _dashboardClip;
+      unawaited(_voicePlayer.onPlayerComplete.first.then(
+        (_) => finish(),
+        onError: (_) => finish(),
+      ));
+      await _voicePlayer.play(
+        AssetSource(_dashboardClip),
+        volume: voiceVolume(_dashboardClip),
+      );
+    } catch (_) {
+      // لا صوت على هذا الجهاز: اللوحة تُفتح صامتة.
+      onComplete?.call();
+    }
   }
 
   /// The clip to play for [portalKey] in [language], given the asset paths
@@ -396,6 +488,10 @@ class StudentSoundService with WidgetsBindingObserver {
     String language,
     Set<String> bundled,
   ) {
+    // المقطع المورَّد يسبق، وللعربية وحدها.
+    final override = language == 'ar' ? arabicVoiceOverrides[portalKey] : null;
+    if (override != null && bundled.contains('assets/$override')) return override;
+
     final name = portalKey.startsWith('portal.')
         ? portalKey.substring('portal.'.length)
         : portalKey;
@@ -472,13 +568,18 @@ class StudentSoundService with WidgetsBindingObserver {
 
       final isVoice = cue == StudentSoundCue.welcome || cue == StudentSoundCue.loginSuccess;
       final player = isVoice ? _voicePlayer : _effectsPlayer;
+      // نغمتا الدخول والترحيب لهما بديلان مورَّدان، يُفحص وجودهما مرّةً
+      // قبل الاختيار. والمؤثّرات القصيرة لا بديل لها: هي نقراتٌ لا كلام.
+      final bundled = isVoice ? await _bundledAssets() : const <String>{};
       final asset = switch (cue) {
         StudentSoundCue.navigation => 'audio/ui-tap.wav',
         StudentSoundCue.answerSelected => 'audio/answer-selected.wav',
         StudentSoundCue.success => 'audio/success-reward.wav',
         StudentSoundCue.warning => 'audio/gentle-warning.wav',
-        StudentSoundCue.loginSuccess => 'audio/manara-login-chime.mp3',
-        StudentSoundCue.welcome => 'audio/manara-arabic-student-welcome.mp3',
+        StudentSoundCue.loginSuccess =>
+          _supplied(_loginClip, 'audio/manara-login-chime.mp3', bundled),
+        StudentSoundCue.welcome =>
+          _supplied(_welcomeClip, 'audio/manara-arabic-student-welcome.mp3', bundled),
         StudentSoundCue.gameReward => 'audio/success-reward.wav',
         // Handled above and never reached here; kept only so this switch
         // stays exhaustive over every StudentSoundCue value.
@@ -486,7 +587,16 @@ class StudentSoundService with WidgetsBindingObserver {
       };
       await player.stop();
       if (isVoice) _voiceClip = asset;
-      await player.play(AssetSource(asset), volume: isVoice ? 0.78 : 0.56);
+      await player.play(
+        AssetSource(asset),
+        // المقطع المورَّد يمرّ بمقياس الصوت نفسه الذي يوحّد علوّ البقيّة،
+        // فلا يصرخ واحدٌ ويهمس آخر. والنغمتان الأصليّتان تبقيان على 0.78.
+        volume: isVoice
+            ? (asset == _loginClip || asset == _welcomeClip
+                ? voiceVolume(asset)
+                : 0.78)
+            : 0.56,
+      );
     } catch (_) {
       // Audio is an enhancement and must never block a lesson or assessment.
     }

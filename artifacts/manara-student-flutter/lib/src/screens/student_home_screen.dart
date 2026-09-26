@@ -137,7 +137,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
     // Owned here and cancelled in dispose, so nothing outlives this screen.
     _dealCue = Timer(_dealAfter, _beginDeal);
-    StudentSoundService.instance.speakWelcome();
+    // مقطع اللوحة، ويرتدّ إلى ترحيب المحور إن لم يُسقَط بعد.
+    unawaited(StudentSoundService.instance.speakDashboard());
   }
 
   bool _dealBegun = false;
