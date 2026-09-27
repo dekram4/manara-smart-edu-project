@@ -130,7 +130,14 @@ async function callGemini(
     temperature = 0.2,
     maxOutputTokens = 2048,
     json = false,
-  }: { temperature?: number; maxOutputTokens?: number; json?: boolean } = {},
+    image,
+  }: {
+    temperature?: number;
+    maxOutputTokens?: number;
+    json?: boolean;
+    /** صورةُ المسألة كما التقطها الطفل: base64 بلا ترويسة. */
+    image?: { data: string; mimeType: string };
+  } = {},
 ): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -170,7 +177,16 @@ async function callGemini(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
+            contents: [
+              {
+                parts: image
+                  ? [
+                      { text: prompt },
+                      { inlineData: { mimeType: image.mimeType, data: image.data } },
+                    ]
+                  : [{ text: prompt }],
+              },
+            ],
             generationConfig: {
               temperature,
               maxOutputTokens,
@@ -530,6 +546,28 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
   const question =
     typeof req.body?.question === "string" ? req.body.question.trim() : "";
+
+  // صورةُ المسألة، إن صوّرها الطفل.
+  //
+  // تُقبل base64 بحدٍّ قدره ستة ميغابايتات بعد الترميز — أكبر ممّا
+  // تُخرجه كاميرا الهاتف بعد الضغط، وأصغر من أن يخنق الطلبَ أو الذاكرة.
+  // وبلا حدٍّ يستطيع طلبٌ واحد أن يُسقط الخادم.
+  const rawImage = typeof req.body?.image === "string" ? req.body.image.trim() : "";
+  const imageType =
+    typeof req.body?.imageMimeType === "string"
+      ? req.body.imageMimeType.trim().toLowerCase()
+      : "image/jpeg";
+  const ALLOWED_IMAGE = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (rawImage && (rawImage.length > 6_000_000 || !ALLOWED_IMAGE.has(imageType))) {
+    return res.status(400).json({
+      error: rawImage.length > 6_000_000
+        ? "الصورة أكبر من الحدّ المسموح"
+        : "صيغة الصورة غير مدعومة",
+      code: "bad_image",
+    });
+  }
+  const image = rawImage ? { data: rawImage, mimeType: imageType } : undefined;
+
   if (!lessonId || !question || question.length > 2000) {
     // ‏أيّ الحقلين أسقط الطلب: سؤالٌ فارغ وسؤالٌ أطول من الحدّ ومعرّفٌ
     // ‏مفقود كانت ترجع الرسالة نفسها، فلا يُعرف أيّها وقع.
@@ -571,8 +609,11 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     //
     // والإجابة المحفوظة لا تُحسب من الحصّة ولا تُكلّف جوهرة: لم يُستدعَ
     // النموذج، ولا معنى لأن يُحرم طفلٌ من سؤالٍ لأن غيره سأله قبله.
+    // الصورة لا تُقرأ من الذاكرة: سؤالان بالنصّ نفسه وصورتين مختلفتين
+    // جوابهما مختلف، والمفتاح لا يعرف الصورة. فتُتخطّى الذاكرة كلّها
+    // حين تكون ثَمّ صورة — قراءةً وكتابة.
     const key = cacheKey(lesson.id, question);
-    const cached = await readCachedAnswer(key);
+    const cached = image ? null : await readCachedAnswer(key);
     if (cached) {
       const seen = await readStudentQuota(student);
       return res.json({ answer: cached, cached: true, quota: seen.quota.snapshot });
@@ -590,8 +631,17 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       });
     }
 
-    const prompt = `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
-    const data = await callGemini(prompt);
+    const prompt = image
+      ? `أنت مساعد تعليمي ذكي لطفلٍ في المرحلة الابتدائية. في الصورة المرفقة مسألةٌ من كتابه أو دفتره.
+
+اقرأ ما في الصورة أوّلاً، ثم أجب عن طلب الطالب: ${question}
+
+اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
+
+وللاستئناس، هذا نصّ درسه:
+${lesson.text}`
+      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
+    const data = await callGemini(prompt, image ? { image, maxOutputTokens: 3000 } : {});
     const answer = getGeminiText(data);
     if (!answer) {
       logger.warn({ lessonId }, "[gemini] answer rejected: empty completion");
@@ -609,9 +659,11 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       ),
       // الحفظ في الذاكرة لا يُنتظر ولا يُسقط الردّ: فشلُه يعني استدعاءً
       // ثانياً في المرّة القادمة لا إجابةً ضائعة.
-      writeCachedAnswer(key, lesson.id, question, answer).catch((error) =>
-        logger.warn({ err: error }, "[gemini] answer not cached"),
-      ),
+      image
+        ? Promise.resolve()
+        : writeCachedAnswer(key, lesson.id, question, answer).catch((error) =>
+            logger.warn({ err: error }, "[gemini] answer not cached"),
+          ),
       recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
         logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
       ),

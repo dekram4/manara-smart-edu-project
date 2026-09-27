@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
@@ -12,6 +14,7 @@ import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
+import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
@@ -104,15 +107,114 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// ما بقي من أسئلة اليوم، كما قاله الخادم في آخر ردّ.
   _QuotaBadge? _quota;
 
+  late final StudentVoiceService _voice = StudentVoiceService();
+
+  /// صورةُ المسألة، مرمّزةً، إن صوّرها الطفل.
+  String? _photo;
+
+  /// هل الميكروفون يسمع الآن؟
+  bool _listening = false;
+
+  /// هل يُنطق الجواب الآن؟
+  bool _speaking = false;
+
+  /// هل جاء السؤال الأخير بالصوت؟
+  ///
+  /// من سأل بصوته يُجاب بصوته: نطقُ الإجابة يبدأ من تلقائه له وحده.
+  /// ومن كتب سؤاله يقرأ الجواب، ونطقٌ لم يطلبه مفاجأةٌ في صفٍّ صامت.
+  bool _askedByVoice = false;
+
+  /// يبدأ الإملاء أو يوقفه.
+  Future<void> _toggleListening() async {
+    if (_listening) {
+      await _voice.stopListening();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+    final started = await _voice.listen(
+      onResult: (heard) {
+        if (!mounted) return;
+        setState(() {
+          _listening = false;
+          if (heard.isNotEmpty) {
+            _questionController.text = heard;
+            _askedByVoice = true;
+          }
+        });
+      },
+    );
+    if (!mounted) return;
+    if (!started) {
+      // لا خدمة تعرّفٍ أو رُفض الإذن: يُقال ذلك ويبقى الحقل للكتابة.
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      setState(() => _error = tr('solver.micUnavailable'));
+      return;
+    }
+    StudentSoundService.instance.playTap();
+    setState(() {
+      _listening = true;
+      _error = null;
+    });
+  }
+
+  /// يلتقط صورة المسألة أو يختارها من المعرض.
+  Future<void> _pickPhoto(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final shot = await picker.pickImage(
+        source: source,
+        // أبعادٌ تكفي لقراءة خطّ اليد ولا تنفخ الطلب: صورةُ كاميرا
+        // كاملة تبلغ عدّة ميغابايتات، وأغلبها تفاصيلُ لا تُقرأ منها
+        // مسألة.
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (shot == null) return;
+      final bytes = await shot.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _photo = base64Encode(bytes);
+        _error = null;
+      });
+      StudentSoundService.instance.playTap();
+    } catch (_) {
+      if (!mounted) return;
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      setState(() => _error = tr('solver.cameraUnavailable'));
+    }
+  }
+
+  /// ينطق الجواب أو يُسكته.
+  Future<void> _toggleSpeaking() async {
+    final answer = _answer;
+    if (answer == null || answer.isEmpty) return;
+    if (_speaking) {
+      await _voice.stopSpeaking();
+      if (mounted) setState(() => _speaking = false);
+      return;
+    }
+    setState(() => _speaking = true);
+    await _voice.speak(answer);
+    // المحرّك يُعلمنا بالانتهاء عبر الخدمة؛ وهذه تُبقي الزرّ صادقاً إن
+    // لم يصل الإعلام على منصّةٍ ما.
+    if (mounted) setState(() => _speaking = _voice.speaking);
+  }
+
   Future<void> _ask() async {
     final lesson = _selectedLesson;
-    final question = _questionController.text.trim();
+    final photo = _photo;
+    // صورةٌ بلا سؤالٍ مكتوب تحتاج طلباً: الخادم يردّ الطلب بلا سؤال.
+    final question = PhotoQuestion.from(
+      typed: _questionController.text,
+      base64: photo ?? '',
+    ).question;
     final endpoint = _answerEndpoint;
     if (lesson == null) {
       setState(() => _error = tr('solver.noLesson'));
       return;
     }
-    if (question.isEmpty) {
+    if (question.isEmpty || (photo == null && _questionController.text.trim().isEmpty)) {
       setState(() => _error = tr('solver.writeFirst'));
       return;
     }
@@ -142,7 +244,12 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
           },
-          body: jsonEncode({'lessonId': lesson.id, 'question': question}),
+          body: jsonEncode({
+            'lessonId': lesson.id,
+            'question': question,
+            if (photo != null) 'image': photo,
+            if (photo != null) 'imageMimeType': 'image/jpeg',
+          }),
         // ‏دقيقة كاملة: الخادم له ميزانية خمسين ثانية يجرّب فيها أكثر
         // ‏من نموذج، فقطعُ الخيط قبلها يُسقط إجابةً كانت في طريقها —
         // ‏وهو ما جعل البطاقة تجيب أحياناً وتتعذّر أحياناً.
@@ -209,7 +316,14 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       setState(() {
         _answer = answer;
         _quota = _QuotaBadge.fromJson(payload is Map ? payload['quota'] : null);
+        // الصورة تُستهلك بسؤالها: تركُها يجعل السؤال التالي يُرسل معها
+        // بلا أن يقصد الطفل.
+        _photo = null;
       });
+      if (_askedByVoice) {
+        _askedByVoice = false;
+        unawaited(_toggleSpeaking());
+      }
       StudentSoundService.instance.playTap();
     } catch (error) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -270,6 +384,35 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                     ),
                     const SizedBox(height: 10),
                   ],
+                  // الميكروفون والكاميرا فوق الحقل: طريقان إلى السؤال
+                  // نفسه، يراهما الطفل قبل أن يبدأ الكتابة لا بعدها.
+                  Row(
+                    children: [
+                      _SolverAction(
+                        icon: _listening ? Icons.stop_rounded : Icons.mic_rounded,
+                        label: tr(_listening ? 'solver.micStop' : 'solver.mic'),
+                        active: _listening,
+                        onTap: _sending ? null : _toggleListening,
+                      ),
+                      const SizedBox(width: 8),
+                      _SolverAction(
+                        icon: Icons.photo_camera_rounded,
+                        label: tr('solver.camera'),
+                        active: _photo != null,
+                        onTap: _sending ? null : () => _pickPhoto(ImageSource.camera),
+                        onLongPress:
+                            _sending ? null : () => _pickPhoto(ImageSource.gallery),
+                      ),
+                    ],
+                  ),
+                  if (_photo != null) ...[
+                    const SizedBox(height: 8),
+                    _PhotoStrip(
+                      base64: _photo!,
+                      onRemove: () => setState(() => _photo = null),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
                   StudentEntrance(
                     delay: const Duration(milliseconds: 100),
                     child: TextField(
@@ -308,6 +451,20 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                         icon: Icons.lightbulb_rounded,
                         color: const Color(0xFF0B8693),
                         text: _answer!,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // مكبّر الصوت تحت الجواب لا فوقه: يُضغط بعد قراءته
+                    // أو بدلاً منها، ولا معنى له قبل أن يصل.
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: _SolverAction(
+                        icon: _speaking
+                            ? Icons.stop_circle_rounded
+                            : Icons.volume_up_rounded,
+                        label: tr(_speaking ? 'solver.speakStop' : 'solver.speak'),
+                        active: _speaking,
+                        onTap: _toggleSpeaking,
                       ),
                     ),
                   ],
@@ -584,6 +741,119 @@ class _QuotaChip extends StatelessWidget {
                       : const Color(0xFF0B8693),
                 ),
               ),
+            ),
+          ],
+        ),
+      );
+}
+
+
+/// زرُّ إجراءٍ في بطاقة حلّ المسائل: أيقونةٌ واسم.
+///
+/// الاسم مكتوبٌ بجانب الأيقونة لا مخفيٌّ خلف ضغطةٍ طويلة: طفلٌ في
+/// الابتدائية لا يعرف ما تعنيه أيقونةٌ لم يرها، والميكروفون والكاميرا
+/// يبدوان متشابهين لمن لم يستعملهما.
+class _SolverAction extends StatelessWidget {
+  const _SolverAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+    this.onLongPress,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool active;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onTap == null;
+    final tint = active ? const Color(0xFFB42318) : const Color(0xFF7C3AED);
+    return Opacity(
+      opacity: disabled ? 0.45 : 1,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: active ? 0.16 : 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: tint.withValues(alpha: 0.45), width: 1.5),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: tint),
+                const SizedBox(width: 7),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: tint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// شريطُ الصورة الملتقطة، ومعه زرُّ إزالتها.
+///
+/// تُعرض مصغّرةً لأن الطفل يجب أن يرى ما صوّره قبل أن يُرسله: صورةٌ
+/// مقلوبةٌ أو مقصوصة تُهدر سؤالاً، ومعرفةُ ذلك قبل الإرسال أرخص.
+class _PhotoStrip extends StatelessWidget {
+  const _PhotoStrip({required this.base64, required this.onRemove});
+
+  final String base64;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: StudentSurface.glass(context, 0.86),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.memory(
+                base64Decode(base64),
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                tr('solver.photoReady'),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: StudentSurface.ink(context),
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.close_rounded),
+              tooltip: tr('solver.photoRemove'),
             ),
           ],
         ),
