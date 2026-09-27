@@ -57,6 +57,18 @@ jobs:
           flutter build windows --release "${args[@]}"
         working-directory: artifacts/manara-student-flutter
         env:
+          # ترويسةٌ ألغتها Microsoft، وإضافتان تستعملانها.
+          #
+          # `flutter_inappwebview_windows` و`permission_handler_windows`
+          # تُدخلان <experimental/coroutine>. وMSVC على `windows-latest`
+          # صار يردّها بخطأ لا بتحذير (STL1011)، فيسقط البناء في
+          # إضافتين لا شأن لنا بمصدرهما.
+          #
+          # ورسالةُ الخطأ نفسها تذكر المخرج: هذا التعريف يُعيدها تحذيراً
+          # حتى تُحدَّث الإضافتان. و`CL` هو متغيّر البيئة الذي يقرأ منه
+          # MSVC وسائطَ إضافية، فيبلغ كلّ وحدة ترجمة — ومنها ملفات
+          # الإضافات التي لا يملكها هذا المستودع ولا يُعدّلها.
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
