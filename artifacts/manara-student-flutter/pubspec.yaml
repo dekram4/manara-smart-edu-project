@@ -26,8 +26,8 @@ dependencies:
   # a dependency here: it would just ship the native libmpv binaries behind
   # the documented Android Surface/TextureView attach bug without anything
   # in the app ever using them.
-  media_kit: 1.1.11
-  media_kit_video: 1.2.4
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
   media_kit_libs_windows_video: 1.0.9
   google_fonts: ^8.2.1
   crypto: ^3.0.6
