@@ -402,7 +402,11 @@ class StudentContentService {
       type: type,
       status: TutorExperienceStatus.ready,
       lesson: selected,
-      url: url,
+      // اللقاء المباشر وحده يُضبط: البطاقة الأخرى تفتح تجربةً غير Jitsi
+      // ولا شأن لها بهذه المعاملات.
+      url: type == TutorExperienceType.liveMeeting
+          ? withMeetingDefaults(url)
+          : url,
     );
   }
 
@@ -961,6 +965,53 @@ String? normalizeTutorExperienceUrl(String? value) {
     return null;
   }
   return uri.toString();
+}
+
+/// معاملات Jitsi التي تجعل الاجتماع يبدأ داخل البطاقة لا خارجها.
+///
+/// ── لماذا تُضاف هنا لا يكتبها المعلّم ──
+/// المعلّم ينسخ رابط الغرفة كما يعطيه Jitsi. وذلك الرابط يفتح في
+/// الهاتف صفحةً تطلب تثبيت تطبيق Jitsi، ثم صفحةَ انتظارٍ قبل الدخول —
+/// فيخرج الطفل من التطبيق قبل أن يرى معلّمه. والمعاملات تُلغي الاثنين،
+/// ولا يُعقل أن تُطلب من كل معلّمٍ في كل رابط.
+///
+/// ── وتُضاف بعد `#` لا قبلها ──
+/// هذه إعدادات العميل في Jitsi، تُقرأ من جزء التجزئة. ووضعُها في
+/// `?query` لا يفعل شيئاً.
+///
+/// وما كان له تجزئةٌ من قبل لا تُمسّ: رابطٌ فيه إعداداتُ معلّمٍ قصدها
+/// يبقى كما كتبه، ويُكتفى بإلحاق ما ينقصه.
+String withMeetingDefaults(String url) {
+  final uri = Uri.tryParse(url);
+  // `meet.jit.si` — المضيف الرسمي — لا يحوي كلمة «jitsi» أصلاً، فالبحث
+  // عنها وحدها كان يترك الرابط الأشهر بلا ضبط.
+  //
+  // ولا يُوسَّع إلى كل مضيفٍ يبدأ بـ `meet.`: تلك بادئةٌ شائعة لخدمات
+  // اجتماعٍ أخرى، ومعاملاتُ Jitsi في رابطٍ لا يفهمها قد تُعطبه. فحين
+  // يشكّ، لا يمسّ — ومعلّمٌ يستضيف Jitsi على نطاقه يكتب المعاملات مرّةً
+  // في رابطه، وهي تُحترم كما يُحترم ما كتبه.
+  final host = uri?.host.toLowerCase() ?? '';
+  final isJitsi = host.contains('jitsi') || host.contains('jit.si');
+  if (uri == null || !isJitsi) return url;
+
+  const defaults = <String, String>{
+    'config.disableDeepLinking': 'true',
+    'config.prejoinPageEnabled': 'false',
+    'config.startWithAudioMuted': 'false',
+    'config.startWithVideoMuted': 'false',
+  };
+
+  final present = uri.fragment;
+  final parts = present.isEmpty ? <String>[] : present.split('&');
+  final keys = parts
+      .map((part) => part.split('=').first)
+      .where((key) => key.isNotEmpty)
+      .toSet();
+
+  for (final entry in defaults.entries) {
+    if (!keys.contains(entry.key)) parts.add('${entry.key}=${entry.value}');
+  }
+  return uri.replace(fragment: parts.join('&')).toString();
 }
 
 bool _isDeletedVideo(Map<String, dynamic> data) {

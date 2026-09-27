@@ -10,6 +10,15 @@ import {
   type StudentActor,
 } from "../lib/studentAccess";
 import {
+  FREE_DAILY_QUESTIONS,
+  GEM_PRICE,
+  cacheKey,
+  chargeFor,
+  readQuota,
+  snapshotOf,
+  spend,
+} from "../lib/aiQuota";
+import {
   BANK_SIZE,
   BANK_VERSION,
   ROUNDS_PER_PLAY,
@@ -353,6 +362,132 @@ async function persistBank(lessonId: string, bank: ChallengeBank): Promise<void>
   if (!write.ok) throw new Error(`bank write failed (${write.status})`);
 }
 
+/**
+ * إجابةٌ محفوظة لهذا المفتاح، أو `null`.
+ *
+ * كلُّ تعذّرٍ يعود بـ `null`: الذاكرة تسريعٌ لا شرط. وجدولٌ لم يُنشأ بعد
+ * يجب أن يُبطئ الخدمة لا أن يُسقطها.
+ */
+async function readCachedAnswer(key: string): Promise<string | null> {
+  const config = apiSupabaseConfig();
+  if (!config) return null;
+  try {
+    const response = await fetch(
+      `${config.url}/rest/v1/ai_qa_cache?select=data&id=eq.${encodeURIComponent(key)}&limit=1`,
+      { headers: { apikey: config.key, Authorization: `Bearer ${config.key}` } },
+    );
+    if (!response.ok) return null;
+    const rows = await response.json();
+    const answer = Array.isArray(rows) ? rows[0]?.data?.answer : null;
+    return typeof answer === "string" && answer.trim() ? answer : null;
+  } catch {
+    return null;
+  }
+}
+
+/** يحفظ الإجابة لمن يسأل بعده. */
+async function writeCachedAnswer(
+  key: string,
+  lessonId: string,
+  question: string,
+  answer: string,
+): Promise<void> {
+  const config = apiSupabaseConfig();
+  if (!config) return;
+  const now = new Date().toISOString();
+  const response = await fetch(`${config.url}/rest/v1/ai_qa_cache?on_conflict=id`, {
+    method: "POST",
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      id: key,
+      // السؤال يُحفظ كما كتبه الطفل لا مطبَّعاً: المفتاح للمطابقة،
+      // وهذا لمن يقرأ الجدول ليعرف عمّ سُئل.
+      data: { lessonId, question, answer, createdAt: now },
+      updated_at: now,
+    }),
+  });
+  if (!response.ok) throw new Error(`cache write failed (${response.status})`);
+}
+
+/** صفُّ الطالب وحصّتُه وجواهرُه. */
+async function readStudentQuota(student: StudentActor): Promise<{
+  quota: { state: ReturnType<typeof readQuota>; snapshot: ReturnType<typeof snapshotOf> };
+  gems: number;
+  rowId: string;
+  data: Record<string, unknown>;
+}> {
+  const empty = readQuota(null);
+  const config = apiSupabaseConfig();
+  if (!config) {
+    return { quota: { state: empty, snapshot: snapshotOf(empty, 0) }, gems: 0, rowId: "", data: {} };
+  }
+  const id = encodeURIComponent(student.id);
+  for (const filter of [`id=eq.${id}`, `data->>id=eq.${id}`]) {
+    const response = await fetch(
+      `${config.url}/rest/v1/students?select=id,data&${filter}&limit=1`,
+      { headers: { apikey: config.key, Authorization: `Bearer ${config.key}` } },
+    );
+    if (!response.ok) continue;
+    const rows = await response.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) continue;
+    const data = (row.data && typeof row.data === "object" ? row.data : {}) as Record<string, unknown>;
+    const game = (data.gamification && typeof data.gamification === "object"
+      ? data.gamification
+      : {}) as Record<string, unknown>;
+    const gems = Math.max(0, Number(game.gems) || 0);
+    const state = readQuota(data.aiQuota);
+    return {
+      quota: { state, snapshot: snapshotOf(state, gems) },
+      gems,
+      rowId: String(row.id ?? ""),
+      data,
+    };
+  }
+  return { quota: { state: empty, snapshot: snapshotOf(empty, 0) }, gems: 0, rowId: "", data: {} };
+}
+
+/**
+ * يحفظ الحصّة والجواهر بعد سؤال.
+ *
+ * السجلّ كاملاً ومعهما: `PATCH` على `data` يستبدلها، فكتابةُ الحصّة
+ * وحدها تمحو اسم الطالب ومساره وتقدّمه.
+ */
+async function writeStudentQuota(
+  rowId: string,
+  data: Record<string, unknown>,
+  quota: ReturnType<typeof readQuota>,
+  gems: number,
+): Promise<void> {
+  const config = apiSupabaseConfig();
+  if (!config || !rowId) return;
+  const game = (data.gamification && typeof data.gamification === "object"
+    ? data.gamification
+    : {}) as Record<string, unknown>;
+  const response = await fetch(
+    `${config.url}/rest/v1/students?id=eq.${encodeURIComponent(rowId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        data: { ...data, aiQuota: quota, gamification: { ...game, gems } },
+        updated_at: new Date().toISOString(),
+      }),
+    },
+  );
+  if (!response.ok) throw new Error(`quota write failed (${response.status})`);
+}
+
 async function recordProblemSolverActivity(
   student: StudentActor,
   lessonId: string,
@@ -428,6 +563,33 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       } as const;
       return res.status(403).json({ error: messages[lesson.reason], code: lesson.reason });
     }
+    // ── الذاكرة أولاً ──
+    //
+    // ثلاثون طفلاً في صفٍّ واحد يسألون عن الدرس نفسه، فيُسأل النموذج
+    // ثلاثين مرّة عن سؤالٍ واحد وإجابتُه لا تتغيّر. فتُحفظ أوّل مرّة
+    // وتُعاد على البقيّة في جزءٍ من الثانية.
+    //
+    // والإجابة المحفوظة لا تُحسب من الحصّة ولا تُكلّف جوهرة: لم يُستدعَ
+    // النموذج، ولا معنى لأن يُحرم طفلٌ من سؤالٍ لأن غيره سأله قبله.
+    const key = cacheKey(lesson.id, question);
+    const cached = await readCachedAnswer(key);
+    if (cached) {
+      const seen = await readStudentQuota(student);
+      return res.json({ answer: cached, cached: true, quota: seen.quota.snapshot });
+    }
+
+    // ── ثم الحصّة ──
+    // `student` هو اسم الصفّ في هذا النطاق، فيُسمّى صفُّ الجدول غيرَه.
+    const { quota, gems, rowId, data: studentRow } = await readStudentQuota(student);
+    const verdict = chargeFor(quota.state, gems);
+    if (!verdict.allowed) {
+      return res.status(402).json({
+        error: `انتهت أسئلتك المجانية اليوم (${FREE_DAILY_QUESTIONS}). السؤال الإضافي بـ${GEM_PRICE} جواهر، ورصيدك ${gems}.`,
+        code: "quota_exhausted",
+        quota: quota.snapshot,
+      });
+    }
+
     const prompt = `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
     const data = await callGemini(prompt);
     const answer = getGeminiText(data);
@@ -438,10 +600,27 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
         code: "empty_answer",
       });
     }
-    await recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
-      logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
-    );
-    return res.json({ answer });
+    // الخصم بعد أن تصل الإجابة لا قبلها: طفلٌ خُصمت جواهرُه ثم تعطّل
+    // النموذج يكون قد دفع ثمن لا شيء.
+    const nextQuota = spend(quota.state, verdict);
+    await Promise.all([
+      writeStudentQuota(rowId, studentRow, nextQuota, gems - verdict.gemsCharged).catch((error) =>
+        logger.error({ err: error }, "[gemini] quota not saved"),
+      ),
+      // الحفظ في الذاكرة لا يُنتظر ولا يُسقط الردّ: فشلُه يعني استدعاءً
+      // ثانياً في المرّة القادمة لا إجابةً ضائعة.
+      writeCachedAnswer(key, lesson.id, question, answer).catch((error) =>
+        logger.warn({ err: error }, "[gemini] answer not cached"),
+      ),
+      recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
+        logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
+      ),
+    ]);
+    return res.json({
+      answer,
+      cached: false,
+      quota: snapshotOf(nextQuota, gems - verdict.gemsCharged),
+    });
   } catch (error: any) {
     // ‏المفتاح الغائب ليس انقطاع اتصال: إرساله تحت الرسالة نفسها كان
     // ‏يدفع المعلّم إلى فحص شبكته بينما الخادم ينقصه إعداد.

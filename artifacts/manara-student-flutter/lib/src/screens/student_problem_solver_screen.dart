@@ -101,6 +101,9 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     return base.isEmpty ? null : Uri.tryParse('$base/api/gemini/answer');
   }
 
+  /// ما بقي من أسئلة اليوم، كما قاله الخادم في آخر ردّ.
+  _QuotaBadge? _quota;
+
   Future<void> _ask() async {
     final lesson = _selectedLesson;
     final question = _questionController.text.trim();
@@ -170,6 +173,12 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         //
         // ‏ولا يبقى للرسالة العامة إلا موضعها الصحيح: انقطاعٌ فعليّ لا
         // ‏يصل معه ردّ أصلاً، فيُرمى من `http.post` قبل بلوغ هذا السطر.
+        if (payload is Map && payload['quota'] != null) {
+          // ردُّ «انتهت حصّتك» يحمل الحال أيضاً، فتُحدَّث الشارة معه —
+          // وإلا بقيت تقول «بقي ١» بعد أن نفد.
+          final quota = _QuotaBadge.fromJson(payload['quota']);
+          if (mounted) setState(() => _quota = quota);
+        }
         if (message != null && message.isNotEmpty) {
           throw _ExplainedFailure(message);
         }
@@ -197,7 +206,10 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         // The answer itself is still useful when progress sync is temporarily offline.
       }
       if (!mounted) return;
-      setState(() => _answer = answer);
+      setState(() {
+        _answer = answer;
+        _quota = _QuotaBadge.fromJson(payload is Map ? payload['quota'] : null);
+      });
       StudentSoundService.instance.playTap();
     } catch (error) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -249,6 +261,15 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                      colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
                   ),
                   const SizedBox(height: 18),
+                  // الحصّة فوق الحقل لا تحته: تُقرأ قبل أن يكتب الطفل
+                  // سؤاله، لا بعد أن يُردّ.
+                  if (_quota != null) ...[
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: _QuotaChip(quota: _quota!),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   StudentEntrance(
                     delay: const Duration(milliseconds: 100),
                     child: TextField(
@@ -483,4 +504,88 @@ String _studentSafeError(Object error) {
     if (message.contains(tr(own))) return message;
   }
   return tr('solver.failed');
+}
+
+
+/// ما بقي للطفل من أسئلةٍ اليوم، وبكم السؤال بعدها.
+///
+/// ── لماذا تُعرض ──
+/// حدٌّ لا يُرى يبدو عطباً: يسأل الطفل فيُردّ، فيظنّ التطبيق معطّلاً.
+/// وعدّادٌ ظاهرٌ يجعل الحدّ قاعدةً يفهمها — ويجعل الجواهر التي يجمعها
+/// من الدروس والاختبارات شيئاً يُنفَق على ما يريد.
+class _QuotaBadge {
+  const _QuotaBadge({
+    required this.remainingFree,
+    required this.freePerDay,
+    required this.gemPrice,
+    required this.gems,
+    required this.canAsk,
+  });
+
+  final int remainingFree;
+  final int freePerDay;
+  final int gemPrice;
+  final int gems;
+  final bool canAsk;
+
+  static _QuotaBadge? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    int number(Object? value) =>
+        value is num ? value.toInt() : int.tryParse('${value ?? ''}') ?? 0;
+    return _QuotaBadge(
+      remainingFree: number(raw['remainingFree']),
+      freePerDay: number(raw['freePerDay']),
+      gemPrice: number(raw['gemPrice']),
+      gems: number(raw['gems']),
+      canAsk: raw['canAsk'] != false,
+    );
+  }
+
+  /// سطرٌ واحد يصف الحال.
+  String get line => remainingFree > 0
+      ? trf('solver.quotaFree', {'n': '$remainingFree', 'total': '$freePerDay'})
+      : trf('solver.quotaGems', {'price': '$gemPrice', 'gems': '$gems'});
+
+  bool get warning => remainingFree == 0;
+}
+
+/// شارةُ الحصّة فوق حقل السؤال.
+class _QuotaChip extends StatelessWidget {
+  const _QuotaChip({required this.quota});
+  final _QuotaBadge quota;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: quota.warning
+              ? const Color(0xFFFEF3C7)
+              : const Color(0xFF0B8693).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: quota.warning
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF0B8693).withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(quota.warning ? '💎' : '✨', style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                quota.line,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: quota.warning
+                      ? const Color(0xFF92400E)
+                      : const Color(0xFF0B8693),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }

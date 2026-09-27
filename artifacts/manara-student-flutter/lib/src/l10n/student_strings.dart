@@ -276,6 +276,8 @@ class StudentStrings {
     'solver.ask': 'ساعدني في الحل',
     'solver.thinking': 'جارٍ التفكير وحلّ المسألة...',
     'solver.writeFirst': 'اكتب سؤالك أولًا.',
+    'solver.quotaFree': 'بقي لك {n} من {total} أسئلة مجانية اليوم',
+    'solver.quotaGems': 'انتهت أسئلة اليوم — السؤال بـ{price} جواهر (رصيدك {gems})',
     'solver.noLesson': 'لا توجد مادة تعليمية صالحة للمساعدة فيها الآن.',
     'solver.noText':
         'لم يُضف المعلم محتوى نصيًا لهذا الدرس بعد، لذلك لا يستطيع المساعد الإجابة بأمان.',
@@ -862,6 +864,8 @@ class StudentStrings {
     'solver.ask': 'Help me solve it',
     'solver.thinking': 'Thinking it through and solving…',
     'solver.writeFirst': 'Write your question first.',
+    'solver.quotaFree': '{n} of {total} free questions left today',
+    'solver.quotaGems': 'Out of free questions — {price} gems each (you have {gems})',
     'solver.noLesson': 'There is no lesson text to answer from right now.',
     'solver.noText':
         'Your teacher has not added text for this lesson yet, so the assistant cannot answer safely.',
