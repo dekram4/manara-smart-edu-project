@@ -290,7 +290,50 @@ const ACTIVITY_TYPES = new Set([
   "lesson_video",
   "problem",
   "game",
+  // لعبة التحدي: تُكافأ كالاختبار — جوهرتان عن كل إجابة صحيحة — ولها
+  // نوعُها لأن سجلّها مستقلّ: طفلٌ أعاد التحدي لا يُمنع من اختبارٍ لم
+  // يؤدّه، والعكس.
+  "challenge",
 ]);
+
+/**
+ * جدول المكافآت.
+ *
+ * مجموعٌ في مكانٍ واحد لا مبثوثٌ في `if`: تغييرُ قيمةٍ هنا سطرٌ واحد،
+ * ولا يُنسى منه موضع.
+ */
+const GEMS = {
+  /** عن كل إجابة صحيحة في الاختبار الدوري. */
+  perCorrectQuiz: 2,
+  /** وعن كل إجابة صحيحة في جولة التحدي. */
+  perCorrectChallenge: 2,
+  /** إكمال مطالعة الدرس، مرّةً واحدة. */
+  lesson: 10,
+  /** سؤالٌ في حل المسائل. */
+  problem: 1,
+  /** لعبةٌ ترفيهية. */
+  game: 3,
+  /** فتحُ التطبيق بعد مرور يوم. */
+  dailyLogin: 10,
+  /** وخمسةُ أيامٍ متتالية. */
+  streakBonus: 20,
+} as const;
+
+/** طولُ المتتالية التي تُكافأ. */
+const STREAK_MILESTONE = 5;
+
+/**
+ * الخبرة من الجواهر: كل جوهرةٍ نقطةٌ ونصف.
+ *
+ * كانت تتراكم عند كل عشر جواهر مكتملة، فطفلٌ كسب تسعاً لا يرى خبرته
+ * تتحرّك — ولا يفهم لماذا. وهذه تتحرّك مع كل كسب.
+ *
+ * والكسر يُقرّب لأقرب صحيح: جوهرةٌ واحدة تساوي نقطةً ونصفاً، ولا معنى
+ * لنصف نقطةٍ في عدّادٍ يقرؤه طفل.
+ */
+function xpFromGems(gems: number): number {
+  return Math.round(gems * 1.5);
+}
 
 type RewardOutcome = {
   xp: number;
@@ -311,6 +354,8 @@ function rewardFor(
 ): { outcome: RewardOutcome; next: Gamification | null } {
   const type = activityType.trim().toLowerCase();
   const key = rewardId.trim() !== "" ? rewardId.trim() : `${type}:${activityId}`;
+  // ومفتاحُ التحدي يحمل نوعه، فإعادةُ تحدٍّ لدرسٍ لا تمنح جواهر ثانية
+  // ولا تمنع اختباراً لم يُؤدَّ بعد.
   const legacyQuizKey = type === "quiz" ? `quiz:${activityId}` : "";
   const legacyVideoKeys =
     type === "video"
@@ -347,13 +392,15 @@ function rewardFor(
   let perfectQuiz = false;
   let quizPercentage: number | null = null;
 
-  if (type === "quiz") {
-    // الجواهر = عدد الإجابات الصحيحة، محصورةً بعدد الأسئلة. الحصر هنا هو
-    // موضع الحماية: التطبيق يدّعي النتيجة، والخادم يرفض ما يتجاوز الممكن.
+  if (type === "quiz" || type === "challenge") {
+    // الجواهر = الإجابات الصحيحة × جوهرتين، محصورةً بعدد الأسئلة. والحصر
+    // هو موضع الحماية: التطبيق يدّعي النتيجة، والخادم يرفض ما يتجاوز
+    // الممكن.
     const total = Math.max(0, quizTotal ?? 0);
     const score = Math.min(Math.max(0, correctAnswers ?? 0), total);
-    gems = score;
-    quizzes += 1;
+    gems = score * (type === "quiz" ? GEMS.perCorrectQuiz : GEMS.perCorrectChallenge);
+    if (type === "quiz") quizzes += 1;
+    else games += 1;
     if (total > 0) {
       const scorePercentage = Math.trunc((score * 100) / total);
       quizPercentage = scorePercentage;
@@ -361,24 +408,22 @@ function rewardFor(
       average = Math.trunc((current.averageScore * (quizzes - 1) + scorePercentage) / quizzes);
     }
   } else if (type === "lesson") {
-    gems = 5;
+    gems = GEMS.lesson;
     lessons += 1;
   } else if (type === "video" || type === "lesson_video") {
     // مشاهدة السينما لا تمنح مكافأة.
     gems = 0;
   } else if (type === "problem") {
-    gems = 1;
+    gems = GEMS.problem;
   } else if (type === "game") {
-    gems = 3;
+    gems = GEMS.game;
     games += 1;
   }
 
   const beforeLevel = levelOf(current.xp);
   const nextGems = current.gems + gems;
-  // الخبرة لا تُمنح مباشرةً: تتراكم 20 نقطة عند كل عشر جواهر مكتملة. هذه هي
   // المعادلة الوحيدة في التطبيق، وأي `xp` يُرسله العميل يُهمَل.
-  const gemMilestones = Math.floor(nextGems / 10) - Math.floor(current.gems / 10);
-  const xp = gemMilestones * 20;
+  const xp = xpFromGems(gems);
   const nextXp = current.xp + xp;
 
   const projected: Gamification = {
@@ -552,7 +597,15 @@ router.post("/student/progress/streak", async (_req, res) => {
       }
     }
 
-    const bonus = streak % 5 === 0 ? 100 : 0;
+    // جواهرُ الدخول اليومي، ومكافأةُ المتتالية معها.
+    //
+    // عشرٌ لفتح التطبيق بعد مرور يوم — وهذا المسار لا يُنادى إلا مرّةً
+    // في اليوم، يحرسه `marker` أعلاه — وعشرون إضافية عند كل خمسة أيام
+    // متتالية. والخبرة تتبع الجواهر بالمعادلة نفسها، فلا يكون للدخول
+    // حسابٌ يخالف حساب الدرس.
+    const streakBonus = streak % STREAK_MILESTONE === 0 ? GEMS.streakBonus : 0;
+    const gems = GEMS.dailyLogin + streakBonus;
+    const bonus = xpFromGems(gems);
     const knownIds = new Set(current.achievements.map((item) => item.id));
     const earned: Achievement[] = [];
     for (const [threshold, id] of [
@@ -570,6 +623,7 @@ router.post("/student/progress/streak", async (_req, res) => {
     const next: Gamification = {
       ...current,
       xp: nextXp,
+      gems: current.gems + gems,
       streak,
       achievements: [...current.achievements, ...earned],
       // السجلّ يبقى كما هو ويُضاف إليه اليوم. كانت النسخة التي في التطبيق
@@ -587,7 +641,7 @@ router.post("/student/progress/streak", async (_req, res) => {
 
     res.json({
       xp: bonus,
-      gems: 0,
+      gems,
       alreadyRewarded: false,
       levelUp: levelOf(nextXp) > levelOf(current.xp),
       newAchievements: earned,

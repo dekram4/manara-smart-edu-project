@@ -681,12 +681,16 @@ class _GamesModule extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        // The gems/XP banner and the per-game level gate are both gone.
-        // The arcade is open: every game opens on a tap, nothing is
-        // locked behind a level, nothing is spent, and finishing one is
-        // its own reward rather than a transaction. The gamification the
-        // rest of the app runs on is untouched — lessons, videos and
-        // quizzes still earn — this is only the games card.
+        // الألعاب تُفتح واحدةً مع كل مستوى: المستوى الأول يفتح الأولى،
+        // والثاني الثانية، وهكذا — وفي المستوى صفر كلُّها مقفلة.
+        //
+        // وهذا التعليق كان يقول عكس ما تفعله الشيفرة تحته: أن البوّابة
+        // أُزيلت وأن كل لعبة تُفتح بنقرة. وهي قائمةٌ في `itemBuilder`
+        // أدناه منذ كُتب. تعليقٌ يكذّب شيفرته أسوأ من لا تعليق: يُقرأ
+        // فيُبنى عليه، ولا يُكتشف إلا حين يعطب شيء.
+        //
+        // والبوّابة بلا عدّادٍ بابٌ مغلق، فالشريط تحتها يقول أين هو
+        // وكم بقي.
         _ArcadeProgress(stats: gamification, total: games.length),
         const SizedBox(height: 16),
         // شبكة لا قائمة: بطاقتان في عرض الهاتف وثلاث على الشاشة الواسعة،
@@ -721,10 +725,15 @@ class _GamesModule extends StatelessWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            trf('content.gameLockedHint', {
-                              'level': neededLevel,
-                              'current': gamification.level,
-                            }),
+                            // المستوى صفر حالٌ خاصة: كلّ شيءٍ مقفل،
+                            // و«مستواك 0» ليست خبراً. فتُقال له الخطوة
+                            // التالية بدل حاله الراهنة.
+                            gamification.level <= 0
+                                ? tr('content.firstGameHint')
+                                : trf('content.gameLockedHint', {
+                                    'level': neededLevel,
+                                    'current': gamification.level,
+                                  }),
                           ),
                         ),
                       );

@@ -322,6 +322,7 @@ class StudentStrings {
     'content.gamesSubtitle': 'تعلّم والعب داخل منارة المعرفة',
     'content.gameLockedHint':
         'تُفتح هذه اللعبة عند الوصول للمستوى {level}. مستواك الآن: {current}.',
+    'content.firstGameHint': 'ارتقِ إلى المستوى 1 لفتح أول لعبة! 🚀',
     'content.gamesProgress': 'المستوى {level} — فُتحت {open} من {total} ألعاب',
     'content.allGamesOpen': 'فتحت كل الألعاب المتاحة! 🎉',
     'content.nextGameIn': 'باقي {xp} نقطة لفتح اللعبة التالية',
@@ -911,6 +912,7 @@ class StudentStrings {
     'content.gamesSubtitle': 'Play and learn inside Manara',
     'content.gameLockedHint':
         'This game unlocks at level {level}. You are level {current}.',
+    'content.firstGameHint': 'Reach level 1 to unlock your first game! 🚀',
     'content.gamesProgress': 'Level {level} — {open} of {total} games unlocked',
     'content.allGamesOpen': 'Every game is unlocked! 🎉',
     'content.nextGameIn': '{xp} XP to go before the next game',

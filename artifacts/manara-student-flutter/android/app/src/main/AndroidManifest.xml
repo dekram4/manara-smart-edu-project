@@ -62,5 +62,22 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <!-- أندرويد 11 فما فوق لا يرى التطبيقاتِ الأخرى إلا بإعلانٍ هنا.
+             وبدونه تعود الكاميرا «لا تطبيق يعالج هذا» وإن كانت مثبّتة،
+             ويصمت النطق بلا خطأ لأن المحرّك لا يُعثر عليه. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT"/>
+            <data android:mimeType="image/*"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
     </queries>
 </manifest>
