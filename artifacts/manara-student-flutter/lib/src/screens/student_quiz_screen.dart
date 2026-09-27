@@ -214,6 +214,9 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       return;
     }
     setState(() => _submitting = true);
+    // أسئلةُ هذه المحاولة، محفوظةً قبل أن تُمسح من الحالة: إعادةُ
+    // الإرسال تحتاجها، والإجاباتُ عنها باقيةٌ في `_answers`.
+    final attempted = _questions;
     final score = _questions.asMap().entries.where((entry) {
       return StudentAssessmentRules.isAnswerCorrect(
         entry.value,
@@ -338,11 +341,52 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         _submitting = false;
       });
     } catch (error) {
+      // الاختبارُ المُنجَز لا يضيع لأن الشبكة تعثّرت.
+      //
+      // كان الفشل يُعيد الطفل إلى شاشة الاختبار وقد أجاب عن كل سؤال،
+      // ويُقال له «تحقّق من الاتصال» — فيُعيد العمل كلّه أو يتركه. وما
+      // تعذّر هو الحفظ لا التصحيح: النتيجة محسوبةٌ في يده، فتُعرض عليه
+      // وتُوسَم بأنها لم تصل بعد.
       StudentSoundService.instance.play(StudentSoundCue.warning);
       if (!mounted) return;
-      setState(() => _submitting = false);
+      setState(() {
+        _shownResult = {...result, 'pendingSync': true};
+        _activeQuiz = null;
+        _questions = const [];
+        _answers.clear();
+        _questionIndex = 0;
+        _submitting = false;
+      });
+      // وما قاله الخادم يُعرض كما قاله.
+      //
+      // كانت كلُّ علّةٍ تصل في جملةٍ واحدة عن الاتصال — وجلسةٌ انتهت،
+      // ورفضُ صلاحياتٍ من قاعدة البيانات، وعمودٌ ناقص، كلّها ليست
+      // انقطاعَ شبكة. فتُرسَل الشكوى إلى الإنترنت والإنترنت سليم.
+      final detail = error is StateError ? error.message.trim() : '';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('quiz.saveFailed'))),
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            detail.isEmpty
+                ? tr('quiz.saveFailed')
+                : '${tr('quiz.saveFailed')}\n$detail',
+          ),
+          action: SnackBarAction(
+            label: tr('quiz.retrySave'),
+            // الإعادة تُرجع الحالة كما كانت لحظة التسليم — الاختبار
+            // وأسئلته وإجاباتها محفوظةٌ في `_answers` ولم تُمسح — ثم
+            // تُسلّم من جديد. فلا يُعيد الطفل الإجابة عن شيء.
+            onPressed: () {
+              if (!mounted) return;
+              setState(() {
+                _activeQuiz = quiz;
+                _questions = attempted;
+                _shownResult = null;
+              });
+              _submit();
+            },
+          ),
+        ),
       );
     }
   }

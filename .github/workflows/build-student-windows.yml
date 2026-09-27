@@ -1,0 +1,73 @@
+name: Build Student Windows
+
+# سير عملٍ منفصل عن بناء الـ APK لا وظيفةٌ ثانية فيه.
+#
+# الاثنان يعملان على منصّتين مختلفتين — `ubuntu-latest` و`windows-latest` —
+# ووضعُهما في ملفٍ واحد يجعل فشل أحدهما يُظهر السير كلّه أحمر، فلا يُعرف
+# أسقط الأندرويد أم الويندوز إلا بفتح السجلّ. وفصلُهما يجعل لكلٍّ حالته.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # نسخة بناء الأندرويد نفسها: نسختان مختلفتان تُخرجان تطبيقين من
+          # مصدرٍ واحد قد يفترقان في السلوك، ويُبحث عن السبب في الشيفرة
+          # وهو في أداة البناء.
+          flutter-version: '3.44.8'
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Install Dependencies
+        run: flutter pub get
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Build Windows
+        # المفاتيح تُحقن عند البناء كما في الأندرويد، وبالمنطق نفسه:
+        # السرّ الغائب يُترك غير مُعرَّف لا يُمرَّر فارغاً، لأن
+        # `String.fromEnvironment` تُرجع الافتراضيّ فقط إن لم يكن المفتاح
+        # مُعرَّفاً أصلاً — وتمريرُه فارغاً يُعرِّفه بالفراغ فيُلغي
+        # الافتراضي ويمحو عنوان الخادم بصمت.
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "${SUPABASE_URL:-}" ]; then
+            args+=("--dart-define=SUPABASE_URL=$SUPABASE_URL")
+          fi
+          if [ -n "${SUPABASE_ANON_KEY:-}" ]; then
+            args+=("--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY")
+          fi
+          if [ -n "${API_BASE_URL:-}" ]; then
+            args+=("--dart-define=API_BASE_URL=$API_BASE_URL")
+          fi
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::warning::SUPABASE_URL أو SUPABASE_ANON_KEY غير مضبوط في أسرار المستودع — سيُبنى تطبيق بلا اتصال بقاعدة البيانات."
+          fi
+          flutter build windows --release "${args[@]}"
+        working-directory: artifacts/manara-student-flutter
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+
+      - name: Upload Windows Artifact
+        # المجلّد كلّه لا الملف التنفيذي وحده: `manara_student.exe` لا
+        # يعمل بمعزلٍ عن `flutter_windows.dll` ومجلّد `data/` بجانبه،
+        # ورفعُه وحده يُخرج ملفاً يُنقر فيُخطئ بلا سبب ظاهر.
+        # و`upload-artifact` يضغط ما يُرفع، فلا يلزم ضغطٌ قبله.
+        uses: actions/upload-artifact@v6
+        with:
+          name: student-windows
+          path: artifacts/manara-student-flutter/build/windows/x64/runner/Release
+          if-no-files-found: error

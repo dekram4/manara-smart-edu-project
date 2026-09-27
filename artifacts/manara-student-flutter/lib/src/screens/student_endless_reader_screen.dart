@@ -771,6 +771,31 @@ class _StudentEndlessReaderScreenState
   ChallengeRound? get _round =>
       _wordIndex < _plan.length ? _plan[_wordIndex] : null;
 
+  /// اتجاه نصّ الجولة الحالية، من محتواها لا من لغة الواجهة.
+  ///
+  /// الشاشة كلّها تعمل باتجاه التطبيق — يميناً إلى يسار للعربية. وجولةُ
+  /// الإنجليزية نصُّها لاتينيّ: تُرسم فيه الكلمات من اليمين، فتُقرأ جملةُ
+  /// "A bird can ___ in the sky" معكوسةً، وتُصفّ كتلُ الكلمات بالعكس.
+  /// فيُشتقّ الاتجاه من الجولة نفسها.
+  TextDirection get _roundDirection {
+    final round = _round;
+    final parts = <String>[
+      switch (round) {
+        FillRound(:final sentence) =>
+          '${sentence.before} ${sentence.after} ${sentence.choices.join(" ")}',
+        ClassifyRound(:final sorting) =>
+          '${sorting.prompt} ${sorting.buckets.join(" ")} ${sorting.items.keys.join(" ")}',
+        MatchRound(:final pairs) =>
+          pairs.map((pair) => '${pair.term} ${pair.meaning}').join(' '),
+        null => '',
+      },
+    ];
+    final text = parts.join(' ');
+    final latin = RegExp(r'[A-Za-z]').hasMatch(text);
+    final arabic = RegExp(r'[؀-ۿ]').hasMatch(text);
+    return latin && !arabic ? TextDirection.ltr : StudentSettings.direction;
+  }
+
   bool get _onSorting => _round is ClassifyRound;
   bool get _onMatching => _round is MatchRound;
   EndlessReaderSentence get _sentence => (_round as FillRound).sentence;
@@ -1142,7 +1167,12 @@ class _StudentEndlessReaderScreenState
     // The whole arena is centred rather than spread to the edges: the
     // question, its pieces and the progress above them read as one panel
     // in the middle of the screen with the artwork around it.
-    return Center(
+    return Directionality(
+      // الساحة وحدها تتبع الجولة؛ وما حولها — الترويسة وأزرارها — يبقى
+      // على اتجاه التطبيق، فلا يقفز زرُّ الرجوع من جهةٍ إلى أخرى بين
+      // جولةٍ عربية وأخرى إنجليزية.
+      textDirection: _roundDirection,
+      child: Center(
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1194,6 +1224,7 @@ class _StudentEndlessReaderScreenState
               _choiceTray(),
           ],
         ),
+      ),
       ),
     );
   }
