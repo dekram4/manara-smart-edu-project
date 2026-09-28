@@ -1318,8 +1318,8 @@ class _StudentEndlessReaderScreenState
             const SizedBox(height: 10),
             _RewardNotice(
               text: _alreadyEarned
-                  ? tr('challenge.practiceOnly')
-                  : tr('challenge.gemsAvailable'),
+                  ? tr('challenge.practiceRepeat')
+                  : trf('challenge.gemsAvailable', {'gems': '${_stageCount * 2}'}),
               earning: !_alreadyEarned,
             ),
             // الجلب لا يوقف اللعب، لكنّه يُعلَن: الطفل الذي بدأ بجولةٍ
@@ -2000,7 +2000,7 @@ class _RewardNotice extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              earning ? '💎' : 'ℹ️',
+              earning ? '🏆' : 'ℹ️',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(width: 8),

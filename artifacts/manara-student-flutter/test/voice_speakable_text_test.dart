@@ -16,7 +16,7 @@ void main() {
     expect(speakableText('**الخطوة الأولى**'), 'الخطوة الأولى');
     expect(speakableText('# عنوان'), 'عنوان');
     expect(speakableText('- أوّلاً'), 'أوّلاً');
-    expect(speakableText('`x + y`'), 'x + y');
+    expect(speakableText('`x + y`'), 'x زائد y');
   });
 
   test('الرموزُ التي لا معنى لها في شرحٍ تسقط', () {
@@ -24,10 +24,31 @@ void main() {
     expect(speakableText('الجواب | ١٢ |'), 'الجواب ١٢');
   });
 
-  test('علاماتُ الحساب تبقى، فهي جزءٌ من الجواب', () {
-    expect(speakableText('٥ + ٣ = ٨'), '٥ + ٣ = ٨');
-    expect(speakableText('١٢ / ٤ = ٣'), '١٢ / ٤ = ٣');
-    expect(speakableText('٥٠%'), '٥٠%');
+  test('علاماتُ الحساب تُنطق بأسمائها لا تُتجاهَل', () {
+    // «خمسة بلَس ثلاثة» ليست جمعاً يسمعه طفل، والمحرّك يتجاهل العلامة
+    // أحياناً فيسمع «خمسة ثلاثة ثمانية» — وهي أسوأ.
+    expect(speakableText('٥ + ٣ = ٨'), '٥ زائد ٣ يساوي ٨');
+    expect(speakableText('١٢ ÷ ٤'), '١٢ تقسيم ٤');
+    expect(speakableText('٦ × ٧'), '٦ ضرب ٧');
+    expect(speakableText('٥٠%'), '٥٠ بالمئة');
+  });
+
+  test('والملتبِسُ منها بين رقمين وحدهما', () {
+    // الشَّرطةُ ناقصٌ في «٧-٣» وواصلةٌ في «أ-ب»؛ فلا تُنطق حيث تحتمل
+    // غير العملية.
+    expect(speakableText('٧-٣'), '٧ ناقص ٣');
+    expect(speakableText('١٢/٤'), '١٢ تقسيم ٤');
+    expect(speakableText('٦*٧'), '٦ ضرب ٧');
+    // وبقيّةُ إبرازٍ لم يُغلق ليست ضرباً.
+    expect(speakableText('**مهم'), 'مهم');
+    // ولا علامةُ القائمة جمعاً.
+    expect(speakableText('+ أوّلاً'), 'أوّلاً');
+  });
+
+  test('معادلاتُ LaTeX تُفكّ ولا تُهجّى', () {
+    // ولولا ذلك لبقي «frac 2 3» فنُطق «فراك اثنان ثلاثة».
+    expect(speakableText(r'$\frac{2}{3}$'), '2 تقسيم 3');
+    expect(speakableText(r'$5 \times 4 = 20$'), '5 ضرب 4 يساوي 20');
   });
 
   test('علاماتُ الوقف تبقى واحدةً ولا تُسبق بمسافة', () {

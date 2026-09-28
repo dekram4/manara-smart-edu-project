@@ -148,8 +148,8 @@ class StudentStrings {
     'challenge.replayFromStart': 'ابدأ تحديًا جديدًا',
     'challenge.allDone': 'أنهيت التحدي! 🌟',
     'challenge.practiceOnly': 'هذا الدرس مُنجَز مسبقاً — اللعب للتدريب ولن تُمنح جواهر جديدة',
-    'challenge.gemsAvailable':
-        'تحدٍّ أول في هذا الدرس — كل إجابة صحيحة تكسبك جوهرتين 💎',
+    'challenge.gemsAvailable': 'تحدٍّ جديد — المكافأة: حتى {gems} جوهرة 💎',
+    'challenge.practiceRepeat': 'تحدٍّ تدريبي مُعاد — بدون جواهر',
     'challenge.correctAnswer': 'الإجابة الصحيحة: {answer}',
     'challenge.wrong': 'ليست هذه الإجابة الصحيحة — واصل إلى التالي! 💪',
     'challenge.score': 'أصبت {correct} من {total}، وربحت {gems} جوهرة 💎',
@@ -762,8 +762,8 @@ class StudentStrings {
     'challenge.replayFromStart': 'Start a new challenge',
     'challenge.allDone': 'You finished the challenge! 🌟',
     'challenge.practiceOnly': 'This lesson is already complete — this round is for practice and earns no new gems',
-    'challenge.gemsAvailable':
-        'First challenge on this lesson — every right answer earns 2 gems 💎',
+    'challenge.gemsAvailable': 'New challenge — reward: up to {gems} gems 💎',
+    'challenge.practiceRepeat': 'Practice replay — no gems',
     'challenge.correctAnswer': 'The right answer: {answer}',
     'challenge.wrong': 'Not the right answer — on to the next one! 💪',
     'challenge.score': 'You got {correct} of {total} and earned {gems} gems 💎',

@@ -131,12 +131,21 @@ async function callGemini(
     maxOutputTokens = 2048,
     json = false,
     image,
+    budgetMs = GEMINI_BUDGET_MS,
   }: {
     temperature?: number;
     maxOutputTokens?: number;
     json?: boolean;
     /** صورةُ المسألة كما التقطها الطفل: base64 بلا ترويسة. */
     image?: { data: string; mimeType: string };
+    /**
+     * ميزانيةُ هذا النداء وحده.
+     *
+     * الطلبُ الواحد صار نداءين حين تكون ثَمّ صورة — قراءةٌ ثم إجابة —
+     * وكلٌّ منهما بميزانيةٍ كاملة يجعل الخادم ينتظر مئة ثانية والتطبيق
+     * ينتظر ستّين. فتُقسَّم الميزانيةُ الواحدة بينهما.
+     */
+    budgetMs?: number;
   } = {},
 ): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -161,7 +170,7 @@ async function callGemini(
   // فصار للطلب حدٌّ أقصى واحد أقصر ممّا ينتظره التطبيق، ويتقاسمه ما
   // يُجرَّب من النماذج: ينتهي الخادم دائماً قبل أن ييأس العميل، فيصل
   // سببُ الفشل بدل أن ينقطع الخيط.
-  const deadline = Date.now() + GEMINI_BUDGET_MS;
+  const deadline = Date.now() + Math.max(4_000, budgetMs);
 
   for (const model of models) {
     const remaining = deadline - Date.now();
@@ -377,6 +386,75 @@ async function persistBank(lessonId: string, bank: ChallengeBank): Promise<void>
   );
   if (!write.ok) throw new Error(`bank write failed (${write.status})`);
 }
+
+/** ما تُعطاه قراءةُ الصورة من الميزانية، وما يبقى منها للإجابة. */
+const IMAGE_READ_BUDGET_MS = 12_000;
+
+/**
+ * نصُّ المسألة التي في الصورة، أو `null` إن تعذّر.
+ *
+ * ── لماذا نداءان لا نداء ──
+ * الصورة كانت تتخطّى الذاكرة كلَّها: المفتاح لا يعرف الصورة، فصورتان
+ * مختلفتان بالسؤال نفسه كانتا تعودان بجوابٍ واحد لو قُرئتا منها. فكان
+ * التخطّي صواباً، وكان ثمنُه أن ثلاثين طفلاً يصوّرون المسألة نفسها من
+ * الكتاب نفسه يستدعون النموذج ثلاثين مرّة — وهي أكثرُ حالاتِ التكرار
+ * وروداً، لا أقلّها.
+ *
+ * فبدل أن يُفتاح على الصورة يُفتاح على ما فيها: تُقرأ أوّلاً قراءةً
+ * قصيرة — سطرُ نصٍّ أو معادلةٍ أو وصفٌ للشكل — ثم يُبنى المفتاح من هذا
+ * النصّ كما يُبنى من سؤالٍ مكتوب. فصورتان لمسألةٍ واحدة تلتقيان على
+ * مفتاح، وصورتان لمسألتين تفترقان.
+ *
+ * ── وما تكلفته ──
+ * القراءة نداءٌ صغير: مئتا رمزٍ في الخرج، وحرارةُ صفرٍ كي يقرأ الشيءَ
+ * نفسه مرّتين بالعبارة نفسها. فالإصابةُ توفّر نداءً كاملاً بالصورة،
+ * والإخفاقُ يزيد نداءً صغيراً. والتكرارُ هنا هو الغالب.
+ *
+ * ── ولا تُحسب على الطفل ──
+ * هذه قراءةٌ لا إجابة: تجري قبل الحصّة وقبل الجواهر، فلا تُخصم ولا
+ * تُعدّ. وطفلٌ تُنقص حصّتُه لأن الخادم قرأ صورته ثم لم يجد لها جواباً
+ * محفوظاً يكون قد دفع ثمن ترتيبٍ داخليّ لا يعرفه.
+ */
+async function readQuestionFromImage(
+  image: { data: string; mimeType: string },
+  typed: string,
+): Promise<string | null> {
+  const prompt = `في الصورة مسألةٌ أو سؤالٌ من كتاب تلميذ.
+
+اكتب ما في الصورة نصّاً، بلا شرحٍ ولا حلٍّ ولا مقدّمة:
+- إن كان فيها نصٌّ أو معادلة، انسخها كما هي في سطرٍ واحد.
+- وإن كانت شكلاً أو رسماً بلا نصٍّ كافٍ، فصفه في سطرٍ واحد قصير: نوعُ الشكل، والأرقامُ المكتوبة عليه، والمطلوب.
+- وإن كانت غير واضحة، اكتب: غير واضحة
+
+ولا تكتب شيئاً غير ذلك.`;
+  try {
+    const data = await callGemini(prompt, {
+      image,
+      temperature: 0,
+      maxOutputTokens: 200,
+      budgetMs: IMAGE_READ_BUDGET_MS,
+    });
+    const read = getGeminiText(data)?.trim() ?? "";
+    // «غير واضحة» ليست نصّاً يُفتاح عليه: صورتان ضبابيّتان لمسألتين
+    // مختلفتين تلتقيان عليه، فيُجاب طفلٌ عن مسألةِ غيره.
+    if (!read || read.length < 4 || read.length > 600) return null;
+    if (/غير\s*واضح/.test(read)) return null;
+    // وما كتبه الطفل يدخل المفتاح معه: صورةٌ واحدة يُسأل عنها «احسب
+    // المحيط» و«احسب المساحة» سؤالان.
+    return typed && typed !== PHOTO_DEFAULT_PROMPT ? `${typed} ${read}` : read;
+  } catch (error) {
+    logger.warn({ err: error }, "[cache] image read failed — key skipped");
+    return null;
+  }
+}
+
+/**
+ * السؤالُ الافتراضي حين يكتفي الطفل بالتصوير.
+ *
+ * مكرّرٌ في التطبيق (`PhotoQuestion.defaultPrompt`)، ويُقارَن به هنا كي
+ * لا يدخل المفتاحَ نصٌّ لم يكتبه أحد.
+ */
+const PHOTO_DEFAULT_PROMPT = "حلّ هذه المسألة واشرح الخطوات.";
 
 /**
  * إجابةٌ محفوظة لهذا المفتاح، أو `null`.
@@ -659,12 +737,19 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     //
     // والإجابة المحفوظة لا تُحسب من الحصّة ولا تُكلّف جوهرة: لم يُستدعَ
     // النموذج، ولا معنى لأن يُحرم طفلٌ من سؤالٍ لأن غيره سأله قبله.
-    // الصورة لا تُقرأ من الذاكرة: سؤالان بالنصّ نفسه وصورتين مختلفتين
-    // جوابهما مختلف، والمفتاح لا يعرف الصورة. فتُتخطّى الذاكرة كلّها
-    // حين تكون ثَمّ صورة — قراءةً وكتابة.
-    const key = cacheKey(lesson.id, question);
-    const cached = image ? null : await readCachedAnswer(key);
+    // والصورةُ تدخل الذاكرة من بابٍ واحد مع المكتوب والمنطوق: يُقرأ
+    // نصُّها أوّلاً، ثم يُبنى المفتاح من هذا النصّ. فالأبوابُ الثلاثة
+    // تصبّ في `cacheKey` وحدها، ولا بابَ يتخطّى الذاكرة.
+    const startedAt = Date.now();
+    const imageText = image ? await readQuestionFromImage(image, question) : null;
+    // صورةٌ لم تُقرأ تعود إلى ما كان: لا ذاكرةَ لها، ولا يُمنع الطفلُ
+    // من جوابٍ لأن القراءة تعذّرت.
+    const keyText = image ? imageText : question;
+    const key = keyText ? cacheKey(lesson.id, keyText) : "";
+    const cached = key ? await readCachedAnswer(key) : null;
     if (cached) {
+      // إصابةٌ في الذاكرة لا تُحسب من الحصّة ولا تُكلّف جوهرة: لم
+      // يُستدعَ النموذج. والحصّةُ تُقرأ لتُعرض وحدها، لا لتُنقص.
       const seen = await readStudentQuota(student);
       return res.json({ answer: cached, cached: true, quota: seen.quota.snapshot });
     }
@@ -699,7 +784,18 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
 وللاستئناس، هذا نصّ درسه:
 ${lesson.text}`
       : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
-    const data = await callGemini(prompt, image ? { image, maxOutputTokens: 3000 } : {});
+    // وما بقي من الميزانية بعد القراءة، لا ميزانيةٌ كاملةٌ ثانية: الخادم
+    // ينتظر ما ينتظره التطبيق وينتهي قبله.
+    const data = await callGemini(
+      prompt,
+      image
+        ? {
+            image,
+            maxOutputTokens: 3000,
+            budgetMs: GEMINI_BUDGET_MS - (Date.now() - startedAt),
+          }
+        : {},
+    );
     const answer = getGeminiText(data);
     if (!answer) {
       logger.warn({ lessonId }, "[gemini] answer rejected: empty completion");
@@ -717,11 +813,14 @@ ${lesson.text}`
       ),
       // الحفظ في الذاكرة لا يُنتظر ولا يُسقط الردّ: فشلُه يعني استدعاءً
       // ثانياً في المرّة القادمة لا إجابةً ضائعة.
-      image
-        ? Promise.resolve()
-        : writeCachedAnswer(key, lesson.id, question, answer).catch((error) =>
+      //
+      // ويُحفظ ما صُوّر كما يُحفظ ما كُتب، ما دام للصورة نصٌّ قُرئ منها
+      // — فمن صوّر المسألة بعده يجدها محفوظة.
+      key
+        ? writeCachedAnswer(key, lesson.id, keyText ?? question, answer).catch((error) =>
             logger.error({ err: error, key }, "[cache] SAVE FAILED"),
-          ),
+          )
+        : Promise.resolve(),
       recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
         logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
       ),

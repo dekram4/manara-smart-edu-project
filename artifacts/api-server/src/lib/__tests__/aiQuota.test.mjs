@@ -32,6 +32,9 @@ const {
 test("صِيَغ السؤال الواحد كلّها مفتاحٌ واحد", () => {
   // ما يصل من الكتابة ومن الصوت ومن قراءة الصورة — كلّه صياغاتٌ لسؤال
   // واحد، ولولا التطبيع لسُئل النموذج عن الشيء نفسه مرّةً لكل صياغة.
+  //
+  // و«الخلية» وحدها في القائمة: هكذا تصل من الصوت غالباً، فمحرّك
+  // التعرّف يسمع الكلمة ويسقط أداة الاستفهام قبلها.
   const same = [
     "ما هي الخلية؟",
     "ماهي الخلية",
@@ -41,8 +44,51 @@ test("صِيَغ السؤال الواحد كلّها مفتاحٌ واحد", ()
     "  ما   هي   الخلية  !! ",
     "ما هي الخلية؟؟ 🤔",
     "ما الخلية",
+    "عرّف الخلية",
+    "اشرح الخلية",
+    "الخلية",
   ].map(normalizeQuestion);
   assert.equal(new Set(same).size, 1, JSON.stringify([...new Set(same)]));
+});
+
+test("وصِيَغُ السؤال الإنجليزي كذلك", () => {
+  const same = [
+    "What is the cell?",
+    "what is a cell",
+    "What are the cells",
+    "Define the cell.",
+    "explain cell",
+    "  CELL  ",
+  ].map(normalizeQuestion);
+  // «cells» تبقى جمعاً — لا تُجذَّر الكلماتُ هنا، فذلك تخمينٌ لغويّ
+  // يُذيب فروقاً حقيقية.
+  assert.equal(
+    new Set(same).size,
+    2,
+    JSON.stringify([...new Set(same)]),
+  );
+  assert.equal(normalizeQuestion("What is the cell?"), "cell");
+});
+
+test("الحسابُ لا يفقد عملياته — وهذا أخطر ما في التطبيع", () => {
+  // ولولا ذلك لصار «٢+٣» و«٢-٣» مفتاحاً واحداً، فيُجاب السائلُ عن
+  // الطرح بجواب الجمع. وذاكرةٌ تُصيب بثقةٍ في السؤال الخطأ أسوأ من
+  // ذاكرةٍ لا تُصيب.
+  assert.notEqual(normalizeQuestion("٢ + ٣"), normalizeQuestion("٢ - ٣"));
+  assert.notEqual(normalizeQuestion("١٢ ÷ ٤"), normalizeQuestion("١٢ × ٤"));
+  assert.equal(normalizeQuestion("٢ + ٣"), "2+3");
+});
+
+test("المعادلةُ الواحدة بكتابتين مفتاحٌ واحد", () => {
+  assert.equal(normalizeQuestion("2 x + 5 = 10"), "2x+5=10");
+  assert.equal(normalizeQuestion("2x+5=10"), "2x+5=10");
+  // والضربُ بأيّ رمزٍ كُتب.
+  assert.equal(normalizeQuestion("٦ × ٧"), "6*7");
+  assert.equal(normalizeQuestion("6 x 7"), "6*7");
+  assert.equal(normalizeQuestion("6*7"), "6*7");
+  // والقسمةُ كذلك.
+  assert.equal(normalizeQuestion("١٢ ÷ ٤"), "12/4");
+  assert.equal(normalizeQuestion("12 / 4"), "12/4");
 });
 
 test("الترقيم والرموز والإيموجي لا تصنع سؤالاً ثانياً", () => {
@@ -70,7 +116,15 @@ test("السؤال نفسه بهمزتين مختلفتين مفتاحٌ واح�
     normalizeQuestion("ما هي الخلية؟"),
     normalizeQuestion("ما هى الخليه"),
   );
-  assert.equal(normalizeQuestion("  ما   الفكرة ؟ "), "ما الفكره");
+  assert.equal(normalizeQuestion("  ما   الفكرة ؟ "), "الفكره");
+});
+
+test("وأداةُ الاستفهام وحدها لا تصير مفتاحاً", () => {
+  // سؤالٌ لا شيء فيه سوى الأداة يعود فارغاً، فلا تُحفظ إجابةٌ تحت
+  // مفتاحٍ يطابق كلَّ سؤالٍ ناقص.
+  assert.equal(normalizeQuestion("ما هي؟"), "");
+  assert.equal(normalizeQuestion("what is"), "");
+  assert.equal(normalizeQuestion("؟؟؟"), "");
 });
 
 test("الدرس جزءٌ من المفتاح", () => {

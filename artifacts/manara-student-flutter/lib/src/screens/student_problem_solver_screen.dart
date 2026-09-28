@@ -303,6 +303,14 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   }
 
   Future<void> _ask({bool payWithGems = false}) async {
+    // سؤالٌ جديد يُسكت جواب ما قبله.
+    //
+    // اللمسةُ على زرّ الإرسال تمرّ بحارس الشاشة فتُسكته على كل حال؛
+    // وهذا لما لا يجيء من لمسة — إعادةُ الإرسال بعد إذن الجواهر تُنادى
+    // من الحوار لا من الزرّ.
+    await _voice.stopSpeaking();
+    if (mounted && _speaking) setState(() => _speaking = false);
+
     final lesson = _selectedLesson;
     final photo = _photo;
     // صورةٌ بلا سؤالٍ مكتوب تحتاج طلباً: الخادم يردّ الطلب بلا سؤال.
