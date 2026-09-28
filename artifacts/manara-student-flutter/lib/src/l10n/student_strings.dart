@@ -300,6 +300,16 @@ class StudentStrings {
     'solver.gemsConfirm': 'نعم، اخصم {price} جواهر',
     'solver.fromAi': 'ردّ ذكيّ جديد',
     'solver.quotaGems': 'انتهت أسئلة اليوم — السؤال بـ{price} جواهر (رصيدك {gems})',
+    // بطاقةُ انتهاء الحصّة، بلهجةٍ دارجة كما يُخاطب الطفل فعلاً.
+    //
+    // وحالان لا حال: من نفد كلُّ ما عنده يُواعَد، ومن بقيت له
+    // جواهرُ يُدلّ على بابه — ولا يُقال له «نشوفك غداً» وهو يملك ثمنَ سؤال.
+    'solver.quotaDone': 'أحسنت يا بطل! 🌟',
+    'solver.quotaDoneBody':
+        'خلّصت كل أسئلتك لليوم، وهذا شيء يسرّ. نشوفك باكر بتحديات جديدة!',
+    'solver.quotaFreeDone': 'عطاء ممتاز يا بطل! 💎',
+    'solver.quotaFreeDoneBody':
+        'خلّصت أسئلتك المجانية لليوم. تقدر تكمّل بسؤال زيادة بـ{price} جواهر — رصيدك {gems}.',
     'solver.noLesson': 'لا توجد مادة تعليمية صالحة للمساعدة فيها الآن.',
     'solver.noText':
         'لم يُضف المعلم محتوى نصيًا لهذا الدرس بعد، لذلك لا يستطيع المساعد الإجابة بأمان.',
@@ -912,6 +922,12 @@ class StudentStrings {
     'solver.gemsConfirm': 'Yes, spend {price} gems',
     'solver.fromAi': 'Fresh AI answer',
     'solver.quotaGems': 'Out of free questions — {price} gems each (you have {gems})',
+    'solver.quotaDone': 'Well done, champion! 🌟',
+    'solver.quotaDoneBody':
+        'You have used all your questions for today. See you tomorrow with new challenges!',
+    'solver.quotaFreeDone': 'Great effort, champion! 💎',
+    'solver.quotaFreeDoneBody':
+        'Your free questions for today are done. You can keep going for {price} gems each — you have {gems}.',
     'solver.noLesson': 'There is no lesson text to answer from right now.',
     'solver.noText':
         'Your teacher has not added text for this lesson yet, so the assistant cannot answer safely.',

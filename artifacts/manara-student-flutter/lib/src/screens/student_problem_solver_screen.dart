@@ -16,6 +16,7 @@ import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
+import '../utils/tap_or_drag.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
@@ -235,12 +236,18 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// متى أسكتت لمسةٌ على الشاشة النطقَ آخرَ مرّة.
   ///
   /// تُقرأ في [_toggleSpeaking] وحدها، ولها سببٌ واحد: اللمسة على زرّ
-  /// النطق نفسه تمرّ بالحارس أوّلاً. الحارس يعمل عند نزول الإصبع والزرّ
-  /// عند رفعه، فلو لم يُسجَّل الإسكات لوجد الزرُّ النطقَ متوقّفاً فأعاده
-  /// — فيصير زرُّ الإيقاف زرَّ إعادةِ تشغيل.
+  /// النطق نفسه تمرّ بالحارس أوّلاً، فلو لم يُسجَّل الإسكات لوجد الزرُّ
+  /// النطقَ متوقّفاً فأعاده — فيصير زرُّ الإيقاف زرَّ إعادةِ تشغيل.
+  ///
+  /// والترتيبُ مضمون وإن صار الاثنان عند رفع الإصبع: `Listener` يُنادى
+  /// في أثناء توزيع الحدث على ما تحت الإصبع، و`onTap` بعد أن تُحسم
+  /// مسابقةُ الإيماءات — وهي تُحسم بعد التوزيع. فالحارسُ أسبقُ دائماً.
   DateTime? _hushedAt;
 
-  /// يُسكت النطق عند أوّل لمسةٍ في أي مكانٍ من الشاشة.
+  /// يفرّق بين لمسةٍ تعني «اسكت» وبين بدايةِ تمرير.
+  final TapOrDrag _touch = TapOrDrag();
+
+  /// يُسكت النطق عند لمسةٍ في أي مكانٍ من الشاشة.
   ///
   /// ── لماذا ──
   /// الشرح دقيقتان، والطفل يسمع سطرين ثم يريد أن يكتب سؤالاً آخر أو
@@ -248,8 +255,11 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// مرمى إصبعه إلا الذي بدأه. فصارت الشاشة كلُّها زرَّ إيقاف.
   ///
   /// و`Listener` لا `GestureDetector`: الثاني يدخل مسابقة الإيماءات
-  /// فيبتلع اللمسة عن الحقل والأزرار تحته. وهذا يسمع نزول الإصبع ولا
-  /// ينازع أحداً عليه.
+  /// فيبتلع اللمسة عن الحقل والأزرار تحته. وهذا يسمع الأصابع ولا ينازع
+  /// أحداً عليها.
+  ///
+  /// ولمسةٌ لا تمرير: التمييزُ في [TapOrDrag]، وبدونه كان النزولُ
+  /// بالصفحة لقراءة بقيّة الجواب يُسكت قراءتَه.
   void _hushOnTap() {
     if (!_speaking && !_voice.speaking) return;
     _hushedAt = DateTime.now();
@@ -488,7 +498,17 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       },
       child: Listener(
         behavior: HitTestBehavior.translucent,
-        onPointerDown: (_) => _hushOnTap(),
+        // عند الرفع لا عند النزول، وبعد أن يُعرَف أن الإصبع لم يُمرّر.
+        //
+        // كان الإسكاتُ عند النزول، وهو أوّلُ ما يقع في التمرير أيضاً —
+        // فكان الطفل ينزل بالصفحة ليقرأ بقيّة الجواب وهو يُنطق فينقطع
+        // النطقُ عليه. انظر [TapOrDrag].
+        onPointerDown: (event) => _touch.down(event.position),
+        onPointerMove: (event) => _touch.move(event.position),
+        onPointerCancel: (_) => _touch.cancel(),
+        onPointerUp: (event) {
+          if (_touch.upIsTap(event.position)) _hushOnTap();
+        },
         child: _body(context),
       ),
     );
@@ -536,11 +556,17 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   const SizedBox(height: 18),
                   // الحصّة فوق الحقل لا تحته: تُقرأ قبل أن يكتب الطفل
                   // سؤاله، لا بعد أن يُردّ.
+                  //
+                  // وانتهاءُ الحصّة بطاقةٌ لا شارة: خبرٌ يستحقّ حجمَه،
+                  // ونبرةٌ تُهنّئ الطفل على ما فعل. انظر [_QuotaDoneCard].
                   if (_quota != null) ...[
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: _QuotaChip(quota: _quota!),
-                    ),
+                    if (_quota!.warning)
+                      StudentEntrance(child: _QuotaDoneCard(quota: _quota!))
+                    else
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: _QuotaChip(quota: _quota!),
+                      ),
                     const SizedBox(height: 10),
                   ],
                   // الميكروفون والكاميرا فوق الحقل: طريقان إلى السؤال
@@ -548,14 +574,16 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   Row(
                     children: [
                       _SolverAction(
-                        icon: _listening ? Icons.stop_rounded : Icons.mic_rounded,
+                        icon: _listening
+                            ? Icons.stop_circle_outlined
+                            : Icons.mic_none_rounded,
                         label: tr(_listening ? 'solver.micStop' : 'solver.mic'),
                         active: _listening,
                         onTap: _sending ? null : _toggleListening,
                       ),
                       const SizedBox(width: 8),
                       _SolverAction(
-                        icon: Icons.photo_camera_rounded,
+                        icon: Icons.photo_camera_outlined,
                         label: tr('solver.camera'),
                         active: _photo != null,
                         onTap: _sending ? null : () => _pickPhoto(ImageSource.camera),
@@ -868,7 +896,7 @@ class _QuotaBadge {
   bool get warning => remainingFree == 0;
 }
 
-/// شارةُ الحصّة فوق حقل السؤال.
+/// شارةُ الحصّة فوق حقل السؤال، ما دام في الحصّة متّسع.
 class _QuotaChip extends StatelessWidget {
   const _QuotaChip({required this.quota});
   final _QuotaBadge quota;
@@ -877,30 +905,24 @@ class _QuotaChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: quota.warning
-              ? const Color(0xFFFEF3C7)
-              : const Color(0xFF0B8693).withValues(alpha: 0.12),
+          color: const Color(0xFF0B8693).withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: quota.warning
-                ? const Color(0xFFF59E0B)
-                : const Color(0xFF0B8693).withValues(alpha: 0.4),
+            color: const Color(0xFF0B8693).withValues(alpha: 0.4),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(quota.warning ? '💎' : '✨', style: const TextStyle(fontSize: 14)),
+            const Text('✨', style: TextStyle(fontSize: 14)),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
                 quota.line,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w800,
-                  color: quota.warning
-                      ? const Color(0xFF92400E)
-                      : const Color(0xFF0B8693),
+                  color: Color(0xFF0B8693),
                 ),
               ),
             ),
@@ -909,13 +931,112 @@ class _QuotaChip extends StatelessWidget {
       );
 }
 
+/// بطاقةُ انتهاء أسئلة اليوم.
+///
+/// ── لماذا بطاقةٌ لا شارة ──
+/// كان الخبرُ يُقال في الشارة نفسها التي تعدّ الأسئلة: شريطٌ أصفر صغير
+/// نصُّه «انتهت أسئلة اليوم — السؤال بـ٥ جواهر». وهو خبرُ منعٍ في ثوبِ
+/// عدّاد: الطفل الذي سأل عشرة أسئلة عن درسه فعل ما يُراد منه بالضبط،
+/// فيُقابَل بشريطِ تحذيرٍ بلون التحذير. فصار بطاقةً تُهنّئه.
+///
+/// ── والحالان لا حال ──
+/// «انتهت المجانية» و«انتهى كل شيء» ليسا خبراً واحداً: الأول يبقى فيه
+/// باب — جواهرُ جمعها بالدروس — والثاني لا. فبطاقةٌ تقول «نشوفك غداً»
+/// لطفلٍ يملك أربعين جوهرةً تغلق باباً مفتوحاً وتُخفي عنه ما يملك.
+/// فيُفرَّق: تهنئةٌ وموعدٌ لمن نفد كلُّ ما عنده، وتهنئةٌ ودعوةٌ لمن بقي
+/// له ثمنٌ يدفعه.
+class _QuotaDoneCard extends StatelessWidget {
+  const _QuotaDoneCard({required this.quota});
+  final _QuotaBadge quota;
+
+  @override
+  Widget build(BuildContext context) {
+    final finished = !quota.canAsk;
+    // كهرمانيٌّ دافئ للمنتهي، وبنفسجيٌّ كلون البطاقة لمن بقي له باب:
+    // البنفسجيُّ هو لونُ الفعل في هذه الشاشة، فيقول «ثَمّ ما تفعله».
+    final colors = finished
+        ? const [Color(0xFFFDE68A), Color(0xFFFBBF24)]
+        : const [Color(0xFFDDD6FE), Color(0xFFC4B5FD)];
+    final ink = finished ? const Color(0xFF78350F) : const Color(0xFF4C1D95);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: colors,
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.last.withValues(alpha: 0.45),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // دائرةٌ بيضاء شبه شافّة تحت الأيقونة: تفصلها عن التدرّج فتُقرأ
+          // شكلاً، وتعطي البطاقةَ مركزاً تبدأ منه العين.
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.55),
+            ),
+            child: Icon(
+              finished ? Icons.star_rounded : Icons.diamond_outlined,
+              size: 26,
+              color: ink,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tr(finished ? 'solver.quotaDone' : 'solver.quotaFreeDone'),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  finished
+                      ? tr('solver.quotaDoneBody')
+                      : trf('solver.quotaFreeDoneBody', {
+                          'price': '${quota.gemPrice}',
+                          'gems': '${quota.gems}',
+                        }),
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                    color: ink.withValues(alpha: 0.86),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 /// زرُّ إجراءٍ في بطاقة حلّ المسائل: أيقونةٌ واسم.
 ///
 /// الاسم مكتوبٌ بجانب الأيقونة لا مخفيٌّ خلف ضغطةٍ طويلة: طفلٌ في
 /// الابتدائية لا يعرف ما تعنيه أيقونةٌ لم يرها، والميكروفون والكاميرا
 /// يبدوان متشابهين لمن لم يستعملهما.
-class _SolverAction extends StatelessWidget {
+class _SolverAction extends StatefulWidget {
   const _SolverAction({
     required this.icon,
     required this.label,
@@ -930,75 +1051,106 @@ class _SolverAction extends StatelessWidget {
   final bool active;
   final VoidCallback? onLongPress;
 
+  @override
+  State<_SolverAction> createState() => _SolverActionState();
+}
+
+class _SolverActionState extends State<_SolverAction> {
+  /// هل الإصبعُ على الزرّ الآن؟
+  bool _pressed = false;
+
+  /// اللونان الذان يُبنى منهما التدرّج.
+  ///
+  /// بنفسجيٌّ إلى فوشيا في الحال العادية، وأحمرٌ إلى برتقاليّ حين يعمل.
+  /// والتدرّجُ في الحالين لا في إحداهما: زرٌّ مسطّحٌ إلى جانب زرٍّ متدرّج
+  /// يبدو معطّلاً وإن لم يكن.
+  static const _idle = [Color(0xFF7C3AED), Color(0xFFC026D3)];
+  static const _busy = [Color(0xFFDC2626), Color(0xFFF97316)];
+
   /// ── شكلُ الزرّ ──
   ///
   /// حبّةُ دواءٍ كاملةُ الاستدارة لا مستطيلٌ مستدير الأطراف: الأزرارُ
-  /// الثلاثة صغيرةٌ ومتجاورة، والاستدارةُ التامّة تفصلها بالعين بلا خطٍّ
-  /// فاصلٍ بينها.
+  /// متجاورةٌ صغيرة، والاستدارةُ التامّة تفصلها بالعين بلا خطٍّ فاصل.
   ///
-  /// والظلُّ خفيفٌ ملوَّنٌ بلونِ الزرّ لا أسودَ عاماً: الأسودُ فوق خلفيّةِ
-  /// الشاشة يبدو وسخاً، وظلُّ اللونِ نفسِه يرفع الزرّ عن الورقة.
+  /// والتدرّجُ مملوءٌ لا محدَّدٌ بإطار: طفلُ الابتدائية يرى الممتلئ زرّاً
+  /// والمحدَّدَ صورةً، فيضغط الأول ويقرأ الثاني. وكانا أبيضين محدَّدين.
+  ///
+  /// والظلُّ ملوَّنٌ بلونِ الزرّ لا أسودَ عاماً، وناعمٌ واسع: الأسودُ فوق
+  /// خلفيّةِ الشاشة يبدو وسخاً، وظلُّ اللونِ نفسِه يرفع الزرّ عن الورقة.
   ///
   /// وحالةُ العمل تُقال بلونٍ وظلٍّ أعرض معاً لا بلونٍ وحده: الميكروفون
   /// وهو يسمع يجب أن يُرى من طرف العين، والطفلُ لا يقارن درجتي لون.
+  ///
+  /// ── والضغطُ يُرى قبل أن يُسمع ──
+  /// الزرُّ ينكمش إلى ٩٤٪ تحت الإصبع. وهذا ليس زينة: النطقُ والكاميرا
+  /// كلاهما يستغرق لحظةً قبل أن يظهر أثرُه — إذنٌ يُطلب، أو محرّكٌ
+  /// يُفتح — وفي تلك اللحظة لا شيء يقول للطفل إن ضغطتَه وصلت، فيضغط
+  /// ثانيةً فيُفتح ما أُغلق أو يُلغى ما بدأ. والانكماشُ يصل في الإطار
+  /// نفسه بلا انتظار أحد.
   @override
   Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    final tint = active ? const Color(0xFFDC2626) : const Color(0xFF7C3AED);
+    final disabled = widget.onTap == null;
+    final colors = widget.active ? _busy : _idle;
+    final tint = colors.first;
     return Opacity(
       opacity: disabled ? 0.45 : 1,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: disabled
-              ? const []
-              : [
-                  BoxShadow(
-                    color: tint.withValues(alpha: active ? 0.34 : 0.18),
-                    blurRadius: active ? 14 : 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-        ),
-        child: Material(
-          color: active ? tint : Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            onLongPress: onLongPress,
-            splashColor: tint.withValues(alpha: 0.16),
-            highlightColor: tint.withValues(alpha: 0.08),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: active ? tint : tint.withValues(alpha: 0.28),
-                  width: 1.4,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    icon,
-                    size: 19,
-                    color: active ? Colors.white : tint,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.1,
-                      color: active ? Colors.white : tint,
+      child: AnimatedScale(
+        scale: _pressed && !disabled ? 0.94 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            gradient: LinearGradient(
+              colors: colors,
+              begin: AlignmentDirectional.topStart,
+              end: AlignmentDirectional.bottomEnd,
+            ),
+            boxShadow: disabled || _pressed
+                ? const []
+                : [
+                    BoxShadow(
+                      color: tint.withValues(alpha: widget.active ? 0.42 : 0.30),
+                      blurRadius: widget.active ? 18 : 12,
+                      offset: const Offset(0, 5),
                     ),
-                  ),
-                ],
+                  ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: widget.onTap,
+              onLongPress: widget.onLongPress,
+              onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
+              onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
+              onTapCancel: disabled ? null : () => setState(() => _pressed = false),
+              splashColor: Colors.white.withValues(alpha: 0.18),
+              highlightColor: Colors.white.withValues(alpha: 0.10),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // مفرَّغةٌ لا مصمتة: الأيقونةُ المفرَّغة فوق لونٍ
+                    // ممتلئ تُقرأ شكلاً، والمصمتةُ تذوب فيه لطمةً بيضاء.
+                    Icon(widget.icon, size: 20, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.label,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.1,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

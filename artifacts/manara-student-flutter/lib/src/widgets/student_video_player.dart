@@ -17,6 +17,7 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/student_content.dart';
+import '../services/student_sound_service.dart';
 
 /// A realistic, up to date mobile-Chrome user agent.
 ///
@@ -468,8 +469,34 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     _startLoadTimeout();
   }
 
+  /// آخرُ ما عُلم عن حال التشغيل، فلا يُعاد الإسكاتُ في كل نبضة.
+  bool _playbackWasOn = false;
+
+  /// يُسكت صوتَ البطاقة بمجرّد أن يبدأ الفيديو.
+  ///
+  /// ── لماذا ──
+  /// البطاقة تنطق سطرَ ترحيبها عند فتحها — `speakPortal` من الواجهة — وهو
+  /// مقطعٌ من ثوانٍ يواصل على مشغّل الأصوات. والطفل لا ينتظره: يضغط
+  /// «تشغيل» أوّل ما تظهر الصورة، فيسمع صوتين معاً ولا يفهم أحدهما.
+  /// و`audioplayers` لا يعرف شيئاً عن الفيديو، ولا شيء في النظام يوقف
+  /// أحدهما للآخر.
+  ///
+  /// ── ولماذا على تبدّل الحال لا على زرّ التشغيل ──
+  /// للفيديو ثلاثةُ محرّكات في هذه الشاشة — إطارُ يوتيوب، و`media_kit`،
+  /// و`video_player` — ولكلٍّ منها طريقٌ إلى التشغيل: زرُّ الأدوات،
+  /// والتشغيلُ التلقائي، وإعادةُ العرض بعد الانتهاء، ولمسةُ الطفل على
+  /// إطار يوتيوب نفسه وهي لا تمرّ بشيفرتنا أصلاً. فلو رُبط الإسكاتُ
+  /// بالزرّ لأفلت منه أكثرُها. وتبدّلُ الحال إلى «يعمل» بابٌ واحد تمرّ
+  /// به كلُّها.
+  void _notePlayback(bool playing) {
+    if (playing == _playbackWasOn) return;
+    _playbackWasOn = playing;
+    if (playing) unawaited(StudentSoundService.instance.stopSpeaking());
+  }
+
   void _onYoutubeValueChanged(YoutubePlayerValue value) {
     if (!mounted) return;
+    _notePlayback(value.playerState == PlayerState.playing);
     if (value.hasError) {
       _cancelLoadTimeout();
       if (_error == null) {
@@ -631,6 +658,10 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       if (_player != player) return;
       _handleNativePlaybackError(error);
     });
+    player.stream.playing.listen((playing) {
+      if (_player != player) return;
+      _notePlayback(playing);
+    });
     player.stream.completed.listen((completed) {
       if (completed && !_completionReported) {
         _completionReported = true;
@@ -701,6 +732,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       // and replaced by a retry/fallback attempt already in progress.
       if (_networkController != controller) return;
       final value = controller.value;
+      _notePlayback(value.isPlaying);
       if (value.isInitialized &&
           value.duration > Duration.zero &&
           value.position >= value.duration &&
