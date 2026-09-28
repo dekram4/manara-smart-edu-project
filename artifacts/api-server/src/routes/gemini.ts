@@ -19,6 +19,7 @@ import {
   snapshotOf,
   spend,
 } from "../lib/aiQuota";
+import { VECTOR_THRESHOLD, embedQuestion } from "../lib/embeddings";
 import {
   BANK_SIZE,
   BANK_VERSION,
@@ -522,6 +523,78 @@ async function readCachedAnswer(key: string): Promise<string | null> {
   }
 }
 
+/**
+ * إجابةُ أقربِ سؤالٍ معنىً، بالمتّجهات.
+ *
+ * ── موضعُها من السلّم ──
+ * ثلاثُ طبقاتٍ ترتيبُها ترتيبُ كلفتها، وكلٌّ تُصيب صنفاً أصعب:
+ *   ١. المفتاحُ الحرفيّ — استعلامٌ مفهرَسٌ واحد، بلا شبكة. السؤالُ
+ *      أُعيد بحرفه، وهو الشائع.
+ *   ٢. مقياسُ الكلمات — استعلامٌ واحد، بلا شبكة. الترتيبُ مقلوب أو
+ *      حرفٌ أخطأ فيه قارئُ الصورة.
+ *   ٣. المتّجهات — هذه: نداءٌ شبكيّ ثم استعلام. الكلماتُ نفسها اختلفت
+ *      والمعنى واحد: «ما وظيفة الخلية» و«ماذا تفعل الخلية».
+ *
+ * فلا يدفع ثمنَ الشبكة إلا من لم تكفِه طبقةٌ أرخص. ولو قُدِّمت هذه
+ * لأُضيف نداءٌ إلى كل سؤالٍ في الخدمة، بما فيه ما كان يُصاب في جزءٍ من
+ * الثانية.
+ *
+ * ── وكلُّ تعذّرٍ يعود بـ`null` ──
+ * إضافةٌ لم تُفعَّل، أو دالّةٌ لم تُنشأ، أو نموذجٌ لم يُسمَح به: كلُّها
+ * تعني استدعاءَ النموذج التوليدي كما كان. والذاكرةُ تسريعٌ لا شرط.
+ *
+ * ويُعاد المتّجهُ مع الإجابة لأنه يُحفظ مع الصفّ الجديد عند الإخفاق —
+ * وحسابُه ثانيةً نداءٌ ثانٍ بلا داع.
+ */
+async function findByMeaning(
+  lessonId: string,
+  question: string,
+): Promise<{ answer: string | null; vector: number[] | null }> {
+  const config = apiSupabaseConfig();
+  const vector = await embedQuestion(question);
+  if (!config || !vector) return { answer: null, vector };
+  try {
+    const response = await fetch(`${config.url}/rest/v1/rpc/match_qa_cache`, {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query_embedding: vector,
+        p_lesson_id: lessonId,
+        match_threshold: VECTOR_THRESHOLD,
+      }),
+    });
+    if (!response.ok) {
+      // ٤٠٤ تعني أن `ai-qa-cache-vectors.sql` لم يُطبَّق بعد، و٤٠٣ أن
+      // دورَ الخدمة لا يملك تنفيذَ الدالّة. وصامتٌ واحدٌ لكلٍّ منهما
+      // يجعل المتّجهات تبدو كأنها لا تُصيب أبداً بلا سببٍ يُقرأ.
+      logger.warn(
+        { status: response.status, detail: (await response.text()).slice(0, 200) },
+        "[cache] vector search refused — is ai-qa-cache-vectors.sql applied?",
+      );
+      return { answer: null, vector };
+    }
+    const rows = await response.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const answer = typeof row?.answer === "string" ? row.answer.trim() : "";
+    if (!answer) {
+      logger.info({ lessonId }, "[cache] MISS — nothing close in meaning");
+      return { answer: null, vector };
+    }
+    logger.info(
+      { key: row?.id, similarity: Number(Number(row?.similarity).toFixed(3)) },
+      "[cache] HIT — same meaning",
+    );
+    return { answer, vector };
+  } catch (error) {
+    logger.warn({ err: error }, "[cache] vector search failed");
+    return { answer: null, vector };
+  }
+}
+
 /** سقفُ ما يُقاس من مفاتيح الدرس، فلا يثقل درسٌ قديمٌ الاستعلام. */
 const SIMILARITY_SCAN_LIMIT = 500;
 
@@ -586,6 +659,14 @@ async function writeCachedAnswer(
   lessonId: string,
   question: string,
   answer: string,
+  /**
+   * متّجهُ السؤال، إن حُسب في أثناء البحث.
+   *
+   * يُحفظ معه فلا يحتاج من يسأل بعده إلى أن يُحسب ثانيةً. وغيابُه —
+   * حين أصابت طبقةٌ أرخص أو تعذّر النداء — يعني صفاً بلا متّجه: يُصاب
+   * حرفياً وبالكلمات، ولا يُصاب بالمعنى حتى يُعاد السؤال فيُحسب له.
+   */
+  embedding?: number[] | null,
 ): Promise<void> {
   const config = apiSupabaseConfig();
   if (!config) return;
@@ -603,6 +684,9 @@ async function writeCachedAnswer(
       // السؤال يُحفظ كما كتبه الطفل لا مطبَّعاً: المفتاح للمطابقة،
       // وهذا لمن يقرأ الجدول ليعرف عمّ سُئل.
       data: { lessonId, question, answer, createdAt: now },
+      // والعمودُ لا يُذكر إن لم يكن ثَمّ متّجه: ذكرُه فارغاً يمحو
+      // متّجهاً محفوظاً لو كُتب الصفُّ نفسه ثانيةً.
+      ...(embedding ? { embedding } : {}),
       updated_at: now,
     }),
   });
@@ -826,12 +910,22 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     // من جوابٍ لأن القراءة تعذّرت.
     const keyText = image ? imageText : question;
     const key = keyText ? cacheKey(lesson.id, keyText) : "";
-    // حرفياً أوّلاً، فإن خابت فأقربُ سؤالٍ معناه هو المعنى: كلماتٌ
-    // مقدَّمةٌ ومؤخَّرة، أو حرفٌ أخطأ فيه قارئُ الصورة.
-    const cached = key
-      ? (await readCachedAnswer(key)) ??
-        (await findSimilarCachedAnswer(lesson.id, keyText!))
-      : null;
+    // ── سلّمُ الذاكرة: الأرخصُ أوّلاً ──
+    //
+    // حرفياً، ثم بالكلمات، ثم بالمعنى. وأوّلُ من يُصيب يُوقف السلّم،
+    // فلا يُحسب متّجهٌ لسؤالٍ وُجد جوابُه بلا شبكة.
+    let cached = key ? await readCachedAnswer(key) : null;
+    if (!cached && key) {
+      cached = await findSimilarCachedAnswer(lesson.id, keyText!);
+    }
+    // ومتّجهُ السؤال يُحتفظ به إن حُسب: يُخزَّن مع الصفّ الجديد عند
+    // الإخفاق، فلا يُنادى النموذجُ ثانيةً لحسابه.
+    let vector: number[] | null = null;
+    if (!cached && key) {
+      const byMeaning = await findByMeaning(lesson.id, keyText!);
+      cached = byMeaning.answer;
+      vector = byMeaning.vector;
+    }
     if (cached) {
       // إصابةٌ في الذاكرة لا تُحسب من الحصّة ولا تُكلّف جوهرة: لم
       // يُستدعَ النموذج. والحصّةُ تُقرأ لتُعرض وحدها، لا لتُنقص.
@@ -905,9 +999,13 @@ ${lesson.text}`
       // ويُحفظ ما صُوّر كما يُحفظ ما كُتب، ما دام للصورة نصٌّ قُرئ منها
       // — فمن صوّر المسألة بعده يجدها محفوظة.
       key
-        ? writeCachedAnswer(key, lesson.id, keyText ?? question, answer).catch((error) =>
-            logger.error({ err: error, key }, "[cache] SAVE FAILED"),
-          )
+        ? writeCachedAnswer(
+            key,
+            lesson.id,
+            keyText ?? question,
+            answer,
+            vector,
+          ).catch((error) => logger.error({ err: error, key }, "[cache] SAVE FAILED"))
         : Promise.resolve(),
       recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
         logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
