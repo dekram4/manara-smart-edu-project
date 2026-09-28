@@ -118,6 +118,12 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// هل يُنطق الجواب الآن؟
   bool _speaking = false;
 
+  /// هل جاءت الإجابة الأخيرة من الذاكرة؟
+  ///
+  /// تُعرض للطفل شارةً: «من الذاكرة ⚡» تفسّر لماذا وصلت في طرفة عين
+  /// ولماذا لم ينقص عدّاده — وبدونها يبدو العدّاد معطوباً.
+  bool _fromCache = false;
+
   /// هل جاء السؤال الأخير بالصوت؟
   ///
   /// من سأل بصوته يُجاب بصوته: نطقُ الإجابة يبدأ من تلقائه له وحده.
@@ -316,6 +322,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       setState(() {
         _answer = answer;
         _quota = _QuotaBadge.fromJson(payload is Map ? payload['quota'] : null);
+        _fromCache = payload is Map && payload['cached'] == true;
         // الصورة تُستهلك بسؤالها: تركُها يجعل السؤال التالي يُرسل معها
         // بلا أن يقصد الطفل.
         _photo = null;
@@ -336,6 +343,20 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
 
   @override
   Widget build(BuildContext context) {
+    // زرُّ الرجوع يوقف النطق قبل الانتقال.
+    //
+    // `dispose` تُنادى بعد أن يبدأ الانتقال، وبينهما جزءٌ من ثانية
+    // يُسمع فيه آخرُ ما نُطق فوق الشاشة التالية.
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) unawaited(_voice.stopSpeaking());
+      },
+      child: _body(context),
+    );
+  }
+
+  Widget _body(BuildContext context) {
     final supported = _supportedLessons;
     return Directionality(
       textDirection: StudentSettings.direction,
@@ -456,16 +477,19 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                     const SizedBox(height: 8),
                     // مكبّر الصوت تحت الجواب لا فوقه: يُضغط بعد قراءته
                     // أو بدلاً منها، ولا معنى له قبل أن يصل.
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: _SolverAction(
-                        icon: _speaking
-                            ? Icons.stop_circle_rounded
-                            : Icons.volume_up_rounded,
-                        label: tr(_speaking ? 'solver.speakStop' : 'solver.speak'),
-                        active: _speaking,
-                        onTap: _toggleSpeaking,
-                      ),
+                    Row(
+                      children: [
+                        _SolverAction(
+                          icon: _speaking
+                              ? Icons.stop_circle_rounded
+                              : Icons.volume_up_rounded,
+                          label: tr(_speaking ? 'solver.speakStop' : 'solver.speak'),
+                          active: _speaking,
+                          onTap: _toggleSpeaking,
+                        ),
+                        const SizedBox(width: 10),
+                        Flexible(child: _SourceBadge(fromCache: _fromCache)),
+                      ],
                     ),
                   ],
                 ],
@@ -858,4 +882,49 @@ class _PhotoStrip extends StatelessWidget {
           ],
         ),
       );
+}
+
+
+/// من أين جاءت هذه الإجابة.
+///
+/// ── لماذا تُعرض لطفل ──
+/// ليست تفصيلاً تقنياً: هي تفسيرُ ما يراه. إجابةٌ تصل في طرفة عين بينما
+/// سابقتُها أخذت عشر ثوانٍ، وعدّادٌ لم ينقص بعد سؤال — بلا هذه الشارة
+/// يبدوان عطباً. ومعها يفهم أن سؤاله سُئل من قبل، وأن الإجابة كانت
+/// جاهزة.
+class _SourceBadge extends StatelessWidget {
+  const _SourceBadge({required this.fromCache});
+  final bool fromCache;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = fromCache ? const Color(0xFF0B8693) : const Color(0xFF7C3AED);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: tint.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(fromCache ? '⚡' : '🤖', style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              tr(fromCache ? 'solver.fromCache' : 'solver.fromAi'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: tint,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

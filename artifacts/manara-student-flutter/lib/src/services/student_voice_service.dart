@@ -92,12 +92,16 @@ class StudentVoiceService {
 
   /// ينطق [text] بالعربية، ويوقف ما قبله.
   Future<void> speak(String text, {String locale = 'ar-SA'}) async {
-    final line = text.trim();
+    final line = speakableText(text);
     if (line.isEmpty) return;
     await stopListening();
     try {
       await _tts.stop();
-      await _tts.setLanguage(locale);
+      // `ar-SA` أوّلاً، و`ar` إن لم تكن على الجهاز.
+      //
+      // محرّك النظام يردّ لغةً لا يملكها فيصمت بلا خطأ — وهذا أسوأ من
+      // لهجةٍ غير مفضّلة: الطفل يضغط الزرّ فلا يسمع شيئاً ولا يعرف لماذا.
+      await _setBestArabic(locale);
       // أبطأ من الافتراضي: محرّكات النظام تقرأ العربية بسرعةٍ تناسب
       // بالغاً يعرف ما يُقال، لا طفلاً يسمع الشرح أوّل مرّة.
       await _tts.setSpeechRate(0.45);
@@ -110,6 +114,28 @@ class StudentVoiceService {
       await _tts.speak(line);
     } catch (_) {
       _speaking = false;
+    }
+  }
+
+  /// يضبط أقرب لغةٍ عربية يملكها الجهاز.
+  Future<void> _setBestArabic(String preferred) async {
+    for (final candidate in [preferred, 'ar-SA', 'ar']) {
+      try {
+        final available = await _tts.isLanguageAvailable(candidate);
+        if (available == true) {
+          await _tts.setLanguage(candidate);
+          return;
+        }
+      } catch (_) {
+        // منصّةٌ لا تجيب عن السؤال: تُجرَّب التالية.
+      }
+    }
+    // ولا شيء منها: تُضبط العربية على كل حال، فمحرّكٌ يفهمها ضمناً
+    // خيرٌ من ألّا يُطلب منه شيء.
+    try {
+      await _tts.setLanguage('ar');
+    } catch (_) {
+      // لا محرّك: `speak` أدناه ستفشل بهدوء.
     }
   }
 
@@ -148,4 +174,48 @@ class PhotoQuestion {
       imageBase64: base64,
     );
   }
+}
+
+
+/// يُهيّئ نصّ الإجابة للنطق.
+///
+/// ── لماذا ──
+/// النموذج يكتب بتنسيق Markdown: نجمتان حول ما يُبرزه، وشبكاتٌ للعناوين،
+/// وسياجُ شيفرة. ومحرّك النطق لا يعرفها، فينطقها حرفاً حرفاً — «نجمة
+/// نجمة الخطوة الأولى نجمة نجمة» — أو يتوقّف عندها. والطفل يسمع ضجيجاً
+/// مكان شرح.
+///
+/// ولا يُمسّ نصُّ الإجابة المعروض: هذا للنطق وحده. الطفل يقرأ التنسيق
+/// مفيداً ويسمعه ضجيجاً، فلكلٍّ صورتُه.
+String speakableText(String raw) {
+  // `replaceAllMapped` لا `replaceAll` حيث يُحتفظ بما بين العلامات:
+  // الثانية تأخذ نصّاً حرفياً ولا تعرف مجموعات الالتقاط، فـ `$1` فيها
+  // تُنطق دولاراً وواحداً.
+  String keepInner(String input, RegExp pattern) =>
+      input.replaceAllMapped(pattern, (match) => match.group(1) ?? '');
+
+  var text = raw
+      // سياج الشيفرة وما فيه: لا يُنطق أصلاً.
+      .replaceAll(RegExp(r'```[\s\S]*?```'), ' ');
+
+  text = keepInner(text, RegExp(r'`([^`]*)`'));
+  // الإبراز: يبقى ما بين العلامات وتذهب هي.
+  text = keepInner(text, RegExp(r'\*\*([^*]*)\*\*'));
+  text = keepInner(text, RegExp(r'\*([^*]*)\*'));
+  text = keepInner(text, RegExp(r'__([^_]*)__'));
+  // روابط Markdown: يُنطق نصُّها لا عنوانها.
+  text = keepInner(text, RegExp(r'\[([^\]]*)\]\([^)]*\)'));
+
+  return text
+      // العناوين وعلامات القوائم في أوّل السطر.
+      .replaceAll(RegExp(r'^\s*#{1,6}\s*', multiLine: true), '')
+      .replaceAll(RegExp(r'^\s*[-*+]\s+', multiLine: true), '')
+      .replaceAll(RegExp(r'^\s*>\s*', multiLine: true), '')
+      // وعنوانٌ عارٍ يُقرأ حرفاً حرفاً، فيُحذف.
+      .replaceAll(RegExp(r'https?://\S+'), ' ')
+      // ما بقي من رموزٍ لا تُنطق.
+      .replaceAll(RegExp(r'[*_#`~|]'), ' ')
+      .replaceAll(RegExp(r'[ \t]+'), ' ')
+      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+      .trim();
 }

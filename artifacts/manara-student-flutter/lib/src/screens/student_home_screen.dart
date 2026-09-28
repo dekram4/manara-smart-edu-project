@@ -358,6 +358,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           builder: (_) => StudentEndlessReaderScreen(
             academicContext: _academicContext,
             challengeService: _challengeService,
+            // لصرف جواهر الجولة في ختامها.
+            contentService: _contentService,
+            profile: widget.profile,
           ),
         ),
       );

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
@@ -5,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/academic_context.dart';
+import '../models/student_gamification.dart';
+import '../models/student_profile.dart';
 import '../services/student_challenge_service.dart';
+import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
@@ -712,6 +716,8 @@ class StudentEndlessReaderScreen extends StatefulWidget {
   const StudentEndlessReaderScreen({
     required this.academicContext,
     this.challengeService,
+    this.contentService,
+    this.profile,
     super.key,
   });
 
@@ -720,6 +726,11 @@ class StudentEndlessReaderScreen extends StatefulWidget {
   /// مولّد أسئلة الجولة. غيابه يعني لعبةً بالجولات الثلاث وحدها — وهو
   /// ما يجري في الاختبارات وفي أي مسارٍ لا يملك جلسةً للخادم.
   final StudentChallengeService? challengeService;
+
+  /// ما يُصرف به جواهر الجولة. غيابهما يعني لعبةً بلا مكافأة — وهي
+  /// حال الاختبارات، فلا تُطلب شبكةٌ فيها.
+  final StudentContentService? contentService;
+  final StudentProfile? profile;
 
   @override
   State<StudentEndlessReaderScreen> createState() =>
@@ -766,6 +777,18 @@ class _StudentEndlessReaderScreenState
 
   /// يزيد مع كل توزيع، فتُهمل نتيجةُ جلبٍ سبقه.
   int _dealToken = 0;
+
+  /// كم جولةً أصابها الطفل في هذه اللعبة.
+  int _correct = 0;
+
+  /// هل كانت الجولة الأخيرة صحيحة؟ يُغيّر لونَ الختام ونصَّه.
+  bool _lastCorrect = true;
+
+  /// يُمنع الصرف مرّتين لو استُدعي الختام ثانيةً.
+  bool _awarded = false;
+
+  /// ما منحه الخادم، حين يصل.
+  RewardResult? _reward;
 
 
   ChallengeRound? get _round =>
@@ -867,6 +890,9 @@ class _StudentEndlessReaderScreenState
         if (roundFromRemote(remote, rng) case final round?) round,
     ];
     _wordIndex = 0;
+    _correct = 0;
+    _awarded = false;
+    _reward = null;
     _startRound();
     _fetchGenerated();
   }
@@ -917,6 +943,9 @@ class _StudentEndlessReaderScreenState
             if (roundFromRemote(remote, rng) case final round?) round,
         ];
         _wordIndex = 0;
+        _correct = 0;
+        _awarded = false;
+        _reward = null;
         _failure = null;
         _fetching = false;
       });
@@ -961,44 +990,105 @@ class _StudentEndlessReaderScreenState
         : ([...pairs]..shuffle(math.Random(_seed ^ (_wordIndex + 1) * 7919)));
   }
 
-  /// A word dropped into the sentence gap. Only the right one is ever
-  /// accepted, so this always means success.
+  /// كلمةٌ أُفلتت في فراغ الجملة — صحيحةً كانت أو خاطئة.
   void _onSentenceAccept(String word) {
     setState(() => _filled = word);
-    HapticFeedback.lightImpact();
-    StudentSoundService.instance.play(StudentSoundCue.success);
-    _finishWord();
+    _settle(word == _sentence.answer);
   }
 
-  /// A word dropped into a sorting bucket. Only its own bucket accepts
-  /// it, so a wrong drop springs back instead of being marked wrong.
+  /// عنصرٌ أُفلت في مجموعة.
   void _onSortAccept(String word, String bucket) {
-    setState(() => _sorted[word] = bucket);
-    HapticFeedback.lightImpact();
-    StudentSoundService.instance.play(StudentSoundCue.success);
     final sorting = _sorting;
-    if (sorting != null && _sorted.length == sorting.items.length) {
-      _finishWord();
+    final correct = sorting?.items[word] == bucket;
+    setState(() => _sorted[word] = bucket);
+    if (!correct) {
+      _settle(false);
+      return;
     }
-  }
-
-  /// A term dropped onto a definition card. Only its own card accepts it,
-  /// so a wrong drop springs back rather than being marked wrong — the
-  /// same rule the other two rounds use.
-  void _onMatchAccept(String term, String meaning) {
-    setState(() => _matched[term] = meaning);
     HapticFeedback.lightImpact();
     StudentSoundService.instance.play(StudentSoundCue.success);
-    if (_matched.length == _pairs.length) _finishWord();
+    if (sorting != null && _sorted.length == sorting.items.length) {
+      _settle(true);
+    }
   }
 
-  void _finishWord() {
-    setState(() => _celebrating = true);
-    if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
-      _confetti.play();
+  /// مصطلحٌ أُفلت على تعريف.
+  void _onMatchAccept(String term, String meaning) {
+    LessonDefinition? pair;
+    for (final item in _pairs) {
+      if (item.term == term) {
+        pair = item;
+        break;
+      }
     }
-    HapticFeedback.mediumImpact();
-    StudentSoundService.instance.playApplause();
+    final correct = pair != null && pair.meaning == meaning;
+    setState(() => _matched[term] = meaning);
+    if (!correct) {
+      _settle(false);
+      return;
+    }
+    HapticFeedback.lightImpact();
+    StudentSoundService.instance.play(StudentSoundCue.success);
+    if (_matched.length == _pairs.length) _settle(true);
+  }
+
+  /// يُنهي الجولة: يُحصي نتيجتها ويُظهر الختام.
+  ///
+  /// الخطأ لا يُعطي فرصةً ثانية — وذلك ما يجعل السحب قراراً. لكنّه لا
+  /// يُعاقَب بشيءٍ سوى ألّا يُكسب: لا جواهر تُخصم ولا جولةٌ تُعاد.
+  void _settle(bool correct) {
+    if (_celebrating) return;
+    if (correct) _correct += 1;
+    setState(() {
+      _lastCorrect = correct;
+      _celebrating = true;
+    });
+    if (correct) {
+      if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+        _confetti.play();
+      }
+      HapticFeedback.mediumImpact();
+      StudentSoundService.instance.playApplause();
+    } else {
+      HapticFeedback.heavyImpact();
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+    }
+    if (_onLastStage) unawaited(_awardRound());
+  }
+
+  /// يصرف جواهر الجولة كاملةً في نهايتها.
+  ///
+  /// ── لماذا في النهاية لا مع كل إجابة ──
+  /// الصرفُ أثناء اللعب يجعل الطفل يخرج بعد أوّل إجابةٍ صحيحة وقد كسب،
+  /// فلا يُكمل. ودفعةً واحدة تجعل الجولة وحدةً تُنهى.
+  ///
+  /// ── والخادم يحرس التكرار والحساب ──
+  /// المفتاح `challenge:<الدرس>` مسجَّلٌ في إنجازات الطالب، فإعادةُ
+  /// تحدٍّ نال مكافأته تعود بلا جواهر. والجوهرتان عن كل صحيحة تُحسبان
+  /// هناك لا هنا: التطبيق يدّعي والخادم يقرّر، وهو يحصر الصحيح بعدد
+  /// الأسئلة فلا يتجاوز عشراً.
+  Future<void> _awardRound() async {
+    if (_awarded) return;
+    final service = widget.contentService;
+    final profile = widget.profile;
+    final lesson = widget.academicContext?.selectedLesson;
+    if (service == null || profile == null || lesson == null) return;
+    _awarded = true;
+    try {
+      final reward = await service.rewardActivity(
+        profile: profile,
+        activityType: 'challenge',
+        activityId: lesson.id,
+        rewardId: 'challenge:${lesson.id}',
+        correctAnswers: _correct,
+        quizTotal: _stageCount,
+      );
+      if (!mounted) return;
+      setState(() => _reward = reward);
+    } catch (_) {
+      // تعذّر الحفظ: الجولة لُعبت والنتيجة تُعرض، والجواهر تُحاوَل في
+      // المرّة القادمة. ولا يُقال للطفل شيءٌ لا يملك إصلاحه.
+    }
   }
 
   void _nextWord() {
@@ -1235,10 +1325,32 @@ class _StudentEndlessReaderScreenState
     return tr('challenge.dragWord');
   }
 
+  /// سطر الختام: يختلف بصواب الجولة، ويقول الحصيلة في آخرها.
+  ///
+  /// الخطأ يُقال صراحةً ولا يُموَّه بعبارة تهنئة: طفلٌ يُهنَّأ على خطأ
+  /// لا يتعلّم منه شيئاً. ويُقال معه الجوابُ الصحيح — تلك هي الفائدة
+  /// الباقية من محاولةٍ لا تُعاد.
   String _doneLine() {
+    if (!_lastCorrect) return tr('challenge.wrong');
     if (_onSorting) return tr('challenge.sortDone');
     if (_onMatching) return tr('challenge.matchDone');
     return tr('challenge.sentenceDone');
+  }
+
+  /// حصيلة اللعبة، تُعرض في الجولة الأخيرة.
+  String _scoreLine() {
+    final reward = _reward;
+    if (reward != null && reward.alreadyRewarded) {
+      return trf('challenge.scoreRepeat', {
+        'correct': '$_correct',
+        'total': '$_stageCount',
+      });
+    }
+    return trf('challenge.score', {
+      'correct': '$_correct',
+      'total': '$_stageCount',
+      'gems': '${reward?.gems ?? _correct * 2}',
+    });
   }
 
   /// "الكلمة ٢ من ٥", with a bar under it. A child playing through a
@@ -1327,6 +1439,18 @@ class _StudentEndlessReaderScreenState
               color: Color(0xFF15803D),
             ),
           ),
+          const SizedBox(height: 8),
+          // الحصيلة والجواهر معاً، في الشاشة الختامية وحدها.
+          Text(
+            _scoreLine(),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 15,
+              height: 1.5,
+              fontWeight: FontWeight.w800,
+              color: StudentSurface.ink(context),
+            ),
+          ),
           FilledButton.icon(
             onPressed: _restart,
             icon: const Icon(Icons.replay_rounded),
@@ -1372,9 +1496,8 @@ class _StudentEndlessReaderScreenState
         .toList();
 
     return DragTarget<String>(
-      onWillAcceptWithDetails: (details) =>
-          !_sorted.containsKey(details.data) &&
-          sorting.items[details.data] == bucket,
+      // أيّ عنصر، لا عنصرُ هذه المجموعة وحده — والخطأ يُحسم.
+      onWillAcceptWithDetails: (details) => !_sorted.containsKey(details.data),
       onAcceptWithDetails: (details) => _onSortAccept(details.data, bucket),
       builder: (context, candidate, rejected) {
         final hovering = candidate.isNotEmpty;
@@ -1485,8 +1608,8 @@ class _StudentEndlessReaderScreenState
         .firstOrNull;
 
     return DragTarget<String>(
-      onWillAcceptWithDetails: (details) =>
-          matchedTerm == null && details.data == pair.term,
+      // أيّ مصطلح، لا صاحبُ هذا التعريف وحده — والخطأ يُحسم.
+      onWillAcceptWithDetails: (details) => matchedTerm == null,
       onAcceptWithDetails: (details) =>
           _onMatchAccept(details.data, pair.meaning),
       builder: (context, candidate, _) {
@@ -1594,8 +1717,12 @@ class _StudentEndlessReaderScreenState
           if (sentence.before.isNotEmpty)
             Text(sentence.before, style: _sentenceStyle(context)),
           DragTarget<String>(
-            onWillAcceptWithDetails: (details) =>
-                filled == null && details.data == sentence.answer,
+            // يقبل أيّ إفلات، لا الصحيح وحده.
+            //
+            // كان الهدف يرفض الخطأ فيرتدّ بلا أثر، فيظلّ الطفل يجرّب
+            // حتى يصيب ولا يُقاس شيء. والحسم الآن فوريّ: الخطأ يُحسب
+            // ويُنتقل، فللسحبة ثمنٌ يجعلها تفكيراً.
+            onWillAcceptWithDetails: (details) => filled == null,
             onAcceptWithDetails: (details) => _onSentenceAccept(details.data),
             builder: (context, candidate, rejected) {
               final hovering = candidate.isNotEmpty;
