@@ -222,10 +222,43 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     }
   }
 
+  /// متى أسكتت لمسةٌ على الشاشة النطقَ آخرَ مرّة.
+  ///
+  /// تُقرأ في [_toggleSpeaking] وحدها، ولها سببٌ واحد: اللمسة على زرّ
+  /// النطق نفسه تمرّ بالحارس أوّلاً. الحارس يعمل عند نزول الإصبع والزرّ
+  /// عند رفعه، فلو لم يُسجَّل الإسكات لوجد الزرُّ النطقَ متوقّفاً فأعاده
+  /// — فيصير زرُّ الإيقاف زرَّ إعادةِ تشغيل.
+  DateTime? _hushedAt;
+
+  /// يُسكت النطق عند أوّل لمسةٍ في أي مكانٍ من الشاشة.
+  ///
+  /// ── لماذا ──
+  /// الشرح دقيقتان، والطفل يسمع سطرين ثم يريد أن يكتب سؤالاً آخر أو
+  /// يفتح صورةً. فيضغط، والصوت يواصل فوق ما يفعله، ولا زرَّ إيقافٍ في
+  /// مرمى إصبعه إلا الذي بدأه. فصارت الشاشة كلُّها زرَّ إيقاف.
+  ///
+  /// و`Listener` لا `GestureDetector`: الثاني يدخل مسابقة الإيماءات
+  /// فيبتلع اللمسة عن الحقل والأزرار تحته. وهذا يسمع نزول الإصبع ولا
+  /// ينازع أحداً عليه.
+  void _hushOnTap() {
+    if (!_speaking && !_voice.speaking) return;
+    _hushedAt = DateTime.now();
+    unawaited(_voice.stopSpeaking());
+    if (mounted) setState(() => _speaking = false);
+  }
+
   /// ينطق الجواب أو يُسكته.
   Future<void> _toggleSpeaking() async {
     final answer = _answer;
     if (answer == null || answer.isEmpty) return;
+    // لمسةُ هذا الزرّ نفسه أسكتت النطق قبل لحظة: فهي إيقافٌ تمّ، لا
+    // طلبُ تشغيل.
+    final hushed = _hushedAt;
+    if (hushed != null &&
+        DateTime.now().difference(hushed) < const Duration(milliseconds: 700)) {
+      _hushedAt = null;
+      return;
+    }
     if (_speaking) {
       await _voice.stopSpeaking();
       if (mounted) setState(() => _speaking = false);
@@ -435,7 +468,11 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) unawaited(_voice.stopSpeaking());
       },
-      child: _body(context),
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _hushOnTap(),
+        child: _body(context),
+      ),
     );
   }
 

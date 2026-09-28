@@ -859,6 +859,37 @@ class _StudentEndlessReaderScreenState
   /// what stops a second tap racing the next round in.
   bool _celebrating = false;
 
+  /// ألوانُ الحكم على الإجابة.
+  ///
+  /// ── لماذا لونان لا لونٌ واحد ──
+  /// كان كلُّ ما يُفلت يُلوّن أخضر: الصحيح والخاطئ سواء، ثم يُقال في سطرٍ
+  /// فوق اللوح إن الجولة خطأ. فيرى الطفل كلمتَه في مربّعٍ أخضر ويقرأ
+  /// «ليست هذه الإجابة» — فلا يصدّق السطر، أو يصدّقه ولا يعرف أيُّ
+  /// الاختيارات كان خطأً.
+  ///
+  /// فالأحمر على ما اختاره، والأخضر على ما كان يجب أن يختار، في المكان
+  /// نفسه الذي نظر إليه وهو يقرّر.
+  static const _rightInk = Color(0xFF15803D);
+  static const _rightFill = Color(0xFFD1FAE5);
+  static const _wrongInk = Color(0xFFB91C1C);
+  static const _wrongFill = Color(0xFFFEE2E2);
+
+  /// هل أُفلِت هذا العنصر في مكانه الصحيح؟
+  bool _sortedRight(String word) =>
+      _sorting?.items[word] == _sorted[word];
+
+  /// المصطلحُ الذي أُفلِت على [meaning]، وهل كان صاحبَه.
+  (String, bool)? _matchOn(String meaning) {
+    for (final entry in _matched.entries) {
+      if (entry.value != meaning) continue;
+      final right = _pairs.any(
+        (pair) => pair.term == entry.key && pair.meaning == meaning,
+      );
+      return (entry.key, right);
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1278,11 +1309,19 @@ class _StudentEndlessReaderScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             _progress(),
-            // التكرار يُقال قبل البدء لا بعد الانتهاء.
-            if (_alreadyEarned) ...[
-              const SizedBox(height: 10),
-              _PracticeNotice(text: tr('challenge.practiceOnly')),
-            ],
+            // حالُ الجواهر تُقال قبل البدء لا بعد الانتهاء، في الحالين.
+            //
+            // كان التنبيه يظهر للتكرار وحده، فيبدأ الطفل في المرّة الأولى
+            // لا يدري أيكسب أم يتدرّب — وهو السؤال الذي يقرّر إن كان
+            // يستحقّ أن يُتعب نفسه. فصار الصمتُ نفسه جواباً غامضاً،
+            // وصار يُقال: هذه تكسب، أو هذه تدريب.
+            const SizedBox(height: 10),
+            _RewardNotice(
+              text: _alreadyEarned
+                  ? tr('challenge.practiceOnly')
+                  : tr('challenge.gemsAvailable'),
+              earning: !_alreadyEarned,
+            ),
             // الجلب لا يوقف اللعب، لكنّه يُعلَن: الطفل الذي بدأ بجولةٍ
             // من جولات الجهاز يرى أن أسئلةً في الطريق بدل أن تظهر فجأةً
             // في منتصف اللعب بلا سبب.
@@ -1508,6 +1547,15 @@ class _StudentEndlessReaderScreenState
         .map((entry) => entry.key)
         .toList();
 
+    // العنصرُ الذي أُفلِت خطأً يظهر مرّةً ثانية — شفّافاً أخضر — في
+    // المجموعة التي كان مكانَه. فالأحمر يقول «ليس هنا» والأخضر يقول
+    // «بل هنا»، وبينهما تُقرأ القاعدة بلا كلام.
+    final belongsHere = [
+      for (final entry in _sorted.entries)
+        if (!_sortedRight(entry.key) && sorting.items[entry.key] == bucket)
+          entry.key,
+    ];
+
     return DragTarget<String>(
       // أيّ عنصر، لا عنصرُ هذه المجموعة وحده — والخطأ يُحسم.
       onWillAcceptWithDetails: (details) => !_sorted.containsKey(details.data),
@@ -1552,31 +1600,47 @@ class _StudentEndlessReaderScreenState
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (final word in inside)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD1FAE5),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF15803D)),
-                      ),
-                      child: Text(
-                        word,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF15803D),
-                        ),
-                      ),
-                    ),
+                  for (final word in inside) _sortedChip(word),
+                  for (final word in belongsHere) _sortedChip(word, ghost: true),
                 ],
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  /// عنصرٌ داخل مجموعة: أخضر إن كان في مكانه، أحمرُ مشطوبٌ إن لم يكن.
+  ///
+  /// و[ghost] هو العنصرُ نفسه معروضاً في مجموعته الصحيحة — مُفرَّغاً
+  /// ومُقطَّع الحد، فلا يُقرأ على أنه شيءٌ ثانٍ أفلته الطفل.
+  Widget _sortedChip(String word, {bool ghost = false}) {
+    final right = ghost || _sortedRight(word);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: ghost
+            ? Colors.transparent
+            : right
+                ? _rightFill
+                : _wrongFill,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: right ? _rightInk : _wrongInk,
+          width: ghost ? 1.6 : 1,
+        ),
+      ),
+      child: Text(
+        word,
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          color: right ? _rightInk : _wrongInk,
+          decoration: right ? null : TextDecoration.lineThrough,
+          decorationColor: _wrongInk,
+          decorationThickness: 2,
+        ),
+      ),
     );
   }
 
@@ -1615,10 +1679,20 @@ class _StudentEndlessReaderScreenState
   }
 
   Widget _meaningCard(LessonDefinition pair) {
-    final matchedTerm = _matched.entries
-        .where((entry) => entry.value == pair.meaning)
-        .map((entry) => entry.key)
-        .firstOrNull;
+    final landed = _matchOn(pair.meaning);
+    final matchedTerm = landed?.$1;
+    final right = landed?.$2 ?? false;
+
+    // بطاقةُ التعريف التي كان المصطلحُ الخاطئ صاحبَها تُضاء خضراء ويُكتب
+    // عليها اسمُه — وإلا رأى الطفل بطاقةً حمراء ولم يعرف أين كان يجب أن
+    // يضع ما سحبه.
+    final owedTerm = landed != null
+        ? null
+        : _matched.keys
+            .where((term) =>
+                !(_matchOn(_matched[term]!)?.$2 ?? false) &&
+                _pairs.any((p) => p.term == term && p.meaning == pair.meaning))
+            .firstOrNull;
 
     return DragTarget<String>(
       // أيّ مصطلح، لا صاحبُ هذا التعريف وحده — والخطأ يُحسم.
@@ -1628,22 +1702,28 @@ class _StudentEndlessReaderScreenState
       builder: (context, candidate, _) {
         final hovering = candidate.isNotEmpty;
         final settled = matchedTerm != null;
+        final owed = owedTerm != null;
+        final good = (settled && right) || owed;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: settled
-                ? const Color(0xFFDCFCE7)
+            color: settled || owed
+                ? good
+                    ? const Color(0xFFDCFCE7)
+                    : _wrongFill
                 : StudentSurface.glass(context, hovering ? 0.98 : 0.92),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: settled
-                  ? const Color(0xFF15803D)
+              color: settled || owed
+                  ? good
+                      ? _rightInk
+                      : _wrongInk
                   : hovering
                       ? const Color(0xFF2563EB)
                       : const Color(0xFF6D28D9),
-              width: settled || hovering ? 2.4 : 1.6,
+              width: settled || owed || hovering ? 2.4 : 1.6,
             ),
           ),
           child: Row(
@@ -1651,21 +1731,25 @@ class _StudentEndlessReaderScreenState
               // The term lands here, at the head of its own definition, so
               // a finished board reads back as a list of full sentences
               // rather than as a score.
-              if (settled)
+              if (settled || owed)
                 Container(
                   margin: const EdgeInsetsDirectional.only(end: 10),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF15803D),
+                    color: good ? _rightInk : _wrongInk,
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Text(
-                    matchedTerm,
-                    style: const TextStyle(
+                    matchedTerm ?? owedTerm!,
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
+                      decoration:
+                          good ? null : TextDecoration.lineThrough,
+                      decorationColor: Colors.white,
+                      decorationThickness: 2,
                     ),
                   ),
                 ),
@@ -1739,6 +1823,7 @@ class _StudentEndlessReaderScreenState
             onAcceptWithDetails: (details) => _onSentenceAccept(details.data),
             builder: (context, candidate, rejected) {
               final hovering = candidate.isNotEmpty;
+              final right = filled != null && filled == sentence.answer;
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeOutBack,
@@ -1750,14 +1835,18 @@ class _StudentEndlessReaderScreenState
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: filled != null
-                      ? const Color(0xFFD1FAE5)
-                      : Colors.white.withValues(alpha: hovering ? 0.98 : 0.6),
+                  color: filled == null
+                      ? Colors.white.withValues(alpha: hovering ? 0.98 : 0.6)
+                      : right
+                          ? _rightFill
+                          : _wrongFill,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: filled != null
-                        ? const Color(0xFF15803D)
-                        : const Color(0xFF6D28D9),
+                    color: filled == null
+                        ? const Color(0xFF6D28D9)
+                        : right
+                            ? _rightInk
+                            : _wrongInk,
                     width: hovering || filled != null ? 3 : 2,
                   ),
                 ),
@@ -1765,9 +1854,17 @@ class _StudentEndlessReaderScreenState
                   filled ?? '؟',
                   textAlign: TextAlign.center,
                   style: _sentenceStyle(context).copyWith(
-                    color: filled != null
-                        ? const Color(0xFF15803D)
-                        : const Color(0xFF9C8AC4),
+                    color: filled == null
+                        ? const Color(0xFF9C8AC4)
+                        : right
+                            ? _rightInk
+                            : _wrongInk,
+                    // وشطبٌ على الخطأ: اللون وحده لا يصل إلى كل عين.
+                    decoration: filled != null && !right
+                        ? TextDecoration.lineThrough
+                        : null,
+                    decorationColor: _wrongInk,
+                    decorationThickness: 2,
                   ),
                 ),
               );
@@ -1775,6 +1872,30 @@ class _StudentEndlessReaderScreenState
           ),
           if (sentence.after.isNotEmpty)
             Text(sentence.after, style: _sentenceStyle(context)),
+          // والصوابُ بجانب الخطأ، لا في سطرٍ بعيدٍ عنه.
+          //
+          // الفائدة الباقية من محاولةٍ لا تُعاد هي أن يرى الطفل الكلمة
+          // الصحيحة في موضعها من الجملة، فيقرأ الجملة تامّةً مرّة.
+          if (filled != null && filled != sentence.answer)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: _rightFill,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _rightInk, width: 1.6),
+              ),
+              child: Text(
+                trf('challenge.correctAnswer', {'answer': sentence.answer}),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: _rightInk,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1845,37 +1966,54 @@ class _StudentEndlessReaderScreenState
 }
 
 
-/// تنبيهُ «هذا الدرس مُنجز» فوق اللعبة.
+/// حالُ جواهر هذه الجولة، فوق اللعبة.
 ///
 /// يُقال قبل البدء لا بعد الانتهاء: الخادم يمنع الكسب مرّتين على كل
 /// حال، لكنّ المنع الصامت يجعل الطفل يُنهي جولةً كاملة ثم لا يرى
 /// جواهر، فيظنّ اللعبة معطوبة أو نفسه مخطئاً.
-class _PracticeNotice extends StatelessWidget {
-  const _PracticeNotice({required this.text});
+///
+/// ويُقال في الحالين. فالصمت في المرّة الأولى ليس طمأنةً: الطفل الذي
+/// رأى التنبيه الأصفر مرّةً يقرأ غيابَه على أنه نسيان، لا على أنه وعدٌ
+/// بجواهر. فصار الأخضر يقول ما يقوله الأصفر، معكوساً.
+class _RewardNotice extends StatelessWidget {
+  const _RewardNotice({required this.text, required this.earning});
+
   final String text;
+
+  /// أتُكسب جواهر في هذه الجولة؟ يُغيّر اللون والرمز معاً — اللون وحده
+  /// لا يكفي لمن لا يميّزه.
+  final bool earning;
 
   @override
   Widget build(BuildContext context) => Container(
         constraints: const BoxConstraints(maxWidth: 620),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF3C7),
+          color: earning ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
+          border: Border.all(
+            color: earning ? const Color(0xFF15803D) : const Color(0xFFF59E0B),
+            width: 1.5,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('ℹ️', style: TextStyle(fontSize: 16)),
+            Text(
+              earning ? '💎' : 'ℹ️',
+              style: const TextStyle(fontSize: 16),
+            ),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
                 text,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   height: 1.5,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF92400E),
+                  color: earning
+                      ? const Color(0xFF14532D)
+                      : const Color(0xFF92400E),
                 ),
               ),
             ),
