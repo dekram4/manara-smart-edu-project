@@ -920,39 +920,76 @@ class _SolverAction extends StatelessWidget {
   final bool active;
   final VoidCallback? onLongPress;
 
+  /// ── شكلُ الزرّ ──
+  ///
+  /// حبّةُ دواءٍ كاملةُ الاستدارة لا مستطيلٌ مستدير الأطراف: الأزرارُ
+  /// الثلاثة صغيرةٌ ومتجاورة، والاستدارةُ التامّة تفصلها بالعين بلا خطٍّ
+  /// فاصلٍ بينها.
+  ///
+  /// والظلُّ خفيفٌ ملوَّنٌ بلونِ الزرّ لا أسودَ عاماً: الأسودُ فوق خلفيّةِ
+  /// الشاشة يبدو وسخاً، وظلُّ اللونِ نفسِه يرفع الزرّ عن الورقة.
+  ///
+  /// وحالةُ العمل تُقال بلونٍ وظلٍّ أعرض معاً لا بلونٍ وحده: الميكروفون
+  /// وهو يسمع يجب أن يُرى من طرف العين، والطفلُ لا يقارن درجتي لون.
   @override
   Widget build(BuildContext context) {
     final disabled = onTap == null;
-    final tint = active ? const Color(0xFFB42318) : const Color(0xFF7C3AED);
+    final tint = active ? const Color(0xFFDC2626) : const Color(0xFF7C3AED);
     return Opacity(
       opacity: disabled ? 0.45 : 1,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: tint.withValues(alpha: active ? 0.16 : 0.08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: tint.withValues(alpha: 0.45), width: 1.5),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 20, color: tint),
-                const SizedBox(width: 7),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: tint,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: disabled
+              ? const []
+              : [
+                  BoxShadow(
+                    color: tint.withValues(alpha: active ? 0.34 : 0.18),
+                    blurRadius: active ? 14 : 8,
+                    offset: const Offset(0, 3),
                   ),
+                ],
+        ),
+        child: Material(
+          color: active ? tint : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            splashColor: tint.withValues(alpha: 0.16),
+            highlightColor: tint.withValues(alpha: 0.08),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: active ? tint : tint.withValues(alpha: 0.28),
+                  width: 1.4,
                 ),
-              ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 19,
+                    color: active ? Colors.white : tint,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.1,
+                      color: active ? Colors.white : tint,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

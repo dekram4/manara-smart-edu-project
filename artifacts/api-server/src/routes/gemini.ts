@@ -12,6 +12,7 @@ import {
 import {
   FREE_DAILY_QUESTIONS,
   GEM_PRICE,
+  bestSimilarKey,
   cacheKey,
   chargeFor,
   readQuota,
@@ -121,8 +122,29 @@ async function getGeminiModels(apiKey: string): Promise<string[]> {
  */
 const GEMINI_BUDGET_MS = 50_000;
 
-/** سقف المحاولة الواحدة، فلا يبتلع نموذجٌ بطيء الميزانية كلّها. */
-const GEMINI_SINGLE_TRY_MS = 30_000;
+/**
+ * سقف المحاولة الواحدة، فلا يبتلع نموذجٌ بطيء الميزانية كلّها.
+ *
+ * ثلاثون ثانية كانت تعني أن نموذجاً واحداً مزدحماً يستنفد ثلاثة أخماس
+ * الميزانية قبل أن يُجرَّب الذي بعده — والطفل ينتظر شاشةً تدور. وأسرعُ
+ * النماذج يجيب في ثانيتين إلى أربع، فمن تجاوز الخمس عشرة مزدحمٌ ولن
+ * يصير أسرع بالانتظار. والتخلّي عنه مبكراً يترك لثلاثة بعده متّسعاً.
+ */
+const GEMINI_SINGLE_TRY_MS = 15_000;
+
+/**
+ * سقفُ طول الإجابة في بطاقة حلّ المسائل.
+ *
+ * ── لماذا يُقصَّر ──
+ * كان ٢٠٤٨ رمزاً، والنموذج يملأ ما يُعطى: يشرح، ثم يلخّص ما شرح، ثم
+ * يضيف «نصائح». والرموز تُولَّد واحداً واحداً، فطولُ الإجابة هو زمنُ
+ * الانتظار حرفياً — ومضاعفةُ الطول مضاعفةُ الصمت قبل أن يقرأ الطفل
+ * حرفاً.
+ *
+ * وشرحُ مسألةٍ لتلميذ ابتدائيّ خطواتٌ معدودة. فما زاد إسهابٌ يُبطئ
+ * ويُتعب، لا تفصيلٌ يُفيد.
+ */
+const SOLVER_MAX_TOKENS = 900;
 
 async function callGemini(
   prompt: string,
@@ -500,6 +522,64 @@ async function readCachedAnswer(key: string): Promise<string | null> {
   }
 }
 
+/** سقفُ ما يُقاس من مفاتيح الدرس، فلا يثقل درسٌ قديمٌ الاستعلام. */
+const SIMILARITY_SCAN_LIMIT = 500;
+
+/**
+ * إجابةُ أقربِ سؤالٍ محفوظٍ في الدرس نفسه، أو `null`.
+ *
+ * ── لماذا بعد المطابقة الحرفية لا قبلها ──
+ * الحرفيةُ استعلامٌ واحد على مفتاحٍ مفهرَس: أسرعُ ما في الخدمة، وهي
+ * تُصيب في الشائع — سؤالٌ أُعيد كما هو. وهذه تقرأ مفاتيح الدرس كلَّها
+ * وتقيسها، فلو جاءت أوّلاً لأبطأت كلَّ إصابةٍ من أجل النادر منها.
+ *
+ * ── ولماذا المفاتيح وحدها تُقرأ ──
+ * المفتاح يحمل السؤالَ مطبَّعاً في نصّه: `<الدرس>::<السؤال>`. فلا عمودَ
+ * يُضاف ولا ترحيلَ يُطلب من أحد — يُقرأ `id` وحده، وهو نصٌّ قصير، ثم
+ * تُقرأ إجابةُ الفائز وحدها.
+ */
+async function findSimilarCachedAnswer(
+  lessonId: string,
+  question: string,
+): Promise<string | null> {
+  const config = apiSupabaseConfig();
+  if (!config) return null;
+  try {
+    const response = await fetch(
+      `${config.url}/rest/v1/ai_qa_cache?select=id&data->>lessonId=eq.${encodeURIComponent(lessonId)}&limit=${SIMILARITY_SCAN_LIMIT}`,
+      { headers: { apikey: config.key, Authorization: `Bearer ${config.key}` } },
+    );
+    if (!response.ok) {
+      logger.warn(
+        { status: response.status },
+        "[cache] similar lookup refused by the database",
+      );
+      return null;
+    }
+    const rows = await response.json();
+    const keys: string[] = Array.isArray(rows)
+      ? rows.map((row: any) => String(row?.id ?? "")).filter(Boolean)
+      : [];
+    const hit = bestSimilarKey(keys, question);
+    if (!hit) {
+      logger.info({ lessonId, scanned: keys.length }, "[cache] MISS — nothing similar");
+      return null;
+    }
+    // ويُقرأ الفائزُ بمفتاحه الحرفيّ، فتمرّ القراءة على الفهرس نفسه.
+    const answer = await readCachedAnswer(hit.key);
+    if (answer) {
+      logger.info(
+        { key: hit.key, score: Number(hit.score.toFixed(3)) },
+        "[cache] HIT — similar question",
+      );
+    }
+    return answer;
+  } catch (error) {
+    logger.warn({ err: error }, "[cache] similar lookup failed");
+    return null;
+  }
+}
+
 /** يحفظ الإجابة لمن يسأل بعده. */
 async function writeCachedAnswer(
   key: string,
@@ -746,7 +826,12 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     // من جوابٍ لأن القراءة تعذّرت.
     const keyText = image ? imageText : question;
     const key = keyText ? cacheKey(lesson.id, keyText) : "";
-    const cached = key ? await readCachedAnswer(key) : null;
+    // حرفياً أوّلاً، فإن خابت فأقربُ سؤالٍ معناه هو المعنى: كلماتٌ
+    // مقدَّمةٌ ومؤخَّرة، أو حرفٌ أخطأ فيه قارئُ الصورة.
+    const cached = key
+      ? (await readCachedAnswer(key)) ??
+        (await findSimilarCachedAnswer(lesson.id, keyText!))
+      : null;
     if (cached) {
       // إصابةٌ في الذاكرة لا تُحسب من الحصّة ولا تُكلّف جوهرة: لم
       // يُستدعَ النموذج. والحصّةُ تُقرأ لتُعرض وحدها، لا لتُنقص.
@@ -774,28 +859,31 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       });
     }
 
+    // ── والإيجازُ مطلوبٌ في النصّ لا في السقف وحده ──
+    //
+    // السقفُ يقطع الإسهاب في منتصفه، فيصل الطفلَ شرحٌ مبتور. وطلبُ
+    // الإيجاز يجعل النموذج يخطّط لإجابةٍ قصيرة من أوّلها فتنتهي تامّة.
+    // فالاثنان معاً: هذا يُقصّر، وذاك يحرس.
+    const brevity =
+      "اجعل إجابتك موجزة: خطواتٌ مرقّمة قصيرة ثم الناتج. لا مقدّمة ولا خاتمة ولا تلخيصٌ لما قلته، ولا نصائح إضافية.";
     const prompt = image
       ? `أنت مساعد تعليمي ذكي لطفلٍ في المرحلة الابتدائية. في الصورة المرفقة مسألةٌ من كتابه أو دفتره.
 
 اقرأ ما في الصورة أوّلاً، ثم أجب عن طلب الطالب: ${question}
 
-اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
+اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. ${brevity} وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
 
 وللاستئناس، هذا نصّ درسه:
 ${lesson.text}`
-      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
+      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. ${brevity} لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
     // وما بقي من الميزانية بعد القراءة، لا ميزانيةٌ كاملةٌ ثانية: الخادم
     // ينتظر ما ينتظره التطبيق وينتهي قبله.
-    const data = await callGemini(
-      prompt,
-      image
-        ? {
-            image,
-            maxOutputTokens: 3000,
-            budgetMs: GEMINI_BUDGET_MS - (Date.now() - startedAt),
-          }
-        : {},
-    );
+    const data = await callGemini(prompt, {
+      maxOutputTokens: SOLVER_MAX_TOKENS,
+      ...(image
+        ? { image, budgetMs: GEMINI_BUDGET_MS - (Date.now() - startedAt) }
+        : {}),
+    });
     const answer = getGeminiText(data);
     if (!answer) {
       logger.warn({ lessonId }, "[gemini] answer rejected: empty completion");

@@ -1617,25 +1617,36 @@ class _StudentEndlessReaderScreenState
   /// ومُقطَّع الحد، فلا يُقرأ على أنه شيءٌ ثانٍ أفلته الطفل.
   Widget _sortedChip(String word, {bool ghost = false}) {
     final right = ghost || _sortedRight(word);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    final ink = right ? _rightInk : _wrongInk;
+    // يظهر بتدرُّجٍ لا بقفزة: الحكمُ الذي يُضاء فجأةً بالأحمر يُفزع، وهو
+    // نفسه في ثلث ثانيةٍ يُقرأ خبراً.
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
         color: ghost
             ? Colors.transparent
             : right
                 ? _rightFill
                 : _wrongFill,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: right ? _rightInk : _wrongInk,
-          width: ghost ? 1.6 : 1,
-        ),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: ink, width: ghost ? 1.5 : 1.1),
+        boxShadow: ghost
+            ? const []
+            : [
+                BoxShadow(
+                  color: ink.withValues(alpha: 0.18),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Text(
         word,
         style: TextStyle(
           fontWeight: FontWeight.w900,
-          color: right ? _rightInk : _wrongInk,
+          color: ink,
           decoration: right ? null : TextDecoration.lineThrough,
           decorationColor: _wrongInk,
           decorationThickness: 2,
@@ -1880,11 +1891,21 @@ class _StudentEndlessReaderScreenState
             Container(
               width: double.infinity,
               margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: _rightFill,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _rightInk, width: 1.6),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _rightInk.withValues(alpha: 0.6),
+                  width: 1.4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _rightInk.withValues(alpha: 0.16),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Text(
                 trf('challenge.correctAnswer', {'answer': sentence.answer}),
@@ -1984,40 +2005,76 @@ class _RewardNotice extends StatelessWidget {
   /// لا يكفي لمن لا يميّزه.
   final bool earning;
 
+  /// ── شكلُ البطاقة ──
+  ///
+  /// تدرُّجٌ خفيفٌ لا لونٌ مسطَّح، وحدٌّ رقيقٌ بلونٍ أغمق، وظلٌّ ملوَّنٌ
+  /// بلونها: ثلاثةٌ تجعلها بطاقةً محمولةً فوق الشاشة لا شريطَ تنبيهٍ
+  /// مُلصقاً عليها.
+  ///
+  /// والرمزُ في قرصٍ أبيض: يفصله عن التدرُّج فيُقرأ، ويجعل ارتفاع
+  /// البطاقتين واحداً فلا تقفز الصفحة بين حالٍ وحال.
   @override
-  Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(maxWidth: 620),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: earning ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: earning ? const Color(0xFF15803D) : const Color(0xFFF59E0B),
-            width: 1.5,
-          ),
+  Widget build(BuildContext context) {
+    final ink = earning ? const Color(0xFF14532D) : const Color(0xFF92400E);
+    final edge = earning ? const Color(0xFF16A34A) : const Color(0xFFF59E0B);
+    final from = earning ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB);
+    final to = earning ? const Color(0xFFD1FAE5) : const Color(0xFFFEF3C7);
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 620),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+          colors: [from, to],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              earning ? '🏆' : 'ℹ️',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  fontWeight: FontWeight.w800,
-                  color: earning
-                      ? const Color(0xFF14532D)
-                      : const Color(0xFF92400E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: edge.withValues(alpha: 0.55), width: 1.3),
+        boxShadow: [
+          BoxShadow(
+            color: edge.withValues(alpha: 0.18),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: edge.withValues(alpha: 0.22),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
                 ),
+              ],
+            ),
+            child: Text(
+              earning ? '🏆' : 'ℹ️',
+              style: const TextStyle(fontSize: 15),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.45,
+                fontWeight: FontWeight.w800,
+                color: ink,
               ),
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -20,14 +20,77 @@ try {
 const {
   FREE_DAILY_QUESTIONS,
   GEM_PRICE,
+  SIMILARITY_THRESHOLD,
+  bestSimilarKey,
   cacheKey,
   chargeFor,
   dayStamp,
   normalizeQuestion,
+  questionOfKey,
+  questionSimilarity,
+  questionTokens,
   readQuota,
   snapshotOf,
   spend,
 } = mod;
+
+test("ترتيبُ الكلمات لا يصنع سؤالاً ثانياً", () => {
+  // «الخلية ماهي» يقولها طفلٌ ويقول آخر «ماهي الخلية»، والسؤال واحد.
+  assert.deepEqual(questionTokens("ماهي الخلية"), questionTokens("الخلية ماهي"));
+  assert.equal(questionSimilarity("ماهي الخلية", "الخلية ماهي"), 1);
+  assert.equal(
+    questionSimilarity("ما الفرق بين الخلية والنواة", "الفرق بين النواة والخلية"),
+    1,
+  );
+});
+
+test("وخطأُ حرفٍ من قارئ الصورة لا يصنعه كذلك", () => {
+  // «ماهلي» نقطةٌ في غير موضعها، لا سؤالٌ آخر.
+  assert.equal(questionSimilarity("ماهي الخلية", "ماهلي الخليه"), 1);
+  assert.ok(questionSimilarity("وظيفة النواة", "وظيفه النواه") >= SIMILARITY_THRESHOLD);
+});
+
+test("والكلماتُ القصيرةُ المختلفة لا تُخلط", () => {
+  // حرفٌ واحد بين «شمس» و«شمع»، وهما شيئان. فالسماحُ لا يبدأ إلا مع
+  // الكلمات الأطول، وإلا صار التسامحُ خلطاً.
+  assert.ok(questionSimilarity("ما الشمس", "ما القمر") < SIMILARITY_THRESHOLD);
+  assert.ok(questionSimilarity("عدد الخلايا", "عدد الاوراق") < SIMILARITY_THRESHOLD);
+});
+
+test("والكلمةُ الزائدة تُنقص التشابه فلا يُجاب سؤالٌ أوسع", () => {
+  // «الخلية» ليست «الخلية النباتية والحيوانية».
+  assert.ok(
+    questionSimilarity("ما الخلية", "ما الخلية النباتية والحيوانية") <
+      SIMILARITY_THRESHOLD,
+  );
+});
+
+test("وأدواتُ السؤال لا تُحسب في القياس", () => {
+  assert.equal(questionTokens("اشرح لي وظيفة النواة من فضلك").join(" "), "النواه وظيفه");
+  // وسؤالٌ كلُّه أدواتٌ يُقاس بكلماته لا يصير فارغاً يطابق كلَّ شيء.
+  assert.ok(questionTokens("هل هو كذلك").length > 0);
+});
+
+test("المفتاحُ الأقربُ يُختار من مفاتيح الدرس", () => {
+  const stored = [
+    cacheKey("g4sci_1_1", "ما هي الخلية؟"),
+    cacheKey("g4sci_1_1", "ما وظيفة النواة"),
+    cacheKey("g4sci_1_1", "عدد الكروموسومات"),
+  ];
+  const hit = bestSimilarKey(stored, "الخليه ماهلي");
+  assert.ok(hit, "كان يجب أن يُصاب مفتاح الخلية");
+  assert.equal(questionOfKey(hit.key), "الخليه");
+
+  // وسؤالٌ لا يشبه شيئاً لا يُصيب شيئاً — ولا تُعاد إجابةُ غيره.
+  assert.equal(bestSimilarKey(stored, "ما الجهاز الهضمي"), null);
+});
+
+test("ومفتاحُ درسٍ آخر لا يبلغ الطالب", () => {
+  // الفرزُ بالدرس يجري في الاستعلام، وهذه تحرس ما بعده: مفتاحٌ ينتمي
+  // لدرسٍ آخر لو وصل القائمة يبقى معرّفُه في نصّه.
+  assert.equal(questionOfKey("g4sci_1_2::الخليه"), "الخليه");
+  assert.equal(questionOfKey("no-separator"), "");
+});
 
 test("صِيَغ السؤال الواحد كلّها مفتاحٌ واحد", () => {
   // ما يصل من الكتابة ومن الصوت ومن قراءة الصورة — كلّه صياغاتٌ لسؤال

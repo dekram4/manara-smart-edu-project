@@ -124,7 +124,7 @@ class StudentVoiceService {
         final available = await _tts.isLanguageAvailable(candidate);
         if (available == true) {
           await _tts.setLanguage(candidate);
-          return;
+          break;
         }
       } catch (_) {
         // منصّةٌ لا تجيب عن السؤال: تُجرَّب التالية.
@@ -136,6 +136,51 @@ class StudentVoiceService {
       await _tts.setLanguage('ar');
     } catch (_) {
       // لا محرّك: `speak` أدناه ستفشل بهدوء.
+    }
+    await _setSaudiVoice();
+  }
+
+  /// يختار صوتاً سعودياً بعينه، إن كان على الجهاز.
+  ///
+  /// ── لماذا الصوت لا اللغة وحدها ──
+  /// `setLanguage('ar-SA')` تطلب لهجةً، والمحرّك يجيبها بأقرب ما عنده —
+  /// وقد يكون صوتاً مصرياً أو مغربياً مضبوطاً على العربية، فيسمع الطفل
+  /// السعودي نبرةً غريبة عن نبرته. وقائمةُ الأصوات تُصرّح بلهجة كلٍّ
+  /// منها، فيُنتقى منها ما يوافق.
+  ///
+  /// ── وما لا تستطيعه ──
+  /// أصواتُ المحرّكات على الأجهزة فُصحى: `ar-SA` تعني «فصحى بنبرةٍ
+  /// سعودية» لا حجازيّةً محكيّة. واللهجةُ الحجازية الحقيقية تحتاج خدمةً
+  /// سحابية تُنطق على الخادم ويُنزَّل صوتُها — وهي كلفةُ شبكةٍ وانتظارٍ
+  /// لكل جملة. فهذا أقربُ ما يُنال بلا ذلك، وقولُه صراحةً خيرٌ من
+  /// الإيهام بأن اللهجة ضُبطت.
+  Future<void> _setSaudiVoice() async {
+    try {
+      final voices = await _tts.getVoices;
+      if (voices is! List) return;
+      final arabic = <Map<String, String>>[];
+      for (final entry in voices) {
+        if (entry is! Map) continue;
+        final name = entry['name']?.toString() ?? '';
+        final locale = entry['locale']?.toString() ?? '';
+        if (name.isEmpty || !locale.toLowerCase().startsWith('ar')) continue;
+        arabic.add({'name': name, 'locale': locale});
+      }
+      if (arabic.isEmpty) return;
+      // السعوديُّ أوّلاً، ثم الخليجي، ثم أيُّ عربيّ.
+      final chosen = arabic.firstWhere(
+        (voice) => voice['locale']!.toLowerCase().contains('sa'),
+        orElse: () => arabic.firstWhere(
+          (voice) => RegExp(
+            'ae|kw|bh|qa|om',
+          ).hasMatch(voice['locale']!.toLowerCase()),
+          orElse: () => arabic.first,
+        ),
+      );
+      await _tts.setVoice(chosen);
+    } catch (_) {
+      // منصّةٌ لا تعرف `getVoices`، أو صوتٌ رفض الضبط: تبقى اللغة
+      // وحدها، وهي تكفي نطقاً.
     }
   }
 
@@ -291,19 +336,22 @@ String speakableText(String raw) {
       // و`\p{M}` مع `\p{L}`: التشكيل علاماتٌ مركّبة لا حروف، فلا يُمرّره
       // `\p{L}` وحده. ونصُّ درسٍ لصغار القرّاء مشكولٌ كلُّه — فلولا هذا
       // لصارت كلُّ فتحةٍ مسافةً و«أوّلاً» كلمتين: «أو» و«لا».
+      //
+      // ── وعلاماتُ الترقيم تُحذف، ووقفتُها تبقى ──
+      // محرّكاتٌ تقرأ «؟» صمتاً، وأخرى تنطقها «علامة استفهام» في آخر كل
+      // سؤال. فلا يُؤتمن عليها، وتُحذف كلُّها.
+      //
+      // لكنّ حذفَها وحده يجعل الشرح نَفَساً واحداً لا يلتقط فيه الطفل
+      // أين انتهت خطوةٌ وبدأت التي بعدها. فتُقلب علامةُ نهاية الجملة
+      // سطراً جديداً قبل أن تُحذف: السطرُ وقفةٌ لا ينطقها محرّكٌ ولا
+      // يتجاهلها.
+      .replaceAll(RegExp(r'\s*[.!?؟]+'), '\n')
+      // وما دون نهاية الجملة — فاصلةٌ ونقطتان — مسافةٌ لا وقفة.
+      .replaceAll(RegExp(r'[،,؛;:]'), ' ')
+      // ثم لا يبقى إلا حرفٌ ورقمٌ وفراغ.
       .replaceAll(
-        RegExp(r'[^\p{L}\p{M}\p{N}\s.,،؛;:!?؟]', unicode: true),
+        RegExp(r'[^\p{L}\p{M}\p{N}\s]', unicode: true),
         ' ',
-      )
-      // وعلامةُ وقفٍ مكرّرة — «؟؟» و«!!» — تُوحَّد.
-      .replaceAllMapped(
-        RegExp(r'([.,،؛;:!?؟])\1+'),
-        (match) => match.group(1)!,
-      )
-      // ومسافةٌ قبل علامة الوقف تجعل بعض المحرّكات تتجاهلها.
-      .replaceAllMapped(
-        RegExp(r'\s+([.,،؛;:!?؟])'),
-        (match) => match.group(1)!,
       )
       .replaceAll(RegExp(r'[ \t]+'), ' ')
       // وسطرٌ لم يبق فيه إلا مسافةٌ — مكانَ سياج شيفرةٍ حُذف — يُطوى،
