@@ -76,6 +76,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(_loadQuota());
     final supported = _supportedLessons;
     final activeLessonId = widget.academicContext?.selectedLesson.id;
     final activeLessons =
@@ -102,6 +103,36 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       }
     }
     return base.isEmpty ? null : Uri.tryParse('$base/api/gemini/answer');
+  }
+
+  Uri? get _quotaEndpoint {
+    final answer = _answerEndpoint;
+    if (answer == null) return null;
+    return answer.replace(path: answer.path.replaceFirst('/answer', '/quota'));
+  }
+
+  /// يقرأ الحصّة عند فتح الشاشة.
+  ///
+  /// كان العدّاد لا يظهر حتى يسأل الطفل سؤالاً أوّل، فيرى الحدَّ بعد أن
+  /// يستهلك منه — وهو أسوأ وقتٍ لمعرفته.
+  Future<void> _loadQuota() async {
+    final endpoint = _quotaEndpoint;
+    if (endpoint == null) return;
+    try {
+      final token = await widget.authService.ensureApiSession();
+      if (token == null || token.isEmpty) return;
+      final response = await http
+          .get(endpoint, headers: {'Authorization': 'Bearer $token'})
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode < 200 || response.statusCode >= 300) return;
+      final payload = jsonDecode(response.body);
+      final quota = _QuotaBadge.fromJson(payload is Map ? payload['quota'] : null);
+      if (!mounted || quota == null) return;
+      setState(() => _quota = quota);
+    } catch (_) {
+      // تعذّرت القراءة: تُخفى الشارة ولا يُمنع السؤال. الخادم يحرس
+      // الحدّ على كل حال.
+    }
   }
 
   /// ما بقي من أسئلة اليوم، كما قاله الخادم في آخر ردّ.
@@ -207,7 +238,38 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     if (mounted) setState(() => _speaking = _voice.speaking);
   }
 
-  Future<void> _ask() async {
+  /// هل يوافق الطفل على دفع الجواهر؟
+  ///
+  /// سؤالٌ لا خصمٌ صامت: الجواهر تُجمع بالدروس والاختبارات، ومن يجدها
+  /// نقصت بلا أن يختار يفقد الثقة في العدّاد كلّه.
+  Future<bool> _confirmGems(int price, int balance) async {
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: StudentSettings.direction,
+        child: AlertDialog(
+          title: Text(tr('solver.gemsTitle')),
+          content: Text(
+            trf('solver.gemsBody', {'price': '$price', 'gems': '$balance'}),
+            style: const TextStyle(height: 1.6),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(tr('action.cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(trf('solver.gemsConfirm', {'price': '$price'})),
+            ),
+          ],
+        ),
+      ),
+    );
+    return agreed == true;
+  }
+
+  Future<void> _ask({bool payWithGems = false}) async {
     final lesson = _selectedLesson;
     final photo = _photo;
     // صورةٌ بلا سؤالٍ مكتوب تحتاج طلباً: الخادم يردّ الطلب بلا سؤال.
@@ -255,6 +317,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
             'question': question,
             if (photo != null) 'image': photo,
             if (photo != null) 'imageMimeType': 'image/jpeg',
+            if (payWithGems) 'payWithGems': true,
           }),
         // ‏دقيقة كاملة: الخادم له ميزانية خمسين ثانية يجرّب فيها أكثر
         // ‏من نموذج، فقطعُ الخيط قبلها يُسقط إجابةً كانت في طريقها —
@@ -286,6 +349,26 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         //
         // ‏ولا يبقى للرسالة العامة إلا موضعها الصحيح: انقطاعٌ فعليّ لا
         // ‏يصل معه ردّ أصلاً، فيُرمى من `http.post` قبل بلوغ هذا السطر.
+        // الخادم يطلب إذناً بالدفع: يُسأل الطفل ثم يُعاد الإرسال.
+        if (response.statusCode == 402 &&
+            payload is Map &&
+            payload['code'] == 'confirm_gems' &&
+            !payWithGems) {
+          final price = payload['gemPrice'] is num
+              ? (payload['gemPrice'] as num).toInt()
+              : 5;
+          final quota = _QuotaBadge.fromJson(payload['quota']);
+          if (mounted) {
+            setState(() {
+              _quota = quota;
+              _sending = false;
+            });
+          }
+          if (await _confirmGems(price, quota?.gems ?? 0)) {
+            await _ask(payWithGems: true);
+          }
+          return;
+        }
         if (payload is Map && payload['quota'] != null) {
           // ردُّ «انتهت حصّتك» يحمل الحال أيضاً، فتُحدَّث الشارة معه —
           // وإلا بقيت تقول «بقي ١» بعد أن نفد.

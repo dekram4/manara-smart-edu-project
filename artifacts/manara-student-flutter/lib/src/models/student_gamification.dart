@@ -61,6 +61,28 @@ class StudentGamification {
   final List<String> completedActivities;
   final String? updatedAt;
 
+  /// هل نال هذا الطالب جواهر هذا الدرس من قبل؟
+  ///
+  /// ── لماذا يُسأل في الواجهة ──
+  /// الخادم يمنع الكسب مرّتين على كل حال. لكنّ المنع الصامت يجعل الطفل
+  /// يُنهي جولةً كاملة ثم لا يرى جواهر، فيظنّ اللعبة معطوبة أو نفسه
+  /// مخطئاً. وقولُه قبل البدء يُحوّل المنع إلى قاعدةٍ مفهومة: هذه مرّةٌ
+  /// للتدريب.
+  ///
+  /// والمفاتيح كما يكتبها الخادم: `<النوع>:<معرّف الدرس>` ومعها
+  /// المفاتيح القديمة التي ما زالت في سجلّات الطلاب.
+  bool hasEarnedFor(String activityType, String activityId) {
+    final id = activityId.trim();
+    if (id.isEmpty) return false;
+    final type = activityType.trim().toLowerCase();
+    final keys = <String>{
+      '$type:$id',
+      if (type == 'quiz') 'quiz_reward:periodic:$id',
+      if (type == 'quiz') 'quiz_reward:teacher:$id',
+    };
+    return completedActivities.any(keys.contains);
+  }
+
   int get levelProgress => xp % 100;
   int get xpToNextLevel => 100 - levelProgress;
   int get achievementsCount => achievements.length;

@@ -571,6 +571,39 @@ class _QuizCatalog extends StatelessWidget {
                     style: TextStyle(color: StudentSurface.mutedInk(context)),
                   ),
                 ],
+                // التكرار يُقال قبل البدء لا بعد التسليم.
+                //
+                // الخادم يمنع الكسب مرّتين على كل حال، لكنّ المنع الصامت
+                // يجعل الطفل يُنهي اختباراً كاملاً ثم لا يرى جواهر
+                // فيظنّه معطوباً.
+                if (taken) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFF59E0B)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('ℹ️', style: TextStyle(fontSize: 15)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            tr('quiz.practiceOnly'),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              height: 1.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF92400E),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Align(
                   alignment: AlignmentDirectional.centerStart,

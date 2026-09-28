@@ -790,6 +790,14 @@ class _StudentEndlessReaderScreenState
   /// ما منحه الخادم، حين يصل.
   RewardResult? _reward;
 
+  /// هل نال الطفل جواهر هذا الدرس من قبل؟
+  bool get _alreadyEarned {
+    final lesson = widget.academicContext?.selectedLesson;
+    final stats = widget.profile?.gamification;
+    if (lesson == null || stats == null) return false;
+    return stats.hasEarnedFor('challenge', lesson.id);
+  }
+
 
   ChallengeRound? get _round =>
       _wordIndex < _plan.length ? _plan[_wordIndex] : null;
@@ -1270,6 +1278,11 @@ class _StudentEndlessReaderScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             _progress(),
+            // التكرار يُقال قبل البدء لا بعد الانتهاء.
+            if (_alreadyEarned) ...[
+              const SizedBox(height: 10),
+              _PracticeNotice(text: tr('challenge.practiceOnly')),
+            ],
             // الجلب لا يوقف اللعب، لكنّه يُعلَن: الطفل الذي بدأ بجولةٍ
             // من جولات الجهاز يرى أن أسئلةً في الطريق بدل أن تظهر فجأةً
             // في منتصف اللعب بلا سبب.
@@ -1829,4 +1842,44 @@ class _StudentEndlessReaderScreenState
     );
   }
 
+}
+
+
+/// تنبيهُ «هذا الدرس مُنجز» فوق اللعبة.
+///
+/// يُقال قبل البدء لا بعد الانتهاء: الخادم يمنع الكسب مرّتين على كل
+/// حال، لكنّ المنع الصامت يجعل الطفل يُنهي جولةً كاملة ثم لا يرى
+/// جواهر، فيظنّ اللعبة معطوبة أو نفسه مخطئاً.
+class _PracticeNotice extends StatelessWidget {
+  const _PracticeNotice({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('ℹ️', style: TextStyle(fontSize: 16)),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }

@@ -34,6 +34,14 @@ alter table public.ai_qa_cache enable row level security;
 
 revoke all on public.ai_qa_cache from anon, authenticated;
 
+-- وللخادم وحده صلاحيةٌ كاملة.
+--
+-- تجاوزُ `service_role` لـ RLS لا يُغني عن هذا: RLS طبقةُ صفوف، وهذه
+-- طبقةُ جدول. وجدولٌ يُنشأ في محرّر SQL يملكه `postgres`، فلا يرث
+-- `service_role` عليه شيئاً — فيُردّ كلُّ قراءةٍ وكتابةٍ بـ401، وتبدو
+-- الذاكرة كأنها لا تُصاب أبداً بينما هي لا تُقرأ ولا تُكتب أصلاً.
+grant all on public.ai_qa_cache to service_role;
+
 -- ولا سياسة تُضاف: `service_role` يتجاوز RLS، وغيرُه لا يجد ما يسمح له.
 
 comment on table public.ai_qa_cache is

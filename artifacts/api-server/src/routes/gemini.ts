@@ -386,17 +386,38 @@ async function persistBank(lessonId: string, bank: ChallengeBank): Promise<void>
  */
 async function readCachedAnswer(key: string): Promise<string | null> {
   const config = apiSupabaseConfig();
-  if (!config) return null;
+  if (!config) {
+    logger.warn("[cache] MISS — Supabase is not configured");
+    return null;
+  }
   try {
     const response = await fetch(
       `${config.url}/rest/v1/ai_qa_cache?select=data&id=eq.${encodeURIComponent(key)}&limit=1`,
       { headers: { apikey: config.key, Authorization: `Bearer ${config.key}` } },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // رمزُ الردّ ونصُّه معاً.
+      //
+      // كانت كلُّ علّةٍ تعود بـ `null` صامتةً، فيبدو الجدولُ الغائب
+      // والصلاحيةُ المرفوضة والسؤالُ الجديد شيئاً واحداً — ولا يُعرف
+      // لماذا لا تُصاب الذاكرة أبداً. و401/403 هنا تعني أن دور الخدمة
+      // لا يملك صلاحيةً على الجدول، و404 أن الجدول لم يُنشأ.
+      logger.warn(
+        { status: response.status, detail: (await response.text()).slice(0, 200) },
+        "[cache] MISS — read refused by the database",
+      );
+      return null;
+    }
     const rows = await response.json();
     const answer = Array.isArray(rows) ? rows[0]?.data?.answer : null;
-    return typeof answer === "string" && answer.trim() ? answer : null;
-  } catch {
+    if (typeof answer === "string" && answer.trim()) {
+      logger.info({ key }, "[cache] HIT");
+      return answer;
+    }
+    logger.info({ key }, "[cache] MISS — no stored answer for this key");
+    return null;
+  } catch (error) {
+    logger.warn({ err: error }, "[cache] MISS — read failed");
     return null;
   }
 }
@@ -427,7 +448,12 @@ async function writeCachedAnswer(
       updated_at: now,
     }),
   });
-  if (!response.ok) throw new Error(`cache write failed (${response.status})`);
+  if (!response.ok) {
+    throw new Error(
+      `cache write failed (${response.status} ${(await response.text()).slice(0, 200)})`,
+    );
+  }
+  logger.info({ key, lessonId }, "[cache] SAVED");
 }
 
 /** صفُّ الطالب وحصّتُه وجواهرُه. */
@@ -541,6 +567,23 @@ async function recordProblemSolverActivity(
   });
 }
 
+/**
+ * حالةُ الحصّة، بلا سؤال.
+ *
+ * الشاشة تحتاجها عند فتحها: العدّاد كان لا يظهر حتى يسأل الطفل سؤالاً
+ * أوّل، فيرى الحدَّ بعد أن يستهلك منه — وهو أسوأ وقتٍ لمعرفته.
+ */
+router.get("/gemini/quota", requireStudentSession, async (_req, res) => {
+  const student = res.locals.student as StudentActor;
+  try {
+    const { quota } = await readStudentQuota(student);
+    return res.json({ quota: quota.snapshot });
+  } catch (error) {
+    logger.error({ err: error }, "[gemini] quota read failed");
+    return res.status(503).json({ error: "تعذّر قراءة حصّتك الآن" });
+  }
+});
+
 router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req, res) => {
   const lessonId =
     typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
@@ -552,6 +595,13 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
   // تُقبل base64 بحدٍّ قدره ستة ميغابايتات بعد الترميز — أكبر ممّا
   // تُخرجه كاميرا الهاتف بعد الضغط، وأصغر من أن يخنق الطلبَ أو الذاكرة.
   // وبلا حدٍّ يستطيع طلبٌ واحد أن يُسقط الخادم.
+  // هل أذن الطفل بدفع الجواهر؟
+  //
+  // بلا إذنه يُردّ الطلبُ بـ402 وفيه ثمنُ السؤال ورصيدُه، فتسأله الشاشة
+  // ثم تعيد الإرسال بهذه الراية. وخصمٌ بلا استئذان يفاجئ طفلاً جمع
+  // جواهره بالدروس ثم وجدها نقصت بلا أن يختار.
+  const payWithGems = req.body?.payWithGems === true;
+
   const rawImage = typeof req.body?.image === "string" ? req.body.image.trim() : "";
   const imageType =
     typeof req.body?.imageMimeType === "string"
@@ -623,6 +673,14 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     // `student` هو اسم الصفّ في هذا النطاق، فيُسمّى صفُّ الجدول غيرَه.
     const { quota, gems, rowId, data: studentRow } = await readStudentQuota(student);
     const verdict = chargeFor(quota.state, gems);
+    if (verdict.allowed && verdict.gemsCharged > 0 && !payWithGems) {
+      return res.status(402).json({
+        error: `انتهت أسئلتك المجانية اليوم. السؤال الإضافي بـ${GEM_PRICE} جواهر.`,
+        code: "confirm_gems",
+        gemPrice: GEM_PRICE,
+        quota: quota.snapshot,
+      });
+    }
     if (!verdict.allowed) {
       return res.status(402).json({
         error: `انتهت أسئلتك المجانية اليوم (${FREE_DAILY_QUESTIONS}). السؤال الإضافي بـ${GEM_PRICE} جواهر، ورصيدك ${gems}.`,
@@ -662,7 +720,7 @@ ${lesson.text}`
       image
         ? Promise.resolve()
         : writeCachedAnswer(key, lesson.id, question, answer).catch((error) =>
-            logger.warn({ err: error }, "[gemini] answer not cached"),
+            logger.error({ err: error, key }, "[cache] SAVE FAILED"),
           ),
       recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
         logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
