@@ -15,10 +15,13 @@ import {
   bestSimilarKey,
   cacheKey,
   chargeFor,
+  normalizeQuestion,
+  questionOfKey,
   readQuota,
   snapshotOf,
   spend,
 } from "../lib/aiQuota";
+import { sameQuantities } from "../lib/questionMath";
 import { VECTOR_THRESHOLD, embedQuestion } from "../lib/embeddings";
 import {
   BANK_SIZE,
@@ -584,6 +587,21 @@ async function findByMeaning(
       logger.info({ lessonId }, "[cache] MISS — nothing close in meaning");
       return { answer: null, vector };
     }
+    // ── والمعنى لا يكفي في المسائل ──
+    //
+    // المتّجهُ يقرّب المعنى، ومسألتان تختلفان في رقمٍ واحد معناهما واحد
+    // عنده — بل أقربُ ما يكون. وخفضُ العتبة إلى ٠٫٧٨ يوسّع هذا القرب،
+    // فيُشترط بعده تطابقُ الأرقام والوحدات كلِّها.
+    //
+    // ويُقرأ السؤالُ المحفوظ من المفتاح لا من العمود: المفتاح مطبَّعٌ
+    // كما يُطبَّع السؤالُ الوارد، فيُقارَن مثلٌ بمثل.
+    if (!sameQuantities(normalizeQuestion(question), questionOfKey(String(row?.id ?? "")))) {
+      logger.info(
+        { key: row?.id },
+        "[cache] MISS — same meaning, different quantities",
+      );
+      return { answer: null, vector };
+    }
     logger.info(
       { key: row?.id, similarity: Number(Number(row?.similarity).toFixed(3)) },
       "[cache] HIT — same meaning",
@@ -630,9 +648,23 @@ async function findSimilarCachedAnswer(
       return null;
     }
     const rows = await response.json();
-    const keys: string[] = Array.isArray(rows)
+    const all: string[] = Array.isArray(rows)
       ? rows.map((row: any) => String(row?.id ?? "")).filter(Boolean)
       : [];
+    // ── والمقاديرُ تُصفّى قبل أن يُقاس اللفظ ──
+    //
+    // «احسب محيط مستطيل طوله ٥ وعرضه ٣» و«... طوله ٧ وعرضه ٣» يشتركان
+    // في كل كلمةٍ إلا رقماً، فيقيسان فوق العتبة ويُعاد جوابُ الأول على
+    // الثاني. والتصفيةُ قبل القياس لا بعده: لو رُدّ الفائزُ وحده لكان
+    // مرشَّحٌ صحيحُ الأرقام قد خسر أمامه.
+    const asked = normalizeQuestion(question);
+    const keys = all.filter((key) => sameQuantities(asked, questionOfKey(key)));
+    if (keys.length < all.length) {
+      logger.info(
+        { lessonId, dropped: all.length - keys.length },
+        "[cache] candidates dropped — different quantities",
+      );
+    }
     const hit = bestSimilarKey(keys, question);
     if (!hit) {
       logger.info({ lessonId, scanned: keys.length }, "[cache] MISS — nothing similar");
@@ -960,16 +992,35 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     // فالاثنان معاً: هذا يُقصّر، وذاك يحرس.
     const brevity =
       "اجعل إجابتك موجزة: خطواتٌ مرقّمة قصيرة ثم الناتج. لا مقدّمة ولا خاتمة ولا تلخيصٌ لما قلته، ولا نصائح إضافية.";
+    // ── ونبرةُ الشرح ──
+    //
+    // الإجابةُ تُقرأ وتُسمع: الطفل يقرؤها في الشاشة ويضغط زرَّ النطق
+    // فيسمعها. ومحرّكُ النطق ينطق ما يُكتب كما كُتب — فإن كُتبت الإجابة
+    // فصحى مشكولةً نطقها بالإعراب حرفاً حرفاً، فيسمع الطفل درساً في
+    // النحو لا شرحاً لمسألته.
+    //
+    // والحلُّ في الكتابة لا في النطق وحده. إسقاطُ التشكيل قبل النطق
+    // يمنع الحركاتَ المكتوبة، ولا يمنع «إنَّ هذا الحلَّ يستلزم» — فتُطلب
+    // النبرةُ من المصدر: معلّمٌ سعوديٌّ يشرح لطفل، بلهجةٍ بيضاء يفهمها
+    // كلُّ من في المدارس.
+    //
+    // وبيضاءُ لا محكيّةٌ عاميّة: الإجابة تُقرأ مكتوبةً أيضاً، وعاميّةٌ
+    // خالصة تُكتب بحروفٍ لا يعرفها الطفل في كتابه. فالمطلوب كلامٌ سهل
+    // بلا تقعّر، لا استبدالُ لسانٍ بلسان.
+    const tone =
+      "اكتب بلهجة سعودية بيضاء سهلة، كمعلّمٍ سعودي يشرح لطالبه في الصف بأسلوب ودّي عفوي. " +
+      "لا تكتب أي حركات تشكيل أو تنوين على الحروف إطلاقًا، ولا تستخدم أسلوبًا فصيحًا متقعّرًا ولا عباراتٍ مُعربة. " +
+      "استخدم كلماتٍ قصيرة يعرفها الطالب، وخاطبه مباشرة.";
     const prompt = image
       ? `أنت مساعد تعليمي ذكي لطفلٍ في المرحلة الابتدائية. في الصورة المرفقة مسألةٌ من كتابه أو دفتره.
 
 اقرأ ما في الصورة أوّلاً، ثم أجب عن طلب الطالب: ${question}
 
-اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. ${brevity} وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
+اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. ${tone} ${brevity} وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
 
 وللاستئناس، هذا نصّ درسه:
 ${lesson.text}`
-      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. ${brevity} لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
+      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. ${tone} ${brevity} لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
     // وما بقي من الميزانية بعد القراءة، لا ميزانيةٌ كاملةٌ ثانية: الخادم
     // ينتظر ما ينتظره التطبيق وينتهي قبله.
     const data = await callGemini(prompt, {

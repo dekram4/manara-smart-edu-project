@@ -8,13 +8,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const target = process.env.LEADERBOARD_MODULE ?? "../../../dist/lib/leaderboard.js";
+const target = process.env.LEADERBOARD_MODULE ?? "../../../dist/lib/leaderboard.mjs";
 let mod;
 try {
   mod = await import(target);
-} catch {
-  console.log("تُخطّى: لم يُبنَ dist بعد (npm run build).");
-  process.exit(0);
+} catch (error) {
+  // يفشل ولا يُخطّى.
+  //
+  // كان هنا `process.exit(0)` ورسالةٌ تُطبع، فكان الملفُّ يخرج أخضرَ
+  // وهو لم يُشغّل اختباراً واحداً. وهكذا مرّت الاختباراتُ كلُّها بلا أن
+  // تعمل: الاستيرادُ يفشل، والتخطّي يكتمه، والتقريرُ يقول «pass» — فلا
+  // يحرس شيءٌ مما جاءت تحرسه.
+  //
+  // وبناءٌ ناقصٌ خطأٌ في التشغيل يُقال صراحةً، لا حالةٌ تُتَخطّى بصمت.
+  throw new Error(
+    `تعذّر استيراد ${target} — شغّل npm run build أولاً. (${error?.message ?? error})`,
+  );
 }
 
 const { buildLeaderboard, isClassmate, ownerOf } = mod;

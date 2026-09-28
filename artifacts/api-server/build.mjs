@@ -15,18 +15,32 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    // نقطتا دخول لا واحدة.
+    // ── الخادمُ نقطةُ دخول، والوحداتُ النقيّة نقاطٌ إلى جانبه ──
     //
-    // الثانية وحدةُ بنك التحدي، تُخرَج إلى `dist/lib/challengeBank.mjs`
-    // ليستوردها سكربت التوليد. ولولا ذلك لما وُجد لها ملفٌّ أصلاً: هذا
-    // البناء يحزم كل شيء في `dist/index.mjs`، فلا مجلّد `dist/lib` فيه.
+    // هذا البناء يحزم كل شيء في `dist/index.mjs`، فلا مجلّد `dist/lib`
+    // فيه أصلاً. وهذه الوحدات تُخرَج إليه لسببين:
     //
-    // والبديل — أن يكرّر السكربت قواعد القبول — يجعل تصفيةَ الدفعة
-    // تفترق عن تصفية الخادم عند أوّل تعديل في إحداهما، فيُحفظ في البنك
-    // ما يردّه المسار.
+    // `challengeBank` ليستوردها سكربتُ التوليد. والبديل — أن يكرّر
+    // السكربت قواعد القبول — يجعل تصفيةَ الدفعة تفترق عن تصفية الخادم
+    // عند أوّل تعديل في إحداهما، فيُحفظ في البنك ما يردّه المسار.
+    //
+    // ── والباقيةُ ليُختبر ما بُني لا ما كُتب ──
+    //
+    // اختباراتُ `src/lib/__tests__` تستورد من `dist/lib/*.mjs`: تُشغّل
+    // بـ`node --test` بلا مُحوِّلٍ في المسار، فلا تقرأ TypeScript. وكانت
+    // تستورد وحداتٍ لا يُخرجها هذا البناء، فيفشل الاستيراد ويطبع الملفُّ
+    // «تُخطّى» ويخرج بصفر — أخضرَ دائماً على كل جهاز وفي كل مرّة.
+    //
+    // فما يُختبر يُخرَج. وزيادتُها لا تثقل الخادم: `dist/index.mjs` يحزم
+    // نسخته منها كما كان، وهذه ملفّاتٌ إلى جانبه لا تُستورد في الإنتاج.
     entryPoints: [
       path.resolve(artifactDir, "src/index.ts"),
       path.resolve(artifactDir, "src/lib/challengeBank.ts"),
+      path.resolve(artifactDir, "src/lib/aiQuota.ts"),
+      path.resolve(artifactDir, "src/lib/embeddings.ts"),
+      path.resolve(artifactDir, "src/lib/questionMath.ts"),
+      path.resolve(artifactDir, "src/lib/challengeQuestions.ts"),
+      path.resolve(artifactDir, "src/lib/leaderboard.ts"),
     ],
     platform: "node",
     bundle: true,

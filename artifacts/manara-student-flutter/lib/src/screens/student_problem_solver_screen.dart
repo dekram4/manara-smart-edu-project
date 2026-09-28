@@ -76,6 +76,11 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   @override
   void initState() {
     super.initState();
+    // والنطقُ قد يكون جارياً قبل هذا البناء: الخدمةُ مشتركةٌ تعيش خارج
+    // الشجرة، فإن أُعيد بناءُ [State] — بدورانٍ أو غيره — وجدَها ناطقة.
+    // وبلا هذا يبدأ الزرُّ من «انطق» بينما الجملة تُسمع، فيُسكتها الطفل
+    // ظنّاً أنه يُشغّلها.
+    _speaking = _voice.speaking;
     unawaited(_loadQuota());
     final supported = _supportedLessons;
     final activeLessonId = widget.academicContext?.selectedLesson.id;
@@ -138,7 +143,12 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// ما بقي من أسئلة اليوم، كما قاله الخادم في آخر ردّ.
   _QuotaBadge? _quota;
 
-  late final StudentVoiceService _voice = StudentVoiceService();
+  /// النطقُ والإملاء: الخدمةُ المشتركة، لا نسخةٌ لهذه الشاشة.
+  ///
+  /// كانت `StudentVoiceService()` في حقلٍ من [State]، فكان كلُّ إسقاطٍ
+  /// لـ[State] يُنشئ محرّكاً جديداً — ودورانُ الشاشة أحدُ ما يُسقطه. انظر
+  /// [StudentVoiceService.instance].
+  final StudentVoiceService _voice = StudentVoiceService.instance;
 
   /// صورةُ المسألة، مرمّزةً، إن صوّرها الطفل.
   String? _photo;

@@ -38,6 +38,42 @@ class StudentSoundGate {
   }
 }
 
+/// What a lifecycle change should do to whatever is sounding.
+enum StudentQuietAction {
+  /// Silence now: the app is actually leaving.
+  now,
+
+  /// Silence only if the app does not come straight back — see
+  /// [StudentSoundService.didChangeAppLifecycleState].
+  afterGrace,
+
+  /// Abandon a pending silence: the app is here.
+  cancel,
+}
+
+/// Which of those a given lifecycle state calls for.
+///
+/// Pulled out of the service so the rule can be read and tested without an
+/// audio engine, a binding or a device — the same reason [StudentSoundGate]
+/// is separate. The bug it guards is invisible in a unit test otherwise:
+/// silencing on `inactive` looks correct until you learn that a rotation
+/// reports it too.
+StudentQuietAction quietActionFor(AppLifecycleState state) {
+  switch (state) {
+    case AppLifecycleState.resumed:
+      return StudentQuietAction.cancel;
+    // The only state a rotation passes through. It is also the first state a
+    // lock passes through, which is why this waits rather than ignores.
+    case AppLifecycleState.inactive:
+      return StudentQuietAction.afterGrace;
+    // Nothing but a real departure reports these.
+    case AppLifecycleState.hidden:
+    case AppLifecycleState.paused:
+    case AppLifecycleState.detached:
+      return StudentQuietAction.now;
+  }
+}
+
 /// Owns student-facing sounds. Voices and UI feedback have separate players so
 /// a short confirmation never cuts off the welcome message, while each group
 /// is still stopped before replaying to avoid overlap.
@@ -170,6 +206,35 @@ class StudentSoundService with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  /// How long an `inactive` is given to turn out to have been a rotation.
+  ///
+  /// Rotating the phone can report `inactive` and then `resumed` within a
+  /// frame or two, and silencing on the first of those cut the voice on
+  /// every rotation — a student who turned the phone to read wider steps
+  /// lost the line being read to them, having touched nothing.
+  ///
+  /// A real departure is not deferred by this. Locking the screen passes
+  /// through `inactive` to `paused`/`hidden` immediately, and those silence
+  /// at once (below), so the grace only ever delays a device that reports
+  /// `inactive` alone. It is kept short for exactly that case: such a
+  /// device may be frozen soon after, and a timer in a frozen process does
+  /// not fire.
+  static const _rotationGrace = Duration(milliseconds: 250);
+
+  Timer? _quietTimer;
+
+  /// A rotation reports new metrics; a lock does not.
+  ///
+  /// So a pending silence whose `inactive` arrived alongside a resize is
+  /// abandoned: the app is not leaving, it is changing shape. This covers
+  /// the order where the resize is reported first as well, since the
+  /// `resumed` that follows a rotation cancels the timer too.
+  @override
+  void didChangeMetrics() {
+    _quietTimer?.cancel();
+    _quietTimer = null;
+  }
+
   /// Silences everything the moment the screen locks or the app leaves the
   /// foreground, and brings only the music back on return.
   ///
@@ -178,19 +243,41 @@ class StudentSoundService with WidgetsBindingObserver {
   /// nothing else stops them either — so a tablet in a bag kept playing the
   /// loop and whatever line was mid-sentence.
   ///
-  /// `inactive` counts as leaving too: it is the first state a lock passes
-  /// through, and on some devices the only one before the process is frozen.
-  /// A spoken line or a chime cut off there is not resumed — half a sentence
+  /// A spoken line or a chime that is cut is not resumed — half a sentence
   /// minutes later means nothing. The music is, from where it paused, and
   /// only if the screen that was showing still wants it.
+  ///
+  /// `inactive` used to silence immediately, on the grounds that it is the
+  /// first state a lock passes through and on some devices the only one.
+  /// That is still true, and it is also the state a rotation passes
+  /// through — so it now waits out [_rotationGrace] first. Everything that
+  /// only a real departure reports still takes effect at once.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      if (!_backgrounded) return;
-      _backgrounded = false;
-      unawaited(_syncAmbient());
-      return;
+    switch (quietActionFor(state)) {
+      case StudentQuietAction.cancel:
+        _quietTimer?.cancel();
+        _quietTimer = null;
+        if (!_backgrounded) return;
+        _backgrounded = false;
+        unawaited(_syncAmbient());
+        return;
+      case StudentQuietAction.afterGrace:
+        if (_backgrounded) return;
+        _quietTimer?.cancel();
+        _quietTimer = Timer(_rotationGrace, _goQuiet);
+        return;
+      case StudentQuietAction.now:
+        _quietTimer?.cancel();
+        _quietTimer = null;
+        _goQuiet();
+        return;
     }
+  }
+
+  /// Silences everything and leaves only the music to come back.
+  void _goQuiet() {
+    _quietTimer = null;
     if (_backgrounded) return;
     _backgrounded = true;
     _applauseCancelled = true;

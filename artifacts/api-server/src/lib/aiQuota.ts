@@ -13,6 +13,8 @@
  * هذه الوحدة نقيّة: التطبيع والمفاتيح والحساب هنا، والشبكةُ في المسار.
  */
 
+import { MATH_OPENERS, isMathQuestion } from "./questionMath";
+
 /** أسئلةٌ مجانية لكل طالب في اليوم. */
 export const FREE_DAILY_QUESTIONS = 10;
 
@@ -38,14 +40,50 @@ const AR_OPENERS_ONE = new Set([
   "ما", "ماذا", "ماهي", "ماهو", "منهي", "منهو",
   "عرف", "اشرح", "وضح", "فسر", "لخص",
 ]);
-const AR_OPENERS_TWO = new Set(["ما هي", "ما هو", "من هي", "من هو", "ماذا عن"]);
+
+/**
+ * وما جاء منها في كلمتين.
+ *
+ * ── ولماذا «ما المقصود» معها ──
+ * «ما هي البلاستيدات» و«ما المقصود بالبلاستيدات» سؤالٌ واحد بلفظين،
+ * وكانا مفتاحين: الأول يُطبَّع إلى «البلاستيدات» والثاني إلى «المقصود
+ * بالبلاستيدات». فيُستدعى النموذج ثانيةً لسؤالٍ إجابتُه محفوظة، ويُخصم
+ * من الطفل الثاني ثمنُها.
+ */
+const AR_OPENERS_TWO = new Set([
+  "ما هي", "ما هو", "من هي", "من هو", "ماذا عن",
+  "ما المقصود", "ما معني", "ما مفهوم", "ما تعريف", "ماذا يعني",
+  "وش يعني", "ايش يعني", "وش معني", "ايش معني",
+]);
 
 /** ونظائرُها في الإنجليزية، ومعها أداةُ التعريف. */
 const EN_OPENERS = [
+  "what is the meaning of", "what does it mean by", "the meaning of",
   "what is", "what are", "whats", "what s", "who is", "who are",
-  "how do i", "how do you", "tell me about", "define", "explain", "describe",
+  "how do i", "how do you", "tell me about", "meaning of",
+  "define", "explain", "describe",
 ];
 const EN_ARTICLES = new Set(["the", "a", "an"]);
+
+/**
+ * يحذف عبارةَ الطلب من صدر المسألة، ولا يمسّ ما بعدها.
+ *
+ * ── ولماذا تبقى المسألةُ التي لا شيء فيها إلا الطلب ──
+ * «احسب» وحدها ليست مسألة، لكنها ليست فارغةً أيضاً: إفراغُها يجعلها
+ * تُطابق كلَّ سؤالٍ فارغٍ آخر في الدرس، فيُجاب من سأل «احسب» بجواب من
+ * سأل «حل». فتبقى بلفظها ولا تُصيب إلا نفسها.
+ */
+function stripMathOpener(text: string): string {
+  const words = text.split(" ").filter(Boolean);
+  for (const opener of MATH_OPENERS) {
+    const parts = opener.split(" ");
+    if (parts.length >= words.length) continue;
+    if (parts.every((part, index) => words[index] === part)) {
+      return words.slice(parts.length).join(" ");
+    }
+  }
+  return text;
+}
 
 /**
  * تطبيعُ السؤال للمطابقة — نقطةُ التوحيد الوحيدة.
@@ -83,6 +121,17 @@ export function normalizeQuestion(value: unknown): string {
     .replace(/[−‒–—―]/g, "-")
     .replace(/[＝]/g, "=");
 
+  // ── ثم يُعرَف أيُّهما: سؤالٌ عن مفهوم، أو مسألة ──
+  //
+  // يُسأل هنا لا بعد المسح: الأقواسُ والأسُسُ من دلائل المسألة، وهي
+  // ممّا يسقط في المسح. فلو أُخّر السؤالُ عنه لأُجيب عن نصٍّ فُقدت
+  // منه القرينة.
+  //
+  // والفرقُ بينهما فرقٌ في ما يُحذف: سؤالُ المفهوم يُحذف من صدره حشوُ
+  // الاستفهام كلُّه، والمسألةُ لا يُحذف منها إلا عبارةُ الطلب — لأن كل
+  // كلمةٍ فيها قد تكون شرطاً من شروطها.
+  const math = isMathQuestion(text);
+
   // ثم لا يبقى إلا حرفٌ أو رقمٌ أو عمليةُ حساب.
   //
   // الترقيم والرموز والإيموجي: طفلٌ يكتب «ما الخلية؟؟ 🤔» وآخر يكتبها
@@ -93,16 +142,39 @@ export function normalizeQuestion(value: unknown): string {
   // «٢+٣» و«٢-٣» مفتاحاً واحداً هو «2 3» — فيُجاب طفلٌ سأل عن الطرح
   // بجواب الجمع. وهو أسوأ ما تفعله ذاكرة: لا أن تُخطئ، بل أن تُصيب
   // بثقةٍ في السؤال الخطأ.
-  text = text.replace(/[^\p{L}\p{N}+\-*/=%]+/gu, " ").trim();
+  // والأقواسُ والأسُسُ تنجو في المسألة وحدها: «٢×(٣+٤)» ترتيبُ عملياتٍ
+  // يُغيّره حذفُ القوس، و«٢^٣» ثمانيةٌ لا ٢٣. وفي سؤالِ المفهوم قوسٌ
+  // شارحٌ لا أكثر — «الخلية (النباتية)» و«الخلية النباتية» سؤالٌ واحد،
+  // فإبقاؤه يجعلهما مفتاحين.
+  text = text
+    .replace(
+      math ? /[^\p{L}\p{N}+\-*/=%^().]+/gu : /[^\p{L}\p{N}+\-*/=%.]+/gu,
+      " ",
+    )
+    // والفاصلةُ العشرية تبقى بين رقمين وحدهما: «٢٫٥ كم» رقمٌ واحد،
+    // ونقطةُ آخر الجملة ليست منه — ولو بقيت لصار «٢ ٥» مسافةً في
+    // المفتاح، فطابقت «٢٥» مسألةً عُشرُها.
+    .replace(/(?<!\d)\.|\.(?!\d)/g, " ")
+    .trim();
 
   // والمسافاتُ حول العمليات تسقط، والمتغيّرُ يلتصق برقمه.
   //
   // «2 x + 5 = 10» و«2x+5=10» معادلةٌ واحدة كتبها طفلان بإصبعين
   // مختلفين، ويقرؤها النموذج سواء.
   text = text
-    .replace(/\s*([+\-*/=])\s*/g, "$1")
+    .replace(/\s*([+\-*/=^])\s*/g, "$1")
+    // والقوسُ يلتصق بما داخله لا بما قبله: «احسب (٢+٣)» يبقى فيها
+    // فاصلُ الكلمة، و«( ٢+٣ )» و«(٢+٣)» يصيران واحداً.
+    .replace(/\(\s+/g, "(")
+    .replace(/\s+\)/g, ")")
+    // والمتغيّرُ حرفٌ واحدٌ قائمٌ بنفسه، لا آخِرُ كلمة.
+    //
+    // كانت القاعدةُ الثانية بلا نظرةٍ إلى الخلف، فتلصق آخر حرفٍ من أيّ
+    // كلمةٍ إنجليزية بالرقم بعدها: «solve 2x+5=10» تصير كلمةً واحدة
+    // «solve2x+5=10»، فلا تُعرَف فيها عبارةُ الطلب ولا تُحذف. و«page 5»
+    // و«5 page» كانا مفتاحين لا واحداً.
     .replace(/([0-9])\s+([a-z])(?![a-z])/g, "$1$2")
-    .replace(/([a-z])(?![a-z])\s+([0-9])/g, "$1$2")
+    .replace(/(?<![a-z])([a-z])(?![a-z])\s+([0-9])/g, "$1$2")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -112,6 +184,9 @@ export function normalizeQuestion(value: unknown): string {
   // الاتجاهين تُقرأ صحيحةً بالعين وقد تُخزَّن بترتيبٍ آخر، فلا يُطابق
   // النمطُ شيئاً ولا يظهر لذلك أثر — يمرّ السؤالان مفتاحين لا مفتاحاً.
   // ومقارنةُ كلمةٍ بكلمة لا تحتمل هذا الالتباس.
+  // والمسألةُ تُحذف منها عبارةُ الطلب وحدها، ثم تُترك كما هي.
+  if (math) return stripMathOpener(text);
+
   for (const opener of EN_OPENERS) {
     if (text === opener) return "";
     if (text.startsWith(`${opener} `)) {
@@ -121,10 +196,21 @@ export function normalizeQuestion(value: unknown): string {
   }
 
   let words = text.split(" ").filter(Boolean);
+  let droppedPair = false;
   if (words.length > 1 && AR_OPENERS_TWO.has(words.slice(0, 2).join(" "))) {
     words = words.slice(2);
+    droppedPair = true;
   } else if (words.length > 1 && AR_OPENERS_ONE.has(words[0]!)) {
     words = words.slice(1);
+  }
+  // وباءُ «ما المقصود بـ» تلتصق بما بعدها، فتبقى في صدر الكلمة بعد حذف
+  // الأداة: «بالبلاستيدات» كلمةٌ أخرى غير «البلاستيدات»، فيبقى السؤالان
+  // مفتاحين وقد حُذفت أداتُهما.
+  //
+  // و«بال» وحدها تُقشَر — باءُ الجرّ مع أداة التعريف — لا كلُّ باء:
+  // «باب» ليست «بـ+اب».
+  if (droppedPair && words.length > 0 && words[0]!.startsWith("بال")) {
+    words[0] = words[0]!.slice(1);
   }
   // وأداةُ التعريف الإنجليزية بعدها: «what is the cell» و«the cell»
   // و«cell» سؤالٌ واحد. والعربيةُ «الـ» ملتصقةٌ بكلمتها فلا تُمسّ —
@@ -170,7 +256,9 @@ const STOPWORDS = new Set([
   // العربية، مطبَّعةً كما يخرج من `normalizeQuestion`.
   "في", "من", "علي", "الي", "عن", "مع", "هل", "هي", "هو", "هذا", "هذه",
   "ذلك", "تلك", "التي", "الذي", "كان", "كانت", "يكون", "تكون", "ان",
-  "او", "ثم", "قد", "كل", "عند", "حتي", "لكن", "لا", "ما", "كما", "بين",
+  // و«لا» ليست منها — انظر [NEVER_DROP]. وكانت، فكان «الماء يتجمد» و«الماء
+  // لا يتجمد» سؤالاً واحداً في القياس، وجوابُهما نقيضان.
+  "او", "ثم", "قد", "كل", "عند", "حتي", "لكن", "ما", "كما", "بين",
   "لماذا", "كيف", "متي", "اين", "ايش", "وش", "بعد", "قبل", "ايضا",
   "يعني", "شرح", "مثال", "فضلك", "لي", "لك",
   // والإنجليزية.
@@ -178,6 +266,77 @@ const STOPWORDS = new Set([
   "to", "for", "and", "or", "it", "this", "that", "with", "do", "does",
   "did", "how", "why", "when", "where", "please", "me", "my", "you",
 ]);
+
+/**
+ * ما لا يُحذف من السؤال أبداً، وإن كان حرفاً واحداً بلا معنى في نفسه.
+ *
+ * ── لماذا حرسٌ مستقلٌّ لا مجرَّدُ غيابٍ عن [STOPWORDS] ──
+ * أدواتُ النفي تُشبه الحشو: حروفٌ قصيرةٌ شائعة يسقطها الطفل حين يكتب.
+ * فكلُّ من يزيد في قائمة الحشو يوشك أن يزيدها معها. وحذفُ واحدةٍ منها
+ * يقلب السؤال إلى نقيضه بينما يبقى القياسُ ١: «هل الحوت سمكة» و«هل
+ * الحوت ليس سمكة» سؤالان جوابُهما «لا» و«نعم».
+ *
+ * فمكتوبةٌ هنا بالنصّ، وعليها اختبارٌ يمنع عودتها إلى الحشو.
+ */
+export const NEVER_DROP: ReadonlySet<string> = new Set([
+  // العربية.
+  "لا", "ليس", "ليست", "لم", "لن", "غير", "بدون", "دون", "عدم",
+  // والإنجليزية، مطبَّعةً كما تخرج من `normalizeQuestion` — فالفاصلةُ
+  // العليا تسقط في المسح، و«don't» تصل «dont».
+  "not", "never", "no", "none", "cannot", "cant", "dont", "doesnt",
+  "didnt", "isnt", "arent", "wasnt", "werent", "wont", "without",
+]);
+
+/**
+ * حروفُ الأفعال الاصطلاحية: تُلحَق بفعلها ولا تُحذف معه.
+ *
+ * ── لماذا ──
+ * «turn on» و«turn off» فعلان متناقضان، وحرفُهما في قائمة الحشو —
+ * فيسقط منهما فيصيران «turn» و«turn»، فيُجاب من سأل عن الإطفاء بجواب
+ * التشغيل. وهما ممّا يُسأل عنه فعلاً في درس الإنجليزية.
+ *
+ * ولا يُحرَس الحرفُ وحده: «on» في «on the table» حشوٌ حقيقي. فلا يُحفظ
+ * إلا حيث سبقه فعلٌ يصنع معه اصطلاحاً، ويُلحَق به كلمةً واحدة — فيبقى
+ * مقرونا به وإن أُلغي ترتيبُ الكلمات.
+ */
+const PHRASAL_PARTICLES = new Set([
+  "up", "off", "on", "in", "out", "down", "over", "away", "back", "after",
+  "into", "through", "around", "along", "apart", "together", "forward",
+  "across", "by", "for", "to", "with", "at", "about", "of",
+]);
+
+const PHRASAL_VERBS = new Set([
+  "give", "turn", "look", "put", "take", "get", "break", "come", "go",
+  "run", "set", "carry", "bring", "find", "make", "pick", "hold", "keep",
+  "call", "cut", "fill", "grow", "hand", "let", "live", "pass", "pay",
+  "point", "pull", "push", "sit", "stand", "switch", "throw", "try",
+  "wake", "work", "write", "add", "blow", "check", "clean", "close",
+  "deal", "end", "fall", "figure", "focus", "hang", "help", "join",
+  "knock", "lay", "leave", "move", "open", "play", "read", "ride",
+  "send", "show", "shut", "sign", "speak", "stay", "stick", "stop",
+  "talk", "tell", "think", "wash", "watch", "wear", "wipe", "dress",
+  "drop", "eat", "consist", "belong", "depend",
+]);
+
+/** يقرن الفعلَ بحرفه، فيمرّان كلمةً واحدةً لا تُحذف ولا يُفرِّقها ترتيب. */
+function joinPhrasalVerbs(words: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let index = 0; index < words.length; index += 1) {
+    const verb = words[index]!;
+    const particle = words[index + 1];
+    if (
+      particle !== undefined &&
+      PHRASAL_VERBS.has(verb) &&
+      PHRASAL_PARTICLES.has(particle)
+    ) {
+      out.push(`${verb}_${particle}`);
+      index += 1;
+      continue;
+    }
+    out.push(verb);
+  }
+  return out;
+}
 
 /**
  * كلماتُ السؤال المفتاحية، مرتَّبةً هجائياً وبلا مكرَّر.
@@ -204,10 +363,17 @@ export function questionTokens(value: unknown): string[] {
   // و`sameWord` لا تتسامح مع ما دون أربعة أحرف، فأدواتُ الحرفين
   // والثلاثة — «من» و«في» و«هل» — تُطابَق حرفاً بحرف ولا تجذب إليها
   // كلمةً تشبهها.
-  const kept = words.filter(
+  //
+  // والأفعالُ الاصطلاحية تُقرَن بحروفها قبل التصفية: الحرفُ حشوٌ وحده،
+  // وجزءٌ من الفعل حين يليه.
+  const kept = joinPhrasalVerbs(words).filter(
     (word) =>
-      !STOPWORDS.has(word) &&
-      ![...STOPWORDS].some((stop) => sameWord(word, stop)),
+      // النفيُ والفعلُ المقرون يمرّان بلا فحص: لا قائمةَ حشوٍ تُسقطهما،
+      // ولا مسافةَ تحريرٍ تجذبهما إلى كلمةٍ تشبههما.
+      NEVER_DROP.has(word) ||
+      word.includes("_") ||
+      (!STOPWORDS.has(word) &&
+        ![...STOPWORDS].some((stop) => sameWord(word, stop))),
   );
   // وسؤالٌ كلُّه أدواتٌ يُقاس بكلماته كما هي: إسقاطُها كلَّها يجعله
   // فارغاً فيطابق كلَّ سؤالٍ فارغٍ آخر.

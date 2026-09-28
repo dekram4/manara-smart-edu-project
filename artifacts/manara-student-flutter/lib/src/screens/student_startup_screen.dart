@@ -9,6 +9,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/student_experience.dart';
 import 'login_screen.dart';
@@ -105,6 +106,11 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   StreamSubscription<Duration>? _durationSub;
   Timer? _voiceTimer;
   Timer? _dwellTimer;
+
+  /// How long an `inactive` is given to turn out to have been a rotation.
+  /// Mirrors the grace `StudentSoundService` gives, for the same reason.
+  static const _rotationGrace = Duration(milliseconds: 250);
+  Timer? _quietTimer;
   Timer? _spinTimer;
   bool _leaving = false;
 
@@ -130,6 +136,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     WidgetsBinding.instance.removeObserver(this);
     _clock.stop();
     _voiceTimer?.cancel();
+    _quietTimer?.cancel();
     _dwellTimer?.cancel();
     _spinTimer?.cancel();
     _completionSub?.cancel();
@@ -147,9 +154,39 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// needs its own answer to the screen locking: stop, and do not start
   /// later if the lock came before the greeting did. It is not replayed on
   /// return — a greeting heard after the fact is not a greeting.
+  ///
+  /// But it borrows that service's reading of the states, because the trap
+  /// is the same one: `inactive` is reported by a rotation as well as by a
+  /// lock, and stopping on it cut the greeting off for a student who simply
+  /// turned the phone while it was playing.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) return;
+    switch (quietActionFor(state)) {
+      case StudentQuietAction.cancel:
+        _quietTimer?.cancel();
+        _quietTimer = null;
+        return;
+      case StudentQuietAction.afterGrace:
+        _quietTimer?.cancel();
+        _quietTimer = Timer(_rotationGrace, _stopSound);
+        return;
+      case StudentQuietAction.now:
+        _quietTimer?.cancel();
+        _quietTimer = null;
+        _stopSound();
+        return;
+    }
+  }
+
+  /// A rotation reports new metrics; a lock does not.
+  @override
+  void didChangeMetrics() {
+    _quietTimer?.cancel();
+    _quietTimer = null;
+  }
+
+  void _stopSound() {
+    _quietTimer = null;
     _voiceTimer?.cancel();
     for (final player in [_player, _music]) {
       if (player != null) unawaited(player.stop().catchError((_) {}));

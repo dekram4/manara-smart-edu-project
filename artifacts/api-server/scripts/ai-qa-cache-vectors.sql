@@ -48,7 +48,10 @@ create index if not exists ai_qa_cache_embedding_idx
 create or replace function public.match_qa_cache(
   query_embedding vector(768),
   p_lesson_id text,
-  match_threshold double precision default 0.88
+  -- الافتراضيُّ هنا احتياطٌ لا سياسة: الخادم يُرسل العتبة مع كل نداء
+  -- من `VECTOR_THRESHOLD`، فهي مكتوبةٌ في موضعٍ واحد. وهذا لمن ينادي
+  -- الدالّة من محرّر SQL ليجرّبها.
+  match_threshold double precision default 0.78
 )
 returns table (
   id text,
