@@ -14,8 +14,14 @@ import '../l10n/student_strings.dart';
 /// تمرّ بشيفرتنا، فلا تُمنع بعد وقوعها.
 ///
 /// فأُقفلت الصفحةُ عن اللمس كلِّه — `PointerEvents.none` — ورُسمت الأدوات
-/// هنا. وما لا يُرسَم هنا لا سبيل إليه: أربعةُ أزرارٍ وشريطُ وقت، وليس
-/// فيها بابٌ إلى خارج الدرس.
+/// هنا. وما لا يُرسَم هنا لا سبيل إليه.
+///
+/// ── وثلاثةٌ لا خمسة ──
+/// تشغيلٌ وإيقاف، وملءُ شاشةٍ وخروجٌ منها، ورجوع. ولا شريطَ وقتٍ ولا
+/// عدّاد: المقطعُ شرحُ درسٍ يُشاهَد من أوّله، لا فيلماً يُبحث في مواضعه.
+/// وشريطٌ تحت إصبع طفلٍ في الابتدائية يُسحب بلا قصدٍ فيضيع موضعُه من
+/// الشرح ولا يعرف كيف يعود — وهي الشكوى التي جاءت. فما لا يُحتاج لا
+/// يُعرَض.
 ///
 /// ── والحدودُ مقولةٌ صراحةً ──
 /// هذا يمنع الخروجَ باللمس، لا يمنع يوتيوب من رسم ما يرسمه. وشاشةُ
@@ -43,19 +49,9 @@ class YoutubeKioskControls extends StatefulWidget {
 }
 
 class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
-  StreamSubscription<YoutubeVideoState>? _stateSub;
   StreamSubscription<YoutubePlayerValue>? _valueSub;
 
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
   PlayerState _playerState = PlayerState.unknown;
-
-  /// موضعُ الإصبع على الشريط ما دام ممسكاً به.
-  ///
-  /// يُفصل عن [_position] لأن الأخير يتحدّث عشر مرّاتٍ في الثانية من
-  /// المشغّل: لو رُبط الشريطُ به مباشرةً لقفز تحت الإصبع إلى موضع
-  /// التشغيل الحقيقي في كل نبضة، فلا يستطيع طفلٌ أن يسحبه.
-  double? _scrubbing;
 
   /// الأدواتُ تختفي بعد سكون، فلا تحجب الشرح.
   bool _visible = true;
@@ -66,16 +62,13 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
   @override
   void initState() {
     super.initState();
-    _stateSub = widget.controller.videoStateStream.listen((state) {
-      if (!mounted) return;
-      setState(() => _position = state.position);
-    });
+    // حالُ المشغّل وحدها. ولا يُشترك في `videoStateStream`: كان يُقرأ منه
+    // الموضعُ للشريط عشر مرّاتٍ في الثانية، ولا شريطَ الآن — واشتراكٌ
+    // يُعيد البناء بلا شيء يتغيّر في الصورة عملٌ متّصل بلا ثمرة.
     _valueSub = widget.controller.stream.listen((value) {
-      if (!mounted) return;
-      setState(() {
-        _playerState = value.playerState;
-        _duration = value.metaData.duration;
-      });
+      if (!mounted || value.playerState == _playerState) return;
+      setState(() => _playerState = value.playerState);
+      _restartHideTimer();
     });
     _restartHideTimer();
   }
@@ -83,7 +76,6 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
   @override
   void dispose() {
     _hideTimer?.cancel();
-    _stateSub?.cancel();
     _valueSub?.cancel();
     super.dispose();
   }
@@ -122,31 +114,10 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
     _showControls();
   }
 
-  Future<void> _seekTo(double seconds) async {
-    await widget.controller.seekTo(seconds: seconds, allowSeekAhead: true);
-    _showControls();
-  }
-
-  /// `م:ث` لمقطعٍ قصير، و`س:د:ث` لما تجاوز الساعة.
-  static String _clock(Duration value) {
-    final seconds = value.inSeconds.clamp(0, 86399);
-    final h = seconds ~/ 3600;
-    final m = (seconds % 3600) ~/ 60;
-    final s = seconds % 60;
-    final mm = h > 0 ? '$m'.padLeft(2, '0') : '$m';
-    return h > 0
-        ? '$h:$mm:${'$s'.padLeft(2, '0')}'
-        : '$mm:${'$s'.padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final playing = _playerState == PlayerState.playing;
     final ended = _playerState == PlayerState.ended;
-    final total = _duration.inMilliseconds.toDouble();
-    final at = (_scrubbing ?? _position.inMilliseconds.toDouble())
-        .clamp(0, total <= 0 ? 1 : total)
-        .toDouble();
 
     return Stack(
       fit: StackFit.expand,
@@ -203,7 +174,11 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
                     top: false,
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                      // زرّان متباعدان في طرفي الشريط: التشغيل حيث يقع
+                      // الإبهام، وملءُ الشاشة في الطرف الآخر فلا يُضغط
+                      // أحدُهما مكان الآخر.
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _KioskButton(
                             icon: playing
@@ -212,45 +187,6 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
                             tooltip: tr(playing ? 'video.pause' : 'video.play'),
                             onPressed: _togglePlay,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _clock(Duration(milliseconds: at.round())),
-                            style: _clockStyle,
-                          ),
-                          Expanded(
-                            child: SliderTheme(
-                              data: SliderThemeData(
-                                trackHeight: 3,
-                                activeTrackColor: const Color(0xFF5EEAD4),
-                                inactiveTrackColor:
-                                    Colors.white.withValues(alpha: 0.30),
-                                thumbColor: const Color(0xFF5EEAD4),
-                                overlayColor:
-                                    const Color(0xFF5EEAD4).withValues(alpha: 0.18),
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 7,
-                                ),
-                              ),
-                              child: Slider(
-                                value: at,
-                                max: total <= 0 ? 1 : total,
-                                // ولا يُسحب شريطٌ لا طول له بعد: المقطع
-                                // قبل أن تصل مدّتُه سحبُه يقفز إلى صفر.
-                                onChanged: total <= 0
-                                    ? null
-                                    : (value) =>
-                                        setState(() => _scrubbing = value),
-                                onChangeEnd: total <= 0
-                                    ? null
-                                    : (value) {
-                                        setState(() => _scrubbing = null);
-                                        unawaited(_seekTo(value / 1000));
-                                      },
-                              ),
-                            ),
-                          ),
-                          Text(_clock(_duration), style: _clockStyle),
-                          const SizedBox(width: 4),
                           _KioskButton(
                             icon: widget.isFullscreen
                                 ? Icons.fullscreen_exit_rounded
@@ -278,12 +214,6 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
     );
   }
 
-  static const _clockStyle = TextStyle(
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: FontWeight.w700,
-    fontFeatures: [FontFeature.tabularFigures()],
-  );
 }
 
 /// يغطّي شاشةَ النهاية التي يرسمها يوتيوب.

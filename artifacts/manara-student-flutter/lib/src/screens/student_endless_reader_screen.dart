@@ -16,6 +16,7 @@ import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_icon_notice.dart';
 
 /// Pulls the words a round is played with out of the lesson the student
 /// currently has open.
@@ -1316,11 +1317,16 @@ class _StudentEndlessReaderScreenState
             // يستحقّ أن يُتعب نفسه. فصار الصمتُ نفسه جواباً غامضاً،
             // وصار يُقال: هذه تكسب، أو هذه تدريب.
             const SizedBox(height: 10),
-            _RewardNotice(
-              text: _alreadyEarned
+            // ورمزٌ بلا نصّ: الجملةُ كانت تأخذ سطرين من الشاشة ولا
+            // تُقرأ. انظر [StudentIconNotice].
+            StudentIconNotice(
+              emoji: _alreadyEarned ? '🔄' : '💎',
+              label: _alreadyEarned
                   ? tr('challenge.practiceRepeat')
                   : trf('challenge.gemsAvailable', {'gems': '${_stageCount * 2}'}),
-              earning: !_alreadyEarned,
+              tone: _alreadyEarned
+                  ? StudentNoticeTone.practice
+                  : StudentNoticeTone.earning,
             ),
             // الجلب لا يوقف اللعب، لكنّه يُعلَن: الطفل الذي بدأ بجولةٍ
             // من جولات الجهاز يرى أن أسئلةً في الطريق بدل أن تظهر فجأةً
@@ -1987,94 +1993,12 @@ class _StudentEndlessReaderScreenState
 }
 
 
-/// حالُ جواهر هذه الجولة، فوق اللعبة.
-///
-/// يُقال قبل البدء لا بعد الانتهاء: الخادم يمنع الكسب مرّتين على كل
-/// حال، لكنّ المنع الصامت يجعل الطفل يُنهي جولةً كاملة ثم لا يرى
-/// جواهر، فيظنّ اللعبة معطوبة أو نفسه مخطئاً.
-///
-/// ويُقال في الحالين. فالصمت في المرّة الأولى ليس طمأنةً: الطفل الذي
-/// رأى التنبيه الأصفر مرّةً يقرأ غيابَه على أنه نسيان، لا على أنه وعدٌ
-/// بجواهر. فصار الأخضر يقول ما يقوله الأصفر، معكوساً.
-class _RewardNotice extends StatelessWidget {
-  const _RewardNotice({required this.text, required this.earning});
-
-  final String text;
-
-  /// أتُكسب جواهر في هذه الجولة؟ يُغيّر اللون والرمز معاً — اللون وحده
-  /// لا يكفي لمن لا يميّزه.
-  final bool earning;
-
-  /// ── شكلُ البطاقة ──
-  ///
-  /// تدرُّجٌ خفيفٌ لا لونٌ مسطَّح، وحدٌّ رقيقٌ بلونٍ أغمق، وظلٌّ ملوَّنٌ
-  /// بلونها: ثلاثةٌ تجعلها بطاقةً محمولةً فوق الشاشة لا شريطَ تنبيهٍ
-  /// مُلصقاً عليها.
-  ///
-  /// والرمزُ في قرصٍ أبيض: يفصله عن التدرُّج فيُقرأ، ويجعل ارتفاع
-  /// البطاقتين واحداً فلا تقفز الصفحة بين حالٍ وحال.
-  @override
-  Widget build(BuildContext context) {
-    final ink = earning ? const Color(0xFF14532D) : const Color(0xFF92400E);
-    final edge = earning ? const Color(0xFF16A34A) : const Color(0xFFF59E0B);
-    final from = earning ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB);
-    final to = earning ? const Color(0xFFD1FAE5) : const Color(0xFFFEF3C7);
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 620),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: AlignmentDirectional.topStart,
-          end: AlignmentDirectional.bottomEnd,
-          colors: [from, to],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: edge.withValues(alpha: 0.55), width: 1.3),
-        boxShadow: [
-          BoxShadow(
-            color: edge.withValues(alpha: 0.18),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: edge.withValues(alpha: 0.22),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Text(
-              earning ? '🏆' : 'ℹ️',
-              style: const TextStyle(fontSize: 15),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.45,
-                fontWeight: FontWeight.w800,
-                color: ink,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// كانت هنا `_RewardNotice`: بطاقةٌ تحمل جملةً كاملة عن جواهر هذه
+// الجولة. وحلّ محلَّها `StudentIconNotice` — رمزٌ واحد ونصُّه في لمسةٍ
+// مطوّلة.
+//
+// والقاعدةُ التي جاءت لها باقية: يُقال قبل البدء لا بعد الانتهاء،
+// ويُقال في الحالين. الخادم يمنع الكسب مرّتين على كل حال، لكنّ المنع
+// الصامت يجعل الطفل يُنهي جولةً كاملة ثم لا يرى جواهر فيظنّ اللعبة
+// معطوبة أو نفسه مخطئاً. والصمتُ في المرّة الأولى ليس طمأنةً: من رأى
+// التنبيه مرّةً يقرأ غيابَه نسياناً لا وعداً.

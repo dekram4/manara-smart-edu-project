@@ -13,6 +13,7 @@ import '../widgets/unit_exam_gate.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_icon_notice.dart';
 
 class StudentQuizScreen extends StatefulWidget {
   const StudentQuizScreen({
@@ -576,31 +577,17 @@ class _QuizCatalog extends StatelessWidget {
                 // الخادم يمنع الكسب مرّتين على كل حال، لكنّ المنع الصامت
                 // يجعل الطفل يُنهي اختباراً كاملاً ثم لا يرى جواهر
                 // فيظنّه معطوباً.
+                // ورمزٌ بلا نصّ — انظر [StudentIconNotice]: الجملةُ
+                // كانت شريطاً كاملاً فوق الاختبار، والدورةُ تقول
+                // «مُعاد» في لمحة.
                 if (taken) ...[
                   const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFF59E0B)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Text('ℹ️', style: TextStyle(fontSize: 15)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            tr('quiz.practiceOnly'),
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              height: 1.5,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF92400E),
-                            ),
-                          ),
-                        ),
-                      ],
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: StudentIconNotice(
+                      emoji: '🔄',
+                      label: tr('quiz.practiceOnly'),
+                      tone: StudentNoticeTone.practice,
                     ),
                   ),
                 ],

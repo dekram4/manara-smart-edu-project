@@ -1261,34 +1261,36 @@ class _SourceBadge extends StatelessWidget {
   const _SourceBadge({required this.fromCache});
   final bool fromCache;
 
+  /// ── رمزٌ بلا نصّ ──
+  /// كان معه سطرٌ يشرحه — «تمّ الردّ من الذاكرة» — فوق سطر الإجابة
+  /// مباشرةً، فيقرؤه الطفل قبلها ظنّاً أنه منها. والرمزان يقولان ما يُراد
+  /// قولَه: برقٌ لجوابٍ كان جاهزاً، وآلةٌ لجوابٍ صُنع الآن.
+  ///
+  /// والنصُّ لم يُحذف بل انتقل إلى [Tooltip] و[Semantics]: يظهر بضغطةٍ
+  /// مطوّلة، ويُنطق لقارئ الشاشة. فما يُقال للعين رمزٌ، وما يُقال لمن
+  /// سأل عنه كلام.
   @override
   Widget build(BuildContext context) {
     final tint = fromCache ? const Color(0xFF0B8693) : const Color(0xFF7C3AED);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: tint.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(fromCache ? '⚡' : '🤖', style: const TextStyle(fontSize: 13)),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              tr(fromCache ? 'solver.fromCache' : 'solver.fromAi'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                color: tint,
-              ),
-            ),
+    final label = tr(fromCache ? 'solver.fromCache' : 'solver.fromAi');
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        label: label,
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: tint.withValues(alpha: 0.10),
+            shape: BoxShape.circle,
+            border: Border.all(color: tint.withValues(alpha: 0.35)),
           ),
-        ],
+          child: Text(
+            fromCache ? '⚡' : '🤖',
+            style: const TextStyle(fontSize: 14),
+          ),
+        ),
       ),
     );
   }

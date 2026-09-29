@@ -555,7 +555,18 @@ async function findByMeaning(
   question: string,
 ): Promise<{ answer: string | null; vector: number[] | null }> {
   const config = apiSupabaseConfig();
-  const vector = await embedQuestion(question);
+  // ── ويُحسب المتّجه من السؤال المطبَّع لا الخام ──
+  //
+  // «ايش يعني الخلية» و«ما هي الخلية» سؤالٌ واحد، والتطبيعُ يردّهما إلى
+  // «الخلية» — نصٌّ واحد ومتّجهٌ واحد، فالمطابقةُ يقينٌ لا نسبةٌ تُقارَب
+  // بعتبة. والخامُ يُبقي أداةَ الاستفهام في النصّ المُتَّجَه، وأدواتُ
+  // اللهجة بعيدةٌ في فضاء المعنى عن أدوات الفصحى بما يكفي لأن تُنقص
+  // النسبةَ عن العتبة في سؤالين موضوعُهما واحد.
+  //
+  // وأثرُه على ما حُفظ قبله: صفوفٌ متّجهُها محسوبٌ من الخام تبقى تُصاب
+  // — النصّان متقاربان على كل حال — وما يُحفظ بعده مطبَّعٌ من الطرفين.
+  // فالجدولُ يشفى بنفسه صفاً صفاً، ولا ترحيلَ يُطلب من أحد.
+  const vector = await embedQuestion(normalizeQuestion(question));
   if (!config || !vector) return { answer: null, vector };
   try {
     const response = await fetch(`${config.url}/rest/v1/rpc/match_qa_cache`, {
