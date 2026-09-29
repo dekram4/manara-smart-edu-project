@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import router from "./routes";
 import { uploadDirectory } from "./routes/media";
 import { logger } from "./lib/logger";
+import { isTrustedOrigin } from "./lib/trustedOrigin";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,26 +37,37 @@ app.use(
     },
   }),
 );
-// Restrict CORS to the Replit dev domain and localhost only
-const allowedOrigins: string[] = [
-  "http://localhost",
-  "http://127.0.0.1",
-  ...(process.env.REPLIT_DEV_DOMAIN
-    ? [`https://${process.env.REPLIT_DEV_DOMAIN}`]
-    : []),
-];
-// Allow port variants for local dev (Vite runs on various ports).
-const apiCors = cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // same-origin / server-to-server
-    const trusted =
-      allowedOrigins.some((o) => origin === o || origin.startsWith(o + ":")) ||
-      (process.env.REPLIT_DEV_DOMAIN &&
-        origin.endsWith(`.${process.env.REPLIT_DEV_DOMAIN}`));
-    cb(trusted ? null : new Error("CORS: origin not allowed"), trusted ?? false);
-  },
-  credentials: true,
-});
+/**
+ * ── من يُسمح له بالقراءة، والرفضُ كيف يُقال ──
+ *
+ * القرارُ في [isTrustedOrigin] وعليه اختبار: كان سطرين هنا لا يُختبران،
+ * فبقي خمسةَ أشهر يردّ أصلَ النشر نفسه بلا أن يُلاحظ — القائمةُ كانت
+ * تحمل `REPLIT_DEV_DOMAIN` وحده، وهو متغيّرٌ لا يُضبط في النشر.
+ *
+ * وأثرُه أنّ كلَّ طلبٍ من المتصفّح في الإنتاج كان يفشل: دخولُ المعلم،
+ * والمشرف، وولي الأمر، وكلُّ مسارٍ سواها. ويُرى «كلمة المرور خاطئة» لأن
+ * الواجهة تقرأ أيَّ ردٍّ غير ناجحٍ كذلك.
+ *
+ * والرفضُ الآن يمنع الترويسة ولا يرفع خطأ: `cb(null, false)` يجعل الحزمة
+ * تُغفل ترويسات CORS، فيمنع المتصفّحُ القراءةَ بنفسه ويقول سببَه في
+ * الـConsole. و`cb(new Error(...))` — وهو ما كان — يقلب الرفضَ إلى ٥٠٠:
+ * يخفي السبب عن المتصفّح، ويجعل الخادمَ يبدو معطوباً وهو يطبّق سياسة.
+ */
+const apiCors = (req: express.Request) =>
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // same-origin / server-to-server
+      cb(
+        null,
+        isTrustedOrigin(origin, {
+          host: req.get("host"),
+          devDomain: process.env.REPLIT_DEV_DOMAIN,
+          deployDomains: process.env.REPLIT_DOMAINS,
+        }),
+      );
+    },
+    credentials: true,
+  });
 
 app.use((req, res, next) => {
   const isNativeVideoRequest =
@@ -72,7 +84,7 @@ app.use((req, res, next) => {
     return next();
   }
 
-  return apiCors(req, res, next);
+  return apiCors(req)(req, res, next);
 });
 // مسارُ حلّ المسائل وحده يقبل جسداً كبيراً: الطفل يصوّر مسألته،
 // والصورة تصل مرمّزةً بـ base64 فتبلغ ميغابايتات.
@@ -95,5 +107,36 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/uploads/videos", express.static(uploadDirectory, { index: false }));
 
 app.use("/api", router);
+
+/**
+ * آخرُ حارس: خطأٌ أفلت من مسارٍ يعود JSON ويُسجَّل.
+ *
+ * ── لماذا ──
+ * بلا هذا يردّ Express على ما أفلت صفحةَ HTML فيها «Internal Server
+ * Error» وحدها: لا سببٌ في الجسد، ولا سطرٌ في السجلّ باسم الخطأ. وواجهةُ
+ * الويب تقرأ الردّ JSON فيفشل الفكّ، فتُظهر رسالتَها الاحتياطية — «اسم
+ * المستخدم أو كلمة المرور غير صحيحة» — عن خطأٍ لا علاقة له بكلمة المرور.
+ *
+ * وهكذا أُخفي رفضُ CORS خمسةَ أشهر: الخادم يعمل من الطرفية، ويفشل من
+ * المتصفّح، ورسالةُ الخطأ تشير إلى مكانٍ آخر.
+ *
+ * والأربعةُ مُعامِلاتٍ لازمة: Express يعرف معالجَ الأخطاء بعددها، فحذفُ
+ * `next` يجعله وسيطاً عادياً لا يُنادى عند خطأ.
+ */
+app.use(
+  (
+    error: unknown,
+    req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    logger.error(
+      { err: error, url: req.url?.split("?")[0], method: req.method },
+      "[api] unhandled route error",
+    );
+    if (res.headersSent) return;
+    res.status(500).json({ error: "تعذّر تنفيذ الطلب الآن. حاول مرة أخرى." });
+  },
+);
 
 export default app;
