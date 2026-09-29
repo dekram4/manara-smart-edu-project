@@ -80,12 +80,31 @@ function signParentSession(parentId: string): string {
   });
 }
 
+/**
+ * هل كلمةُ المرور هذه هي المحفوظة؟
+ *
+ * ── صيغتان مقبولتان ──
+ * بصمةُ SHA-256 بستّين وأربع خانة، أو نصٌّ صريح من قبل الترقية — فيُهشّ
+ * عند المقارنة. فلا يُقفل حسابٌ قديم لم يُرقَّ صفُّه بعد.
+ *
+ * ── وحالةُ الأحرف لا تفرّق ──
+ * كان الفحصُ `^[a-f0-9]{64}$` بلا `i`، فبصمةٌ مكتوبةٌ بأحرفٍ كبيرة تُقرأ
+ * «نصاً صريحاً» فتُهشّ ثانيةً — فلا تُطابق شيئاً أبداً، ويُقفل الحساب بلا
+ * سببٍ يظهر في سجلّ. و`js-sha256` في واجهة الويب يُخرجها صغيرةً، فلم
+ * يقع هذا بعد؛ لكنّ أيَّ صفٍّ يُكتب بيدٍ أو بأداةٍ أخرى يقع فيه.
+ *
+ * ونظيرتُها في مسار الطالب تتسامح مع الحالة منذ البداية — فهذا يردّ
+ * الطرفين إلى قاعدةٍ واحدة بدل أن يفترقا في حرفٍ كبير.
+ */
 function passwordsMatch(input: string, stored: unknown): boolean {
   if (typeof stored !== "string" || !stored) return false;
-  const expected = /^[a-f0-9]{64}$/.test(stored)
-    ? stored
+  const hashed = /^[a-f0-9]{64}$/i.test(stored);
+  const expected = hashed
+    ? stored.toLowerCase()
     : crypto.createHash("sha256").update(stored).digest("hex");
   const received = crypto.createHash("sha256").update(input).digest("hex");
+  // والطرفان ستّون وأربع خانة دائماً، فلا يرفع `timingSafeEqual` خطأَ
+  // اختلاف الطول.
   return crypto.timingSafeEqual(
     Buffer.from(expected, "utf8"),
     Buffer.from(received, "utf8"),
