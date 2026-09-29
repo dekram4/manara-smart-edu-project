@@ -17,6 +17,7 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/student_content.dart';
+import 'youtube_kiosk_controls.dart';
 import '../services/student_sound_service.dart';
 
 /// A realistic, up to date mobile-Chrome user agent.
@@ -430,11 +431,35 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     // load failure (e.g. the underlying network request itself failing)
     // as a player error instead of leaving the loading thumbnail up
     // forever.
+    // ── مشغّلٌ مقفل ──
+    //
+    // الصفحةُ المضمَّنة صفحةُ يوتيوب، وفيها للطفل أبوابٌ إلى خارج درسه:
+    // شعارُ يوتيوب يفتح الموقع، وعنوانُ المقطع يفتح صفحته، وترسُ
+    // الإعدادات يفتح قائمةً فيها ما ليس له، وشاشةُ النهاية تعرض مقاطعَ
+    // مقترحةً بضغطةٍ واحدة. وكلُّها داخل الإطار، فلا تمرّ بشيفرتنا ولا
+    // نعلم بها إلا بعد أن يكون قد خرج.
+    //
+    // فيُقفل الإطارُ من ثلاث جهات:
+    //   ١. `pointerEvents: none` — لا تصل الصفحةَ لمسةٌ أصلاً، فلا
+    //      شعارٌ يُضغط ولا مقترحٌ يُفتح ولا ترسٌ يُطلب.
+    //   ٢. `showControls: false` — لا تُرسَم أدواتُ يوتيوب أصلاً، فلا
+    //      يرى الطفلُ بابًا مغلقًا فيحاول.
+    //   ٣. `enableKeyboard: false` — لوحةُ مفاتيح جهازٍ لوحيّ لا تصل
+    //      الصفحةَ باختصاراتها.
+    //
+    // والتحكّمُ كلُّه من واجهتنا فوق الإطار — انظر [_YoutubeKioskControls]
+    // — فما لا نرسمه لا سبيل إليه.
+    //
+    // و`compact` لم يعد يفرّق: كان يُخفي الأدوات في العرض الصغير ويُبقيها
+    // في الكبير، وصارت مخفيّةً في الحالين لأن البديل حاضر.
     final controller = YoutubePlayerController(
       params: YoutubePlayerParams(
         mute: widget.muted,
-        showControls: !widget.compact,
-        showFullscreenButton: !widget.compact,
+        showControls: false,
+        showFullscreenButton: false,
+        enableKeyboard: false,
+        showVideoAnnotations: false,
+        pointerEvents: PointerEvents.none,
         strictRelatedVideos: true,
         privacyEnhancedMode: true,
         // Android only; iOS/web keep the platform's own standards-compliant
@@ -1093,51 +1118,30 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               // "رجوع" button while a YouTube video is fullscreen (matching
               // the dedicated back button the direct-MP4 player shows in
               // its own fullscreen route).
+              // وأدواتُنا وحدها، هنا وفي الحجم العادي.
+              //
+              // زرُّ الرجوع وزرُّ التصغير كانا يُرسمان هنا مفردين لأن
+              // أدواتِ يوتيوب هي التي تُشغّل وتُوقف. وقد أُقفلت الصفحةُ
+              // عن اللمس كلِّه، فصار التشغيلُ والوقتُ وملءُ الشاشة
+              // والخروج في واجهةٍ واحدة — انظر [YoutubeKioskControls] —
+              // وفيها زرُّ خروجٍ يفعل ما كان يفعله الزرّان معاً.
               controlsBuilder: (context, isFullscreen) {
+                // وفي ملء الشاشة تُرسم من هنا وحدها: الحزمةُ تعرض ملءَ
+                // الشاشة في `OverlayPortal` خاصٍّ بها يُرسم فوق هذا
+                // الـ`Stack`، فلا يُرى ما تحته.
                 if (!isFullscreen) return const SizedBox.shrink();
-                return SafeArea(
-                  child: Stack(
-                    children: [
-                      PositionedDirectional(
-                        start: 12,
-                        top: 12,
-                        child: _FullscreenBackButton(
-                          onPressed: () => _handleYoutubeBack(controller),
-                        ),
-                      ),
-                      // Our own shrink button, opposite the back button.
-                      //
-                      // The player draws a fullscreen toggle of its own
-                      // inside the video, but the student reported pressing
-                      // it while fullscreen and nothing happening. That
-                      // control lives in the embedded page and only reaches
-                      // Flutter as an event the page chooses to send, so
-                      // when it does not arrive there is no way to act on
-                      // it from here. This button is ours: it reads the
-                      // controller's own state and drives it directly, so
-                      // there is always a way out that does not depend on
-                      // the page reporting anything.
-                      PositionedDirectional(
-                        end: 12,
-                        top: 12,
-                        child: _FullscreenExitButton(
-                          onPressed: () => _exitYoutubeFullscreen(controller),
-                        ),
-                      ),
-                    ],
-                  ),
+                return YoutubeKioskControls(
+                  controller: controller,
+                  isFullscreen: true,
+                  onExit: () => _handleYoutubeBack(controller),
                 );
               },
             ),
-            if (value.fullScreenOption.enabled)
-              PositionedDirectional(
-                top: 12,
-                start: 12,
-                child: SafeArea(
-                  child: _FullscreenBackButton(
-                    onPressed: () => _handleYoutubeBack(controller),
-                  ),
-                ),
+            if (!value.fullScreenOption.enabled)
+              YoutubeKioskControls(
+                controller: controller,
+                isFullscreen: false,
+                onExit: () => _handleYoutubeBack(controller),
               ),
             if (_error != null)
               _buildError(
@@ -1620,49 +1624,6 @@ class _FullscreenVideoLayer extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The app's own "leave fullscreen" control, sharing the back button's
-/// look so the two read as a pair at opposite corners of the video.
-class _FullscreenExitButton extends StatelessWidget {
-  const _FullscreenExitButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: tr('video.shrink'),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(24),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: const Color(0xED071425),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0x99FFFFFF), width: 1.5),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x66000000),
-                  blurRadius: 14,
-                  offset: Offset(0, 5),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(11),
-            child: const Icon(
-              Icons.fullscreen_exit_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-        ),
       ),
     );
   }

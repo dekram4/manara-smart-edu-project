@@ -571,24 +571,34 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   ],
                   // الميكروفون والكاميرا فوق الحقل: طريقان إلى السؤال
                   // نفسه، يراهما الطفل قبل أن يبدأ الكتابة لا بعدها.
+                  // والبطاقتان تقتسمان العرض بالتساوي: خياران متكافئان
+                  // لا زرٌّ أعرضُ من أخيه بطول اسمه.
                   Row(
                     children: [
-                      _SolverAction(
-                        icon: _listening
-                            ? Icons.stop_circle_outlined
-                            : Icons.mic_none_rounded,
-                        label: tr(_listening ? 'solver.micStop' : 'solver.mic'),
-                        active: _listening,
-                        onTap: _sending ? null : _toggleListening,
+                      Expanded(
+                        child: _SolverAction(
+                          icon: _listening
+                              ? Icons.stop_circle_outlined
+                              : Icons.mic_none_rounded,
+                          label:
+                              tr(_listening ? 'solver.micStop' : 'solver.mic'),
+                          active: _listening,
+                          onTap: _sending ? null : _toggleListening,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      _SolverAction(
-                        icon: Icons.photo_camera_outlined,
-                        label: tr('solver.camera'),
-                        active: _photo != null,
-                        onTap: _sending ? null : () => _pickPhoto(ImageSource.camera),
-                        onLongPress:
-                            _sending ? null : () => _pickPhoto(ImageSource.gallery),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _SolverAction(
+                          icon: Icons.photo_camera_outlined,
+                          label: tr('solver.camera'),
+                          active: _photo != null,
+                          onTap: _sending
+                              ? null
+                              : () => _pickPhoto(ImageSource.camera),
+                          onLongPress: _sending
+                              ? null
+                              : () => _pickPhoto(ImageSource.gallery),
+                        ),
                       ),
                     ],
                   ),
@@ -1067,22 +1077,27 @@ class _SolverActionState extends State<_SolverAction> {
   static const _idle = [Color(0xFF7C3AED), Color(0xFFC026D3)];
   static const _busy = [Color(0xFFDC2626), Color(0xFFF97316)];
 
-  /// ── شكلُ الزرّ ──
+  /// ── بطاقةٌ لا حبّةُ دواء ──
   ///
-  /// حبّةُ دواءٍ كاملةُ الاستدارة لا مستطيلٌ مستدير الأطراف: الأزرارُ
-  /// متجاورةٌ صغيرة، والاستدارةُ التامّة تفصلها بالعين بلا خطٍّ فاصل.
+  /// كانا حبّتين كاملتي الاستدارة، وهي هيئةُ زرٍّ ثانويّ صغير — والزرّان
+  /// هنا ليسا ثانويَّين: هما البابان الوحيدان إلى السؤال لمن لا يُتقن
+  /// الكتابة بعد، وأكثرُ من يفتح هذه الشاشة كذلك. فصارا بطاقتين بحافّةٍ
+  /// ١٨ وارتفاعٍ يملأ العرض بينهما بالتساوي، تُقرآن خيارين معروضين لا
+  /// زرّين مُلحقين بحقل.
   ///
   /// والتدرّجُ مملوءٌ لا محدَّدٌ بإطار: طفلُ الابتدائية يرى الممتلئ زرّاً
   /// والمحدَّدَ صورةً، فيضغط الأول ويقرأ الثاني. وكانا أبيضين محدَّدين.
   ///
-  /// والظلُّ ملوَّنٌ بلونِ الزرّ لا أسودَ عاماً، وناعمٌ واسع: الأسودُ فوق
-  /// خلفيّةِ الشاشة يبدو وسخاً، وظلُّ اللونِ نفسِه يرفع الزرّ عن الورقة.
+  /// والظلُّ ملوَّنٌ بلونِ الزرّ لا أسودَ عاماً، وطبقتان لا واحدة: قريبةٌ
+  /// ضيّقة تصنع الحافّة، وبعيدةٌ واسعةٌ تصنع الارتفاع. والأسودُ فوق
+  /// خلفيّةِ الشاشة يبدو وسخاً، وظلُّ اللونِ نفسِه يرفع البطاقة عن الورقة.
   ///
   /// وحالةُ العمل تُقال بلونٍ وظلٍّ أعرض معاً لا بلونٍ وحده: الميكروفون
   /// وهو يسمع يجب أن يُرى من طرف العين، والطفلُ لا يقارن درجتي لون.
   ///
   /// ── والضغطُ يُرى قبل أن يُسمع ──
-  /// الزرُّ ينكمش إلى ٩٤٪ تحت الإصبع. وهذا ليس زينة: النطقُ والكاميرا
+  /// البطاقةُ تنكمش إلى ٩٤٪ تحت الإصبع، ويقصر ظلُّها معها فتبدو نازلةً
+  /// إلى الورقة لا مصغَّرةً فوقها. وهذا ليس زينة: النطقُ والكاميرا
   /// كلاهما يستغرق لحظةً قبل أن يظهر أثرُه — إذنٌ يُطلب، أو محرّكٌ
   /// يُفتح — وفي تلك اللحظة لا شيء يقول للطفل إن ضغطتَه وصلت، فيضغط
   /// ثانيةً فيُفتح ما أُغلق أو يُلغى ما بدأ. والانكماشُ يصل في الإطار
@@ -1092,6 +1107,7 @@ class _SolverActionState extends State<_SolverAction> {
     final disabled = widget.onTap == null;
     final colors = widget.active ? _busy : _idle;
     final tint = colors.first;
+    final radius = BorderRadius.circular(18);
     return Opacity(
       opacity: disabled ? 0.45 : 1,
       child: AnimatedScale(
@@ -1102,7 +1118,7 @@ class _SolverActionState extends State<_SolverAction> {
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: radius,
             gradient: LinearGradient(
               colors: colors,
               begin: AlignmentDirectional.topStart,
@@ -1112,15 +1128,20 @@ class _SolverActionState extends State<_SolverAction> {
                 ? const []
                 : [
                     BoxShadow(
-                      color: tint.withValues(alpha: widget.active ? 0.42 : 0.30),
-                      blurRadius: widget.active ? 18 : 12,
-                      offset: const Offset(0, 5),
+                      color: tint.withValues(alpha: widget.active ? 0.34 : 0.26),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                    BoxShadow(
+                      color: tint.withValues(alpha: widget.active ? 0.30 : 0.22),
+                      blurRadius: 20,
+                      offset: const Offset(0, 9),
                     ),
                   ],
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: radius,
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: widget.onTap,
@@ -1132,21 +1153,38 @@ class _SolverActionState extends State<_SolverAction> {
               highlightColor: Colors.white.withValues(alpha: 0.10),
               child: Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // مفرَّغةٌ لا مصمتة: الأيقونةُ المفرَّغة فوق لونٍ
-                    // ممتلئ تُقرأ شكلاً، والمصمتةُ تذوب فيه لطمةً بيضاء.
-                    Icon(widget.icon, size: 20, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.label,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.1,
-                        color: Colors.white,
+                    // الأيقونةُ في قرصٍ أبيضَ شبهِ شافّ: يفصلها عن
+                    // التدرّج فتُقرأ شكلاً لا لطمةً بيضاء، ويعطي البطاقةَ
+                    // مركزاً تبدأ منه العين.
+                    //
+                    // ومفرَّغةٌ لا مصمتة: المفرَّغةُ تُقرأ خطّاً فيُعرف
+                    // الميكروفونُ من الكاميرا، والمصمتةُ كتلتان متشابهتان.
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                      child: Icon(widget.icon, size: 21, color: Colors.white),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.1,
+                          height: 1.1,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],

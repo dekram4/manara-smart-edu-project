@@ -21,6 +21,7 @@ import {
   snapshotOf,
   spend,
 } from "../lib/aiQuota";
+import { stripDiacritics } from "../lib/arabicText";
 import { sameQuantities } from "../lib/questionMath";
 import { VECTOR_THRESHOLD, embedQuestion } from "../lib/embeddings";
 import {
@@ -962,7 +963,13 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       // إصابةٌ في الذاكرة لا تُحسب من الحصّة ولا تُكلّف جوهرة: لم
       // يُستدعَ النموذج. والحصّةُ تُقرأ لتُعرض وحدها، لا لتُنقص.
       const seen = await readStudentQuota(student);
-      return res.json({ answer: cached, cached: true, quota: seen.quota.snapshot });
+      // ويُنقّى المحفوظ عند قراءته: ما كُتب في الذاكرة قبل هذه
+      // التنقية مشكولٌ كما ردّه النموذج.
+      return res.json({
+        answer: stripDiacritics(cached),
+        cached: true,
+        quota: seen.quota.snapshot,
+      });
     }
 
     // ── ثم الحصّة ──
@@ -1019,10 +1026,11 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     // والتشكيلُ ممنوعٌ هنا أيضاً لا في التطبيق وحده: المصفاةُ في
     // `speakableText` تحرس النطق، وهذا يحرس ما يُقرأ في الشاشة.
     const tone =
-      "اكتب بلهجة سعودية عامية دارجة صرفة، كأنك معلّم سعودي يشرح لصاحبه الصغير بعفوية ودفء. " +
-      "استخدم كلام الناس اليومي مثل: «شوف يا بطل»، «ببساطة كذا»، «عشان تفهمها»، «تخيّل إنك»، «وش يصير لو». " +
-      "ولا تستخدم الفصحى المتقعّرة ولا المصطلحات المتكلّفة ولا أسلوب الكتب. " +
-      "ولا تكتب أي حركات تشكيل أو تنوين على الحروف إطلاقًا.";
+      "اكتب بلهجة سعودية بيضاء عامية دافئة وبسيطة مئة بالمئة، ككلام شخصي يومي من معلّم لطالبه — لا كلام كتب. " +
+      "استخدم دائمًا كلمات مثل: «عشان»، «كذا»، «شوف يا بطل»، «ما فيه»، «تخيّل». " +
+      "وممنوع منعًا باتًا أي لغة فصحى أو كلمات معربة رسمية أو مصطلحات متكلّفة. " +
+      "ولا تكتب أي حركات تشكيل أو تنوين على الحروف إطلاقًا. " +
+      "واجعل جملك قصيرة يفصل بينها فاصلة أو نقطة، فالإجابة تُقرأ بصوت مسموع ويحتاج الطالب أن يلتقط أنفاسه معك.";
     const prompt = image
       ? `أنت مساعد تعليمي ذكي لطفلٍ في المرحلة الابتدائية. في الصورة المرفقة مسألةٌ من كتابه أو دفتره.
 
@@ -1041,7 +1049,11 @@ ${lesson.text}`
         ? { image, budgetMs: GEMINI_BUDGET_MS - (Date.now() - startedAt) }
         : {}),
     });
-    const answer = getGeminiText(data);
+    // والتشكيلُ يسقط هنا، قبل أن يُعرض ويُحفظ ويُنطق.
+    //
+    // الطلبُ يمنعه، والنموذج يمتثل في الغالب لا دائماً: عبارةٌ منقولةٌ
+    // من نصّ الدرس تأتي مشكولةً كما في الكتاب. فالطلبُ نيّة، وهذه حراسة.
+    const answer = stripDiacritics(getGeminiText(data));
     if (!answer) {
       logger.warn({ lessonId }, "[gemini] answer rejected: empty completion");
       return res.status(502).json({

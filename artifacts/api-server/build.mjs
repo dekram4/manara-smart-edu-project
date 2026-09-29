@@ -39,6 +39,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/lib/aiQuota.ts"),
       path.resolve(artifactDir, "src/lib/embeddings.ts"),
       path.resolve(artifactDir, "src/lib/questionMath.ts"),
+      path.resolve(artifactDir, "src/lib/arabicText.ts"),
       path.resolve(artifactDir, "src/lib/challengeQuestions.ts"),
       path.resolve(artifactDir, "src/lib/leaderboard.ts"),
     ],
