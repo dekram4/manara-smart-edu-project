@@ -3,6 +3,7 @@ import {
   applyParentLinkPlan,
   planParentLinkMigration,
 } from '../utils/parentLinkMigration';
+import { SESSION_KEYS, readSessionValue } from '../utils/sessionPersistence';
 
 // ============================================================
 // طبقة المزامنة بين localStorage و Supabase
@@ -600,8 +601,44 @@ const TEACHER_WRITABLE_TABLES = new Set([
   'certificates',
 ]);
 
+/**
+ * الدور كما تعرفه هذه النافذة قبل أن يصل سياق الخادم.
+ *
+ * يُقرأ من مفتاح الدور الذي يكتبه `App.enterRole` عند اختيار البوابة. وهو
+ * معلوم في اللحظة الأولى، بلا شبكة ولا انتظار.
+ */
+function localActorRole(): string | null {
+  try {
+    return readSessionValue(SESSION_KEYS.ACTIVE_ROLE);
+  } catch {
+    return null;
+  }
+}
+
 function canCurrentActorWriteTable(table: string): boolean {
   if (isReadOnlyActor()) return false;
+
+  // ── ولي الأمر لا يكتب، ولو لم يصل سياقُ الخادم بعد ──
+  //
+  // `isReadOnlyActor` تمنعه — لكنها تقرأ `activeSyncContext`، وهو `null`
+  // حتى يعود `/supabase/context`. وفي تلك الفجوة كان الدور «غير معلوم»
+  // فيسقط إلى قائمة سماح المعلم، و`parents` فيها.
+  //
+  // ولوحةُ وليّ الأمر تكتب `lastActivity` في سجلّه عند فتحها، فينطلق حفظٌ
+  // لجدول `parents` قبل أن يُعرف أنه وليّ أمر. فيردّه الخادم بـ401 —
+  // الكتابة هناك للمعلم والمشرف وحدهما — ويظهر الشريط الأحمر «حفظ
+  // parents» على من لم يفعل شيئاً إلا أنه فتح بوابته.
+  //
+  // وهو العطبُ نفسه الذي أُصلح في جدول `teachers` من قبل، وقد بقي في
+  // ولي الأمر لأن `parents` جدولٌ يكتبه المعلم فعلاً — فلم تُسقطه قائمةُ
+  // السماح كما أسقطت `teachers`.
+  //
+  // ── والدورُ المحلي يُستعمل للمنع لا للمنح ──
+  // لو مُنحت به الكتابة لكان مفتاحاً في التخزين المحلي يرفع صلاحية. وهو
+  // هنا يقيّد فحسب: الخادم يحرس الصلاحية على كل حال، وهذا يمنع طلباً
+  // مرفوضاً سلفاً من أن يُرسَل.
+  if (!activeSyncContext && localActorRole() === 'parent') return false;
+
   const role = activeSyncContext?.role;
   if (role === 'admin') return true;
   // المعلم، ومن لم يثبت دوره بعد لأن الجلسة ما زالت تُفتح: كلاهما محصور
