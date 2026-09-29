@@ -47,3 +47,26 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# ── مخرجاتُ فلاتر المولَّدة ──
+#
+# كانت `.dart_tool/package_config.json` و`.flutter-plugins` متعقَّبتين،
+# وهما تحملان مساراتٍ مطلقةً إلى مخزن الحزم على جهاز من كتبهما:
+# `/tmp/manara-pub-cache/...` على Replit، و`C:/Users/.../Pub/Cache/...`
+# على ويندوز. فكلُّ بيئةٍ أخرى تقرأ فيهما مساراتٍ لا وجود لها.
+#
+# ومن هذا جاء `Detected broken symlink` في سجلّ النشر: الحازمُ يتبع
+# الروابطَ فيجدها تشير إلى لا شيء. و`/tmp` يُمحى بين التشغيلات فلا
+# تُصلَح أبداً.
+#
+# و`flutter pub get` يولّدها كلَّها في ثوانٍ — وهي أوّلُ خطوةٍ في بناء
+# الـAPK — فلا معنى لحفظها، ولا معنى لأن تُنقل بين جهازين.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+/build/
+*.apk
+*.aab
+.pub-cache/
+.pub/
+pubspec_overrides.yaml

@@ -3,3 +3,64 @@
 
 # No need to store the pnpm store twice.
 .local
+
+# ── ولا يُنشَر عالمُ فلاتر ──
+#
+# المنشورُ خادمُ Node واحد: `artifacts/api-server` وحجمُه نحو سبعة
+# ميغابايتات، ومعه حزمُ مساحة العمل التي يستوردها — `lib/api-zod`
+# و`lib/db` وهي مئتا كيلوبايت. وكان يُحزَم معه كلُّ ما في المستودع:
+#
+#   artifacts/manara-student-flutter   1.4 غيغابايت
+#   build/                             915 ميغابايت
+#   windows/                           309 ميغابايت
+#   .dart_tool/                        95 ميغابايت
+#   attached_assets/                   81 ميغابايت
+#
+# نحو ثلاثة غيغابايتات من تطبيقٍ لا يُشغّله الخادم ولا يقرأ منه سطراً.
+#
+# ومنها يجيء تحذيرُ `Detected broken symlink`: مجلّدُ `.dart_tool` مملوءٌ
+# بروابطَ إلى `/tmp/manara-pub-cache`، و`/tmp` يُمحى بين التشغيلات —
+# فيجد الحازمُ روابطَ تشير إلى لا شيء فيتوقّف عند كلٍّ منها.
+
+# شجرةُ تطبيق الطالب كلُّها: دارت، وأندرويد، وويندوز، والأصول، والبناء.
+/artifacts/manara-student-flutter/
+
+# وشجرةُ فلاتر المتروكة في الجذر.
+#
+# و`lib/` لا تُستثنى كلُّها: فيها حزمُ مساحة العمل التي يستوردها الخادم
+# (`lib/api-zod` و`lib/db` و`lib/api-spec`) إلى جانب دارتٍ متروكة. فما
+# يُستثنى هو الدارت وحدها بأسمائها.
+/lib/main.dart
+/lib/src/
+/build/
+/.dart_tool/
+/android/
+/windows/
+/web/
+/ios/
+/macos/
+/linux/
+/test/
+/assets/
+/screenshots/
+/attached_assets/
+/uploads/
+/pubspec.lock
+/analysis_options.yaml
+/devtools_options.yaml
+/manara_student.iml
+/.metadata
+/.idea/
+
+# والروابطُ المكسورة التي يشكو منها الحازم، بأسمائها — فلو بقي واحدٌ
+# منها في شجرةٍ لم تُستثنَ لعاد التحذير وحده.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.apk
+*.aab
+
+# ولا مخرجاتُ بناءٍ محليّة ولا حزمُ Dart المؤقتة.
+.pub-cache/
+.pub/
+*.iml
