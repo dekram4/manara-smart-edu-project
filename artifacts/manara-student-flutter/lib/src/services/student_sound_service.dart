@@ -101,6 +101,15 @@ class StudentSoundService with WidgetsBindingObserver {
   /// is supposed to still be playing while everything else comes and goes.
   final AudioPlayer _ambientPlayer = AudioPlayer();
 
+  /// خلفيةُ شاشة الدخول.
+  ///
+  /// ── ولماذا مشغّلٌ خاصٌّ بها ──
+  /// كانت على مشغّل الأصوات، وهو المشغّل الذي يحمل ترحيبَ الإقلاع. والمشغّل
+  /// الواحد يقطع ما فيه عند تشغيل ملفٍ ثانٍ — فكانت الخلفيةُ تقطع الترحيبَ
+  /// في منتصف جملته لحظةَ ظهور الشاشة. وهي موسيقى تُسمع تحت الكلام لا بدلاً
+  /// منه.
+  final AudioPlayer _bedPlayer = AudioPlayer();
+
   /// Whether the music has been asked for at all.
   ///
   /// Set once, by the hub, and never cleared: the music is meant to carry on
@@ -167,6 +176,7 @@ class StudentSoundService with WidgetsBindingObserver {
         _voicePlayer,
         _dealPlayer,
         _ambientPlayer,
+        _bedPlayer,
       ]) {
         await player.setAudioContext(mixing);
       }
@@ -193,6 +203,7 @@ class StudentSoundService with WidgetsBindingObserver {
       await _effectsPlayer.stop();
       await _voicePlayer.stop();
       await _dealPlayer.stop();
+      await stopLoginVoice();
       await stopSpeaking();
       await _feedbackAudio.stop();
     }
@@ -289,6 +300,9 @@ class StudentSoundService with WidgetsBindingObserver {
         _voicePlayer.stop,
         _effectsPlayer.stop,
         _dealPlayer.stop,
+        // وخلفيةُ الدخول معها: مشغّلٌ خاصٌّ بها لا يسكت إن لم يُذكر هنا،
+        // فكانت موسيقى تعمل وحدها في جيبٍ مغلق.
+        _bedPlayer.stop,
         _feedbackAudio.stop,
       ]) {
         try {
@@ -558,13 +572,19 @@ class StudentSoundService with WidgetsBindingObserver {
   /// مقاطع الشاشات — ما ليس بطاقةً في اللوحة.
   static const _loginClip = 'audio/signin.mp3';
 
-  /// علوّ خلفية شاشة الدخول.
+  /// علوّ خلفية شاشة الدخول حين لا كلامَ فوقها.
   ///
   /// مضبوطٌ صراحةً لا مقيساً بجدول `voiceRms`: ذاك يوحّد علوّ الجمل
   /// المنطوقة على علوّ ترحيب المحور، وهذه موسيقى لا جملة — والمقياس
-  /// الذي يصلح للكلام يخفض الموسيقى تحت ما يُسمع. وهي خلفيةٌ تحت شاشةٍ
-  /// لا كلام فوقها، فتحتمل علوّاً ظاهراً.
+  /// الذي يصلح للكلام يخفض الموسيقى تحت ما يُسمع.
   static const _loginVolume = 0.85;
+
+  /// وعلوُّها تحت الترحيب.
+  ///
+  /// الترحيبُ يمضي من شاشة الإقلاع إلى شاشة الدخول، فتبدأ الخلفيةُ تحته لا
+  /// فوقه. و٠٫٨٥ تحت كلامٍ تجعل الجملةَ تُسمع ولا تُفهَم.
+  static const _loginBedVolume = 0.20;
+
   /// ترحيبُ المحور.
   ///
   /// والمُورَّدُ الأحدثُ يسبق: `_supplied` تُرجّح هذا إن كان في الحزمة،
@@ -573,6 +593,96 @@ class StudentSoundService with WidgetsBindingObserver {
   static const _welcomeClip = 'audio/tarheeeeeeeb.mp3';
   static const _pathOverride = 'audio/masar.mp3';
   static const _dashboardClip = 'audio/start.mp3';
+
+  /// سلسلةُ ترحيب الإقلاع: الأحدثُ أوّلاً، ثم ما قبله، ثم الأصل.
+  ///
+  /// سلسلةٌ لا ملفٌّ واحد: التسليمُ يأتي على دفعات، وجهازٌ بُني قبل وصول
+  /// الملف الجديد يجب أن يُرحّب بما عنده لا أن يصمت.
+  @visibleForTesting
+  static const launchWelcomeClips = <String>[
+    _welcomeClip,
+    'audio/tarheeb.mp3',
+    'audio/shater.mp3',
+    'audio/welcome.mp3',
+  ];
+
+  /// أوّلُ ترحيبٍ موجودٌ في الحزمة فعلاً.
+  ///
+  /// دالّةٌ ساكنةٌ نقيّة تأخذ بيانَ الحزمة: الاختيارُ هو ما يقرّر أيَّ ترحيبٍ
+  /// يسمعه الطفل، فيُختبر بلا مشغّلِ صوتٍ ولا منصّة — ولمسُ الخدمة في اختبارٍ
+  /// يُنشئ مشغّلاتِها فيرفع `MissingPluginException`.
+  @visibleForTesting
+  static String launchWelcomeIn(Set<String> bundled) =>
+      launchWelcomeClips.firstWhere(
+        (candidate) => bundled.contains('assets/$candidate'),
+        orElse: () => launchWelcomeClips.last,
+      );
+
+  /// والوجودُ يُفحص من بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ
+  /// الفاشلة على بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً
+  /// ثانياً — فيصمت ما بعده أيضاً.
+  Future<String> launchWelcomeAsset() async =>
+      launchWelcomeIn(await _bundledAssets());
+
+  /// طولُ ما يُشغَّل على مشغّل الأصوات، حين يفكّه المشغّل.
+  ///
+  /// شاشةُ الإقلاع تمدّ بقاءَها بطول الترحيب، وهو لا يُعرف قبل الفكّ.
+  Stream<Duration> get voiceDuration => _voicePlayer.onDurationChanged;
+
+  /// ترحيبُ فتح التطبيق، على المشغّل المشترك.
+  ///
+  /// ── ولماذا المشترك لا مشغّلٌ خاصٌّ بشاشة الإقلاع ──
+  /// كان على مشغّلٍ تملكه تلك الشاشة، فكان يموت معها: تُغادَر بعد سبع ثوانٍ
+  /// و`dispose` يتخلّص من المشغّل، فيُقطع الترحيبُ في منتصفه. ثم تبدأ شاشةُ
+  /// الدخول خلفيّتَها فلا يبقى منه شيء — فكان الطفل يسمع نصفَ جملةٍ في كل
+  /// فتحة، ثم موسيقى.
+  ///
+  /// وعلى المشترك يمضي عبر تبديل الشاشة إلى شاشة الدخول ويُكمل جملتَه،
+  /// وخلفيّةُ الدخول تُشغَّل تحته على مشغّلٍ آخر.
+  ///
+  /// ويجري عليه ما يجري على كل منطوق: يسكت عند كتم الصوت، وعند إطفاء
+  /// الشاشة. وكان المشغّلُ الخاصُّ يفلت من الكتم — فجهازٌ مكتومٌ يُرحّب.
+  Future<void> speakLaunchWelcome({VoidCallback? onComplete}) async {
+    if (muted.value || _backgrounded) {
+      onComplete?.call();
+      return;
+    }
+    var fired = false;
+    void finish() {
+      if (fired) return;
+      fired = true;
+      onComplete?.call();
+    }
+
+    try {
+      final asset = await launchWelcomeAsset();
+      unawaited(
+        _voicePlayer.onPlayerComplete.first.then(
+          (_) => finish(),
+          onError: (_) => finish(),
+        ),
+      );
+      await _voicePlayer.stop();
+      _voiceClip = asset;
+      await _voicePlayer.play(AssetSource(asset), volume: _launchWelcomeVolume);
+    } catch (_) {
+      // لا صوت على هذا الجهاز: الشاشة تُفتح صامتة ولا تنتظر شيئاً.
+      finish();
+    }
+  }
+
+  /// علوُّ ترحيب الإقلاع.
+  ///
+  /// مضبوطٌ صراحةً لا مقيساً بجدول `voiceRms`: لا مدخلَ فيه للمقاطع المورَّدة،
+  /// فيرتدّ القياسُ إلى ٠٫٦ — وهو أخفضُ مما كان يُسمع. وهذا أوّلُ صوتٍ يسمعه
+  /// الطفل من التطبيق ولا كلامَ فوقه، فيحتمل علوّاً ظاهراً.
+  static const _launchWelcomeVolume = 0.85;
+
+  /// هل ترحيبُ الإقلاع يُسمع الآن؟
+  ///
+  /// شاشةُ الدخول تسأل لتعرف أتبدأ خلفيّتَها تحته أم بعلوّها المعتاد.
+  bool get launchWelcomePlaying =>
+      _voiceClip != null && launchWelcomeClips.contains(_voiceClip);
 
   /// المقطع المورَّد إن كان في حزمة البناء، وإلا القديم.
   String _supplied(String? override, String fallback, Set<String> bundled) {
@@ -583,29 +693,56 @@ class StudentSoundService with WidgetsBindingObserver {
   /// خلفية شاشة تسجيل الدخول، تبدأ مع ظهور الشاشة.
   ///
   /// مقطعٌ طويل يُسمع تحت الشاشة ما دام الطفل عليها، ويُقطع عند مغادرتها.
-  /// ولذلك يُشغَّل على مشغّل الصوت لا على المؤثّرات: المؤثّرات نقراتٌ
-  /// قصيرة يقطع بعضُها بعضاً، وهذا يبقى.
+  /// وهو على مشغّلٍ خاصٍّ به — انظر [_bedPlayer] — فلا يقطع الترحيب.
+  ///
+  /// ── ويبدأ خفيضاً ثم يرتفع ──
+  /// ترحيبُ الإقلاع يمضي إلى هذه الشاشة ويُكمل جملتَه، فتبدأ الخلفيةُ تحته
+  /// بعلوٍّ يُسمع منه الكلام. وحين ينتهي الترحيبُ ترتفع إلى علوّها المعتاد،
+  /// فلا تبقى همساً بقيّةَ الوقت.
   Future<void> speakLogin() async {
     if (muted.value || _backgrounded) return;
     try {
       final bundled = await _bundledAssets();
       if (!bundled.contains('assets/$_loginClip')) return;
-      await _voicePlayer.stop();
-      _voiceClip = _loginClip;
-      await _voicePlayer.play(AssetSource(_loginClip), volume: _loginVolume);
+      final underVoice = launchWelcomePlaying;
+      _loginBedStopped = false;
+      await _bedPlayer.stop();
+      await _bedPlayer.play(
+        AssetSource(_loginClip),
+        volume: underVoice ? _loginBedVolume : _loginVolume,
+      );
+      if (!underVoice) return;
+      unawaited(
+        _voicePlayer.onPlayerComplete.first.then(
+          (_) => _raiseLoginBed(),
+          onError: (_) => _raiseLoginBed(),
+        ),
+      );
     } catch (_) {
       // لا صوت على هذا الجهاز: الشاشة تُفتح صامتة.
     }
   }
 
-  /// يوقف خلفية الدخول إن كانت هي ما يُسمع.
+  void _raiseLoginBed() {
+    // ولا تُرفع إن كانت قد أُوقفت: الشاشةُ قد تُغادَر قبل أن ينتهي الترحيب،
+    // ورفعُ علوِّ مشغّلٍ متوقّفٍ لا يُسمع — لكنه يُسمع إن كان قد أُعيد
+    // تشغيله لشيءٍ آخر.
+    if (_loginBedStopped) return;
+    unawaited(_bedPlayer.setVolume(_loginVolume).catchError((_) {}));
+  }
+
+  bool _loginBedStopped = false;
+
+  /// يوقف خلفية الدخول.
   ///
-  /// هذا المقطع وحده، لا كلُّ صوت: الشاشة تُغادَر بعد نجاح الدخول
-  /// وجرسُ النجاح يكون قد بدأ على المشغّل نفسه، فإيقافٌ شاملٌ هنا
-  /// يقطعه بدل أن يقطع الخلفية.
+  /// هذا المقطع وحده، لا كلُّ صوت: الشاشة تُغادَر بعد نجاح الدخول وجرسُ
+  /// النجاح يكون قد بدأ، فإيقافٌ شاملٌ هنا يقطعه بدل أن يقطع الخلفية. ومشغّلٌ
+  /// خاصٌّ بها يجعل ذلك مسألةَ إيقافِ مشغّلٍ لا فحصِ ما يُسمع الآن.
   Future<void> stopLoginVoice() async {
-    if (_voiceClip != _loginClip) return;
-    await stopSpeaking();
+    _loginBedStopped = true;
+    try {
+      await _bedPlayer.stop();
+    } catch (_) {}
   }
 
   /// يُسمع مقطع لوحة البطاقات عند فتحها.

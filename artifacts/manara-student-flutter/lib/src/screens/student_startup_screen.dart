@@ -83,18 +83,15 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// Ticks from the first frame, so a reschedule knows what is left.
   final _clock = Stopwatch();
 
-  // Created only when the voice is actually played. Constructing an
-  // AudioPlayer talks to the platform, so building it eagerly would make
-  // this screen unmountable anywhere the plugin is absent — a widget test
-  // included.
-  AudioPlayer? _player;
-
-  /// مشغّلٌ ثانٍ للموسيقى تحت الترحيب.
+  /// مشغّلُ الموسيقى تحت الترحيب.
   ///
-  /// منفصلٌ لا مشترك: المشغّل الواحد يقطع ما فيه عند تشغيل ملفٍ ثانٍ،
-  /// فوضعُ الصوتين عليه يعني أن يُسكت أحدهما الآخر. ويُنشأ عند الحاجة
-  /// كأخيه، فالشاشة تبقى قابلةً للتركيب حيث لا إضافةَ صوت — واختبارُ
-  /// ودجةٍ من ذلك.
+  /// منفصلٌ عن مشغّل الترحيب: المشغّل الواحد يقطع ما فيه عند تشغيل ملفٍ
+  /// ثانٍ، فوضعُ الصوتين عليه يعني أن يُسكت أحدهما الآخر.
+  ///
+  /// وهو الصوتُ الوحيد الذي تملكه هذه الشاشة، وينتهي بانتهائها: الموسيقى
+  /// لهذا المشهد وحده، والترحيبُ يمضي معه الطفلُ إلى شاشة الدخول. ويُنشأ عند
+  /// الحاجة، فالشاشة تبقى قابلةً للتركيب حيث لا إضافةَ صوت — واختبارُ ودجةٍ
+  /// من ذلك.
   AudioPlayer? _music;
 
   /// الموسيقى أخفضُ من الترحيب بكثير: هي مصاحبةٌ لا مُنافِسة. والكلمة
@@ -102,7 +99,6 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   static const _musicVolume = 0.16;
   static const _musicAsset = 'audio/happychild.mp3';
   final _destination = Completer<Widget>();
-  StreamSubscription<void>? _completionSub;
   StreamSubscription<Duration>? _durationSub;
   Timer? _voiceTimer;
   Timer? _dwellTimer;
@@ -139,26 +135,22 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     _quietTimer?.cancel();
     _dwellTimer?.cancel();
     _spinTimer?.cancel();
-    _completionSub?.cancel();
     _durationSub?.cancel();
     // Releases the platform player as well as the Dart object; without
     // this the decoder stays alive for the rest of the session.
-    _player?.dispose();
-    _player = null;
+    //
+    // والموسيقى وحدها: الترحيبُ على مشغّل الخدمة، وهي تملكه فلا يُتخلّص
+    // منه هنا — وبذلك يُكمل جملتَه على شاشة الدخول.
     _music?.dispose();
     _music = null;
     super.dispose();
   }
 
-  /// The welcome is played here, not through `StudentSoundService`, so it
-  /// needs its own answer to the screen locking: stop, and do not start
-  /// later if the lock came before the greeting did. It is not replayed on
-  /// return — a greeting heard after the fact is not a greeting.
+  /// الموسيقى تسكت مع إطفاء الشاشة، والترحيبُ تُسكته الخدمةُ بنفسها.
   ///
-  /// But it borrows that service's reading of the states, because the trap
-  /// is the same one: `inactive` is reported by a rotation as well as by a
-  /// lock, and stopping on it cut the greeting off for a student who simply
-  /// turned the phone while it was playing.
+  /// ويُقرأ الحالُ بقراءة الخدمة نفسها، لأنّ المصيدة واحدة: `inactive` يُبلَّغ
+  /// عند الدوران كما يُبلَّغ عند القفل، والإسكاتُ عليه كان يقطع الصوتَ على
+  /// طفلٍ قلب الهاتف وهو يسمع.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (quietActionFor(state)) {
@@ -185,48 +177,43 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     _quietTimer = null;
   }
 
+  /// يُسكت ما تملكه هذه الشاشة عند إطفاء الشاشة أو ذهاب التطبيق للخلفية.
+  ///
+  /// والترحيبُ ليس منها: هو على مشغّل `StudentSoundService`، وهي تُسكته
+  /// بنفسها عند الخلفية والكتم — فلا يُسكت من مكانين.
   void _stopSound() {
     _quietTimer = null;
     _voiceTimer?.cancel();
-    for (final player in [_player, _music]) {
-      if (player != null) unawaited(player.stop().catchError((_) {}));
-    }
+    unawaited(_music?.stop().catchError((_) {}) ?? Future<void>.value());
   }
 
+  /// يُشغّل ترحيبَ فتح التطبيق، والموسيقى تحته.
+  ///
+  /// ── والترحيبُ على مشغّل الخدمة المشترك لا على مشغّلٍ تملكه الشاشة ──
+  /// كان هنا `AudioPlayer` خاصٌّ بهذه الشاشة، فكان الترحيبُ يموت معها:
+  /// تُغادَر بعد سبع ثوانٍ و`dispose` يتخلّص من المشغّل، ثم تبدأ شاشةُ
+  /// الدخول خلفيّتَها. فكان الطفل يسمع نصفَ جملةٍ في كل فتحةٍ ثم موسيقى.
+  ///
+  /// وعلى المشترك يمضي عبر تبديل الشاشة ويُكمل جملتَه، وخلفيّةُ الدخول
+  /// تُشغَّل تحته خفيضةً ثم ترتفع حين ينتهي — انظر `speakLogin`.
+  ///
+  /// ويجري عليه الكتم: مشغّلٌ خاصٌّ كان يفلت منه، فجهازٌ مكتومٌ يُرحّب.
   Future<void> _playWelcomeVoice() async {
     try {
-      final player = _player ??= AudioPlayer();
-      await player.setReleaseMode(ReleaseMode.stop);
-      // المقطع المورَّد أوّلاً، والقديم إن لم يُسقَط بعد. الفحص من
-      // بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ الفاشلة على
-      // بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً ثانياً.
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
       final bundled = manifest.listAssets().toSet();
-      // الأحدث أوّلاً، ثم ما قبله، ثم الأصل. سلسلةٌ لا شرطٌ واحد:
-      // التسليم يأتي على دفعات، وجهازٌ بُني قبل وصول الملف الجديد يجب
-      // أن يُرحّب بما عنده لا أن يصمت.
-      const welcomes = [
-        'audio/tarheeeeeeeb.mp3',
-        'audio/tarheeb.mp3',
-        'audio/shater.mp3',
-        'audio/welcome.mp3',
-      ];
-      final asset = welcomes.firstWhere(
-        (candidate) => bundled.contains('assets/$candidate'),
-        orElse: () => welcomes.last,
-      );
 
       // طولُ المقطع يصل بعد أن يفكّه المشغّل، لا قبله. فيُسمع أولاً ثم
       // تُمدّ المهلة عند وصول الطول — والمهلةُ الأولى قائمةٌ طوال ذلك،
       // فجهازٌ لا يُخبر بالطول أبداً يخرج عند الحدّ الأدنى كما كان.
-      _durationSub = player.onDurationChanged.listen(
+      _durationSub = StudentSoundService.instance.voiceDuration.listen(
         _stretchToClip,
         onError: (_) {},
       );
       // الموسيقى تبدأ أولاً بجزءٍ من الثانية، فتكون قائمةً تحت أوّل كلمة
       // بدل أن تدخل بعدها فتُسمع كأنها بدأت متأخّرة.
       unawaited(_playMusic(bundled));
-      await player.play(AssetSource(asset), volume: 0.85);
+      await StudentSoundService.instance.speakLaunchWelcome();
     } catch (_) {
       // No audio is not a reason to block the app: fall through and let
       // the dwell timer move on.
@@ -321,12 +308,15 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     // call is slow, or never answers on a platform without the plugin, the
     // student would be stuck staring at the splash. `dispose` releases the
     // player regardless.
-    // الصوتان معاً، وبلا انتظار: التخطّي استجابةٌ لنقرة ولا يجوز أن
-    // ينتظر خلفيةَ الصوت لتُقرّ بالإيقاف. و`dispose` يُحرّر المشغّلين
-    // على كل حال.
-    for (final stopping in [_player?.stop(), _music?.stop()]) {
-      if (stopping != null) unawaited(stopping.catchError((_) {}));
-    }
+    //
+    // ── والموسيقى وحدها تُسكت هنا، والترحيبُ يمضي ──
+    // مغادرةُ هذه الشاشة — بنقرةٍ أو بانتهاء المهلة — كانت تقطع الترحيبَ في
+    // منتصف جملته، فكان الطفل يسمع نصفَه في كل فتحة. وهو الآن على مشغّل
+    // الخدمة فيُكمل على شاشة الدخول، وخلفيّةُ تلك الشاشة تبدأ تحته.
+    //
+    // والموسيقى لهذا المشهد وحده: صوتُ الشخصية وهي تطير، ولا معنى له بعده.
+    final stopping = _music?.stop();
+    if (stopping != null) unawaited(stopping.catchError((_) {}));
     final destination = await _destination.future;
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
