@@ -14,6 +14,7 @@ import '../services/student_auth_service.dart';
 import '../services/student_challenge_service.dart';
 import 'home_layout.dart';
 import '../services/student_study_service.dart';
+import '../services/student_duel_service.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/lesson_scope_sheet.dart';
@@ -33,6 +34,7 @@ import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
+import 'student_duel_screen.dart';
 import 'student_endless_reader_screen.dart';
 import 'student_study_screen.dart';
 import 'student_personality_screen.dart';
@@ -75,6 +77,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   late final StudentChallengeService _challengeService;
   late final StudentStudyService _studyService;
   late final StudentLeaderboardService _leaderboardService;
+  late final StudentDuelService _duelService;
   late final ConfettiController _rewardController;
 
   /// يعيش خارج البطاقات لأن القائمة تتخلّص منها عند السحب. بدونه تعيد كل
@@ -130,6 +133,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       authService: widget.authService,
     );
     _leaderboardService = StudentLeaderboardService(
+      apiBaseUrl: widget.apiBaseUrl,
+      authService: widget.authService,
+    );
+    // خدمةٌ واحدة تعيش مع الواجهة: قناةُ حضور الصفّ فيها، وفتحُ واحدةٍ لكل
+    // زيارةٍ للحلبة يترك مقابسَ مفتوحةً تُظهر الطالبَ حاضراً وقد خرج.
+    _duelService = StudentDuelService(
       apiBaseUrl: widget.apiBaseUrl,
       authService: widget.authService,
     );
@@ -247,6 +256,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _dealCue?.cancel();
     _dealTracker.dispose();
     _rewardController.dispose();
+    _duelService.dispose();
     super.dispose();
   }
 
@@ -367,6 +377,25 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           ),
         ),
       );
+      return;
+    }
+
+    if (index == 11) {
+      Navigator.of(context)
+          .push(
+            StudentPageRoute<void>(
+              immersive: true,
+              builder: (_) => StudentDuelScreen(
+                profile: widget.profile,
+                duelService: _duelService,
+                challengeService: _challengeService,
+                leaderboardService: _leaderboardService,
+                academicContext: _academicContext,
+              ),
+            ),
+          )
+          // جوهرةُ الفوز تُصرف في الخادم، فرصيدُ الواجهة يُقرأ عند العودة.
+          .then((_) => _loadGamification());
       return;
     }
 
@@ -998,6 +1027,16 @@ const _homeSections = <_HomeSection>[
     accent: Color(0xFFF5D0FE),
     // شاشتُها تشغّل `booksound.mp3` بنفسها.
     ownsVoice: true,
+  ),
+  // Index 11 — حلبةُ التحدي بين الزملاء. في الآخر للسبب نفسه، وموضعُها
+  // البصريُّ في `homeVisualOrder` بجانب بطاقة التحدي.
+  _HomeSection(
+    titleKey: 'portal.duel',
+    subtitleKey: 'portal.duel.sub',
+    descriptionKey: 'portal.duel.desc',
+    image: 'assets/images/icon_kaas.png',
+    colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+    accent: Color(0xFFDDD6FE),
   ),
 ];
 

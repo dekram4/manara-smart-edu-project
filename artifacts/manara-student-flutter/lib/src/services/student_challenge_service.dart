@@ -181,12 +181,17 @@ class StudentChallengeService {
   /// درسٌ لا بنك له بعد يُطلب من الخادم فيولّده ويحفظه، ثم تصير
   /// القراءةُ التالية من قاعدة البيانات مباشرةً. فدورُ الخادم أن يملأ
   /// البنك مرّةً لا أن يقف في طريق كل لعبة.
+  /// ── و[draw] لمن يحتاج السحبةَ نفسها ──
+  /// اللعبُ المنفرد يريد بنكاً مخلوطاً كلَّ مرّة، والمباراةُ بين اثنين
+  /// تريد العكس: أسئلةً واحدةً للخصمين. فمن أعطى مولّداً ببذرةٍ معلومة
+  /// أخذ السحبةَ نفسها على الجهازين، ومن لم يُعطِ أخذ خلطاً حرّاً كما كان.
   Future<List<RemoteRound>> fetchRound({
     required String lessonId,
     int count = roundsPerPlay,
     String? seed,
+    math.Random? draw,
   }) async {
-    final stored = await _fromDatabase(lessonId, count);
+    final stored = await _fromDatabase(lessonId, count, draw);
     if (stored != null && stored.isNotEmpty) return stored;
     return _fromServer(lessonId: lessonId, count: count, seed: seed);
   }
@@ -195,7 +200,11 @@ class StudentChallengeService {
   ///
   /// كلُّ تعذّرٍ هنا يعود بـ `null` لا برمية: هذا مسلكٌ أوّل، وسقوطُه
   /// يعني أن يُجرَّب الخادم — لا أن تسقط اللعبة.
-  Future<List<RemoteRound>?> _fromDatabase(String lessonId, int count) async {
+  Future<List<RemoteRound>?> _fromDatabase(
+    String lessonId,
+    int count,
+    math.Random? draw,
+  ) async {
     final database = _database;
     if (database == null || lessonId.isEmpty) return null;
     try {
@@ -208,7 +217,7 @@ class StudentChallengeService {
       final row = rows.whereType<Map>().firstOrNull;
       final data = row?['data'];
       if (data is! Map) return null;
-      return drawFromBank(data['challengeBank'], count);
+      return drawFromBank(data['challengeBank'], count, random: draw);
     } catch (_) {
       return null;
     }
