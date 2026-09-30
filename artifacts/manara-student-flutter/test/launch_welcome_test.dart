@@ -1,15 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:manara_student/src/services/student_sound_service.dart';
 
-/// ترحيبُ فتح التطبيق: الملفُّ المورَّد، وترتيبُ الارتداد، وأن يُسمع كاملاً.
+/// ترحيبُ فتح التطبيق: ملفٌّ واحدٌ باسمه، لهذا الموضع وحده.
 ///
-/// ── لماذا اختبارٌ على السلسلة نفسها ──
-/// الترحيبُ يُختار بأوّل موجودٍ في الحزمة. فملفٌّ غاب عن الحزمة — أو قيدٌ
-/// نُسي في `pubspec.yaml` — لا يُسقط شيئاً: يرتدّ الاختيارُ إلى القديم فيسمع
-/// الطفلُ ترحيباً آخر، ولا خطأَ يظهر في تحليلٍ ولا في بناء. وهو العطبُ
-/// المُبلَّغ بعينه: «نسيت استبدال صوت البداية».
+/// ── لماذا اختبارٌ عليه ──
+/// مقطعٌ غاب عن الحزمة — أو قيدٌ نُسي في `pubspec.yaml` — لا يُسقط شيئاً ولا
+/// يُرفع خطأً: تُفتح الشاشةُ صامتةً أو يُسمع مقطعٌ آخر، ولا يمسكه تحليلٌ ولا
+/// بناء. وهو العطبُ المُبلَّغ بعينه.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -20,51 +21,52 @@ void main() {
     bundled = manifest.listAssets().toSet();
   });
 
-  test('المورَّدُ الأحدثُ أوّلُ السلسلة', () {
-    expect(StudentSoundService.launchWelcomeClips.first,
-        'audio/tarheeeeeeeb.mp3');
+  test('ترحيبُ الإقلاع هو المقطعُ المورَّد باسمه', () {
+    expect(StudentSoundService.launchWelcomeClip, 'audio/tarheeeeeeeb.mp3');
   });
 
-  test('وكلُّ مقاطع السلسلة في الحزمة فعلاً', () {
-    // لا الأوّلُ وحده: الارتدادُ لا معنى له إن كان ما يُرتدّ إليه غائباً،
-    // وقيدُ `assets/audio/` واحدٌ لها كلِّها فسقوطُه يُسقطها معاً.
-    for (final clip in StudentSoundService.launchWelcomeClips) {
-      expect(bundled, contains('assets/$clip'), reason: clip);
+  test('وهو في الحزمة فعلاً', () {
+    // بيانُ الأصول هو ما يقرؤه التطبيق: ملفٌّ في المجلّد بلا قيدٍ يشمله لا
+    // يدخل الحزمة، وتُفتح الشاشةُ صامتةً بلا خطأ.
+    expect(
+      bundled,
+      contains('assets/${StudentSoundService.launchWelcomeClip}'),
+      reason: 'ترحيبُ الإقلاع ليس في الحزمة — يُفتح التطبيق صامتاً',
+    );
+  });
+
+  test('ولا يُنادى إلا من موضعٍ واحد', () {
+    // ── والطلبُ المُبلَّغ: هذا الملفُّ لبداية الدخول وحدها ──
+    // فلو نُسخ اسمُه إلى مسلكٍ ثانٍ — ترحيبُ اللوحة، أو سطرُ بوابة — صار
+    // يُسمع في مكانين، وهو ما لم يُطلب. فيُعدّ المواضع.
+    final uses = <String>[];
+    for (final file in Directory('lib').listSync(recursive: true)) {
+      if (file is! File || !file.path.endsWith('.dart')) continue;
+      final text = file.readAsStringSync();
+      for (final line in text.split('\n')) {
+        // التعريفُ نفسه لا يُعدّ استعمالاً، ولا التعليقات.
+        final trimmed = line.trim();
+        if (!trimmed.contains('tarheeeeeeeb.mp3')) continue;
+        if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
+        uses.add('${file.path}: $trimmed');
+      }
     }
+    expect(
+      uses,
+      hasLength(1),
+      reason: 'ترحيبُ الإقلاع مذكورٌ في أكثر من موضع:\n${uses.join('\n')}',
+    );
+    expect(uses.single, contains('launchWelcomeClip ='));
   });
 
-  test('والمختارُ فعلاً هو المورَّد لا ما ارتُدّ إليه', () {
-    // ── وهذا هو السؤال الذي يهمّ ──
-    // لا «هل الملفُّ موجود» بل «هل هو ما سيُشغَّل». والدالّةُ نفسها تُسأل،
-    // على بيان الحزمة الذي يقرؤه التطبيق.
-    expect(
-      StudentSoundService.launchWelcomeIn(bundled),
-      'audio/tarheeeeeeeb.mp3',
-      reason: 'الترحيبُ المورَّد ليس هو ما يُشغَّل — سيُسمع القديم',
-    );
+  test('وترحيبُ اللوحة مقطعٌ آخر', () {
+    // اللوحةُ لها ترحيبُها، ولا يحلّ ترحيبُ الإقلاع محلَّه.
+    expect(bundled, contains('assets/audio/manara-arabic-student-welcome.mp3'));
   });
 
-  test('وارتدادُه إلى ما قبله حين يغيب', () {
-    // فسلسلةُ الارتداد تعمل فعلاً: جهازٌ بُني قبل وصول الملف يُرحّب بما
-    // عنده لا يصمت — وهو السبب الذي جُعلت له سلسلةً لا ملفاً واحداً.
-    expect(
-      StudentSoundService.launchWelcomeIn({'assets/audio/tarheeb.mp3'}),
-      'audio/tarheeb.mp3',
-    );
-    // ولا شيءَ في الحزمة: يُرجَع الأصلُ لا `null` — فلا يُنادى تشغيلٌ بلا مقطع.
-    expect(
-      StudentSoundService.launchWelcomeIn(const {}),
-      StudentSoundService.launchWelcomeClips.last,
-    );
-  });
-
-  test('وخلفيةُ شاشة الدخول في الحزمة', () {
-    // تُشغَّل تحت الترحيب على مشغّلٍ ثانٍ. وغيابُها يُفتح شاشةَ الدخول بلا
-    // موسيقى، ولا يمسّ الترحيب.
+  test('وخلفيةُ شاشة الدخول وموسيقى المشهد في الحزمة', () {
+    // الخلفيةُ تُشغَّل تحت الترحيب على مشغّلٍ ثانٍ، وغيابُها لا يمسّه.
     expect(bundled, contains('assets/audio/signin.mp3'));
-  });
-
-  test('وموسيقى مشهد الإقلاع في الحزمة', () {
     expect(bundled, contains('assets/audio/happychild.mp3'));
   });
 }

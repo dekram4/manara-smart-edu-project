@@ -585,44 +585,22 @@ class StudentSoundService with WidgetsBindingObserver {
   /// فوقه. و٠٫٨٥ تحت كلامٍ تجعل الجملةَ تُسمع ولا تُفهَم.
   static const _loginBedVolume = 0.20;
 
-  /// ترحيبُ المحور.
-  ///
-  /// والمُورَّدُ الأحدثُ يسبق: `_supplied` تُرجّح هذا إن كان في الحزمة،
-  /// وترتدّ إلى الأصل إن لم يكن — فجهازٌ بُني قبل وصول الملف يُرحّب بما
-  /// عنده لا يصمت.
-  static const _welcomeClip = 'audio/tarheeeeeeeb.mp3';
+  /// ترحيبُ المحور — مقطعُ لوحة البطاقات، لا مقطعُ فتح التطبيق.
+  static const _welcomeClip = 'audio/manara-arabic-student-welcome.mp3';
   static const _pathOverride = 'audio/masar.mp3';
   static const _dashboardClip = 'audio/start.mp3';
 
-  /// سلسلةُ ترحيب الإقلاع: الأحدثُ أوّلاً، ثم ما قبله، ثم الأصل.
+  /// ترحيبُ فتح التطبيق، وهذا موضعُه الوحيد.
   ///
-  /// سلسلةٌ لا ملفٌّ واحد: التسليمُ يأتي على دفعات، وجهازٌ بُني قبل وصول
-  /// الملف الجديد يجب أن يُرحّب بما عنده لا أن يصمت.
-  @visibleForTesting
-  static const launchWelcomeClips = <String>[
-    _welcomeClip,
-    'audio/tarheeb.mp3',
-    'audio/shater.mp3',
-    'audio/welcome.mp3',
-  ];
-
-  /// أوّلُ ترحيبٍ موجودٌ في الحزمة فعلاً.
+  /// ── ملفٌّ واحدٌ باسمه، لا سلسلةَ ارتداد ──
+  /// السلسلةُ تعني أنّ غيابَ هذا الملف يُسمِع ملفاً آخر — وهو ما يجعل
+  /// «استُبدل الصوت» و«لم يُستبدل» يبدوان سواءً: لا خطأَ يظهر، ويسمع الطفل
+  /// ترحيباً غيرَ الذي وُضع. فيُنادى باسمه، ويحرسه اختبارٌ يقول إنه في
+  /// الحزمة. وإن غاب فصمتٌ — وصمتٌ يُلاحَظ ويُصلَح.
   ///
-  /// دالّةٌ ساكنةٌ نقيّة تأخذ بيانَ الحزمة: الاختيارُ هو ما يقرّر أيَّ ترحيبٍ
-  /// يسمعه الطفل، فيُختبر بلا مشغّلِ صوتٍ ولا منصّة — ولمسُ الخدمة في اختبارٍ
-  /// يُنشئ مشغّلاتِها فيرفع `MissingPluginException`.
-  @visibleForTesting
-  static String launchWelcomeIn(Set<String> bundled) =>
-      launchWelcomeClips.firstWhere(
-        (candidate) => bundled.contains('assets/$candidate'),
-        orElse: () => launchWelcomeClips.last,
-      );
-
-  /// والوجودُ يُفحص من بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ
-  /// الفاشلة على بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً
-  /// ثانياً — فيصمت ما بعده أيضاً.
-  Future<String> launchWelcomeAsset() async =>
-      launchWelcomeIn(await _bundledAssets());
+  /// وهو لهذا الموضع وحده: لوحةُ البطاقات لها مقطعُها، وكلُّ بوابةٍ لها
+  /// سطرُها المسجَّل.
+  static const launchWelcomeClip = 'audio/tarheeeeeeeb.mp3';
 
   /// طولُ ما يُشغَّل على مشغّل الأصوات، حين يفكّه المشغّل.
   ///
@@ -655,7 +633,14 @@ class StudentSoundService with WidgetsBindingObserver {
     }
 
     try {
-      final asset = await launchWelcomeAsset();
+      // والوجودُ يُفحص من بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ
+      // الفاشلة على بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً
+      // ثانياً — فيصمت ما بعده أيضاً.
+      final bundled = await _bundledAssets();
+      if (!bundled.contains('assets/$launchWelcomeClip')) {
+        finish();
+        return;
+      }
       unawaited(
         _voicePlayer.onPlayerComplete.first.then(
           (_) => finish(),
@@ -663,8 +648,11 @@ class StudentSoundService with WidgetsBindingObserver {
         ),
       );
       await _voicePlayer.stop();
-      _voiceClip = asset;
-      await _voicePlayer.play(AssetSource(asset), volume: _launchWelcomeVolume);
+      _voiceClip = launchWelcomeClip;
+      await _voicePlayer.play(
+        AssetSource(launchWelcomeClip),
+        volume: _launchWelcomeVolume,
+      );
     } catch (_) {
       // لا صوت على هذا الجهاز: الشاشة تُفتح صامتة ولا تنتظر شيئاً.
       finish();
@@ -681,8 +669,7 @@ class StudentSoundService with WidgetsBindingObserver {
   /// هل ترحيبُ الإقلاع يُسمع الآن؟
   ///
   /// شاشةُ الدخول تسأل لتعرف أتبدأ خلفيّتَها تحته أم بعلوّها المعتاد.
-  bool get launchWelcomePlaying =>
-      _voiceClip != null && launchWelcomeClips.contains(_voiceClip);
+  bool get launchWelcomePlaying => _voiceClip == launchWelcomeClip;
 
   /// المقطع المورَّد إن كان في حزمة البناء، وإلا القديم.
   String _supplied(String? override, String fallback, Set<String> bundled) {
@@ -884,9 +871,6 @@ class StudentSoundService with WidgetsBindingObserver {
 
       final isVoice = cue == StudentSoundCue.welcome || cue == StudentSoundCue.loginSuccess;
       final player = isVoice ? _voicePlayer : _effectsPlayer;
-      // نغمتا الدخول والترحيب لهما بديلان مورَّدان، يُفحص وجودهما مرّةً
-      // قبل الاختيار. والمؤثّرات القصيرة لا بديل لها: هي نقراتٌ لا كلام.
-      final bundled = isVoice ? await _bundledAssets() : const <String>{};
       final asset = switch (cue) {
         StudentSoundCue.navigation => 'audio/ui-tap.wav',
         StudentSoundCue.answerSelected => 'audio/answer-selected.wav',
@@ -899,8 +883,9 @@ class StudentSoundService with WidgetsBindingObserver {
         // بعد ثلث ثانية فيُقطع — فلا يُسمع منه شيء، ويبدو أنه «لم يعمل
         // نهائياً». موضعُه الصحيح فتحُ الشاشة لا الخروج منها.
         StudentSoundCue.loginSuccess => 'audio/manara-login-chime.mp3',
-        StudentSoundCue.welcome =>
-          _supplied(_welcomeClip, 'audio/manara-arabic-student-welcome.mp3', bundled),
+        // ترحيبُ لوحة البطاقات، وهو غيرُ ترحيب فتح التطبيق: ذاك
+        // `launchWelcomeClip` ولا يُنادى إلا من `speakLaunchWelcome`.
+        StudentSoundCue.welcome => _welcomeClip,
         StudentSoundCue.gameReward => 'audio/success-reward.wav',
         // Handled above and never reached here; kept only so this switch
         // stays exhaustive over every StudentSoundCue value.
