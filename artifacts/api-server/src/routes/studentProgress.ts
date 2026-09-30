@@ -3,6 +3,7 @@ import { apiSupabaseConfig, type StudentActor } from "../lib/studentAccess";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
+import { DUEL_WIN_GEMS } from "../lib/duel";
 import { buildLeaderboard, isClassmate } from "../lib/leaderboard";
 
 /**
@@ -298,6 +299,9 @@ const ACTIVITY_TYPES = new Set([
   // صحيح، ولها نوعُها لأن سجلّها مستقل — طفلٌ خاض المغامرة لا يُمنع من
   // تحدٍّ ولا من اختبار، والعكس.
   "story",
+  // فوزُ مباراةٍ في بطاقة التحدي: جوهرةٌ واحدة، ومفتاحُه معرّفُ المباراة —
+  // فلا تُصرف مرّتين ولو أُعيد الطلب.
+  "duel",
 ]);
 
 /**
@@ -413,6 +417,10 @@ function rewardFor(
       perfectQuiz = scorePercentage === 100;
       average = Math.trunc((current.averageScore * (quizzes - 1) + scorePercentage) / quizzes);
     }
+  } else if (type === "duel") {
+    // فوزُ مباراةٍ: جوهرةٌ واحدة. والخاسرُ لا يُخصم منه — الخصمُ يجعل
+    // الطفل يخاف أن يُتحدّى، والمقصودُ أن يُقبل التحدي.
+    gems = DUEL_WIN_GEMS;
   } else if (type === "story") {
     // كالتحدي في الحساب والحرس: التطبيق يدّعي النتيجة، والخادم يحصرها
     // بعدد المواقف فيردّ ما يتجاوز الممكن.
@@ -814,5 +822,47 @@ router.post("/student/progress/interaction", async (req, res) => {
     res.status(503).json({ error: "تعذر حفظ التفاعل الآن" });
   }
 });
+
+/**
+ * يصرف جوهرةَ فوزٍ في مباراةٍ لطالبٍ بمعرّفه.
+ *
+ * ── لماذا هنا لا في مسار المباريات ──
+ * الجواهرُ والخبرةُ والإنجازاتُ تُحسب في `rewardFor` وحدها، وسجلُّ الأنشطة
+ * فيها هو ما يمنع الصرفَ مرّتين. فمسارٌ ثانٍ يكتب الجواهر بيده يفترق عنها
+ * عند أوّل تعديل — ويفلت من حارس التكرار.
+ *
+ * والفائزُ قد يكون الزميلَ لا صاحبَ الطلب: النتيجةُ الثانية هي التي تحسم
+ * المباراة، وقد يُرسلها الخاسر. فيُقرأ صفُّ الفائز بمعرّفه لا من الجلسة.
+ *
+ * ومفتاحُ المنع `duel:<معرّف المباراة>`: إعادةُ الحسم — من طلبٍ أُعيد أو
+ * صفٍّ عُدّل — لا تصرف جوهرةً ثانية.
+ */
+export async function awardDuelWin(
+  winnerId: string,
+  matchId: string,
+): Promise<boolean> {
+  const id = text(winnerId);
+  const match = text(matchId);
+  if (!id || !match) return false;
+  // `readStudentRow` تقرأ بالمعرّف وحده، فيكفيها هذا القدر من الفاعل.
+  const row = await readStudentRow({ id } as StudentActor);
+  if (!row) return false;
+  const current = readGamification(asMap(row.data).gamification);
+  const { outcome, next } = rewardFor(
+    current,
+    "duel",
+    match,
+    "",
+    null,
+    null,
+  );
+  if (!next || outcome.alreadyRewarded) return false;
+  await writeStudentData(row.rowId, {
+    ...asMap(row.data),
+    gamification: writeGamification(next),
+    lastActivity: new Date().toISOString(),
+  });
+  return true;
+}
 
 export default router;
