@@ -294,6 +294,10 @@ const ACTIVITY_TYPES = new Set([
   // نوعُها لأن سجلّها مستقلّ: طفلٌ أعاد التحدي لا يُمنع من اختبارٍ لم
   // يؤدّه، والعكس.
   "challenge",
+  // المغامرةُ القصصية في بطاقة المذاكرة الذكية: جوهرتان عن كل قرارٍ
+  // صحيح، ولها نوعُها لأن سجلّها مستقل — طفلٌ خاض المغامرة لا يُمنع من
+  // تحدٍّ ولا من اختبار، والعكس.
+  "story",
 ]);
 
 /**
@@ -307,6 +311,8 @@ const GEMS = {
   perCorrectQuiz: 2,
   /** وعن كل إجابة صحيحة في جولة التحدي. */
   perCorrectChallenge: 2,
+  /** وعن كل قرارٍ صحيح في المغامرة القصصية. */
+  perCorrectStory: 2,
   /** إكمال مطالعة الدرس، مرّةً واحدة. */
   lesson: 10,
   /** سؤالٌ في حل المسائل. */
@@ -407,6 +413,15 @@ function rewardFor(
       perfectQuiz = scorePercentage === 100;
       average = Math.trunc((current.averageScore * (quizzes - 1) + scorePercentage) / quizzes);
     }
+  } else if (type === "story") {
+    // كالتحدي في الحساب والحرس: التطبيق يدّعي النتيجة، والخادم يحصرها
+    // بعدد المواقف فيردّ ما يتجاوز الممكن.
+    //
+    // ولا تُعَدّ لعبةً في عدّاد الألعاب: هي مذاكرةٌ في ثوب حكاية، وإحصاؤها
+    // لعبةً يرفع عدّاداً يقرؤه الأب على أنه ترفيه.
+    const total = Math.max(0, quizTotal ?? 0);
+    const score = Math.min(Math.max(0, correctAnswers ?? 0), total);
+    gems = score * GEMS.perCorrectStory;
   } else if (type === "lesson") {
     gems = GEMS.lesson;
     lessons += 1;

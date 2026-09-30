@@ -356,6 +356,26 @@ class StudentSoundService with WidgetsBindingObserver {
   ///
   /// Every failure here is swallowed. A missing clip or a platform with no
   /// audio is not a reason a lesson should not open.
+  /// يشغّل مقطعاً صوتياً بعينه على مشغّل الأصوات.
+  ///
+  /// ── لماذا على مشغّل الأصوات لا على مشغّلٍ ثالث ──
+  /// كلُّ ما يُقال للطفل يمرّ من هنا، فيجري عليه ما يجري على غيره: يسكت
+  /// عند كتم الصوت، ويسكت عند إطفاء الشاشة، ويُوقفه الفيديو إذا بدأ،
+  /// وتخفض الموسيقى صوتها له. ومشغّلٌ خاصٌّ ببطاقةٍ واحدة يفلت من ذلك
+  /// كلِّه — وهو ما كان يجعل صوتين يعملان معاً.
+  ///
+  /// و[speakPortal] تبقى لما له تسجيلٌ لكل لغة؛ وهذه لمقطعٍ واحدٍ باسمه.
+  Future<void> playClip(String asset) async {
+    if (muted.value || _backgrounded) return;
+    try {
+      await _voicePlayer.stop();
+      _voiceClip = asset;
+      await _voicePlayer.play(AssetSource(asset), volume: voiceVolume(asset));
+    } catch (_) {
+      // لا صوت على هذا الجهاز: تُفتح الشاشة صامتة.
+    }
+  }
+
   Future<void> speakPortal(String portalKey) async {
     if (muted.value || _backgrounded) return;
     final language = StudentSettings.isArabic ? 'ar' : 'en';

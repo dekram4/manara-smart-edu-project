@@ -12,6 +12,7 @@ import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_challenge_service.dart';
+import '../services/student_study_service.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/lesson_scope_sheet.dart';
@@ -32,6 +33,7 @@ import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
 import 'student_endless_reader_screen.dart';
+import 'student_study_screen.dart';
 import 'student_personality_screen.dart';
 import 'student_problem_solver_screen.dart';
 import 'student_progress_screen.dart';
@@ -70,6 +72,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   late StudentGamification _gamification;
   late final StudentContentService _contentService;
   late final StudentChallengeService _challengeService;
+  late final StudentStudyService _studyService;
   late final StudentLeaderboardService _leaderboardService;
   late final ConfettiController _rewardController;
 
@@ -120,6 +123,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       // البنك يُقرأ من `lesson_configs` مباشرةً، وهو الجدول الذي يقرؤه
       // التطبيق أصلاً لنصّ الدرس — فلا جلسةَ خادمٍ ولا انتظار.
       database: widget.authService.client,
+    );
+    _studyService = StudentStudyService(
+      apiBaseUrl: widget.apiBaseUrl,
+      authService: widget.authService,
     );
     _leaderboardService = StudentLeaderboardService(
       apiBaseUrl: widget.apiBaseUrl,
@@ -345,6 +352,22 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
             profile: widget.profile,
             apiBaseUrl: widget.apiBaseUrl,
             authService: widget.authService,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (index == 10) {
+      Navigator.of(context).push(
+        StudentPageRoute<void>(
+          immersive: true,
+          builder: (_) => StudentStudyScreen(
+            profile: widget.profile,
+            studyService: _studyService,
+            // لصرف جواهر المغامرة في ختامها.
+            contentService: _contentService,
+            academicContext: _academicContext,
           ),
         ),
       );
@@ -944,6 +967,16 @@ const _homeSections = <_HomeSection>[
     image: 'assets/images/endless_challenge.png',
     colors: [Color(0xFF3B2A6B), Color(0xFF6D28D9)],
     accent: Color(0xFFDDD6FE),
+  ),
+  // Index 10 — المذاكرة الذكية. في آخر القائمة للسبب نفسه: `_openModule`
+  // يوزّع بالموضع، وإدراجُ بطاقةٍ في الوسط يرسل الطفل إلى بطاقةٍ أخرى.
+  _HomeSection(
+    titleKey: 'portal.study',
+    subtitleKey: 'portal.study.sub',
+    descriptionKey: 'portal.study.desc',
+    image: 'assets/images/book.png',
+    colors: [Color(0xFF5B21B6), Color(0xFFA21CAF)],
+    accent: Color(0xFFF5D0FE),
   ),
 ];
 

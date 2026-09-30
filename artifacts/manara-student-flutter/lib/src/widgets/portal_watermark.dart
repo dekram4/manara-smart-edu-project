@@ -102,4 +102,5 @@ class PortalBackgrounds {
   static const problemSolver = 'assets/images/back_hal.png';
   static const chat = 'assets/images/back_chat.png';
   static const endlessReader = 'assets/images/back_endless.png';
+  static const study = 'assets/images/back_book.png';
 }

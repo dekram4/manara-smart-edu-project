@@ -23,6 +23,12 @@ import {
 } from "../lib/aiQuota";
 import { stripDiacritics } from "../lib/arabicText";
 import { sameQuantities } from "../lib/questionMath";
+import {
+  type StudyPack,
+  parseStudyPack,
+  readStudyPack,
+  studyPrompt,
+} from "../lib/interactiveStudy";
 import { VECTOR_THRESHOLD, embedQuestion } from "../lib/embeddings";
 import {
   BANK_SIZE,
@@ -304,6 +310,8 @@ type LessonLookup =
       lesson: string;
       /** بنك جولات التحدي المحفوظ مع الدرس، إن وُلّد من قبل. */
       challengeBank?: unknown;
+      /** وحزمةُ المذاكرة الذكية، إن وُلّدت. */
+      interactiveStudy?: unknown;
       reason?: undefined;
       detail?: undefined;
     }
@@ -368,6 +376,7 @@ async function resolveStudentLesson(
     unit: typeof lesson.unit === "string" ? lesson.unit : "",
     lesson: typeof lesson.lesson === "string" ? lesson.lesson : "",
     challengeBank: lesson.challengeBank,
+    interactiveStudy: lesson.interactiveStudy,
   };
 }
 
@@ -1272,5 +1281,138 @@ router.post("/gemini/generate-quiz", requireContentManager, async (req, res) => 
       .json({ error: "تعذر توليد الاختبار بالذكاء الاصطناعي" });
   }
 });
+
+/** ما لا يُنتظر أكثر منه لتوليد حزمة المذاكرة. */
+const STUDY_BUDGET_MS = 40_000;
+
+/** وسقفُ ما يُخرجه النموذج لها: خريطةٌ وثلاث مغامرات تحتاج متّسعاً. */
+const STUDY_MAX_TOKENS = 2_400;
+
+/** يحفظ حزمة المذاكرة مع الدرس، فلا تُولَّد ثانيةً. */
+async function persistStudyPack(
+  lessonId: string,
+  pack: StudyPack,
+): Promise<void> {
+  const config = apiSupabaseConfig();
+  if (!config) return;
+  const headers = {
+    apikey: config.key,
+    Authorization: `Bearer ${config.key}`,
+    "Content-Type": "application/json",
+  };
+  const read = await fetch(
+    `${config.url}/rest/v1/lesson_configs?select=data&id=eq.${encodeURIComponent(lessonId)}`,
+    { headers },
+  );
+  if (!read.ok) throw new Error(`study read failed (${read.status})`);
+  const rows = await read.json();
+  const data = Array.isArray(rows) && rows[0]?.data && typeof rows[0].data === "object"
+    ? (rows[0].data as Record<string, unknown>)
+    : null;
+  if (!data) throw new Error("lesson row vanished before the pack was saved");
+  const write = await fetch(
+    `${config.url}/rest/v1/lesson_configs?id=eq.${encodeURIComponent(lessonId)}`,
+    {
+      method: "PATCH",
+      headers: { ...headers, Prefer: "return=minimal" },
+      body: JSON.stringify({
+        data: { ...data, interactiveStudy: pack },
+        updated_at: new Date().toISOString(),
+      }),
+    },
+  );
+  if (!write.ok) throw new Error(`study write failed (${write.status})`);
+}
+
+/**
+ * حزمةُ المذاكرة الذكية لدرس: خريطةٌ ذهنية ومغامراتٌ قصصية.
+ *
+ * ── لماذا تُخزَّن مع الدرس ──
+ * توليدُها نداءٌ واحد كبير — خريطةٌ وثلاثُ مغامرات بتسعة مواقف — وثلاثون
+ * طفلاً في الصفّ يفتحون الدرس نفسه. فتُولَّد أوّل مرّة وتُحفظ في سجلّ
+ * الدرس، ثم تُقرأ منه في جزءٍ من الثانية بلا نداء ولا حصّة.
+ *
+ * وهي حزمةٌ للدرس لا للطفل: المغامراتُ نفسها تصلح لكل من يدرسه، والجديدُ
+ * في كل جولةٍ هو أيَّها يُختار — واختيارُه في التطبيق.
+ *
+ * ── ولماذا لا تُحسب من حصّة الأسئلة ──
+ * حصّةُ `aiQuota` تحرس أسئلةَ الطفل الحرّة، وهذه مادةُ درسٍ تُولَّد مرّةً
+ * لكل درس. فحسابُها على أوّل من يفتح الدرس يحرمه عشرَ أسئلةٍ لأنه سبق
+ * زملاءه.
+ */
+router.post(
+  "/ai/interactive-study",
+  answerRateLimit,
+  requireStudentSession,
+  async (req, res) => {
+    const lessonId =
+      typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
+    if (!lessonId) {
+      return res
+        .status(400)
+        .json({ error: "لم يصل معرّف الدرس", code: "bad_request" });
+    }
+    try {
+      const student = res.locals.student as StudentActor;
+      const lesson = await resolveStudentLesson(lessonId, student);
+      if (lesson.reason) {
+        const messages = {
+          not_found: "لم يُعثر على هذا الدرس في قاعدة البيانات.",
+          out_of_scope: lesson.detail
+            ? `هذا الدرس ليس ضمن مسار حسابك — ${lesson.detail}`
+            : "هذا الدرس ليس ضمن مسار حسابك.",
+          no_text: "هذا الدرس لا يحتوي على شرح نصي بعد — اطلب من معلمك إضافته.",
+        } as const;
+        return res
+          .status(403)
+          .json({ error: messages[lesson.reason], code: lesson.reason });
+      }
+
+      // ── المحفوظ أوّلاً ──
+      const stored = readStudyPack(lesson.interactiveStudy);
+      if (stored) {
+        logger.info({ lessonId }, "[study] served from the lesson row");
+        return res.json({ pack: stored, generated: false });
+      }
+
+      const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
+      const data = await callGemini(
+        studyPrompt({
+          lessonTitle: title || lesson.lesson || lesson.subject,
+          lessonText: lesson.text,
+          grade: lesson.subject,
+        }),
+        { maxOutputTokens: STUDY_MAX_TOKENS, budgetMs: STUDY_BUDGET_MS },
+      );
+      const pack = parseStudyPack(getGeminiText(data), title);
+      if (!pack) {
+        // ولا يُخزَّن ناقصٌ: الإخفاقُ الصريح يُعيد التوليد في المرّة
+        // القادمة، والنصفُ المخزَّن يبقى ناقصاً إلى الأبد.
+        logger.warn({ lessonId }, "[study] model output was not a usable pack");
+        return res.status(502).json({
+          error: "تعذّر تحضير المذاكرة لهذا الدرس الآن. حاول مرة أخرى.",
+          code: "bad_pack",
+        });
+      }
+
+      // الحفظُ لا يُنتظر ولا يُسقط الردّ: فشلُه يعني توليداً ثانياً في
+      // المرّة القادمة لا حزمةً ضائعة.
+      void persistStudyPack(lessonId, pack).catch((error) =>
+        logger.error({ err: error, lessonId }, "[study] pack not saved"),
+      );
+      logger.info(
+        { lessonId, scenarios: pack.scenarios.length },
+        "[study] generated",
+      );
+      return res.json({ pack, generated: true });
+    } catch (error) {
+      logger.error({ err: error, lessonId }, "[study] failed");
+      return res.status(503).json({
+        error: "تعذّر تحضير المذاكرة الآن. حاول مرة أخرى.",
+        code: "unavailable",
+      });
+    }
+  },
+);
 
 export default router;
