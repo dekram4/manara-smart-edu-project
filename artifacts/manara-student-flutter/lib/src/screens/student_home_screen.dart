@@ -12,6 +12,7 @@ import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_challenge_service.dart';
+import 'home_layout.dart';
 import '../services/student_study_service.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
@@ -1060,7 +1061,7 @@ class _HomeSectionGrid extends StatelessWidget {
         ),
         child: Row(
           children: [
-            for (var index = 0; index < _homeSections.length; index++) ...[
+            for (var index = 0; index < homeVisualOrder.length; index++) ...[
               if (index > 0) const SizedBox(width: 12),
               SizedBox(
                 width: cardWidth,
@@ -1074,12 +1075,15 @@ class _HomeSectionGrid extends StatelessWidget {
                   child: _SectionTile(
                     // Named by its portal rather than its position, so the
                     // key survives the rail being reordered.
-                    key: ValueKey('portal-tile-${_homeSections[index].titleKey}'),
-                    section: _homeSections[index],
+                    key: ValueKey(
+                      'portal-tile-${_homeSections[homeVisualOrder[index]].titleKey}',
+                    ),
+                    section: _homeSections[homeVisualOrder[index]],
                     // Staggers each card's float so the rail breathes rather
                     // than pulsing as one block.
                     index: index,
-                    onPressed: () => onSectionPressed(index),
+                    // الموضعُ المنطقيّ لا البصريّ: المستقبِل يوزّع به.
+                    onPressed: () => onSectionPressed(homeVisualOrder[index]),
                   ),
                 ),
               ),
