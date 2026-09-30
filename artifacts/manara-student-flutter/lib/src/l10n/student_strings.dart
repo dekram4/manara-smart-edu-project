@@ -112,6 +112,15 @@ class StudentStrings {
     'progress.cheerStrong': 'أداء قوي! أنت من المتميّزين، واصل هذا المستوى 🚀',
     'progress.cheerHero': 'بطل حقيقي! مستواك يتحدث عنك 🏆',
     'progress.gemsToNext': 'تحتاج {gems} جوهرة فقط لنقاط خبرة جديدة',
+    // بطاقةُ الأيام المتتالية. والنصُّ يخاطب طفلاً بلهجةٍ سهلة، ولا
+    // يُصرّف العدد على وجوهه: «{days} يوم» تصحّ مع الواحد والاثنين
+    // والعشرة في كلام الناس، وثلاثةُ صيغٍ لكل عدد تُعقّد الترجمة بلا أن
+    // تزيد فهماً.
+    'progress.streakDays': 'دخلت {days} أيام متتالية',
+    'progress.streakToBonus':
+        'باقٍ لك {days} وتاخذ {gems} جوهرة زيادة 💎',
+    'progress.streakEarned':
+        'ممتاز يا بطل! اخدت {gems} جوهرة مكافأة المتتالية 🎉',
 
     // Virtual teacher and live meeting
     'tutor.title': 'صديقك المعلم الافتراضي',
@@ -724,6 +733,11 @@ class StudentStrings {
     'progress.cheerStrong': 'Strong work! You are among the best, keep going 🚀',
     'progress.cheerHero': 'A real champion! Your level speaks for you 🏆',
     'progress.gemsToNext': 'Just {gems} more gems for new experience points',
+    'progress.streakDays': '{days} days in a row',
+    'progress.streakToBonus':
+        '{days} more to earn {gems} bonus gems 💎',
+    'progress.streakEarned':
+        'Brilliant! You earned {gems} streak bonus gems 🎉',
     'progress.subtitle': 'Follow how far you have come — every step counts.',
     'progress.encourage': 'Keep going. You are building this step by step.',
     'progress.summary': 'Learning summary',

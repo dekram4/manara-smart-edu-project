@@ -3,6 +3,7 @@
 import '../l10n/student_strings.dart';
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
+import '../models/student_streak.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_settings.dart';
 import '../theme/student_theme.dart';
@@ -53,6 +54,13 @@ class StudentProgressScreen extends StatelessWidget {
             StudentEntrance(
               delay: const Duration(milliseconds: 90),
               child: _CheerCard(stats: stats),
+            ),
+            const SizedBox(height: 14),
+            // والمتتالية تحت التشجيع: الأول يقول أين وصل، وهذه تقول ما
+            // ينتظره ومتى.
+            StudentEntrance(
+              delay: const Duration(milliseconds: 130),
+              child: _StreakCard(stats: stats),
             ),
             if (leaderboardService != null)
               _LeaderboardSection(service: leaderboardService!),
@@ -153,6 +161,99 @@ class _CheerCard extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// بطاقةُ الأيام المتتالية: أين وصل الطالب، وكم بقي له.
+///
+/// ── لماذا تُعرض ──
+/// المكافأةُ تُصرف في الخادم منذ مدّة — عشرون جوهرةً عند كل خمسة أيام
+/// متتالية — ولم يكن في الشاشة ما يقول إنها موجودة. فالطفل يدخل خمسة
+/// أيام فتزيد جواهره ثلاثين بدل عشر، ولا يعرف لماذا ولا أنّ هناك ما
+/// يُنتظَر. ووعدٌ لا يُرى لا يحفّز أحداً.
+///
+/// ── وخمسُ نقاطٍ لا شريطٌ متّصل ──
+/// الطفل يعدّ النقاط بإصبعه ويعرف موضعه منها، والشريطُ المتّصل نسبةٌ
+/// مئوية لا تُقرأ في هذا العمر. والنقاطُ تقول الشيء نفسه بلا أن تُقرأ.
+class _StreakCard extends StatelessWidget {
+  const _StreakCard({required this.stats});
+
+  final StudentGamification stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final streak = stats.streak;
+    final left = StudentStreak.daysToBonus(streak);
+    final done = StudentStreak.earnedToday(streak);
+    final filled = done ? StudentStreak.milestone : streak % StudentStreak.milestone;
+    // كهرمانيٌّ في يوم المكافأة، وبنفسجيٌّ في الطريق إليها.
+    final tint = done ? const Color(0xFFF59E0B) : const Color(0xFF7C3AED);
+    return Student3DCard(
+      child: Card(
+        color: StudentSurface.card(context),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text(done ? '🎉' : '🔥', style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      trf('progress.streakDays', {'days': '$streak'}),
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w900,
+                        color: StudentSurface.ink(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // خمسُ نقاطٍ بعدد أيام المتتالية المكافأة.
+              Row(
+                children: [
+                  for (var day = 1; day <= StudentStreak.milestone; day += 1) ...[
+                    if (day > 1) const SizedBox(width: 6),
+                    Expanded(
+                      child: Container(
+                        height: 10,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          color: day <= filled
+                              ? tint
+                              : tint.withValues(alpha: 0.16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                done
+                    ? trf('progress.streakEarned', {
+                        'gems': '${StudentStreak.bonusGems}',
+                      })
+                    : trf('progress.streakToBonus', {
+                        'days': '$left',
+                        'gems': '${StudentStreak.bonusGems}',
+                      }),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.5,
+                  fontWeight: FontWeight.w700,
+                  color: done ? const Color(0xFF92400E) : StudentSurface.mutedInk(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// لوحة صدارة الجواهر بين زملاء الصفّ.

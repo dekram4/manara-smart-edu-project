@@ -1091,7 +1091,21 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            YoutubePlayer(
+            // ── والمشغّلُ لا يستقبل لمسةً، فتبلغ أدواتُنا ──
+            //
+            // `PointerEvents.none` تُقفل الصفحةَ داخل الإطار، ولا تمنع
+            // عرضَ المنصّة نفسه — `WebView` — من ابتلاع اللمس قبل أن يبلغ
+            // ودجتٍ فلاترياً مرسوماً فوقه. فكان التفاعلُ محجوباً كلُّه:
+            // لا شعارَ يوتيوب يُضغط، ولا زرَّ تشغيلٍ لنا يُضغط أيضاً.
+            //
+            // و`IgnorePointer` يُخرجه من فحص اللمس أصلاً، فيمرّ كلُّ لمسٍ
+            // إلى ما فوقه. والنتيجة أن التشغيل وملءَ الشاشة يعملان — وهما
+            // عندنا لا في الصفحة — ويبقى ما في الصفحة بعيداً عن الإصبع.
+            //
+            // والاثنان معاً لا أحدُهما: هذا يحرس من جهة فلاتر، وذاك من
+            // جهة الصفحة. فلو فشل أحدهما على منصّةٍ بقي الآخر.
+            IgnorePointer(
+              child: YoutubePlayer(
               key: ValueKey('youtube-$_ytReloadTicket'),
               controller: controller,
               aspectRatio: 16 / 9,
@@ -1136,6 +1150,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
                   onExit: () => _handleYoutubeBack(controller),
                 );
               },
+              ),
             ),
             if (!value.fullScreenOption.enabled)
               YoutubeKioskControls(
