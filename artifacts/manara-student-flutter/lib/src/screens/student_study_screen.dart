@@ -14,6 +14,7 @@ import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
+import '../widgets/study_challenges.dart';
 import '../widgets/student_experience.dart';
 
 /// «مغامرة الأذكياء ومهمة المذاكرة»: خريطةُ الدرس، وتحدٍّ قصصيٌّ فيه.
@@ -58,6 +59,14 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   int _at = 0;
   int _correct = 0;
   int? _picked;
+
+  /// الفرعُ الذي ضغطه الطالب، فيكون التحدي فيه لا في الدرس كلِّه.
+  ///
+  /// ── لماذا يُحفظ ──
+  /// الطفل يقرأ فرعاً ثم يريد أن يُختبر فيه هو. ولو كان التحدي عامّاً لكان
+  /// ضغطُ الفرع قراءةً بلا أثر — و`forBranch` ترتدّ إلى الحزمة كلِّها إن
+  /// لم يكن للفرع تحدٍّ خاصّ، فلا يبقى زرٌّ لا يفعل شيئاً.
+  String _branch = '';
 
   /// جواهرُ الجولة كما صرفها الخادم، أو `null` قبل أن تُصرف.
   int? _earned;
@@ -142,11 +151,13 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   ///
   /// عشوائيةٌ محضةٌ بين اثنين تُعيد الأول في نصف الجولات، والطفل يقرأ
   /// الحكايةَ نفسها فيظنّ البطاقة معطوبة.
-  void _start() {
+  void _start([String branch = '']) {
     final pack = _pack;
     if (pack == null || pack.scenarios.isEmpty) return;
-    final others = pack.scenarios.where((item) => item != _scenario).toList();
-    final pool = others.isEmpty ? pack.scenarios : others;
+    if (branch.isNotEmpty) _branch = branch;
+    final scoped = pack.forBranch(_branch);
+    final others = scoped.where((item) => item != _scenario).toList();
+    final pool = others.isEmpty ? scoped : others;
     setState(() {
       _scenario = pool[_random.nextInt(pool.length)];
       _at = 0;
@@ -336,8 +347,15 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     return TabBarView(
       controller: _tabs,
       children: [
-        _MindMapTab(mindMap: pack.mindMap),
+        _MindMapTab(
+          mindMap: pack.mindMap,
+          // ضغطةٌ على «تحدَّني في هذا الفرع» تفتح التبويب الثاني بتحدّي
+          // الفرع نفسه.
+          onChallengeBranch: _start,
+        ),
         _StoryTab(
+          appearance: widget.profile.appearance,
+          branch: _branch,
           scenario: _scenario,
           at: _at,
           picked: _picked,
@@ -370,9 +388,12 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
 /// الدرس — ثم يُفتح ما يُراد منها. وفتحُها كلَّها يجعلها نصّاً مسكوباً في
 /// هيئة شجرة.
 class _MindMapTab extends StatefulWidget {
-  const _MindMapTab({required this.mindMap});
+  const _MindMapTab({required this.mindMap, required this.onChallengeBranch});
 
   final StudyMindMap mindMap;
+
+  /// يُنادى باسم الفرع حين يطلب الطالب تحدّيه.
+  final ValueChanged<String> onChallengeBranch;
 
   @override
   State<_MindMapTab> createState() => _MindMapTabState();
@@ -425,6 +446,7 @@ class _MindMapTabState extends State<_MindMapTab> {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               child: _Tree(
                 mindMap: widget.mindMap,
+                onChallengeBranch: widget.onChallengeBranch,
                 open: _open,
                 onToggle: (index) => setState(() {
                   if (!_open.remove(index)) _open.add(index);
@@ -443,8 +465,10 @@ class _Tree extends StatelessWidget {
     required this.mindMap,
     required this.open,
     required this.onToggle,
+    required this.onChallengeBranch,
   });
 
+  final ValueChanged<String> onChallengeBranch;
   final StudyMindMap mindMap;
   final Set<int> open;
   final ValueChanged<int> onToggle;
@@ -507,6 +531,7 @@ class _Tree extends StatelessWidget {
         for (var index = 0; index < mindMap.branches.length; index += 1)
           _BranchNode(
             branch: mindMap.branches[index],
+            onChallenge: onChallengeBranch,
             opened: open.contains(index),
             last: index == mindMap.branches.length - 1,
             onTap: () => onToggle(index),
@@ -523,8 +548,10 @@ class _BranchNode extends StatelessWidget {
     required this.opened,
     required this.last,
     required this.onTap,
+    required this.onChallenge,
   });
 
+  final ValueChanged<String> onChallenge;
   final StudyBranch branch;
   final bool opened;
   final bool last;
@@ -626,6 +653,31 @@ class _BranchNode extends StatelessWidget {
                             color: StudentSurface.mutedInk(context),
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        // ── وتحدٍّ في هذا الفرع بعينه ──
+                        // الطفل قرأ الفرعَ الآن، فهذه أنسبُ لحظةٍ ليُختبر
+                        // فيه: ما قرأه حاضرٌ في ذهنه. وزرٌّ في الفرع نفسه
+                        // يربط القراءةَ بالاختبار، بدل زرٍّ عامٍّ في تبويبٍ
+                        // آخر لا يعرف ما قرأ.
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton.icon(
+                            onPressed: () => onChallenge(branch.title),
+                            icon: const Icon(Icons.bolt_rounded, size: 18),
+                            label: Text(tr('study.challengeBranch')),
+                            style: TextButton.styleFrom(
+                              foregroundColor: _tint,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -674,6 +726,8 @@ class _ElbowPainter extends CustomPainter {
 
 class _StoryTab extends StatelessWidget {
   const _StoryTab({
+    required this.appearance,
+    required this.branch,
     required this.scenario,
     required this.at,
     required this.picked,
@@ -686,6 +740,8 @@ class _StoryTab extends StatelessWidget {
     required this.onNext,
   });
 
+  final Map<String, dynamic>? appearance;
+  final String branch;
   final StudyScenario? scenario;
   final int at;
   final int? picked;
@@ -723,6 +779,7 @@ class _StoryTab extends StatelessWidget {
         ] else
           StudentEntrance(
             child: _SituationCard(
+              appearance: appearance,
               scenario: current,
               at: at,
               picked: picked,
@@ -739,6 +796,7 @@ class _StoryTab extends StatelessWidget {
 
 class _SituationCard extends StatelessWidget {
   const _SituationCard({
+    required this.appearance,
     required this.scenario,
     required this.at,
     required this.picked,
@@ -748,6 +806,7 @@ class _SituationCard extends StatelessWidget {
     required this.onNext,
   });
 
+  final Map<String, dynamic>? appearance;
   final StudyScenario scenario;
   final int at;
   final int? picked;
@@ -799,34 +858,35 @@ class _SituationCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              situation.prompt,
-              style: TextStyle(
-                fontSize: 15.5,
-                height: 1.6,
-                fontWeight: FontWeight.w700,
-                color: StudentSurface.ink(context),
-              ),
-            ),
             const SizedBox(height: 14),
-            for (var index = 0; index < situation.options.length; index += 1)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _OptionTile(
-                  text: situation.options[index],
-                  // ── ولونُ الخيار يُقال بعد الاختيار وحده ──
-                  // ولو لُوِّن الصحيحُ قبله لأُجيب السؤالُ بالعين لا بالفهم.
-                  state: !answered
-                      ? _OptionState.idle
-                      : index == situation.answer
-                          ? _OptionState.right
-                          : index == picked
-                              ? _OptionState.wrong
-                              : _OptionState.idle,
-                  onTap: answered ? null : () => onPick(index),
+            // ── والشكلُ يتبع النمط، والحسابُ واحد ──
+            //
+            // ثلاثةُ أنماطٍ تسأل السؤالَ نفسه بأفعالٍ مختلفة: يمشي إلى
+            // بوّابة، ويسحب بطاقةً، ويفرقع فقاعة. وكلُّها تعود بـ`onPick`
+            // بموضعٍ في `options` — فلا يعرف محرّكُ المكافآت أنماطاً، ولا
+            // يتبدّل شرطُ الجوهرتين بتبدّل الشكل.
+            //
+            // وأربعةُ أزرارٍ متشابهة كانت تصير عادةً في الموقف الثاني.
+            switch (situation.type) {
+              StudyChallengeType.avatarPath => AvatarPathChallenge(
+                  situation: situation,
+                  appearance: appearance,
+                  picked: picked,
+                  onPick: onPick,
                 ),
-              ),
+              StudyChallengeType.swipeFact => SwipeFactChallenge(
+                  situation: situation,
+                  appearance: appearance,
+                  picked: picked,
+                  onPick: onPick,
+                ),
+              StudyChallengeType.spotImposter => SpotImposterChallenge(
+                  situation: situation,
+                  appearance: appearance,
+                  picked: picked,
+                  onPick: onPick,
+                ),
+            },
             if (answered) ...[
               const SizedBox(height: 6),
               Row(
@@ -894,66 +954,6 @@ class _GemChip extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.w900,
             color: Color(0xFF92400E),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-enum _OptionState { idle, right, wrong }
-
-class _OptionTile extends StatelessWidget {
-  const _OptionTile({
-    required this.text,
-    required this.state,
-    required this.onTap,
-  });
-
-  final String text;
-  final _OptionState state;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final (border, fill, ink) = switch (state) {
-      _OptionState.right => (
-          const Color(0xFF16A34A),
-          const Color(0xFFDCFCE7),
-          const Color(0xFF14532D),
-        ),
-      _OptionState.wrong => (
-          const Color(0xFFDC2626),
-          const Color(0xFFFEE2E2),
-          const Color(0xFF7F1D1D),
-        ),
-      _OptionState.idle => (
-          const Color(0xFF7C3AED).withValues(alpha: 0.30),
-          Colors.transparent,
-          StudentSurface.ink(context),
-        ),
-    };
-    return Material(
-      color: fill,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: border, width: 1.4),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 14.5,
-              height: 1.45,
-              fontWeight: FontWeight.w800,
-              color: ink,
-            ),
           ),
         ),
       ),

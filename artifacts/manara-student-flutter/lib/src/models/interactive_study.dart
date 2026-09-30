@@ -49,15 +49,42 @@ class StudyMindMap {
   }
 }
 
+/// نمطُ التحدي: يُغيّر شكلَ الموقف لا حسابه.
+///
+/// والمجهولُ يُردّ إلى [avatarPath]: حزمةٌ محفوزةٌ من نسخةٍ أقدم لا
+/// تحمل نمطاً، وشاشةٌ لا ترسم شيئاً أسوأ من شاشةٍ ترسم بوّابتين.
+enum StudyChallengeType {
+  avatarPath,
+  swipeFact,
+  spotImposter;
+
+  static StudyChallengeType fromName(Object? raw) {
+    switch (raw is String ? raw.trim().toLowerCase() : '') {
+      case 'swipe_fact':
+        return StudyChallengeType.swipeFact;
+      case 'spot_imposter':
+        return StudyChallengeType.spotImposter;
+      default:
+        return StudyChallengeType.avatarPath;
+    }
+  }
+}
+
 class StudySituation {
   const StudySituation({
+    required this.type,
     required this.prompt,
     required this.options,
     required this.answer,
     required this.because,
   });
 
+  final StudyChallengeType type;
+
+  /// الموقفُ كما يُحكى، أو نصُّ الحقيقة في نمط السحب.
   final String prompt;
+
+  /// خياراتُ الموقف: بوّابتان، أو ثلاثُ فقاعات، أو فارغةٌ في السحب.
   final List<String> options;
 
   /// موضعُ الصحيح في [options].
@@ -68,17 +95,31 @@ class StudySituation {
 
   static StudySituation? fromMap(Object? raw) {
     if (raw is! Map) return null;
+    final type = StudyChallengeType.fromName(raw['type']);
     final prompt = _text(raw['prompt']);
     final options = _list(raw['options'])
         .map(_text)
         .where((option) => option.isNotEmpty)
         .toList(growable: false);
     final answer = raw['answer'];
-    if (prompt.isEmpty || options.length < 2) return null;
-    // والموضعُ داخل القائمة شرط: خارجَها يعني موقفاً لا جوابَ له، فيُسقط
-    // كلَّ الحزمة بدل أن يُعرض على الطفل سؤالٌ لا يُصاب.
-    if (answer is! int || answer < 0 || answer >= options.length) return null;
+    if (prompt.isEmpty) return null;
+    if (answer is! int || answer < 0) return null;
+
+    // ── وعددُ الخيارات يتبع النمط ──
+    // السحبُ لا خيارَ له والجوابُ صفرٌ أو واحد، والمسارُ بوّابتان،
+    // والرادارُ ثلاث. وعددٌ لا يوافق نمطَه لا تعرف الشاشةُ كيف ترسمه،
+    // فيُسقط الموقفُ ومعه مغامرتُه بدل أن يُعرض نصفُ مشهد.
+    switch (type) {
+      case StudyChallengeType.swipeFact:
+        if (answer > 1) return null;
+      case StudyChallengeType.avatarPath:
+        if (options.length != 2 || answer >= options.length) return null;
+      case StudyChallengeType.spotImposter:
+        if (options.length != 3 || answer >= options.length) return null;
+    }
+
     return StudySituation(
+      type: type,
       prompt: prompt,
       options: options,
       answer: answer,
@@ -88,9 +129,17 @@ class StudySituation {
 }
 
 class StudyScenario {
-  const StudyScenario({required this.title, required this.situations});
+  const StudyScenario({
+    required this.title,
+    required this.situations,
+    this.branch = '',
+  });
 
   final String title;
+
+  /// عنوانُ فرع الخريطة الذي يقيسه هذا التحدي، أو فارغٌ إن كان عامّاً.
+  final String branch;
+
   final List<StudySituation> situations;
 
   static StudyScenario? fromMap(Object? raw) {
@@ -103,7 +152,11 @@ class StudyScenario {
     }
     final title = _text(raw['title']);
     if (title.isEmpty || situations.isEmpty) return null;
-    return StudyScenario(title: title, situations: situations);
+    return StudyScenario(
+      title: title,
+      branch: _text(raw['branch']),
+      situations: situations,
+    );
   }
 }
 
@@ -116,6 +169,21 @@ class StudyPack {
   /// مجموعُ المواقف في الحزمة كلِّها — وهو سقفُ ما يُكافأ عليه.
   int get totalSituations =>
       scenarios.fold(0, (total, scenario) => total + scenario.situations.length);
+
+  /// تحدياتُ فرعٍ بعينه، أو الحزمةُ كلُّها إن لم يكن له تحدٍّ خاصّ.
+  ///
+  /// ── لماذا الارتداد إلى الكلّ ──
+  /// الطفل يضغط الفرعَ فينتظر تحدياً. وحزمةٌ قديمةٌ لا تحمل أسماءَ الفروع،
+  /// أو نموذجٌ سمّى فرعاً بغير ما في الخريطة — وكلاهما يعني قائمةً فارغة.
+  /// وزرٌّ لا يفعل شيئاً أسوأ من تحدٍّ عامّ.
+  List<StudyScenario> forBranch(String branch) {
+    final title = branch.trim();
+    if (title.isEmpty) return scenarios;
+    final matching = scenarios
+        .where((scenario) => scenario.branch.trim() == title)
+        .toList(growable: false);
+    return matching.isEmpty ? scenarios : matching;
+  }
 
   static StudyPack? fromMap(Object? raw) {
     if (raw is! Map) return null;

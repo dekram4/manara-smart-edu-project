@@ -27,10 +27,12 @@ try {
 }
 
 const {
+  CHALLENGE_OPTIONS,
   MAX_SCENARIOS,
   MIN_BRANCHES,
   SITUATIONS_PER_SCENARIO,
   STUDY_VERSION,
+  parseChallengeType,
   clean,
   extractJson,
   maxSituations,
@@ -40,17 +42,44 @@ const {
   studyPrompt,
 } = mod;
 
-/** موقفٌ صالح. */
-const situation = (n = 1) => ({
-  prompt: `الموقف رقم ${n}: ماذا تفعل؟`,
-  options: [`خيار أ${n}`, `خيار ب${n}`, `خيار ج${n}`],
-  answer: 1,
-  because: "لأنه يوافق ما في الدرس",
+/** بوّابتان يمشي الطالب بينهما. */
+const pathSituation = (n = 1) => ({
+  type: "avatar_path",
+  prompt: `الموقف رقم ${n}: أيّ بوّابة تعبر؟`,
+  options: [`البوابة أ${n}`, `البوابة ب${n}`],
+  answer: 0,
+  because: "لأنها توافق ما في الدرس",
 });
+
+/** حقيقةٌ تُسحب. */
+const swipeSituation = ({ isTrue = true, n = 1 } = {}) => ({
+  type: "swipe_fact",
+  prompt: `المعلومة رقم ${n} عن الفرع`,
+  options: [],
+  isTrue,
+  because: "لأن الدرس يقولها كذا",
+});
+
+/** ثلاثُ فقاعاتٍ إحداها متسلّلة. */
+const imposterSituation = (n = 1) => ({
+  type: "spot_imposter",
+  prompt: "أيّها متسلّلة؟",
+  options: [`صحيحة أ${n}`, `صحيحة ب${n}`, `متسلّلة ج${n}`],
+  answer: 2,
+  because: "لأنها ليست من الدرس",
+});
+
+/** موقفٌ صالحٌ من أيّ نمط — يُستعمل حيث لا يهمّ النمط. */
+const situation = (n = 1) => pathSituation(n);
 
 const scenario = (n = 1) => ({
   title: `مغامرة ${n}`,
-  situations: [situation(n * 10 + 1), situation(n * 10 + 2), situation(n * 10 + 3)],
+  branch: `الفرع ${n}`,
+  situations: [
+    pathSituation(n * 10 + 1),
+    swipeSituation({ n: n * 10 + 2 }),
+    imposterSituation(n * 10 + 3),
+  ],
 });
 
 const pack = () => ({
@@ -76,6 +105,11 @@ test("الطلبُ يحمل نصّ الدرس وشروطَ الشكل", () => {
   assert.match(prompt, /scenarios/);
   // والشروطُ العددية مكتوبةٌ من الثوابت لا بأرقامٍ يدوية.
   assert.match(prompt, new RegExp(`${SITUATIONS_PER_SCENARIO} مواقف`));
+  // والأنماطُ الثلاثة مذكورةٌ بأسمائها، وإلا أخرج النموذج نمطاً واحداً.
+  for (const type of Object.keys(CHALLENGE_OPTIONS)) {
+    assert.match(prompt, new RegExp(type), type);
+  }
+  assert.match(prompt, /branch/);
   // وتُطلب اللهجةُ ومنعُ التشكيل كما في بقية المسارات.
   assert.match(prompt, /تشكيل/);
 });
@@ -95,7 +129,15 @@ test("الحزمةُ الصالحة تُقرأ", () => {
   assert.equal(parsed.mindMap.branches.length, 3);
   assert.equal(parsed.scenarios.length, 2);
   assert.equal(parsed.scenarios[0].situations.length, SITUATIONS_PER_SCENARIO);
-  assert.equal(parsed.scenarios[0].situations[0].answer, 1);
+  // وأوّلُ موقفٍ مسارٌ ببوّابتين، وصحيحُه الأولى.
+  assert.equal(parsed.scenarios[0].situations[0].type, "avatar_path");
+  assert.equal(parsed.scenarios[0].situations[0].answer, 0);
+  // وترتيبُ الأنماط كما يُطلب في الطلب: نمطٌ واحدٌ يتكرّر ثلاثاً يصير
+  // عادةً في الموقف الثاني.
+  assert.deepEqual(
+    parsed.scenarios[0].situations.map((item) => item.type),
+    ["avatar_path", "swipe_fact", "spot_imposter"],
+  );
 });
 
 test("وسياجُ الشيفرة وكلامٌ حول JSON لا يمنعان قراءته", () => {
@@ -140,31 +182,85 @@ test("ومغامرةٌ بموقفين تُهمل، فإن بقي أقلُّ من
 });
 
 test("والخيارُ الصحيح خارج القائمة يُسقط الموقف", () => {
-  assert.equal(parseSituation({ ...situation(), answer: 5 }), null);
-  assert.equal(parseSituation({ ...situation(), answer: -1 }), null);
+  assert.equal(parseSituation({ ...pathSituation(), answer: 5 }), null);
+  assert.equal(parseSituation({ ...pathSituation(), answer: -1 }), null);
 });
 
 test("وخيارٌ مكرَّر يُسقط الموقف — فلا يُعرف أيُّ الصحيحين أراد", () => {
   assert.equal(
-    parseSituation({ ...situation(), options: ["أ", "ب", "أ"] }),
+    parseSituation({ ...imposterSituation(), options: ["أ", "ب", "أ"] }),
     null,
   );
 });
 
-test("وعددُ الخيارات ثلاثةٌ بالضبط", () => {
-  assert.equal(parseSituation({ ...situation(), options: ["أ", "ب"] }), null);
+test("وعددُ الخيارات يتبع النمط لا رقماً واحداً", () => {
+  // بوّابتان في المسار: ثلاثةٌ أو واحدةٌ لا تعرف الشاشةُ كيف ترسمها.
+  assert.equal(parseSituation({ ...pathSituation(), options: ["أ"] }), null);
   assert.equal(
-    parseSituation({ ...situation(), options: ["أ", "ب", "ج", "د"] }),
+    parseSituation({ ...pathSituation(), options: ["أ", "ب", "ج"] }),
     null,
   );
+  // وثلاثُ فقاعاتٍ في الرادار.
+  assert.equal(
+    parseSituation({ ...imposterSituation(), options: ["أ", "ب"] }),
+    null,
+  );
+  // ولا خيارَ في السحب: الحقيقةُ في `prompt`.
+  assert.equal(
+    parseSituation({ ...swipeSituation(), options: ["صحيح", "خطأ"] }),
+    null,
+  );
+  assert.equal(CHALLENGE_OPTIONS.avatar_path, 2);
+  assert.equal(CHALLENGE_OPTIONS.swipe_fact, 0);
+  assert.equal(CHALLENGE_OPTIONS.spot_imposter, 3);
+});
+
+test("والنمطُ شرطٌ: موقفٌ بلا نمطٍ معروف يُسقط", () => {
+  // الشاشةُ ترسم بالنمط، فموقفٌ بلا نمطٍ لا تعرف كيف تعرضه.
+  const raw = { ...pathSituation() };
+  delete raw.type;
+  assert.equal(parseSituation(raw), null);
+  assert.equal(parseSituation({ ...pathSituation(), type: "quiz" }), null);
+  // ويُقبل `challengeType` اسماً بديلاً، فردٌّ صالحٌ لا يُردّ لأن النموذج
+  // اختار الاسم الآخر.
+  const alias = { ...pathSituation() };
+  delete alias.type;
+  assert.ok(parseSituation({ ...alias, challengeType: "avatar_path" }));
+  assert.equal(parseChallengeType("SWIPE_FACT"), "swipe_fact");
+  assert.equal(parseChallengeType("nope"), null);
+});
+
+test("وحقيقةُ السحب: صحيحةٌ صفرٌ ومشوَّهةٌ واحد", () => {
+  assert.equal(parseSituation(swipeSituation({ isTrue: true })).answer, 0);
+  assert.equal(parseSituation(swipeSituation({ isTrue: false })).answer, 1);
+  // ويُقبل نصّاً ورقماً: النموذج يُخرج أحدهما.
+  const raw = swipeSituation();
+  delete raw.isTrue;
+  assert.equal(parseSituation({ ...raw, answer: "false" }).answer, 1);
+  assert.equal(parseSituation({ ...raw, correct: 0 }).answer, 0);
+  // وما ليس واحداً منهما يُسقط الموقف.
+  assert.equal(parseSituation({ ...raw, isTrue: "maybe" }), null);
+});
+
+test("والمغامرةُ تحمل فرعَها، فيُختبر الفرعُ الذي قرأه", () => {
+  const parsed = parseStudyPack(JSON.stringify(pack()), "الخلية");
+  assert.equal(parsed.scenarios[0].branch, "الفرع 1");
+  // وفارغٌ مقبول: حزمةٌ من نموذجٍ لم يُلزمه الطلبُ بعد.
+  const raw = pack();
+  delete raw.scenarios[0].branch;
+  assert.equal(parseStudyPack(JSON.stringify(raw), "الخلية").scenarios[0].branch, "");
 });
 
 test("و«الصحيح» يُقبل نصَّ الخيار كما يُقبل موضعه", () => {
   // النموذج يعود بأحدهما، فيُقرأ كلاهما بدل أن تُردّ حزمةٌ صالحة.
-  const byText = parseSituation({ ...situation(1), answer: "خيار ج1" });
+  const byText = parseSituation({
+    ...imposterSituation(1),
+    answer: "متسلّلة ج1",
+  });
   assert.ok(byText);
   assert.equal(byText.answer, 2);
-  const byDigitString = parseSituation({ ...situation(), answer: "2" });
+  // ورقماً في صورة نصّ. وعلى نمطٍ له ثلاثةُ خيارات، فـ٢ داخل مداه.
+  const byDigitString = parseSituation({ ...imposterSituation(), answer: "2" });
   assert.equal(byDigitString?.answer, 2);
 });
 

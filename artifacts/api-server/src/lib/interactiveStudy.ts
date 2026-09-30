@@ -11,7 +11,7 @@
  */
 
 /** نسخةُ الحزمة المخزَّنة. تُرفع حين يتغيّر شكلُها فيُعاد التوليد. */
-export const STUDY_VERSION = 1;
+export const STUDY_VERSION = 2;
 
 /** فروعُ الخريطة الذهنية: ثلاثةٌ أو أربعة، لا أكثر. */
 export const MIN_BRANCHES = 3;
@@ -39,11 +39,39 @@ export interface MindMap {
   branches: MindMapBranch[];
 }
 
+/**
+ * نمطُ التحدي — وهو ما يُغيّر شكلَ الموقف على الشاشة لا حسابَه.
+ *
+ * ── لماذا ثلاثةٌ لا واحد ──
+ * أربعةُ أزرارٍ متشابهة في كل موقف تصير عادةً بعد الموقف الثالث: الطفل
+ * يقرأ الخيارات ويختار أقربها، ولا يتحرّك في المشهد شيء. والثلاثةُ هنا
+ * تسأل السؤالَ نفسه بأفعالٍ مختلفة: يمشي، ويسحب، ويفرقع.
+ *
+ * ── وحسابُ الجواهر واحدٌ فيها ──
+ * كلُّها تُخزَّن بـ`options` و`answer`: موضعُ الصحيح في القائمة. فلا
+ * يعرف محرّكُ المكافآت أنماطاً، ولا يتبدّل شرطُ الجوهرتين ولا حارسُ
+ * التكرار بتبدّل الشكل.
+ */
+export type ChallengeType = "avatar_path" | "swipe_fact" | "spot_imposter";
+
+/** الأنماطُ الثلاثة، وعددُ خياراتِ كلٍّ منها. */
+export const CHALLENGE_OPTIONS: Record<ChallengeType, number> = {
+  // بوّابتان يمشي بينهما.
+  avatar_path: 2,
+  // حقيقةٌ تُسحب: صفرٌ صحيحة، وواحدٌ خطأ. ولا نصَّ خيارٍ يُخزَّن — التطبيق
+  // يكتب «صحيح» و«خطأ» بلغته.
+  swipe_fact: 0,
+  // ثلاثُ فقاعات، إحداها متسلّلة.
+  spot_imposter: 3,
+};
+
 export interface Situation {
-  /** الموقفُ كما يُحكى للطفل. */
+  /** نمطُ التحدي. */
+  type: ChallengeType;
+  /** الموقفُ كما يُحكى للطفل، أو الحقيقةُ في نمط السحب. */
   prompt: string;
   options: string[];
-  /** موضعُ الصحيح في [options]. */
+  /** موضعُ الصحيح في [options] — أو ٠/١ في نمط السحب. */
   answer: number;
   /** لماذا هو الصحيح — يُعرض بعد الاختيار. */
   because: string;
@@ -51,6 +79,17 @@ export interface Situation {
 
 export interface Scenario {
   title: string;
+  /**
+   * عنوانُ فرع الخريطة الذي يقيسه هذا السيناريو.
+   *
+   * ── لماذا ──
+   * الطفل يضغط فرعاً في الشجرة ليقرأه، ثم يريد أن يُختبر فيه هو لا في
+   * الدرس كلِّه. ولو كانت الأسئلةُ عامّةً لكان ضغطُ الفرع قراءةً بلا أثر.
+   *
+   * وفارغٌ مقبول: حزمةٌ من نموذجٍ لم يُلزمه الطلبُ بعد، أو سيناريو يجمع
+   * فروعاً. وحينها يُعرض في «كل الدرس».
+   */
+  branch: string;
   situations: Situation[];
 }
 
@@ -106,12 +145,28 @@ export function studyPrompt(input: {
     '  "scenarios": [',
     "    {",
     '      "title": "عنوان المغامرة",',
+    '      "branch": "اسم الفرع الذي تقيسه هذه المغامرة، من فروع mindMap",',
     '      "situations": [',
     "        {",
-    '          "prompt": "موقف قصصي يواجه الطالب ويحتاج قرارا",',
-    '          "options": ["خيار اول", "خيار ثان", "خيار ثالث"],',
+    '          "type": "avatar_path",',
+    '          "prompt": "موقف قصصي: امام الطالب بوابتان ويحتاج ان يختار",',
+    '          "options": ["البوابة الاولى", "البوابة الثانية"],',
     '          "answer": 0,',
-    '          "because": "لماذا هذا الخيار صحيح، بجملة قصيرة"',
+    '          "because": "لماذا هذه البوابة صحيحة، بجملة قصيرة"',
+    "        },",
+    "        {",
+    '          "type": "swipe_fact",',
+    '          "prompt": "جملة معلومة واحدة عن الفرع، قد تكون صحيحة وقد تكون مشوهة",',
+    '          "options": [],',
+    '          "isTrue": true,',
+    '          "because": "لماذا هي صحيحة او مشوهة، بجملة قصيرة"',
+    "        },",
+    "        {",
+    '          "type": "spot_imposter",',
+    '          "prompt": "اي معلومة من الثلاث متسللة وليست من الدرس؟",',
+    '          "options": ["حقيقة صحيحة", "حقيقة صحيحة اخرى", "معلومة متسللة مشوهة"],',
+    '          "answer": 2,',
+    '          "because": "لماذا هذه المتسللة، بجملة قصيرة"',
     "        }",
     "      ]",
     "    }",
@@ -129,9 +184,16 @@ export function studyPrompt(input: {
     '- "icon" رمز تعبيري واحد يناسب الفرع.',
     "- والفروع اجزاء الدرس الكبرى: كل فرع مفهوم قائم بنفسه، لا جملة من النص.",
     `- عدد المغامرات بين ${MIN_SCENARIOS} و${MAX_SCENARIOS}، وكل واحدة مختلفة عن الاخرى في حكايتها.`,
-    `- كل مغامرة فيها ${SITUATIONS_PER_SCENARIO} مواقف بالضبط، وكل موقف ${OPTIONS_PER_SITUATION} خيارات بالضبط.`,
-    '- "answer" رقم موضع الخيار الصحيح في القائمة، يبدا من صفر.',
-    "- الخيارات الثلاثة مختلفة، والخطأ منها معقول لا سخيف.",
+    `- كل مغامرة فيها ${SITUATIONS_PER_SCENARIO} مواقف بالضبط، وكل مغامرة تخص فرعا واحدا تذكره في "branch".`,
+    // ── والأنماطُ الثلاثة في كل مغامرة ──
+    // نمطٌ واحدٌ يتكرّر ثلاثاً يصير عادةً في الموقف الثاني. والتنويعُ
+    // يُطلب صريحاً بالترتيب، وإلا أخرج النموذج `avatar_path` ثلاثَ مرّات.
+    `- المواقف الثلاثة انماطها بهذا الترتيب: "avatar_path" ثم "swipe_fact" ثم "spot_imposter".`,
+    '- "avatar_path": خياران بالضبط في "options"، و"answer" موضع الصحيح (0 او 1).',
+    '- "swipe_fact": "options" مصفوفة فارغة، و"prompt" جملة المعلومة نفسها، و"isTrue" صح او خطأ.',
+    '- "spot_imposter": ثلاثة خيارات، اثنتان صحيحتان وواحدة متسللة، و"answer" موضع المتسللة.',
+    '- "answer" رقم يبدا من صفر.',
+    "- الخيارات في الموقف مختلفة، والخطأ منها معقول لا سخيف.",
     "- كل موقف يقيس مفهوما من مفاهيم الدرس، لا معلومة عامة من خارجه.",
     "- اكتب بلهجة سعودية بيضاء سهلة، وبلا اي تشكيل على الحروف.",
   ].join("\n");
@@ -179,13 +241,29 @@ export function parseMindMap(raw: unknown, fallbackTitle: string): MindMap | nul
   return title ? { title, branches } : null;
 }
 
-/** موقفٌ واحد، أو `null`. */
+/** نمطُ التحدي من الردّ، أو `null` إن لم يكن واحداً من الثلاثة. */
+export function parseChallengeType(raw: unknown): ChallengeType | null {
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return value in CHALLENGE_OPTIONS ? (value as ChallengeType) : null;
+}
+
+/**
+ * موقفٌ واحد، أو `null`.
+ *
+ * ── وعددُ الخيارات يتبع النمط ──
+ * بوّابتان في المسار، وثلاثُ فقاعاتٍ في الرادار، ولا خيارَ في السحب —
+ * الحقيقةُ في `prompt` والجوابُ صفرٌ أو واحد. فعددٌ لا يوافق نمطَه يُسقط
+ * الموقف: موقفٌ بثلاث بوّاباتٍ لا تعرف الشاشةُ كيف ترسمه.
+ */
 export function parseSituation(raw: unknown): Situation | null {
   const map = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
   if (!map) return null;
-  const prompt = clean(map.prompt, 300);
+  const type = parseChallengeType(map.type ?? map.challengeType);
+  if (!type) return null;
+  const prompt = clean(map.prompt ?? map.fact, 300);
   if (!prompt) return null;
 
+  const wanted = CHALLENGE_OPTIONS[type];
   const options: string[] = [];
   for (const entry of asArray(map.options)) {
     const option = clean(entry, 120);
@@ -194,21 +272,39 @@ export function parseSituation(raw: unknown): Situation | null {
     if (!option || options.includes(option)) return null;
     options.push(option);
   }
-  if (options.length !== OPTIONS_PER_SITUATION) return null;
+  if (options.length !== wanted) return null;
 
   // و«الصحيح» يأتي رقماً أو نصَّ الخيار: كلاهما يُقرأ، وما سواهما يُردّ.
+  //
+  // وفي السحب لا خيارات، فيُقرأ `isTrue` بدلاً عنها: حقيقةٌ صحيحة جوابُها
+  // صفر، ومشوَّهةٌ جوابُها واحد.
   let answer = -1;
-  if (typeof map.answer === "number" && Number.isInteger(map.answer)) {
-    answer = map.answer;
-  } else if (typeof map.answer === "string") {
-    const asNumber = Number(map.answer.trim());
-    answer = Number.isInteger(asNumber)
-      ? asNumber
-      : options.indexOf(clean(map.answer, 120));
+  if (type === "swipe_fact") {
+    const flag = map.isTrue ?? map.correct ?? map.answer;
+    if (typeof flag === "boolean") {
+      answer = flag ? 0 : 1;
+    } else if (typeof flag === "number" && (flag === 0 || flag === 1)) {
+      answer = flag;
+    } else if (typeof flag === "string") {
+      const text = flag.trim().toLowerCase();
+      if (text === "true" || text === "0") answer = 0;
+      if (text === "false" || text === "1") answer = 1;
+    }
+    if (answer !== 0 && answer !== 1) return null;
+  } else {
+    if (typeof map.answer === "number" && Number.isInteger(map.answer)) {
+      answer = map.answer;
+    } else if (typeof map.answer === "string") {
+      const asNumber = Number(map.answer.trim());
+      answer = Number.isInteger(asNumber)
+        ? asNumber
+        : options.indexOf(clean(map.answer, 120));
+    }
+    if (answer < 0 || answer >= options.length) return null;
   }
-  if (answer < 0 || answer >= options.length) return null;
 
   return {
+    type,
     prompt,
     options,
     answer,
@@ -228,7 +324,9 @@ export function parseScenario(raw: unknown): Scenario | null {
   }
   if (situations.length !== SITUATIONS_PER_SCENARIO) return null;
   const title = clean(map.title, 80);
-  return title ? { title, situations } : null;
+  return title
+    ? { title, branch: clean(map.branch, 60), situations }
+    : null;
 }
 
 /**
