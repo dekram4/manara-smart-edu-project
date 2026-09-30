@@ -9,17 +9,24 @@
 library;
 
 class StudyBranch {
-  const StudyBranch({required this.title, required this.summary});
+  const StudyBranch({
+    required this.title,
+    required this.summary,
+    this.icon = '',
+  });
 
   final String title;
   final String summary;
+
+  /// رمزٌ تعبيريٌّ يرسله النموذج، أو فارغٌ — فتُرسم نقطةٌ مكانه.
+  final String icon;
 
   static StudyBranch? fromMap(Object? raw) {
     if (raw is! Map) return null;
     final title = _text(raw['title']);
     final summary = _text(raw['summary']);
     if (title.isEmpty || summary.isEmpty) return null;
-    return StudyBranch(title: title, summary: summary);
+    return StudyBranch(title: title, summary: summary, icon: _text(raw['icon']));
   }
 }
 

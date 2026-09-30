@@ -87,10 +87,19 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
     final playing = _playerState == PlayerState.playing;
     final ended = _playerState == PlayerState.ended;
 
-    // ── و`Stack` بلا `fit: expand` ──
-    // الاتّساعُ يجعل هذا الودجت يشغل الصورةَ كلَّها، وهو ما لا يُراد: ما
-    // يُراد شريطٌ في أسفلها وزرٌّ في أعلاها، وما بينهما خالٍ.
+    // ── و`fit: expand` لازم، وهذا موضعُ عطبٍ كان ──
+    //
+    // أُزيل الاتّساعُ ظنّاً أنه هو ما يحجب اللمس، فاختفت الأدواتُ كلُّها:
+    // هذا الودجت ابنٌ غيرُ موضَّعٍ في `Stack` الفيديو، فيأتيه قيدٌ فضفاض.
+    // و`Stack` كلُّ أبنائه موضَّعون يأخذ أصغرَ ما يسمح به قيدُه — صفراً في
+    // صفر. فرُسمت الأزرارُ في مساحةٍ لا أبعادَ لها: لا تُرى ولا تُلمس.
+    // وهو ما رآه الطالب «مشغّلاً بلا أزرار».
+    //
+    // والاتّساعُ لا يحجب شيئاً: `Stack` يؤجّل فحصَ اللمس إلى أبنائه، فلا
+    // يبتلع لمسةً في موضعٍ لا ابنَ فيه. والذي كان يحجب هو
+    // `GestureDetector` المفروشُ على الصورة، وقد أُزيل — ولا يعود.
     return Stack(
+      fit: StackFit.expand,
       children: [
         if (ended) Positioned.fill(child: _EndedCover(onReplay: _togglePlay)),
         PositionedDirectional(

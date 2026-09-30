@@ -15,7 +15,7 @@ export const STUDY_VERSION = 1;
 
 /** فروعُ الخريطة الذهنية: ثلاثةٌ أو أربعة، لا أكثر. */
 export const MIN_BRANCHES = 3;
-export const MAX_BRANCHES = 4;
+export const MAX_BRANCHES = 5;
 
 /** السيناريوهات: اثنان أو ثلاثة. */
 export const MIN_SCENARIOS = 2;
@@ -30,6 +30,8 @@ export const OPTIONS_PER_SITUATION = 3;
 export interface MindMapBranch {
   title: string;
   summary: string;
+  /** رمزٌ تعبيريٌّ واحد، أو فارغٌ إن لم يُرسله النموذج. */
+  icon: string;
 }
 
 export interface MindMap {
@@ -96,9 +98,9 @@ export function studyPrompt(input: {
     "اخرج كائن JSON واحدا فقط، بلا اي شرح قبله او بعده، وبلا علامات تنسيق، بهذا الشكل:",
     "{",
     '  "mindMap": {',
-    '    "title": "عنوان الدرس بكلمات قليلة",',
+    '    "title": "عنوان الدرس بكلمات قليلة — وهو جذر الشجرة",',
     '    "branches": [',
-    '      { "title": "اسم الفرع", "summary": "شرح الفرع في سطر واحد" }',
+    '      { "icon": "🌿", "title": "اسم الفرع", "summary": "شرح الفرع في سطرين مفهومين" }',
     "    ]",
     "  },",
     '  "scenarios": [',
@@ -117,7 +119,15 @@ export function studyPrompt(input: {
     "}",
     "",
     "وهذه شروط لازمة:",
-    `- عدد الفروع بين ${MIN_BRANCHES} و${MAX_BRANCHES}.`,
+    // ── والفروعُ شرطٌ مشدَّد ──
+    // خريطةٌ بجذرٍ بلا فروع ليست خريطة، وهي أوّلُ ما يخرج به النموذج حين
+    // يُترك الشرطُ رخواً: عنوانٌ واحد وقائمةٌ فارغة. فيُقال العددُ مرّتين —
+    // في الشكل وفي الشروط — ويُطلب صريحاً ألّا تكون فارغة.
+    `- "branches" مصفوفة فيها ${MIN_BRANCHES} إلى ${MAX_BRANCHES} فروع، ولا تكون فارغة أبدا.`,
+    '- كل فرع كائن فيه "title" و"summary" و"icon"، ولا يخلو من واحد منها.',
+    '- "summary" شرح مفهوم في سطرين، لا كلمة واحدة ولا تكرار للعنوان.',
+    '- "icon" رمز تعبيري واحد يناسب الفرع.',
+    "- والفروع اجزاء الدرس الكبرى: كل فرع مفهوم قائم بنفسه، لا جملة من النص.",
     `- عدد المغامرات بين ${MIN_SCENARIOS} و${MAX_SCENARIOS}، وكل واحدة مختلفة عن الاخرى في حكايتها.`,
     `- كل مغامرة فيها ${SITUATIONS_PER_SCENARIO} مواقف بالضبط، وكل موقف ${OPTIONS_PER_SITUATION} خيارات بالضبط.`,
     '- "answer" رقم موضع الخيار الصحيح في القائمة، يبدا من صفر.',
@@ -161,7 +171,7 @@ export function parseMindMap(raw: unknown, fallbackTitle: string): MindMap | nul
     if (!title || !summary) continue;
     // ولا فرعان بعنوانٍ واحد: شجرةٌ فيها فرعان متطابقان تبدو عطباً.
     if (branches.some((branch) => branch.title === title)) continue;
-    branches.push({ title, summary });
+    branches.push({ title, summary, icon: clean(item.icon, 8) });
     if (branches.length === MAX_BRANCHES) break;
   }
   if (branches.length < MIN_BRANCHES) return null;

@@ -532,9 +532,23 @@ class _BranchNode extends StatelessWidget {
 
   static const _tint = Color(0xFF7C3AED);
 
+  /// ── و`IntrinsicHeight` لازم، وهذا موضعُ عطبٍ كان ──
+  ///
+  /// خطُّ الوصل يُرسم بـ`CustomPaint` يمتدّ بارتفاع الفرع، وذلك يقتضي
+  /// `CrossAxisAlignment.stretch` في الصفّ. و`stretch` يمرّر إلى أبنائه
+  /// ارتفاعَ الصفّ الأقصى — وهو هنا لا نهائيّ، لأن الصفَّ داخل عمود.
+  ///
+  /// فكان يُرفع خطأُ تخطيطٍ عند كل فرع: «BoxConstraints forces an infinite
+  /// height». والخطأُ في التخطيط لا يُسقط التطبيق، بل يُهمل رسمَ الشجرة
+  /// ويُبقي جذعَها وحده — وهو ما رآه الطالب: عقدةُ العنوان بلا فروع.
+  ///
+  /// و`IntrinsicHeight` يقيس أبناءَ الصفّ أوّلاً فيصير ارتفاعُه معلوماً،
+  /// فيمرّ `stretch`. وثمنُه قياسٌ ثانٍ لكل فرعٍ — وهي أربعةٌ أو خمسة، لا
+  /// قائمةٌ طويلة.
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return IntrinsicHeight(
+      child: Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
@@ -572,6 +586,14 @@ class _BranchNode extends StatelessWidget {
                     children: [
                       Row(
                         children: [
+                          // رمزُ الفرع إن أرسله النموذج، ونقطةٌ إن لم
+                          // يُرسله: الفرعُ بلا علامةٍ في صدره يبدو سطراً
+                          // في قائمة لا عقدةً في شجرة.
+                          Text(
+                            branch.icon.isEmpty ? '•' : branch.icon,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               branch.title,
@@ -613,6 +635,7 @@ class _BranchNode extends StatelessWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }
