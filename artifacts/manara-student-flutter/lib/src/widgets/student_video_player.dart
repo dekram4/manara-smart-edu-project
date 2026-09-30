@@ -288,6 +288,12 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   VideoController? _videoController;
   VideoPlayerController? _networkController;
   YoutubePlayerController? _ytController;
+
+  /// وسيطُ الأزرار على المشغّل، يُبنى معه لا في كل إطار.
+  ///
+  /// وودجتُ الأدوات يعيد الاشتراكَ على مَجرى الحال حين يتبدّل هذا، فبناءُ
+  /// وسيطٍ جديدٍ في كل إطار كان سيعيد الاشتراكَ في كل إطار.
+  YoutubeKioskPlayback? _ytPlayback;
   StreamSubscription<YoutubePlayerValue>? _ytSubscription;
   bool _completionReported = false;
   bool _nativeCompleted = false;
@@ -490,6 +496,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
       );
     }
     _ytController = controller;
+    _ytPlayback = YoutubeKioskPlayback(controller);
     _ytSubscription = controller.stream.listen(_onYoutubeValueChanged);
     _startLoadTimeout();
   }
@@ -571,6 +578,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     setState(() {
       _error = null;
       _ytController = null;
+      _ytPlayback = null;
       _ytSubscription = null;
       _ytReloadTicket++;
     });
@@ -1063,7 +1071,8 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
 
   Widget _buildYoutubeEmbed() {
     final controller = _ytController;
-    if (controller == null) {
+    final playback = _ytPlayback;
+    if (controller == null || playback == null) {
       return _error != null
           ? _buildError(
               tr('video.playFailed'),
@@ -1091,32 +1100,34 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // ── والمشغّلُ خارجَ فحص اللمس، وأدواتُنا فوقه ──
+            // ── وأدواتُنا كلُّها من `controlsBuilder`، في الوضعين ──
             //
-            // عرضُ المنصّة — `WebView` تحت `YoutubePlayer` — يستقبل اللمسَ
-            // في مساحته ويبتلعه قبل أن يبلغ ودجتاً فلاترياً مرسوماً فوقه.
-            // فالأزرارُ تُرى ولا تُلمس. و`IgnorePointer` يُخرجه من فحص اللمس
-            // أصلاً، فيمرّ كلُّ لمسٍ إلى ما فوقه.
+            // وهذا موضعُ العطب الذي أُخطئ فيه أربع مرّات، وسببُه في الحزمة
+            // لا في شيفرتنا: `YoutubePlayer` على الهاتف لا يرسم في مكانه
+            // شيئاً. يرسم `SizedBox` فارغاً علامةً على الموضع، ويضع
+            // الصورةَ وأدواتِها في `OverlayPortal` — أي في `Overlay`
+            // التطبيق، فوق صفحة الشاشة كلِّها.
             //
-            // ── وثلاثُ جولاتٍ لم يُصَب فيها الشرطان معاً ──
-            // أُضيف `IgnorePointer` أوّلاً، وكانت أدواتُنا تفرش
-            // `GestureDetector` على الصورة كلِّها لتلتقط لمسةَ الإظهار —
-            // فحجب هو اللمسَ لا المشغّل. فأُزيل `IgnorePointer` ومعه ذلك
-            // الفرش، وأُزيل في الأثناء `StackFit.expand` فصارت الأدواتُ في
-            // صفرٍ في صفر. ثم أُعيد الاتّساعُ بلا `IgnorePointer` — فرُئيت
-            // ولم تُلمَس.
+            // فأيُّ ودجتٍ نرسمه هنا أخاً لـ`YoutubePlayer` يُرسم **تحت**
+            // الصورة لا فوقها: لا يُرى، ولا تبلغه لمسة — عرضُ الويب في
+            // الطبقة العليا يبتلعها. وهو ما جعل الأزرارَ «لا تعمل» مصغّرةً.
             //
-            // والصحيحُ الاثنان: المشغّلُ لا يستقبل لمسة، والأدواتُ لها
-            // أبعاد، ولا شيءَ يفرش نفسه على الصورة.
+            // و`IgnorePointer` حول المشغّل كان بلا أثرٍ لهذا السبب نفسه:
+            // هو يلفّ العلامةَ الفارغة، والصورةُ في طبقةٍ أخرى لا يبلغها.
+            // ثم كان له أثرٌ ضارٌّ على الحاسوب والويب: هناك يُرسم
+            // `controlsBuilder` داخل الشجرة نفسها، فكان يُخرج أزرارَنا من
+            // فحص اللمس.
             //
-            // ولا يمنع هذا التشغيل: أزرارُنا تنادي `playVideo`/`pauseVideo`
-            // على المتحكّم، وهي نداءاتٌ لا تمرّ باللمس أصلاً.
-            IgnorePointer(
-              child: YoutubePlayer(
+            // والمسلكُ الوحيد الذي يُرسم فوق الصورة ويستقبل اللمس في
+            // الوضعين هو `controlsBuilder` — فصار كلُّ ما نرسمه فيه.
+            YoutubePlayer(
               key: ValueKey('youtube-$_ytReloadTicket'),
               controller: controller,
               aspectRatio: 16 / 9,
               backgroundColor: Colors.black,
+              // ولا يُدخل السحبُ ملءَ الشاشة: إصبعٌ يمرّ على الصورة كان
+              // يقلب الوضعَ بلا قصد، والزرُّ وحده يفعل ذلك.
+              enableFullScreenOnVerticalDrag: false,
               // THE fix for "the shrink button does nothing and Back is
               // dead". Left on (its default), the player re-enters
               // fullscreen from didChangeMetrics whenever the device is
@@ -1139,38 +1150,31 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
               // "رجوع" button while a YouTube video is fullscreen (matching
               // the dedicated back button the direct-MP4 player shows in
               // its own fullscreen route).
-              // وأدواتُنا وحدها، هنا وفي الحجم العادي.
+              // وأدواتُنا وحدها، في الوضعين: مصغّراً وفي ملء الشاشة.
               //
-              // زرُّ الرجوع وزرُّ التصغير كانا يُرسمان هنا مفردين لأن
-              // أدواتِ يوتيوب هي التي تُشغّل وتُوقف. وقد أُقفلت الصفحةُ
-              // عن اللمس كلِّه، فصار التشغيلُ والوقتُ وملءُ الشاشة
-              // والخروج في واجهةٍ واحدة — انظر [YoutubeKioskControls] —
-              // وفيها زرُّ خروجٍ يفعل ما كان يفعله الزرّان معاً.
-              controlsBuilder: (context, isFullscreen) {
-                // وفي ملء الشاشة تُرسم من هنا وحدها: الحزمةُ تعرض ملءَ
-                // الشاشة في `OverlayPortal` خاصٍّ بها يُرسم فوق هذا
-                // الـ`Stack`، فلا يُرى ما تحته.
-                if (!isFullscreen) return const SizedBox.shrink();
-                return YoutubeKioskControls(
-                  controller: controller,
-                  isFullscreen: true,
-                  onExit: () => _handleYoutubeBack(controller),
-                );
-              },
+              // الحزمةُ تمرّر `isFullscreen` فيتغيّر به شكلُ زرِّ الحجم
+              // وما يفعله زرُّ الخروج — ولا يتغيّر موضعُ الرسم: هو هنا في
+              // الحالين، لأنه الطبقةُ الوحيدة التي تُرسم فوق الصورة.
+              controlsBuilder: (context, isFullscreen) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  YoutubeKioskControls(
+                    playback: playback,
+                    isFullscreen: isFullscreen,
+                    onExit: () => _handleYoutubeBack(controller),
+                  ),
+                  // وبطاقةُ الخطأ معها لا أختاً للمشغّل: أختاً كانت تُرسم
+                  // تحت الصورة فلا تُرى ولا يبلغها زرُّ إعادةِ المحاولة —
+                  // وكان الطالب يرى صفحةَ خطأِ يوتيوب بلا مخرج.
+                  if (_error != null)
+                    _buildError(
+                      tr('video.playFailed'),
+                      onRetry: _retryYoutube,
+                      externalUrl: _externalYoutubeUrl,
+                    ),
+                ],
               ),
             ),
-            if (!value.fullScreenOption.enabled)
-              YoutubeKioskControls(
-                controller: controller,
-                isFullscreen: false,
-                onExit: () => _handleYoutubeBack(controller),
-              ),
-            if (_error != null)
-              _buildError(
-                tr('video.playFailed'),
-                onRetry: _retryYoutube,
-                externalUrl: _externalYoutubeUrl,
-              ),
           ],
         ),
       ),

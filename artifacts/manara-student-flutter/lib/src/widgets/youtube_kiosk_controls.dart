@@ -5,6 +5,56 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../l10n/student_strings.dart';
 
+/// ما تفعله أزرارُ الفيديو، مجرَّداً عن المشغّل الذي تفعله فيه.
+///
+/// ── لماذا وسيطٌ بين الأزرار والمشغّل ──
+/// هذه الأزرارُ أُخطئ فيها أربع مرّات، وكلُّ مرّةٍ كان العطبُ أنها تُرى ولا
+/// تعمل — وهو عطبٌ لا يمسكه تحليلٌ ولا بناء، ويحتاج ضغطةَ إصبع. ولم يكن
+/// لها اختبارٌ يضغطها لأنها كانت موصولةً بـ`YoutubePlayerController`،
+/// وهو لا يُنشأ في اختبارٍ بلا قنوات منصّة ولا عرضِ ويب.
+///
+/// فصار ما تحتاجه الأزرارُ أربعةَ أفعالٍ ومَجرى حالة. والاختبارُ يمرّر بديلاً
+/// يسجّل ما نُودي، فيُسأل: هل بلغت الضغطةُ المشغّل؟ وهو السؤالُ الذي كان
+/// جوابُه «لا» أربع مرّات.
+abstract class KioskPlayback {
+  /// حالُ المشغّل كما تتغيّر، لتتبعها أيقونةُ التشغيل.
+  Stream<PlayerState> get states;
+
+  Future<void> play();
+  Future<void> pause();
+
+  /// من أوّله: ضغطةُ «تشغيل» على مقطعٍ انتهى تعني الإعادة.
+  Future<void> replay();
+
+  void toggleFullscreen();
+}
+
+/// الوسيطُ على مشغّل يوتيوب الحقيقي.
+class YoutubeKioskPlayback implements KioskPlayback {
+  YoutubeKioskPlayback(this.controller);
+
+  final YoutubePlayerController controller;
+
+  @override
+  Stream<PlayerState> get states =>
+      controller.stream.map((value) => value.playerState);
+
+  @override
+  Future<void> play() => controller.playVideo();
+
+  @override
+  Future<void> pause() => controller.pauseVideo();
+
+  @override
+  Future<void> replay() async {
+    await controller.seekTo(seconds: 0, allowSeekAhead: true);
+    await controller.playVideo();
+  }
+
+  @override
+  void toggleFullscreen() => controller.toggleFullScreen();
+}
+
 /// أدواتُ التحكّم التي يراها الطالب فوق فيديو الدرس، وهي كلُّ ما يراه.
 ///
 /// ── زرّان ورجوع، ولا شيء غيرها ──
@@ -19,26 +69,28 @@ import '../l10n/student_strings.dart';
 /// فلا تُمنع بعد وقوعها.
 ///
 /// فأُقفلت الصفحةُ عن اللمس بـ`PointerEvents.none` في مُعامِلات المشغّل،
-/// ورُسمت الأدواتُ هنا. والقفلُ في الصفحة لا في فلاتر: لا ودجتَ يفرش
-/// نفسه على الصورة، فلا شيء يبتلع لمسةً يقصدها الطفل.
+/// ورُسمت الأدواتُ هنا.
 ///
-/// ── وشريطٌ سفليٌّ دائمُ الظهور ──
-/// كانت الأدواتُ تختفي بعد ثلاث ثوانٍ وتظهر بلمسةٍ على الصورة، واللمسةُ
-/// تُلتقط بـ`GestureDetector` مفروشٍ على الفيديو كلِّه. فكان على الصورة
-/// حاجبٌ ثانٍ يبتلع كلَّ لمسة، والطفل يضغط فلا يرى أثراً.
+/// ── وموضعُ رسمها: `controlsBuilder` وحده ──
+/// `YoutubePlayer` على الهاتف لا يرسم في مكانه شيئاً: يرسم علامةً فارغة،
+/// ويضع الصورةَ في `OverlayPortal` — أي فوق صفحة الشاشة كلِّها. فأيُّ ودجتٍ
+/// يُرسم أخاً له يقع **تحت** الصورة: لا يُرى ولا تبلغه لمسة. و`controlsBuilder`
+/// هو المسلكُ الوحيد الذي يُركَّب داخل تلك الطبقة، مصغّراً وفي ملء الشاشة.
 ///
-/// وهي الآن ظاهرةٌ دائماً: زرّان في شريطٍ لا يزيد على ارتفاعه، وما فوقه
-/// من الصورة خالٍ من كل ودجتٍ يستقبل لمسة. وطفلٌ في الابتدائية يحتاج أن
-/// يرى الزرَّ لا أن يعرف كيف يُظهره.
+/// ── وظاهرةٌ دائماً ──
+/// كانت تختفي بعد ثلاث ثوانٍ وتظهر بلمسةٍ على الصورة، واللمسةُ تُلتقط
+/// بـ`GestureDetector` مفروشٍ على الفيديو كلِّه — فكان على الصورة حاجبٌ
+/// يبتلع كلَّ لمسة. وطفلٌ في الابتدائية يحتاج أن يرى الزرَّ لا أن يعرف كيف
+/// يُظهره.
 class YoutubeKioskControls extends StatefulWidget {
   const YoutubeKioskControls({
-    required this.controller,
+    required this.playback,
     required this.isFullscreen,
     required this.onExit,
     super.key,
   });
 
-  final YoutubePlayerController controller;
+  final KioskPlayback playback;
 
   /// يُغيّر ما يفعله زرُّ ملء الشاشة وأيَّ أيقونةٍ يحمل.
   final bool isFullscreen;
@@ -51,15 +103,28 @@ class YoutubeKioskControls extends StatefulWidget {
 }
 
 class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
-  StreamSubscription<YoutubePlayerValue>? _valueSub;
+  StreamSubscription<PlayerState>? _valueSub;
   PlayerState _playerState = PlayerState.unknown;
 
   @override
   void initState() {
     super.initState();
-    _valueSub = widget.controller.stream.listen((value) {
-      if (!mounted || value.playerState == _playerState) return;
-      setState(() => _playerState = value.playerState);
+    _listen();
+  }
+
+  @override
+  void didUpdateWidget(covariant YoutubeKioskControls old) {
+    super.didUpdateWidget(old);
+    // ومشغّلٌ تبدّل يُتابع من جديد: لو بقي الاشتراكُ على الأوّل جمدت
+    // الأيقونةُ على حالٍ لا تصفُ ما يُعرض.
+    if (old.playback != widget.playback) _listen();
+  }
+
+  void _listen() {
+    _valueSub?.cancel();
+    _valueSub = widget.playback.states.listen((state) {
+      if (!mounted || state == _playerState) return;
+      setState(() => _playerState = state);
     });
   }
 
@@ -70,16 +135,15 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
   }
 
   Future<void> _togglePlay() async {
-    if (_playerState == PlayerState.playing) {
-      await widget.controller.pauseVideo();
-      return;
+    switch (_playerState) {
+      case PlayerState.playing:
+        await widget.playback.pause();
+      // والمنتهي يبدأ من أوّله، وإلا بدا الزرُّ معطّلاً.
+      case PlayerState.ended:
+        await widget.playback.replay();
+      default:
+        await widget.playback.play();
     }
-    // والمنتهي يبدأ من أوّله: ضغطةُ «تشغيل» على مقطعٍ انتهى تعني الإعادة،
-    // وإلا بدا الزرُّ معطّلاً.
-    if (_playerState == PlayerState.ended) {
-      await widget.controller.seekTo(seconds: 0, allowSeekAhead: true);
-    }
-    await widget.controller.playVideo();
   }
 
   @override
@@ -90,14 +154,12 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
     // ── و`fit: expand` لازم، وهذا موضعُ عطبٍ كان ──
     //
     // أُزيل الاتّساعُ ظنّاً أنه هو ما يحجب اللمس، فاختفت الأدواتُ كلُّها:
-    // هذا الودجت ابنٌ غيرُ موضَّعٍ في `Stack` الفيديو، فيأتيه قيدٌ فضفاض.
-    // و`Stack` كلُّ أبنائه موضَّعون يأخذ أصغرَ ما يسمح به قيدُه — صفراً في
-    // صفر. فرُسمت الأزرارُ في مساحةٍ لا أبعادَ لها: لا تُرى ولا تُلمس.
-    // وهو ما رآه الطالب «مشغّلاً بلا أزرار».
+    // هذا الودجت ابنٌ غيرُ موضَّعٍ في `Stack`، فيأتيه قيدٌ فضفاض. و`Stack`
+    // كلُّ أبنائه موضَّعون يأخذ أصغرَ ما يسمح به قيدُه — صفراً في صفر.
+    // فرُسمت الأزرارُ في مساحةٍ لا أبعادَ لها: لا تُرى ولا تُلمس.
     //
     // والاتّساعُ لا يحجب شيئاً: `Stack` يؤجّل فحصَ اللمس إلى أبنائه، فلا
-    // يبتلع لمسةً في موضعٍ لا ابنَ فيه. والذي كان يحجب هو
-    // `GestureDetector` المفروشُ على الصورة، وقد أُزيل — ولا يعود.
+    // يبتلع لمسةً في موضعٍ لا ابنَ فيه.
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -108,9 +170,6 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
         // حيث ينظر الطفل، وحيث يضغط بلا أن يبحث. وكان في زاويةٍ سفلية مع
         // ملءِ الشاشة، فصار الزرّان متجاورين في شريطٍ ضيّق يُخطئ بينهما
         // إصبعٌ صغير.
-        //
-        // وظاهرٌ في الوضعين: مصغّراً وفي ملء الشاشة. ولا يختفي بعد سكون —
-        // طفلٌ في الابتدائية يحتاج أن يرى الزرَّ لا أن يعرف كيف يُظهره.
         if (!ended)
           Center(
             child: _KioskButton(
@@ -135,10 +194,6 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
         ),
 
         // وملءُ الشاشة في الزاوية السفلية، بعيداً عن زرّ التشغيل.
-        //
-        // وهو ظاهرٌ في الوضع المصغّر بلا سحبٍ ولا لمسةِ إظهار: كان يلزم
-        // لظهوره أن تُلمَس الصورة، واللمسةُ لا تصل أصلاً حين يبتلعها عرضُ
-        // المنصّة.
         PositionedDirectional(
           bottom: 6,
           end: 6,
@@ -151,7 +206,7 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
               tooltip: tr(
                 widget.isFullscreen ? 'video.shrink' : 'video.fullscreen',
               ),
-              onPressed: () => widget.controller.toggleFullScreen(),
+              onPressed: widget.playback.toggleFullscreen,
             ),
           ),
         ),
