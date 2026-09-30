@@ -1283,10 +1283,10 @@ router.post("/gemini/generate-quiz", requireContentManager, async (req, res) => 
 });
 
 /** ما لا يُنتظر أكثر منه لتوليد حزمة المذاكرة. */
-const STUDY_BUDGET_MS = 40_000;
+const STUDY_BUDGET_MS = 75_000;
 
 /** وسقفُ ما يُخرجه النموذج لها: خريطةٌ وثلاث مغامرات تحتاج متّسعاً. */
-const STUDY_MAX_TOKENS = 2_400;
+const STUDY_MAX_TOKENS = 8_000;
 
 /** يحفظ حزمة المذاكرة مع الدرس، فلا تُولَّد ثانيةً. */
 async function persistStudyPack(

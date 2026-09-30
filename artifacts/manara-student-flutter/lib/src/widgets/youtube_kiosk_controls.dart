@@ -102,9 +102,29 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
       fit: StackFit.expand,
       children: [
         if (ended) Positioned.fill(child: _EndedCover(onReplay: _togglePlay)),
+
+        // ── التشغيلُ في المنتصف ──
+        //
+        // حيث ينظر الطفل، وحيث يضغط بلا أن يبحث. وكان في زاويةٍ سفلية مع
+        // ملءِ الشاشة، فصار الزرّان متجاورين في شريطٍ ضيّق يُخطئ بينهما
+        // إصبعٌ صغير.
+        //
+        // وظاهرٌ في الوضعين: مصغّراً وفي ملء الشاشة. ولا يختفي بعد سكون —
+        // طفلٌ في الابتدائية يحتاج أن يرى الزرَّ لا أن يعرف كيف يُظهره.
+        if (!ended)
+          Center(
+            child: _KioskButton(
+              icon: playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              tooltip: tr(playing ? 'video.pause' : 'video.play'),
+              onPressed: _togglePlay,
+              large: true,
+            ),
+          ),
+
+        // والرجوعُ في أعلى البداية.
         PositionedDirectional(
-          top: 8,
-          start: 8,
+          top: 6,
+          start: 6,
           child: SafeArea(
             child: _KioskButton(
               icon: Icons.arrow_back_rounded,
@@ -113,44 +133,25 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
             ),
           ),
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
+
+        // وملءُ الشاشة في الزاوية السفلية، بعيداً عن زرّ التشغيل.
+        //
+        // وهو ظاهرٌ في الوضع المصغّر بلا سحبٍ ولا لمسةِ إظهار: كان يلزم
+        // لظهوره أن تُلمَس الصورة، واللمسةُ لا تصل أصلاً حين يبتلعها عرضُ
+        // المنصّة.
+        PositionedDirectional(
+          bottom: 6,
+          end: 6,
           child: SafeArea(
             top: false,
-            child: Container(
-              // تدرّجٌ خفيفٌ تحت الشريط: الزرُّ الأبيض فوق مشهدٍ فاتح لا
-              // يُرى، وهذا يضمن ظهوره على كل مقطع.
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [Color(0xB3000000), Color(0x00000000)],
-                ),
+            child: _KioskButton(
+              icon: widget.isFullscreen
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              tooltip: tr(
+                widget.isFullscreen ? 'video.shrink' : 'video.fullscreen',
               ),
-              padding: const EdgeInsets.fromLTRB(10, 18, 10, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _KioskButton(
-                    icon: playing
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    tooltip: tr(playing ? 'video.pause' : 'video.play'),
-                    onPressed: _togglePlay,
-                  ),
-                  _KioskButton(
-                    icon: widget.isFullscreen
-                        ? Icons.fullscreen_exit_rounded
-                        : Icons.fullscreen_rounded,
-                    tooltip: tr(
-                      widget.isFullscreen ? 'video.shrink' : 'video.fullscreen',
-                    ),
-                    onPressed: () => widget.controller.toggleFullScreen(),
-                  ),
-                ],
-              ),
+              onPressed: () => widget.controller.toggleFullScreen(),
             ),
           ),
         ),

@@ -38,7 +38,7 @@ class StudentStudyService {
 
   /// التوليدُ نداءٌ كبير — خريطةٌ وثلاثُ مغامرات — وللخادم ميزانيةُ أربعين
   /// ثانية. فقطعُ الخيط قبلها يُسقط حزمةً كانت في طريقها.
-  static const _timeout = Duration(seconds: 55);
+  static const _timeout = Duration(seconds: 95);
 
   /// عنوانُ المسار، أو `null` إن لم يكن لهذا البناء خادم.
   ///

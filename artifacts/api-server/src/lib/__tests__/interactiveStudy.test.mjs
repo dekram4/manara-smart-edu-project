@@ -29,6 +29,7 @@ try {
 const {
   CHALLENGE_OPTIONS,
   MAX_SCENARIOS,
+  MIN_SCENARIOS,
   MIN_BRANCHES,
   SITUATIONS_PER_SCENARIO,
   STUDY_VERSION,
@@ -72,9 +73,9 @@ const imposterSituation = (n = 1) => ({
 /** موقفٌ صالحٌ من أيّ نمط — يُستعمل حيث لا يهمّ النمط. */
 const situation = (n = 1) => pathSituation(n);
 
-const scenario = (n = 1) => ({
+const scenario = (n = 1, branch = `الفرع ${n}`) => ({
   title: `مغامرة ${n}`,
-  branch: `الفرع ${n}`,
+  branch,
   situations: [
     pathSituation(n * 10 + 1),
     swipeSituation({ n: n * 10 + 2 }),
@@ -91,7 +92,15 @@ const pack = () => ({
       { title: "السيتوبلازم", summary: "يملأ الخلية" },
     ],
   },
-  scenarios: [scenario(1), scenario(2)],
+  // مغامرتان لكل فرع، كما يقتضي `SCENARIOS_PER_BRANCH`.
+  scenarios: [
+    scenario(1, "الغشاء"),
+    scenario(2, "الغشاء"),
+    scenario(3, "النواة"),
+    scenario(4, "النواة"),
+    scenario(5, "السيتوبلازم"),
+    scenario(6, "السيتوبلازم"),
+  ],
 });
 
 test("الطلبُ يحمل نصّ الدرس وشروطَ الشكل", () => {
@@ -127,7 +136,7 @@ test("الحزمةُ الصالحة تُقرأ", () => {
   assert.ok(parsed);
   assert.equal(parsed.version, STUDY_VERSION);
   assert.equal(parsed.mindMap.branches.length, 3);
-  assert.equal(parsed.scenarios.length, 2);
+  assert.equal(parsed.scenarios.length, MIN_SCENARIOS);
   assert.equal(parsed.scenarios[0].situations.length, SITUATIONS_PER_SCENARIO);
   // وأوّلُ موقفٍ مسارٌ ببوّابتين، وصحيحُه الأولى.
   assert.equal(parsed.scenarios[0].situations[0].type, "avatar_path");
@@ -244,7 +253,7 @@ test("وحقيقةُ السحب: صحيحةٌ صفرٌ ومشوَّهةٌ واح
 
 test("والمغامرةُ تحمل فرعَها، فيُختبر الفرعُ الذي قرأه", () => {
   const parsed = parseStudyPack(JSON.stringify(pack()), "الخلية");
-  assert.equal(parsed.scenarios[0].branch, "الفرع 1");
+  assert.equal(parsed.scenarios[0].branch, "الغشاء");
   // وفارغٌ مقبول: حزمةٌ من نموذجٍ لم يُلزمه الطلبُ بعد.
   const raw = pack();
   delete raw.scenarios[0].branch;
@@ -282,10 +291,12 @@ test("المخزَّنُ يُقرأ، والنسخةُ الأقدم تُهمل �
 
 test("وسقفُ ما يُكافأ عليه عددُ المواقف في الحزمة", () => {
   const stored = parseStudyPack(JSON.stringify(pack()), "الخلية");
-  assert.equal(maxSituations(stored), 2 * SITUATIONS_PER_SCENARIO);
-  // ولا تزيد الحزمةُ على ثلاث مغامرات ولو أخرج النموذج أكثر.
+  assert.equal(maxSituations(stored), MIN_SCENARIOS * SITUATIONS_PER_SCENARIO);
+  // ولا تزيد الحزمةُ على السقف ولو أخرج النموذج أكثر.
   const many = pack();
-  many.scenarios = [scenario(1), scenario(2), scenario(3), scenario(4)];
+  many.scenarios = Array.from({ length: MAX_SCENARIOS + 4 }, (_, i) =>
+    scenario(i + 1, `فرع ${i + 1}`),
+  );
   const capped = parseStudyPack(JSON.stringify(many), "الخلية");
   assert.equal(capped.scenarios.length, MAX_SCENARIOS);
 });

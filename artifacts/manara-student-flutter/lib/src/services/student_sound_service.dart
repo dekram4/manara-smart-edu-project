@@ -365,14 +365,45 @@ class StudentSoundService with WidgetsBindingObserver {
   /// كلِّه — وهو ما كان يجعل صوتين يعملان معاً.
   ///
   /// و[speakPortal] تبقى لما له تسجيلٌ لكل لغة؛ وهذه لمقطعٍ واحدٍ باسمه.
+  /// ويُسجَّل سببُ الصمت لا يُكتم.
+  ///
+  /// ── لماذا سجلٌّ هنا ──
+  /// الصمتُ له أسبابٌ لا يفرّقها الطفل ولا من ينظر إلى الشاشة: كتمٌ مفعَّل،
+  /// أو تطبيقٌ في الخلفية، أو ملفٌّ ليس في الحزمة، أو محرّكُ صوتٍ رفض
+  /// التشغيل. وكلُّها تُفتح الشاشةَ صامتة.
+  ///
+  /// و`debugPrint` لا `print`: تُحذف في بناء الإصدار فلا تُبطئ شيئاً على
+  /// جهاز طفل، وتظهر في `flutter logs` عند الفحص.
   Future<void> playClip(String asset) async {
-    if (muted.value || _backgrounded) return;
+    if (muted.value) {
+      debugPrint('[sound] $asset لم يُشغّل: الصوت مكتوم');
+      return;
+    }
+    if (_backgrounded) {
+      debugPrint('[sound] $asset لم يُشغّل: التطبيق في الخلفية');
+      return;
+    }
     try {
+      // والوجودُ يُفحص من بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ
+      // الفاشلة على بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً
+      // ثانياً — فيصمت ما بعده أيضاً.
+      final bundled = await _bundledAssets();
+      final key = asset.startsWith('assets/') ? asset : 'assets/$asset';
+      if (!bundled.contains(key)) {
+        debugPrint('[sound] $asset ليس في حزمة الأصول — راجع pubspec.yaml');
+        return;
+      }
+      // و`AssetSource` تتوقّع المسارَ بلا بادئة `assets/`: الحزمةُ تضيفها.
+      // فمسارٌ كاملٌ يصل هنا يُقصّ، وإلا طُلب `assets/assets/...`.
+      final source = asset.startsWith('assets/')
+          ? asset.substring('assets/'.length)
+          : asset;
       await _voicePlayer.stop();
-      _voiceClip = asset;
-      await _voicePlayer.play(AssetSource(asset), volume: voiceVolume(asset));
-    } catch (_) {
-      // لا صوت على هذا الجهاز: تُفتح الشاشة صامتة.
+      _voiceClip = source;
+      await _voicePlayer.play(AssetSource(source), volume: voiceVolume(source));
+      debugPrint('[sound] $source يُشغّل');
+    } catch (error) {
+      debugPrint('[sound] $asset تعذّر تشغيله: $error');
     }
   }
 
@@ -534,7 +565,12 @@ class StudentSoundService with WidgetsBindingObserver {
   /// الذي يصلح للكلام يخفض الموسيقى تحت ما يُسمع. وهي خلفيةٌ تحت شاشةٍ
   /// لا كلام فوقها، فتحتمل علوّاً ظاهراً.
   static const _loginVolume = 0.85;
-  static const _welcomeClip = 'audio/tarheeb.mp3';
+  /// ترحيبُ المحور.
+  ///
+  /// والمُورَّدُ الأحدثُ يسبق: `_supplied` تُرجّح هذا إن كان في الحزمة،
+  /// وترتدّ إلى الأصل إن لم يكن — فجهازٌ بُني قبل وصول الملف يُرحّب بما
+  /// عنده لا يصمت.
+  static const _welcomeClip = 'audio/tarheeeeeeeb.mp3';
   static const _pathOverride = 'audio/masar.mp3';
   static const _dashboardClip = 'audio/start.mp3';
 

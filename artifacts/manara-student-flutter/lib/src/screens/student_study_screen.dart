@@ -82,9 +82,10 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     //
     // والواجهةُ لا تنطق سطرَ البوابة لهذه البطاقة — `ownsVoice` في
     // `_homeSections` — وإلا حلّ المقطعُ العامّ محلَّ هذا على المشغّل نفسه.
-    unawaited(
-      StudentSoundService.instance.playClip('assets/audio/booksound.mp3'),
-    );
+    // والمسارُ بلا بادئة `assets/`: حزمةُ الصوت تضيفها بنفسها، فمسارٌ
+    // كاملٌ يصير `assets/assets/audio/...` فلا يُعثر عليه — ويُفتح المشهد
+    // صامتاً بلا خطأٍ يظهر. وهو سببُ صمت هذه الشاشة، والملفُّ في مكانه.
+    unawaited(StudentSoundService.instance.playClip('audio/booksound.mp3'));
     unawaited(_load());
   }
 
