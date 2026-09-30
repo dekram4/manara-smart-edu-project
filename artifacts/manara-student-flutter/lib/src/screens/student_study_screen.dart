@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
@@ -14,14 +15,14 @@ import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
-import '../widgets/student_icon_notice.dart';
 
-/// بطاقةُ المذاكرة الذكية: خريطةٌ ذهنية للدرس، ومغامرةٌ قصصية فيه.
+/// «مغامرة الأذكياء ومهمة المذاكرة»: خريطةُ الدرس، وتحدٍّ قصصيٌّ فيه.
 ///
-/// ── لماذا الاثنان في شاشةٍ واحدة ──
-/// الخريطةُ تُري الطفل شكلَ الدرس قبل أن يُسأل فيه، والمغامرةُ تسأله فيما
-/// رآه. فلو فُصلتا لفتح المغامرةَ بلا أن ينظر إلى الخريطة — وهي التي
-/// تجعل أسئلتها مفهومةً لا تخميناً.
+/// ── تبويبان لا شاشةٌ واحدة ──
+/// الخريطةُ تُري الطفل شكلَ الدرس، والتحدي يسأله فيما رآه. وهما عملان
+/// مختلفان: الأول يُقرأ ويُتأمّل، والثاني يُلعب. فجمعُهما في عمودٍ واحد
+/// يجعل الطفل يمرّ على الخريطة بإصبعه ليصل إلى الزرّ، فلا ينظر إليها.
+/// وتبويبان يجعلان كلاً منهما مكاناً يُقصد.
 class StudentStudyScreen extends StatefulWidget {
   const StudentStudyScreen({
     required this.profile,
@@ -34,7 +35,7 @@ class StudentStudyScreen extends StatefulWidget {
   final StudentProfile profile;
   final StudentStudyService studyService;
 
-  /// لصرف الجواهر في ختام المغامرة.
+  /// لصرف الجواهر في ختام التحدي.
   final StudentContentService contentService;
   final AcademicContext? academicContext;
 
@@ -42,20 +43,23 @@ class StudentStudyScreen extends StatefulWidget {
   State<StudentStudyScreen> createState() => _StudentStudyScreenState();
 }
 
-class _StudentStudyScreenState extends State<StudentStudyScreen> {
+class _StudentStudyScreenState extends State<StudentStudyScreen>
+    with SingleTickerProviderStateMixin {
   StudyPack? _pack;
   String? _error;
   bool _loading = true;
 
-  /// المغامرةُ الجارية، وموضعُ الطفل منها.
+  late final TabController _tabs = TabController(length: 2, vsync: this);
+  late final ConfettiController _confetti =
+      ConfettiController(duration: const Duration(milliseconds: 600));
+
+  /// التحدي الجاري، وموضعُ الطفل منه.
   StudyScenario? _scenario;
   int _at = 0;
   int _correct = 0;
-
-  /// ما اختاره في الموقف الحاضر، قبل أن ينتقل.
   int? _picked;
 
-  /// جواهرُ هذه الجولة، أو `null` قبل أن تُصرف.
+  /// جواهرُ الجولة كما صرفها الخادم، أو `null` قبل أن تُصرف.
   int? _earned;
   bool _alreadyRewarded = false;
   bool _rewarding = false;
@@ -65,13 +69,37 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
   @override
   void initState() {
     super.initState();
-    // الصوتُ الترحيبي على مشغّل الأصوات المشترك: يسكت عند الكتم، وعند
-    // إطفاء الشاشة، ويوقفه فيديو إن بدأ. انظر [StudentSoundService.playClip].
-    unawaited(StudentSoundService.instance.playClip('assets/audio/booksound.mp3'));
+    // الصوتُ الترحيبي على مشغّل الأصوات المشترك.
+    //
+    // والواجهةُ لا تنطق سطرَ البوابة لهذه البطاقة — `ownsVoice` في
+    // `_homeSections` — وإلا حلّ المقطعُ العامّ محلَّ هذا على المشغّل نفسه.
+    unawaited(
+      StudentSoundService.instance.playClip('assets/audio/booksound.mp3'),
+    );
     unawaited(_load());
   }
 
+  @override
+  void dispose() {
+    _tabs.dispose();
+    _confetti.dispose();
+    super.dispose();
+  }
+
   String get _lessonId => widget.academicContext?.selectedLesson.id ?? '';
+
+  /// جواهرُ الجولة الجارية كما تُعرض للطفل، قبل أن يُسأل الخادم.
+  ///
+  /// ── ولماذا تُعرض قبل أن تُصرف ──
+  /// الطفلُ يحتاج أن يرى «+٢» في اللحظة التي يُصيب فيها، لا بعد ثلاثة
+  /// مواقف. وصرفُها في الخادم عند كل قرارٍ يعني ثلاثة طلباتٍ في الجولة،
+  /// وحارسُ التكرار هناك مفتاحُه الدرسُ لا الموقف — فالثاني والثالث يعودان
+  /// بصفر ولو أصاب.
+  ///
+  /// فالعرضُ فوريّ، والحسابُ يُسوَّى مرّةً في الختام: الخادم يحصر الجواهر
+  /// بعدد المواقف ويمنع التكرار، وما يُعرض هنا هو ما سيُصرف — جوهرتان عن
+  /// كل صحيح.
+  int get _runGems => _correct * 2;
 
   Future<void> _load() async {
     final lessonId = _lessonId;
@@ -110,12 +138,10 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
     }
   }
 
-  /// يبدأ مغامرةً، ويختار غيرَ التي سبقت ما أمكن.
+  /// يبدأ تحدياً، ويختار غيرَ الذي سبق ما أمكن.
   ///
-  /// ── لماذا لا يُكتفى بالعشوائية ──
-  /// عشوائيةٌ محضةٌ بين اثنتين تُعيد الأولى في نصف الجولات، والطفل يقرأ
-  /// الحكايةَ نفسها فيظنّ البطاقة معطوبة. فتُستبعد السابقةُ ما دام ثَمّ
-  /// غيرُها.
+  /// عشوائيةٌ محضةٌ بين اثنين تُعيد الأول في نصف الجولات، والطفل يقرأ
+  /// الحكايةَ نفسها فيظنّ البطاقة معطوبة.
   void _start() {
     final pack = _pack;
     if (pack == null || pack.scenarios.isEmpty) return;
@@ -129,21 +155,26 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
       _earned = null;
       _alreadyRewarded = false;
     });
+    _tabs.animateTo(1);
   }
 
   void _pick(int choice) {
     final scenario = _scenario;
     if (scenario == null || _picked != null) return;
     final situation = scenario.situations[_at];
+    final right = situation.isCorrect(choice);
     setState(() {
       _picked = choice;
-      if (situation.isCorrect(choice)) _correct += 1;
+      if (right) _correct += 1;
     });
-    StudentSoundService.instance.play(
-      situation.isCorrect(choice)
-          ? StudentSoundCue.success
-          : StudentSoundCue.warning,
-    );
+    if (right) {
+      // مؤثّرُ الفوز في اللحظة نفسها: الطفل يرى الورقَ يتناثر و«+٢»
+      // تظهر، فيعرف أنه أصاب قبل أن يقرأ سطر الشرح.
+      _confetti.play();
+      StudentSoundService.instance.play(StudentSoundCue.success);
+    } else {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+    }
   }
 
   Future<void> _next() async {
@@ -159,14 +190,11 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
     await _finish(scenario);
   }
 
-  /// ── صرفُ الجواهر: الخادم يقرّر، والشاشة تعرض ──
+  /// ── تسويةُ الجواهر: الخادم يقرّر ──
   ///
   /// جوهرتان عن كل قرارٍ صحيح، وللمرّة الأولى وحدها. وسجلُّ الأنشطة في
-  /// الخادم هو الحارس: `activityId` معرّفُ الدرس، فإعادةُ المغامرة — ولو
+  /// الخادم هو الحارس: `activityId` معرّفُ الدرس، فإعادةُ التحدي — ولو
   /// بسيناريو آخر — تعود بـ`alreadyRewarded` وبصفر جواهر.
-  ///
-  /// والحصرُ هناك أيضاً: الخادم يقصر الجواهر على عدد المواقف، فلا يُقبل
-  /// طلبٌ يدّعي أكثر ممّا في الحزمة.
   Future<void> _finish(StudyScenario scenario) async {
     setState(() => _rewarding = true);
     try {
@@ -184,10 +212,13 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
         _rewarding = false;
         _scenario = null;
       });
-      if (result.gems > 0) StudentSoundService.instance.playApplause();
+      if (result.gems > 0) {
+        _confetti.play();
+        StudentSoundService.instance.playApplause();
+      }
     } catch (_) {
       if (!mounted) return;
-      // الجواهرُ لم تُصرف، والمغامرةُ تمّت. فيُقال ذلك ولا تُعاد الجولة.
+      // الجواهرُ لم تُصرف، والتحدي تمّ. فيُقال ذلك ولا تُعاد الجولة.
       setState(() {
         _earned = 0;
         _alreadyRewarded = false;
@@ -207,11 +238,36 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
           title: Text(tr('portal.study')),
           centerTitle: true,
           actions: const [StudentSoundToggle()],
+          bottom: _pack == null
+              ? null
+              : TabBar(
+                  controller: _tabs,
+                  tabs: [
+                    Tab(text: tr('study.tabMap')),
+                    Tab(text: tr('study.tabStory')),
+                  ],
+                ),
         ),
         body: Stack(
           children: [
             const PortalWatermark(asset: PortalBackgrounds.study),
             SafeArea(child: _body(context)),
+            // الورقُ المتناثر فوق الكلّ، ولا يستقبل لمسة.
+            Align(
+              alignment: Alignment.topCenter,
+              child: IgnorePointer(
+                child: ConfettiWidget(
+                  confettiController: _confetti,
+                  blastDirection: math.pi / 2,
+                  emissionFrequency: 0,
+                  numberOfParticles: 18,
+                  maxBlastForce: 18,
+                  minBlastForce: 8,
+                  gravity: 0.25,
+                  shouldLoop: false,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -243,15 +299,33 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            error,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.6,
-              fontWeight: FontWeight.w800,
-              color: StudentSurface.ink(context),
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('📚', style: TextStyle(fontSize: 46)),
+              const SizedBox(height: 14),
+              Text(
+                error,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.6,
+                  fontWeight: FontWeight.w800,
+                  color: StudentSurface.ink(context),
+                ),
+              ),
+              const SizedBox(height: 18),
+              _WideButton(
+                label: tr('study.again'),
+                onPressed: () {
+                  setState(() {
+                    _loading = true;
+                    _error = null;
+                  });
+                  unawaited(_load());
+                },
+              ),
+            ],
           ),
         ),
       );
@@ -259,160 +333,281 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
     final pack = _pack;
     if (pack == null) return const SizedBox.shrink();
 
-    final scenario = _scenario;
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    return TabBarView(
+      controller: _tabs,
       children: [
-        if (scenario == null) ...[
-          StudentEntrance(child: _MindMapCard(mindMap: pack.mindMap)),
-          const SizedBox(height: 16),
-          if (_earned != null)
-            StudentEntrance(
-              child: _OutcomeCard(
-                gems: _earned!,
-                alreadyRewarded: _alreadyRewarded,
+        _MindMapTab(mindMap: pack.mindMap),
+        _StoryTab(
+          scenario: _scenario,
+          at: _at,
+          picked: _picked,
+          runGems: _runGems,
+          earned: _earned,
+          alreadyRewarded: _alreadyRewarded,
+          busy: _rewarding,
+          onStart: _start,
+          onPick: _pick,
+          onNext: _next,
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// التبويب الأول: الخريطة
+// ─────────────────────────────────────────────────────────────────────
+
+/// خريطةُ مفاهيمَ شجرية، تُسحب وتُكبَّر بإصبعين.
+///
+/// ── لماذا `InteractiveViewer` ──
+/// الشجرةُ تكبر بعدد الفروع وبطول شرحها، وشاشةُ هاتفٍ لا تحملها كلَّها
+/// بحجمٍ يُقرأ. فإمّا أن يُصغَّر الخطُّ حتى لا يُقرأ، أو يُقصَّ الشرحُ حتى
+/// لا يُفهم، أو يُعطى الطفلُ أن يسحب ويكبّر. والثالثُ وحده يُبقي الخريطة
+/// خريطةً.
+///
+/// والفرعُ يُضغط فينفتح شرحُه: الشجرةُ تُقرأ أوّلاً بعناوينها — وهي شكلُ
+/// الدرس — ثم يُفتح ما يُراد منها. وفتحُها كلَّها يجعلها نصّاً مسكوباً في
+/// هيئة شجرة.
+class _MindMapTab extends StatefulWidget {
+  const _MindMapTab({required this.mindMap});
+
+  final StudyMindMap mindMap;
+
+  @override
+  State<_MindMapTab> createState() => _MindMapTabState();
+}
+
+class _MindMapTabState extends State<_MindMapTab> {
+  final _view = TransformationController();
+  final _open = <int>{};
+
+  @override
+  void dispose() {
+    _view.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  tr('study.mapHint'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: StudentSurface.mutedInk(context),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: tr('study.mapReset'),
+                onPressed: () => _view.value = Matrix4.identity(),
+                icon: const Icon(Icons.center_focus_strong_rounded),
+                color: const Color(0xFF7C3AED),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: InteractiveViewer(
+            transformationController: _view,
+            minScale: 0.6,
+            maxScale: 3.0,
+            boundaryMargin: const EdgeInsets.all(80),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              child: _Tree(
+                mindMap: widget.mindMap,
+                open: _open,
+                onToggle: (index) => setState(() {
+                  if (!_open.remove(index)) _open.add(index);
+                }),
               ),
             ),
-          if (_earned != null) const SizedBox(height: 16),
-          StudentEntrance(
-            delay: const Duration(milliseconds: 120),
-            child: _StartButton(
-              label: tr(_earned == null ? 'study.start' : 'study.again'),
-              onPressed: _rewarding ? null : _start,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Tree extends StatelessWidget {
+  const _Tree({
+    required this.mindMap,
+    required this.open,
+    required this.onToggle,
+  });
+
+  final StudyMindMap mindMap;
+  final Set<int> open;
+  final ValueChanged<int> onToggle;
+
+  static const _tint = Color(0xFF7C3AED);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // الجذع.
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF7C3AED), Color(0xFFC026D3)],
+              begin: AlignmentDirectional.topStart,
+              end: AlignmentDirectional.bottomEnd,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _tint.withValues(alpha: 0.30),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Text('🧠', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  mindMap.title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            tr('study.tapBranch'),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: StudentSurface.mutedInk(context),
             ),
           ),
-        ] else
-          StudentEntrance(
-            child: _SituationCard(
-              scenario: scenario,
-              at: _at,
-              picked: _picked,
-              busy: _rewarding,
-              onPick: _pick,
-              onNext: _next,
-            ),
+        ),
+        for (var index = 0; index < mindMap.branches.length; index += 1)
+          _BranchNode(
+            branch: mindMap.branches[index],
+            opened: open.contains(index),
+            last: index == mindMap.branches.length - 1,
+            onTap: () => onToggle(index),
           ),
       ],
     );
   }
 }
 
-/// الخريطةُ الذهنية: جذعٌ وفروعٌ تنزل منه.
-///
-/// ── لماذا شجرةٌ مرسومةٌ لا قائمة ──
-/// القائمةُ تقول ما في الدرس، والشجرةُ تقول كيف يتفرّع — وهي ما يبقى في
-/// ذهن الطفل حين يُسأل بعد أسبوع. والخطُّ النازل من الجذع إلى كل فرعٍ
-/// يفعل ذلك بلا حزمةِ رسمٍ ولا صورة.
-class _MindMapCard extends StatelessWidget {
-  const _MindMapCard({required this.mindMap});
-
-  final StudyMindMap mindMap;
-
-  static const _tint = Color(0xFF7C3AED);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: StudentSurface.card(context),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // الجذع.
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF7C3AED), Color(0xFFC026D3)],
-                  begin: AlignmentDirectional.topStart,
-                  end: AlignmentDirectional.bottomEnd,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _tint.withValues(alpha: 0.28),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Text('🧠', style: TextStyle(fontSize: 20)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      mindMap.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            for (final branch in mindMap.branches)
-              _Branch(branch: branch, tint: _tint),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Branch extends StatelessWidget {
-  const _Branch({required this.branch, required this.tint});
+/// عقدةُ فرعٍ: خطٌّ نازلٌ من الجذع، وزاويةٌ إليها، وشرحٌ يُفتح بضغطة.
+class _BranchNode extends StatelessWidget {
+  const _BranchNode({
+    required this.branch,
+    required this.opened,
+    required this.last,
+    required this.onTap,
+  });
 
   final StudyBranch branch;
-  final Color tint;
+  final bool opened;
+  final bool last;
+  final VoidCallback onTap;
+
+  static const _tint = Color(0xFF7C3AED);
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // الخطُّ النازل من الجذع، ثم الزاوية إلى الفرع.
         SizedBox(
-          width: 26,
-          child: CustomPaint(painter: _ElbowPainter(color: tint)),
+          width: 28,
+          child: CustomPaint(
+            painter: _ElbowPainter(color: _tint, stopAtElbow: last),
+          ),
         ),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                color: tint.withValues(alpha: 0.08),
-                border: Border.all(color: tint.withValues(alpha: 0.30)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    branch.title,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w900,
-                      color: StudentSurface.ink(context),
+            child: Material
+                // شفافٌ لا ملوَّن: اللونُ في الحدّ والخلفيةِ أدناه.
+                (
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: _tint.withValues(alpha: opened ? 0.14 : 0.07),
+                    border: Border.all(
+                      color: _tint.withValues(alpha: opened ? 0.55 : 0.28),
+                      width: 1.4,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    branch.summary,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                      fontWeight: FontWeight.w600,
-                      color: StudentSurface.mutedInk(context),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              branch.title,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: StudentSurface.ink(context),
+                              ),
+                            ),
+                          ),
+                          AnimatedRotation(
+                            turns: opened ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 180),
+                            child: const Icon(
+                              Icons.expand_more_rounded,
+                              size: 20,
+                              color: _tint,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (opened) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          branch.summary,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            height: 1.55,
+                            fontWeight: FontWeight.w600,
+                            color: StudentSurface.mutedInk(context),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -422,39 +617,109 @@ class _Branch extends StatelessWidget {
   }
 }
 
-/// خطٌّ ينزل ثم ينعطف إلى الفرع.
+/// خطٌّ ينزل من الجذع ثم ينعطف إلى الفرع.
 ///
-/// ولا يُعكس مع الاتجاه: الشجرةُ تنزل من الجذع في كل لغة، والانعطافُ إلى
-/// داخل البطاقة — و`Row` في `Directionality` يقلب موضعَ العمود نفسه، فما
-/// يُرسم هنا يقع في جهته صحيحاً بلا حسابٍ للاتجاه.
+/// وآخرُ فرعٍ ينقطع خطُّه عند زاويته: خطٌّ يمضي إلى أسفل الشجرة يوحي بفرعٍ
+/// لم يُرسَم.
 class _ElbowPainter extends CustomPainter {
-  const _ElbowPainter({required this.color});
+  const _ElbowPainter({required this.color, required this.stopAtElbow});
 
   final Color color;
+  final bool stopAtElbow;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color.withValues(alpha: 0.45)
-      ..strokeWidth = 2.2
+      ..strokeWidth = 2.4
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
     final x = size.width / 2;
-    final y = size.height / 2 + 5;
-    canvas.drawLine(Offset(x, 0), Offset(x, y), paint);
+    final y = size.height / 2 + 6;
+    canvas.drawLine(Offset(x, 0), Offset(x, stopAtElbow ? y : size.height), paint);
     canvas.drawLine(Offset(x, y), Offset(size.width, y), paint);
   }
 
   @override
-  bool shouldRepaint(_ElbowPainter old) => old.color != color;
+  bool shouldRepaint(_ElbowPainter old) =>
+      old.color != color || old.stopAtElbow != stopAtElbow;
 }
 
-/// موقفٌ واحد وخياراته.
+// ─────────────────────────────────────────────────────────────────────
+// التبويب الثاني: التحدي
+// ─────────────────────────────────────────────────────────────────────
+
+class _StoryTab extends StatelessWidget {
+  const _StoryTab({
+    required this.scenario,
+    required this.at,
+    required this.picked,
+    required this.runGems,
+    required this.earned,
+    required this.alreadyRewarded,
+    required this.busy,
+    required this.onStart,
+    required this.onPick,
+    required this.onNext,
+  });
+
+  final StudyScenario? scenario;
+  final int at;
+  final int? picked;
+  final int runGems;
+  final int? earned;
+  final bool alreadyRewarded;
+  final bool busy;
+  final VoidCallback onStart;
+  final ValueChanged<int> onPick;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = scenario;
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+      children: [
+        if (current == null) ...[
+          if (earned != null) ...[
+            StudentEntrance(
+              child: _OutcomeCard(
+                gems: earned!,
+                alreadyRewarded: alreadyRewarded,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          StudentEntrance(
+            child: _WideButton(
+              label: tr(earned == null ? 'study.start' : 'study.again'),
+              onPressed: busy ? null : onStart,
+            ),
+          ),
+        ] else
+          StudentEntrance(
+            child: _SituationCard(
+              scenario: current,
+              at: at,
+              picked: picked,
+              runGems: runGems,
+              busy: busy,
+              onPick: onPick,
+              onNext: onNext,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _SituationCard extends StatelessWidget {
   const _SituationCard({
     required this.scenario,
     required this.at,
     required this.picked,
+    required this.runGems,
     required this.busy,
     required this.onPick,
     required this.onNext,
@@ -463,6 +728,7 @@ class _SituationCard extends StatelessWidget {
   final StudyScenario scenario;
   final int at;
   final int? picked;
+  final int runGems;
   final bool busy;
   final ValueChanged<int> onPick;
   final VoidCallback onNext;
@@ -492,6 +758,11 @@ class _SituationCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                // عدّادُ جواهر الجولة، يتحرّك مع كل إصابة.
+                if (runGems > 0) ...[
+                  _GemChip(gems: runGems),
+                  const SizedBox(width: 8),
+                ],
                 Text(
                   trf('study.step', {
                     'n': '${at + 1}',
@@ -509,7 +780,7 @@ class _SituationCard extends StatelessWidget {
             Text(
               situation.prompt,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 15.5,
                 height: 1.6,
                 fontWeight: FontWeight.w700,
                 color: StudentSurface.ink(context),
@@ -522,9 +793,7 @@ class _SituationCard extends StatelessWidget {
                 child: _OptionTile(
                   text: situation.options[index],
                   // ── ولونُ الخيار يُقال بعد الاختيار وحده ──
-                  // الصحيحُ يُلوَّن أخضر والمُختارُ الخطأ أحمر، وما لم
-                  // يُختر يبقى محايداً. ولو لُوِّن الصحيحُ قبل الاختيار
-                  // لأُجيب السؤالُ بالعين لا بالفهم.
+                  // ولو لُوِّن الصحيحُ قبله لأُجيب السؤالُ بالعين لا بالفهم.
                   state: !answered
                       ? _OptionState.idle
                       : index == situation.answer
@@ -536,17 +805,12 @@ class _SituationCard extends StatelessWidget {
                 ),
               ),
             if (answered) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 children: [
-                  StudentIconNotice(
-                    emoji: right ? '✅' : '💡',
-                    label: situation.because.isEmpty
-                        ? tr(right ? 'study.right' : 'study.wrong')
-                        : situation.because,
-                    tone: right
-                        ? StudentNoticeTone.earning
-                        : StudentNoticeTone.practice,
+                  Text(
+                    right ? '✅' : '💡',
+                    style: const TextStyle(fontSize: 20),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -555,7 +819,7 @@ class _SituationCard extends StatelessWidget {
                           ? tr(right ? 'study.right' : 'study.wrong')
                           : situation.because,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 13.5,
                         height: 1.5,
                         fontWeight: FontWeight.w700,
                         color: StudentSurface.mutedInk(context),
@@ -565,7 +829,7 @@ class _SituationCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              _StartButton(
+              _WideButton(
                 label: tr(
                   at + 1 < scenario.situations.length
                       ? 'study.next'
@@ -575,6 +839,39 @@ class _SituationCard extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// شارةُ جواهر الجولة: تظهر فور أوّل إصابة وتكبر معها.
+class _GemChip extends StatelessWidget {
+  const _GemChip({required this.gems});
+
+  final int gems;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      // تنبض عند كل زيادة: `key` يتبدّل بالعدد فيُعاد بناؤها.
+      key: ValueKey(gems),
+      scale: 1,
+      duration: const Duration(milliseconds: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: const Color(0xFFFEF3C7),
+          border: Border.all(color: const Color(0xFFF59E0B)),
+        ),
+        child: Text(
+          trf('study.gemNow', {'gems': '$gems'}),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF92400E),
+          ),
         ),
       ),
     );
@@ -621,7 +918,7 @@ class _OptionTile extends StatelessWidget {
         onTap: onTap,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: border, width: 1.4),
@@ -629,7 +926,7 @@ class _OptionTile extends StatelessWidget {
           child: Text(
             text,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 14.5,
               height: 1.45,
               fontWeight: FontWeight.w800,
               color: ink,
@@ -641,7 +938,7 @@ class _OptionTile extends StatelessWidget {
   }
 }
 
-/// ما حصده الطفل في ختام المغامرة.
+/// ما حصده الطفل في ختام التحدي.
 class _OutcomeCard extends StatelessWidget {
   const _OutcomeCard({required this.gems, required this.alreadyRewarded});
 
@@ -667,7 +964,7 @@ class _OutcomeCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(rewarded ? '🎉' : '🔄', style: const TextStyle(fontSize: 26)),
+          Text(rewarded ? '🎉' : '🔄', style: const TextStyle(fontSize: 28)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -677,7 +974,7 @@ class _OutcomeCard extends StatelessWidget {
                   // الطفلُ العدّادَ معطوباً.
                   : tr(alreadyRewarded ? 'study.noRepeat' : 'study.noGems'),
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 14.5,
                 height: 1.55,
                 fontWeight: FontWeight.w800,
                 color: ink,
@@ -691,17 +988,17 @@ class _OutcomeCard extends StatelessWidget {
 }
 
 /// زرٌّ عريضٌ بتدرّج، ينكمش تحت الإصبع.
-class _StartButton extends StatefulWidget {
-  const _StartButton({required this.label, required this.onPressed});
+class _WideButton extends StatefulWidget {
+  const _WideButton({required this.label, required this.onPressed});
 
   final String label;
   final VoidCallback? onPressed;
 
   @override
-  State<_StartButton> createState() => _StartButtonState();
+  State<_WideButton> createState() => _WideButtonState();
 }
 
-class _StartButtonState extends State<_StartButton> {
+class _WideButtonState extends State<_WideButton> {
   bool _pressed = false;
 
   @override
@@ -739,14 +1036,15 @@ class _StartButtonState extends State<_StartButton> {
               onTap: widget.onPressed,
               onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
               onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
-              onTapCancel: disabled ? null : () => setState(() => _pressed = false),
+              onTapCancel:
+                  disabled ? null : () => setState(() => _pressed = false),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 15),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
                   widget.label,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 15.5,
+                    fontSize: 16,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
                   ),

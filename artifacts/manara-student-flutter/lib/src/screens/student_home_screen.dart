@@ -278,7 +278,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // thing they all have in common is being opened from this method. The
     // music is already stepping aside by the time the line starts — the route
     // push that follows triggers `didPushNext`.
-    if (index >= 0 && index < _homeSections.length) {
+    // ── إلا بطاقةً تملك صوتَها ──
+    //
+    // `speakPortal` ترتدّ إلى `generic_ar.mp3` لمفتاحٍ لا تسجيلَ له، وهي
+    // تنتظر قراءةَ بيان الأصول قبل أن تشغّل. فكانت تنطلق من هنا، ثم تشغّل
+    // شاشةُ المذاكرة مقطعَها في `initState`، ثم يعود انتظارُ البيان فيحلّ
+    // المقطعُ العامُّ محلَّ مقطع الشاشة على المشغّل نفسه.
+    //
+    // فسُمع صوتٌ ليس صوتَ البطاقة، والملفُّ صحيحٌ في مكانه. والحلُّ أن
+    // تُترك البطاقةُ التي لها مقطعٌ خاصّ تنطق بنفسها.
+    if (index >= 0 &&
+        index < _homeSections.length &&
+        !_homeSections[index].ownsVoice) {
       unawaited(StudentSoundService.instance.speakPortal(
         _homeSections[index].titleKey,
       ));
@@ -818,6 +829,7 @@ class _HomeSection {
     required this.image,
     required this.colors,
     required this.accent,
+    this.ownsVoice = false,
   });
 
   /// Translation keys rather than finished text, because the table below
@@ -833,6 +845,12 @@ class _HomeSection {
   /// Read out by the screen reader, so it follows the language like
   /// every other label on the card.
   final String descriptionKey;
+
+  /// ألها مقطعٌ صوتيٌّ خاصٌّ تشغّله شاشتُها؟
+  ///
+  /// فلا تنطق الواجهةُ سطرَ البوابة لها — والاثنان على مشغّلٍ واحد،
+  /// فيحلّ المتأخّرُ محلّ الأوّل.
+  final bool ownsVoice;
 
   String get description => tr(descriptionKey);
 
@@ -978,6 +996,8 @@ const _homeSections = <_HomeSection>[
     image: 'assets/images/book.png',
     colors: [Color(0xFF5B21B6), Color(0xFFA21CAF)],
     accent: Color(0xFFF5D0FE),
+    // شاشتُها تشغّل `booksound.mp3` بنفسها.
+    ownsVoice: true,
   ),
 ];
 
