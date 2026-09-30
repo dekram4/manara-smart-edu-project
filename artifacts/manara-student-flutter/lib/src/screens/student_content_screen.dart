@@ -1476,7 +1476,26 @@ class UniversalWebVideoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final targetUrl = _getFinalUrl(video.url);
-    if (video.sourceType == VideoSourceType.mp4) {
+    final ytId = _extractYouTubeId(targetUrl);
+    final isYouTube =
+        ytId.isNotEmpty && video.sourceType != VideoSourceType.mp4;
+
+    // ── ويوتيوب يمرّ بالمشغّل، لا بإطارِ وِبٍّ خام ──
+    //
+    // كانت هذه الشاشة تفتح `youtube-nocookie.com/embed/...` في
+    // `StudentWebEmbed` — إطارُ وِبٍّ لا شيء لنا فوقه: لا زرَّ تشغيلٍ ولا
+    // ملءَ شاشة، وأدواتُ يوتيوب وحدها فيه بشعارِها وعنوانِها ومقترحاتِها
+    // وبابِها إلى الموقع.
+    //
+    // وبطاقةُ شرح الدرس تفتح هذه الشاشة، فكلُّ ما بُني في
+    // `StudentVideoPlayer` — إقفالُ الصفحة عن اللمس، وشريطُ التشغيل
+    // وملءِ الشاشة، وغطاءُ شاشة النهاية — لم يكن يصلها. كان يُصلَح مشغّلٌ
+    // ويُفتح آخر.
+    //
+    // والمشغّلُ يعرف يوتيوب: `_useYoutubePlayerIframe` تختاره متى كان
+    // الرابطُ يوتيوبَ والمنصّةُ أندرويد أو iOS أو ويب. فيُعطى الفيديو كما
+    // يُعطى mp4، ويبقى `StudentWebEmbed` لما ليس واحداً منهما.
+    if (video.sourceType == VideoSourceType.mp4 || isYouTube) {
       return Scaffold(
         backgroundColor: const Color(0xFF17364F),
         appBar: AppBar(
@@ -1496,15 +1515,10 @@ class UniversalWebVideoScreen extends StatelessWidget {
         ),
       );
     }
-    final ytId = _extractYouTubeId(targetUrl);
-    final isYouTube =
-        ytId.isNotEmpty && video.sourceType != VideoSourceType.mp4;
-    final embedUrl = isYouTube
-        ? 'https://www.youtube-nocookie.com/embed/$ytId?autoplay=1&rel=0&playsinline=1'
-        : targetUrl;
-    final embedHtml = isYouTube
-        ? null
-        : '''
+    // وما بقي فيديو خامٌ يُعرض في صفحة HTML من عندنا: لا يوتيوب فيه، فلا
+    // شعارَ ولا مقترحاتٍ ولا بابَ إلى موقعٍ خارجي — وأدواتُ المتصفّح
+    // وحدها تكفيه.
+    final embedHtml = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -1551,7 +1565,10 @@ class UniversalWebVideoScreen extends StatelessWidget {
             child: Center(
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: StudentWebEmbed(url: embedUrl, htmlContent: embedHtml),
+                child: StudentWebEmbed(
+                  url: targetUrl,
+                  htmlContent: embedHtml,
+                ),
               ),
             ),
           ),
