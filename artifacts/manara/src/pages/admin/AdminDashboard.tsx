@@ -17,6 +17,7 @@ import Reports from './Reports';
 import SystemSettings from './SystemSettings';
 import PermissionPackages from './PermissionPackages';
 import AdminVideoNotifications from './AdminVideoNotifications';
+import DuelQuestionReview from '../shared/DuelQuestionReview';
 import ManaraBrand from '../../components/ManaraBrand';
 import VideoNotificationBadge from './VideoNotificationBadge';
 import PrivateChat from '../shared/PrivateChat';
@@ -170,6 +171,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       case AdminMenuType.SYSTEM_SETTINGS: return <SystemSettings />;
       case 'PERMISSION_PACKAGES' as AdminMenuType: return <PermissionPackages onUpdate={refreshStats} />;
       case 'VIDEO_NOTIFICATIONS' as AdminMenuType: return <AdminVideoNotifications />;
+      case 'DUEL_QUESTIONS' as AdminMenuType: return <DuelQuestionReview role="admin" />;
       default: return <DashboardHome stats={stats} onRefresh={refreshStats} />;
     }
   };
@@ -201,6 +203,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: '📚' },
             { id: 'VIDEO_MANAGEMENT' as AdminMenuType, label: 'سينما منارة', icon: '🎬' },
             { id: AdminMenuType.QUIZ_MANAGEMENT, label: 'إدارة الاختبارات', icon: '📝' },
+            { id: 'DUEL_QUESTIONS' as AdminMenuType, label: 'أسئلة «تحدَّ زملاءك»', icon: '⚔️' },
             { id: AdminMenuType.REPORTS, label: 'التقارير', icon: '📋' },
             { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'إدارة الصلاحيات', icon: '🔐' },
             { id: 'VIDEO_NOTIFICATIONS' as AdminMenuType, label: 'إشعارات الفيديو', icon: '📢' },

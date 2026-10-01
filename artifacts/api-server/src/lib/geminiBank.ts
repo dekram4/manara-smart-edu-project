@@ -8,6 +8,7 @@
 
 import { logger } from "./logger";
 import { bankPrompt } from "./challengeBank";
+import { duelDomainPrompt, type DomainRequest } from "./duelDomainBank";
 
 /** النماذج المفضّلة، بترتيب المسار نفسه. */
 const MODELS = [
@@ -32,10 +33,21 @@ export interface BankRequest {
  * حال نموذجٍ لا وجود له أو طلبٍ لا يقبله — وما سواه يُعاد بعد مهلة.
  */
 export async function generateChallengeBank(input: BankRequest): Promise<string> {
+  return askGemini(bankPrompt(input), "challenge bank");
+}
+
+/**
+ * يطلب أسئلةَ مبارزةٍ من مجال الدرس، ويعيد الردَّ كما جاء لـ`parseDomainQuestions`.
+ * انظر `duelDomainBank.ts`.
+ */
+export async function generateDuelDomainQuestions(input: DomainRequest): Promise<string> {
+  return askGemini(duelDomainPrompt(input), "duel domain questions");
+}
+
+async function askGemini(prompt: string, label: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
-  const prompt = bankPrompt(input);
   let lastError: unknown = null;
 
   for (const model of MODELS) {
@@ -75,6 +87,6 @@ export async function generateChallengeBank(input: BankRequest): Promise<string>
     }
   }
 
-  logger.warn({ err: lastError }, "[gemini] challenge bank generation exhausted models");
-  throw lastError instanceof Error ? lastError : new Error("تعذّر توليد البنك");
+  logger.warn({ err: lastError, label }, "[gemini] generation exhausted models");
+  throw lastError instanceof Error ? lastError : new Error(`تعذّر التوليد: ${label}`);
 }

@@ -13,6 +13,7 @@ import ParentStudentManagement from './ParentStudentManagement';
 import TeacherReports from './TeacherReports';
 import TeacherCertificates from './TeacherCertificates';
 import QuizManagement from '../admin/QuizManagement';
+import DuelQuestionReview from '../shared/DuelQuestionReview';
 import { getTeacherPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
@@ -304,6 +305,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
          return <TeacherContentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.QUIZ_MANAGEMENT:
         return <QuizManagement onUpdate={loadDashboardStats} teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
+      case TeacherMenuType.DUEL_QUESTIONS:
+        // المعلمُ يُعرَف في الخادم من جلسته لا من هنا: ما يُرى وما يُعطَّل يحسمه هو.
+        return <DuelQuestionReview role="teacher" />;
       case TeacherMenuType.ACCOUNT_MANAGEMENT:
          return <ParentStudentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.PERMISSION_PACKAGES:
@@ -374,6 +378,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             if (menu === TeacherMenuType.QUIZ_MANAGEMENT && !permissions.canManageQuizzes) {
               return null;
             }
+            // أسئلةُ التحدي تُولَّد من دروسه، فتتبع صلاحيةَ المحتوى نفسها.
+            if (menu === TeacherMenuType.DUEL_QUESTIONS && !permissions.canManageContent) {
+              return null;
+            }
             if (menu === TeacherMenuType.ACCOUNT_MANAGEMENT && 
                 !permissions.canCreateParents && !permissions.canCreateStudents) {
               return null;
@@ -392,6 +400,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.CONTENT_MANAGEMENT]: '📚',
               [TeacherMenuType.VIDEO_MANAGEMENT]: '🎬',
               [TeacherMenuType.QUIZ_MANAGEMENT]: '📝',
+              [TeacherMenuType.DUEL_QUESTIONS]: '⚔️',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: '👥',
               [TeacherMenuType.PERMISSION_PACKAGES]: '📦',
               [TeacherMenuType.REPORTS]: '📊',
@@ -405,6 +414,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.CONTENT_MANAGEMENT]: 'إدارة المحتوى',
               [TeacherMenuType.VIDEO_MANAGEMENT]: 'فيديوهاتي',
               [TeacherMenuType.QUIZ_MANAGEMENT]: 'إدارة الاختبارات',
+              [TeacherMenuType.DUEL_QUESTIONS]: 'أسئلة «تحدَّ زملاءك»',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: 'إدارة الحسابات',
               [TeacherMenuType.PERMISSION_PACKAGES]: 'إدارة الصلاحيات',
               [TeacherMenuType.REPORTS]: 'التقارير',
