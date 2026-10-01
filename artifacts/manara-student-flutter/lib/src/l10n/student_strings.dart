@@ -136,14 +136,10 @@ class StudentStrings {
     'tutor.exitFullscreen': 'إنهاء ملء الشاشة',
     'tutor.ready': 'صديقك الذكي مستعد للعب والكلام!',
     'tutor.meetingReady': 'اللقاء المباشر جاهز للانضمام',
-    'tutor.joinMeeting': 'الاتصال بالاجتماع',
-    'tutor.meetingJoinable': 'الاجتماع جاهز للانضمام',
-    'tutor.meetingHint': 'إن لم يظهر الاجتماع هنا، افتحه بزر الاتصال في تطبيق الاجتماع أو المتصفح.',
-    'tutor.joinBody': 'اضغط الزر ليفتح اللقاء في تطبيق الاجتماع أو المتصفح، ثم ارجع إلى منارة متى شئت.',
-    'tutor.opening': 'جارٍ فتح الاجتماع…',
-    'tutor.meetingOpenFailed': 'تعذّر فتح الاجتماع على هذا الجهاز. انسخ الرابط وافتحه في المتصفح.',
-    'tutor.copyLink': 'نسخ الرابط',
-    'tutor.linkCopied': 'نُسخ رابط الاجتماع',
+    'tutor.meetingHint': 'الاجتماع يعمل هنا داخل منارة. إن انقطع، اضغط «إعادة الاتصال».',
+    'tutor.googleMeetHint': 'Google Meet قد يرفض العمل داخل التطبيقات. إن لم يظهر، اطلب من معلمك رابط «غرفة منارة».',
+    'tutor.meetingNeedsApp': 'هذا الاجتماع يطلب تطبيقاً خارجياً. اطلب من معلمك رابط «غرفة منارة» ليعمل داخل التطبيق.',
+    'tutor.reconnect': 'إعادة الاتصال',
     'tutor.noLink': 'لم يتم إضافة رابط التفاعل بعد',
     'tutor.noMeeting': 'لم يتم إضافة لقاء مباشر بعد',
     'tutor.noLinkBody':
@@ -867,17 +863,13 @@ class StudentStrings {
     'tutor.exitFullscreen': 'Leave full screen',
     'tutor.ready': 'Your smart friend is ready to talk and play!',
     'tutor.meetingReady': 'The live class is ready to join',
-    'tutor.joinMeeting': 'Join the meeting',
-    'tutor.meetingJoinable': 'The meeting is ready to join',
     'tutor.meetingHint':
-        'If the meeting does not show here, open it with the join button in the meeting app or browser.',
-    'tutor.joinBody':
-        'Tap the button to open the class in the meeting app or browser, then come back to Manara any time.',
-    'tutor.opening': 'Opening the meeting…',
-    'tutor.meetingOpenFailed':
-        'Could not open the meeting on this device. Copy the link and open it in a browser.',
-    'tutor.copyLink': 'Copy link',
-    'tutor.linkCopied': 'Meeting link copied',
+        'The class runs here inside Manara. If it drops, tap Reconnect.',
+    'tutor.googleMeetHint':
+        'Google Meet may refuse to run inside apps. If it does not show, ask your teacher for a Manara room link.',
+    'tutor.meetingNeedsApp':
+        'This meeting asks for another app. Ask your teacher for a Manara room link so it runs inside the app.',
+    'tutor.reconnect': 'Reconnect',
     'tutor.noLink': 'No teacher link added yet',
     'tutor.noMeeting': 'No live class added yet',
     'tutor.noLinkBody':

@@ -44,7 +44,36 @@ class StudentMediaPermissions {
     }
   }
 
+  static bool _askedMeeting = false;
+
+  /// الكاميرا والميكروفون معاً، قبل أن تُحمَّل صفحةُ اللقاء المباشر.
+  ///
+  /// ── ولماذا الكاميرا هنا وليست في [requestForTutor] ──
+  /// المعلمُ الافتراضيّ يسمع ولا يرى، فطلبُ الكاميرا له سؤالٌ لا داعي له. واللقاءُ
+  /// صوتٌ وصورة: و`getUserMedia({video})` داخل WebView أندرويد يُرفض ما لم يملك
+  /// التطبيقُ إذنَ الكاميرا — وكان لا يُطلب، فلا تعمل كاميرا الطفل داخل اللقاء
+  /// أبداً، والصفحةُ لا تقول لماذا.
+  static Future<bool> requestForMeeting() async {
+    if (_askedMeeting) return true;
+    _askedMeeting = true;
+    if (kIsWeb) return true;
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      return true;
+    }
+    try {
+      final statuses =
+          await [Permission.camera, Permission.microphone].request();
+      return statuses.values.every((s) => s.isGranted || s.isLimited);
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Test seam: lets a test start from a clean slate.
   @visibleForTesting
-  static void resetForTest() => _asked = false;
+  static void resetForTest() {
+    _asked = false;
+    _askedMeeting = false;
+  }
 }

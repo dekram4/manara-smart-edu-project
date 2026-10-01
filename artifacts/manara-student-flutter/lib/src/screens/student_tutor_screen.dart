@@ -1,10 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/student_content.dart';
-import '../services/meeting_launcher.dart';
+import '../services/meeting_links.dart';
 import '../services/student_media_permissions.dart';
 import '../services/student_settings.dart';
 import '../l10n/student_strings.dart';
@@ -24,16 +23,12 @@ class StudentTutorScreen extends StatefulWidget {
     required this.selection,
     required this.apiBaseUrl,
     this.fullscreen = false,
-    this.meetingLauncher = const MeetingLauncher(),
     super.key,
   });
 
   final TutorExperienceSelection selection;
   final String apiBaseUrl;
   final bool fullscreen;
-
-  /// يفتح اللقاءَ خارج التطبيق. يُستبدل في الاختبار.
-  final MeetingLauncher meetingLauncher;
 
   @override
   State<StudentTutorScreen> createState() => _StudentTutorScreenState();
@@ -42,117 +37,85 @@ class StudentTutorScreen extends StatefulWidget {
 class _StudentTutorScreenState extends State<StudentTutorScreen> {
   var _embedRevision = 0;
 
-  /// فتحٌ جارٍ: الزرُّ يقول «جارٍ الفتح» ولا يقبل ضغطةً ثانية تفتح الاجتماعَ
-  /// مرّتين.
-  var _launching = false;
+  /// صفحةُ ويبٍ بديلةٌ حمّلناها بدل رابط تطبيقٍ طلبته صفحةُ الاجتماع. انظر
+  /// [_onAppLink].
+  String? _fallbackUrl;
+
+  /// ما حُمّل من صفحاتٍ بديلة: صفحةٌ تطلب التطبيقَ مرّةً ثانية بعد تحميل
+  /// بديلتها تدور في حلقة، فلا تُحمَّل البديلةُ مرّتين.
+  final Set<String> _fallbacksTried = {};
 
   @override
   void initState() {
     super.initState();
     // Asked for here, before the page loads, rather than left to the
     // WebView. The embed grants its own getUserMedia request, but on
-    // Android that only works if the app already holds RECORD_AUDIO — and
-    // when it does not, the failure surfaces inside the page as "open this
-    // in a browser", which is the last thing to show a child.
-    unawaited(StudentMediaPermissions.requestForTutor());
+    // Android that only works if the app already holds the runtime
+    // permission — and when it does not, the failure surfaces inside the
+    // page as "open this in a browser", which is the last thing to show a
+    // child. The live class asks for the camera as well: it is video.
+    unawaited(
+      _isLiveMeeting
+          ? StudentMediaPermissions.requestForMeeting()
+          : StudentMediaPermissions.requestForTutor(),
+    );
   }
 
   String? get _avatarUrl => widget.selection.url;
   LessonContent? get _avatarLesson => widget.selection.lesson;
 
+  /// ما يُحمَّل في الإطار: رابطُ الدرس، أو بديلتُه حين طلبت صفحتُه تطبيقاً.
+  String? get _embedUrl => _fallbackUrl ?? _avatarUrl;
+
   bool get _isLiveMeeting =>
       widget.selection.type == TutorExperienceType.liveMeeting;
 
-  /// خدماتُ اجتماعٍ لا تعمل في WebView مضمَّن: تُعرض لها بطاقةُ انضمامٍ تفتحها
-  /// خارج التطبيق، لا إطارٌ فارغ.
-  bool get _isBlockedMeetingEmbed {
-    if (!_isLiveMeeting || _avatarUrl == null) return false;
-    final host = Uri.tryParse(_avatarUrl!)?.host.toLowerCase() ?? '';
-    return host == 'meet.google.com' ||
-        host == 'zoom.us' ||
-        host.endsWith('.zoom.us') ||
-        host == 'teams.microsoft.com' ||
-        host.endsWith('.teams.microsoft.com') ||
-        host == 'webex.com' ||
-        host.endsWith('.webex.com');
-  }
-
   /// D-ID Studio is the content-authoring dashboard. It depends on a creator
-  /// login session and cannot be used as the student's embedded teacher.
-  /// D-ID Agents must be shared or embedded through their dedicated Agent
-  /// Embed configuration instead.
+  /// login session and cannot be used as the embedded teacher. D-ID Agents
+  /// must be shared or embedded through their Agent Embed configuration.
   bool get _isDIdStudioUrl {
     final host = Uri.tryParse(_avatarUrl ?? '')?.host.toLowerCase() ?? '';
     return host == 'studio.d-id.com' || host.endsWith('.studio.d-id.com');
   }
 
-  /// «الاتصال بالاجتماع»: يفتحه في تطبيق الاجتماع أو المتصفّح.
+  /// صفحةُ الاجتماع طلبت تطبيقَها (`intent://` من Meet، `zoomus://` من Zoom).
   ///
-  /// ── ولماذا لا يُعاد تحميلُ الإطار ──
-  /// كان الزرُّ يفعل ذلك: يزيد رقمَ الإطار فيُحمَّل الاجتماعُ نفسه في المكان
-  /// نفسه — وفي Meet وZoom كان يحاول تضمينَ ما لا يُضمَّن. فيضغط الطفلُ ولا
-  /// يحدث شيء. والزرُّ وُضع لحالة «لم يعمل داخل الصفحة»، فعملُه أن يخرج منها.
-  Future<void> _joinMeeting() async {
-    if (_launching) return;
-    StudentSoundService.instance.playTap();
-    setState(() => _launching = true);
-    final result = await widget.meetingLauncher.open(_avatarUrl);
-    if (!mounted) return;
-    setState(() => _launching = false);
-    _report(result);
-  }
-
-  /// صفحةُ الاجتماع داخل الإطار طلبت تطبيقَها (`intent://` و`zoomus://`): يُسلَّم
-  /// الطلبُ إلى النظام بدل أن يُسقط بصمت.
-  Future<void> _onAppLink(Uri requested) async {
-    if (_launching) return;
-    setState(() => _launching = true);
-    var result = await widget.meetingLauncher.openAppLink(requested);
-    // لا تطبيقَ يفتح الرابط: فالاجتماعُ نفسُه في المتصفّح.
-    if (result != MeetingLaunchResult.opened) {
-      result = await widget.meetingLauncher.open(_avatarUrl);
+  /// ── ولا يُغادَر التطبيق ──
+  /// الطلبُ يُترجم إلى صفحة الويب البديلة وتُحمَّل في الإطار نفسه. وما لا بديلَ
+  /// له يُقال للطفل بجملةٍ يفهمها — لا يُسقط بصمتٍ كما كان، ولا يُخرجه إلى
+  /// تطبيقٍ لا يعرف كيف يعود منه.
+  void _onAppLink(Uri requested) {
+    final fallback = MeetingLinks.webFallback(requested)?.toString();
+    if (fallback != null && _fallbacksTried.add(fallback)) {
+      setState(() {
+        _fallbackUrl = fallback;
+        _embedRevision++;
+      });
+      return;
     }
-    if (!mounted) return;
-    setState(() => _launching = false);
-    _report(result);
-  }
-
-  /// يقول للطفل ما حدث. الصمتُ بعد ضغطةٍ هو ما جعل الزرَّ يبدو معطّلاً.
-  void _report(MeetingLaunchResult result) {
-    if (result == MeetingLaunchResult.opened) return;
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
-    final url = _avatarUrl;
     messenger.showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 6),
         content: Text(
-          result == MeetingLaunchResult.invalidLink
-              ? tr('tutor.badMeetingLink')
-              : tr('tutor.meetingOpenFailed'),
+          tr('tutor.meetingNeedsApp'),
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
-        // ومخرجٌ أخير: الرابطُ يُنسخ فيُلصق في أيّ متصفّح.
-        action: result == MeetingLaunchResult.failed && url != null
-            ? SnackBarAction(
-                label: tr('tutor.copyLink'),
-                onPressed: () {
-                  unawaited(Clipboard.setData(ClipboardData(text: url)));
-                  messenger.showSnackBar(
-                    SnackBar(content: Text(tr('tutor.linkCopied'))),
-                  );
-                },
-              )
-            : null,
       ),
     );
   }
 
+  /// «إعادة الاتصال»: الاجتماعُ من رابطه الأصليّ، في الإطار نفسه.
   void _reload() {
     if (_avatarUrl == null) return;
     StudentSoundService.instance.playTap();
-    setState(() => _embedRevision++);
+    setState(() {
+      _fallbackUrl = null;
+      _fallbacksTried.clear();
+      _embedRevision++;
+    });
   }
 
   void _openFullscreen() {
@@ -277,15 +240,6 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
       );
     }
 
-    if (_isBlockedMeetingEmbed) {
-      return StudentEntrance(
-        child: _BlockedMeetingCard(
-          onJoin: () => unawaited(_joinMeeting()),
-          busy: _launching,
-        ),
-      );
-    }
-
     if (_isDIdStudioUrl) {
       return StudentEntrance(
         child: DIdAgentEmbed(
@@ -360,14 +314,12 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                           : Border.all(color: const Color(0xFF5B3B87)),
                     ),
                     child: TutorEmbed(
-                      key: ValueKey('${_avatarUrl!}:$_embedRevision'),
-                      url: _avatarUrl!,
+                      key: ValueKey('${_embedUrl!}:$_embedRevision'),
+                      url: _embedUrl!,
                       title: _isLiveMeeting ? tr('tutor.meetingTitle') : tr('tutor.short'),
-                      // اللقاءُ وحده يُسلّم روابطَ تطبيقاته إلى النظام؛ المعلمُ
-                      // الافتراضيّ يبقى في بطاقته.
-                      onAppLink: _isLiveMeeting
-                          ? (uri) => unawaited(_onAppLink(uri))
-                          : null,
+                      // اللقاءُ وحده يحوّل روابطَ تطبيقاته إلى صفحاتها في
+                      // الإطار نفسه؛ المعلمُ الافتراضيّ يُسقطها كما كان.
+                      onAppLink: _isLiveMeeting ? _onAppLink : null,
                     ),
                   ),
                 ),
@@ -388,21 +340,20 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            tr('tutor.meetingHint'),
+                            // Meet يرفض التشغيلَ داخل التطبيقات في أحيانٍ كثيرة:
+                            // يُقال ذلك صراحةً بدل إطارٍ فارغٍ بلا تفسير.
+                            MeetingLinks.isGoogleMeet(_avatarUrl)
+                                ? tr('tutor.googleMeetHint')
+                                : tr('tutor.meetingHint'),
                             textAlign: TextAlign.start,
                             style: const TextStyle(color: Color(0xFFC8D5E5), fontSize: 12),
                           ),
                         ),
                         const SizedBox(width: 10),
-                        FilledButton(
-                          onPressed: _launching
-                              ? null
-                              : () => unawaited(_joinMeeting()),
-                          child: Text(
-                            _launching
-                                ? tr('tutor.opening')
-                                : tr('tutor.joinMeeting'),
-                          ),
+                        FilledButton.icon(
+                          onPressed: _reload,
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: Text(tr('tutor.reconnect')),
                         ),
                       ],
                     ),
@@ -412,56 +363,6 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _BlockedMeetingCard extends StatelessWidget {
-  const _BlockedMeetingCard({required this.onJoin, required this.busy});
-
-  final VoidCallback onJoin;
-
-  /// فتحٌ جارٍ: الزرُّ معطّلٌ ويقول ذلك.
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Student3DCard(
-          child: Card(
-          color: const Color(0xFF1D3B55),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.videocam_rounded, color: Color(0xFFFB7185), size: 58),
-                const SizedBox(height: 14),
-                Text(
-                  tr('tutor.meetingJoinable'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  tr('tutor.joinBody'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFC8D5E5), height: 1.6, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 20),
-                FilledButton.icon(
-                  onPressed: busy ? null : onJoin,
-                  icon: const Icon(Icons.videocam_rounded),
-                  label: Text(busy ? tr('tutor.opening') : tr('tutor.joinMeeting')),
-                ),
-              ],
-            ),
-          ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -23,6 +23,20 @@ interface ContentManagementProps {
   permissionPackageId?: string;
 }
 
+/**
+ * رابط «غرفة منارة» جديدة على Jitsi.
+ *
+ * اسمٌ من اثني عشر حرفاً عشوائياً من مولّد التشفير: غرفُ Jitsi العامّة مفتوحةٌ
+ * لمن يعرف اسمها، فاسمٌ يُخمَّن («Manara-Math-1») باب صفٍّ مفتوح للغرباء.
+ */
+function newManaraRoomUrl(): string {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  const id = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+  return `https://meet.jit.si/Manara-${id}`;
+}
+
 const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacherId, teacherName, permissionPackageId }) => {
   const [lessons, setLessons] = useState<LessonConfig[]>([]);
   /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
@@ -790,6 +804,23 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                <div className="dashboard-content-resource-card">
                  <label>رابط الاجتماع المباشر</label>
                  <input type="url" value={formData.liveMeetingUrl} onChange={e => setFormData({...formData, liveMeetingUrl: e.target.value})} className="dashboard-content-control" placeholder="https://..." />
+                 {/*
+                   «غرفة منارة»: رابط Jitsi يعمل بالصوت والصورة داخل تطبيق الطالب نفسه.
+                   Google Meet يرفض العمل داخل التطبيقات في أحيان كثيرة، وZoom وTeams
+                   يطلبان تطبيقيهما — فالطالب يضغط ولا يرى شيئاً. واسم الغرفة عشوائي
+                   لا يُخمَّن: الغرفة مفتوحة لمن يعرف اسمها.
+                 */}
+                 <button
+                   type="button"
+                   onClick={() => setFormData({ ...formData, liveMeetingUrl: newManaraRoomUrl() })}
+                   className="mt-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-black text-white hover:bg-purple-700"
+                 >
+                   🎥 إنشاء غرفة منارة
+                 </button>
+                 <p className="mt-2 text-xs font-bold text-purple-700">
+                   غرفة منارة تعمل بالصوت والصورة داخل تطبيق الطالب. افتح الرابط نفسه من جهازك لتبدأ اللقاء
+                   (قد يطلب منك Jitsi تسجيل الدخول مرة لبدء الغرفة كمشرف). روابط Google Meet قد لا تعمل داخل التطبيق.
+                 </p>
               </div>
             </div>
              </div>
