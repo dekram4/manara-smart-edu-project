@@ -15,11 +15,16 @@ class TutorEmbed extends StatefulWidget {
   const TutorEmbed({
     required this.url,
     required this.title,
+    this.onAppLink,
     super.key,
   });
 
   final String url;
   final String title;
+
+  /// لا يُستعمل في الويب: الإطارُ في المتصفّح نفسه، وروابطُ التطبيقات يفتحها
+  /// المتصفّح. والمعامل هنا ليتطابق الصنفان في البناءين.
+  final ValueChanged<Uri>? onAppLink;
 
   @override
   State<TutorEmbed> createState() => _TutorEmbedState();

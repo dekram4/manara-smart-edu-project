@@ -138,7 +138,12 @@ class StudentStrings {
     'tutor.meetingReady': 'اللقاء المباشر جاهز للانضمام',
     'tutor.joinMeeting': 'الاتصال بالاجتماع',
     'tutor.meetingJoinable': 'الاجتماع جاهز للانضمام',
-    'tutor.meetingHint': 'استخدم زر الاتصال إذا لم يعمل الاجتماع داخل الصفحة.',
+    'tutor.meetingHint': 'إن لم يظهر الاجتماع هنا، افتحه بزر الاتصال في تطبيق الاجتماع أو المتصفح.',
+    'tutor.joinBody': 'اضغط الزر ليفتح اللقاء في تطبيق الاجتماع أو المتصفح، ثم ارجع إلى منارة متى شئت.',
+    'tutor.opening': 'جارٍ فتح الاجتماع…',
+    'tutor.meetingOpenFailed': 'تعذّر فتح الاجتماع على هذا الجهاز. انسخ الرابط وافتحه في المتصفح.',
+    'tutor.copyLink': 'نسخ الرابط',
+    'tutor.linkCopied': 'نُسخ رابط الاجتماع',
     'tutor.noLink': 'لم يتم إضافة رابط التفاعل بعد',
     'tutor.noMeeting': 'لم يتم إضافة لقاء مباشر بعد',
     'tutor.noLinkBody':
@@ -865,7 +870,14 @@ class StudentStrings {
     'tutor.joinMeeting': 'Join the meeting',
     'tutor.meetingJoinable': 'The meeting is ready to join',
     'tutor.meetingHint':
-        'Use the join button if the meeting does not run inside the page.',
+        'If the meeting does not show here, open it with the join button in the meeting app or browser.',
+    'tutor.joinBody':
+        'Tap the button to open the class in the meeting app or browser, then come back to Manara any time.',
+    'tutor.opening': 'Opening the meeting…',
+    'tutor.meetingOpenFailed':
+        'Could not open the meeting on this device. Copy the link and open it in a browser.',
+    'tutor.copyLink': 'Copy link',
+    'tutor.linkCopied': 'Meeting link copied',
     'tutor.noLink': 'No teacher link added yet',
     'tutor.noMeeting': 'No live class added yet',
     'tutor.noLinkBody':

@@ -30,11 +30,19 @@ class TutorEmbed extends StatefulWidget {
   const TutorEmbed({
     required this.url,
     required this.title,
+    this.onAppLink,
     super.key,
   });
 
   final String url;
   final String title;
+
+  /// رابطٌ يطلب تطبيقاً آخر (`intent://` أو `zoomus://`) طلبته الصفحة.
+  ///
+  /// بلا هذا يُسقط كما كان: المعلمُ الافتراضيّ يبقى في بطاقته ولا يُسلَّم الطفلُ
+  /// إلى تطبيقٍ آخر. واللقاءُ المباشر يمرّره: Meet وZoom يطلبان تطبيقَهما ليعملا،
+  /// وإسقاطُ طلبهما بصمتٍ هو ما جعل الزرَّ يبدو معطّلاً.
+  final ValueChanged<Uri>? onAppLink;
 
   @override
   State<TutorEmbed> createState() => _TutorEmbedState();
@@ -161,9 +169,11 @@ class _TutorEmbedState extends State<TutorEmbed> {
             final url = action.request.url;
             if (url == null) return NavigationActionPolicy.ALLOW;
             const webSchemes = {'http', 'https', 'about', 'data', 'blob'};
-            return webSchemes.contains(url.scheme.toLowerCase())
-                ? NavigationActionPolicy.ALLOW
-                : NavigationActionPolicy.CANCEL;
+            if (webSchemes.contains(url.scheme.toLowerCase())) {
+              return NavigationActionPolicy.ALLOW;
+            }
+            widget.onAppLink?.call(Uri.parse(url.toString()));
+            return NavigationActionPolicy.CANCEL;
           },
           initialUrlRequest: URLRequest(url: WebUri(widget.url)),
           initialSettings: InAppWebViewSettings(

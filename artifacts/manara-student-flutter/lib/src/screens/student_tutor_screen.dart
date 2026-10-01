@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/student_content.dart';
+import '../services/meeting_launcher.dart';
 import '../services/student_media_permissions.dart';
 import '../services/student_settings.dart';
 import '../l10n/student_strings.dart';
@@ -22,6 +24,7 @@ class StudentTutorScreen extends StatefulWidget {
     required this.selection,
     required this.apiBaseUrl,
     this.fullscreen = false,
+    this.meetingLauncher = const MeetingLauncher(),
     super.key,
   });
 
@@ -29,13 +32,19 @@ class StudentTutorScreen extends StatefulWidget {
   final String apiBaseUrl;
   final bool fullscreen;
 
+  /// يفتح اللقاءَ خارج التطبيق. يُستبدل في الاختبار.
+  final MeetingLauncher meetingLauncher;
+
   @override
   State<StudentTutorScreen> createState() => _StudentTutorScreenState();
 }
 
 class _StudentTutorScreenState extends State<StudentTutorScreen> {
   var _embedRevision = 0;
-  var _showInlineMeeting = false;
+
+  /// فتحٌ جارٍ: الزرُّ يقول «جارٍ الفتح» ولا يقبل ضغطةً ثانية تفتح الاجتماعَ
+  /// مرّتين.
+  var _launching = false;
 
   @override
   void initState() {
@@ -54,8 +63,10 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
   bool get _isLiveMeeting =>
       widget.selection.type == TutorExperienceType.liveMeeting;
 
+  /// خدماتُ اجتماعٍ لا تعمل في WebView مضمَّن: تُعرض لها بطاقةُ انضمامٍ تفتحها
+  /// خارج التطبيق، لا إطارٌ فارغ.
   bool get _isBlockedMeetingEmbed {
-    if (!_isLiveMeeting || _avatarUrl == null || _showInlineMeeting) return false;
+    if (!_isLiveMeeting || _avatarUrl == null) return false;
     final host = Uri.tryParse(_avatarUrl!)?.host.toLowerCase() ?? '';
     return host == 'meet.google.com' ||
         host == 'zoom.us' ||
@@ -75,13 +86,67 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
     return host == 'studio.d-id.com' || host.endsWith('.studio.d-id.com');
   }
 
-  void _joinMeeting() {
-    if (_avatarUrl == null) return;
+  /// «الاتصال بالاجتماع»: يفتحه في تطبيق الاجتماع أو المتصفّح.
+  ///
+  /// ── ولماذا لا يُعاد تحميلُ الإطار ──
+  /// كان الزرُّ يفعل ذلك: يزيد رقمَ الإطار فيُحمَّل الاجتماعُ نفسه في المكان
+  /// نفسه — وفي Meet وZoom كان يحاول تضمينَ ما لا يُضمَّن. فيضغط الطفلُ ولا
+  /// يحدث شيء. والزرُّ وُضع لحالة «لم يعمل داخل الصفحة»، فعملُه أن يخرج منها.
+  Future<void> _joinMeeting() async {
+    if (_launching) return;
     StudentSoundService.instance.playTap();
-    setState(() {
-      _showInlineMeeting = true;
-      _embedRevision++;
-    });
+    setState(() => _launching = true);
+    final result = await widget.meetingLauncher.open(_avatarUrl);
+    if (!mounted) return;
+    setState(() => _launching = false);
+    _report(result);
+  }
+
+  /// صفحةُ الاجتماع داخل الإطار طلبت تطبيقَها (`intent://` و`zoomus://`): يُسلَّم
+  /// الطلبُ إلى النظام بدل أن يُسقط بصمت.
+  Future<void> _onAppLink(Uri requested) async {
+    if (_launching) return;
+    setState(() => _launching = true);
+    var result = await widget.meetingLauncher.openAppLink(requested);
+    // لا تطبيقَ يفتح الرابط: فالاجتماعُ نفسُه في المتصفّح.
+    if (result != MeetingLaunchResult.opened) {
+      result = await widget.meetingLauncher.open(_avatarUrl);
+    }
+    if (!mounted) return;
+    setState(() => _launching = false);
+    _report(result);
+  }
+
+  /// يقول للطفل ما حدث. الصمتُ بعد ضغطةٍ هو ما جعل الزرَّ يبدو معطّلاً.
+  void _report(MeetingLaunchResult result) {
+    if (result == MeetingLaunchResult.opened) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    final url = _avatarUrl;
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+        content: Text(
+          result == MeetingLaunchResult.invalidLink
+              ? tr('tutor.badMeetingLink')
+              : tr('tutor.meetingOpenFailed'),
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        // ومخرجٌ أخير: الرابطُ يُنسخ فيُلصق في أيّ متصفّح.
+        action: result == MeetingLaunchResult.failed && url != null
+            ? SnackBarAction(
+                label: tr('tutor.copyLink'),
+                onPressed: () {
+                  unawaited(Clipboard.setData(ClipboardData(text: url)));
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(tr('tutor.linkCopied'))),
+                  );
+                },
+              )
+            : null,
+      ),
+    );
   }
 
   void _reload() {
@@ -214,7 +279,10 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 
     if (_isBlockedMeetingEmbed) {
       return StudentEntrance(
-        child: _BlockedMeetingCard(onJoin: _joinMeeting),
+        child: _BlockedMeetingCard(
+          onJoin: () => unawaited(_joinMeeting()),
+          busy: _launching,
+        ),
       );
     }
 
@@ -295,6 +363,11 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                       key: ValueKey('${_avatarUrl!}:$_embedRevision'),
                       url: _avatarUrl!,
                       title: _isLiveMeeting ? tr('tutor.meetingTitle') : tr('tutor.short'),
+                      // اللقاءُ وحده يُسلّم روابطَ تطبيقاته إلى النظام؛ المعلمُ
+                      // الافتراضيّ يبقى في بطاقته.
+                      onAppLink: _isLiveMeeting
+                          ? (uri) => unawaited(_onAppLink(uri))
+                          : null,
                     ),
                   ),
                 ),
@@ -322,8 +395,14 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
                         ),
                         const SizedBox(width: 10),
                         FilledButton(
-                          onPressed: _joinMeeting,
-                          child: Text(tr('tutor.joinMeeting')),
+                          onPressed: _launching
+                              ? null
+                              : () => unawaited(_joinMeeting()),
+                          child: Text(
+                            _launching
+                                ? tr('tutor.opening')
+                                : tr('tutor.joinMeeting'),
+                          ),
                         ),
                       ],
                     ),
@@ -338,9 +417,12 @@ class _StudentTutorScreenState extends State<StudentTutorScreen> {
 }
 
 class _BlockedMeetingCard extends StatelessWidget {
-  const _BlockedMeetingCard({required this.onJoin});
+  const _BlockedMeetingCard({required this.onJoin, required this.busy});
 
   final VoidCallback onJoin;
+
+  /// فتحٌ جارٍ: الزرُّ معطّلٌ ويقول ذلك.
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -370,9 +452,9 @@ class _BlockedMeetingCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 FilledButton.icon(
-                  onPressed: onJoin,
+                  onPressed: busy ? null : onJoin,
                   icon: const Icon(Icons.videocam_rounded),
-                  label: Text(tr('tutor.joinMeeting')),
+                  label: Text(busy ? tr('tutor.opening') : tr('tutor.joinMeeting')),
                 ),
               ],
             ),
