@@ -322,8 +322,29 @@ class DuelChatSheet extends StatefulWidget {
     required this.cooldownLeft,
     this.muted = false,
     this.onUnmute,
+    this.transcript = const [],
+    this.myId = '',
+    this.loadingTranscript = false,
+    this.onPlay,
     super.key,
   });
+
+  /// سجلُّ المحادثة: ما حُفظ في المباراة وما جرى في هذه الجلسة.
+  ///
+  /// ── ولماذا سجلٌّ يُقرأ وقد صارت الفقاعاتُ تُعرض ──
+  /// الفقاعةُ تُرى ثلاثَ ثوانٍ ثم تذهب، وهي الصحيحةُ أثناء اللعب. والمبارزةُ
+  /// المؤجَّلةُ يفتحها الطفلُ فيجد ما تُرك له من أمس — ولا تكفيه فقاعةٌ عابرة
+  /// لرسالتين أو ثلاث. فالنافذةُ تحمل السجلّ، والشاشةُ تحمل الفقاعة.
+  final List<DuelChatMessage> transcript;
+
+  /// معرّفي، لتُعرف رسائلي من رسائله.
+  final String myId;
+
+  final bool loadingTranscript;
+
+  /// يُشغّل مقطعاً صوتياً من السجلّ. ومقطعٌ لا يُعاد تشغيلُه يُسمع مرّةً
+  /// وإن لم يُفهم — وصوتُ طفلٍ في ضجيج صفٍّ يُعاد.
+  final void Function(DuelChatMessage message)? onPlay;
 
   /// الطالبُ كاتمٌ للدردشة: لا تُعرض أدواتُ الإرسال أصلاً.
   final bool muted;
@@ -398,6 +419,13 @@ class _DuelChatSheetState extends State<DuelChatSheet> {
               // ── والمكتومُ لا تُعرض له أدواتُ إرسالٍ معطّلة ──
               // حقلٌ وأزرارٌ لا تعمل تُقرأ عطباً. ولوحٌ واحدٌ يقول الحالَ وفيه
               // زرٌّ يُعيدها أصدقُ وأقصر.
+              _Transcript(
+                messages: widget.transcript,
+                myId: widget.myId,
+                loading: widget.loadingTranscript,
+                onPlay: widget.onPlay,
+              ),
+              const SizedBox(height: 12),
               if (widget.muted) ...[
                 _MutedPanel(onUnmute: widget.onUnmute),
                 const SizedBox(height: 4),
@@ -468,6 +496,144 @@ class _DuelChatSheetState extends State<DuelChatSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// سجلُّ المحادثة في النافذة.
+class _Transcript extends StatelessWidget {
+  const _Transcript({
+    required this.messages,
+    required this.myId,
+    required this.loading,
+    required this.onPlay,
+  });
+
+  final List<DuelChatMessage> messages;
+  final String myId;
+  final bool loading;
+  final void Function(DuelChatMessage message)? onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const SizedBox(
+        height: 60,
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
+    }
+    if (messages.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        alignment: Alignment.center,
+        child: Text(
+          tr('duel.chat.empty'),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.5,
+            height: 1.6,
+            fontWeight: FontWeight.w800,
+            color: StudentSurface.mutedInk(context),
+          ),
+        ),
+      );
+    }
+    // ── وأحدثُها في الأسفل، والقائمةُ محدودةُ الارتفاع ──
+    // النافذةُ تُفتح على آخر ما قيل، ولا تطول حتى تغطّي حقلَ الكتابة.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 190),
+      child: ListView.builder(
+        reverse: true,
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: messages.length,
+        itemBuilder: (context, index) {
+          final message = messages[messages.length - 1 - index];
+          return _TranscriptRow(
+            message: message,
+            mine: message.senderId == myId,
+            onPlay: onPlay,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TranscriptRow extends StatelessWidget {
+  const _TranscriptRow({
+    required this.message,
+    required this.mine,
+    required this.onPlay,
+  });
+
+  final DuelChatMessage message;
+  final bool mine;
+  final void Function(DuelChatMessage message)? onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = mine ? const Color(0xFFDCFCE7) : const Color(0xFFEDE9FE);
+    final ink = mine ? const Color(0xFF14532D) : const Color(0xFF3B2A6B);
+    final play = onPlay;
+    return Align(
+      alignment: mine ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        constraints: const BoxConstraints(maxWidth: 240),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(14),
+            topRight: const Radius.circular(14),
+            bottomLeft: Radius.circular(mine ? 4 : 14),
+            bottomRight: Radius.circular(mine ? 14 : 4),
+          ),
+        ),
+        child: message.isVoice
+            ? Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: play == null ? null : () => play(message),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_circle_fill_rounded, size: 22, color: ink),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          tr('duel.chat.voiceNote'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: ink,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : Text(
+                message.text,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.45,
+                  fontWeight: FontWeight.w800,
+                  color: ink,
+                ),
+              ),
       ),
     );
   }

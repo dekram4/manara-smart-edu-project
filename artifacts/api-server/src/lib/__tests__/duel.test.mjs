@@ -27,8 +27,13 @@ try {
 
 const {
   DUEL_GAMES,
+  DUEL_MAX_SCORE,
+  DUEL_POINTS_CORRECT,
+  DUEL_POINTS_SPEED_MAX,
+  DUEL_QUESTION_SECONDS,
   DUEL_ROUNDS,
   DUEL_WIN_GEMS,
+  speedPoints,
   canSubmit,
   classKey,
   isDuelGame,
@@ -64,14 +69,14 @@ test("والألعابُ أربعٌ معروفةٌ بأسمائها", () => {
 
 test("النتيجةُ محصورةٌ بعدد الأسئلة", () => {
   assert.equal(parseScore(0), 0);
-  assert.equal(parseScore(DUEL_ROUNDS), DUEL_ROUNDS);
+  assert.equal(parseScore(DUEL_MAX_SCORE), DUEL_MAX_SCORE);
   assert.equal(parseScore("3"), 3);
 });
 
 test("وما فوق السقف يُردّ لا يُقصّ", () => {
   // القصُّ يقبل طلباً مدّعىً ويسجّله صحيحاً، والردُّ يُظهر الخطأ لمن أرسله.
-  assert.equal(parseScore(DUEL_ROUNDS + 1), null);
-  assert.equal(parseScore(9999), null);
+  assert.equal(parseScore(DUEL_MAX_SCORE + 1), null);
+  assert.equal(parseScore(99999), null);
   assert.equal(parseScore(-1), null);
   assert.equal(parseScore(2.5), null);
   for (const bad of [null, undefined, "", "كثير", {}, []]) {
@@ -175,4 +180,58 @@ test("الصدارةُ تُحسب من المباريات لا من عدّاد",
 
 test("وصدارةٌ بلا مباريات قائمةٌ فارغة", () => {
   assert.deepEqual(standingsOf([]), []);
+});
+
+// ── نقاطُ السرعة ──
+
+test("طولُ المباراة ثمانيةٌ على الأقلّ وعشرةٌ المعتاد", () => {
+  // ── والطلبُ المُبلَّغ: من ٨ إلى ١٠ ──
+  // خمسةُ أسئلةٍ تنتهي في أربعين ثانية، فتنتهي المباراةُ قبل أن تبدأ الإثارة.
+  assert.ok(DUEL_ROUNDS >= 8 && DUEL_ROUNDS <= 10, `${DUEL_ROUNDS}`);
+});
+
+test("أقصى نتيجةٍ هي كلُّ سؤالٍ صحيحٌ وفي أسرع وقت", () => {
+  assert.equal(
+    DUEL_MAX_SCORE,
+    DUEL_ROUNDS * (DUEL_POINTS_CORRECT + DUEL_POINTS_SPEED_MAX),
+  );
+});
+
+test("والسرعةُ تُحسب نسبةً مما بقي من وقت السؤال", () => {
+  const window = DUEL_QUESTION_SECONDS * 1000;
+  // أجاب في اللحظة الأولى: الحدُّ الأقصى.
+  assert.equal(speedPoints(window, window), DUEL_POINTS_SPEED_MAX);
+  // في منتصف الوقت: النصف.
+  assert.equal(speedPoints(window / 2, window), Math.round(DUEL_POINTS_SPEED_MAX / 2));
+});
+
+test("ولا نقاطَ سرعةٍ لمن انتهى وقتُه", () => {
+  const window = DUEL_QUESTION_SECONDS * 1000;
+  assert.equal(speedPoints(0, window), 0);
+  assert.equal(speedPoints(-500, window), 0);
+});
+
+test("وما لا يُحسب لا يُعطي نقاطاً ولا يرفع", () => {
+  // ── وهذا موضعُ سقوطٍ محتمل ──
+  // الوقتُ المتبقّي يُحسب في التطبيق من فرقِ ساعتين، وساعةٌ تغيّرت أو إطارٌ
+  // تأخّر يُخرج `NaN`. و`NaN` يمرّ في الحساب فيصير سقفاً لا يُقارَن.
+  const window = DUEL_QUESTION_SECONDS * 1000;
+  for (const bad of [NaN, Infinity, -Infinity]) {
+    assert.equal(speedPoints(bad, window), 0, `${bad}`);
+  }
+  assert.equal(speedPoints(500, 0), 0, "نافذةٌ صفرٌ لا تُقسم عليها");
+});
+
+test("ولا تزيد نقاطُ السرعة على سقفها لو تجاوز المتبقّي النافذة", () => {
+  // ساعةُ الجهاز قد تُقدّم، فيبدو المتبقّي أكثرَ من النافذة كلّها.
+  const window = DUEL_QUESTION_SECONDS * 1000;
+  assert.equal(speedPoints(window * 5, window), DUEL_POINTS_SPEED_MAX);
+});
+
+test("والنتيجةُ الممكنةُ من المحرّك تبقى داخل ما يقبله الخادم", () => {
+  // كلُّ سؤالٍ صحيحٌ وأسرعُ ما يمكن: هذا ما يرسله التطبيق في أفضل حال،
+  // ورفضُه يعني مباراةً كاملةً تُلعب ثم تُردّ نتيجتُها.
+  const window = DUEL_QUESTION_SECONDS * 1000;
+  const best = DUEL_ROUNDS * (DUEL_POINTS_CORRECT + speedPoints(window, window));
+  assert.equal(parseScore(best), best);
 });

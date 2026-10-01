@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/duel_chat.dart';
+import '../models/duel_question.dart';
 import '../models/sprint_question.dart';
 import '../models/student_profile.dart';
 import '../services/duel_voice_recorder.dart';
@@ -17,24 +18,27 @@ import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/duel_arenas.dart';
 import '../widgets/duel_chat.dart';
+import '../widgets/duel_versus.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
 /// مباراةُ التحدي: أربعُ ألعابٍ على محرّكٍ واحد.
 ///
 /// ── لماذا شاشةٌ واحدةٌ لا أربع ──
-/// ما يجعل المباراةَ مباراةً ليس شكلَها: بذرةٌ من معرّفها تُسأل بها الأسئلةُ
-/// نفسها للخصمين، وخمسةُ أشواط، ونتيجةٌ تُرسل إلى الخادم فيحسم هو الفائزَ
-/// ويصرف الجوهرة. وهذا كلُّه واحدٌ في الأربع.
+/// ما يجعل المباراةَ مباراةً ليس شكلَها: أسئلةٌ واحدةٌ للخصمين، وعددُ أشواطٍ
+/// واحد، ونقاطٌ تُحسب بحسابٍ واحد، ونتيجةٌ تُرسل إلى الخادم فيحسم هو الفائزَ
+/// ويصرف الجوهرة. ولو نُسخ ذلك أربعَ مرّات لاختلفت الأربعُ عند أوّل تعديل:
+/// يُصلَح حسابٌ في واحدةٍ ويبقى في ثلاث، فتصير لعبةٌ عادلةً وثلاثٌ ليست —
+/// بلا خطأٍ يظهر.
 ///
-/// ولو نُسخ أربعَ مرّات لاختلفت الأربعُ عند أوّل تعديل: تُصلَح بذرةٌ في واحدة
-/// وتبقى في ثلاث، فتصير لعبةٌ عادلةً وثلاثٌ ليست — بلا خطأٍ يظهر. فالمحرّكُ
-/// هنا، واللعبةُ تُغيّر ما يُرى: الحلبةَ التي يتقدّم فيها اللاعبان، وشكلَ
-/// الخيارات التي تُلمس.
+/// فالمحرّكُ هنا، واللعبةُ تُغيّر ما يُرى: الحلبةَ وشكلَ الخيارات.
+///
+/// ── والأسئلةُ تُقرأ من المباراة لا تُبنى ──
+/// الخادم يكتب حزمةَ الأسئلة في صفّ المباراة عند الدعوة، والجهازان يقرآن
+/// الصفَّ نفسه. فلا تتعلّق عدالةُ المباراة باتّفاق حسابين على جهازين.
 ///
 /// ── والنتيجةُ تُحسم في الخادم ──
-/// هذه الشاشةُ تعدّ الصحيحَ وترسله، ولا تقول من فاز. فلا يستطيع تطبيقٌ
-/// معدَّلٌ أن يدّعي فوزاً.
+/// هذه الشاشةُ تعدّ النقاطَ وترسلها، ولا تقول من فاز.
 class StudentDuelGameScreen extends StatefulWidget {
   const StudentDuelGameScreen({
     required this.profile,
@@ -58,22 +62,34 @@ class StudentDuelGameScreen extends StatefulWidget {
 }
 
 class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
-  /// أسئلةُ المباراة: جملةٌ ناقصةٌ وخيارات.
-  List<SprintQuestion> _questions = const [];
+  /// أسئلةُ المباراة كما قرأها الخادم لنا.
+  List<DuelQuestion> _questions = const [];
+  DuelRules _rules = const DuelRules();
   String? _error;
   bool _loading = true;
 
   int _at = 0;
   int _correct = 0;
+
+  /// نقاطي: عشرٌ للصحيح، وخمسٌ على الأكثر لسرعته.
+  int _points = 0;
   int? _picked;
 
-  /// تقدّمُ الخصم كما يبثّه، في المباراة الحيّة.
-  ///
-  /// ويبدأ من نتيجته إن كان قد لعب: البثُّ لا يُعاد لمن دخل متأخّراً، فلو
-  /// بدأ من صفرٍ لرأى الثاني خصمَه في أوّل الحلبة وقد أنهى جولتَه.
-  late int _rivalAt = widget.match.theirs ?? 0;
+  /// ونقاطُ الخصم كما يبثّها.
+  late int _rivalPoints = widget.match.theirs ?? 0;
+  late int _rivalCorrect =
+      ((widget.match.theirs ?? 0) / math.max(1, _rules.pointsCorrect)).floor();
+
+  /// أيُّ سؤالٍ أجابه الخصم. وبه يُقفل السؤالُ ويُنتقل تزامناً.
+  int _rivalAt = -1;
 
   bool _sending = false;
+
+  /// ── عدّادُ السؤال، في الحيّة وحدها ──
+  /// المؤجَّلةُ يلعب فيها الطفلُ وحده، وعدّادٌ يضغطه بلا خصمٍ يراه ضغطٌ بلا
+  /// معنى — ويجعل انقطاعَ انتباهٍ لحظةً يُفقده سؤالاً.
+  DateTime? _deadline;
+  Timer? _tick;
 
   /// نتيجةُ المباراة بعد أن تُحسم في الخادم.
   DuelMatch? _settled;
@@ -83,13 +99,14 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
   late final ConfettiController _confetti =
       ConfettiController(duration: const Duration(milliseconds: 700));
 
-  // ── الدردشةُ في المباراة الحيّة وحدها ──
-  // المؤجَّلةُ يلعب فيها كلٌّ جولتَه في وقته، فرسالةٌ تُرسل فيها لا يراها أحد:
-  // القناةُ قائمةٌ لكن الطرفَ الآخر ليس عليها.
-  late final bool _chatOn = widget.match.live;
+  /// ── والدردشةُ في الوضعين ──
+  /// كانت في الحيّة وحدها لأنّ البثَّ يصل للحاضر الآن. وقد صارت تُحفظ في
+  /// سجلّ المباراة، فمن يفتحها غداً يقرأ ما تُرك له — وهو الوقتُ الوحيد الذي
+  /// يقرأ فيه في المبارزة المؤجَّلة.
+  bool get _chatOn => true;
 
-  /// كتمُ الدردشة: كتمي أنا وكتمُ الخصم. وكلُّ قرارٍ يُقرأ منه — انظر
-  /// [DuelChatMuteState] — فلا يُنسى واحدٌ من الأربعة.
+  bool get _live => widget.match.live;
+
   DuelChatMuteState _mute = const DuelChatMuteState();
 
   final _cooldown = DuelChatCooldown();
@@ -99,16 +116,17 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
   late final DuelVoiceRecorder _recorder = DuelVoiceRecorder();
   final ValueNotifier<bool> _recording = ValueNotifier(false);
 
-  /// آخرُ ما أرسلتُه وآخرُ ما وصلني، وكلٌّ يعيش ثلاثَ ثوانٍ.
+  /// سجلُّ المحادثة: ما قُرئ من الخادم وما جرى في هذه الجلسة.
+  final List<DuelChatMessage> _transcript = [];
+  bool _loadingChat = false;
+
+  /// آخرُ ما أرسلتُه وآخرُ ما وصلني، وكلٌّ يعيش ثلاثَ ثوانٍ فوق الشخصية.
   DuelChatMessage? _myBubble;
   DuelChatMessage? _theirBubble;
   Timer? _myBubbleTimer;
   Timer? _theirBubbleTimer;
 
-  /// أيُشغَّل مقطعٌ صوتيٌّ الآن؟ فتنبض أيقونةُ السماعة في فقاعته.
   bool _playingTheirs = false;
-
-  /// وصلت رسالةٌ والنافذةُ مغلقة.
   bool _unread = false;
   bool _sheetOpen = false;
 
@@ -116,8 +134,6 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
     for (final game in DuelGame.values) {
       if (game.id == widget.match.game) return game;
     }
-    // لعبةٌ لا تُعرف — صفٌّ أقدمُ من هذا البناء — تُلعب سباقاً: الأسئلةُ
-    // والنتيجةُ واحدة، فلا تُفقد مباراةٌ على اسمٍ لم يُفهم.
     return DuelGame.sprint;
   }
 
@@ -125,28 +141,28 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
   void initState() {
     super.initState();
     unawaited(_load());
-    if (widget.match.live) {
-      unawaited(
-        widget.duelService.watchMatch(
-          matchId: widget.match.id,
-          onProgress: (id, at) {
-            // تقدّمي يعود إليّ أيضاً — القناةُ تبثّ للجميع — فيُهمل.
-            if (!mounted || id == widget.profile.id) return;
-            // ولا يتراجع الخصم: بثٌّ وصل متأخّراً بعد أحدثَ منه كان سيرجعه
-            // خطوةً إلى الوراء أمام عين الطفل.
-            setState(() => _rivalAt = math.max(_rivalAt, at));
-          },
-          onChat: _chatOn ? _onChat : null,
-          onMute: _chatOn ? _onRivalMute : null,
-        ),
-      );
-      _recorder.onAutoStop = () => _endHold(cancelled: false);
-    }
+    unawaited(_loadChat());
+    unawaited(
+      widget.duelService.watchMatch(
+        matchId: widget.match.id,
+        onProgress: (id, at) {
+          if (!mounted || id == widget.profile.id) return;
+          // ولا يتراجع الخصم: بثٌّ وصل متأخّراً بعد أحدثَ منه كان سيرجعه
+          // خطوةً إلى الوراء أمام عين الطفل.
+          setState(() => _rivalCorrect = math.max(_rivalCorrect, at));
+        },
+        onAnswered: _live ? _onRivalAnswered : null,
+        onChat: _onChat,
+        onMute: _onRivalMute,
+      ),
+    );
+    _recorder.onAutoStop = () => _endHold(cancelled: false);
   }
 
   @override
   void dispose() {
     _confetti.dispose();
+    _tick?.cancel();
     _cooldownTick?.cancel();
     _myBubbleTimer?.cancel();
     _theirBubbleTimer?.cancel();
@@ -157,19 +173,267 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
     super.dispose();
   }
 
+  // ── تحضيرُ المباراة ──
+
+  Future<void> _load() async {
+    try {
+      // ── والأسئلةُ تُطلب مع المباراة ──
+      // ردُّ الصندوق يحمل أربعين مباراةً بلا أسئلة، فلا يُثقل بما لا يُقرأ.
+      // وفتحُ المباراة يأخذ أسئلتَها.
+      var match = widget.match;
+      if (match.questions.isEmpty) {
+        match = await widget.duelService.fetchMatch(match.id);
+      }
+      if (!mounted) return;
+
+      final questions = match.questions.isNotEmpty
+          ? match.questions
+          : await _fromLessonBank(match);
+      if (!mounted) return;
+
+      setState(() {
+        _questions = questions;
+        _rules = match.rules;
+        _loading = false;
+        _error = questions.isEmpty ? tr('duel.error.noQuestions') : null;
+      });
+      if (questions.isNotEmpty) _armQuestion();
+    } on DuelFailure catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = failure.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = tr('duel.error.failed');
+      });
+    }
+  }
+
+  /// ── مسلكٌ احتياطيٌّ لمباراةٍ بلا حزمة ──
+  /// صفٌّ كُتب قبل أن تُحفظ الحزمةُ مع المباراة، وخادمٌ لم يُنشر بعد. يُبنى من
+  /// بنك الدرس ببذرةٍ هي معرّفُ المباراة — وهو ما كان يفعله قبلَ الحزمة —
+  /// فتُلعب المباراةُ ولا تُفتح شاشةٌ فارغة.
+  Future<List<DuelQuestion>> _fromLessonBank(DuelMatch match) async {
+    try {
+      final rounds = await widget.challengeService.fetchRound(
+        lessonId: match.lessonId,
+        count: match.rounds,
+        seed: match.id,
+        draw: math.Random(stableSeed(match.id)),
+      );
+      return [
+        for (final question in sprintQuestionsOf(rounds))
+          DuelQuestion(
+            id: 'bank:${question.options.join('|')}',
+            category: 'lesson',
+            prompt: '${question.before} ______ ${question.after}'.trim(),
+            options: question.options,
+            answerAt: question.answerAt,
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _loadChat() async {
+    setState(() => _loadingChat = true);
+    try {
+      final stored = await widget.duelService.messages(widget.match.id);
+      if (!mounted) return;
+      setState(() {
+        _transcript
+          ..clear()
+          ..addAll(stored);
+        _loadingChat = false;
+        // ── ونقطةٌ إن تُرك لي شيء ──
+        // المبارزةُ المؤجَّلةُ يفتحها الطفلُ فيجد رسالةً من أمسِ: بلا نقطةٍ
+        // لا يعرف أنّ هناك ما يُقرأ، فلا يفتح النافذةَ أبداً.
+        _unread = stored.any((message) => message.senderId != widget.profile.id);
+      });
+      // وتُشغَّل آخرُ رسالةٍ صوتيةٍ تُركت لي، مرّةً واحدة.
+      final mine = widget.profile.id;
+      for (final message in stored.reversed) {
+        if (message.senderId != mine && message.isVoice) {
+          _playVoice(message);
+          break;
+        }
+      }
+    } catch (_) {
+      if (!mounted) return;
+      // سجلٌّ لم يُقرأ لا يُسقط مباراة: تُفتح الدردشةُ فارغةً وتعمل.
+      setState(() => _loadingChat = false);
+    }
+  }
+
+  // ── العدّاد ──
+
+  /// يبدأ عدّادَ السؤال الحالي، في الحيّة وحدها.
+  void _armQuestion() {
+    _tick?.cancel();
+    if (!_live) {
+      _deadline = null;
+      return;
+    }
+    _deadline = DateTime.now().add(_rules.window);
+    _tick = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!mounted) return;
+      final left = _timeLeft;
+      if (left <= Duration.zero) {
+        _tick?.cancel();
+        // انتهى الوقتُ ولم يُجب: يُحسب تركاً ويُنتقل.
+        if (_picked == null) {
+          _record(-1);
+        } else {
+          _advance();
+        }
+        return;
+      }
+      // ── ونبضةٌ في الثواني الثلاث الأخيرة ──
+      // الرقمُ وحده لا يُرى وعينُ الطفل على الخيارات.
+      if (left.inMilliseconds <= 3000 && left.inMilliseconds % 1000 < 100) {
+        StudentSoundService.instance.play(StudentSoundCue.navigation);
+      }
+      setState(() {});
+    });
+  }
+
+  Duration get _timeLeft {
+    final deadline = _deadline;
+    if (deadline == null) return Duration.zero;
+    final left = deadline.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  // ── اللعب ──
+
+  void _pick(int index) {
+    if (_picked != null || _sending) return;
+    _record(index);
+  }
+
+  /// يسجّل الجوابَ — أو تركَه حين يكون [index] سالباً — ثم يقرّر الانتقال.
+  void _record(int index) {
+    final question = _questions[_at];
+    final right = index == question.answerAt;
+    final earned = _rules.pointsFor(
+      correct: right,
+      left: _live ? _timeLeft : null,
+    );
+    setState(() {
+      _picked = index < 0 ? -1 : index;
+      if (right) {
+        _correct += 1;
+        _points += earned;
+      }
+    });
+    if (right) {
+      _confetti.play();
+      HapticFeedback.lightImpact();
+      StudentSoundService.instance.play(StudentSoundCue.success);
+      widget.duelService.sendProgress(myId: widget.profile.id, at: _correct);
+    } else if (index >= 0) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+    }
+    if (_live) {
+      widget.duelService.sendAnswered(
+        myId: widget.profile.id,
+        index: _at,
+        points: _points,
+      );
+      // ── والانتقالُ تزامناً إن كان الخصمُ قد أجاب ──
+      // من أجاب أوّلاً كان ينتظر عدّادَه كلَّه بلا سبب.
+      if (_rivalAt >= _at) {
+        _tick?.cancel();
+        unawaited(_afterBeat(_advance));
+      }
+    }
+  }
+
+  void _onRivalAnswered(String studentId, int index, int points) {
+    if (!mounted || studentId == widget.profile.id) return;
+    setState(() {
+      _rivalAt = math.max(_rivalAt, index);
+      _rivalPoints = math.max(_rivalPoints, points);
+    });
+    // وإن كنتُ قد أجبتُ هذا السؤال فقد أجاب الطرفان: يُقفل ويُنتقل.
+    if (_picked != null && _rivalAt >= _at && _settled == null) {
+      _tick?.cancel();
+      unawaited(_afterBeat(_advance));
+    }
+  }
+
+  /// لحظةٌ يرى فيها الطفلُ الجوابَ الصحيحَ قبل أن تتبدّل الشاشة.
+  Future<void> _afterBeat(VoidCallback action) async {
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (mounted) action();
+  }
+
+  void _advance() {
+    if (!mounted || _settled != null || _sending) return;
+    if (_at + 1 < _questions.length) {
+      setState(() {
+        _at += 1;
+        _picked = null;
+      });
+      _armQuestion();
+      return;
+    }
+    _tick?.cancel();
+    unawaited(_finish());
+  }
+
+  Future<void> _next() async {
+    // الزرُّ اليدويُّ للمؤجَّلة: الحيّةُ تنتقل تزامناً أو بانتهاء الوقت.
+    if (_live) return;
+    _advance();
+  }
+
+  Future<void> _finish() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final result = await widget.duelService.submitScore(
+        matchId: widget.match.id,
+        score: _points,
+      );
+      if (!mounted) return;
+      setState(() {
+        _settled = result.match;
+        _gems = result.gems;
+        _draw = result.draw;
+        _sending = false;
+      });
+      if (result.gems > 0) {
+        _confetti.play();
+        StudentSoundService.instance.playApplause();
+      }
+    } on DuelFailure catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _error = failure.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _error = tr('duel.error.failed');
+      });
+    }
+  }
+
   // ── الدردشة ──
 
-  /// يبدّل كتمَ الدردشة، ويُخبر الخصم.
-  ///
-  /// ── والخصمُ يُخبَر فوراً لا عند أوّل رسالةٍ يُرسلها ──
-  /// فيرى أنّ الدردشةَ أُوقفت قبل أن يكتب، لا بعد أن يكتب ولا يُجاب.
   void _toggleMute() {
     final next = !_mute.isChatMuted;
     setState(() {
       _mute = _mute.copyWith(isChatMuted: next);
       if (next) {
-        // وما كان معروضاً يُحجب في الحال: كتمٌ يترك فقاعةً قائمةً ثلاثَ ثوانٍ
-        // يُقرأ تأخيراً لا كتماً.
         _theirBubble = null;
         _playingTheirs = false;
         _unread = false;
@@ -177,7 +441,6 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
     });
     _theirBubbleTimer?.cancel();
     if (next) {
-      // ويسكت ما كان يُشغَّل الآن: المقطعُ الجاري لا يتوقّف بحجب الفقاعة.
       unawaited(StudentSoundService.instance.stopSpeaking());
       unawaited(_endHold(cancelled: true));
     }
@@ -185,34 +448,32 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
     _say(tr(next ? 'duel.chat.mutedOn' : 'duel.chat.mutedOff'));
   }
 
-  /// الخصمُ كتم الدردشة أو أعادها.
   void _onRivalMute(String studentId, bool muted) {
     if (!mounted || studentId == widget.profile.id) return;
     final was = _mute.isRivalMuted;
     setState(() => _mute = _mute.copyWith(isRivalMuted: muted));
-    // ويُقال مرّةً عند التغيّر لا مع كل إشعار: الخصمُ يُعيد الإشعارَ كلَّما
-    // وصلته رسالةٌ وهو كاتم، فقولُه في كل مرّة ضجيج.
     if (muted && !was && _mute.warnsRivalMuted) _say(tr('duel.chat.rivalMuted'));
   }
 
-  /// رسالةٌ وصلت من القناة.
   void _onChat(DuelChatMessage message) {
     if (!mounted) return;
-    // ورسالتي تعود إليّ أيضاً — القناةُ تبثّ للجميع — فتُهمل: فقاعتي عُرضت
-    // لحظةَ الإرسال، وعرضُها ثانيةً يُطيلها بلا سبب.
     if (message.senderId == widget.profile.id) return;
     if (!_mute.showsIncoming) {
-      // ── ويُعاد الإشعارُ لمن أرسل ──
-      // قد يكون دخل المباراةَ بعد أن كتمتُ، فلم يصله الإشعارُ الأوّل. فرسالتُه
-      // نفسها هي اللحظةُ التي يحتاج أن يعرف فيها.
       widget.duelService.sendChatMute(myId: widget.profile.id, muted: true);
       return;
     }
+    // ── والبثُّ يُضاف إلى السجلّ أيضاً ──
+    // الخادم يحفظها، لكنّ إعادةَ قراءةِ السجلّ لكل رسالةٍ تصل طلبٌ في كل
+    // إيموجي. فتُضاف هنا، ويُعرف تكرارُها بمعرّفها إن أُعيدت القراءة.
+    setState(() => _transcript.add(message));
     _showBubble(message, mine: false);
     if (!_sheetOpen) setState(() => _unread = true);
-    if (!message.isVoice || !_mute.playsIncomingVoice) return;
+    if (message.isVoice && _mute.playsIncomingVoice) _playVoice(message);
+  }
+
+  void _playVoice(DuelChatMessage message) {
     final audio = message.audio;
-    if (audio == null) return;
+    if (audio == null || !_mute.playsIncomingVoice) return;
     setState(() => _playingTheirs = true);
     unawaited(
       StudentSoundService.instance.playVoiceNote(
@@ -252,49 +513,47 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
     }
   }
 
-  /// يبثّ رسالةً، ويعود بـ`false` إن مُنعت.
   bool _send(DuelChatMessage message) {
-    // والكاتمُ لا يُرسل: دردشةٌ في اتجاهٍ واحد تُربك الطرفَ الآخر — يرى
-    // رسائلَ ولا يُجاب على رسائله ولا يعرف السبب.
     if (!_mute.canSend) {
       _say(tr('duel.chat.mutedSelf'));
       return false;
     }
-    // والفحصُ والتسجيلُ خطوةٌ واحدة: خطوتان يُنسى بينهما تسجيلُ ما أُرسل.
     if (!_cooldown.claim()) {
       _startCooldownTick();
       return false;
     }
-    final sent = widget.duelService.sendChat(message);
-    if (!sent) {
-      _say(tr('duel.chat.notSent'));
-      return false;
-    }
+    // ── والبثُّ والحفظُ معاً، وسقوطُ أحدهما لا يُسقط الآخر ──
+    // البثُّ للحاضر الآن، والحفظُ لمن يفتح لاحقاً. ورسالةٌ وصلت ولم تُحفظ
+    // خيرٌ من لا شيء، ورسالةٌ حُفظت ولم تُبثّ تُقرأ عند الفتح.
+    widget.duelService.sendChat(message);
+    unawaited(
+      widget.duelService.saveMessage(
+        matchId: widget.match.id,
+        message: message,
+      ),
+    );
+    setState(() => _transcript.add(message));
     _showBubble(message, mine: true);
     _startCooldownTick();
-    // وإن كان الخصمُ كاتماً قيل ذلك بعد الإرسال: الرسالةُ خرجت ولن تُقرأ.
     if (_mute.warnsRivalMuted) _say(tr('duel.chat.rivalMuted'));
     return true;
   }
 
-  /// يُحدّث ما بقي من المنع كلَّ ربع ثانية، ما دام هناك بقيّة.
   void _startCooldownTick() {
     _cooldownTick?.cancel();
-    void tick() {
+    void beat() {
       final left = _cooldown.remaining;
       _cooldownLeft.value = left;
       if (left == Duration.zero) _cooldownTick?.cancel();
     }
 
-    tick();
+    beat();
     _cooldownTick =
-        Timer.periodic(const Duration(milliseconds: 250), (_) => tick());
+        Timer.periodic(const Duration(milliseconds: 250), (_) => beat());
   }
 
   Future<void> _startHold() async {
     if (_recording.value) return;
-    // ولا يُسجَّل وأنا كاتم: تسجيلٌ يُفتح له الميكروفونُ ثم يُرفض عند الإرسال
-    // يُقرأ عطباً.
     if (!_mute.canSend) {
       _say(tr('duel.chat.mutedSelf'));
       return;
@@ -358,6 +617,10 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
           Navigator.of(context).pop();
           _toggleMute();
         },
+        transcript: _transcript,
+        myId: widget.profile.id,
+        loadingTranscript: _loadingChat,
+        onPlay: _playVoice,
         onSendText: (text) => _send(
           DuelChatMessage(
             senderId: widget.profile.id,
@@ -370,7 +633,6 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
             unawaited(_endHold(cancelled: cancelled)),
       ),
     ).whenComplete(() {
-      // وتسجيلٌ جارٍ حين تُغلق النافذة يُلغى: لا زرَّ يُفلت عليه.
       unawaited(_endHold(cancelled: true));
       if (mounted) setState(() => _sheetOpen = false);
     });
@@ -387,110 +649,6 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
-  }
-
-  Future<void> _load() async {
-    try {
-      final rounds = await widget.challengeService.fetchRound(
-        lessonId: widget.match.lessonId,
-        count: widget.match.rounds,
-        // ── والبذرةُ معرّفُ المباراة ──
-        // فالخصمان يُسألان الأسئلةَ نفسها: مباراةٌ بأسئلةٍ مختلفة ليست
-        // مباراة. ومباراةٌ أخرى بذرتُها أخرى، فلا تُعاد الأسئلة.
-        seed: widget.match.id,
-        draw: math.Random(stableSeed(widget.match.id)),
-      );
-      final questions = sprintQuestionsOf(rounds);
-      if (!mounted) return;
-      setState(() {
-        _questions = questions;
-        _loading = false;
-        _error = questions.isEmpty ? tr('duel.error.noQuestions') : null;
-      });
-    } on ChallengeFailure catch (failure) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = switch (failure.message) {
-          'noService' => tr('challenge.error.noService'),
-          'sessionFailed' => tr('challenge.error.noSession'),
-          'offline' => tr('challenge.error.offline'),
-          'notDeployed' => tr('challenge.error.notDeployed'),
-          'badResponse' || 'serviceSilent' => tr('challenge.error.badResponse'),
-          'empty' => tr('challenge.error.empty'),
-          final other => other,
-        };
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = tr('duel.error.failed');
-      });
-    }
-  }
-
-  void _pick(int index) {
-    if (_picked != null || _sending) return;
-    final question = _questions[_at];
-    final right = index == question.answerAt;
-    setState(() {
-      _picked = index;
-      if (right) _correct += 1;
-    });
-    if (right) {
-      _confetti.play();
-      HapticFeedback.lightImpact();
-      StudentSoundService.instance.play(StudentSoundCue.success);
-      // والخطوةُ تُبثّ فور وقوعها: الخصم يرى تقدّمي فيستعجل.
-      widget.duelService.sendProgress(myId: widget.profile.id, at: _correct);
-    } else {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-    }
-  }
-
-  Future<void> _next() async {
-    if (_at + 1 < _questions.length) {
-      setState(() {
-        _at += 1;
-        _picked = null;
-      });
-      return;
-    }
-    await _finish();
-  }
-
-  Future<void> _finish() async {
-    setState(() => _sending = true);
-    try {
-      final result = await widget.duelService.submitScore(
-        matchId: widget.match.id,
-        score: _correct,
-      );
-      if (!mounted) return;
-      setState(() {
-        _settled = result.match;
-        _gems = result.gems;
-        _draw = result.draw;
-        _sending = false;
-      });
-      if (result.gems > 0) {
-        _confetti.play();
-        StudentSoundService.instance.playApplause();
-      }
-    } on DuelFailure catch (failure) {
-      if (!mounted) return;
-      setState(() {
-        _sending = false;
-        _error = failure.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _sending = false;
-        _error = tr('duel.error.failed');
-      });
-    }
   }
 
   @override
@@ -511,10 +669,6 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
               opacity: 0.20,
             ),
             SafeArea(child: _body(context)),
-            // ── فقاعاتُ الكلام فوق الحلبة، لا داخلها ──
-            // طبقةٌ مستقلّة: الحلباتُ أربعٌ ومنها ما لا شخصيةَ فيه (البالونات
-            // والجواهر)، فلو رُسمت الفقاعةُ داخل كلِّ حلبةٍ لاحتاجت أربعَ
-            // نسخٍ تفترق. وهي فوق كل شيء فلا يُزاحمها تخطيط.
             if (_chatOn)
               Positioned.fill(
                 child: SafeArea(
@@ -551,8 +705,6 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // الكتمُ فوق زرّ الدردشة لا داخله: زرٌّ واحدٌ بوظيفتين
-                      // — يفتح ويكتم — يُضغط خطأً في مباراةٍ بالثواني.
                       DuelMuteToggle(
                         muted: _mute.isChatMuted,
                         onPressed: _toggleMute,
@@ -630,22 +782,30 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
     final settled = _settled;
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
       children: [
+        // شريطُ المقارنة: نقاطي أمام نقاطه، ومن يتقدّم يُرى.
+        DuelVersusBar(
+          myName: tr('duel.you'),
+          rivalName: widget.opponentName,
+          myAppearance: widget.profile.appearance,
+          rivalAppearance: widget.opponentAppearance,
+          myPoints: _points,
+          rivalPoints: _live ? _rivalPoints : (widget.match.theirs ?? 0),
+          live: _live,
+        ),
+        const SizedBox(height: 12),
         DuelArena(
           game: _game,
           mine: _correct,
-          // ── وشريطُ الخصم في المؤجَّلة ──
-          // نتيجتُه إن كان قد لعب، وصفرٌ إن لم يلعب بعد. فالطفل يرى ما عليه
-          // أن يسبقه، أو يعرف أنه يلعب أوّلاً.
-          theirs: widget.match.live ? _rivalAt : (widget.match.theirs ?? 0),
+          theirs: _live ? _rivalCorrect : _rivalCorrect,
           total: _questions.length,
-          live: widget.match.live,
+          live: _live,
           myAppearance: widget.profile.appearance,
           theirAppearance: widget.opponentAppearance,
           opponentName: widget.opponentName,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         if (settled != null)
           StudentEntrance(
             child: _ResultCard(
@@ -653,6 +813,9 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
               gems: _gems,
               draw: _draw,
               opponentName: widget.opponentName,
+              points: _points,
+              correct: _correct,
+              total: _questions.length,
             ),
           )
         else
@@ -664,6 +827,10 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
               total: _questions.length,
               picked: _picked,
               busy: _sending,
+              live: _live,
+              timeLeft: _timeLeft,
+              window: _rules.window,
+              waitingForRival: _picked != null && _live && _rivalAt < _at,
               onPick: _pick,
               onNext: _next,
             ),
@@ -682,16 +849,24 @@ class _QuestionCard extends StatelessWidget {
     required this.total,
     required this.picked,
     required this.busy,
+    required this.live,
+    required this.timeLeft,
+    required this.window,
+    required this.waitingForRival,
     required this.onPick,
     required this.onNext,
   });
 
   final DuelGame game;
-  final SprintQuestion question;
+  final DuelQuestion question;
   final int at;
   final int total;
   final int? picked;
   final bool busy;
+  final bool live;
+  final Duration timeLeft;
+  final Duration window;
+  final bool waitingForRival;
   final ValueChanged<int> onPick;
   final VoidCallback onNext;
 
@@ -706,36 +881,31 @@ class _QuestionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              trf('duel.step', {'n': '${at + 1}', 'total': '$total'}),
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: StudentSurface.mutedInk(context),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // الجملةُ وفيها فراغٌ يُملأ.
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: question.before),
-                  TextSpan(
-                    text: ' ____ ',
-                    style: TextStyle(
-                      color: const Color(0xFF7C3AED),
-                      fontWeight: FontWeight.w900,
-                      backgroundColor:
-                          const Color(0xFF7C3AED).withValues(alpha: 0.10),
-                    ),
+            Row(
+              children: [
+                _CategoryChip(category: question.category),
+                const Spacer(),
+                Text(
+                  trf('duel.step', {'n': '${at + 1}', 'total': '$total'}),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: StudentSurface.mutedInk(context),
                   ),
-                  TextSpan(text: question.after),
-                ],
-              ),
+                ),
+              ],
+            ),
+            if (live) ...[
+              const SizedBox(height: 10),
+              DuelCountdown(left: timeLeft, window: window),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              question.prompt,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 16.5,
                 height: 1.7,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w900,
                 color: StudentSurface.ink(context),
               ),
             ),
@@ -758,32 +928,88 @@ class _QuestionCard extends StatelessWidget {
             ),
             if (answered) ...[
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: busy ? null : onNext,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C3AED),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+              // ── وفي الحيّة لا زرَّ «التالي» ──
+              // الانتقالُ تزامنيٌّ: فور إجابة الطرفين أو انتهاء الوقت. وزرٌّ
+              // يدويٌّ هنا يجعل من ضغطه أسبقَ إلى السؤال التالي، فتُفقد
+              // المزامنةُ التي عليها يقوم العدّاد.
+              if (live)
+                Text(
+                  tr(waitingForRival ? 'duel.waitRival' : 'duel.nextSoon'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    color: StudentSurface.mutedInk(context),
+                  ),
+                )
+              else
+                FilledButton(
+                  onPressed: busy ? null : onNext,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C3AED),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: busy
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          tr(at + 1 < total ? 'duel.next' : 'duel.finish'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                 ),
-                child: busy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        tr(at + 1 < total ? 'duel.next' : 'duel.finish'),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-              ),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// بابُ السؤال: يُقرأ قبل الجملة فيعرف الطفلُ عمّا يُسأل.
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.category});
+
+  final String category;
+
+  @override
+  Widget build(BuildContext context) {
+    final (emoji, tint) = switch (category) {
+      'logic' => ('🧠', const Color(0xFF7C3AED)),
+      'quick' => ('⚡', const Color(0xFFF59E0B)),
+      'school' => ('🎒', const Color(0xFF0EA5E9)),
+      'lesson' => ('📘', const Color(0xFF16A34A)),
+      _ => ('🌍', const Color(0xFFDB2777)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: tint.withValues(alpha: 0.12),
+        border: Border.all(color: tint.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 5),
+          Text(
+            tr('duel.cat.$category'),
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+              color: tint,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -796,12 +1022,18 @@ class _ResultCard extends StatelessWidget {
     required this.gems,
     required this.draw,
     required this.opponentName,
+    required this.points,
+    required this.correct,
+    required this.total,
   });
 
   final DuelMatch match;
   final int gems;
   final bool draw;
   final String opponentName;
+  final int points;
+  final int correct;
+  final int total;
 
   @override
   Widget build(BuildContext context) {
@@ -813,7 +1045,7 @@ class _ResultCard extends StatelessWidget {
         ? (
             '⏳',
             trf('duel.waitingScored', {
-              'score': '${match.mine ?? 0}',
+              'score': '${match.mine ?? points}',
               'name': opponentName.isEmpty ? tr('duel.rival') : opponentName,
             }),
             const [Color(0xFFDDD6FE), Color(0xFFC4B5FD)],
@@ -859,15 +1091,30 @@ class _ResultCard extends StatelessWidget {
               color: Color(0xFF3B2A12),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          // وتفصيلُ النقاط: كم أصاب، وكم نالت سرعتُه.
+          Text(
+            trf('duel.breakdown', {
+              'correct': '$correct',
+              'total': '$total',
+              'points': '${match.mine ?? points}',
+            }),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF3B2A12),
+            ),
+          ),
+          const SizedBox(height: 4),
           Text(
             trf('duel.scoreLine', {
-              'mine': '${match.mine ?? 0}',
+              'mine': '${match.mine ?? points}',
               'theirs': match.theirs == null ? '—' : '${match.theirs}',
             }),
             style: const TextStyle(
               fontSize: 13.5,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
               color: Color(0xFF3B2A12),
             ),
           ),

@@ -57,10 +57,22 @@ class DuelChatMessage {
     required this.kind,
     this.text = '',
     this.audio,
+    this.id = '',
+    this.at,
   });
 
   final String senderId;
   final DuelChatKind kind;
+
+  /// معرّفُ الصفّ في السجلّ، لما قُرئ منه. فارغٌ لما وصل بالبثّ.
+  ///
+  /// ── ويُستعمل لمنع التكرار ──
+  /// الرسالةُ تُبثّ وتُحفظ معاً. فمن كان حاضراً يراها بالبثّ، ثم قد يُعاد
+  /// قراءةُ السجلّ فتأتي ثانيةً — ويُعرف أنها هي بهذا المعرّف.
+  final String id;
+
+  /// وقتُ الحفظ، لترتيب السجلّ.
+  final DateTime? at;
 
   /// نصُّ الرسالة أو الإيموجي. فارغٌ في الصوتية.
   final String text;
@@ -78,6 +90,61 @@ class DuelChatMessage {
         if (kind == DuelChatKind.voice && audio != null)
           'audio': base64Encode(audio!),
       };
+
+  /// جسمُ الرسالة كما يُحفظ في السجلّ: نصٌّ، أو الصوتُ بترميز base64.
+  ///
+  /// ── وجسمٌ واحدٌ للنوعين ──
+  /// عمودان — نصٌّ وصوتٌ — أحدُهما فارغٌ دائماً، ويحتاج كلُّ قارئٍ أن يعرف
+  /// أيَّهما يقرأ. والنوعُ مكتوبٌ في `kind`، فالجسمُ واحد.
+  String get storedBody {
+    if (kind == DuelChatKind.text) return text;
+    final bytes = audio;
+    return bytes == null ? '' : base64Encode(bytes);
+  }
+
+  /// رسالةٌ قُرئت من سجلّ المباراة.
+  ///
+  /// والفحصُ هو فحصُ البثّ نفسه: الصفُّ كتبه جهازٌ آخر عبر الخادم، ونصٌّ
+  /// فارغٌ أو صوتٌ ضخمٌ أو ترميزٌ معطوبٌ تمرّ كلُّها بلا خطأٍ يظهر.
+  static DuelChatMessage? fromStored(Object? raw) {
+    if (raw is! Map) return null;
+    final sender = raw['senderId'];
+    if (sender is! String || sender.trim().isEmpty) return null;
+    final voice = raw['kind'] == DuelChatKind.voice.name;
+    final id = raw['id'] is String ? (raw['id'] as String).trim() : '';
+    final at = DateTime.tryParse(
+      raw['createdAt'] is String ? raw['createdAt'] as String : '',
+    );
+
+    if (!voice) {
+      final clean = sanitizeChatText(raw['text'] is String ? raw['text'] as String : '');
+      if (clean.isEmpty) return null;
+      return DuelChatMessage(
+        senderId: sender.trim(),
+        kind: DuelChatKind.text,
+        text: clean,
+        id: id,
+        at: at,
+      );
+    }
+
+    final encoded = raw['audio'];
+    if (encoded is! String || encoded.isEmpty) return null;
+    final Uint8List bytes;
+    try {
+      bytes = base64Decode(encoded);
+    } catch (_) {
+      return null;
+    }
+    if (bytes.isEmpty || bytes.length > duelVoiceMaxBytes) return null;
+    return DuelChatMessage(
+      senderId: sender.trim(),
+      kind: DuelChatKind.voice,
+      audio: bytes,
+      id: id,
+      at: at,
+    );
+  }
 
   /// ما يُقرأ منها، أو `null` لما لا يصلح أن يُعرض.
   ///

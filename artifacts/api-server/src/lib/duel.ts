@@ -28,8 +28,51 @@ export type DuelGame = (typeof DUEL_GAMES)[number];
  */
 export const DUEL_WIN_GEMS = 1;
 
-/** عددُ الأسئلة في المباراة، وهو سقفُ النتيجة. */
-export const DUEL_ROUNDS = 5;
+/**
+ * عددُ الأسئلة في المباراة.
+ *
+ * ── وعشرةٌ لا خمس ──
+ * خمسةُ أسئلةٍ تنتهي في أربعين ثانية، فتنتهي المباراةُ قبل أن تبدأ الإثارة:
+ * لا مجالَ لتأخّرٍ يُدرَك ولا للحاقٍ به. والعشرُ تجعل للمنحنى معنىً — من
+ * تأخّر يستطيع أن يعود — وتبقى دون ملل.
+ */
+export const DUEL_ROUNDS = 10;
+
+/**
+ * نقاطُ الجواب الصحيح، وما يُضاف لسرعته.
+ *
+ * ── ولماذا نقاطٌ لا عددُ إجاباتٍ صحيحة ──
+ * الصحيحُ وحده يجعل مباراتين متساويتين وإحداهما أُجيبت في ثانيتين والأخرى
+ * في العشرة كلّها. والسرعةُ جزءٌ من اللعبة، فتُحسب.
+ *
+ * والأساسُ عشرةٌ والسرعةُ خمسةٌ على الأكثر: فالصحيحُ البطيء يبقى خيراً من
+ * السريع الخاطئ بفارقٍ لا يُلحق بالسرعة وحدها — وإلا صار التخمينُ السريع
+ * استراتيجيّة.
+ */
+export const DUEL_POINTS_CORRECT = 10;
+export const DUEL_POINTS_SPEED_MAX = 5;
+
+/** أقصى نتيجةٍ ممكنة: كلُّ سؤالٍ صحيحٌ وفي أسرع وقت. */
+export const DUEL_MAX_SCORE =
+  DUEL_ROUNDS * (DUEL_POINTS_CORRECT + DUEL_POINTS_SPEED_MAX);
+
+/** ثوانيَ السؤال في المباراة الحيّة. */
+export const DUEL_QUESTION_SECONDS = 10;
+
+/**
+ * نقاطُ جوابٍ صحيحٍ أُجيب وقد بقي [msLeft] من وقت السؤال.
+ *
+ * دالّةٌ نقيّةٌ في مكانٍ واحد: التطبيقُ يحسب بها ليعرض، والخادم يحسب بها
+ * سقفَ ما يُقبل. وحسابان يفترقان يجعلان نتيجةً صحيحةً تُرفض.
+ */
+export function speedPoints(
+  msLeft: number,
+  windowMs: number = DUEL_QUESTION_SECONDS * 1000,
+): number {
+  if (!Number.isFinite(msLeft) || msLeft <= 0 || windowMs <= 0) return 0;
+  const share = Math.min(1, msLeft / windowMs);
+  return Math.round(share * DUEL_POINTS_SPEED_MAX);
+}
 
 export function isDuelGame(value: unknown): value is DuelGame {
   return typeof value === "string" && (DUEL_GAMES as readonly string[]).includes(value);
@@ -38,7 +81,7 @@ export function isDuelGame(value: unknown): value is DuelGame {
 /**
  * نتيجةٌ مقبولة، أو `null`.
  *
- * صحيحٌ بين صفرٍ و[DUEL_ROUNDS]. وما فوق السقف يُردّ لا يُقصّ: قصُّه يقبل
+ * صحيحٌ بين صفرٍ و[DUEL_MAX_SCORE]. وما فوق السقف يُردّ لا يُقصّ: قصُّه يقبل
  * طلباً مدّعىً ويسجّله صحيحاً، وردُّه يُظهر الخطأ لمن أرسله.
  */
 export function parseScore(value: unknown): number | null {
@@ -49,7 +92,7 @@ export function parseScore(value: unknown): number | null {
   //
   // فالنوعُ يُفحص أوّلاً، والنصُّ لا يُقبل إلا أرقاماً.
   if (typeof value === "number") {
-    return Number.isInteger(value) && value >= 0 && value <= DUEL_ROUNDS
+    return Number.isInteger(value) && value >= 0 && value <= DUEL_MAX_SCORE
       ? value
       : null;
   }
@@ -57,7 +100,7 @@ export function parseScore(value: unknown): number | null {
     const digits = value.trim();
     if (!/^\d+$/.test(digits)) return null;
     const score = Number(digits);
-    return score <= DUEL_ROUNDS ? score : null;
+    return score <= DUEL_MAX_SCORE ? score : null;
   }
   return null;
 }

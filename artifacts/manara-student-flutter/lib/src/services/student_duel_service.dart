@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/duel_chat.dart';
+import '../models/duel_question.dart';
 import 'student_auth_service.dart';
 
 /// الألعابُ الأربع في بطاقة التحدي. أسماؤها هي أسماؤها في الخادم.
@@ -36,7 +37,17 @@ class DuelMatch {
     required this.rounds,
     required this.winnerId,
     required this.iWon,
+    this.questions = const [],
+    this.rules = const DuelRules(),
   });
+
+  /// أسئلةُ المباراة كما كتبها الخادم. فارغةٌ في ردّ الصندوق — يُطلب
+  /// `fetchMatch` لها عند فتح المباراة، فحملُ أسئلةِ أربعين مباراةً في كل
+  /// فتحةٍ للردهة هدرٌ لا يُقرأ منه شيء.
+  final List<DuelQuestion> questions;
+
+  /// وقواعدُها: ثوانيَ السؤال والنقاط وسقفُ النتيجة.
+  final DuelRules rules;
 
   final String id;
   final String lessonId;
@@ -78,9 +89,14 @@ class DuelMatch {
       opponentId: '${raw['opponentId'] ?? ''}',
       mine: score(raw['mine']),
       theirs: score(raw['theirs']),
-      rounds: score(raw['rounds']) ?? 5,
+      rounds: score(raw['rounds']) ?? 10,
       winnerId: raw['winnerId'] is String ? raw['winnerId'] as String : null,
       iWon: raw['iWon'] == true,
+      questions: [
+        for (final entry in raw['questions'] is List ? raw['questions'] as List : const [])
+          if (DuelQuestion.fromJson(entry) case final question?) question,
+      ],
+      rules: DuelRules.fromJson(raw),
     );
   }
 }
@@ -259,6 +275,56 @@ class StudentDuelService {
     );
   }
 
+  /// مباراةٌ بأسئلتها وقواعدها، تُقرأ عند فتحها.
+  Future<DuelMatch> fetchMatch(String matchId) async {
+    final map = await _send(matchId);
+    final match = DuelMatch.fromJson(map['match']);
+    if (match == null) throw DuelFailure(tr('duel.error.failed'));
+    return match;
+  }
+
+  // ── سجلُّ المحادثة ──
+
+  /// ما تُرك في المباراة من رسائلَ ومقاطع.
+  ///
+  /// ── ولماذا يُقرأ أصلاً ──
+  /// البثُّ الحيُّ يصل لمن كان على القناة في تلك اللحظة. والمبارزةُ المؤجَّلةُ
+  /// يلعب فيها كلٌّ في وقته، فرسالةُ من لعب أوّلاً كانت تضيع قبل أن يفتح
+  /// زميلُه المباراة — وهو الوقتُ الوحيد الذي يقرأ فيه.
+  Future<List<DuelChatMessage>> messages(String matchId) async {
+    final map = await _send('$matchId/messages');
+    final list = map['messages'];
+    return [
+      for (final entry in list is List ? list : const [])
+        if (DuelChatMessage.fromStored(entry) case final message?) message,
+    ];
+  }
+
+  /// يحفظ رسالةً في سجلّ المباراة.
+  ///
+  /// ويُرسل منفصلاً عن البثّ: البثُّ للحاضر الآن، والحفظُ لمن يفتح لاحقاً.
+  /// وسقوطُ أحدهما لا يُسقط الآخر — رسالةٌ وصلت ولم تُحفظ خيرٌ من لا شيء،
+  /// ورسالةٌ حُفظت ولم تُبثّ تُقرأ عند الفتح.
+  Future<bool> saveMessage({
+    required String matchId,
+    required DuelChatMessage message,
+  }) async {
+    try {
+      await _send(
+        '$matchId/messages',
+        post: true,
+        body: {
+          'kind': message.kind.name,
+          'body': message.storedBody,
+        },
+      );
+      return true;
+    } catch (error) {
+      debugPrint('[duel] message not saved: $error');
+      return false;
+    }
+  }
+
   Future<List<DuelMatch>> inbox() async {
     final map = await _send('inbox');
     final list = map['matches'];
@@ -346,6 +412,7 @@ class StudentDuelService {
     required void Function(String studentId, int progress) onProgress,
     void Function(DuelChatMessage message)? onChat,
     void Function(String studentId, bool muted)? onMute,
+    void Function(String studentId, int index, int points)? onAnswered,
   }) async {
     try {
       await leaveMatch();
@@ -369,6 +436,23 @@ class StudentDuelService {
           },
         );
       }
+      if (onAnswered != null) {
+        // ── وإعلانُ الجواب غيرُ بثِّ التقدّم ──
+        // التقدّمُ يقول «صار عندي ثلاثٌ صحيحة»، وهذا يقول «أجبتُ السؤالَ
+        // الرابع». وبه يُقفل السؤالُ ويُنتقل تزامناً حين يُجيب الطرفان —
+        // فلا ينتظر من أجاب أوّلاً عدّادَه كلَّه بلا سبب.
+        channel.onBroadcast(
+          event: 'answered',
+          callback: (payload) {
+            final id = payload['id'];
+            final index = payload['at'];
+            final points = payload['points'];
+            if (id is String && index is int) {
+              onAnswered(id, index, points is int ? points : 0);
+            }
+          },
+        );
+      }
       if (onMute != null) {
         channel.onBroadcast(
           event: 'mute',
@@ -385,6 +469,24 @@ class StudentDuelService {
       _matchChannel = channel;
     } catch (error) {
       debugPrint('[duel] match channel unavailable: $error');
+    }
+  }
+
+  /// يُعلن أنّ هذا الطالب أجاب السؤالَ [index] ونال [points].
+  void sendAnswered({
+    required String myId,
+    required int index,
+    required int points,
+  }) {
+    final channel = _matchChannel;
+    if (channel == null) return;
+    try {
+      channel.sendBroadcastMessage(
+        event: 'answered',
+        payload: {'id': myId, 'at': index, 'points': points},
+      );
+    } catch (_) {
+      // لم يصل: ينتظر الطرفُ الآخر عدّادَه، والمباراةُ تمضي.
     }
   }
 
