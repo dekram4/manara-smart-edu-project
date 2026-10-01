@@ -158,6 +158,51 @@ void main() {
     });
   });
 
+  group('حالُ كتم الدردشة', () {
+    test('بلا كتمٍ كلُّ شيءٍ مسموح', () {
+      const state = DuelChatMuteState();
+      expect(state.isChatMuted, isFalse);
+      expect(state.canSend, isTrue);
+      expect(state.showsIncoming, isTrue);
+      expect(state.playsIncomingVoice, isTrue);
+      expect(state.warnsRivalMuted, isFalse);
+    });
+
+    test('وكتمي يمنع الأربعةَ معاً', () {
+      // ── وهذا هو ما يُنسى ──
+      // الكتمُ يمنع أربعةَ أشياء: فقاعةً تُرسم، ومقطعاً يُشغَّل، ونصّاً يُرسل،
+      // وصوتاً يُسجَّل. وشروطٌ مبثوثةٌ في شاشةٍ يُنسى واحدٌ منها — فيكتم
+      // الطفلُ الدردشةَ ويظلّ يسمع صوتَ خصمه.
+      const state = DuelChatMuteState(isChatMuted: true);
+      expect(state.canSend, isFalse);
+      expect(state.showsIncoming, isFalse);
+      expect(state.playsIncomingVoice, isFalse);
+    });
+
+    test('وكتمُ الخصم لا يمنعني من شيء، ويُنبّهني', () {
+      const state = DuelChatMuteState(isRivalMuted: true);
+      expect(state.canSend, isTrue, reason: 'كتمُه ليس كتمي');
+      expect(state.showsIncoming, isTrue);
+      expect(state.warnsRivalMuted, isTrue);
+    });
+
+    test('ولا يُنبَّه الكاتمُ عن كتم خصمه', () {
+      // هو يعرف أنه كاتم، وخبرُ حال الخصم في تلك اللحظة ضجيجٌ لا خبر.
+      const both = DuelChatMuteState(isChatMuted: true, isRivalMuted: true);
+      expect(both.warnsRivalMuted, isFalse);
+    });
+
+    test('والتبديلُ يحفظ الطرفَ الآخر', () {
+      // بدّلتُ كتمي فبقي ما أعرفه عن الخصم: لو ضاع لظننتُ أنه يسمعني.
+      const state = DuelChatMuteState(isRivalMuted: true);
+      final muted = state.copyWith(isChatMuted: true);
+      expect(muted.isChatMuted, isTrue);
+      expect(muted.isRivalMuted, isTrue);
+      final back = muted.copyWith(isChatMuted: false);
+      expect(back, const DuelChatMuteState(isRivalMuted: true));
+    });
+  });
+
   group('حرسُ الإزعاج', () {
     test('الأولى تمرّ والثانيةُ تُمنع', () {
       var now = DateTime(2026, 10, 1, 9);
@@ -215,7 +260,7 @@ void main() {
       cooldown.dispose();
     });
 
-    Future<void> pump(WidgetTester tester, {bool holds = false}) async {
+    Future<void> pump(WidgetTester tester, {bool muted = false}) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -229,6 +274,8 @@ void main() {
                   sent.add('hold:end:$cancelled'),
               recording: recording,
               cooldownLeft: cooldown,
+              muted: muted,
+              onUnmute: () => sent.add('unmute'),
             ),
           ),
         ),
@@ -290,6 +337,22 @@ void main() {
       expect(find.byIcon(Icons.mic_rounded), findsNothing);
     });
 
+    testWidgets('والمكتومةُ لا تعرض أدواتَ إرسالٍ أصلاً', (tester) async {
+      // ── وحجبُها لا تعطيلُها ──
+      // حقلٌ وأزرارٌ لا تعمل تُقرأ عطباً، وطفلٌ يضغطها ولا يحدث شيء يظنّ
+      // التطبيقَ توقّف.
+      await pump(tester, muted: true);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byIcon(Icons.send_rounded), findsNothing);
+      expect(find.byIcon(Icons.mic_rounded), findsNothing);
+      expect(find.text('🔥'), findsNothing);
+      // ولوحٌ يقول الحالَ وفيه زرٌّ يُعيدها.
+      expect(find.byIcon(Icons.notifications_off_rounded), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.notifications_active_rounded));
+      await tester.pump();
+      expect(sent, ['unmute']);
+    });
+
     testWidgets('وما بقي من المنع يُعرض بالثواني', (tester) async {
       await StudentSettings.setLocale(StudentSettings.arabic);
       await pump(tester);
@@ -298,6 +361,58 @@ void main() {
       await tester.pump();
       expect(find.textContaining('انتظر'), findsOneWidget);
       expect(find.textContaining('2'), findsOneWidget, reason: 'يُجبَر لأعلى');
+    });
+  });
+
+  group('زرَّا الدردشة والكتم', () {
+    testWidgets('الكتمُ يقلب الأيقونةَ واللون', (tester) async {
+      Future<void> pumpPair({required bool muted}) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  DuelMuteToggle(muted: muted, onPressed: () {}),
+                  DuelChatButton(
+                    onPressed: () {},
+                    unread: true,
+                    muted: muted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+
+      await pumpPair(muted: false);
+      expect(find.byIcon(Icons.notifications_active_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
+
+      await pumpPair(muted: true);
+      // 🔕 محلّ 💬، في الزرّين.
+      expect(find.byIcon(Icons.notifications_off_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.speaker_notes_off_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.chat_bubble_rounded), findsNothing);
+    });
+
+    testWidgets('وزرُّ الكتم يستجيب للّمس', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DuelMuteToggle(muted: false, onPressed: () => taps += 1),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(DuelMuteToggle));
+      await tester.pump();
+      expect(taps, 1);
+      // ومساحةُ لمسٍ يبلغها إصبعُ طفل.
+      final size = tester.getSize(find.byType(DuelMuteToggle));
+      expect(size.width, greaterThanOrEqualTo(40));
+      expect(size.height, greaterThanOrEqualTo(40));
     });
   });
 
@@ -377,6 +492,13 @@ void main() {
         'duel.chat.noMic',
         'duel.chat.tooShort',
         'duel.chat.tooBig',
+        'duel.chat.mute',
+        'duel.chat.unmute',
+        'duel.chat.mutedOn',
+        'duel.chat.mutedOff',
+        'duel.chat.mutedSelf',
+        'duel.chat.mutedPanel',
+        'duel.chat.rivalMuted',
         ...duelQuickPhraseKeys,
       ];
       for (final locale in [StudentSettings.arabic, StudentSettings.english]) {

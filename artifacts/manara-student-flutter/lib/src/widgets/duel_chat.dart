@@ -202,12 +202,20 @@ class _PulsingSpeakerState extends State<_PulsingSpeaker>
 /// السؤالُ في أعلى البطاقة والخياراتُ تحته، وزرٌّ فوقهما يغطّي ما يُقرأ أو ما
 /// يُضغط. وهذه الزاويةُ آخرُ ما يقع عليه الإصبعُ في قراءةٍ من اليمين.
 class DuelChatButton extends StatelessWidget {
-  const DuelChatButton({required this.onPressed, this.unread = false, super.key});
+  const DuelChatButton({
+    required this.onPressed,
+    this.unread = false,
+    this.muted = false,
+    super.key,
+  });
 
   final VoidCallback onPressed;
 
   /// نقطةٌ تقول إن وصلت رسالةٌ وهو مغلق.
   final bool unread;
+
+  /// والكتمُ يُغيّر لونَه: لا يبقى بلون الدردشة العاملة وهي مكتومة.
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
@@ -215,7 +223,7 @@ class DuelChatButton extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Material(
-          color: const Color(0xFF7C3AED),
+          color: muted ? const Color(0xFF64748B) : const Color(0xFF7C3AED),
           shape: const CircleBorder(),
           elevation: 3,
           clipBehavior: Clip.antiAlias,
@@ -226,8 +234,10 @@ class DuelChatButton extends StatelessWidget {
               height: 48,
               child: Tooltip(
                 message: tr('duel.chat.open'),
-                child: const Icon(
-                  Icons.chat_bubble_rounded,
+                child: Icon(
+                  muted
+                      ? Icons.speaker_notes_off_rounded
+                      : Icons.chat_bubble_rounded,
                   color: Colors.white,
                   size: 22,
                 ),
@@ -235,7 +245,9 @@ class DuelChatButton extends StatelessWidget {
             ),
           ),
         ),
-        if (unread)
+        // ونقطةُ «وصلت رسالة» لا تظهر وأنا كاتم: لم تُعرض لي أصلاً، فنقطةٌ
+        // تدعوني إلى فتح نافذةٍ لا شيء فيها.
+        if (unread && !muted)
           Positioned(
             top: 2,
             right: 2,
@@ -254,6 +266,52 @@ class DuelChatButton extends StatelessWidget {
   }
 }
 
+/// زرُّ كتم الدردشة: محادثةٌ مفتوحة، أو مكتومة.
+///
+/// ── ولماذا زرٌّ مستقلٌّ لا وظيفةٌ ثانيةٌ في زرّ الدردشة ──
+/// زرٌّ واحدٌ يفتح ويكتم يُضغط خطأً في مباراةٍ بالثواني، فيُكتم الطفلُ الدردشةَ
+/// وهو يريد أن يقرأ رسالةً. وهذا أصغرُ منه وفوقه، وأثرُه ظاهرٌ في لونه
+/// وأيقونته.
+class DuelMuteToggle extends StatelessWidget {
+  const DuelMuteToggle({
+    required this.muted,
+    required this.onPressed,
+    super.key,
+  });
+
+  final bool muted;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: muted ? const Color(0xFFDC2626) : Colors.white,
+      shape: const CircleBorder(),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: SizedBox(
+          // ٤٠ لا أقلّ: أصغرُ من زرّ الدردشة ليُقرأ تابعاً له، ولا يصغر عن
+          // مساحةِ لمسٍ يبلغها إصبعُ طفل.
+          width: 40,
+          height: 40,
+          child: Tooltip(
+            message: tr(muted ? 'duel.chat.unmute' : 'duel.chat.mute'),
+            child: Icon(
+              muted
+                  ? Icons.notifications_off_rounded
+                  : Icons.notifications_active_rounded,
+              size: 19,
+              color: muted ? Colors.white : const Color(0xFF7C3AED),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// نافذةُ الدردشة: نصٌّ قصير، وإيموجي، وعباراتٌ سريعة، وزرُّ تسجيل.
 class DuelChatSheet extends StatefulWidget {
   const DuelChatSheet({
@@ -262,8 +320,16 @@ class DuelChatSheet extends StatefulWidget {
     required this.onHoldEnd,
     required this.recording,
     required this.cooldownLeft,
+    this.muted = false,
+    this.onUnmute,
     super.key,
   });
+
+  /// الطالبُ كاتمٌ للدردشة: لا تُعرض أدواتُ الإرسال أصلاً.
+  final bool muted;
+
+  /// يُعيدها، ويُغلق النافذة.
+  final VoidCallback? onUnmute;
 
   /// يُرسل نصّاً أو إيموجي. يعود بـ`false` إن مُنع — فاصلٌ أو قناةٌ ساقطة.
   final bool Function(String text) onSendText;
@@ -329,8 +395,15 @@ class _DuelChatSheetState extends State<DuelChatSheet> {
                   ),
                 ),
               ),
-              _QuickRow(onPick: _send),
-              const SizedBox(height: 10),
+              // ── والمكتومُ لا تُعرض له أدواتُ إرسالٍ معطّلة ──
+              // حقلٌ وأزرارٌ لا تعمل تُقرأ عطباً. ولوحٌ واحدٌ يقول الحالَ وفيه
+              // زرٌّ يُعيدها أصدقُ وأقصر.
+              if (widget.muted) ...[
+                _MutedPanel(onUnmute: widget.onUnmute),
+                const SizedBox(height: 4),
+              ] else ...[
+                _QuickRow(onPick: _send),
+                const SizedBox(height: 10),
               _EmojiRow(onPick: _send),
               const SizedBox(height: 12),
               Row(
@@ -391,9 +464,63 @@ class _DuelChatSheetState extends State<DuelChatSheet> {
                   ),
                 ),
               ),
+              ],
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// لوحُ الكتم: يقول الحالَ، وفيه زرٌّ يُعيد الدردشة.
+class _MutedPanel extends StatelessWidget {
+  const _MutedPanel({required this.onUnmute});
+
+  final VoidCallback? onUnmute;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFFDC2626).withValues(alpha: 0.07),
+        border: Border.all(
+          color: const Color(0xFFDC2626).withValues(alpha: 0.26),
+          width: 1.3,
+        ),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.notifications_off_rounded,
+              size: 28, color: Color(0xFFDC2626)),
+          const SizedBox(height: 8),
+          Text(
+            tr('duel.chat.mutedPanel'),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13.5,
+              height: 1.6,
+              fontWeight: FontWeight.w900,
+              color: StudentSurface.ink(context),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: onUnmute,
+            icon: const Icon(Icons.notifications_active_rounded, size: 18),
+            label: Text(tr('duel.chat.unmute')),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF7C3AED),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              textStyle: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

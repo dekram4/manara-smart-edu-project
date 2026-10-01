@@ -135,6 +135,63 @@ String sanitizeChatText(String raw) {
       : flat.substring(0, duelChatMaxChars);
 }
 
+/// حالُ كتم الدردشة: كتمي أنا، وكتمُ الخصم.
+///
+/// ── لماذا قيمةٌ واحدةٌ تُقرأ منها كلُّ القرارات ──
+/// الكتمُ يمنع أربعةَ أشياء: فقاعةً تُرسم، ومقطعاً يُشغَّل، ونصّاً يُرسل،
+/// وصوتاً يُسجَّل. وأربعةُ شروطٍ مبثوثةٍ في شاشةٍ يُنسى واحدٌ منها — فيكتم
+/// الطفلُ الدردشةَ ويظلّ يسمع صوتَ خصمه. وهو عطبٌ لا يرفع خطأً.
+///
+/// فكلُّ قرارٍ اسمٌ هنا، ويُختبر بلا شاشة.
+class DuelChatMuteState {
+  const DuelChatMuteState({
+    this.isChatMuted = false,
+    this.isRivalMuted = false,
+  });
+
+  /// أنا كتمتُ الدردشة.
+  final bool isChatMuted;
+
+  /// والخصمُ كتمها عنده.
+  final bool isRivalMuted;
+
+  /// هل يُسمح لي بالإرسال؟
+  ///
+  /// والكتمُ يمنعني من الإرسال لا من الاستقبال وحده: من كتم للتركيز لا يُراد
+  /// منه أن يبقى يُرسل — ودردشةٌ في اتجاهٍ واحد تُربك الطرفَ الآخر.
+  bool get canSend => !isChatMuted;
+
+  /// هل تُعرض رسالةٌ وصلت؟
+  bool get showsIncoming => !isChatMuted;
+
+  /// هل يُشغَّل مقطعٌ صوتيٌّ وصل؟
+  ///
+  /// وهو القرارُ الذي يُنسى: الفقاعةُ تُحجب بالنظر فيُلاحَظ تركُها، والصوتُ
+  /// يُشغَّل في مسلكٍ آخر فيبقى يُسمع.
+  bool get playsIncomingVoice => !isChatMuted;
+
+  /// هل أُنبّه أنّ الخصمَ أوقف الدردشة؟
+  ///
+  /// ولا يُنبَّه من كتم هو نفسه: هو يعرف أنه كاتم، والتنبيهُ عن حال الخصم
+  /// في تلك اللحظة ضجيجٌ لا خبر.
+  bool get warnsRivalMuted => isRivalMuted && !isChatMuted;
+
+  DuelChatMuteState copyWith({bool? isChatMuted, bool? isRivalMuted}) =>
+      DuelChatMuteState(
+        isChatMuted: isChatMuted ?? this.isChatMuted,
+        isRivalMuted: isRivalMuted ?? this.isRivalMuted,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is DuelChatMuteState &&
+      other.isChatMuted == isChatMuted &&
+      other.isRivalMuted == isRivalMuted;
+
+  @override
+  int get hashCode => Object.hash(isChatMuted, isRivalMuted);
+}
+
 /// حرسُ الإزعاج: لا رسالةَ قبل أن تمضي [gap] على التي قبلها.
 ///
 /// ── ولماذا هنا لا مؤقّتٌ في الشاشة ──

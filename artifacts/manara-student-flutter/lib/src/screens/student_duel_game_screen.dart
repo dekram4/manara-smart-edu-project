@@ -88,6 +88,10 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
   // القناةُ قائمةٌ لكن الطرفَ الآخر ليس عليها.
   late final bool _chatOn = widget.match.live;
 
+  /// كتمُ الدردشة: كتمي أنا وكتمُ الخصم. وكلُّ قرارٍ يُقرأ منه — انظر
+  /// [DuelChatMuteState] — فلا يُنسى واحدٌ من الأربعة.
+  DuelChatMuteState _mute = const DuelChatMuteState();
+
   final _cooldown = DuelChatCooldown();
   final ValueNotifier<Duration> _cooldownLeft = ValueNotifier(Duration.zero);
   Timer? _cooldownTick;
@@ -133,6 +137,7 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
             setState(() => _rivalAt = math.max(_rivalAt, at));
           },
           onChat: _chatOn ? _onChat : null,
+          onMute: _chatOn ? _onRivalMute : null,
         ),
       );
       _recorder.onAutoStop = () => _endHold(cancelled: false);
@@ -154,15 +159,58 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
 
   // ── الدردشة ──
 
+  /// يبدّل كتمَ الدردشة، ويُخبر الخصم.
+  ///
+  /// ── والخصمُ يُخبَر فوراً لا عند أوّل رسالةٍ يُرسلها ──
+  /// فيرى أنّ الدردشةَ أُوقفت قبل أن يكتب، لا بعد أن يكتب ولا يُجاب.
+  void _toggleMute() {
+    final next = !_mute.isChatMuted;
+    setState(() {
+      _mute = _mute.copyWith(isChatMuted: next);
+      if (next) {
+        // وما كان معروضاً يُحجب في الحال: كتمٌ يترك فقاعةً قائمةً ثلاثَ ثوانٍ
+        // يُقرأ تأخيراً لا كتماً.
+        _theirBubble = null;
+        _playingTheirs = false;
+        _unread = false;
+      }
+    });
+    _theirBubbleTimer?.cancel();
+    if (next) {
+      // ويسكت ما كان يُشغَّل الآن: المقطعُ الجاري لا يتوقّف بحجب الفقاعة.
+      unawaited(StudentSoundService.instance.stopSpeaking());
+      unawaited(_endHold(cancelled: true));
+    }
+    widget.duelService.sendChatMute(myId: widget.profile.id, muted: next);
+    _say(tr(next ? 'duel.chat.mutedOn' : 'duel.chat.mutedOff'));
+  }
+
+  /// الخصمُ كتم الدردشة أو أعادها.
+  void _onRivalMute(String studentId, bool muted) {
+    if (!mounted || studentId == widget.profile.id) return;
+    final was = _mute.isRivalMuted;
+    setState(() => _mute = _mute.copyWith(isRivalMuted: muted));
+    // ويُقال مرّةً عند التغيّر لا مع كل إشعار: الخصمُ يُعيد الإشعارَ كلَّما
+    // وصلته رسالةٌ وهو كاتم، فقولُه في كل مرّة ضجيج.
+    if (muted && !was && _mute.warnsRivalMuted) _say(tr('duel.chat.rivalMuted'));
+  }
+
   /// رسالةٌ وصلت من القناة.
   void _onChat(DuelChatMessage message) {
     if (!mounted) return;
     // ورسالتي تعود إليّ أيضاً — القناةُ تبثّ للجميع — فتُهمل: فقاعتي عُرضت
     // لحظةَ الإرسال، وعرضُها ثانيةً يُطيلها بلا سبب.
     if (message.senderId == widget.profile.id) return;
+    if (!_mute.showsIncoming) {
+      // ── ويُعاد الإشعارُ لمن أرسل ──
+      // قد يكون دخل المباراةَ بعد أن كتمتُ، فلم يصله الإشعارُ الأوّل. فرسالتُه
+      // نفسها هي اللحظةُ التي يحتاج أن يعرف فيها.
+      widget.duelService.sendChatMute(myId: widget.profile.id, muted: true);
+      return;
+    }
     _showBubble(message, mine: false);
     if (!_sheetOpen) setState(() => _unread = true);
-    if (!message.isVoice) return;
+    if (!message.isVoice || !_mute.playsIncomingVoice) return;
     final audio = message.audio;
     if (audio == null) return;
     setState(() => _playingTheirs = true);
@@ -206,6 +254,12 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
 
   /// يبثّ رسالةً، ويعود بـ`false` إن مُنعت.
   bool _send(DuelChatMessage message) {
+    // والكاتمُ لا يُرسل: دردشةٌ في اتجاهٍ واحد تُربك الطرفَ الآخر — يرى
+    // رسائلَ ولا يُجاب على رسائله ولا يعرف السبب.
+    if (!_mute.canSend) {
+      _say(tr('duel.chat.mutedSelf'));
+      return false;
+    }
     // والفحصُ والتسجيلُ خطوةٌ واحدة: خطوتان يُنسى بينهما تسجيلُ ما أُرسل.
     if (!_cooldown.claim()) {
       _startCooldownTick();
@@ -218,6 +272,8 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
     }
     _showBubble(message, mine: true);
     _startCooldownTick();
+    // وإن كان الخصمُ كاتماً قيل ذلك بعد الإرسال: الرسالةُ خرجت ولن تُقرأ.
+    if (_mute.warnsRivalMuted) _say(tr('duel.chat.rivalMuted'));
     return true;
   }
 
@@ -237,6 +293,12 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
 
   Future<void> _startHold() async {
     if (_recording.value) return;
+    // ولا يُسجَّل وأنا كاتم: تسجيلٌ يُفتح له الميكروفونُ ثم يُرفض عند الإرسال
+    // يُقرأ عطباً.
+    if (!_mute.canSend) {
+      _say(tr('duel.chat.mutedSelf'));
+      return;
+    }
     if (!_cooldown.ready) {
       _startCooldownTick();
       _say(tr('duel.chat.notSent'));
@@ -291,6 +353,11 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
       builder: (_) => DuelChatSheet(
         recording: _recording,
         cooldownLeft: _cooldownLeft,
+        muted: _mute.isChatMuted,
+        onUnmute: () {
+          Navigator.of(context).pop();
+          _toggleMute();
+        },
         onSendText: (text) => _send(
           DuelChatMessage(
             senderId: widget.profile.id,
@@ -481,7 +548,23 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
                 end: 14,
                 bottom: 14,
                 child: SafeArea(
-                  child: DuelChatButton(onPressed: _openChat, unread: _unread),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // الكتمُ فوق زرّ الدردشة لا داخله: زرٌّ واحدٌ بوظيفتين
+                      // — يفتح ويكتم — يُضغط خطأً في مباراةٍ بالثواني.
+                      DuelMuteToggle(
+                        muted: _mute.isChatMuted,
+                        onPressed: _toggleMute,
+                      ),
+                      const SizedBox(height: 10),
+                      DuelChatButton(
+                        onPressed: _openChat,
+                        unread: _unread,
+                        muted: _mute.isChatMuted,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             Align(

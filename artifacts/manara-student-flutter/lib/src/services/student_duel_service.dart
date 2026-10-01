@@ -345,6 +345,7 @@ class StudentDuelService {
     required String matchId,
     required void Function(String studentId, int progress) onProgress,
     void Function(DuelChatMessage message)? onChat,
+    void Function(String studentId, bool muted)? onMute,
   }) async {
     try {
       await leaveMatch();
@@ -368,10 +369,43 @@ class StudentDuelService {
           },
         );
       }
+      if (onMute != null) {
+        channel.onBroadcast(
+          event: 'mute',
+          callback: (payload) {
+            final id = payload['id'];
+            final muted = payload['muted'];
+            if (id is String && id.trim().isNotEmpty && muted is bool) {
+              onMute(id.trim(), muted);
+            }
+          },
+        );
+      }
       channel.subscribe();
       _matchChannel = channel;
     } catch (error) {
       debugPrint('[duel] match channel unavailable: $error');
+    }
+  }
+
+  /// يُخبر الخصمَ أنّ هذا الطالب كتم الدردشة أو أعادها.
+  ///
+  /// ── ولماذا يُخبَر أصلاً ──
+  /// بلا هذا يكتب الخصمُ رسالةً بعد رسالةٍ ولا يُجاب، فيظنّ الشبكةَ ساقطةً أو
+  /// يظنّ أنه يُتجاهَل. وجملةٌ واحدةٌ تُنهي الظنَّ: «أوقف الدردشة للتركيز».
+  ///
+  /// وسقوطُه لا يُبلَّغ: الكتمُ عمل عندي على كل حال، وغايةُ الإشعار أدبٌ لا
+  /// شرطٌ في المباراة.
+  void sendChatMute({required String myId, required bool muted}) {
+    final channel = _matchChannel;
+    if (channel == null) return;
+    try {
+      channel.sendBroadcastMessage(
+        event: 'mute',
+        payload: {'id': myId, 'muted': muted},
+      );
+    } catch (error) {
+      debugPrint('[duel] mute notice not sent: $error');
     }
   }
 
