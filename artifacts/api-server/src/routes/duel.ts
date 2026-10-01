@@ -21,13 +21,7 @@ import {
   type MatchRow,
 } from "../lib/duel";
 import { awardDuelWin } from "./studentProgress";
-import {
-  buildDuelPack,
-  parseDuelPack,
-  type DuelPack,
-  type LessonSeed,
-} from "../lib/duelQuestions";
-import { readBank } from "../lib/challengeBank";
+import { parseDuelPack, type DuelPack } from "../lib/duelQuestions";
 
 /**
  * مبارياتُ التحدي بين زملاء الصفّ.
@@ -143,75 +137,14 @@ function toJson(match: StoredMatch, me: string): Record<string, unknown> {
 /**
  * حزمةُ أسئلة المباراة، أو `null` إن لم تُكتب أو لم تصلح.
  *
- * ولا تُبنى هنا عند الغياب: البناءُ يعطي حزمتين مختلفتين لو قرأ الجهازان في
- * لحظتين وقد تغيّر البنكُ بينهما. فمن قرأ صفّاً بلا حزمةٍ يُعاد توليدُها
- * وتُكتب — مرّةً واحدة — قبل أن تُرسل. انظر [ensurePack].
+ * ولا تُبنى هنا: الحزمةُ تُختار في القاعدة بـ`claim_duel_pack` من بنك
+ * `duel_questions` — ستّةٌ من مجال الدرس وأربعةٌ ذكاءٌ وسرعة — وتُكتب مرّةً
+ * تحت قفل الصفّ، فيقرأ الجهازان الحزمةَ نفسها. انظر
+ * `scripts/duel-question-bank.sql`. وحزمةٌ يكتبها الخادمُ هنا قبلها كانت
+ * تُثبَّت بأسئلة الدرس الحرفية، وتمنع الدالّةَ من بناء حزمة المجال.
  */
 function packOf(match: StoredMatch): DuelPack | null {
   return parseDuelPack(match.questions);
-}
-
-/**
- * أسئلةٌ من بنك الدرس، لتُخلط في الحزمة.
- *
- * ── وما لا يصلح سؤالاً من أربعةٍ يُترك ──
- * بنكُ الدرس جولاتُ سحبٍ: ملءُ فراغٍ وتصنيفٌ ومطابقة. والمليءُ وحده يصير
- * سؤالاً بخيارات — له جوابٌ ومشتّتات — والبقيّةُ تحتاج سحباً وترتيباً.
- */
-async function lessonSeedsFor(lessonId: string): Promise<LessonSeed[]> {
-  if (!lessonId) return [];
-  try {
-    const rows = await rest(
-      `lesson_configs?select=id,data&id=eq.${encodeURIComponent(lessonId)}&limit=1`,
-    );
-    const row = Array.isArray(rows) ? rows[0] : null;
-    const data = row && typeof row === "object"
-      ? ((row as Record<string, unknown>).data as Record<string, unknown> | null)
-      : null;
-    const bank = readBank(data?.challengeBank);
-    if (!bank) return [];
-    const seeds: LessonSeed[] = [];
-    for (const round of bank.rounds) {
-      if (round.kind !== "fill") continue;
-      const sentence = `${round.before} ______ ${round.after}`.trim();
-      seeds.push({
-        prompt: sentence,
-        answer: round.answer,
-        distractors: round.distractors,
-      });
-    }
-    return seeds;
-  } catch (error) {
-    // بنكٌ لم يُقرأ لا يُسقط دعوةً: الحزمةُ تُبنى من البنك المكتوب وحده.
-    logger.warn({ err: error, lessonId }, "[duel] lesson bank unread");
-    return [];
-  }
-}
-
-/**
- * يضمن أنّ للمباراة حزمةً، ويكتبها إن لم تكن.
- *
- * لصفوفٍ كُتبت قبل أن تُحفظ الحزمةُ مع المباراة: تُبنى بمعرّفها — والبناءُ
- * بالمعرّف نفسه يُخرج الشيءَ نفسه دائماً — وتُكتب، فيقرأ الجهازُ الثاني ما
- * كُتب لا ما بناه هو.
- */
-async function ensurePack(match: StoredMatch): Promise<DuelPack> {
-  const existing = packOf(match);
-  if (existing) return existing;
-  const pack = buildDuelPack(match.id, await lessonSeedsFor(match.lessonId));
-  try {
-    await rest(`${MATCHES}?id=eq.${encodeURIComponent(match.id)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ questions: pack }),
-    });
-    match.questions = pack;
-  } catch (error) {
-    // الكتابةُ تعذّرت: تُرسل الحزمةُ كما بُنيت، وهي نفسُها على الجهازين لأنّ
-    // البناءَ يتبع المعرّف. والكتابةُ تُجرَّب في القراءة التالية.
-    logger.warn({ err: error, id: match.id }, "[duel] pack not stored");
-  }
-  return pack;
 }
 
 async function rest(
@@ -307,10 +240,7 @@ router.post("/duel/invite", inviteLimit, requireStudentSession, async (req, res)
       });
     }
     const id = newMatchId();
-    // ── والحزمةُ تُبنى وتُكتب مع الصفّ ──
-    // لا تُولَّد بنموذجٍ: التوليدُ يُجلس الطفلَ أمام انتظارٍ قبل أن تُرسل
-    // دعوتُه. وتُنتقى من بنكٍ مكتوبٍ ومن بنك الدرس، فتُكتب في المللي نفسه.
-    const pack = buildDuelPack(id, await lessonSeedsFor(lessonId));
+    // والحزمةُ لا تُكتب هنا: يثبّتها أوّلُ من يفتح المباراة بـ`claim_duel_pack`.
     await rest(MATCHES, {
       method: "POST",
       headers: { Prefer: "return=minimal" },
@@ -323,7 +253,6 @@ router.post("/duel/invite", inviteLimit, requireStudentSession, async (req, res)
         class_key: key,
         mode: live ? "live" : "ghost",
         status: "pending",
-        questions: pack,
       }),
     });
     logger.info({ id, game, live }, "[duel] invited");
@@ -516,7 +445,6 @@ router.get("/duel/:id", requireStudentSession, async (req, res) => {
     if (sideOf(match, student.id) === null) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة" });
     }
-    await ensurePack(match);
     return res.json({ match: toJson(match, student.id) });
   } catch (error) {
     logger.error({ err: error, id }, "[duel] match read failed");

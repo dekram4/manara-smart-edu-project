@@ -65,10 +65,39 @@ class DuelQuestion {
     );
   }
 
-  static const _known = {'general', 'logic', 'quick', 'school', 'lesson'};
+  static const _known = {
+    'domain',
+    'general',
+    'logic',
+    'quick',
+    'school',
+    'lesson',
+  };
 
   static String _text(Object? value) =>
       value is String ? value.trim() : '';
+}
+
+/// أقلُّ ما تُلعب به مباراة. وحزمةٌ أقصرُ منه تُترك للبنك المحليّ.
+const int duelPackMin = 8;
+
+/// يقرأ حزمةً كما تعيدها `claim_duel_pack`، أو `null` لما لا يُلعب.
+///
+/// ── ولا سؤالَ من الدرس ──
+/// صفٌّ كتب حزمتَه خادمٌ أقدمُ فيها أسئلةُ الدرس الحرفية. فتُترك كلُّها، لا
+/// السؤالُ وحده: حزمةٌ ناقصةٌ يلعبها جهازٌ وكاملةٌ يلعبها الآخر مباراتان.
+List<DuelQuestion>? duelPackFrom(Object? raw) {
+  if (raw is! Map) return null;
+  final list = raw['questions'];
+  if (list is! List) return null;
+  final questions = <DuelQuestion>[];
+  for (final entry in list) {
+    final question = DuelQuestion.fromJson(entry);
+    if (question == null) continue;
+    if (question.category == 'lesson') return null;
+    questions.add(question);
+  }
+  return questions.length < duelPackMin ? null : questions;
 }
 
 /// قواعدُ المباراة كما يُعلنها الخادم.

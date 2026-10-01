@@ -182,26 +182,23 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
   // ── تحضيرُ المباراة ──
 
   Future<void> _load() async {
-    // ── الأسئلةُ من بنك التطبيق دائماً ──
-    // كانت تُقرأ من الخادم، وإن لم يجدها عاد إلى أسئلة الدرس — فخادمٌ لم
-    // يُنشر كان يُعيد الطفلَ إلى الأسئلة نفسها تتكرّر. والآن لا مسلكَ إلى
-    // الدرس أصلاً: الحزمةُ تُبنى هنا من معرّف المباراة، فالجهازان يريان
-    // العشرةَ نفسها بالترتيب نفسه.
-    final questions = buildLocalDuelPack(widget.match.id);
-
-    // ── والخادمُ للقواعد وحدها، ولا يُنتظر طويلاً ──
-    // ثوانيَ السؤال والنقاط. وسقوطُه لا يمنع المباراة: تُلعب بالقواعد
-    // المعروفة، وترسل نتيجةً يقبلها خادمٌ أقدم — انظر `_finish`.
-    var rules = widget.match.rules;
-    if (!widget.chatOnly) {
-      try {
-        final match = await widget.duelService
-            .fetchMatch(widget.match.id)
-            .timeout(const Duration(seconds: 6));
-        rules = match.rules;
-      } catch (_) {}
+    if (widget.chatOnly) {
+      setState(() => _loading = false);
+      return;
     }
+
+    // ── الحزمةُ من بنك Supabase، والقواعدُ من الخادم، معاً ──
+    // لا يتوقّف أحدُهما على الآخر، وتتاليهما انتظاران على شبكة مدرسة.
+    final (claimed, rules) = await (
+      _claimPack(),
+      _readRules(),
+    ).wait;
     if (!mounted) return;
+
+    // ── والبنكُ المحليّ احتياطٌ أخير ──
+    // لا اتصال، أو مباراةٌ انتهت بلا حزمة، أو بنكٌ لم يكفِ. ولا مسلكَ إلى
+    // أسئلة الدرس في أيٍّ منها.
+    final questions = claimed ?? buildLocalDuelPack(widget.match.id);
 
     setState(() {
       _questions = questions;
@@ -209,7 +206,34 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
       _loading = false;
       _error = null;
     });
-    if (!widget.chatOnly) _armQuestion();
+    _armQuestion();
+  }
+
+  /// الحزمةُ المكتوبةُ مع المباراة إن جاءت بها، وإلا ما تثبّته `claim_duel_pack`.
+  Future<List<DuelQuestion>?> _claimPack() async {
+    final carried = widget.match.questions;
+    if (carried.length >= duelPackMin &&
+        carried.every((question) => question.category != 'lesson')) {
+      return carried;
+    }
+    try {
+      return await widget.duelService.claimPack(widget.match.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// ثوانيَ السؤال والنقاط. وسقوطُ الخادم لا يمنع المباراة: تُلعب بالقواعد
+  /// المعروفة، وتُرسل نتيجةً يقبلها خادمٌ أقدم — انظر `_finish`.
+  Future<DuelRules> _readRules() async {
+    try {
+      final match = await widget.duelService
+          .fetchMatch(widget.match.id)
+          .timeout(const Duration(seconds: 6));
+      return match.rules;
+    } catch (_) {
+      return widget.match.rules;
+    }
   }
 
   Future<void> _loadChat() async {
@@ -982,7 +1006,7 @@ class _CategoryChip extends StatelessWidget {
       'logic' => ('🧠', const Color(0xFF7C3AED)),
       'quick' => ('⚡', const Color(0xFFF59E0B)),
       'school' => ('🎒', const Color(0xFF0EA5E9)),
-      'lesson' => ('📘', const Color(0xFF16A34A)),
+      'domain' || 'lesson' => ('📘', const Color(0xFF16A34A)),
       _ => ('🌍', const Color(0xFFDB2777)),
     };
     return Container(

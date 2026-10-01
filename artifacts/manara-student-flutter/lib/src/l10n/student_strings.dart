@@ -249,6 +249,7 @@ class StudentStrings {
     'duel.cat.logic': 'ذكاء ومنطق',
     'duel.cat.quick': 'سرعة بديهة',
     'duel.cat.school': 'ثقافة مدرسية',
+    'duel.cat.domain': 'من مجال درسك',
     'duel.cat.lesson': 'من درسك',
     // ── سباقُ السرعة ──
     'duel.waitRival': '⏳ ننتظر إجابة زميلك...',
@@ -968,6 +969,7 @@ class StudentStrings {
     'duel.cat.logic': 'Logic & thinking',
     'duel.cat.quick': 'Quick thinking',
     'duel.cat.school': 'School life',
+    'duel.cat.domain': 'From your lesson topic',
     'duel.cat.lesson': 'From your lesson',
     'duel.waitRival': '⏳ Waiting for your classmate…',
     'duel.nextSoon': '⚡ Next question now…',

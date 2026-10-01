@@ -25,7 +25,7 @@
  */
 
 /** بابُ السؤال. يُعرض للطفل فيعرف ما يُسأل عنه قبل أن يقرأ. */
-export type DuelCategory = "general" | "logic" | "quick" | "school" | "lesson";
+export type DuelCategory = "general" | "logic" | "quick" | "school" | "lesson" | "domain";
 
 export interface DuelQuestion {
   /** معرّفٌ ثابتٌ للسؤال، يُستعمل لمنع تكراره في الحزمة. */
@@ -311,5 +311,5 @@ function parseQuestion(raw: unknown): DuelQuestion | null {
 }
 
 function isCategory(value: string): value is DuelCategory {
-  return ["general", "logic", "quick", "school", "lesson"].includes(value);
+  return ["general", "logic", "quick", "school", "lesson", "domain"].includes(value);
 }

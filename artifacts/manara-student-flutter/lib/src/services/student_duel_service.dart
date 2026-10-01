@@ -283,6 +283,28 @@ class StudentDuelService {
     return match;
   }
 
+  /// حزمةُ أسئلة المباراة من بنك `duel_questions`: ستّةٌ من مجال الدرس
+  /// وأربعةٌ ذكاءٌ وسرعة. أو `null` إن تعذّرت أو لم تصلح.
+  ///
+  /// ── ولماذا من Supabase مباشرةً لا من الخادم ──
+  /// `claim_duel_pack` تختار الحزمةَ في القاعدة وتكتبها في المباراة مرّةً تحت
+  /// قفل الصفّ، فيقرأ الجهازان الحزمةَ نفسها. ولا يتوقّف ذلك على نشر خادم
+  /// الـAPI — وهو ما أعاد الطفلَ إلى أسئلة الدرس من قبل.
+  ///
+  /// ولا يُقبل فيها سؤالٌ من الدرس: صفٌّ كتب حزمتَه خادمٌ أقدمُ يخلطها بأسئلة
+  /// الدرس الحرفية، والمبارزةُ لا تعود إليها.
+  Future<List<DuelQuestion>?> claimPack(String matchId) async {
+    try {
+      final raw = await authService.client
+          .rpc('claim_duel_pack', params: {'p_match_id': matchId})
+          .timeout(const Duration(seconds: 5));
+      return duelPackFrom(raw);
+    } catch (error) {
+      debugPrint('[duel] pack not claimed: $error');
+      return null;
+    }
+  }
+
   // ── سجلُّ المحادثة ──
 
   /// ما تُرك في المباراة من رسائلَ ومقاطع.
