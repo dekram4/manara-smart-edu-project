@@ -35,7 +35,6 @@ import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
 import 'student_duel_screen.dart';
-import 'student_endless_reader_screen.dart';
 import 'student_study_screen.dart';
 import 'student_personality_screen.dart';
 import 'student_problem_solver_screen.dart';
@@ -380,25 +379,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       return;
     }
 
-    if (index == 11) {
-      Navigator.of(context)
-          .push(
-            StudentPageRoute<void>(
-              immersive: true,
-              builder: (_) => StudentDuelScreen(
-                profile: widget.profile,
-                duelService: _duelService,
-                challengeService: _challengeService,
-                leaderboardService: _leaderboardService,
-                academicContext: _academicContext,
-              ),
-            ),
-          )
-          // جوهرةُ الفوز تُصرف في الخادم، فرصيدُ الواجهة يُقرأ عند العودة.
-          .then((_) => _loadGamification());
-      return;
-    }
-
     if (index == 10) {
       Navigator.of(context).push(
         StudentPageRoute<void>(
@@ -415,19 +395,32 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       return;
     }
 
+    // Index 9 — «تحدَّ زملاءك»: حلبةُ المبارزة بين زملاء الصفّ.
+    //
+    // ── وبطاقةٌ واحدة لا اثنتان ──
+    // كانت هذه البطاقةُ تفتح لعباً منفرداً على أسئلة الدرس، وأُضيفت للحلبة
+    // بطاقةٌ ثانية. فصار في الرفّ موضعان يقولان «تحدّ» ولا يفرّق بينهما
+    // طفلٌ بالاسم. فحلّت الحلبةُ محلَّ اللعب المنفرد في هذه البطاقة.
+    //
+    // ومفتاحُ العنوان `portal.challenge` كما كان — لا `portal.duel` — فيبقى
+    // لها مقطعُها الصوتيُّ `challenge_ar.mp3` وخلفيّتُها وصورتُها. والنصُّ
+    // وحده تغيّر.
     if (index == 9) {
-      Navigator.of(context).push(
-        StudentPageRoute<void>(
-          immersive: true,
-          builder: (_) => StudentEndlessReaderScreen(
-            academicContext: _academicContext,
-            challengeService: _challengeService,
-            // لصرف جواهر الجولة في ختامها.
-            contentService: _contentService,
-            profile: widget.profile,
-          ),
-        ),
-      );
+      Navigator.of(context)
+          .push(
+            StudentPageRoute<void>(
+              immersive: true,
+              builder: (_) => StudentDuelScreen(
+                profile: widget.profile,
+                duelService: _duelService,
+                challengeService: _challengeService,
+                leaderboardService: _leaderboardService,
+                academicContext: _academicContext,
+              ),
+            ),
+          )
+          // جوهرةُ الفوز تُصرف في الخادم، فرصيدُ الواجهة يُقرأ عند العودة.
+          .then((_) => _loadGamification());
       return;
     }
 
@@ -1027,16 +1020,6 @@ const _homeSections = <_HomeSection>[
     accent: Color(0xFFF5D0FE),
     // شاشتُها تشغّل `booksound.mp3` بنفسها.
     ownsVoice: true,
-  ),
-  // Index 11 — حلبةُ التحدي بين الزملاء. في الآخر للسبب نفسه، وموضعُها
-  // البصريُّ في `homeVisualOrder` بجانب بطاقة التحدي.
-  _HomeSection(
-    titleKey: 'portal.duel',
-    subtitleKey: 'portal.duel.sub',
-    descriptionKey: 'portal.duel.desc',
-    image: 'assets/images/icon_kaas.png',
-    colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
-    accent: Color(0xFFDDD6FE),
   ),
 ];
 

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/sprint_question.dart';
@@ -12,20 +13,27 @@ import '../services/student_duel_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
-import '../widgets/student_avatar_view.dart';
+import '../widgets/duel_arenas.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
-/// سباقُ الحلبة: كلُّ إجابةٍ صحيحةٍ تُقدّم عدّاءك خطوة.
+/// مباراةُ التحدي: أربعُ ألعابٍ على محرّكٍ واحد.
 ///
-/// ── لماذا سباقٌ لا اختبار ──
-/// الأسئلةُ نفسها في البطاقتين، والفرقُ أنّ هنا خصماً يتقدّم. والطفل الذي
-/// يقرأ السؤالَ ليجيب يقرؤه هنا ليسبق — وهو الفرقُ بين واجبٍ ولعبة.
+/// ── لماذا شاشةٌ واحدةٌ لا أربع ──
+/// ما يجعل المباراةَ مباراةً ليس شكلَها: بذرةٌ من معرّفها تُسأل بها الأسئلةُ
+/// نفسها للخصمين، وخمسةُ أشواط، ونتيجةٌ تُرسل إلى الخادم فيحسم هو الفائزَ
+/// ويصرف الجوهرة. وهذا كلُّه واحدٌ في الأربع.
+///
+/// ولو نُسخ أربعَ مرّات لاختلفت الأربعُ عند أوّل تعديل: تُصلَح بذرةٌ في واحدة
+/// وتبقى في ثلاث، فتصير لعبةٌ عادلةً وثلاثٌ ليست — بلا خطأٍ يظهر. فالمحرّكُ
+/// هنا، واللعبةُ تُغيّر ما يُرى: الحلبةَ التي يتقدّم فيها اللاعبان، وشكلَ
+/// الخيارات التي تُلمس.
 ///
 /// ── والنتيجةُ تُحسم في الخادم ──
-/// هذه الشاشةُ تعدّ الصحيحَ وترسله، ولا تقول من فاز. الخادم يقارن
-/// النتيجتين ويصرف الجوهرة، فلا يستطيع تطبيقٌ معدَّلٌ أن يدّعي فوزاً.
-class StudentSprintRaceScreen extends StatefulWidget {
-  const StudentSprintRaceScreen({
+/// هذه الشاشةُ تعدّ الصحيحَ وترسله، ولا تقول من فاز. فلا يستطيع تطبيقٌ
+/// معدَّلٌ أن يدّعي فوزاً.
+class StudentDuelGameScreen extends StatefulWidget {
+  const StudentDuelGameScreen({
     required this.profile,
     required this.match,
     required this.duelService,
@@ -43,12 +51,11 @@ class StudentSprintRaceScreen extends StatefulWidget {
   final Map<String, dynamic>? opponentAppearance;
 
   @override
-  State<StudentSprintRaceScreen> createState() =>
-      _StudentSprintRaceScreenState();
+  State<StudentDuelGameScreen> createState() => _StudentDuelGameScreenState();
 }
 
-class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
-  /// أسئلةُ الشوط: جملةٌ ناقصةٌ وخيارات.
+class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
+  /// أسئلةُ المباراة: جملةٌ ناقصةٌ وخيارات.
   List<SprintQuestion> _questions = const [];
   String? _error;
   bool _loading = true;
@@ -60,7 +67,7 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
   /// تقدّمُ الخصم كما يبثّه، في المباراة الحيّة.
   ///
   /// ويبدأ من نتيجته إن كان قد لعب: البثُّ لا يُعاد لمن دخل متأخّراً، فلو
-  /// بدأ من صفرٍ لرأى الثاني خصمَه في أوّل المضمار وقد أنهى السباق.
+  /// بدأ من صفرٍ لرأى الثاني خصمَه في أوّل الحلبة وقد أنهى جولتَه.
   late int _rivalAt = widget.match.theirs ?? 0;
 
   bool _sending = false;
@@ -73,6 +80,15 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
   late final ConfettiController _confetti =
       ConfettiController(duration: const Duration(milliseconds: 700));
 
+  DuelGame get _game {
+    for (final game in DuelGame.values) {
+      if (game.id == widget.match.game) return game;
+    }
+    // لعبةٌ لا تُعرف — صفٌّ أقدمُ من هذا البناء — تُلعب سباقاً: الأسئلةُ
+    // والنتيجةُ واحدة، فلا تُفقد مباراةٌ على اسمٍ لم يُفهم.
+    return DuelGame.sprint;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -84,8 +100,8 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
           onProgress: (id, at) {
             // تقدّمي يعود إليّ أيضاً — القناةُ تبثّ للجميع — فيُهمل.
             if (!mounted || id == widget.profile.id) return;
-            // ولا يتراجع العدّاء: بثٌّ وصل متأخّراً بعد أحدثَ منه كان
-            // سيرجع خصمَه خطوةً إلى الوراء أمام عين الطفل.
+            // ولا يتراجع الخصم: بثٌّ وصل متأخّراً بعد أحدثَ منه كان سيرجعه
+            // خطوةً إلى الوراء أمام عين الطفل.
             setState(() => _rivalAt = math.max(_rivalAt, at));
           },
         ),
@@ -106,8 +122,8 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
         lessonId: widget.match.lessonId,
         count: widget.match.rounds,
         // ── والبذرةُ معرّفُ المباراة ──
-        // فالخصمان يُسألان الأسئلةَ نفسها: سباقٌ بأسئلةٍ مختلفة ليس سباقاً.
-        // ومباراةٌ أخرى بذرتُها أخرى، فلا تُعاد الأسئلة.
+        // فالخصمان يُسألان الأسئلةَ نفسها: مباراةٌ بأسئلةٍ مختلفة ليست
+        // مباراة. ومباراةٌ أخرى بذرتُها أخرى، فلا تُعاد الأسئلة.
         seed: widget.match.id,
         draw: math.Random(stableSeed(widget.match.id)),
       );
@@ -151,8 +167,9 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
     });
     if (right) {
       _confetti.play();
+      HapticFeedback.lightImpact();
       StudentSoundService.instance.play(StudentSoundCue.success);
-      // والخطوةُ تُبثّ فور وقوعها: الخصم يرى عدّائي يتقدّم فيستعجل.
+      // والخطوةُ تُبثّ فور وقوعها: الخصم يرى تقدّمي فيستعجل.
       widget.duelService.sendProgress(myId: widget.profile.id, at: _correct);
     } else {
       StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -210,12 +227,16 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
       child: Scaffold(
         backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(
-          title: Text(tr('duel.game.sprint')),
+          title: Text(_game.label),
           centerTitle: true,
           actions: const [StudentSoundToggle()],
         ),
         body: Stack(
           children: [
+            const PortalWatermark(
+              asset: PortalBackgrounds.endlessReader,
+              opacity: 0.20,
+            ),
             SafeArea(child: _body(context)),
             Align(
               alignment: Alignment.topCenter,
@@ -246,7 +267,14 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
           children: [
             const CircularProgressIndicator(color: Color(0xFF7C3AED)),
             const SizedBox(height: 14),
-            Text(tr('duel.preparing'), style: _hint(context)),
+            Text(
+              tr('duel.preparing'),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: StudentSurface.ink(context),
+              ),
+            ),
           ],
         ),
       );
@@ -275,17 +303,18 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
       children: [
-        _Track(
-          profile: widget.profile,
-          opponentName: widget.opponentName,
-          opponentAppearance: widget.opponentAppearance,
+        DuelArena(
+          game: _game,
           mine: _correct,
           // ── وشريطُ الخصم في المؤجَّلة ──
-          // نتيجتُه إن كان قد لعب، وصفرٌ إن لم يلعب بعد. فالطفل يرى ما
-          // عليه أن يسبقه، أو يعرف أنه يسبق أوّلاً.
+          // نتيجتُه إن كان قد لعب، وصفرٌ إن لم يلعب بعد. فالطفل يرى ما عليه
+          // أن يسبقه، أو يعرف أنه يلعب أوّلاً.
           theirs: widget.match.live ? _rivalAt : (widget.match.theirs ?? 0),
           total: _questions.length,
           live: widget.match.live,
+          myAppearance: widget.profile.appearance,
+          theirAppearance: widget.opponentAppearance,
+          opponentName: widget.opponentName,
         ),
         const SizedBox(height: 16),
         if (settled != null)
@@ -300,6 +329,7 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
         else
           StudentEntrance(
             child: _QuestionCard(
+              game: _game,
               question: _questions[_at],
               at: _at,
               total: _questions.length,
@@ -312,170 +342,12 @@ class _StudentSprintRaceScreenState extends State<StudentSprintRaceScreen> {
       ],
     );
   }
-
-  TextStyle _hint(BuildContext context) => TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w800,
-        color: StudentSurface.ink(context),
-      );
 }
 
-/// الحلبة: عدّاءان يتقدّمان بعدد الإجابات الصحيحة.
-class _Track extends StatelessWidget {
-  const _Track({
-    required this.profile,
-    required this.opponentName,
-    required this.opponentAppearance,
-    required this.mine,
-    required this.theirs,
-    required this.total,
-    required this.live,
-  });
-
-  final StudentProfile profile;
-  final String opponentName;
-  final Map<String, dynamic>? opponentAppearance;
-  final int mine;
-  final int theirs;
-  final int total;
-  final bool live;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: StudentSurface.card(context),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            _Lane(
-              label: tr('duel.you'),
-              appearance: profile.appearance,
-              at: mine,
-              total: total,
-              tint: const Color(0xFF16A34A),
-            ),
-            const SizedBox(height: 10),
-            _Lane(
-              label: opponentName.isEmpty ? tr('duel.rival') : opponentName,
-              appearance: opponentAppearance,
-              at: theirs,
-              total: total,
-              tint: const Color(0xFFDC2626),
-              // ونقطةٌ تقول إن كان يلعب الآن أو لعب من قبل.
-              badge: live ? tr('duel.liveNow') : tr('duel.ghost'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Lane extends StatelessWidget {
-  const _Lane({
-    required this.label,
-    required this.appearance,
-    required this.at,
-    required this.total,
-    required this.tint,
-    this.badge,
-  });
-
-  final String label;
-  final Map<String, dynamic>? appearance;
-  final int at;
-  final int total;
-  final Color tint;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    final fraction = total <= 0 ? 0.0 : (at / total).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  color: StudentSurface.ink(context),
-                ),
-              ),
-            ),
-            if (badge != null)
-              Text(
-                badge!,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: StudentSurface.mutedInk(context),
-                ),
-              ),
-            const SizedBox(width: 6),
-            Text(
-              '$at/$total',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                color: tint,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        // المضمارُ: خطٌّ يمشي عليه العدّاء، وخطُّ النهاية في آخره.
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const runner = 34.0;
-            final span = (constraints.maxWidth - runner).clamp(0.0, 4000.0);
-            return SizedBox(
-              height: runner + 8,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: runner / 2,
-                    child: Container(
-                      height: 6,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        color: tint.withValues(alpha: 0.16),
-                      ),
-                    ),
-                  ),
-                  PositionedDirectional(
-                    end: 0,
-                    top: 0,
-                    child: Text('🏁', style: TextStyle(fontSize: runner * 0.6)),
-                  ),
-                  AnimatedPositionedDirectional(
-                    duration: const Duration(milliseconds: 420),
-                    curve: Curves.easeOutCubic,
-                    start: span * fraction,
-                    top: 0,
-                    child: StudentAvatarView(size: runner, appearance: appearance),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
+/// السؤالُ وخياراتُه، بالشكل الذي تلبسه اللعبة.
 class _QuestionCard extends StatelessWidget {
   const _QuestionCard({
+    required this.game,
     required this.question,
     required this.at,
     required this.total,
@@ -485,6 +357,7 @@ class _QuestionCard extends StatelessWidget {
     required this.onNext,
   });
 
+  final DuelGame game;
   final SprintQuestion question;
   final int at;
   final int total;
@@ -537,32 +410,47 @@ class _QuestionCard extends StatelessWidget {
                 color: StudentSurface.ink(context),
               ),
             ),
-            const SizedBox(height: 14),
-            for (var index = 0; index < question.options.length; index += 1)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _Choice(
-                  text: question.options[index],
-                  right: answered && index == question.answerAt,
-                  wrong: answered && index == picked && index != question.answerAt,
-                  onTap: answered ? null : () => onPick(index),
-                ),
+            const SizedBox(height: 6),
+            Text(
+              tr('duel.pick.${game.id}'),
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: StudentSurface.mutedInk(context),
               ),
+            ),
+            const SizedBox(height: 12),
+            DuelChoices(
+              game: game,
+              options: question.options,
+              answerAt: question.answerAt,
+              picked: picked,
+              onPick: onPick,
+            ),
             if (answered) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 12),
               FilledButton(
                 onPressed: busy ? null : onNext,
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF7C3AED),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: Text(
-                  tr(at + 1 < total ? 'duel.next' : 'duel.finish'),
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                child: busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        tr(at + 1 < total ? 'duel.next' : 'duel.finish'),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
               ),
             ],
           ],
@@ -572,66 +460,7 @@ class _QuestionCard extends StatelessWidget {
   }
 }
 
-class _Choice extends StatelessWidget {
-  const _Choice({
-    required this.text,
-    required this.right,
-    required this.wrong,
-    required this.onTap,
-  });
-
-  final String text;
-  final bool right;
-  final bool wrong;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final (border, fill, ink) = right
-        ? (
-            const Color(0xFF16A34A),
-            const Color(0xFFDCFCE7),
-            const Color(0xFF14532D),
-          )
-        : wrong
-            ? (
-                const Color(0xFFDC2626),
-                const Color(0xFFFEE2E2),
-                const Color(0xFF7F1D1D),
-              )
-            : (
-                const Color(0xFF7C3AED).withValues(alpha: 0.30),
-                Colors.transparent,
-                StudentSurface.ink(context),
-              );
-    return Material(
-      color: fill,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: border, width: 1.4),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w800,
-              color: ink,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// ما بعد الشوط: فزتَ، أو تنتظر، أو خسرت.
+/// ما بعد الجولة: فزتَ، أو تنتظر، أو خسرت.
 class _ResultCard extends StatelessWidget {
   const _ResultCard({
     required this.match,
@@ -649,11 +478,15 @@ class _ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // ── وثلاثُ حالاتٍ لا اثنتان ──
     // «تنتظر» حالٌ كاملة: من لعب أوّلاً لم يفز ولم يخسر، وقولُ «خسرت» له
-    // كذبٌ، وقولُ لا شيء يجعله يظنّ المباراةَ ضائعة.
+    // كذبٌ، وقولُ لا شيء يجعله يظنّ المباراةَ ضائعة. ونتيجتُه تُقال له في
+    // الجملة نفسها: الرقمُ هو ما يطمئنه أنها حُفظت.
     final (emoji, title, colors) = !match.settled
         ? (
             '⏳',
-            trf('duel.waiting', {'name': opponentName}),
+            trf('duel.waitingScored', {
+              'score': '${match.mine ?? 0}',
+              'name': opponentName.isEmpty ? tr('duel.rival') : opponentName,
+            }),
             const [Color(0xFFDDD6FE), Color(0xFFC4B5FD)],
           )
         : draw

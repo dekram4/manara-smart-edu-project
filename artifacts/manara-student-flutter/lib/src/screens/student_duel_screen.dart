@@ -11,9 +11,10 @@ import '../services/student_leaderboard_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/portal_watermark.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
-import 'student_sprint_race_screen.dart';
+import 'student_duel_game_screen.dart';
 
 /// حلبةُ الصفّ: من متصلٌ الآن، ومن يدعوني، ومن في الصدارة.
 ///
@@ -155,15 +156,13 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     String rivalName,
     Map<String, dynamic>? rivalLook,
   ) async {
-    if (match.game != DuelGame.sprint.id) {
-      // بقيةُ الألعاب الثلاث لم تُبنَ بعد: يُقال ذلك ولا تُفتح شاشةٌ فارغة.
-      _say(tr('duel.soon'));
-      return;
-    }
+    // والألعابُ الأربع على شاشةٍ واحدة: المحرّكُ واحد — بذرةٌ من معرّف
+    // المباراة وخمسةُ أشواط ونتيجةٌ يحسمها الخادم — واللعبةُ تُغيّر الحلبةَ
+    // وشكلَ الخيارات. فلا تحتاج واحدةٌ منها فتحاً ولا قفلاً.
     await Navigator.of(context).push(
       StudentPageRoute<void>(
         immersive: true,
-        builder: (_) => StudentSprintRaceScreen(
+        builder: (_) => StudentDuelGameScreen(
           profile: widget.profile,
           match: match,
           duelService: widget.duelService,
@@ -214,15 +213,26 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
           centerTitle: true,
           actions: const [StudentSoundToggle()],
         ),
-        body: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: _load,
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF7C3AED)),
-                  )
-                : _list(context),
-          ),
+        body: Stack(
+          children: [
+            // خلفيةُ بطاقة التحدي نفسها: البطاقةُ تفتح هذه الشاشة، فتكون
+            // استمراراً لها لا شاشةً غريبةً عنها.
+            const PortalWatermark(
+              asset: PortalBackgrounds.endlessReader,
+              opacity: 0.22,
+            ),
+            SafeArea(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: _loading
+                    ? const Center(
+                        child:
+                            CircularProgressIndicator(color: Color(0xFF7C3AED)),
+                      )
+                    : _list(context),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -230,6 +240,10 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
 
   Widget _list(BuildContext context) {
     final waiting = [for (final match in _inbox) if (match.waitingForMe) match];
+    // ── ومبارياتٌ لعبتُها وأنتظر فيها زميلي ──
+    // كانت تُقرأ من الخادم ولا تُعرض، فكان الطفل يلعب جولتَه ثم لا يجد لها
+    // أثراً في القائمة — فيظنّها ضائعة، أو يظنّ أنه لم يلعب.
+    final pending = [for (final match in _inbox) if (match.waitingForThem) match];
     DuelStanding? mine;
     for (final item in _standings) {
       if (item.isMe) mine = item;
@@ -259,6 +273,19 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
                   final who = _whoIs(match.opponentId);
                   return _play(match, who.name, who.look);
                 },
+              ),
+            ),
+        ],
+        if (pending.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          _Heading(text: trf('duel.section.pending', {'n': '${pending.length}'})),
+          const SizedBox(height: 8),
+          for (final match in pending)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _PendingTile(
+                match: match,
+                who: _whoIs(match.opponentId),
               ),
             ),
         ],
@@ -467,6 +494,69 @@ class _InviteTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// مباراةٌ لعبتُها وأنتظر فيها زميلي.
+///
+/// ونتيجتي المسجَّلة ظاهرةٌ فيها: الرقمُ هو ما يقول إنها حُفظت فعلاً، و«في
+/// انتظار الخصم» وحدها تُقرأ تعليقاً لا حفظاً.
+class _PendingTile extends StatelessWidget {
+  const _PendingTile({required this.match, required this.who});
+
+  final DuelMatch match;
+  final ({String name, Map<String, dynamic>? look}) who;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFF7C3AED).withValues(alpha: 0.07),
+        border: Border.all(
+          color: const Color(0xFF7C3AED).withValues(alpha: 0.26),
+          width: 1.3,
+        ),
+      ),
+      child: Row(
+        children: [
+          StudentAvatarView(size: 40, appearance: who.look, showRing: false),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  trf('duel.pendingOn', {
+                    'name': who.name.isEmpty ? tr('duel.rival') : who.name,
+                  }),
+                  maxLines: 2,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.5,
+                    fontWeight: FontWeight.w900,
+                    color: StudentSurface.ink(context),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${tr('duel.game.${match.game}')} • '
+                  '${trf('duel.myScore', {'score': '${match.mine ?? 0}'})}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: StudentSurface.mutedInk(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.hourglass_top_rounded,
+              size: 26, color: Color(0xFF7C3AED)),
+        ],
       ),
     );
   }
@@ -701,15 +791,13 @@ class _GameSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
+            // والأربعُ تُلعب: محرّكُها واحد، فلا واحدةَ منها «قريباً».
             for (final game in DuelGame.values)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _GameChoice(
                   game: game,
-                  ready: game == DuelGame.sprint,
-                  onTap: game == DuelGame.sprint
-                      ? () => Navigator.of(context).pop(game)
-                      : null,
+                  onTap: () => Navigator.of(context).pop(game),
                 ),
               ),
           ],
@@ -720,15 +808,10 @@ class _GameSheet extends StatelessWidget {
 }
 
 class _GameChoice extends StatelessWidget {
-  const _GameChoice({
-    required this.game,
-    required this.ready,
-    required this.onTap,
-  });
+  const _GameChoice({required this.game, required this.onTap});
 
   final DuelGame game;
-  final bool ready;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -738,51 +821,55 @@ class _GameChoice extends StatelessWidget {
       DuelGame.tug => '🪢',
       DuelGame.gems => '💎',
     };
-    return Opacity(
-      opacity: ready ? 1 : 0.55,
-      child: Material(
-        color: ready
-            ? const Color(0xFF7C3AED).withValues(alpha: 0.10)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.28),
-                width: 1.3,
-              ),
+    return Material(
+      color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.28),
+              width: 1.3,
             ),
-            child: Row(
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 22)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    game.label,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w900,
-                      color: StudentSurface.ink(context),
+          ),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      game.label,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                        color: StudentSurface.ink(context),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    // وسطرٌ يقول ما تفعله: أربعةُ أسماءٍ بلا شرحٍ تُختار
+                    // بالعشوائية، وطفلٌ يريد أن يعرف قبل أن يرسل التحدي.
+                    Text(
+                      tr('duel.how.${game.id}'),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.45,
+                        fontWeight: FontWeight.w700,
+                        color: StudentSurface.mutedInk(context),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  tr(ready ? 'duel.ready' : 'duel.soon.badge'),
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w900,
-                    color: ready
-                        ? const Color(0xFF16A34A)
-                        : StudentSurface.mutedInk(context),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const Icon(Icons.chevron_left_rounded,
+                  color: Color(0xFF7C3AED), size: 24),
+            ],
           ),
         ),
       ),
