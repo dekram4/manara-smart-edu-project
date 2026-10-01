@@ -28,12 +28,11 @@ try {
 const {
   DUEL_GAMES,
   DUEL_MAX_SCORE,
-  DUEL_POINTS_CORRECT,
-  DUEL_POINTS_SPEED_MAX,
+  DUEL_POINTS_PER_QUESTION,
   DUEL_QUESTION_SECONDS,
   DUEL_ROUNDS,
   DUEL_WIN_GEMS,
-  speedPoints,
+  scoresFromAnswers,
   canSubmit,
   classKey,
   isDuelGame,
@@ -51,10 +50,8 @@ const row = ({ host = 4, guest = 2 } = {}) => ({
   guestScore: guest,
 });
 
-test("جوهرةٌ واحدة للفوز، لا أكثر", () => {
-  // مباراةٌ دقيقةٌ أو دقيقتان، وطالبان يتحدّيان عشرين مرّةً في حصّة.
-  // فأكثرُ من واحدة تجعل الرصيدَ يُجمع بالتحدّي لا بالدرس.
-  assert.equal(DUEL_WIN_GEMS, 1);
+test("خمسُ جواهرَ للفائز — وتُمنع إعادتُها بمفتاح الدرس في awardDuelWin", () => {
+  assert.equal(DUEL_WIN_GEMS, 5);
 });
 
 test("والألعابُ أربعٌ معروفةٌ بأسمائها", () => {
@@ -190,48 +187,67 @@ test("طولُ المباراة ثمانيةٌ على الأقلّ وعشرةٌ 
   assert.ok(DUEL_ROUNDS >= 8 && DUEL_ROUNDS <= 10, `${DUEL_ROUNDS}`);
 });
 
-test("أقصى نتيجةٍ هي كلُّ سؤالٍ صحيحٌ وفي أسرع وقت", () => {
-  assert.equal(
-    DUEL_MAX_SCORE,
-    DUEL_ROUNDS * (DUEL_POINTS_CORRECT + DUEL_POINTS_SPEED_MAX),
+test("أقصى نتيجةٍ: كلُّ سؤالٍ كُسب", () => {
+  assert.equal(DUEL_MAX_SCORE, DUEL_ROUNDS * DUEL_POINTS_PER_QUESTION);
+  assert.equal(parseScore(DUEL_MAX_SCORE), DUEL_MAX_SCORE);
+  assert.ok(DUEL_QUESTION_SECONDS >= 5 && DUEL_QUESTION_SECONDS <= 20);
+});
+
+// ── أوّلُ صحيحٍ يكسب السؤال ──
+
+const answer = (studentId, questionIndex, won) => ({ studentId, questionIndex, won });
+
+test("النقاطُ لمن كسب السؤال وحده", () => {
+  const { hostScore, guestScore } = scoresFromAnswers(
+    [answer("h", 0, true), answer("g", 0, false), answer("g", 1, true), answer("g", 2, true)],
+    "h",
+    "g",
   );
+  assert.equal(hostScore, DUEL_POINTS_PER_QUESTION);
+  assert.equal(guestScore, 2 * DUEL_POINTS_PER_QUESTION);
 });
 
-test("والسرعةُ تُحسب نسبةً مما بقي من وقت السؤال", () => {
-  const window = DUEL_QUESTION_SECONDS * 1000;
-  // أجاب في اللحظة الأولى: الحدُّ الأقصى.
-  assert.equal(speedPoints(window, window), DUEL_POINTS_SPEED_MAX);
-  // في منتصف الوقت: النصف.
-  assert.equal(speedPoints(window / 2, window), Math.round(DUEL_POINTS_SPEED_MAX / 2));
+test("الجوابُ الصحيحُ الثاني لا نقاطَ له", () => {
+  // `won` تقرّره القاعدة: الثاني يُسجَّل صحيحاً غيرَ فائز.
+  const { hostScore, guestScore } = scoresFromAnswers(
+    [answer("h", 3, true), answer("g", 3, false)],
+    "h",
+    "g",
+  );
+  assert.deepEqual([hostScore, guestScore], [DUEL_POINTS_PER_QUESTION, 0]);
 });
 
-test("ولا نقاطَ سرعةٍ لمن انتهى وقتُه", () => {
-  const window = DUEL_QUESTION_SECONDS * 1000;
-  assert.equal(speedPoints(0, window), 0);
-  assert.equal(speedPoints(-500, window), 0);
+test("ولا يُكسب سؤالٌ مرّتين ولو وصل صفّان فائزان", () => {
+  // الفهرسُ الفريدُ يمنعه في القاعدة؛ والحسابُ لا يعتمد عليه وحده.
+  const { hostScore, guestScore } = scoresFromAnswers(
+    [answer("h", 4, true), answer("g", 4, true), answer("h", 4, true)],
+    "h",
+    "g",
+  );
+  assert.equal(hostScore + guestScore, DUEL_POINTS_PER_QUESTION);
 });
 
-test("وما لا يُحسب لا يُعطي نقاطاً ولا يرفع", () => {
-  // ── وهذا موضعُ سقوطٍ محتمل ──
-  // الوقتُ المتبقّي يُحسب في التطبيق من فرقِ ساعتين، وساعةٌ تغيّرت أو إطارٌ
-  // تأخّر يُخرج `NaN`. و`NaN` يمرّ في الحساب فيصير سقفاً لا يُقارَن.
-  const window = DUEL_QUESTION_SECONDS * 1000;
-  for (const bad of [NaN, Infinity, -Infinity]) {
-    assert.equal(speedPoints(bad, window), 0, `${bad}`);
-  }
-  assert.equal(speedPoints(500, 0), 0, "نافذةٌ صفرٌ لا تُقسم عليها");
+test("وإجابةُ من ليس طرفاً لا تُحسب ولا تحجز السؤال", () => {
+  const { hostScore, guestScore } = scoresFromAnswers(
+    [answer("stranger", 5, true), answer("g", 5, true)],
+    "h",
+    "g",
+  );
+  assert.deepEqual([hostScore, guestScore], [0, DUEL_POINTS_PER_QUESTION]);
 });
 
-test("ولا تزيد نقاطُ السرعة على سقفها لو تجاوز المتبقّي النافذة", () => {
-  // ساعةُ الجهاز قد تُقدّم، فيبدو المتبقّي أكثرَ من النافذة كلّها.
-  const window = DUEL_QUESTION_SECONDS * 1000;
-  assert.equal(speedPoints(window * 5, window), DUEL_POINTS_SPEED_MAX);
+test("ولا إجابات: صفرٌ لكلٍّ، فتعادلٌ بلا فائز", () => {
+  const { hostScore, guestScore } = scoresFromAnswers([], "h", "g");
+  const outcome = outcomeOf({ hostId: "h", guestId: "g", hostScore, guestScore });
+  assert.deepEqual(outcome, { settled: true, winnerId: null, draw: true });
 });
 
-test("والنتيجةُ الممكنةُ من المحرّك تبقى داخل ما يقبله الخادم", () => {
-  // كلُّ سؤالٍ صحيحٌ وأسرعُ ما يمكن: هذا ما يرسله التطبيق في أفضل حال،
-  // ورفضُه يعني مباراةً كاملةً تُلعب ثم تُردّ نتيجتُها.
-  const window = DUEL_QUESTION_SECONDS * 1000;
-  const best = DUEL_ROUNDS * (DUEL_POINTS_CORRECT + speedPoints(window, window));
-  assert.equal(parseScore(best), best);
+test("والأعلى نقاطاً يفوز", () => {
+  const scores = scoresFromAnswers(
+    [answer("h", 0, true), answer("h", 1, true), answer("g", 2, true)],
+    "h",
+    "g",
+  );
+  const outcome = outcomeOf({ hostId: "h", guestId: "g", ...scores });
+  assert.equal(outcome.winnerId, "h");
 });

@@ -418,7 +418,7 @@ function rewardFor(
       average = Math.trunc((current.averageScore * (quizzes - 1) + scorePercentage) / quizzes);
     }
   } else if (type === "duel") {
-    // فوزُ مباراةٍ: جوهرةٌ واحدة. والخاسرُ لا يُخصم منه — الخصمُ يجعل
+    // فوزُ مبارزةٍ: خمسُ جواهر، مرّةً لكل درس — المفتاحُ معرّفُ الدرس، انظر `awardDuelWin`. والخاسرُ لا يُخصم منه — الخصمُ يجعل
     // الطفل يخاف أن يُتحدّى، والمقصودُ أن يُقبل التحدي.
     gems = DUEL_WIN_GEMS;
   } else if (type === "story") {
@@ -824,7 +824,7 @@ router.post("/student/progress/interaction", async (req, res) => {
 });
 
 /**
- * يصرف جوهرةَ فوزٍ في مباراةٍ لطالبٍ بمعرّفه.
+ * يصرف جواهرَ الفوز في المبارزة لطالبٍ بمعرّفه — مرّةً واحدةً لكل درس.
  *
  * ── لماذا هنا لا في مسار المباريات ──
  * الجواهرُ والخبرةُ والإنجازاتُ تُحسب في `rewardFor` وحدها، وسجلُّ الأنشطة
@@ -834,15 +834,16 @@ router.post("/student/progress/interaction", async (req, res) => {
  * والفائزُ قد يكون الزميلَ لا صاحبَ الطلب: النتيجةُ الثانية هي التي تحسم
  * المباراة، وقد يُرسلها الخاسر. فيُقرأ صفُّ الفائز بمعرّفه لا من الجلسة.
  *
- * ومفتاحُ المنع `duel:<معرّف المباراة>`: إعادةُ الحسم — من طلبٍ أُعيد أو
- * صفٍّ عُدّل — لا تصرف جوهرةً ثانية.
+ * ومفتاحُ المنع `duel:<معرّف الدرس>` لا المباراة: الفوزُ في الدرس نفسه مرّةً
+ * ثانيةً لا يصرف شيئاً — وإلا صار تكرارُ التحدي نفسه مع الزميل نفسه طريقاً إلى
+ * الجواهر لا إلى التعلّم. ويعود `false` حينها، فيقال للطالب إنّ جائزةَ الدرس صُرفت.
  */
 export async function awardDuelWin(
   winnerId: string,
-  matchId: string,
+  lessonId: string,
 ): Promise<boolean> {
   const id = text(winnerId);
-  const match = text(matchId);
+  const match = text(lessonId);
   if (!id || !match) return false;
   // `readStudentRow` تقرأ بالمعرّف وحده، فيكفيها هذا القدر من الفاعل.
   const row = await readStudentRow({ id } as StudentActor);

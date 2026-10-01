@@ -9,8 +9,20 @@ interface Window {
   resetAt: number;
 }
 
-const windows = new Map<string, Window>();
 const WINDOW_MS = 60_000; // 1 minute
+
+/**
+ * One map per limiter.
+ *
+ * This used to be a single module-level map shared by every limiter, so all
+ * of them counted into the same window: a burst on one route consumed the
+ * budget of every other. Worse, on Replit every request arrives from the
+ * proxy at 127.0.0.1 (see [clientIp]), so the "per IP" window was in practice
+ * one counter for the whole platform. Separate maps at least stop one route
+ * starving the others; routes behind a student session should prefer
+ * [createStudentRateLimit], which counts per student.
+ */
+const allWindows: Map<string, Window>[] = [];
 
 function clientIp(req: Request): string {
   // Use the raw TCP socket address — this is always 127.0.0.1 on Replit
@@ -22,17 +34,46 @@ function clientIp(req: Request): string {
 }
 
 export function createRateLimit(maxPerMinute: number) {
+  const windows = new Map<string, Window>();
+  allWindows.push(windows);
+  return limiter(maxPerMinute, windows, clientIp);
+}
+
+/**
+ * The same window, counted per signed-in student rather than per address.
+ *
+ * Must run after `requireStudentSession`, which puts the student on
+ * `res.locals`. Every pupil in a school shares one public address, and on
+ * Replit every request shares 127.0.0.1 — an address limit there throttles
+ * the whole school as one. A live duel sends an answer per question from both
+ * players; counted per address, two matches at once ran out of budget.
+ */
+export function createStudentRateLimit(maxPerMinute: number) {
+  const windows = new Map<string, Window>();
+  allWindows.push(windows);
+  return limiter(maxPerMinute, windows, (req, res) => {
+    const student = (res.locals as { student?: { id?: unknown } }).student;
+    const id = typeof student?.id === "string" ? student.id : "";
+    return id ? `student:${id}` : clientIp(req);
+  });
+}
+
+function limiter(
+  maxPerMinute: number,
+  windows: Map<string, Window>,
+  keyOf: (req: Request, res: Response) => string,
+) {
   return function rateLimit(
     req: Request,
     res: Response,
     next: NextFunction,
   ): void {
-    const ip = clientIp(req);
+    const key = keyOf(req, res);
     const now = Date.now();
-    const win = windows.get(ip);
+    const win = windows.get(key);
 
     if (!win || now >= win.resetAt) {
-      windows.set(ip, { count: 1, resetAt: now + WINDOW_MS });
+      windows.set(key, { count: 1, resetAt: now + WINDOW_MS });
       next();
       return;
     }
@@ -52,7 +93,9 @@ export function createRateLimit(maxPerMinute: number) {
 // Periodically prune expired entries to avoid unbounded memory growth
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, win] of windows) {
-    if (now >= win.resetAt) windows.delete(ip);
+  for (const windows of allWindows) {
+    for (const [key, win] of windows) {
+      if (now >= win.resetAt) windows.delete(key);
+    }
   }
 }, WINDOW_MS);

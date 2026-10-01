@@ -6,8 +6,8 @@
  * مكانٍ واحد ويُختبر بلا شبكةٍ ولا قاعدةِ بيانات — لا أن يُستنتج من شروطٍ
  * مبثوثةٍ في مسار.
  *
- * والتطبيقُ يدّعي النتيجة، فكلُّ ما هنا يفترض ذلك: تُحصَر النتيجةُ بسقفٍ
- * معلوم، ويُرفض ما لا يُحتمل.
+ * والنتيجةُ لا يدّعيها التطبيق: تُحسب من الإجابات المسجّلة — انظر
+ * `scoresFromAnswers` — وما بقي من حصر النتيجة لمسارٍ قديم.
  */
 
 /** الألعابُ الأربع في بطاقة التحدي. */
@@ -16,63 +16,79 @@ export const DUEL_GAMES = ["sprint", "balloons", "tug", "gems"] as const;
 export type DuelGame = (typeof DUEL_GAMES)[number];
 
 /**
- * جوهرةٌ واحدة للفائز.
+ * خمسُ جواهرَ للفائز — مرّةً واحدةً لكل درس.
  *
- * ── ولماذا واحدةٌ لا أكثر ──
- * المباراةُ دقيقةٌ أو دقيقتان، وطالبان يستطيعان أن يتحدّيا بعضَهما عشرين
- * مرّةً في حصّة. فجوهرتان أو ثلاث تجعل الرصيدَ يُجمع بالتحدّي لا بالدرس،
- * وتُفرِغ ما جُعلت الجواهرُ له.
+ * ── ولماذا مرّةً لكل درس ──
+ * المباراةُ دقيقةٌ أو دقيقتان، وزميلان يستطيعان أن يتحدّيا بعضَهما عشرين مرّةً
+ * في حصّة. فجائزةٌ لكل فوزٍ تجعل الرصيدَ يُجمع بتكرار التحدي نفسه لا بالتعلّم.
+ * وجائزةٌ لكل درسٍ تجعل الفوزَ في درسٍ جديدٍ هو ما يُكافأ.
  *
- * والخاسرُ لا يُخصم منه: الخصمُ يجعل الطفل يخاف أن يُتحدّى، والمقصودُ أن
- * يُقبل التحدي لا أن يُتجنَّب.
+ * ومفتاحُ المنع `duel:<معرّف الدرس>` في سجلّ الطالب — انظر `awardDuelWin`.
+ * والخاسرُ لا يُخصم منه: الخصمُ يجعل الطفل يخاف أن يُتحدّى.
  */
-export const DUEL_WIN_GEMS = 1;
+export const DUEL_WIN_GEMS = 5;
 
 /**
  * عددُ الأسئلة في المباراة.
  *
  * ── وعشرةٌ لا خمس ──
  * خمسةُ أسئلةٍ تنتهي في أربعين ثانية، فتنتهي المباراةُ قبل أن تبدأ الإثارة:
- * لا مجالَ لتأخّرٍ يُدرَك ولا للحاقٍ به. والعشرُ تجعل للمنحنى معنىً — من
- * تأخّر يستطيع أن يعود — وتبقى دون ملل.
+ * لا مجالَ لتأخّرٍ يُدرَك ولا للحاقٍ به. والعشرُ تجعل للمنحنى معنىً.
  */
 export const DUEL_ROUNDS = 10;
 
 /**
- * نقاطُ الجواب الصحيح، وما يُضاف لسرعته.
+ * نقاطُ السؤال، وتذهب كلُّها لأوّل من يُجيب صحيحاً.
  *
- * ── ولماذا نقاطٌ لا عددُ إجاباتٍ صحيحة ──
- * الصحيحُ وحده يجعل مباراتين متساويتين وإحداهما أُجيبت في ثانيتين والأخرى
- * في العشرة كلّها. والسرعةُ جزءٌ من اللعبة، فتُحسب.
- *
- * والأساسُ عشرةٌ والسرعةُ خمسةٌ على الأكثر: فالصحيحُ البطيء يبقى خيراً من
- * السريع الخاطئ بفارقٍ لا يُلحق بالسرعة وحدها — وإلا صار التخمينُ السريع
- * استراتيجيّة.
+ * ── السرعةُ هي القاعدة ──
+ * لا نقاطَ لجوابٍ صحيحٍ جاء ثانياً: السؤالُ يُكسب ولا يُقتسم. والأوّلُ يُحسم في
+ * القاعدة (`record_duel_answer`) تحت قفلٍ لكل سؤال، لا بادّعاء التطبيق — فجهازان
+ * يُرسلان في اللحظة نفسها يُفصل بينهما في مكانٍ واحد.
  */
-export const DUEL_POINTS_CORRECT = 10;
-export const DUEL_POINTS_SPEED_MAX = 5;
+export const DUEL_POINTS_PER_QUESTION = 10;
 
-/** أقصى نتيجةٍ ممكنة: كلُّ سؤالٍ صحيحٌ وفي أسرع وقت. */
-export const DUEL_MAX_SCORE =
-  DUEL_ROUNDS * (DUEL_POINTS_CORRECT + DUEL_POINTS_SPEED_MAX);
+/** أقصى نتيجة: كلُّ سؤالٍ كُسب. */
+export const DUEL_MAX_SCORE = DUEL_ROUNDS * DUEL_POINTS_PER_QUESTION;
 
-/** ثوانيَ السؤال في المباراة الحيّة. */
+/** ثوانيَ السؤال. */
 export const DUEL_QUESTION_SECONDS = 10;
 
-/**
- * نقاطُ جوابٍ صحيحٍ أُجيب وقد بقي [msLeft] من وقت السؤال.
- *
- * دالّةٌ نقيّةٌ في مكانٍ واحد: التطبيقُ يحسب بها ليعرض، والخادم يحسب بها
- * سقفَ ما يُقبل. وحسابان يفترقان يجعلان نتيجةً صحيحةً تُرفض.
- */
-export function speedPoints(
-  msLeft: number,
-  windowMs: number = DUEL_QUESTION_SECONDS * 1000,
-): number {
-  if (!Number.isFinite(msLeft) || msLeft <= 0 || windowMs <= 0) return 0;
-  const share = Math.min(1, msLeft / windowMs);
-  return Math.round(share * DUEL_POINTS_SPEED_MAX);
+/** إجابةٌ مسجّلةٌ في `match_answers`. */
+export interface DuelAnswer {
+  studentId: string;
+  questionIndex: number;
+  won: boolean;
 }
+
+/**
+ * نتيجتا اللاعبين من إجاباتهما المسجّلة.
+ *
+ * من القاعدة لا من التطبيق: نقاطُ كلّ سؤالٍ كسبه، ولا شيءَ لسواه. وسؤالٌ واحدٌ لا
+ * يُكسب مرّتين — الفهرسُ الفريد في القاعدة يمنعه — لكنّ الحساب لا يعتمد عليه:
+ * يُعدّ كلُّ سؤالٍ مرّةً لأوّل فائزٍ به يُقرأ.
+ */
+export function scoresFromAnswers(
+  answers: readonly DuelAnswer[],
+  hostId: string,
+  guestId: string,
+): { hostScore: number; guestScore: number } {
+  const counted = new Set<number>();
+  let hostScore = 0;
+  let guestScore = 0;
+  for (const answer of answers) {
+    if (!answer.won || counted.has(answer.questionIndex)) continue;
+    if (answer.studentId === hostId) {
+      hostScore += DUEL_POINTS_PER_QUESTION;
+    } else if (answer.studentId === guestId) {
+      guestScore += DUEL_POINTS_PER_QUESTION;
+    } else {
+      continue;
+    }
+    counted.add(answer.questionIndex);
+  }
+  return { hostScore, guestScore };
+}
+
 
 export function isDuelGame(value: unknown): value is DuelGame {
   return typeof value === "string" && (DUEL_GAMES as readonly string[]).includes(value);

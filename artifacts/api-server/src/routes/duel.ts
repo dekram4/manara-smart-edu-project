@@ -1,21 +1,19 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { apiSupabaseConfig, type StudentActor } from "../lib/studentAccess";
 import { requireStudentSession } from "../middleware/studentAuth";
-import { createRateLimit } from "../middleware/rateLimiter";
+import { createStudentRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
 import {
   DUEL_MAX_SCORE,
-  DUEL_POINTS_CORRECT,
-  DUEL_POINTS_SPEED_MAX,
+  DUEL_POINTS_PER_QUESTION,
   DUEL_QUESTION_SECONDS,
   DUEL_ROUNDS,
   DUEL_WIN_GEMS,
-  canSubmit,
   classKey,
   isDuelGame,
   matchId as newMatchId,
   outcomeOf,
-  parseScore,
+  scoresFromAnswers,
   sideOf,
   standingsOf,
   type MatchRow,
@@ -41,8 +39,10 @@ import { parseDuelPack, type DuelPack } from "../lib/duelQuestions";
 const router = Router();
 
 /** ستُّ دعواتٍ في الدقيقة: تكفي حصّةً ولا تكفي إغراقَ زميل. */
-const inviteLimit = createRateLimit(6);
-const scoreLimit = createRateLimit(20);
+const inviteLimit = createStudentRateLimit(6);
+const scoreLimit = createStudentRateLimit(20);
+/** عشرةُ أسئلةٍ في دقيقتين، ومحاولةٌ لكلٍّ: ستّون تكفي ولا تُغرق. */
+const answerLimit = createStudentRateLimit(60);
 
 const MATCHES = "challenge_matches";
 
@@ -79,6 +79,11 @@ interface StoredMatch extends MatchRow {
   createdAt: string;
   /** حزمةُ أسئلة المباراة كما كُتبت عند الدعوة. */
   questions: unknown;
+  /**
+   * هل صُرفت جوائزُ الفوز؟ `null` قبل الحسم أو لتعادل، و`false` لفائزٍ كانت
+   * جائزةُ هذا الدرس قد صُرفت له من قبل.
+   */
+  rewardPaid: boolean | null;
 }
 
 function readMatch(raw: unknown): StoredMatch | null {
@@ -101,6 +106,7 @@ function readMatch(raw: unknown): StoredMatch | null {
     winnerId: text(row.winner_id) || null,
     createdAt: text(row.created_at),
     questions: row.questions ?? null,
+    rewardPaid: typeof row.reward_paid === "boolean" ? row.reward_paid : null,
   };
 }
 
@@ -124,13 +130,17 @@ function toJson(match: StoredMatch, me: string): Record<string, unknown> {
     iWon: match.winnerId !== null && match.winnerId === me,
     rounds: DUEL_ROUNDS,
     createdAt: match.createdAt,
-    // 25002500 06480627064406230633062606440629064f 06450639 06270644064506280627063106270629 06440627 0641064a 063706440628064d 062b06270646064d 25002500
-    // 06270644062c06470627063206270646 064a06420631062306270646 06270644063506410651064e 0646064106330647060c 064106440627 062a062a0639064406510642 062706440639062f062706440629064f 06280627062a0651064106270642 062d063306270628064a0646.
+    // الأسئلةُ مع المباراة لا في ردّ الصندوق: أسئلةُ أربعين مباراةً تُثقل كل فتحةٍ
+    // للردهة بما لا يُقرأ منه شيء.
     questions: packOf(match)?.questions ?? [],
     questionSeconds: DUEL_QUESTION_SECONDS,
-    pointsCorrect: DUEL_POINTS_CORRECT,
-    pointsSpeedMax: DUEL_POINTS_SPEED_MAX,
+    // نقاطُ السؤال لأوّل من يُجيب صحيحاً، ولا نقاطَ سرعةٍ فوقها: السرعةُ هي
+    // من يكسب السؤال.
+    pointsCorrect: DUEL_POINTS_PER_QUESTION,
+    pointsSpeedMax: 0,
     maxScore: DUEL_MAX_SCORE,
+    winGems: DUEL_WIN_GEMS,
+    rewardPaid: match.rewardPaid,
   };
 }
 
@@ -205,12 +215,11 @@ async function isClassmateOf(
  * تُنشأ المباراةُ معلّقةً بلا نتيجة، ثم يُسجّل كلٌّ نتيجتَه. والمتحدّي قد
  * يلعب قبل أن يقبل الزميلُ — وهي المباراةُ المؤجَّلة.
  */
-router.post("/duel/invite", inviteLimit, requireStudentSession, async (req, res) => {
+router.post("/duel/invite", requireStudentSession, inviteLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
   const lessonId = text(req.body?.lessonId);
   const guestId = text(req.body?.guestId);
   const game = text(req.body?.game);
-  const live = req.body?.live === true;
 
   if (!lessonId || !guestId || !isDuelGame(game)) {
     return res.status(400).json({
@@ -251,11 +260,12 @@ router.post("/duel/invite", inviteLimit, requireStudentSession, async (req, res)
         host_id: student.id,
         guest_id: guestId,
         class_key: key,
-        mode: live ? "live" : "ghost",
+        // حيّةٌ دائماً: التحدّي لا يُرسل إلا لزميلٍ متصلٍ الآن، فيلعبان معاً.
+        mode: "live",
         status: "pending",
       }),
     });
-    logger.info({ id, game, live }, "[duel] invited");
+    logger.info({ id, game }, "[duel] invited");
     const created = await findMatch(id);
     return res.status(201).json({
       match: created ? toJson(created, student.id) : { id },
@@ -269,85 +279,214 @@ router.post("/duel/invite", inviteLimit, requireStudentSession, async (req, res)
   }
 });
 
+const ANSWERS = "match_answers";
+
 /**
- * تسجيلُ نتيجةِ اللاعب، وحسمُ المباراة إن حضرت النتيجتان.
+ * جوابُ سؤالٍ في المباراة. الجسم: `{ index, choice }`.
  *
- * ── والجوهرةُ تُصرف هنا لا في التطبيق ──
- * حين تحضر الثانيةُ يُعرف الفائزُ فتُصرف له جوهرة. وقد يكون الفائزُ
- * الزميلَ لا صاحبَ الطلب: من أرسل النتيجةَ الثانية قد يكون الخاسر.
+ * ── والأوّلُ يُحسم في القاعدة ──
+ * الصحةُ تُقرأ من حزمة المباراة المحفوظة، لا من ادّعاء التطبيق. ثم
+ * `record_duel_answer` تسجّل الجوابَ تحت قفلٍ لكل سؤال، فتقول هل كان أوّلَ صحيح —
+ * وجهازان يُرسلان في اللحظة نفسها يُفصل بينهما هناك، في مكانٍ واحد.
+ *
+ * ولكل لاعبٍ محاولةٌ واحدةٌ لكل سؤال: الثانيةُ تُعاد بنتيجة الأولى.
  */
-router.post("/duel/:id/score", scoreLimit, requireStudentSession, async (req, res) => {
+router.post("/duel/:id/answer", requireStudentSession, answerLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
   const id = text(req.params.id);
-  const score = parseScore(req.body?.score);
-  if (!id || score === null) {
-    return res.status(400).json({
-      error: `النتيجة يجب أن تكون بين صفر و${DUEL_ROUNDS}`,
-      code: "bad_score",
-    });
+  const index = req.body?.index;
+  const choice = req.body?.choice;
+  if (!id || !Number.isInteger(index) || index < 0 || !Number.isInteger(choice)) {
+    return res.status(400).json({ error: "جوابٌ ناقص", code: "bad_answer" });
   }
   try {
     const match = await findMatch(id);
-    if (!match) {
-      return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
-    }
-    const side = sideOf(match, student.id);
-    if (side === null) {
+    if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
+    if (sideOf(match, student.id) === null) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
     }
-    if (!canSubmit(match, student.id)) {
-      // ولا تُبدَّل نتيجةٌ كُتبت: الردُّ يحمل المباراةَ كما هي، فتعرض
-      // الشاشةُ الحقيقةَ بدل أن تُظهر خطأً على طلبٍ مكرّر.
-      return res.status(200).json({
-        match: toJson(match, student.id),
-        alreadySubmitted: true,
-      });
+    if (match.status !== "pending") {
+      return res.status(409).json({ error: "انتهت المباراة", code: "settled" });
     }
-
-    const patched: MatchRow = {
-      hostId: match.hostId,
-      guestId: match.guestId,
-      hostScore: side === "host" ? score : match.hostScore,
-      guestScore: side === "guest" ? score : match.guestScore,
-    };
-    const outcome = outcomeOf(patched);
-    const body: Record<string, unknown> = {
-      [side === "host" ? "host_score" : "guest_score"]: score,
-      updated_at: new Date().toISOString(),
-    };
-    if (outcome.settled) {
-      body.status = "done";
-      body.winner_id = outcome.winnerId;
+    const question = packOf(match)?.questions[index];
+    if (!question) {
+      return res.status(400).json({ error: "لا سؤالَ بهذا الرقم", code: "bad_index" });
     }
-    await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify(body),
-    });
-
-    let gems = 0;
-    if (outcome.settled && outcome.winnerId) {
-      // والصرفُ لا يُسقط الردّ: فشلُه يعني جوهرةً لم تُصرف، والمباراةُ
-      // محسومةٌ في الجدول على كل حال — ويُقرأ الفوزُ منه لا من الرصيد.
-      const paid = await awardDuelWin(outcome.winnerId, id).catch((error) => {
-        logger.error({ err: error, id }, "[duel] win gem not paid");
-        return false;
-      });
-      if (paid && outcome.winnerId === student.id) gems = DUEL_WIN_GEMS;
-    }
-    const fresh = await findMatch(id);
-    logger.info(
-      { id, settled: outcome.settled, winner: outcome.settled ? outcome.winnerId : null },
-      "[duel] score recorded",
-    );
+    const correct = choice === question.answerAt;
+    const recorded = await rest("rpc/record_duel_answer", {
+      method: "POST",
+      body: JSON.stringify({
+        p_match_id: id,
+        p_question_index: index,
+        p_student_id: student.id,
+        p_correct: correct,
+      }),
+    }) as Record<string, unknown> | null;
     return res.json({
-      match: fresh ? toJson(fresh, student.id) : null,
-      gems,
-      draw: outcome.settled && outcome.draw,
+      index,
+      correct: recorded?.correct === true,
+      won: recorded?.won === true,
+      duplicate: recorded?.duplicate === true,
+      answerAt: question.answerAt,
+      points: recorded?.won === true ? DUEL_POINTS_PER_QUESTION : 0,
     });
   } catch (error) {
-    logger.error({ err: error, id }, "[duel] score failed");
-    return res.status(503).json({ error: "تعذّر حفظ النتيجة الآن", code: "unavailable" });
+    logger.error({ err: error, id }, "[duel] answer failed");
+    return res.status(503).json({ error: "تعذّر تسجيل الجواب الآن", code: "unavailable" });
+  }
+});
+
+/** نتيجةُ المباراة كما يراها [me] بعد حسمها. */
+function settledJson(match: StoredMatch, me: string) {
+  const iWon = match.winnerId !== null && match.winnerId === me;
+  return {
+    match: toJson(match, me),
+    gems: iWon && match.rewardPaid === true ? DUEL_WIN_GEMS : 0,
+    // فاز، ومكافأةُ هذا الدرس صُرفت له من قبل: يقال له ذلك، لا «صفر» بلا سبب.
+    rewardTaken: iWon && match.rewardPaid === false,
+    draw: match.status === "done" && match.winnerId === null,
+  };
+}
+
+/**
+ * حسمُ المباراة من إجاباتها المسجّلة.
+ *
+ * ── ومرّةً واحدة ──
+ * الجهازان يطلبان الحسمَ عند آخر سؤال، وغالباً في اللحظة نفسها. فالكتابةُ مشروطةٌ
+ * بأن تكون المباراةُ معلّقة: من وجدها كذلك حسمها وصرف الجائزة، والآخرُ يقرأ ما
+ * حُسم. وما يُكتب في `reward_paid` يقوله للاثنين: صُرفت الجواهر، أو كانت جائزةُ
+ * الدرس قد صُرفت من قبل.
+ */
+async function settle(id: string, me: string): Promise<ReturnType<typeof settledJson> | null> {
+  let match = await findMatch(id);
+  if (!match) return null;
+  if (match.status === "pending") {
+    const answers = await rest(
+      `${ANSWERS}?select=student_id,question_index,won&match_id=eq.${encodeURIComponent(id)}&won=is.true`,
+    );
+    const { hostScore, guestScore } = scoresFromAnswers(
+      (Array.isArray(answers) ? answers : []).map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          studentId: text(r.student_id),
+          questionIndex: Number(r.question_index),
+          won: r.won === true,
+        };
+      }),
+      match.hostId,
+      match.guestId,
+    );
+    const outcome = outcomeOf({
+      hostId: match.hostId,
+      guestId: match.guestId,
+      hostScore,
+      guestScore,
+    });
+    const written = await rest(
+      `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({
+          host_score: hostScore,
+          guest_score: guestScore,
+          status: "done",
+          winner_id: outcome.settled ? outcome.winnerId : null,
+          updated_at: new Date().toISOString(),
+        }),
+      },
+    );
+    const settledHere = Array.isArray(written) && written.length > 0;
+    if (settledHere && outcome.settled && outcome.winnerId) {
+      // والصرفُ لا يُسقط الحسم: فشلُه يعني جوائزَ لم تُصرف، والفوزُ مكتوبٌ على
+      // كل حال — ويُقرأ من الجدول لا من الرصيد.
+      const paid = await awardDuelWin(outcome.winnerId, match.lessonId).catch((error) => {
+        logger.error({ err: error, id }, "[duel] win gems not paid");
+        return false;
+      });
+      await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ reward_paid: paid }),
+      });
+    }
+    logger.info({ id, hostScore, guestScore, settledHere }, "[duel] settled");
+  }
+  // ومن لم يحسمها قد يقرأ قبل أن تُكتب الجائزة: لحظاتٌ قليلةٌ ينتظرها.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    match = await findMatch(id);
+    if (!match) return null;
+    if (match.winnerId === null || match.rewardPaid !== null) break;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  return settledJson(match!, me);
+}
+
+async function finishRoute(req: Request, res: Response) {
+  const student = res.locals.student as StudentActor;
+  const id = text(req.params.id);
+  if (!id) return res.status(400).json({ error: "معرّف المباراة ناقص", code: "bad_request" });
+  try {
+    const match = await findMatch(id);
+    if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
+    if (sideOf(match, student.id) === null) {
+      return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
+    }
+    if (match.status === "expired") {
+      return res.status(409).json({ error: "أُلغيت المباراة", code: "expired" });
+    }
+    const result = await settle(id, student.id);
+    if (!result) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
+    return res.json(result);
+  } catch (error) {
+    logger.error({ err: error, id }, "[duel] finish failed");
+    return res.status(503).json({ error: "تعذّر حسم المباراة الآن", code: "unavailable" });
+  }
+}
+
+/** حسمُ المباراة. انظر [settle]. */
+router.post("/duel/:id/finish", requireStudentSession, scoreLimit, finishRoute);
+
+/**
+ * المسارُ القديم، لنسخٍ من التطبيق لم تُحدَّث بعد.
+ *
+ * يحسم كما يحسم `finish` ويُهمل النتيجةَ المرسلة: النتيجةُ لم تعد ادّعاءً من
+ * التطبيق، وقبولُها هنا كان سيفتح باباً يُغلق في المسار الجديد.
+ */
+router.post("/duel/:id/score", requireStudentSession, scoreLimit, finishRoute);
+
+/**
+ * إلغاءُ مباراةٍ لم تبدأ: دعوةٌ رُفضت، أو انتهت مهلتُها، أو تراجع عنها صاحبُها.
+ *
+ * ولا تُلغى مباراةٌ سُجّل فيها جواب: من غادر في منتصفها لا يمحوها على زميله،
+ * والزميلُ يُكملها ويحسمها.
+ */
+router.post("/duel/:id/cancel", requireStudentSession, scoreLimit, async (req, res) => {
+  const student = res.locals.student as StudentActor;
+  const id = text(req.params.id);
+  if (!id) return res.status(400).json({ error: "معرّف المباراة ناقص", code: "bad_request" });
+  try {
+    const match = await findMatch(id);
+    if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
+    if (sideOf(match, student.id) === null) {
+      return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
+    }
+    if (match.status !== "pending") return res.json({ cancelled: false, status: match.status });
+    const answered = await rest(
+      `${ANSWERS}?select=match_id&match_id=eq.${encodeURIComponent(id)}&limit=1`,
+    );
+    if (Array.isArray(answered) && answered.length > 0) {
+      return res.json({ cancelled: false, status: "playing" });
+    }
+    await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "expired", updated_at: new Date().toISOString() }),
+    });
+    return res.json({ cancelled: true, status: "expired" });
+  } catch (error) {
+    logger.error({ err: error, id }, "[duel] cancel failed");
+    return res.status(503).json({ error: "تعذّر إلغاء المباراة الآن", code: "unavailable" });
   }
 });
 
@@ -457,7 +596,7 @@ router.get("/duel/:id", requireStudentSession, async (req, res) => {
 const MESSAGES = "match_messages";
 
 /** ستّون رسالةً في الدقيقة: تكفي حديثاً حيّاً ولا تكفي إغراقاً. */
-const chatLimit = createRateLimit(60);
+const chatLimit = createStudentRateLimit(60);
 
 /** أقصى حجمٍ للمقطع الصوتي بعد الترميز. مُطابقٌ لما يحرسه التطبيق. */
 const VOICE_MAX_CHARS = 180 * 1024;
@@ -515,7 +654,7 @@ router.get("/duel/:id/messages", requireStudentSession, async (req, res) => {
   }
 });
 
-router.post("/duel/:id/messages", chatLimit, requireStudentSession, async (req, res) => {
+router.post("/duel/:id/messages", requireStudentSession, chatLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
   const id = text(req.params.id);
   const kind = text(req.body?.kind) === "voice" ? "voice" : "text";
