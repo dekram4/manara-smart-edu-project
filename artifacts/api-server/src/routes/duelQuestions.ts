@@ -1,5 +1,11 @@
 import { Router, type Request, type Response } from "express";
-import { requireContentManager, type WriteActor } from "../middleware/adminAuth";
+import { requireAdmin, requireContentManager, type WriteActor } from "../middleware/adminAuth";
+import {
+  allLessonRows,
+  duelDomainReady,
+  refreshDuelDomainQuestions,
+  type DomainRunSummary,
+} from "../lib/duelDomainJob";
 import { logger } from "../lib/logger";
 import {
   canSeeQuestion,
@@ -286,5 +292,78 @@ router.post(
     }
   },
 );
+
+// ── توليدُ الأسئلة لكل الدروس — زرُّ المشرف ──
+
+/**
+ * حالُ التشغيلة الشاملة.
+ *
+ * في ذاكرة الخادم لا في القاعدة: هي حالُ عمليةٍ جاريةٍ في هذا الخادم، تُقرأ
+ * لشريط التقدّم وتنتهي بانتهائها. وإن أُعيد تشغيلُ الخادم في منتصفها ضاعت
+ * الحالُ ولم يضع شيءٌ مما كُتب — والضغطُ من جديد يكمل من حيث توقّفت، لأنّ
+ * ما وُلّد يُتخطّى.
+ */
+interface GenerateJob {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  summary: DomainRunSummary | null;
+  error: string | null;
+}
+
+const job: GenerateJob = {
+  running: false,
+  startedAt: null,
+  finishedAt: null,
+  summary: null,
+  error: null,
+};
+
+/** حالُ التشغيلة، لشريط التقدّم. */
+router.get("/duel-questions/generate-all", requireAdmin, (_req: Request, res: Response) => {
+  res.json({ job, ready: duelDomainReady() });
+});
+
+/**
+ * يبدأ التوليدَ لكل الدروس ويردّ فوراً (202): التشغيلةُ دقائقُ — نداءٌ للنموذج
+ * لكل درس — ولا يُبقى المتصفّحُ معلّقاً عليها. والتقدّمُ يُقرأ من GET.
+ *
+ * وتشغيلتان معاً لا تكونان: الثانيةُ تولّد للدروس نفسها قبل أن تكتب الأولى
+ * بصماتِها، فيُدفع لكل درسٍ مرّتين.
+ */
+router.post("/duel-questions/generate-all", requireAdmin, (_req: Request, res: Response) => {
+  if (job.running) {
+    return res.status(409).json({ error: "التوليد يعمل الآن", code: "running", job });
+  }
+  if (!duelDomainReady()) {
+    return res.status(503).json({
+      error: "التوليد غير مهيّأ على الخادم: يلزم GEMINI_API_KEY وSupabase",
+      code: "not_ready",
+    });
+  }
+  job.running = true;
+  job.startedAt = new Date().toISOString();
+  job.finishedAt = null;
+  job.summary = null;
+  job.error = null;
+
+  void (async () => {
+    try {
+      const rows = await allLessonRows();
+      job.summary = await refreshDuelDomainQuestions(rows, (summary) => {
+        job.summary = summary;
+      });
+      logger.info({ summary: job.summary }, "[duel-questions] generate-all finished");
+    } catch (error) {
+      job.error = error instanceof Error ? error.message : String(error);
+      logger.error({ err: error }, "[duel-questions] generate-all failed");
+    } finally {
+      job.running = false;
+      job.finishedAt = new Date().toISOString();
+    }
+  })();
+
+  return res.status(202).json({ job });
+});
 
 export default router;

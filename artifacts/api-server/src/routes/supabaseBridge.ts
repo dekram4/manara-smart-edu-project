@@ -8,16 +8,8 @@ import {
   parseBank,
   readBank,
 } from "../lib/challengeBank";
-import { generateChallengeBank, generateDuelDomainQuestions } from "../lib/geminiBank";
-import {
-  DOMAIN_MIN_ACCEPTED,
-  domainRows,
-  duelSubjectKey,
-  lessonOwner,
-  lessonStamp as domainStamp,
-  parseDomainQuestions,
-  type DomainRow,
-} from "../lib/duelDomainBank";
+import { generateChallengeBank } from "../lib/geminiBank";
+import { refreshDuelDomainQuestions } from "../lib/duelDomainJob";
 
 const router = Router();
 
@@ -643,133 +635,6 @@ async function refreshChallengeBanks(rows: Record<string, unknown>[]): Promise<v
 /** بصمةُ نصٍّ: طولُه وطرفاه. تكفي لكشف تغيّره بلا حفظ نسخةٍ منه. */
 function lessonStamp(text: string): string {
   return `${text.length}:${text.slice(0, 24)}:${text.slice(-24)}`;
-}
-
-/**
- * يولّد أسئلةَ المبارزة من مجال الدروس التي تغيّر نصُّها، في الخلفية، ويكتبها
- * في `duel_questions` مفعّلةً. انظر `lib/duelDomainBank.ts`.
- *
- * ── متى يُولَّد ──
- * حين لا يكون للدرس أسئلةٌ ببصمة نصّه الحالي. ودرسٌ تغيّر نصُّه تُضاف له أسئلةٌ
- * جديدة ولا تُحذف القديمة: هي في المادة نفسها وما زالت تصلح، ومن أراد إخراجَ
- * واحدٍ منها عطّله من اللوحة.
- *
- * ومادّةٌ لا يُعرف مفتاحُها لا يُولَّد لها: الفنيّة والبدنية تقعان معاً تحت
- * `other`، فيُسأل طالبُ الرسم عن كرة القدم.
- */
-async function refreshDuelDomainQuestions(rows: Record<string, unknown>[]): Promise<void> {
-  const config = getSupabaseConfig();
-  if (!config || !process.env.GEMINI_API_KEY?.trim()) return;
-
-  const lessons = rows
-    .map((row) => {
-      const data = row.data && typeof row.data === "object"
-        ? (row.data as Record<string, unknown>)
-        : null;
-      const lessonText = data
-        ? stringValue(data.lessonContent) || stringValue(data.lessonText)
-        : "";
-      return { id: stringValue(row.id), data, lessonText };
-    })
-    .filter((lesson) =>
-      lesson.id &&
-      lesson.data &&
-      lesson.lessonText &&
-      duelSubjectKey(lesson.data.subject) !== "other",
-    );
-  if (!lessons.length) return;
-
-  // ── ما وُلّد من قبل، بقراءةٍ واحدة ──
-  // المعلمُ يحفظ دروسَه كلَّها معاً، فسؤالٌ لكل درسٍ في كل حفظ عشراتُ طلبات.
-  const done = new Set<string>();
-  for (let i = 0; i < lessons.length; i += 80) {
-    const ids = lessons
-      .slice(i, i + 80)
-      .map((lesson) => `"${lesson.id.replace(/["\\]/g, "")}"`)
-      .join(",");
-    const existing = asRecords(await rest(
-      config,
-      `duel_questions?select=lesson_id,lesson_stamp&lesson_id=in.(${encodeURIComponent(ids)})`,
-    ));
-    for (const row of existing) {
-      done.add(`${stringValue(row.lesson_id)}|${stringValue(row.lesson_stamp)}`);
-    }
-  }
-
-  for (const lesson of lessons) {
-    const data = lesson.data!;
-    if (done.has(`${lesson.id}|${domainStamp(lesson.lessonText)}`)) continue;
-    try {
-      const subject = stringValue(data.subject);
-      const raw = await generateDuelDomainQuestions({
-        subject,
-        unit: stringValue(data.unit),
-        lesson: stringValue(data.lesson),
-        grade: stringValue(data.grade),
-        lessonText: lesson.lessonText,
-      });
-      const { accepted, rejected } = parseDomainQuestions(raw, {
-        subject,
-        lessonText: lesson.lessonText,
-      });
-      if (accepted.length < DOMAIN_MIN_ACCEPTED) {
-        logger.warn(
-          { id: lesson.id, got: accepted.length, rejected },
-          "[bridge] duel domain batch too small to save",
-        );
-        continue;
-      }
-      const questionRows = domainRows(accepted, {
-        id: lesson.id,
-        subject,
-        unit: stringValue(data.unit),
-        grade: stringValue(data.grade),
-        teacherId: lessonOwner(data),
-        lessonText: lesson.lessonText,
-      });
-      const written = await insertDomainRows(config, questionRows);
-      logger.info(
-        { id: lesson.id, written, rejected },
-        "[bridge] duel domain questions generated",
-      );
-    } catch (error) {
-      logger.error({ err: error, id: lesson.id }, "[bridge] duel domain generation failed");
-    }
-  }
-}
-
-/**
- * يكتب الصفوف، ويتجاوز ما في البنك منها.
- *
- * دفعةً واحدةً أوّلاً. فإن ردّها الفهرسُ الفريد على (المادة، نصّ السؤال) — سؤالٌ
- * ولّده النموذجُ كما هو في البنك المكتوب بمعرّفٍ آخر — كُتبت واحداً واحداً،
- * فلا يُسقط سؤالٌ مكرّرٌ أربعةَ عشرَ سؤالاً سليماً معه.
- */
-async function insertDomainRows(
-  config: SupabaseConfig,
-  rows: DomainRow[],
-): Promise<number> {
-  const write = (body: DomainRow[]) =>
-    rest(config, "duel_questions?on_conflict=id", {
-      method: "POST",
-      headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
-      body: JSON.stringify(body),
-    });
-  try {
-    await write(rows);
-    return rows.length;
-  } catch {
-    let written = 0;
-    for (const row of rows) {
-      try {
-        await write([row]);
-        written += 1;
-      } catch {
-        // مكرّرٌ في المادة: البنكُ فيه السؤالُ نفسه.
-      }
-    }
-    return written;
-  }
 }
 
 router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {

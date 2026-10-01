@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * مراجعةُ أسئلة «تحدَّ زملاءك»: يستعرضها المعلمُ والمشرف، ويعطّلان منها ويفعّلان.
@@ -111,6 +111,159 @@ function formatDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('ar');
 }
 
+interface GenerateJob {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  summary: {
+    total: number;
+    processed: number;
+    generated: number;
+    skipped: number;
+    failed: number;
+    questions: number;
+  } | null;
+  error: string | null;
+}
+
+/**
+ * زرُّ المشرف: توليدُ الأسئلة لكل الدروس.
+ *
+ * التوليدُ يعمل عادةً عند حفظ الدرس، فالدروسُ المكتوبةُ قبل وجوده بلا أسئلة. وهذا
+ * يمرّ عليها كلّها مرّة. وإعادةُ الضغط آمنة: ما وُلّد له يُتخطّى بلا نداءٍ
+ * للنموذج، فتكمل التشغيلةُ من حيث توقّفت.
+ *
+ * والتشغيلةُ تجري في الخادم وتُقرأ حالُها كل ثانيتين: دقائقُ لا يُبقى المتصفّحُ
+ * معلّقاً عليها، ومغادرةُ الشاشة لا توقفها.
+ */
+const GenerateAllPanel: React.FC<{ onFinished: () => void }> = ({ onFinished }) => {
+  const [job, setJob] = useState<GenerateJob | null>(null);
+  const [ready, setReady] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [message, setMessage] = useState('');
+  const wasRunning = useRef(false);
+
+  const read = useCallback(async () => {
+    try {
+      const response = await fetch('/api/duel-questions/generate-all', { credentials: 'same-origin' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return;
+      setJob(body.job ?? null);
+      setReady(body.ready !== false);
+    } catch {
+      // قراءةٌ تعثّرت: تُعاد في النبضة التالية.
+    }
+  }, []);
+
+  useEffect(() => {
+    void read();
+  }, [read]);
+
+  // النبضُ ما دامت التشغيلةُ جارية، والقائمةُ تُعاد عند انتهائها.
+  useEffect(() => {
+    const running = job?.running === true;
+    if (wasRunning.current && !running) onFinished();
+    wasRunning.current = running;
+    if (!running) return;
+    const timer = window.setInterval(() => void read(), 2000);
+    return () => window.clearInterval(timer);
+  }, [job?.running, read, onFinished]);
+
+  const start = async () => {
+    setStarting(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/duel-questions/generate-all', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const body = await response.json().catch(() => ({}));
+      if (body.job) setJob(body.job);
+      if (!response.ok && response.status !== 409) {
+        setMessage(body?.error || 'تعذّر بدء التوليد');
+      }
+    } catch {
+      setMessage('تعذّر الاتصال بالخادم');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const summary = job?.summary;
+  const running = job?.running === true;
+  const percent = summary && summary.total > 0
+    ? Math.round((summary.processed / summary.total) * 100)
+    : 0;
+
+  return (
+    <div className="rounded-2xl border border-purple-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-black text-purple-800">✨ توليد الأسئلة لكل الدروس</h3>
+          <p className="mt-1 text-sm font-bold text-purple-700">
+            يولّد أسئلة من مجال كل درس لم تُولَّد له بعد. الدروس التي لها أسئلة تُتخطّى، فإعادة التشغيل آمنة.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void start()}
+          disabled={running || starting || !ready}
+          className="shrink-0 rounded-xl bg-purple-600 px-5 py-3 font-black text-white hover:bg-purple-700 disabled:opacity-50"
+        >
+          {running ? '⏳ جارٍ التوليد…' : starting ? '…' : '✨ ابدأ التوليد'}
+        </button>
+      </div>
+
+      {!ready && (
+        <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">
+          التوليد غير مهيّأ على الخادم: يلزم مفتاح Gemini واتصال Supabase.
+        </p>
+      )}
+      {message && (
+        <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{message}</p>
+      )}
+
+      {summary && (running || job?.finishedAt) && (
+        <div className="mt-4" role="status" aria-live="polite">
+          <div className="mb-2 flex justify-between text-sm font-bold text-purple-800">
+            <span>
+              {running ? 'الدروس المفحوصة' : 'انتهى التوليد'}: {summary.processed} من {summary.total}
+            </span>
+            <span>{percent}%</span>
+          </div>
+          <div
+            className="h-3 overflow-hidden rounded-full bg-purple-100"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={summary.total}
+            aria-valuenow={summary.processed}
+          >
+            <div className="h-full rounded-full bg-purple-600 transition-all" style={{ width: `${percent}%` }} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+            <span className="rounded-full bg-green-100 px-3 py-1 text-green-800">وُلّد لـ {summary.generated} درساً</span>
+            <span className="rounded-full bg-purple-100 px-3 py-1 text-purple-800">{summary.questions} سؤالاً جديداً</span>
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700">تُخطّي {summary.skipped} (لها أسئلة)</span>
+            {summary.failed > 0 && (
+              <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">تعذّر {summary.failed} — أعد التشغيل لاحقاً</span>
+            )}
+          </div>
+          {!running && summary.total === 0 && (
+            <p className="mt-2 text-sm font-bold text-gray-600">
+              لا دروس تصلح للتوليد: يلزم أن يكون للدرس نص ومادة معروفة.
+            </p>
+          )}
+        </div>
+      )}
+      {job?.error && !running && (
+        <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">
+          توقّف التوليد: {job.error}
+        </p>
+      )}
+    </div>
+  );
+};
+
 const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
   const theme = THEMES[role];
   const [filters, setFilters] = useState<Filters>({ subject: '', source: '', status: '', q: '', mine: false });
@@ -149,6 +302,11 @@ const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
   }, [filters, role]);
 
   useEffect(() => {
+    void load(0);
+  }, [load]);
+
+  /** بعد التوليد الشامل: الأسئلةُ الجديدة تظهر بلا إعادة فتح الشاشة. */
+  const reloadList = useCallback(() => {
     void load(0);
   }, [load]);
 
@@ -199,6 +357,8 @@ const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
             : 'أسئلة المبارزة التي يلعبها طلابك. تعطّل ما وُلّد من دروسك، والأسئلة المشتركة بين الصفوف يعطّلها المشرف.'}
         </p>
       </div>
+
+      {role === 'admin' && <GenerateAllPanel onFinished={reloadList} />}
 
       <div className={`rounded-2xl border p-4 ${theme.panel}`}>
         <form
