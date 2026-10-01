@@ -11,6 +11,7 @@ import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_path_memory.dart';
 import '../services/student_challenge_service.dart';
 import 'home_layout.dart';
 import '../services/student_study_service.dart';
@@ -113,6 +114,14 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   void initState() {
     super.initState();
     _academicContext = widget.academicContext;
+    final given = widget.academicContext;
+    if (given != null) {
+      unawaited(StudentPathMemory.save(widget.profile.id, given));
+    } else {
+      // ── دخولٌ بجلسةٍ محفوظة: الدرسُ الذي توقّف عنده ──
+      // كانت الواجهةُ تُفتح هنا بلا درس، فتسأل كلُّ بطاقةٍ أن يُختار من جديد.
+      unawaited(_restorePath());
+    }
     _gamification = widget.profile.gamification;
     // The character the student chose, as their profile records it — the
     // pick used to live only on the phone that made it.
@@ -484,6 +493,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
     if (chosen == null || !mounted) return;
     setState(() => _academicContext = chosen);
+    unawaited(StudentPathMemory.save(widget.profile.id, chosen));
     StudentSoundService.instance.play(StudentSoundCue.success);
     messenger.showSnackBar(
       SnackBar(content: Text(trf('home.lessonChosen', {'lesson': chosen.lesson}))),
@@ -502,6 +512,31 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
         ),
       ),
     );
+  }
+
+  /// يستعيد آخرَ مسارٍ اختاره الطالب، إن كان ما زال في شجرة الدروس.
+  Future<void> _restorePath() async {
+    final remembered = await StudentPathMemory.load(widget.profile.id);
+    if (remembered == null || !mounted) return;
+    AcademicSelectionData? data = _selectionData;
+    if (data == null) {
+      try {
+        data = await _contentService.fetchAcademicSelectionData(widget.profile);
+      } catch (_) {
+        return;
+      }
+      if (!mounted) return;
+      _selectionData = data;
+    }
+    final restored = StudentPathMemory.restore(
+      data,
+      remembered,
+      allowsSubject: widget.profile.allowsSubject,
+    );
+    // ولا يُبدَّل درسٌ اختاره الطالبُ بينما كان هذا يُقرأ.
+    if (restored != null && _academicContext == null) {
+      setState(() => _academicContext = restored);
+    }
   }
 
   Future<void> _openTutor({bool liveMeeting = false}) async {

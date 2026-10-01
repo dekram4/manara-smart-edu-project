@@ -10,6 +10,7 @@ import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_path_memory.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
@@ -64,6 +65,10 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   String? _loadError;
   StudentGamification _gamification = const StudentGamification();
 
+  /// آخرُ مسارٍ اختاره هذا الطالب على هذا الجهاز. يُقدَّم على مادة ملفّه.
+  late final Future<StoredPath?> _memory = StudentPathMemory.load(widget.profile.id);
+  StoredPath? _remembered;
+
   /// The board is shown as soon as the teacher's settings describe a
   /// course. A course with no lesson in it yet still draws: the student
   /// sees their own grade and subjects, and one line says what is missing.
@@ -87,6 +92,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       _data = seeded;
       _loading = false;
       _applyInitialSelection(seeded);
+      // والمحفوظُ يُقرأ من القرص: ما إن يصل يُعاد الاختيارُ عليه.
+      unawaited(_memory.then((remembered) {
+        if (!mounted || remembered == null) return;
+        setState(() {
+          _remembered = remembered;
+          _applyInitialSelection(seeded);
+        });
+      }));
     } else {
       _loadSelectionData();
     }
@@ -125,6 +138,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
     try {
       final data = await _contentService.fetchAcademicSelectionData(widget.profile);
+      _remembered = await _memory;
       if (!mounted) return;
       setState(() {
         _data = data;
@@ -168,6 +182,27 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   }
 
   void _applyInitialSelection(AcademicSelectionData data) {
+    // ── آخرُ مسارٍ اختاره أوّلاً ──
+    // كان الاختيارُ يبدأ في كل دخولٍ من مادة الملفّ — كالإنجليزية — فيعود الطالبُ
+    // إلى غير الدرس الذي توقّف عنده. والمحفوظُ يُطابَق بالشجرة اليوم، فإن لم يعد
+    // قائماً رُجع إلى مادة الملفّ.
+    final remembered = _remembered;
+    final restored = remembered == null
+        ? null
+        : StudentPathMemory.restore(
+            data,
+            remembered,
+            allowsSubject: widget.profile.allowsSubject,
+          );
+    if (restored != null) {
+      _grade = restored.grade;
+      _subject = restored.subject;
+      _term = restored.term;
+      _unit = restored.unit;
+      _lesson = restored.selectedLesson;
+      return;
+    }
+
     final grade = _pick(data.grades, widget.profile.grade);
     final subject = _pick(
       _allowedSubjects(data, grade),
@@ -359,6 +394,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null || _isEntering) return;
+    unawaited(StudentPathMemory.save(widget.profile.id, selection));
     StudentSoundService.instance.playTap();
     // Silenced here, at the tap, rather than in dispose: by the time this
     // route is torn down the hub has begun its own welcome on the same player.
