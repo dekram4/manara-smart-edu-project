@@ -48,7 +48,12 @@ async function writeRow(id: string, data: Record<string, unknown>, now: string):
     headers: { ...serviceHeaders(config.key), Prefer: "return=minimal" },
     body: JSON.stringify({ id, data, updated_at: now }),
   });
-  if (!response.ok) throw new Error(`Chat write failed (${response.status})`);
+  if (!response.ok) {
+    // نصُّ رفضِ قاعدة البيانات في السجلّ: «فشل (400)» وحده لا يقول أيَّ عمودٍ
+    // أو صلاحيةٍ رفضت الكتابة.
+    const detail = (await response.text().catch(() => "")).slice(0, 300);
+    throw new Error(`Chat write failed (${response.status}) ${detail}`);
+  }
 }
 
 /** يعيّن المستلم: «الكل» أو زميلٌ في صفّ المرسِل نفسه، وإلا فلا أحد. */
@@ -204,12 +209,25 @@ router.post("/student/chat/voice", requireStudentSession, voiceSendLimit, async 
   }
   const note = parseChatVoice(req.body?.audio, req.body?.durationMs);
   if (!note.ok) {
+    logger.warn(
+      {
+        studentId: student.id,
+        code: note.error,
+        contentType: req.headers["content-type"],
+        audioChars: typeof req.body?.audio === "string" ? req.body.audio.length : null,
+      },
+      "[student-chat] voice rejected",
+    );
     return res.status(400).json({
       error: note.error === "tooBig"
         ? "الرسالة الصوتية أطول من المسموح"
         : note.error === "tooShort"
           ? "الرسالة الصوتية قصيرة جداً"
-          : "الرسالة الصوتية غير صالحة",
+          : note.error === "format"
+            ? "الرسالة الصوتية بصيغة غير مدعومة"
+            : note.error === "missing"
+              ? "لم يصل المقطع الصوتي إلى الخادم"
+              : "الرسالة الصوتية غير صالحة",
       code: note.error,
     });
   }
@@ -226,7 +244,11 @@ router.post("/student/chat/voice", requireStudentSession, voiceSendLimit, async 
       teacherId: student.teacherId,
     };
     const voiceId = `chatvoice_${Date.now()}_${crypto.randomUUID()}`;
-    await writeRow(voiceId, { type: "student_chat_voice", ...scope, audio: note.base64, time: now }, now);
+    await writeRow(
+      voiceId,
+      { type: "student_chat_voice", ...scope, audio: note.base64, mime: note.mime, time: now },
+      now,
+    );
     const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
     const data = {
       type: "student_chat",
@@ -252,8 +274,11 @@ router.post("/student/chat/voice", requireStudentSession, voiceSendLimit, async 
       },
     });
   } catch (error) {
-    logger.error({ err: error }, "[student-chat] voice send failed");
-    return res.status(503).json({ error: "تعذر إرسال الرسالة الصوتية الآن" });
+    logger.error({ err: error, studentId: student.id }, "[student-chat] voice send failed");
+    return res.status(503).json({
+      error: "تعذر حفظ الرسالة الصوتية على الخادم الآن",
+      code: "storage",
+    });
   }
 });
 
@@ -286,7 +311,10 @@ router.get("/student/chat/voice/:id", requireStudentSession, voiceFetchLimit, as
       return res.status(404).json({ error: "الرسالة الصوتية غير موجودة" });
     }
     const audio = Buffer.from(data.audio, "base64");
-    res.setHeader("Content-Type", "audio/mp4");
+    res.setHeader(
+      "Content-Type",
+      typeof data.mime === "string" && data.mime.startsWith("audio/") ? data.mime : "audio/mp4",
+    );
     // المقطعُ لا يتغيّر بعد كتابته.
     res.setHeader("Cache-Control", "private, max-age=86400, immutable");
     return res.status(200).send(audio);

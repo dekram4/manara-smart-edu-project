@@ -164,9 +164,10 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       final messageData = _decode(responses[0]);
       final peerData = _decode(responses[1]);
       if (responses[0].statusCode != 200 || responses[1].statusCode != 200) {
-        throw Exception(_responseError(messageData) ??
-            _responseError(peerData) ??
-            tr('chat.loadFailed'));
+        throw _failure(
+          responses[0].statusCode != 200 ? responses[0] : responses[1],
+          fallbackKey: 'chat.loadFailed',
+        );
       }
       final messages = messageData['messages'] is List
           ? (messageData['messages'] as List)
@@ -228,9 +229,8 @@ class _StudentChatScreenState extends State<StudentChatScreen>
               headers: _headers,
               body: jsonEncode({'message': message, 'to': _recipient}))
           .timeout(const Duration(seconds: 15));
-      final data = _decode(response);
       if (response.statusCode != 201) {
-        throw Exception(_responseError(data) ?? tr('chat.sendFailed'));
+        throw _failure(response, fallbackKey: 'chat.sendFailed');
       }
       StudentSoundService.instance.playTap();
       _messageController.clear();
@@ -364,12 +364,20 @@ class _StudentChatScreenState extends State<StudentChatScreen>
 
   Future<void> _sendVoice(Uint8List bytes, Duration took) async {
     final endpoint = _endpoint('voice');
-    if (endpoint == null || _token == null) return;
+    if (endpoint == null) return;
     setState(() {
       _sendingVoice = true;
       _error = null;
     });
     try {
+      // جلسةٌ صالحةٌ قبل رفع المقطع: تسجيلُ ثلاثين ثانيةً قد يتجاوز عمرَها.
+      final token = await widget.authService.ensureApiSession();
+      if (token == null || token.isEmpty) {
+        throw ChatRequestFailure(
+          401,
+          widget.authService.apiSessionError ?? tr('chat.sessionFailed'),
+        );
+      }
       final response = await _client
           .post(
             endpoint,
@@ -383,7 +391,11 @@ class _StudentChatScreenState extends State<StudentChatScreen>
           .timeout(const Duration(seconds: 30));
       final data = _decode(response);
       if (response.statusCode != 201) {
-        throw Exception(_responseError(data) ?? tr('chat.voice.sendFailed'));
+        throw _failure(
+          response,
+          fallbackKey: 'chat.voice.sendFailed',
+          missingKey: 'chat.voice.notDeployed',
+        );
       }
       final sent = data['message'];
       if (sent is Map && sent['voiceId'] is String) {
@@ -417,12 +429,18 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       var bytes = _clips[id];
       if (bytes == null) {
         final endpoint = _endpoint('voice/$id');
-        if (endpoint == null || _token == null) throw Exception();
+        if (endpoint == null || _token == null) {
+          throw ChatRequestFailure(0, tr('chat.sessionFailed'));
+        }
         final response = await _client
             .get(endpoint, headers: _headers)
             .timeout(const Duration(seconds: 20));
         if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-          throw Exception();
+          throw _failure(
+            response,
+            fallbackKey: 'chat.voice.playFailed',
+            missingKey: 'chat.voice.notDeployed',
+          );
         }
         bytes = response.bodyBytes;
         _clips[id] = bytes;
@@ -438,22 +456,75 @@ class _StudentChatScreenState extends State<StudentChatScreen>
           if (mounted && _playingId == id) setState(() => _playingId = null);
         },
       );
-    } catch (_) {
+    } catch (error) {
+      debugPrint('[chat] voice play failed: $error');
       if (!mounted) return;
       setState(() {
         if (_loadingId == id) _loadingId = null;
         if (_playingId == id) _playingId = null;
       });
-      _toast(tr('chat.voice.playFailed'));
+      _toast(error is ChatRequestFailure
+          ? error.message
+          : error is TimeoutException
+              ? tr('chat.timeout')
+              : tr('chat.voice.playFailed'));
     }
   }
 
+  /// جسدُ الردّ JSON إن كان JSON، وإلا فارغ.
+  ///
+  /// كان يرمي على صفحة HTML — «Cannot POST» من خادمٍ لم يُنشر عليه المسار —
+  /// فيبتلع الخطأُ رمزَ الردّ، ويرى الطفلُ «تعذّر الوصول» عن خادمٍ وصل إليه.
   Map<String, dynamic> _decode(http.Response response) {
     if (response.body.isEmpty) return <String, dynamic>{};
-    final decoded = jsonDecode(response.body);
-    return decoded is Map
-        ? decoded.map((key, value) => MapEntry('$key', value))
-        : <String, dynamic>{};
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map
+          ? decoded.map((key, value) => MapEntry('$key', value))
+          : <String, dynamic>{};
+    } on FormatException {
+      return <String, dynamic>{};
+    }
+  }
+
+  /// سببُ رفض الخادم كما هو: رسالتُه إن قالها، وإلا جملةٌ بحسب الرمز — ومعها
+  /// الرمزُ نفسُه، فيُعرف من لقطة شاشةٍ ما الذي حدث.
+  ChatRequestFailure _failure(
+    http.Response response, {
+    required String fallbackKey,
+    String missingKey = 'chat.notDeployed',
+  }) {
+    final status = response.statusCode;
+    final data = _decode(response);
+    final said = _responseError(data)?.trim();
+    final code = data['code']?.toString();
+    final body = response.body;
+    debugPrint(
+      '[chat] ${response.request?.method} ${response.request?.url.path} → '
+      '$status ${body.length > 300 ? body.substring(0, 300) : body}',
+    );
+    final String reason;
+    if (status == 404 && (code == 'not_found' || data.isEmpty)) {
+      // المسارُ نفسُه غيرُ موجود: الخادمُ أقدمُ من التطبيق.
+      reason = tr(missingKey);
+    } else if (said != null && said.isNotEmpty) {
+      reason = said;
+    } else if (status == 401 || status == 403) {
+      reason = tr('chat.sessionExpired');
+    } else if (status == 413) {
+      reason = tr('chat.voice.tooBig');
+    } else if (status == 429) {
+      reason = tr('chat.tooMany');
+    } else if (status >= 500) {
+      reason = tr('chat.serverError');
+    } else {
+      reason = tr(fallbackKey);
+    }
+    return ChatRequestFailure(
+      status,
+      '$reason (${trf('chat.errorCode', {'code': '$status'})})',
+      code: code,
+    );
   }
 
   String? _responseError(Map<String, dynamic> data) =>
@@ -864,7 +935,23 @@ class _ChatError extends StatelessWidget {
               color: Color(0xFFB42318), fontWeight: FontWeight.w700)));
 }
 
+/// رفضٌ من الخادم بسببه الحقيقيّ: رمزُ الردّ، ورسالةٌ تُعرض كما هي.
+class ChatRequestFailure implements Exception {
+  ChatRequestFailure(this.status, this.message, {this.code});
+
+  final int status;
+  final String message;
+  final String? code;
+
+  @override
+  String toString() => message;
+}
+
 String _safeError(Object error) {
+  // ما قاله الخادم — أو ما يعنيه رمزُه — يُعرض كما هو.
+  if (error is ChatRequestFailure) return error.message;
+  if (error is TimeoutException) return tr('chat.timeout');
+  debugPrint('[chat] request failed: $error');
   final text = error.toString().replaceFirst('Exception: ', '').trim();
   // These four are thrown by this screen itself, from the same dictionary
   // the comparison reads, so they match in either language. Anything else

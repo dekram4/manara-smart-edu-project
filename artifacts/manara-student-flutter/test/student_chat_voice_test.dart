@@ -78,7 +78,11 @@ void main() {
   late FakeRecorder recorder;
   late MicAccess access;
 
+  /// ردٌّ بديل لرفع المقطع: يُحاكى به خادمٌ يرفض أو لم يُنشر عليه المسار.
+  http.Response? voiceReply;
+
   setUp(() {
+    voiceReply = null;
     requests = [];
     recorder = FakeRecorder();
     access = MicAccess.granted;
@@ -117,6 +121,8 @@ void main() {
           return http.Response(jsonEncode({'peers': []}), 200);
         }
         if (path.endsWith('/chat/voice') && request.method == 'POST') {
+          final reply = voiceReply;
+          if (reply != null) return reply;
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           final message = {
             'id': 'm3',
@@ -290,5 +296,69 @@ void main() {
         '/api/student/chat/voice/chatvoice_1_abcdefgh');
     expect(fetches.single.headers['Authorization'], 'Bearer token');
     await tester.pump(const Duration(seconds: 6));
+  });
+
+  Future<void> recordAndSend(WidgetTester tester) async {
+    final gesture = await tester.startGesture(tester.getCenter(mic()));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await gesture.up();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
+  testWidgets(
+      'خادمٌ لم يُنشر عليه المسار (404 HTML): يقال ذلك برمزه لا «تعذّر الوصول»',
+      (tester) async {
+    voiceReply = http.Response(
+      '<!DOCTYPE html><html><body><pre>Cannot POST /api/student/chat/voice</pre></body></html>',
+      404,
+      headers: {'content-type': 'text/html; charset=utf-8'},
+    );
+    await pump(tester);
+    await recordAndSend(tester);
+    expect(find.textContaining(tr('chat.voice.notDeployed')), findsOneWidget);
+    expect(find.textContaining('404'), findsOneWidget);
+    expect(find.text(tr('chat.unreachable')), findsNothing);
+  });
+
+  testWidgets('رفضٌ برسالةٍ من الخادم: تُعرض كما هي مع الرمز', (tester) async {
+    voiceReply = http.Response(
+      jsonEncode(
+          {'error': 'الرسالة الصوتية بصيغة غير مدعومة', 'code': 'format'}),
+      400,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
+    await pump(tester);
+    await recordAndSend(tester);
+    expect(find.textContaining('الرسالة الصوتية بصيغة غير مدعومة'),
+        findsOneWidget);
+    expect(find.textContaining('400'), findsOneWidget);
+  });
+
+  for (final (status, key) in [
+    (413, 'chat.voice.tooBig'),
+    (429, 'chat.tooMany'),
+    (401, 'chat.sessionExpired'),
+    (502, 'chat.serverError'),
+  ]) {
+    testWidgets('رمز $status بلا رسالة: جملةٌ بحسبه', (tester) async {
+      voiceReply = http.Response('', status);
+      await pump(tester);
+      await recordAndSend(tester);
+      expect(find.textContaining(tr(key)), findsOneWidget);
+      expect(find.textContaining('$status'), findsOneWidget);
+    });
+  }
+
+  testWidgets('الطلبُ يحمل الجلسةَ وJSON بمقطعٍ base64', (tester) async {
+    await pump(tester);
+    await recordAndSend(tester);
+    final post = requests.singleWhere((r) => r.method == 'POST');
+    expect(post.headers['Authorization'], 'Bearer token');
+    expect(post.headers['Content-Type'], startsWith('application/json'));
+    final body = jsonDecode(post.body) as Map<String, dynamic>;
+    expect(body.keys, containsAll(['audio', 'durationMs', 'to']));
   });
 }

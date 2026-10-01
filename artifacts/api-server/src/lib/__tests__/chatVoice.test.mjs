@@ -52,3 +52,31 @@ test("معرّفُ المقطع: شكلُه وحده يُقبل", () => {
   assert.equal(isChatVoiceId("chatvoice_a,b"), false);
   assert.equal(isChatVoiceId(null), false);
 });
+
+test("الصيغ: m4a وAAC خام وmp3 وogg وwav وwebm تُعرف بنوعها", () => {
+  const withHead = (head) => {
+    const bytes = Buffer.alloc(2000, 5);
+    Buffer.from(head).copy(bytes, 0);
+    return bytes.toString("base64");
+  };
+  const cases = [
+    [m4a(2000), "audio/mp4"],
+    [withHead([0xff, 0xf1, 0x50, 0x80]), "audio/aac"],
+    [withHead([0x49, 0x44, 0x33, 0x04]), "audio/mpeg"],
+    [withHead([0xff, 0xfb, 0x90, 0x00]), "audio/mpeg"],
+    [withHead([0x4f, 0x67, 0x67, 0x53]), "audio/ogg"],
+    [withHead([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45]), "audio/wav"],
+    [withHead([0x1a, 0x45, 0xdf, 0xa3]), "audio/webm"],
+  ];
+  for (const [audio, mime] of cases) {
+    const note = parseChatVoice(audio, 1000);
+    assert.equal(note.ok, true, mime);
+    assert.equal(note.mime, mime);
+  }
+});
+
+test("data: URL تُقبل كما يكتبها بعض العملاء", () => {
+  const note = parseChatVoice(`data:audio/mp4;base64,${m4a(3000)}`, 1000);
+  assert.equal(note.ok, true);
+  assert.equal(note.mime, "audio/mp4");
+});

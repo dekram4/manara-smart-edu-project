@@ -112,6 +112,22 @@ app.use("/uploads/videos", express.static(uploadDirectory, { index: false }));
 app.use("/api", router);
 
 /**
+ * مسارٌ غيرُ موجود تحت /api: ردٌّ JSON لا صفحةُ HTML.
+ *
+ * ── لماذا ──
+ * كان Express يردّ «Cannot POST /api/...» صفحةً، فيفشل التطبيقُ في فكّها ويقول
+ * للطفل «تعذّر الوصول» — وهي رسالةُ انقطاع الشبكة. وهكذا ظهر مسارُ الرسائل
+ * الصوتية قبل نشره على الخادم: خللَ اتصالٍ لا مساراً غيرَ منشور.
+ */
+app.use("/api", (req: express.Request, res: express.Response) => {
+  res.status(404).json({
+    error: "هذه الخدمة غير متوفرة على الخادم بعد",
+    code: "not_found",
+    path: req.path,
+  });
+});
+
+/**
  * آخرُ حارس: خطأٌ أفلت من مسارٍ يعود JSON ويُسجَّل.
  *
  * ── لماذا ──
@@ -138,6 +154,17 @@ app.use(
       "[api] unhandled route error",
     );
     if (res.headersSent) return;
+    // أخطاءُ قارئ الجسد تحمل رمزَها: جسدٌ أكبر من الحدّ أو JSON معطوب. وكانت
+    // تصير 500 عامّاً، فلا يُعرف أنّ المقطعَ الصوتيَّ كان أكبرَ من المسموح.
+    const parser = error as { type?: unknown; status?: unknown };
+    if (parser?.type === "entity.too.large") {
+      res.status(413).json({ error: "حجم الطلب أكبر من المسموح", code: "too_large" });
+      return;
+    }
+    if (parser?.type === "entity.parse.failed") {
+      res.status(400).json({ error: "صيغة الطلب غير صالحة", code: "bad_json" });
+      return;
+    }
     res.status(500).json({ error: "تعذّر تنفيذ الطلب الآن. حاول مرة أخرى." });
   },
 );
