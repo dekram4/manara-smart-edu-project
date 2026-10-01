@@ -6,14 +6,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
+import '../models/duel_chat.dart';
 import '../models/sprint_question.dart';
 import '../models/student_profile.dart';
+import '../services/duel_voice_recorder.dart';
 import '../services/student_challenge_service.dart';
 import '../services/student_duel_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/duel_arenas.dart';
+import '../widgets/duel_chat.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
@@ -80,6 +83,31 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
   late final ConfettiController _confetti =
       ConfettiController(duration: const Duration(milliseconds: 700));
 
+  // ── الدردشةُ في المباراة الحيّة وحدها ──
+  // المؤجَّلةُ يلعب فيها كلٌّ جولتَه في وقته، فرسالةٌ تُرسل فيها لا يراها أحد:
+  // القناةُ قائمةٌ لكن الطرفَ الآخر ليس عليها.
+  late final bool _chatOn = widget.match.live;
+
+  final _cooldown = DuelChatCooldown();
+  final ValueNotifier<Duration> _cooldownLeft = ValueNotifier(Duration.zero);
+  Timer? _cooldownTick;
+
+  late final DuelVoiceRecorder _recorder = DuelVoiceRecorder();
+  final ValueNotifier<bool> _recording = ValueNotifier(false);
+
+  /// آخرُ ما أرسلتُه وآخرُ ما وصلني، وكلٌّ يعيش ثلاثَ ثوانٍ.
+  DuelChatMessage? _myBubble;
+  DuelChatMessage? _theirBubble;
+  Timer? _myBubbleTimer;
+  Timer? _theirBubbleTimer;
+
+  /// أيُشغَّل مقطعٌ صوتيٌّ الآن؟ فتنبض أيقونةُ السماعة في فقاعته.
+  bool _playingTheirs = false;
+
+  /// وصلت رسالةٌ والنافذةُ مغلقة.
+  bool _unread = false;
+  bool _sheetOpen = false;
+
   DuelGame get _game {
     for (final game in DuelGame.values) {
       if (game.id == widget.match.game) return game;
@@ -104,16 +132,194 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
             // خطوةً إلى الوراء أمام عين الطفل.
             setState(() => _rivalAt = math.max(_rivalAt, at));
           },
+          onChat: _chatOn ? _onChat : null,
         ),
       );
+      _recorder.onAutoStop = () => _endHold(cancelled: false);
     }
   }
 
   @override
   void dispose() {
     _confetti.dispose();
+    _cooldownTick?.cancel();
+    _myBubbleTimer?.cancel();
+    _theirBubbleTimer?.cancel();
+    _cooldownLeft.dispose();
+    _recording.dispose();
+    unawaited(_recorder.dispose());
     unawaited(widget.duelService.leaveMatch());
     super.dispose();
+  }
+
+  // ── الدردشة ──
+
+  /// رسالةٌ وصلت من القناة.
+  void _onChat(DuelChatMessage message) {
+    if (!mounted) return;
+    // ورسالتي تعود إليّ أيضاً — القناةُ تبثّ للجميع — فتُهمل: فقاعتي عُرضت
+    // لحظةَ الإرسال، وعرضُها ثانيةً يُطيلها بلا سبب.
+    if (message.senderId == widget.profile.id) return;
+    _showBubble(message, mine: false);
+    if (!_sheetOpen) setState(() => _unread = true);
+    if (!message.isVoice) return;
+    final audio = message.audio;
+    if (audio == null) return;
+    setState(() => _playingTheirs = true);
+    unawaited(
+      StudentSoundService.instance.playVoiceNote(
+        audio,
+        onDone: () {
+          if (mounted) setState(() => _playingTheirs = false);
+        },
+      ),
+    );
+  }
+
+  void _showBubble(DuelChatMessage message, {required bool mine}) {
+    setState(() {
+      if (mine) {
+        _myBubble = message;
+      } else {
+        _theirBubble = message;
+      }
+    });
+    final timer = Timer(duelBubbleLife, () {
+      if (!mounted) return;
+      setState(() {
+        if (mine) {
+          _myBubble = null;
+        } else {
+          _theirBubble = null;
+          _playingTheirs = false;
+        }
+      });
+    });
+    if (mine) {
+      _myBubbleTimer?.cancel();
+      _myBubbleTimer = timer;
+    } else {
+      _theirBubbleTimer?.cancel();
+      _theirBubbleTimer = timer;
+    }
+  }
+
+  /// يبثّ رسالةً، ويعود بـ`false` إن مُنعت.
+  bool _send(DuelChatMessage message) {
+    // والفحصُ والتسجيلُ خطوةٌ واحدة: خطوتان يُنسى بينهما تسجيلُ ما أُرسل.
+    if (!_cooldown.claim()) {
+      _startCooldownTick();
+      return false;
+    }
+    final sent = widget.duelService.sendChat(message);
+    if (!sent) {
+      _say(tr('duel.chat.notSent'));
+      return false;
+    }
+    _showBubble(message, mine: true);
+    _startCooldownTick();
+    return true;
+  }
+
+  /// يُحدّث ما بقي من المنع كلَّ ربع ثانية، ما دام هناك بقيّة.
+  void _startCooldownTick() {
+    _cooldownTick?.cancel();
+    void tick() {
+      final left = _cooldown.remaining;
+      _cooldownLeft.value = left;
+      if (left == Duration.zero) _cooldownTick?.cancel();
+    }
+
+    tick();
+    _cooldownTick =
+        Timer.periodic(const Duration(milliseconds: 250), (_) => tick());
+  }
+
+  Future<void> _startHold() async {
+    if (_recording.value) return;
+    if (!_cooldown.ready) {
+      _startCooldownTick();
+      _say(tr('duel.chat.notSent'));
+      return;
+    }
+    final began = await _recorder.start();
+    if (!mounted) return;
+    if (!began) {
+      _say(tr('duel.chat.noMic'));
+      return;
+    }
+    _recording.value = true;
+  }
+
+  Future<void> _endHold({required bool cancelled}) async {
+    if (!_recording.value) return;
+    _recording.value = false;
+    if (cancelled) {
+      await _recorder.cancel();
+      return;
+    }
+    final note = await _recorder.stop();
+    if (!mounted) return;
+    if (!note.ok) {
+      _say(switch (note.problem) {
+        VoiceNoteProblem.tooShort => tr('duel.chat.tooShort'),
+        VoiceNoteProblem.tooBig => tr('duel.chat.tooBig'),
+        VoiceNoteProblem.noPermission => tr('duel.chat.noMic'),
+        _ => tr('duel.chat.notSent'),
+      });
+      return;
+    }
+    _send(
+      DuelChatMessage(
+        senderId: widget.profile.id,
+        kind: DuelChatKind.voice,
+        audio: note.bytes,
+      ),
+    );
+  }
+
+  void _openChat() {
+    setState(() {
+      _sheetOpen = true;
+      _unread = false;
+    });
+    _startCooldownTick();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DuelChatSheet(
+        recording: _recording,
+        cooldownLeft: _cooldownLeft,
+        onSendText: (text) => _send(
+          DuelChatMessage(
+            senderId: widget.profile.id,
+            kind: DuelChatKind.text,
+            text: text,
+          ),
+        ),
+        onHoldStart: () => unawaited(_startHold()),
+        onHoldEnd: ({required cancelled}) =>
+            unawaited(_endHold(cancelled: cancelled)),
+      ),
+    ).whenComplete(() {
+      // وتسجيلٌ جارٍ حين تُغلق النافذة يُلغى: لا زرَّ يُفلت عليه.
+      unawaited(_endHold(cancelled: true));
+      if (mounted) setState(() => _sheetOpen = false);
+    });
+  }
+
+  void _say(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _load() async {
@@ -238,6 +444,46 @@ class _StudentDuelGameScreenState extends State<StudentDuelGameScreen> {
               opacity: 0.20,
             ),
             SafeArea(child: _body(context)),
+            // ── فقاعاتُ الكلام فوق الحلبة، لا داخلها ──
+            // طبقةٌ مستقلّة: الحلباتُ أربعٌ ومنها ما لا شخصيةَ فيه (البالونات
+            // والجواهر)، فلو رُسمت الفقاعةُ داخل كلِّ حلبةٍ لاحتاجت أربعَ
+            // نسخٍ تفترق. وهي فوق كل شيء فلا يُزاحمها تخطيط.
+            if (_chatOn)
+              Positioned.fill(
+                child: SafeArea(
+                  child: IgnorePointer(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DuelSpeechBubble(
+                            message: _myBubble,
+                            appearance: widget.profile.appearance,
+                            mine: true,
+                            speaking: false,
+                          ),
+                          const Spacer(),
+                          DuelSpeechBubble(
+                            message: _theirBubble,
+                            appearance: widget.opponentAppearance,
+                            mine: false,
+                            speaking: _playingTheirs,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (_chatOn && _settled == null)
+              PositionedDirectional(
+                end: 14,
+                bottom: 14,
+                child: SafeArea(
+                  child: DuelChatButton(onPressed: _openChat, unread: _unread),
+                ),
+              ),
             Align(
               alignment: Alignment.topCenter,
               child: IgnorePointer(

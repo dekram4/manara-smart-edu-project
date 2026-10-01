@@ -811,6 +811,54 @@ class StudentSoundService with WidgetsBindingObserver {
         return manifest.listAssets().toSet();
       }();
 
+  /// يشغّل رسالةً صوتيةً وصلت من خصمٍ في المبارزة.
+  ///
+  /// ── ولماذا على مشغّل الأصوات لا على مشغّلٍ خاصٍّ بالدردشة ──
+  /// يجري عليها ما يجري على كل منطوق: تسكت عند كتم الصوت وعند إطفاء الشاشة،
+  /// وتخفض الموسيقى صوتها تحتها. ومشغّلٌ ثالثٌ يفلت من ذلك كلِّه — وهو ما كان
+  /// يجعل صوتين يعملان معاً.
+  ///
+  /// و[onDone] يُنادى على كل حال — انتهى المقطعُ أو لم يُشغَّل أصلاً — لأنّ
+  /// الشاشةَ تُبقي أيقونةَ السماعة نابضةً حتى يُنادى. ونداءٌ ساقطٌ يتركها
+  /// تنبض إلى أن تُغادر المباراة.
+  Future<void> playVoiceNote(Uint8List bytes, {VoidCallback? onDone}) async {
+    var fired = false;
+    void finish() {
+      if (fired) return;
+      fired = true;
+      onDone?.call();
+    }
+
+    if (muted.value || _backgrounded || bytes.isEmpty) {
+      finish();
+      return;
+    }
+    try {
+      unawaited(
+        _voicePlayer.onPlayerComplete.first.then(
+          (_) => finish(),
+          onError: (_) => finish(),
+        ),
+      );
+      await _voicePlayer.stop();
+      // ولا يُحسب مقطعُ دردشةٍ ترحيباً: `_voiceClip` يُقرأ لمعرفة ما يُسمع،
+      // وخلفيةُ شاشة الدخول تبدأ خفيضةً إن كان الترحيبُ هو ما يُشغَّل.
+      _voiceClip = null;
+      _duckAmbient(true);
+      unawaited(
+        _voicePlayer.onPlayerComplete.first.then(
+          (_) => _duckAmbient(false),
+          onError: (_) => _duckAmbient(false),
+        ),
+      );
+      await _voicePlayer.play(BytesSource(bytes), volume: 1);
+    } catch (error) {
+      debugPrint('[duel] voice note not played: $error');
+      _duckAmbient(false);
+      finish();
+    }
+  }
+
   /// Silences any portal line still being spoken.
   Future<void> stopSpeaking() async {
     _voiceClip = null;

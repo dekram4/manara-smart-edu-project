@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../l10n/student_strings.dart';
+import '../models/duel_chat.dart';
 import 'student_auth_service.dart';
 
 /// الألعابُ الأربع في بطاقة التحدي. أسماؤها هي أسماؤها في الخادم.
@@ -343,6 +344,7 @@ class StudentDuelService {
   Future<void> watchMatch({
     required String matchId,
     required void Function(String studentId, int progress) onProgress,
+    void Function(DuelChatMessage message)? onChat,
   }) async {
     try {
       await leaveMatch();
@@ -355,10 +357,40 @@ class StudentDuelService {
           if (id is String && at is int) onProgress(id, at);
         },
       );
+      if (onChat != null) {
+        channel.onBroadcast(
+          event: 'chat',
+          callback: (payload) {
+            // وما لا يصلح أن يُعرض يُترك: القراءةُ تفحص كلَّ حقل — انظر
+            // `DuelChatMessage.fromPayload` — ولا تُرفع رميةٌ في مستمعِ قناة.
+            final message = DuelChatMessage.fromPayload(payload);
+            if (message != null) onChat(message);
+          },
+        );
+      }
       channel.subscribe();
       _matchChannel = channel;
     } catch (error) {
       debugPrint('[duel] match channel unavailable: $error');
+    }
+  }
+
+  /// يبثّ رسالةً في المباراة الجارية: نصّاً أو إيموجي أو مقطعاً صوتياً.
+  ///
+  /// ويعود بـ`false` إن لم تُرسل، فتقول الشاشةُ ذلك: الدردشةُ لا معنى لها إن
+  /// ظنّ الطفلُ أنه أرسل ولم يصل شيء.
+  bool sendChat(DuelChatMessage message) {
+    final channel = _matchChannel;
+    if (channel == null) return false;
+    try {
+      channel.sendBroadcastMessage(
+        event: 'chat',
+        payload: message.toPayload(),
+      );
+      return true;
+    } catch (error) {
+      debugPrint('[duel] chat not sent: $error');
+      return false;
     }
   }
 
