@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,6 +15,29 @@ class FakeServer {
 
   final List<DuelQuestion> questions;
   final Map<int, String> winners = {};
+
+  /// المصافحة كما يحكم بها الخادم: من دخل ومتى، والموعدُ بعد دخول الثاني.
+  final Map<String, DateTime> joined = {};
+  bool expired = false;
+  static const startDelay = Duration(seconds: 2);
+
+  DuelRoom roomFor() {
+    if (expired) return const DuelRoom(phase: DuelRoomPhase.expired);
+    if (joined.length < 2) {
+      return DuelRoom(
+        phase: DuelRoomPhase.accepted,
+        hostJoined: joined.containsKey('h'),
+        guestJoined: joined.containsKey('g'),
+      );
+    }
+    final second = joined.values.reduce((a, b) => a.isAfter(b) ? a : b);
+    return DuelRoom(
+      phase: DuelRoomPhase.ready,
+      hostJoined: true,
+      guestJoined: true,
+      startAt: second.add(startDelay),
+    );
+  }
   final Set<String> attempts = {};
   final List<String> cancelled = [];
   bool packAvailable = true;
@@ -99,7 +124,19 @@ class FakeTransport implements DuelLiveTransport {
   Future<DuelResult> finish(String matchId) async => server.finish(me, rival);
 
   @override
-  Future<void> cancel(String matchId) async => server.cancelled.add(me);
+  Future<void> cancel(String matchId) async {
+    server.cancelled.add(me);
+    if (server.joined.length < 2) server.expired = true;
+  }
+
+  @override
+  Future<DuelRoom> join(String matchId) async {
+    if (!server.expired) server.joined.putIfAbsent(me, clock.now);
+    return server.roomFor();
+  }
+
+  @override
+  Future<DuelRoom> room(String matchId) async => server.roomFor();
 
   @override
   bool send(String event, Map<String, Object?> payload) {
@@ -172,10 +209,10 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     unawaited(host.start());
     unawaited(guest.start());
-    await run(tester, const Duration(milliseconds: 300));
+    await run(tester, const Duration(milliseconds: 900));
     expect(host.phase, DuelPhase.countdown);
     expect(guest.phase, DuelPhase.countdown);
-    await run(tester, const Duration(seconds: 3));
+    await run(tester, const Duration(milliseconds: 2200));
     expect(host.phase, DuelPhase.question);
     expect(guest.phase, DuelPhase.question);
   }
@@ -256,7 +293,8 @@ void main() {
   scenario('انتهى الوقت بلا جواب: يُكشف ويُنتقل للتالي معاً', (tester) async {
     build();
     await startBoth(tester);
-    await run(tester, const Duration(seconds: 5, milliseconds: 200));
+    // السؤالُ فُتح عند موعد الخادم، قبل نهاية startBoth بنحو ثانية.
+    await run(tester, const Duration(seconds: 4, milliseconds: 200));
     expect(host.phase, DuelPhase.reveal);
     await run(tester, const Duration(milliseconds: 700));
     expect(host.index, 1);
@@ -296,6 +334,50 @@ void main() {
     expect(guest.phase, DuelPhase.reveal);
     await run(tester, const Duration(seconds: 3));
     expect(guest.index, 1);
+    expect(guest.phase, DuelPhase.question);
+  });
+
+  scenario('الضيفُ وحده في الغرفة: لا عدَّ ولا سؤال، ثم تفشل', (tester) async {
+    // ما حدث: قبل الضيفُ، والداعي لم يدخل. فكان يبدأ وحده يحلّ ويدردش.
+    build();
+    await tester.pumpWidget(const SizedBox());
+    unawaited(guest.start());
+    for (var i = 0; i < 70; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(guest.phase, isNot(DuelPhase.countdown));
+      expect(guest.phase, isNot(DuelPhase.question));
+      expect(guest.roomOpen, isFalse, reason: 'لا دردشةَ والزميلُ غائب');
+    }
+    await run(tester, const Duration(seconds: 2));
+    expect(guest.phase, DuelPhase.failed);
+    expect(guest.failure, DuelFailureKind.rivalMissing);
+  });
+
+  scenario('ألغى الداعي قبل أن يدخل: يعرف الضيفُ من الخادم فوراً', (tester) async {
+    build();
+    await tester.pumpWidget(const SizedBox());
+    unawaited(guest.start());
+    await run(tester, const Duration(milliseconds: 300));
+    server.expired = true;
+    await run(tester, const Duration(seconds: 1));
+    expect(guest.phase, DuelPhase.failed);
+    expect(guest.failure, DuelFailureKind.rivalMissing);
+  });
+
+  scenario('دخلا: يبدأ الاثنان عند موعد الخادم نفسه، والدردشةُ تُفتح', (tester) async {
+    build();
+    await tester.pumpWidget(const SizedBox());
+    unawaited(host.start());
+    await run(tester, const Duration(seconds: 1));
+    expect(host.phase, DuelPhase.waitingRival, reason: 'وحده: ينتظر');
+    expect(host.roomOpen, isFalse);
+    unawaited(guest.start());
+    await run(tester, const Duration(milliseconds: 900));
+    expect(host.phase, DuelPhase.countdown);
+    expect(guest.phase, DuelPhase.countdown);
+    expect(host.roomOpen && guest.roomOpen, isTrue);
+    await run(tester, const Duration(milliseconds: 2200));
+    expect(host.phase, DuelPhase.question);
     expect(guest.phase, DuelPhase.question);
   });
 

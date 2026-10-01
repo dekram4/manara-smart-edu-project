@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../theme/student_theme.dart';
+import 'portal_watermark.dart';
 import 'student_avatar_view.dart';
 
 /// قطعُ ساحة التحدي: خلفيةٌ، وزرٌّ مجسّم، وخياراتٌ على طراز Kahoot، وعدّادٌ،
@@ -11,7 +13,12 @@ import 'student_avatar_view.dart';
 /// كلُّ ما يُضغط هنا يقف على حافّةٍ أغمق منه ويغوص فيها بالضغط — كبطاقة
 /// «تحدَّ زملاءك» في الرفّ. فيعرف الطفلُ ما يُضغط بنظرة، ويُحسّ الضغطة.
 
-/// خلفيةُ الساحة: ليلٌ بنفسجيٌّ وضوءان دافئان.
+/// خلفيةُ الساحة: خلفيةُ بطاقة التحدي نفسها، على أرضية التطبيق.
+///
+/// ── ولماذا لا لونٌ واحدٌ ثابت ──
+/// كانت ليلاً بنفسجياً واحداً في كل حال: يبتلع الوضعَ الفاتح، ويجعل الساحةَ
+/// غريبةً عن بطاقتها في الرفّ. والآن أرضيةُ التطبيق — فاتحةٌ أو داكنة بإعداد
+/// الطالب — وعليها رسمُ بطاقة التحدي، فتكون الساحةُ استمراراً للبطاقة.
 class ArenaBackdrop extends StatelessWidget {
   const ArenaBackdrop({required this.child, super.key});
 
@@ -19,38 +26,14 @@ class ArenaBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF1E1B4B), Color(0xFF3B0764), Color(0xFF1E1B4B)],
-        ),
-      ),
+    return ColoredBox(
+      color: StudentSurface.ground(context),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(-0.9, -0.8),
-                  radius: 0.9,
-                  colors: [Color(0x557C3AED), Color(0x007C3AED)],
-                ),
-              ),
-            ),
-          ),
-          const IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0.9, 0.9),
-                  radius: 0.9,
-                  colors: [Color(0x44DB2777), Color(0x00DB2777)],
-                ),
-              ),
-            ),
+          PortalWatermark(
+            asset: PortalBackgrounds.endlessReader,
+            opacity: StudentSurface.isDark(context) ? 0.12 : 0.22,
           ),
           child,
         ],
@@ -277,14 +260,19 @@ class ArenaTimerRing extends StatelessWidget {
         total <= 0 ? 0.0 : (left.inMilliseconds / total).clamp(0.0, 1.0);
     final seconds = (left.inMilliseconds / 1000).ceil();
     final urgent = left.inMilliseconds <= 3000;
-    final color = urgent ? const Color(0xFFF43F5E) : const Color(0xFFFBBF24);
+    final color = urgent ? const Color(0xFFF43F5E) : const Color(0xFFF59E0B);
     return Semantics(
       label: '$seconds',
       child: SizedBox(
         width: size,
         height: size,
         child: CustomPaint(
-          painter: _RingPainter(share: share, color: color),
+          painter: _RingPainter(
+            share: share,
+            color: color,
+            disc: StudentSurface.card(context),
+            track: StudentSurface.track(context),
+          ),
           child: Center(
             child: AnimatedScale(
               scale: urgent ? 1.15 : 1,
@@ -306,10 +294,17 @@ class ArenaTimerRing extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  const _RingPainter({required this.share, required this.color});
+  const _RingPainter({
+    required this.share,
+    required this.color,
+    required this.disc,
+    required this.track,
+  });
 
   final double share;
   final Color color;
+  final Color disc;
+  final Color track;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -319,7 +314,7 @@ class _RingPainter extends CustomPainter {
     canvas.drawCircle(
       rect.center,
       size.shortestSide / 2,
-      Paint()..color = const Color(0xCC1E1B4B),
+      Paint()..color = disc,
     );
     canvas.drawArc(
       inner,
@@ -329,7 +324,7 @@ class _RingPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke
-        ..color = Colors.white.withValues(alpha: 0.15),
+        ..color = track,
     );
     canvas.drawArc(
       inner,
@@ -345,7 +340,8 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) => old.share != share || old.color != color;
+  bool shouldRepaint(_RingPainter old) =>
+      old.share != share || old.color != color || old.disc != disc || old.track != track;
 }
 
 /// مشهدُ المواجهة: الشخصيتان على الطرفين، وVS بينهما، وتحتها العدُّ أو الانتظار.
@@ -388,8 +384,8 @@ class ArenaVersus extends StatelessWidget {
                       name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: StudentSurface.ink(context),
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),

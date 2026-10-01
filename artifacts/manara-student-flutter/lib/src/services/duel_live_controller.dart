@@ -20,6 +20,12 @@ abstract class DuelLiveTransport {
   Future<DuelResult> finish(String matchId);
   Future<void> cancel(String matchId);
   bool send(String event, Map<String, Object?> payload);
+
+  /// أدخل الغرفة في الخادم، وحالُها بعد دخولي.
+  Future<DuelRoom> join(String matchId);
+
+  /// حالُ الغرفة الآن.
+  Future<DuelRoom> room(String matchId);
 }
 
 /// الخدمةُ الحقيقية.
@@ -44,7 +50,15 @@ class ServiceDuelTransport implements DuelLiveTransport {
   Future<DuelResult> finish(String matchId) => service.finish(matchId);
 
   @override
-  Future<void> cancel(String matchId) => service.cancel(matchId);
+  Future<void> cancel(String matchId) async {
+    await service.cancel(matchId);
+  }
+
+  @override
+  Future<DuelRoom> join(String matchId) => service.join(matchId);
+
+  @override
+  Future<DuelRoom> room(String matchId) => service.room(matchId);
 
   @override
   bool send(String event, Map<String, Object?> payload) =>
@@ -90,11 +104,15 @@ enum QuestionWinner { none, me, rival }
 /// محرّكُ المبارزة الحيّة: السؤالُ نفسه للاثنين في اللحظة نفسها، وأوّلُ صحيحٍ
 /// يكسبه.
 ///
-/// ── والساعةُ عند الداعي ──
-/// جهازان بساعتين لا يتّفقان على متى ينتهي السؤال. فالداعي (المضيف) يقرّر:
-/// يبدأ المباراةَ حين يدخل الاثنان، ويُعلن السؤالَ التالي. والضيفُ يتبعه، وله
-/// مهلةٌ احتياطيةٌ يمضي بعدها وحده إن لم تصله الإشارة — فانقطاعُ بثٍّ واحد لا
-/// يعلّق مباراة.
+/// ── ولا يبدأ إلا والاثنان في الغرفة ──
+/// كلُّ جهازٍ يدخل الغرفةَ في الخادم ثم يسأله عن حالها حتى يقول «دخلا» ويعطي
+/// موعدَ أوّل سؤال. فلا عدٌّ تنازليٌّ ولا سؤالٌ عند أحدهما والآخرُ غائب — وكان
+/// الضيفُ يبدأ وحده بمهلةٍ احتياطيةٍ إن فاتته إشارةُ «ابدأ». والموعدُ واحدٌ
+/// للاثنين، منقولاً إلى ساعة كلّ جهاز (`DuelRoom.fromJson`).
+///
+/// ── وما بعد البدء عند الداعي ──
+/// الداعي (المضيف) يُعلن السؤالَ التالي، والضيفُ يتبعه، وله مهلةٌ احتياطيةٌ إن
+/// لم تصله الإشارة — فانقطاعُ بثٍّ واحد لا يعلّق مباراةً بدأت.
 ///
 /// ── والأوّلُ يقرّره الخادم ──
 /// المحرّكُ يُرسل الجوابَ ويعرض ما قاله الخادم: أصبتُ؟ وكنتُ الأوّل؟ ثم يبثّ
@@ -108,7 +126,6 @@ class DuelLiveController extends ChangeNotifier {
     required this.rivalId,
     required this.isHost,
     this.questionWindow = const Duration(seconds: duelQuestionSeconds),
-    this.countdownLength = 3,
     this.revealHold = const Duration(milliseconds: 1600),
     this.rivalWait = const Duration(seconds: 25),
     this.pointsPerQuestion = 10,
@@ -120,7 +137,6 @@ class DuelLiveController extends ChangeNotifier {
   final String rivalId;
   final bool isHost;
   final Duration questionWindow;
-  final int countdownLength;
   final Duration revealHold;
   final Duration rivalWait;
   final int pointsPerQuestion;
@@ -177,12 +193,23 @@ class DuelLiveController extends ChangeNotifier {
   DuelResult? _result;
   DuelResult? get result => _result;
 
-  bool _rivalReady = false;
+  /// موعدُ أوّل سؤال كما أعطاه الخادم، بساعة هذا الجهاز.
+  DateTime? _startAt;
 
-  /// وصلت «ابدأ» من المضيف والأسئلةُ لم تُجهَّز بعد: يُبدأ حين تُجهَّز.
-  bool _startPending = false;
+  /// الطرفان في الغرفة والنزالُ بدأ أو يبدأ: الدردشةُ تُفتح بهذا وحده.
+  bool get roomOpen => switch (_phase) {
+        DuelPhase.countdown ||
+        DuelPhase.question ||
+        DuelPhase.reveal ||
+        DuelPhase.finishing ||
+        DuelPhase.result =>
+          true,
+        _ => false,
+      };
+
+  Timer? _roomPoll;
+  bool _polling = false;
   Timer? _tick;
-  Timer? _readyBeat;
   Timer? _rivalTimeout;
   Timer? _hold;
   Timer? _fallback;
@@ -206,25 +233,56 @@ class DuelLiveController extends ChangeNotifier {
     _questions = pack;
     _set(DuelPhase.waitingRival);
 
-    // «جاهز» تتكرّر حتى يُرى الزميل: إشارةٌ واحدةٌ قد تفوته إن دخل بعدها بلحظة.
-    void announce() => transport.send('ready', {'id': myId});
-    announce();
-    _readyBeat = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_phase == DuelPhase.waitingRival) {
-        announce();
-      } else {
-        _readyBeat?.cancel();
-      }
+    // «دخلتُ» على القناة تُسرّع زميلي إلى سؤال الخادم، ولا تُغني عنه.
+    transport.send('ready', {'id': myId});
+    DuelRoom? room;
+    try {
+      room = await transport.join(matchId);
+    } catch (_) {
+      room = null;
+    }
+    if (_disposed) return;
+    _onRoom(room);
+    if (_phase != DuelPhase.waitingRival) return;
+
+    _roomPoll = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      unawaited(_checkRoom());
     });
     _rivalTimeout = Timer(rivalWait, () {
       if (_phase != DuelPhase.waitingRival) return;
       _fail(DuelFailureKind.rivalMissing);
       unawaited(transport.cancel(matchId));
     });
-    if (_startPending) {
-      _beginCountdown();
-    } else if (_rivalReady) {
-      _onBothReady();
+  }
+
+  Future<void> _checkRoom() async {
+    if (_polling || _phase != DuelPhase.waitingRival) return;
+    _polling = true;
+    DuelRoom? room;
+    try {
+      room = await transport.room(matchId);
+    } catch (_) {
+      room = null;
+    } finally {
+      _polling = false;
+    }
+    if (!_disposed) _onRoom(room);
+  }
+
+  /// ما قاله الخادمُ عن الغرفة.
+  void _onRoom(DuelRoom? room) {
+    if (room == null || _phase != DuelPhase.waitingRival) return;
+    switch (room.phase) {
+      case DuelRoomPhase.ready:
+        final startAt = room.startAt;
+        if (startAt != null) _beginCountdown(startAt);
+      case DuelRoomPhase.expired:
+      case DuelRoomPhase.done:
+        // أُلغيت أو فاتت مهلتُها: الزميلُ لن يدخل.
+        _fail(DuelFailureKind.rivalMissing);
+      case DuelRoomPhase.invited:
+      case DuelRoomPhase.accepted:
+        break;
     }
   }
 
@@ -235,21 +293,7 @@ class DuelLiveController extends ChangeNotifier {
     if (from is String && from == myId) return;
     switch (event) {
       case 'ready':
-        if (from != rivalId) return;
-        // أُعيدت «جاهز» لمن دخل متأخّراً: أُجيبه بمثلها.
-        if (!_rivalReady && _phase != DuelPhase.waitingRival) {
-          transport.send('ready', {'id': myId});
-        }
-        _rivalReady = true;
-        if (_phase == DuelPhase.waitingRival) _onBothReady();
-      case 'start':
-        if (isHost) return;
-        _rivalReady = true;
-        if (_phase == DuelPhase.preparing) {
-          _startPending = true;
-        } else if (_phase == DuelPhase.waitingRival) {
-          _beginCountdown();
-        }
+        if (from == rivalId) unawaited(_checkRoom());
       case 'won':
         final at = payload['index'];
         if (at is int && at == _index && from == rivalId) _rivalWon();
@@ -270,38 +314,32 @@ class DuelLiveController extends ChangeNotifier {
     }
   }
 
-  void _onBothReady() {
+  /// العدُّ إلى موعد الخادم. ولا سؤالَ قبله عند أحد.
+  void _beginCountdown(DateTime startAt) {
+    if (_phase != DuelPhase.waitingRival) return;
+    _roomPoll?.cancel();
     _rivalTimeout?.cancel();
-    _readyBeat?.cancel();
-    if (isHost) {
-      transport.send('start', {'id': myId});
-      _beginCountdown();
-    }
-    // والضيفُ ينتظر «ابدأ» من المضيف. فإن فاتته وصل إليه السؤالُ الأوّل
-    // بإشارة «التالي»، أو بمهلته الاحتياطية.
-    else {
-      _fallback?.cancel();
-      _fallback = Timer(const Duration(seconds: 3), () {
-        if (_phase == DuelPhase.waitingRival) _beginCountdown();
-      });
-    }
-  }
-
-  void _beginCountdown() {
-    if (_phase == DuelPhase.countdown || _phase == DuelPhase.question) return;
-    _fallback?.cancel();
-    _countdown = countdownLength;
+    _startAt = startAt;
+    _countdown = _secondsToStart();
     _set(DuelPhase.countdown);
     _tick?.cancel();
-    _tick = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _countdown -= 1;
-      if (_countdown <= 0) {
+    _tick = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      final left = _secondsToStart();
+      if (left <= 0) {
         timer.cancel();
         _openQuestion(0);
-      } else {
+      } else if (left != _countdown) {
+        _countdown = left;
         notifyListeners();
       }
     });
+  }
+
+  int _secondsToStart() {
+    final startAt = _startAt;
+    if (startAt == null) return 0;
+    final left = startAt.difference(clock.now()).inMilliseconds;
+    return left <= 0 ? 0 : (left / 1000).ceil();
   }
 
   void _openQuestion(int at) {
@@ -455,7 +493,7 @@ class DuelLiveController extends ChangeNotifier {
   void _fail(DuelFailureKind kind) {
     _failure = kind;
     _tick?.cancel();
-    _readyBeat?.cancel();
+    _roomPoll?.cancel();
     _rivalTimeout?.cancel();
     _hold?.cancel();
     _fallback?.cancel();
@@ -471,7 +509,7 @@ class DuelLiveController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _tick?.cancel();
-    _readyBeat?.cancel();
+    _roomPoll?.cancel();
     _rivalTimeout?.cancel();
     _hold?.cancel();
     _fallback?.cancel();

@@ -12,7 +12,9 @@ import '../services/duel_live_controller.dart';
 import '../services/student_duel_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
+import '../theme/student_theme.dart';
 import '../widgets/arena_widgets.dart';
+import '../widgets/duel_arenas.dart';
 import '../widgets/duel_chat_mixin.dart';
 import '../widgets/duel_versus.dart';
 import '../widgets/student_avatar_view.dart';
@@ -30,6 +32,7 @@ class DuelMatchScreen extends StatefulWidget {
     required this.rivalId,
     required this.rivalName,
     required this.isHost,
+    this.game = DuelGame.sprint,
     this.rivalAppearance,
     this.transport,
     super.key,
@@ -44,6 +47,9 @@ class DuelMatchScreen extends StatefulWidget {
 
   /// الداعي: ساعةُ المباراة عنده. انظر [DuelLiveController].
   final bool isHost;
+
+  /// اللعبةُ التي اختارها الداعي: تُغيّر الحلبةَ وشكلَ الخيارات، والمحرّكُ واحد.
+  final DuelGame game;
 
   /// الخادمُ وقناةُ المباراة. الخدمةُ نفسها في التطبيق، ومُحاكىً في الاختبار.
   @visibleForTesting
@@ -200,9 +206,10 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
       child: Directionality(
         textDirection: StudentSettings.direction,
         child: Scaffold(
-          backgroundColor: const Color(0xFF1E1B4B),
-          floatingActionButton:
-              _game.phase == DuelPhase.failed ? null : chatButtons(),
+          backgroundColor: StudentSurface.ground(context),
+          // ── والدردشةُ بعد أن يدخل الاثنان ──
+          // كان الضيفُ يدردش وزميلُه لم يدخل: رسائلُ تُرسل إلى غرفةٍ فارغة.
+          floatingActionButton: _game.roomOpen ? chatButtons() : null,
           body: ArenaBackdrop(
             child: SafeArea(
               child: Stack(
@@ -223,7 +230,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                       Expanded(child: _phaseBody()),
                     ],
                   ),
-                  Positioned(top: 56, left: 0, right: 0, child: chatBubbles()),
+                  if (_game.roomOpen)
+                    Positioned(top: 56, left: 0, right: 0, child: chatBubbles()),
                   Align(
                     alignment: Alignment.topCenter,
                     child: IgnorePointer(
@@ -300,6 +308,19 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           rivalPoints: _game.rivalPoints,
           live: true,
         ),
+        const SizedBox(height: 10),
+        // حلبةُ اللعبة: السباقُ أو البالوناتُ أو الحبلُ أو الجواهر — بعدد ما
+        // كسبه كلٌّ من الأسئلة.
+        DuelArena(
+          game: widget.game,
+          mine: _game.myPoints ~/ _game.pointsPerQuestion,
+          theirs: _game.rivalPoints ~/ _game.pointsPerQuestion,
+          total: _game.questions.length,
+          live: true,
+          myAppearance: widget.profile.appearance,
+          theirAppearance: widget.rivalAppearance,
+          opponentName: widget.rivalName,
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -309,8 +330,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                   'n': '${_game.index + 1}',
                   'total': '${_game.questions.length}',
                 }),
-                style: const TextStyle(
-                  color: Color(0xFFC4B5FD),
+                style: TextStyle(
+                  color: StudentSurface.mutedInk(context),
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
                 ),
@@ -332,7 +353,17 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
         const SizedBox(height: 10),
         _Feedback(game: _game, rivalName: widget.rivalName),
         const SizedBox(height: 10),
-        _Answers(game: _game, question: question),
+        DuelChoices(
+          game: widget.game,
+          options: question.options,
+          answerAt: question.answerAt,
+          picked: _game.picked,
+          pickedCorrect: _game.pickedCorrect,
+          revealed: _game.phase == DuelPhase.reveal,
+          onPick: _game.phase == DuelPhase.question && _game.picked == null
+              ? (index) => unawaited(_game.pick(index))
+              : null,
+        ),
       ],
     );
   }
@@ -375,7 +406,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               title,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: won ? const Color(0xFFFDE047) : Colors.white,
+                color: won ? const Color(0xFFF59E0B) : StudentSurface.ink(context),
                 fontSize: 34,
                 fontWeight: FontWeight.w900,
                 shadows: const [Shadow(color: Color(0x88000000), blurRadius: 6)],
@@ -426,13 +457,13 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.sentiment_dissatisfied_rounded,
-                color: Color(0xFFC4B5FD), size: 64),
+                color: Color(0xFF8B5CF6), size: 64),
             const SizedBox(height: 14),
             Text(
               text,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: StudentSurface.ink(context),
                 fontSize: 18,
                 height: 1.5,
                 fontWeight: FontWeight.w800,
@@ -464,23 +495,20 @@ class _TopBar extends StatelessWidget {
           IconButton(
             onPressed: onClose,
             tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            icon: const Icon(Icons.close_rounded, color: Colors.white),
+            icon: Icon(Icons.close_rounded, color: StudentSurface.ink(context)),
           ),
           const SizedBox(width: 4),
           Expanded(
             child: Text(
               tr('arena.title'),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: StudentSurface.ink(context),
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
               ),
             ),
           ),
-          const IconTheme(
-            data: IconThemeData(color: Colors.white),
-            child: StudentSoundToggle(),
-          ),
+          const StudentSoundToggle(),
         ],
       ),
     );
@@ -497,13 +525,13 @@ class _Status extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const CircularProgressIndicator(color: Color(0xFFFBBF24)),
+        const CircularProgressIndicator(color: Color(0xFF7C3AED)),
         const SizedBox(height: 14),
         Text(
           text,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: StudentSurface.ink(context),
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -525,8 +553,8 @@ class _CountdownNumber extends StatelessWidget {
       children: [
         Text(
           tr('arena.getReady'),
-          style: const TextStyle(
-            color: Color(0xFFC4B5FD),
+          style: TextStyle(
+            color: StudentSurface.mutedInk(context),
             fontSize: 18,
             fontWeight: FontWeight.w900,
           ),
@@ -542,7 +570,7 @@ class _CountdownNumber extends StatelessWidget {
           child: Text(
             '$value',
             style: const TextStyle(
-              color: Color(0xFFFDE047),
+              color: Color(0xFFF59E0B),
               fontSize: 84,
               fontWeight: FontWeight.w900,
               shadows: [Shadow(color: Color(0xAAF97316), blurRadius: 24)],
@@ -564,10 +592,10 @@ class _QuestionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: StudentSurface.card(context),
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [
-          BoxShadow(color: Color(0xFF4C1D95), offset: Offset(0, 6)),
+          BoxShadow(color: Color(0xFF7C3AED), offset: Offset(0, 6)),
           BoxShadow(color: Color(0x55000000), blurRadius: 14, offset: Offset(0, 10)),
         ],
       ),
@@ -596,8 +624,8 @@ class _QuestionCard extends StatelessWidget {
           Text(
             question.prompt,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF1E1B4B),
+            style: TextStyle(
+              color: StudentSurface.ink(context),
               fontSize: 21,
               height: 1.5,
               fontWeight: FontWeight.w900,
@@ -657,60 +685,6 @@ class _Feedback extends StatelessWidget {
       child: text == null
           ? const SizedBox(key: ValueKey('none'), height: 44)
           : _Banner(key: ValueKey(text), text: text, color: color),
-    );
-  }
-}
-
-class _Answers extends StatelessWidget {
-  const _Answers({required this.game, required this.question});
-
-  final DuelLiveController game;
-  final DuelQuestion question;
-
-  AnswerTileState _state(int index) {
-    final reveal = game.phase == DuelPhase.reveal;
-    final picked = game.picked;
-    if (reveal) {
-      if (index == question.answerAt) return AnswerTileState.correct;
-      if (index == picked) return AnswerTileState.wrong;
-      return AnswerTileState.dimmed;
-    }
-    if (picked == null) return AnswerTileState.idle;
-    if (index == picked) {
-      if (game.submitting) return AnswerTileState.picked;
-      if (game.pickedCorrect == false) return AnswerTileState.wrong;
-      return AnswerTileState.picked;
-    }
-    return AnswerTileState.dimmed;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final open = game.phase == DuelPhase.question && game.picked == null;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // عمودان على الشاشة العريضة كـKahoot، وعمودٌ على الضيّقة: خيارٌ من
-        // كلمتين لا يُقسم على سطرين في ربع شاشة هاتف.
-        final columns = constraints.maxWidth >= 520 ? 2 : 1;
-        final gap = 10.0;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (var i = 0; i < question.options.length; i++)
-              SizedBox(
-                width: width,
-                child: AnswerTile(
-                  index: i,
-                  label: question.options[i],
-                  state: _state(i),
-                  onPressed: open ? () => unawaited(game.pick(i)) : null,
-                ),
-              ),
-          ],
-        );
-      },
     );
   }
 }
@@ -801,8 +775,8 @@ class _Note extends StatelessWidget {
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: Color(0xFFE9D5FF),
+      style: TextStyle(
+        color: StudentSurface.mutedInk(context),
         fontSize: 16,
         height: 1.5,
         fontWeight: FontWeight.w800,

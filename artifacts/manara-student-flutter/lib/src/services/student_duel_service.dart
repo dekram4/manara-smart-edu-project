@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -172,9 +173,13 @@ class DuelInviteEvent {
     this.fromName = '',
     this.fromAppearance,
     this.lessonId = '',
+    this.game = DuelGame.sprint,
   });
 
   final DuelInviteKind kind;
+
+  /// اللعبةُ التي اختارها الداعي.
+  final DuelGame game;
   final String matchId;
   final String fromId;
   final String fromName;
@@ -208,6 +213,61 @@ class DuelInviteEvent {
       fromName: text(payload['name']),
       fromAppearance: look is Map ? Map<String, dynamic>.from(look) : null,
       lessonId: text(payload['lessonId']),
+      game: DuelGame.values.firstWhere(
+        (game) => game.id == text(payload['game']),
+        orElse: () => DuelGame.sprint,
+      ),
+    );
+  }
+}
+
+/// حالُ غرفة النزال كما يحكم بها الخادم — `roomStateOf` في `api-server`.
+enum DuelRoomPhase { invited, accepted, ready, expired, done }
+
+class DuelRoom {
+  const DuelRoom({
+    required this.phase,
+    this.hostJoined = false,
+    this.guestJoined = false,
+    this.startAt,
+  });
+
+  final DuelRoomPhase phase;
+  final bool hostJoined;
+  final bool guestJoined;
+
+  /// موعدُ أوّل سؤال بساعة هذا الجهاز، حين يدخل الاثنان.
+  final DateTime? startAt;
+
+  /// ── والموعدُ بساعة الجهاز لا الخادم ──
+  /// ساعتا جهازين تختلفان بثوانٍ، وموعدٌ واحدٌ يُقرأ بساعتين يبدأ في لحظتين. فيُحسب
+  /// فرقُ ساعتي عن الخادم من `serverNow` في الردّ نفسه، ويُنقل الموعدُ إليها.
+  static DuelRoom? fromJson(Object? raw, {DateTime? receivedAt}) {
+    if (raw is! Map) return null;
+    final phase = switch (raw['phase']) {
+      'invited' => DuelRoomPhase.invited,
+      'accepted' => DuelRoomPhase.accepted,
+      'ready' => DuelRoomPhase.ready,
+      'expired' => DuelRoomPhase.expired,
+      'done' => DuelRoomPhase.done,
+      _ => null,
+    };
+    if (phase == null) return null;
+    DateTime? read(Object? value) =>
+        value is String ? DateTime.tryParse(value) : null;
+    final serverStart = read(raw['startAt']);
+    final serverNow = read(raw['serverNow']);
+    DateTime? startAt;
+    if (serverStart != null) {
+      final local = receivedAt ?? clock.now();
+      final skew = serverNow == null ? Duration.zero : local.difference(serverNow);
+      startAt = serverStart.add(skew);
+    }
+    return DuelRoom(
+      phase: phase,
+      hostJoined: raw['hostJoined'] == true,
+      guestJoined: raw['guestJoined'] == true,
+      startAt: startAt,
     );
   }
 }
@@ -340,6 +400,7 @@ class StudentDuelService {
   Future<DuelMatch> invite({
     required String lessonId,
     required String guestId,
+    DuelGame game = DuelGame.sprint,
   }) async {
     final map = await _send(
       'invite',
@@ -347,7 +408,7 @@ class StudentDuelService {
       body: {
         'lessonId': lessonId,
         'guestId': guestId,
-        'game': DuelGame.sprint.id,
+        'game': game.id,
       },
     );
     final match = DuelMatch.fromJson(map['match']);
@@ -481,13 +542,44 @@ class StudentDuelService {
     );
   }
 
-  /// يلغي مباراةً لم تبدأ. وتعذّرُه لا يُرفع: المباراةُ المعلّقةُ تنتهي وحدها.
-  Future<void> cancel(String matchId) async {
+  /// يلغي مباراةً لم يدخلها الاثنان، ويعود بحال الغرفة بعده — أو `null` إن تعذّر.
+  ///
+  /// والإلغاءُ مشروطٌ في الخادم: إن كان الزميلُ قد قبل والاثنان في الغرفة لم
+  /// يُكتب، ويعود الحالُ «ready» فيدخل الداعي بدل أن يتركه وحده.
+  Future<DuelRoom?> cancel(String matchId) async {
     try {
-      await _send('$matchId/cancel', post: true);
+      final map = await _send('$matchId/cancel', post: true);
+      return DuelRoom.fromJson(map['room']);
     } catch (error) {
       debugPrint('[duel] cancel failed: $error');
+      return null;
     }
+  }
+
+  /// ردُّ المدعوّ: قبولٌ أو رفض. يكتبه الخادم، ويعود بحال الغرفة.
+  ///
+  /// ولا يدخل الضيفُ إلا إن عادت «accepted»: دعوةٌ أُلغيت أو فاتت مهلتُها لا
+  /// تُفتح له غرفةٌ يجلس فيها وحده.
+  Future<DuelRoom> respond({required String matchId, required bool accept}) async {
+    final map = await _send('$matchId/respond', post: true, body: {'accept': accept});
+    return DuelRoom.fromJson(map['room'], receivedAt: clock.now()) ??
+        const DuelRoom(phase: DuelRoomPhase.expired);
+  }
+
+  /// أدخل الغرفة، ويعود الخادمُ بحالها.
+  Future<DuelRoom> join(String matchId) async {
+    final map = await _send('$matchId/join', post: true);
+    return DuelRoom.fromJson(map['room'], receivedAt: clock.now()) ??
+        const DuelRoom(phase: DuelRoomPhase.expired);
+  }
+
+  /// حالُ الغرفة الآن.
+  Future<DuelRoom> room(String matchId) async {
+    final map = await _send(matchId);
+    final match = map['match'];
+    final raw = match is Map ? match['room'] : null;
+    return DuelRoom.fromJson(raw, receivedAt: clock.now()) ??
+        const DuelRoom(phase: DuelRoomPhase.expired);
   }
 
   // ── الدعوةُ الحيّة على قناة الصفّ ──
@@ -524,6 +616,7 @@ class StudentDuelService {
         'from': _myId,
         'matchId': match.id,
         'lessonId': match.lessonId,
+        'game': match.game,
         'name': myName,
         'appearance': myAppearance,
       });
@@ -623,8 +716,12 @@ class StudentDuelService {
     _classChannel = null;
     online.value = const {};
     if (channel == null) return;
+    // ── يُزال من العميل لا يُلغى اشتراكُه وحده ──
+    // قناةٌ أُلغي اشتراكُها تبقى في قائمة العميل، وفتحُ الساحة ثانيةً ينشئ قناةً
+    // بالموضوع نفسه بجانبها. فتصل الرسالةُ مرّتين — ودعوةٌ مكرّرةٌ كانت تُرفض
+    // آلياً بحجّة «مشغول»، فيرى الداعي رفضاً لم يختره زميلُه.
     try {
-      await channel.unsubscribe();
+      await authService.client.removeChannel(channel);
     } catch (_) {}
   }
 
@@ -787,8 +884,12 @@ class StudentDuelService {
     final channel = _matchChannel;
     _matchChannel = null;
     if (channel == null) return;
+    // ── يُزال من العميل لا يُلغى اشتراكُه وحده ──
+    // قناةٌ أُلغي اشتراكُها تبقى في قائمة العميل، وفتحُ الساحة ثانيةً ينشئ قناةً
+    // بالموضوع نفسه بجانبها. فتصل الرسالةُ مرّتين — ودعوةٌ مكرّرةٌ كانت تُرفض
+    // آلياً بحجّة «مشغول»، فيرى الداعي رفضاً لم يختره زميلُه.
     try {
-      await channel.unsubscribe();
+      await authService.client.removeChannel(channel);
     } catch (_) {}
   }
 
