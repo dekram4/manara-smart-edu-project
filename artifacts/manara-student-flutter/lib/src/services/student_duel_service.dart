@@ -149,6 +149,105 @@ class DuelFailure implements Exception {
   String toString() => 'DuelFailure($message)';
 }
 
+/// حدثُ دعوةٍ حيّةٍ على قناة الصفّ، موجَّهٌ إليّ.
+enum DuelInviteKind {
+  /// زميلٌ يتحدّاني الآن.
+  invite,
+
+  /// قبل زميلي تحدّيَّ.
+  accepted,
+
+  /// رفضه.
+  declined,
+
+  /// تراجع صاحبُ الدعوة عنها، أو انتهت مهلتُها.
+  cancelled,
+}
+
+class DuelInviteEvent {
+  const DuelInviteEvent({
+    required this.kind,
+    required this.matchId,
+    required this.fromId,
+    this.fromName = '',
+    this.fromAppearance,
+    this.lessonId = '',
+  });
+
+  final DuelInviteKind kind;
+  final String matchId;
+  final String fromId;
+  final String fromName;
+  final Map<String, dynamic>? fromAppearance;
+  final String lessonId;
+
+  /// يقرأ حدثاً من القناة، أو `null` إن لم يكن لي أو لم يصلح.
+  static DuelInviteEvent? fromPayload(
+    String event,
+    Map<String, dynamic> payload,
+    String myId,
+  ) {
+    String text(Object? value) => value is String ? value.trim() : '';
+    if (myId.isEmpty || text(payload['to']) != myId) return null;
+    final matchId = text(payload['matchId']);
+    final fromId = text(payload['from']);
+    if (matchId.isEmpty || fromId.isEmpty || fromId == myId) return null;
+    final kind = switch (event) {
+      'invite' => DuelInviteKind.invite,
+      'invite-reply' =>
+        payload['accepted'] == true ? DuelInviteKind.accepted : DuelInviteKind.declined,
+      'invite-cancel' => DuelInviteKind.cancelled,
+      _ => null,
+    };
+    if (kind == null) return null;
+    final look = payload['appearance'];
+    return DuelInviteEvent(
+      kind: kind,
+      matchId: matchId,
+      fromId: fromId,
+      fromName: text(payload['name']),
+      fromAppearance: look is Map ? Map<String, dynamic>.from(look) : null,
+      lessonId: text(payload['lessonId']),
+    );
+  }
+}
+
+/// ما قاله الخادمُ عن جوابي.
+class DuelAnswerResult {
+  const DuelAnswerResult({
+    required this.correct,
+    required this.won,
+    required this.answerAt,
+    required this.points,
+  });
+
+  final bool correct;
+
+  /// كنتُ أوّلَ صحيح: لي نقاطُ السؤال.
+  final bool won;
+  final int answerAt;
+  final int points;
+}
+
+/// نتيجةُ المباراة بعد حسمها في الخادم.
+class DuelResult {
+  const DuelResult({
+    required this.match,
+    required this.gems,
+    required this.draw,
+    required this.rewardTaken,
+  });
+
+  final DuelMatch? match;
+
+  /// ما صُرف لي الآن: خمسٌ للفائز، أو صفر.
+  final int gems;
+  final bool draw;
+
+  /// فزتُ، وجائزةُ هذا الدرس صُرفت لي من قبل.
+  final bool rewardTaken;
+}
+
 /// مبارياتُ التحدي: الدعوةُ والنتيجةُ والحضورُ الحيّ.
 ///
 /// ── والقرارُ في الخادم لا هنا ──
@@ -156,10 +255,10 @@ class DuelFailure implements Exception {
 /// — كلُّها في `api-server`. فلو حُسب شيءٌ منها هنا لكان رصيدُ الجواهر
 /// مسألةَ من يُعدّل التطبيق.
 ///
-/// ── والحضورُ زينةٌ لا شرط ──
-/// قناةُ الصفّ تقول من متصلٌ الآن، فتُعرض نقطةٌ خضراء وتبدأ المباراةُ
-/// تزامناً. وإن سقطت القناةُ — شبكةٌ ضعيفةٌ أو جهازٌ يمنع المقابس — بقيت
-/// الدعوةُ تعمل مؤجَّلةً. فالمباراةُ لا تتوقّف على اتصالٍ حيّ.
+/// ── والحضورُ شرطُ التحدي ──
+/// قناةُ الصفّ تقول من في الساحة الآن، وعليها تُبثّ الدعوةُ والردُّ عليها. فلا
+/// يُتحدّى إلا متصل، وتُلعب المباراةُ بين اثنين حاضرين معاً — السؤالُ نفسه في
+/// اللحظة نفسها، وأوّلُ صحيحٍ يكسبه.
 class StudentDuelService {
   StudentDuelService({
     required this.apiBaseUrl,
@@ -236,16 +335,11 @@ class StudentDuelService {
     return map;
   }
 
-  /// يدعو زميلاً إلى مباراة.
-  ///
-  /// و[live] وصفٌ لا وعد: يُرسل أنّ الزميل كان متصلاً لحظةَ الدعوة، فتعرض
-  /// شاشتُه دعوةً فورية. وإن خرج قبل أن يقبل بقيت المباراةُ مؤجَّلةً —
-  /// والخادم لا يفرّق بينهما في الحساب.
+  /// يُنشئ مباراةً حيّةً مع زميلٍ متصلٍ الآن. والدعوةُ نفسُها تُبثّ بعدها على
+  /// قناة الصفّ — انظر [sendInvite].
   Future<DuelMatch> invite({
     required String lessonId,
     required String guestId,
-    required DuelGame game,
-    required bool live,
   }) async {
     final map = await _send(
       'invite',
@@ -253,26 +347,12 @@ class StudentDuelService {
       body: {
         'lessonId': lessonId,
         'guestId': guestId,
-        'game': game.id,
-        'live': live,
+        'game': DuelGame.sprint.id,
       },
     );
     final match = DuelMatch.fromJson(map['match']);
     if (match == null) throw DuelFailure(tr('duel.error.failed'));
     return match;
-  }
-
-  /// يسجّل نتيجتي، ويعود بالمباراة كما صارت وبما صُرف لي.
-  Future<({DuelMatch? match, int gems, bool draw})> submitScore({
-    required String matchId,
-    required int score,
-  }) async {
-    final map = await _send('$matchId/score', post: true, body: {'score': score});
-    return (
-      match: DuelMatch.fromJson(map['match']),
-      gems: map['gems'] is int ? map['gems'] as int : 0,
-      draw: map['draw'] == true,
-    );
   }
 
   /// مباراةٌ بأسئلتها وقواعدها، تُقرأ عند فتحها.
@@ -365,6 +445,123 @@ class StudentDuelService {
     ];
   }
 
+// ── المبارزةُ الحيّة ──
+
+  /// أرسلُ جوابي، ويقول الخادمُ: أصبتُ؟ وهل كنتُ الأوّل؟
+  ///
+  /// الصحةُ والأسبقيةُ من الخادم: الجهازُ لا يحسم «من أجاب أوّلاً» بما وصله من
+  /// بثّ زميله — كلٌّ يرى نفسَه الأوّلَ أحياناً.
+  Future<DuelAnswerResult> answer({
+    required String matchId,
+    required int index,
+    required int choice,
+  }) async {
+    final map = await _send(
+      '$matchId/answer',
+      post: true,
+      body: {'index': index, 'choice': choice},
+    );
+    int number(Object? value) => value is int ? value : 0;
+    return DuelAnswerResult(
+      correct: map['correct'] == true,
+      won: map['won'] == true,
+      answerAt: map['answerAt'] is int ? map['answerAt'] as int : -1,
+      points: number(map['points']),
+    );
+  }
+
+  /// يحسم المباراةَ من الإجابات المسجّلة، ويعود بالنتيجة وبما صُرف لي.
+  Future<DuelResult> finish(String matchId) async {
+    final map = await _send('$matchId/finish', post: true);
+    return DuelResult(
+      match: DuelMatch.fromJson(map['match']),
+      gems: map['gems'] is int ? map['gems'] as int : 0,
+      draw: map['draw'] == true,
+      rewardTaken: map['rewardTaken'] == true,
+    );
+  }
+
+  /// يلغي مباراةً لم تبدأ. وتعذّرُه لا يُرفع: المباراةُ المعلّقةُ تنتهي وحدها.
+  Future<void> cancel(String matchId) async {
+    try {
+      await _send('$matchId/cancel', post: true);
+    } catch (error) {
+      debugPrint('[duel] cancel failed: $error');
+    }
+  }
+
+  // ── الدعوةُ الحيّة على قناة الصفّ ──
+
+  final StreamController<DuelInviteEvent> _inviteEvents =
+      StreamController<DuelInviteEvent>.broadcast();
+
+  /// دعواتٌ وردودٌ موجَّهةٌ إليّ، ما دمتُ في الساحة.
+  Stream<DuelInviteEvent> get inviteEvents => _inviteEvents.stream;
+
+  String _myId = '';
+
+  bool _broadcastOnClass(String event, Map<String, Object?> payload) {
+    final channel = _classChannel;
+    if (channel == null) return false;
+    try {
+      channel.sendBroadcastMessage(event: event, payload: payload);
+      return true;
+    } catch (error) {
+      debugPrint('[duel] $event not sent: $error');
+      return false;
+    }
+  }
+
+  /// يدعو زميلاً متصلاً الآن إلى مباراةٍ أُنشئت له.
+  bool sendInvite({
+    required String to,
+    required DuelMatch match,
+    required String myName,
+    Map<String, dynamic>? myAppearance,
+  }) =>
+      _broadcastOnClass('invite', {
+        'to': to,
+        'from': _myId,
+        'matchId': match.id,
+        'lessonId': match.lessonId,
+        'name': myName,
+        'appearance': myAppearance,
+      });
+
+  /// يردّ على دعوة: قبولٌ أو رفض.
+  bool replyInvite({
+    required String to,
+    required String matchId,
+    required bool accepted,
+  }) =>
+      _broadcastOnClass('invite-reply', {
+        'to': to,
+        'from': _myId,
+        'matchId': matchId,
+        'accepted': accepted,
+      });
+
+  /// يسحب دعوةً قبل أن يُردّ عليها.
+  bool cancelInvite({required String to, required String matchId}) =>
+      _broadcastOnClass('invite-cancel', {
+        'to': to,
+        'from': _myId,
+        'matchId': matchId,
+      });
+
+  /// يبثّ إشارةً في المباراة الجارية: جاهز، ابدأ، التالي، كسبتُ…
+  bool sendSignal(String event, Map<String, Object?> payload) {
+    final channel = _matchChannel;
+    if (channel == null) return false;
+    try {
+      channel.sendBroadcastMessage(event: event, payload: payload);
+      return true;
+    } catch (error) {
+      debugPrint('[duel] signal $event not sent: $error');
+      return false;
+    }
+  }
+
   // ── الحضور ──
 
   /// يعلن حضوري في الصفّ ويتابع من يحضر.
@@ -382,6 +579,16 @@ class StudentDuelService {
         'class:$classKey',
         opts: const RealtimeChannelConfig(self: true),
       );
+      _myId = myId;
+      for (final event in const ['invite', 'invite-reply', 'invite-cancel']) {
+        channel.onBroadcast(
+          event: event,
+          callback: (payload) {
+            final parsed = DuelInviteEvent.fromPayload(event, payload, _myId);
+            if (parsed != null && !_inviteEvents.isClosed) _inviteEvents.add(parsed);
+          },
+        );
+      }
       channel.onPresenceSync((_) => _readPresence(channel));
       channel.onPresenceJoin((_) => _readPresence(channel));
       channel.onPresenceLeave((_) => _readPresence(channel));
@@ -435,6 +642,7 @@ class StudentDuelService {
     void Function(DuelChatMessage message)? onChat,
     void Function(String studentId, bool muted)? onMute,
     void Function(String studentId, int index, int points)? onAnswered,
+    void Function(String event, Map<String, dynamic> payload)? onSignal,
   }) async {
     try {
       await leaveMatch();
@@ -474,6 +682,15 @@ class StudentDuelService {
             }
           },
         );
+      }
+      if (onSignal != null) {
+        // إشاراتُ الساعة الحيّة: من دخل، ومتى نبدأ، وأيُّ سؤالٍ الآن، ومن كسبه.
+        for (final event in const ['ready', 'start', 'next', 'won', 'answered', 'left']) {
+          channel.onBroadcast(
+            event: event,
+            callback: (payload) => onSignal(event, payload),
+          );
+        }
       }
       if (onMute != null) {
         channel.onBroadcast(
@@ -576,6 +793,7 @@ class StudentDuelService {
   }
 
   void dispose() {
+    unawaited(_inviteEvents.close());
     unawaited(leaveClass());
     unawaited(leaveMatch());
     online.dispose();

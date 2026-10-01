@@ -74,14 +74,17 @@ class DuelVersusBar extends StatelessWidget {
                     letterSpacing: 1.5,
                   ),
                 ),
-                Text(
-                  tr(live ? 'duel.liveNow' : 'duel.ghost'),
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white.withValues(alpha: 0.82),
+                // «يلعب الآن» أثناء النزال، ولا شيءَ في النتيجة: المبارزةُ
+                // حيّةٌ دائماً، و«يلعب لاحقاً» بقيّةُ نمطٍ لم يعد.
+                if (live)
+                  Text(
+                    tr('duel.liveNow'),
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white.withValues(alpha: 0.82),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -131,7 +134,8 @@ class _Side extends StatelessWidget {
         child: Stack(
           alignment: Alignment.bottomCenter,
           children: [
-            StudentAvatarView(size: 36, appearance: appearance, showRing: false),
+            StudentAvatarView(
+                size: 36, appearance: appearance, showRing: false),
             if (ahead)
               const Align(
                 alignment: Alignment.topCenter,

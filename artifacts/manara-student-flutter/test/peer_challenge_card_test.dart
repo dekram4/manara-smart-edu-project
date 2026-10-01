@@ -133,7 +133,7 @@ void main() {
 
   testWidgets('المكافأةُ المعروضة هي ما يصرفه الخادم', (tester) async {
     await pumpCard(tester, size: const Size(235, 178));
-    expect(duelWinGems, 1, reason: 'DUEL_WIN_GEMS في api-server/src/lib/duel.ts');
+    expect(duelWinGems, 5, reason: 'DUEL_WIN_GEMS في api-server/src/lib/duel.ts — مرّةً لكل درس');
     expect(duelWinXp, (duelWinGems * 1.5).round(), reason: 'xpFromGems في الخادم');
     expect(find.text('+$duelWinGems'), findsOneWidget);
     expect(find.text('+$duelWinXp XP'), findsOneWidget);
