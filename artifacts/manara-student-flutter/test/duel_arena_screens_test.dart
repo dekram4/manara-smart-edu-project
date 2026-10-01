@@ -31,7 +31,8 @@ const me = StudentProfile(
   grade: '4',
 );
 
-DuelMatch matchOf(String id, {int? mine, int? theirs, bool iWon = false}) => DuelMatch(
+DuelMatch matchOf(String id, {int? mine, int? theirs, bool iWon = false}) =>
+    DuelMatch(
       id: id,
       lessonId: 'L1',
       game: 'sprint',
@@ -70,7 +71,8 @@ class FakeDuel implements StudentDuelService {
   Stream<DuelInviteEvent> get inviteEvents => events.stream;
 
   @override
-  Future<void> joinClass({required String classKey, required String myId}) async {}
+  Future<void> joinClass(
+      {required String classKey, required String myId}) async {}
   @override
   Future<void> leaveClass() async {}
   @override
@@ -105,7 +107,8 @@ class FakeDuel implements StudentDuelService {
   }
 
   @override
-  Future<DuelRoom> respond({required String matchId, required bool accept}) async {
+  Future<DuelRoom> respond(
+      {required String matchId, required bool accept}) async {
     log.add('respond:$matchId:$accept');
     final now = phases[matchId] ?? DuelRoomPhase.invited;
     if (now == DuelRoomPhase.invited) {
@@ -136,7 +139,8 @@ class FakeDuel implements StudentDuelService {
   }
 
   @override
-  bool replyInvite({required String to, required String matchId, required bool accepted}) {
+  bool replyInvite(
+      {required String to, required String matchId, required bool accepted}) {
     log.add('reply:$matchId:$accepted');
     return true;
   }
@@ -189,7 +193,8 @@ class FakeDuel implements StudentDuelService {
   }) async {
     final correct = choice == questions[index].answerAt;
     final win = correct && won.add(index);
-    return DuelAnswerResult(correct: correct, won: win, answerAt: 0, points: win ? 10 : 0);
+    return DuelAnswerResult(
+        correct: correct, won: win, answerAt: 0, points: win ? 10 : 0);
   }
 
   int finishMine = 20;
@@ -200,7 +205,9 @@ class FakeDuel implements StudentDuelService {
   @override
   Future<DuelResult> finish(String matchId) async => DuelResult(
         match: matchOf(matchId,
-            mine: finishMine, theirs: finishTheirs, iWon: finishMine > finishTheirs),
+            mine: finishMine,
+            theirs: finishTheirs,
+            iWon: finishMine > finishTheirs),
         gems: finishGems,
         draw: finishMine == finishTheirs,
         rewardTaken: finishTaken,
@@ -211,22 +218,32 @@ class FakeDuel implements StudentDuelService {
 }
 
 class FakeBoard implements StudentLeaderboardService {
+  int fetches = 0;
+  List<LeaderboardEntry> entries = const [
+    LeaderboardEntry(
+        id: 'r1', name: 'سارة', gems: 9, xp: 9, level: 1, rank: 1, isMe: false),
+    LeaderboardEntry(
+        id: 'r2', name: 'خالد', gems: 5, xp: 5, level: 1, rank: 2, isMe: false),
+    LeaderboardEntry(
+        id: 'r3', name: 'منى', gems: 3, xp: 3, level: 1, rank: 3, isMe: false),
+    LeaderboardEntry(
+        id: 'me', name: 'أنا', gems: 1, xp: 1, level: 1, rank: 4, isMe: true),
+  ];
+
   @override
-  Future<LeaderboardResult> fetch() async => const LeaderboardResult.ready(
-        Leaderboard(
-          entries: [
-            LeaderboardEntry(id: 'r1', name: 'سارة', gems: 9, xp: 9, level: 1, rank: 1, isMe: false),
-            LeaderboardEntry(id: 'r2', name: 'خالد', gems: 5, xp: 5, level: 1, rank: 2, isMe: false),
-            LeaderboardEntry(id: 'r3', name: 'منى', gems: 3, xp: 3, level: 1, rank: 3, isMe: false),
-            LeaderboardEntry(id: 'me', name: 'أنا', gems: 1, xp: 1, level: 1, rank: 4, isMe: true),
-          ],
-          myRank: 4,
-          total: 4,
-          topGems: 9,
-          gemsToNext: 2,
-          listed: true,
-        ),
-      );
+  Future<LeaderboardResult> fetch() async {
+    fetches += 1;
+    return LeaderboardResult.ready(
+      Leaderboard(
+        entries: entries,
+        myRank: 4,
+        total: 4,
+        topGems: 9,
+        gemsToNext: 2,
+        listed: true,
+      ),
+    );
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -273,12 +290,18 @@ void main() {
   /// يمرّر الساحةَ حتى يظهر الهدف: بطاقاتُ الألعاب تدفع الزملاءَ تحت حافّة الهاتف.
   Future<void> tapVisible(WidgetTester tester, Finder target) async {
     // والقائمةُ كسولة: ما تحت الحافّة بكثيرٍ لم يُبنَ بعد، فيُمرَّر إليه.
-    if (target.evaluate().isEmpty) {
-      await tester.scrollUntilVisible(
-        target,
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
+    // والهدفُ قد يكون فوق ما مُرِّر إليه: يُجرَّب الاتجاهان.
+    for (final step in const [200.0, -200.0]) {
+      if (target.evaluate().isNotEmpty) break;
+      try {
+        await tester.scrollUntilVisible(
+          target,
+          step,
+          scrollable: find.byType(Scrollable).first,
+        );
+      } on StateError {
+        // ليس في هذا الاتجاه.
+      }
     }
     await tester.ensureVisible(target);
     await tester.pump(const Duration(milliseconds: 100));
@@ -292,7 +315,11 @@ void main() {
   }
 
   group('الساحة', () {
-    Future<FakeDuel> pumpLobby(WidgetTester tester, {Size size = const Size(390, 844)}) async {
+    Future<FakeDuel> pumpLobby(
+      WidgetTester tester, {
+      Size size = const Size(390, 844),
+      FakeBoard? board,
+    }) async {
       sized(tester, size);
       final duel = FakeDuel();
       addTearDown(duel.events.close);
@@ -302,7 +329,7 @@ void main() {
             profile: me,
             duelService: duel,
             challengeService: NoChallenge(),
-            leaderboardService: FakeBoard(),
+            leaderboardService: board ?? FakeBoard(),
             academicContext: lessonContext,
           ),
         ),
@@ -310,6 +337,62 @@ void main() {
       await settle(tester);
       return duel;
     }
+
+    Finder championRow(String id) => find.byKey(ValueKey('champion-$id'));
+
+    testWidgets('أبطالُ الصف: بمجموع الخبرة والجواهر، والأوّلُ بالذهب والتاج',
+        (tester) async {
+      await pumpLobby(tester, size: const Size(390, 2200));
+      expect(find.text(tr('arena.championsEmpty')), findsNothing);
+      for (final (id, medal) in [('r1', '🥇'), ('r2', '🥈'), ('r3', '🥉')]) {
+        expect(
+          find.descendant(of: championRow(id), matching: find.text(medal)),
+          findsOneWidget,
+          reason: id,
+        );
+      }
+      expect(find.descendant(of: championRow('r1'), matching: find.text('👑')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: championRow('r1'),
+              matching: find.text(trf('arena.championsScore', {'n': '18'}))),
+          findsOneWidget);
+      // الرابعُ برقمه، وصفّي معلَّم.
+      expect(find.descendant(of: championRow('me'), matching: find.text('4')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: championRow('me'),
+              matching: find.textContaining(tr('arena.championsYou'))),
+          findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('أبطالُ الصف يتحدّثون وحدهم: زميلٌ تقدّم فيصعد',
+        (tester) async {
+      final board = FakeBoard();
+      await pumpLobby(tester, size: const Size(390, 2200), board: board);
+      final before = board.fetches;
+      board.entries = [
+        ...board.entries.where((e) => e.id != 'r3'),
+        const LeaderboardEntry(
+            id: 'r3',
+            name: 'منى',
+            gems: 20,
+            xp: 15,
+            level: 2,
+            rank: 3,
+            isMe: false),
+      ];
+      await tester.pump(const Duration(seconds: 21));
+      await settle(tester);
+      expect(board.fetches, greaterThan(before));
+      expect(find.descendant(of: championRow('r3'), matching: find.text('🥇')),
+          findsOneWidget);
+      expect(find.descendant(of: championRow('r1'), matching: find.text('🥈')),
+          findsOneWidget);
+    });
 
     testWidgets('اللعبةُ أوّلاً: التحدي مقفلٌ حتى تُختار', (tester) async {
       final duel = await pumpLobby(tester);
@@ -328,17 +411,21 @@ void main() {
       expect(duel.log, contains('invite:r1:balloons'));
     });
 
-    testWidgets('المتصلُ وحده يُتحدّى، والغائبون شاحبون بلا زرّ', (tester) async {
+    testWidgets('المتصلُ وحده يُتحدّى، والغائبون شاحبون بلا زرّ',
+        (tester) async {
       // شاشةٌ طويلة: القائمةُ تُبنى كسولةً، والغائبون في آخرها.
       await pumpLobby(tester, size: const Size(390, 1800));
-      expect(find.textContaining(trf('arena.online', {'n': '1'})), findsOneWidget);
+      expect(
+          find.textContaining(trf('arena.online', {'n': '1'})), findsOneWidget);
       expect(find.text(tr('arena.challenge')), findsOneWidget);
-      expect(find.text('سارة'), findsOneWidget);
+      // مرّةً في بطاقة التحدّي، ومرّةً في «أبطال الصف».
+      expect(find.text('سارة'), findsNWidgets(2));
       expect(find.text(tr('arena.unavailable')), findsNWidgets(2));
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('غادرتُ الساحةَ والدعوةُ قائمة: تُسحب ولا تبقى معلّقة', (tester) async {
+    testWidgets('غادرتُ الساحةَ والدعوةُ قائمة: تُسحب ولا تبقى معلّقة',
+        (tester) async {
       final duel = await pumpLobby(tester);
       await tapVisible(tester, find.text(DuelGame.sprint.label));
       await settle(tester, 2);
@@ -355,14 +442,16 @@ void main() {
       expect(find.byType(FloatingActionButton), findsNothing);
     });
 
-    testWidgets('يتحدّى فينتظر، ويُقبل فتُفتح غرفةُ النزال وتبقى مفتوحة', (tester) async {
+    testWidgets('يتحدّى فينتظر، ويُقبل فتُفتح غرفةُ النزال وتبقى مفتوحة',
+        (tester) async {
       final duel = await pumpLobby(tester);
       await tapVisible(tester, find.text(DuelGame.sprint.label));
       await settle(tester, 2);
       await tapVisible(tester, find.text(tr('arena.challenge')));
       await settle(tester, 3);
       expect(duel.log, containsAll(['invite:r1:sprint', 'sendInvite:r1:m1']));
-      expect(find.text(trf('arena.waitingTitle', {'name': 'سارة'})), findsOneWidget);
+      expect(find.text(trf('arena.waitingTitle', {'name': 'سارة'})),
+          findsOneWidget);
 
       // الخادمُ كتب القَبول؛ والإشارةُ تُسرّع السؤالَ عنه.
       duel.phases['m1'] = DuelRoomPhase.accepted;
@@ -374,10 +463,12 @@ void main() {
       await settle(tester, 5);
       // والنافذةُ أزالت مسارَها هي: الغرفةُ التي فُتحت للتوّ باقية.
       expect(find.byType(DuelMatchScreen), findsOneWidget);
-      expect(find.text(trf('arena.waitingTitle', {'name': 'سارة'})), findsNothing);
+      expect(
+          find.text(trf('arena.waitingTitle', {'name': 'سارة'})), findsNothing);
     });
 
-    testWidgets('إشارةُ «قبل» وحدها لا تفتح الغرفة: الخادمُ هو الحَكَم', (tester) async {
+    testWidgets('إشارةُ «قبل» وحدها لا تفتح الغرفة: الخادمُ هو الحَكَم',
+        (tester) async {
       final duel = await pumpLobby(tester);
       await tapVisible(tester, find.text(DuelGame.sprint.label));
       await settle(tester, 2);
@@ -389,15 +480,19 @@ void main() {
         fromId: 'r1',
       ));
       await settle(tester, 5);
-      expect(find.byType(DuelMatchScreen), findsNothing, reason: 'لم يكتب الخادمُ قَبولاً');
-      expect(find.text(trf('arena.waitingTitle', {'name': 'سارة'})), findsOneWidget);
+      expect(find.byType(DuelMatchScreen), findsNothing,
+          reason: 'لم يكتب الخادمُ قَبولاً');
+      expect(find.text(trf('arena.waitingTitle', {'name': 'سارة'})),
+          findsOneWidget);
       // وتنتهي المهلةُ بلا قَبول: يُلغى ويقال ذلك.
       await settle(tester, 300);
-      expect(find.text(trf('arena.noAnswer', {'name': 'سارة'})), findsOneWidget);
+      expect(
+          find.text(trf('arena.noAnswer', {'name': 'سارة'})), findsOneWidget);
       expect(duel.log, contains('cancel:m1'));
     });
 
-    testWidgets('المهلةُ انتهت عندي والزميلُ قبل في آخر لحظة: أدخل ولا أتركه', (tester) async {
+    testWidgets('المهلةُ انتهت عندي والزميلُ قبل في آخر لحظة: أدخل ولا أتركه',
+        (tester) async {
       final duel = await pumpLobby(tester);
       await tapVisible(tester, find.text(DuelGame.sprint.label));
       await settle(tester, 2);
@@ -423,11 +518,13 @@ void main() {
         fromId: 'r1',
       ));
       await settle(tester, 5);
-      expect(find.text(trf('arena.declined', {'name': 'سارة'})), findsOneWidget);
+      expect(
+          find.text(trf('arena.declined', {'name': 'سارة'})), findsOneWidget);
       expect(find.byType(DuelMatchScreen), findsNothing);
     });
 
-    testWidgets('يصلني تحدٍّ فأقبله: أردّ، وتُفتح الغرفةُ ضيفاً', (tester) async {
+    testWidgets('يصلني تحدٍّ فأقبله: أردّ، وتُفتح الغرفةُ ضيفاً',
+        (tester) async {
       final duel = await pumpLobby(tester);
       duel.events.add(const DuelInviteEvent(
         kind: DuelInviteKind.invite,
@@ -436,16 +533,19 @@ void main() {
         fromName: 'سارة',
       ));
       await settle(tester, 3);
-      expect(find.text(trf('arena.inviteTitle', {'name': 'سارة'})), findsOneWidget);
+      expect(find.text(trf('arena.inviteTitle', {'name': 'سارة'})),
+          findsOneWidget);
       await tester.tap(find.text(tr('arena.accept')));
       await settle(tester, 5);
       expect(duel.log, containsAll(['respond:m9:true', 'reply:m9:true']));
-      final screen = tester.widget<DuelMatchScreen>(find.byType(DuelMatchScreen));
+      final screen =
+          tester.widget<DuelMatchScreen>(find.byType(DuelMatchScreen));
       expect(screen.isHost, isFalse);
       expect(screen.matchId, 'm9');
     });
 
-    testWidgets('قبلتُ دعوةً انتهت في الخادم: لا غرفة، ويقال ذلك', (tester) async {
+    testWidgets('قبلتُ دعوةً انتهت في الخادم: لا غرفة، ويقال ذلك',
+        (tester) async {
       final duel = await pumpLobby(tester);
       duel.phases['m9'] = DuelRoomPhase.expired;
       duel.events.add(const DuelInviteEvent(
@@ -476,10 +576,12 @@ void main() {
       duel.events.add(event);
       await settle(tester, 3);
       expect(duel.log.where((e) => e.endsWith(':false')), isEmpty);
-      expect(find.text(trf('arena.inviteTitle', {'name': 'سارة'})), findsOneWidget);
+      expect(find.text(trf('arena.inviteTitle', {'name': 'سارة'})),
+          findsOneWidget);
     });
 
-    testWidgets('وسحبه صاحبُه قبل أن أقرّر: تُغلق النافذةُ ويقال ذلك', (tester) async {
+    testWidgets('وسحبه صاحبُه قبل أن أقرّر: تُغلق النافذةُ ويقال ذلك',
+        (tester) async {
       final duel = await pumpLobby(tester);
       duel.events.add(const DuelInviteEvent(
         kind: DuelInviteKind.invite,
@@ -494,8 +596,10 @@ void main() {
         fromId: 'r1',
       ));
       await settle(tester, 5);
-      expect(find.text(trf('arena.inviteTitle', {'name': 'سارة'})), findsNothing);
-      expect(find.text(trf('arena.withdrawn', {'name': 'سارة'})), findsOneWidget);
+      expect(
+          find.text(trf('arena.inviteTitle', {'name': 'سارة'})), findsNothing);
+      expect(
+          find.text(trf('arena.withdrawn', {'name': 'سارة'})), findsOneWidget);
     });
 
     testWidgets('لا تجاوزَ على شاشةٍ ضيّقةٍ ولا عريضة', (tester) async {
@@ -507,7 +611,8 @@ void main() {
   });
 
   group('غرفةُ النزال', () {
-    Future<FakeDuel> pumpMatch(WidgetTester tester, {Size size = const Size(390, 844)}) async {
+    Future<FakeDuel> pumpMatch(WidgetTester tester,
+        {Size size = const Size(390, 844)}) async {
       sized(tester, size);
       final duel = FakeDuel();
       addTearDown(duel.events.close);
@@ -529,8 +634,10 @@ void main() {
     }
 
     Future<void> toFirstQuestion(WidgetTester tester, FakeDuel duel) async {
-      expect(find.text(trf('arena.waitingRival', {'name': 'سارة'})), findsOneWidget);
-      expect(find.byType(DuelChatButton), findsNothing, reason: 'لا دردشةَ والزميلُ غائب');
+      expect(find.text(trf('arena.waitingRival', {'name': 'سارة'})),
+          findsOneWidget);
+      expect(find.byType(DuelChatButton), findsNothing,
+          reason: 'لا دردشةَ والزميلُ غائب');
       duel.rivalJoined = true;
       duel.signal!('ready', {'id': 'r1'});
       await settle(tester, 4);
@@ -540,12 +647,14 @@ void main() {
       expect(find.text(questions[0].prompt), findsOneWidget);
     }
 
-    testWidgets('مواجهة، ثم ٣-٢-١، ثم السؤالُ بخياراته الأربعة وعدّاده', (tester) async {
+    testWidgets('مواجهة، ثم ٣-٢-١، ثم السؤالُ بخياراته الأربعة وعدّاده',
+        (tester) async {
       final duel = await pumpMatch(tester);
       await toFirstQuestion(tester, duel);
       expect(find.byType(AnswerTile), findsNWidgets(4));
       expect(find.byType(ArenaTimerRing), findsOneWidget);
-      expect(find.byType(DuelChatButton), findsOneWidget, reason: 'الدردشةُ داخل النزال');
+      expect(find.byType(DuelChatButton), findsOneWidget,
+          reason: 'الدردشةُ داخل النزال');
       expect(tester.takeException(), isNull);
     });
 
@@ -563,7 +672,8 @@ void main() {
       await toFirstQuestion(tester, duel);
       duel.signal!('won', {'by': 'r1', 'index': 0});
       await settle(tester, 2);
-      expect(find.text(trf('arena.rivalWon', {'name': 'سارة'})), findsOneWidget);
+      expect(
+          find.text(trf('arena.rivalWon', {'name': 'سارة'})), findsOneWidget);
       final tiles = tester.widgetList<AnswerTile>(find.byType(AnswerTile));
       expect(tiles.every((t) => t.onPressed == null), isTrue);
     });
@@ -594,7 +704,8 @@ void main() {
       expect(find.text(tr('arena.rewardTaken')), findsOneWidget);
     });
 
-    testWidgets('الزميلُ لم يدخل: لا عدَّ ولا سؤالَ ولا دردشة، ثم رسالةٌ وعودة', (tester) async {
+    testWidgets('الزميلُ لم يدخل: لا عدَّ ولا سؤالَ ولا دردشة، ثم رسالةٌ وعودة',
+        (tester) async {
       await pumpMatch(tester);
       for (var i = 0; i < 27; i++) {
         await settle(tester, 10);
@@ -602,7 +713,8 @@ void main() {
         expect(find.byType(AnswerTile), findsNothing);
         expect(find.byType(DuelChatButton), findsNothing);
       }
-      expect(find.text(trf('arena.failRival', {'name': 'سارة'})), findsOneWidget);
+      expect(
+          find.text(trf('arena.failRival', {'name': 'سارة'})), findsOneWidget);
       expect(find.text(tr('arena.back')), findsOneWidget);
     });
 
@@ -622,7 +734,8 @@ void main() {
 void gamesAndThemes() {
   for (final dark in [false, true]) {
     for (final game in DuelGame.values) {
-      testWidgets('${game.id} ${dark ? 'داكن' : 'فاتح'}: الحلبةُ والخياراتُ بلا تجاوز',
+      testWidgets(
+          '${game.id} ${dark ? 'داكن' : 'فاتح'}: الحلبةُ والخياراتُ بلا تجاوز',
           (tester) async {
         SharedPreferences.setMockInitialValues({});
         StudentSettings.resetForTest();

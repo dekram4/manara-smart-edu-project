@@ -114,6 +114,64 @@ class Leaderboard {
   }
 }
 
+/// زميلٌ في قائمة «أبطال الصف»: مجموعُه ومركزُه.
+class ChampionRow {
+  const ChampionRow({
+    required this.entry,
+    required this.score,
+    required this.rank,
+  });
+
+  final LeaderboardEntry entry;
+
+  /// نقاطُ الخبرة والجواهرُ معاً.
+  final int score;
+
+  /// المركز، والمتساويان يشتركان فيه.
+  final int rank;
+
+  /// 🥇 🥈 🥉 للمراكز الثلاثة الأولى، ولا شيء لبقية الصف.
+  String? get medal => switch (rank) {
+        1 => '🥇',
+        2 => '🥈',
+        3 => '🥉',
+        _ => null,
+      };
+}
+
+/// يرتّب الصفَّ لأبطاله: بمجموع نقاط الخبرة والجواهر، تنازلياً.
+///
+/// ── لماذا المجموعُ لا الجواهرُ وحدها ──
+/// الجواهرُ تُصرف في المتجر، فطفلٌ اشترى شخصيةً ينزل في لوحةٍ تعدّها وحدها
+/// وهو لم يخسر شيئاً من تعلّمه. والخبرةُ لا تُصرف. ومجموعُهما يُكافئ التعلّم
+/// والفوزَ معاً.
+///
+/// ── والتساوي ثابتٌ على كل جهاز ──
+/// عند تساوي المجموع: الجواهرُ ثم الخبرةُ ثم الاسمُ ثم المعرّف — فيرى طفلان في
+/// الصفّ الترتيبَ نفسه. والمتساويان في المجموع يشتركان في المركز، والذي يليهما
+/// مركزُه بعددِ من سبقه.
+List<ChampionRow> rankChampions(Iterable<LeaderboardEntry> entries) {
+  final people = entries.toList()
+    ..sort((left, right) {
+      final byScore = (right.xp + right.gems) - (left.xp + left.gems);
+      if (byScore != 0) return byScore;
+      if (right.gems != left.gems) return right.gems - left.gems;
+      if (right.xp != left.xp) return right.xp - left.xp;
+      final byName = left.name.compareTo(right.name);
+      if (byName != 0) return byName;
+      return left.id.compareTo(right.id);
+    });
+  final rows = <ChampionRow>[];
+  for (var index = 0; index < people.length; index++) {
+    final entry = people[index];
+    final score = entry.xp + entry.gems;
+    final rank =
+        index > 0 && rows.last.score == score ? rows.last.rank : index + 1;
+    rows.add(ChampionRow(entry: entry, score: score, rank: rank));
+  }
+  return rows;
+}
+
 /// Reads the class leaderboard from the API server.
 class StudentLeaderboardService {
   StudentLeaderboardService({
@@ -195,7 +253,6 @@ class StudentLeaderboardService {
     }
   }
 }
-
 
 /// لماذا تعذّرت اللوحة. يُعرض للطفل بعبارةٍ واحدة، ويُقرأ في السجلّ.
 enum LeaderboardProblem {

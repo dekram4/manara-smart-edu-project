@@ -316,19 +316,23 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     for (final game in _apiGames) {
       if (seen.add(game.url)) games.add(game);
     }
-    return games
-        .asMap()
-        .entries
-        .map(
-          (entry) => HtmlGame(
-            id: entry.value.id,
-            url: entry.value.url,
-            title: entry.value.title,
-            subtitle: entry.value.subtitle,
-            requiredLevel: entry.key + 1,
-          ),
-        )
-        .toList();
+    // ── أسماءٌ تشدّ الطفل ──
+    // «اللعبة 1» و«لعبة تعليمية» لا تقول له لماذا يضغط. فكلُّ اسمٍ عامٍّ يأخذ
+    // اسماً حماسياً بالتناوب — ولا يتكرّر اسمان في القائمة نفسها ما دامت
+    // الأسماءُ تكفي. واسمٌ سمّاه المعلّمُ يبقى كما هو.
+    var generic = 0;
+    return [
+      for (var index = 0; index < games.length; index++)
+        HtmlGame(
+          id: games[index].id,
+          url: games[index].url,
+          title: isGenericGameTitle(games[index].title)
+              ? tr('svc.gameName.${generic++ % catchyGameNameCount + 1}')
+              : games[index].title,
+          subtitle: games[index].subtitle,
+          requiredLevel: index + 1,
+        ),
+    ];
   }
 }
 

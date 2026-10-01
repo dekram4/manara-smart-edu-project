@@ -41,6 +41,24 @@ class LessonVideo {
   final String? description;
 }
 
+/// كم اسماً حماسياً في التناوب (`svc.gameName.1` … ).
+const catchyGameNameCount = 8;
+
+/// اسمٌ عامٌّ لا يقول شيئاً: «لعبة تعليمية»، «اللعبة 3»، «Game 2».
+///
+/// ── لماذا يُستبدل هذا وحده ──
+/// اسمٌ كهذا يكتبه النظامُ حين لا يسمّي المعلّمُ لعبته، أو يكتبه المعلّمُ على
+/// عجل، ولا يشدّ طفلاً إلى أن يضغط. أمّا اسمٌ اختاره المعلّمُ لمحتواه فيبقى:
+/// هو أدرى بما فيه.
+final _genericGameTitle = RegExp(
+  r'^(?:(?:ال)?لعبة(?:\s+(?:تعليمية|تفاعلية|رقم|html5))*'
+  r'|(?:learning\s+|html5\s+|lesson\s+)?game)\s*[0-9٠-٩]*$',
+  caseSensitive: false,
+);
+
+bool isGenericGameTitle(String title) =>
+    _genericGameTitle.hasMatch(title.trim().replaceAll(RegExp(r'\s+'), ' '));
+
 class HtmlGame {
   const HtmlGame({
     required this.id,

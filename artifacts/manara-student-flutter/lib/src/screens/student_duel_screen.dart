@@ -72,6 +72,14 @@ const _gameLooks = <DuelGame, (String, Color)>{
 
 class _StudentDuelScreenState extends State<StudentDuelScreen> {
   List<LeaderboardEntry> _classmates = const [];
+
+  /// الصفُّ كلُّه وأنا معه: منه يُرتَّب «أبطال الصف».
+  List<LeaderboardEntry> _board = const [];
+
+  /// يُعاد ترتيبُ الأبطال وحده ما دامت الساحةُ مفتوحة: زميلٌ فاز الآن أو أنهى
+  /// درساً يصعد أمام الصفّ بلا أن يُحدِّث أحدٌ الشاشة.
+  Timer? _boardTick;
+  static const _boardEvery = Duration(seconds: 20);
   List<DuelStanding> _standings = const [];
   bool _loading = true;
 
@@ -112,6 +120,7 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     super.initState();
     _invites = widget.duelService.inviteEvents.listen(_onInviteEvent);
     unawaited(_load());
+    _boardTick = Timer.periodic(_boardEvery, (_) => unawaited(_refreshBoard()));
     final key = _classKey;
     if (key.isNotEmpty) {
       unawaited(
@@ -122,6 +131,7 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
 
   @override
   void dispose() {
+    _boardTick?.cancel();
     _waitPoll?.cancel();
     _waitTimer?.cancel();
     _incomingTimer?.cancel();
@@ -151,13 +161,27 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     ).wait;
     if (!mounted) return;
     setState(() {
-      _classmates = [
-        for (final entry in board.board?.entries ?? const <LeaderboardEntry>[])
-          if (!entry.isMe && entry.id != widget.profile.id) entry,
-      ];
+      _applyBoard(board.board?.entries ?? const <LeaderboardEntry>[]);
       _standings = standings;
       _loading = false;
     });
+  }
+
+  void _applyBoard(List<LeaderboardEntry> entries) {
+    _board = entries;
+    _classmates = [
+      for (final entry in entries)
+        if (!entry.isMe && entry.id != widget.profile.id) entry,
+    ];
+  }
+
+  /// تحديثٌ صامت للوحة: لا مؤشّرَ تحميل، ولا يُمسّ شيءٌ إن تعذّر.
+  Future<void> _refreshBoard() async {
+    if (!mounted || _loading || _busy) return;
+    final result = await widget.leaderboardService.fetch();
+    final board = result.board;
+    if (!mounted || board == null) return;
+    setState(() => _applyBoard(board.entries));
   }
 
   ({String name, Map<String, dynamic>? look}) _whoIs(String id) {
@@ -231,7 +255,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
       try {
         final room = await widget.duelService.room(match.id);
         if (waiting.isCompleted) return;
-        if (room.phase == DuelRoomPhase.accepted || room.phase == DuelRoomPhase.ready) {
+        if (room.phase == DuelRoomPhase.accepted ||
+            room.phase == DuelRoomPhase.ready) {
           waiting.complete(_WaitOutcome.accepted);
         } else if (room.phase == DuelRoomPhase.expired) {
           waiting.complete(_WaitOutcome.declined);
@@ -279,7 +304,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
       final room = await widget.duelService.cancel(match.id);
       if (!mounted) return;
       if (room != null &&
-          (room.phase == DuelRoomPhase.accepted || room.phase == DuelRoomPhase.ready)) {
+          (room.phase == DuelRoomPhase.accepted ||
+              room.phase == DuelRoomPhase.ready)) {
         outcome = _WaitOutcome.accepted;
       }
     }
@@ -375,10 +401,14 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
           window: _inviteWindow,
           outcome: incoming.future,
           onAccept: () {
-            if (!incoming.isCompleted) incoming.complete(_IncomingOutcome.accepted);
+            if (!incoming.isCompleted) {
+              incoming.complete(_IncomingOutcome.accepted);
+            }
           },
           onDecline: () {
-            if (!incoming.isCompleted) incoming.complete(_IncomingOutcome.declined);
+            if (!incoming.isCompleted) {
+              incoming.complete(_IncomingOutcome.declined);
+            }
           },
         ),
       ),
@@ -408,7 +438,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
         }
         if (!mounted) return;
         final open = room != null &&
-            (room.phase == DuelRoomPhase.accepted || room.phase == DuelRoomPhase.ready);
+            (room.phase == DuelRoomPhase.accepted ||
+                room.phase == DuelRoomPhase.ready);
         if (!open) {
           setState(() => _busy = false);
           _say(room == null ? tr('arena.notSent') : tr('arena.inviteGone'));
@@ -500,15 +531,22 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
   }
 
   Widget _list(BuildContext context, Set<String> online) {
-    final present = [for (final m in _classmates) if (online.contains(m.id)) m];
-    final away = [for (final m in _classmates) if (!online.contains(m.id)) m];
+    final present = [
+      for (final m in _classmates)
+        if (online.contains(m.id)) m
+    ];
+    final away = [
+      for (final m in _classmates)
+        if (!online.contains(m.id)) m
+    ];
     DuelStanding? mine;
     for (final item in _standings) {
       if (item.isMe) mine = item;
     }
     final ink = StudentSurface.ink(context);
     return ListView(
-      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      physics:
+          const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
       children: [
         Row(
@@ -522,7 +560,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
             Expanded(
               child: Text(
                 tr('arena.title'),
-                style: TextStyle(color: ink, fontSize: 22, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                    color: ink, fontSize: 22, fontWeight: FontWeight.w900),
               ),
             ),
             const StudentSoundToggle(),
@@ -541,7 +580,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
           builder: (context, constraints) {
             final columns = constraints.maxWidth >= 640 ? 4 : 2;
             const gap = 10.0;
-            final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+            final width =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
             return Wrap(
               spacing: gap,
               runSpacing: gap,
@@ -564,7 +604,9 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
         ),
         const SizedBox(height: 22),
         _SectionTitle(
-          text: '${tr('arena.stepRival')} — ${trf('arena.online', {'n': '${present.length}'})}',
+          text: '${tr('arena.stepRival')} — ${trf('arena.online', {
+                'n': '${present.length}'
+              })}',
           leading: const OnlinePulse(size: 12),
         ),
         const SizedBox(height: 10),
@@ -575,7 +617,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
         if (_loading)
           const Padding(
             padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator(color: Color(0xFF7C3AED))),
+            child: Center(
+                child: CircularProgressIndicator(color: Color(0xFF7C3AED))),
           )
         else if (present.isEmpty)
           _Notice(text: tr('arena.onlineEmpty'))
@@ -584,7 +627,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
             builder: (context, constraints) {
               final columns = (constraints.maxWidth / 170).floor().clamp(2, 5);
               const gap = 10.0;
-              final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
               return Wrap(
                 spacing: gap,
                 runSpacing: gap,
@@ -594,7 +638,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
                       width: width,
                       child: _RivalCard(
                         entry: mate,
-                        enabled: !_busy && _lessonId.isNotEmpty && _game != null,
+                        enabled:
+                            !_busy && _lessonId.isNotEmpty && _game != null,
                         onChallenge: () => unawaited(_challenge(mate)),
                       ),
                     ),
@@ -604,8 +649,20 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
           ),
         const SizedBox(height: 22),
         _SectionTitle(text: tr('arena.champions'), leading: const Text('🏆')),
+        const SizedBox(height: 4),
+        Text(
+          tr('arena.championsBlurb'),
+          style: TextStyle(
+            color: StudentSurface.mutedInk(context),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         const SizedBox(height: 10),
-        _Champions(standings: _standings),
+        _Champions(
+          rows: rankChampions(_board),
+          myId: widget.profile.id,
+        ),
         if (away.isNotEmpty) ...[
           const SizedBox(height: 22),
           _SectionTitle(text: trf('arena.offline', {'n': '${away.length}'})),
@@ -639,7 +696,8 @@ class _HeroCard extends StatelessWidget {
         ),
         boxShadow: const [
           BoxShadow(color: Color(0xFF5B21B6), offset: Offset(0, 6)),
-          BoxShadow(color: Color(0x44000000), blurRadius: 16, offset: Offset(0, 10)),
+          BoxShadow(
+              color: Color(0x44000000), blurRadius: 16, offset: Offset(0, 10)),
         ],
       ),
       child: Row(
@@ -652,19 +710,27 @@ class _HeroCard extends StatelessWidget {
               children: [
                 Text(
                   trf('arena.reward', {'gems': '$duelWinGems'}),
-                  style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   tr('arena.rewardNote'),
-                  style: const TextStyle(color: Color(0xFFF5D0FE), fontSize: 12.5, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                      color: Color(0xFFF5D0FE),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    _Pill(text: trf('arena.rules', {'seconds': '$duelQuestionSeconds'})),
+                    _Pill(
+                        text: trf('arena.rules',
+                            {'seconds': '$duelQuestionSeconds'})),
                     if (standing != null)
                       _Pill(
                         text: trf('arena.myRecord', {
@@ -685,7 +751,8 @@ class _HeroCard extends StatelessWidget {
 
 /// بطاقةُ لعبة: مجسّمةٌ على حافّتها، والمختارةُ ترتفع وتتلوّن.
 class _GameCard extends StatefulWidget {
-  const _GameCard({required this.game, required this.selected, required this.onTap});
+  const _GameCard(
+      {required this.game, required this.selected, required this.onTap});
 
   final DuelGame game;
   final bool selected;
@@ -743,7 +810,9 @@ class _GameCardState extends State<_GameCard> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: selected ? Colors.white : StudentSurface.ink(context),
+                        color: selected
+                            ? Colors.white
+                            : StudentSurface.ink(context),
                       ),
                     ),
                   ),
@@ -806,7 +875,8 @@ class _RivalCard extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               StudentAvatarView(size: 64, appearance: entry.appearance),
-              const PositionedDirectional(end: 0, bottom: 2, child: OnlinePulse(size: 14)),
+              const PositionedDirectional(
+                  end: 0, bottom: 2, child: OnlinePulse(size: 14)),
             ],
           ),
           const SizedBox(height: 8),
@@ -867,7 +937,8 @@ class _OfflineChip extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                StudentAvatarView(size: 30, appearance: entry.appearance, showRing: false),
+                StudentAvatarView(
+                    size: 30, appearance: entry.appearance, showRing: false),
                 const SizedBox(width: 6),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 120),
@@ -900,70 +971,198 @@ class _OfflineChip extends StatelessWidget {
   }
 }
 
+/// «أبطال الصف»: الصفُّ كلُّه مرتّباً بمجموع الخبرة والجواهر.
+///
+/// الأوّلُ بتاجٍ ذهبيّ ووسام 🥇، ثم 🥈 و🥉، ثم بقيةُ الصفّ بأرقامها. وتُعرض
+/// العشرةُ الأولى، ومن كان بعدها يرى صفَّه هو في آخر القائمة — فيعرف أين هو.
 class _Champions extends StatelessWidget {
-  const _Champions({required this.standings});
+  const _Champions({required this.rows, required this.myId});
 
-  final List<DuelStanding> standings;
+  final List<ChampionRow> rows;
+  final String myId;
+
+  static const _shown = 10;
+
+  bool _isMe(ChampionRow row) => row.entry.isMe || row.entry.id == myId;
 
   @override
   Widget build(BuildContext context) {
-    final top = standings.where((s) => s.wins > 0).take(5).toList();
-    if (top.isEmpty) return _Notice(text: tr('arena.championsEmpty'));
-    const medals = ['🥇', '🥈', '🥉'];
+    if (rows.isEmpty) return _Notice(text: tr('arena.championsEmpty'));
+    final top = rows.take(_shown).toList();
+    ChampionRow? me;
+    for (final row in rows.skip(_shown)) {
+      if (_isMe(row)) me = row;
+    }
     return Column(
       children: [
-        for (final s in top)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: StudentSurface.card(context),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: s.isMe ? const Color(0xFFF59E0B) : StudentSurface.outline(context),
-                width: s.isMe ? 2 : 1,
-              ),
+        for (final row in top) _ChampionTile(row: row, isMe: _isMe(row)),
+        if (me != null) ...[
+          Text(
+            '⋯',
+            style: TextStyle(
+              color: StudentSurface.mutedInk(context),
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
             ),
-            child: Row(
+          ),
+          const SizedBox(height: 4),
+          _ChampionTile(row: me, isMe: true),
+        ],
+      ],
+    );
+  }
+}
+
+/// ألوانُ المراكز الثلاثة: ذهبٌ وفضّةٌ وبرونز.
+const _podiumTints = <int, Color>{
+  1: Color(0xFFF59E0B),
+  2: Color(0xFF94A3B8),
+  3: Color(0xFFB45309),
+};
+
+class _ChampionTile extends StatelessWidget {
+  const _ChampionTile({required this.row, required this.isMe});
+
+  final ChampionRow row;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = _podiumTints[row.rank];
+    final medal = row.medal;
+    final entry = row.entry;
+    return Container(
+      key: ValueKey('champion-${entry.id}'),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: StudentSurface.card(context),
+        gradient: tint == null
+            ? null
+            : LinearGradient(
+                begin: AlignmentDirectional.centerStart,
+                end: AlignmentDirectional.centerEnd,
+                colors: [
+                  tint.withValues(alpha: 0.22),
+                  StudentSurface.card(context),
+                ],
+              ),
+        border: Border.all(
+          color: isMe
+              ? const Color(0xFF7C3AED)
+              : tint?.withValues(alpha: 0.7) ?? StudentSurface.outline(context),
+          width: isMe || tint != null ? 2 : 1,
+        ),
+        boxShadow: row.rank == 1
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 34,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) =>
+                  ScaleTransition(scale: animation, child: child),
+              child: medal != null
+                  ? Text(
+                      medal,
+                      key: ValueKey(medal),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 24),
+                    )
+                  : Container(
+                      key: ValueKey(row.rank),
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: StudentSurface.track(context),
+                      ),
+                      child: Text(
+                        '${row.rank}',
+                        style: TextStyle(
+                          color: StudentSurface.ink(context),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // البطلُ الأوّل بتاجٍ ذهبيّ فوق شخصيته.
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              StudentAvatarView(
+                size: 40,
+                appearance: entry.appearance,
+                showRing: false,
+              ),
+              if (row.rank == 1)
+                const Positioned(
+                  top: -14,
+                  child: Text('👑', style: TextStyle(fontSize: 18)),
+                ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 32,
-                  child: Text(
-                    s.rank >= 1 && s.rank <= 3 ? medals[s.rank - 1] : '${s.rank}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: StudentSurface.ink(context),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                StudentAvatarView(size: 38, appearance: s.appearance, showRing: false),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    s.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: StudentSurface.ink(context),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
                 Text(
-                  '${s.wins} 🏆',
-                  style: const TextStyle(
-                    color: Color(0xFFF59E0B),
+                  isMe
+                      ? '${entry.name} (${tr('arena.championsYou')})'
+                      : entry.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: StudentSurface.ink(context),
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
+                const SizedBox(height: 2),
+                // قطعتان لا سطرٌ واحد: الأرقامُ اللاتينية و«XP» في سطرٍ عربيٍّ
+                // يخلطها اتجاهُ النصّ فتُقرأ «9 9».
+                Wrap(
+                  spacing: 10,
+                  children: [
+                    _StatChip(text: '⭐ ${entry.xp} XP'),
+                    _StatChip(text: '💎 ${entry.gems}'),
+                  ],
+                ),
               ],
             ),
           ),
-      ],
+          const SizedBox(width: 8),
+          // المجموعُ يعدّ إلى قيمته الجديدة حين يتحدّث: يُرى أنه تغيّر.
+          TweenAnimationBuilder<int>(
+            tween: IntTween(begin: row.score, end: row.score),
+            duration: const Duration(milliseconds: 600),
+            builder: (context, value, _) => Text(
+              trf('arena.championsScore', {'n': '$value'}),
+              style: TextStyle(
+                color: tint ?? const Color(0xFF7C3AED),
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1038,7 +1237,8 @@ class _Pill extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800),
+        style: const TextStyle(
+            color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800),
       ),
     );
   }
@@ -1180,7 +1380,9 @@ class _IncomingDialogState extends State<_IncomingDialog>
     return _ArenaDialog(
       appearance: widget.appearance,
       title: trf('arena.inviteTitle', {'name': widget.name}),
-      body: '$emoji ${trf('arena.inviteGame', {'game': widget.game.label})}\n${tr('arena.inviteBody')}',
+      body: '$emoji ${trf('arena.inviteGame', {
+            'game': widget.game.label
+          })}\n${tr('arena.inviteBody')}',
       top: _WindowCountdown(window: widget.window),
       actions: [
         Arena3DButton(
@@ -1227,7 +1429,8 @@ class _ArenaDialog extends StatelessWidget {
             color: StudentSurface.card(context),
             border: Border.all(color: const Color(0xFFA78BFA), width: 2),
             boxShadow: const [
-              BoxShadow(color: Color(0x667C3AED), blurRadius: 30, spreadRadius: 2),
+              BoxShadow(
+                  color: Color(0x667C3AED), blurRadius: 30, spreadRadius: 2),
             ],
           ),
           child: SingleChildScrollView(
@@ -1274,6 +1477,27 @@ class _ArenaDialog extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// رقمٌ صغيرٌ برمزه، باتجاهٍ ثابت: «⭐ 9 XP» لا يُقلَب في سطرٍ عربي.
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      style: TextStyle(
+        color: StudentSurface.mutedInk(context),
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
       ),
     );
   }
