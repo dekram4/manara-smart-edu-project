@@ -22,6 +22,7 @@ import '../widgets/manara_logo.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/dealt_card_entrance.dart';
+import '../widgets/peer_challenge_card.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_avatar_view.dart';
 import '../services/student_avatar_store.dart';
@@ -852,6 +853,7 @@ class _HomeSection {
     required this.colors,
     required this.accent,
     this.ownsVoice = false,
+    this.duelFace = false,
   });
 
   /// Translation keys rather than finished text, because the table below
@@ -873,6 +875,10 @@ class _HomeSection {
   /// فلا تنطق الواجهةُ سطرَ البوابة لها — والاثنان على مشغّلٍ واحد،
   /// فيحلّ المتأخّرُ محلّ الأوّل.
   final bool ownsVoice;
+
+  /// تُرسم بوجه بطاقة اللعب المجسّمة [PeerChallengeCard] بدل اللوح الزجاجيّ
+  /// والصورة. والحركةُ — التنفّس والميلان ونابضُ الضغط — هي حركةُ أخواتها.
+  final bool duelFace;
 
   String get description => tr(descriptionKey);
 
@@ -1008,6 +1014,7 @@ const _homeSections = <_HomeSection>[
     image: 'assets/images/endless_challenge.png',
     colors: [Color(0xFF3B2A6B), Color(0xFF6D28D9)],
     accent: Color(0xFFDDD6FE),
+    duelFace: true,
   ),
   // Index 10 — المذاكرة الذكية. في آخر القائمة للسبب نفسه: `_openModule`
   // يوزّع بالموضع، وإدراجُ بطاقةٍ في الوسط يرسل الطفل إلى بطاقةٍ أخرى.
@@ -1478,6 +1485,22 @@ class _SectionTileState extends State<_SectionTile>
             final ambient = ((breath + 1) / 2) * 0.30;
             final glow = math.max(ambient, lift.clamp(0.0, 1.0));
             final rim = Color.lerp(tint, Colors.white, glow * 0.35)!;
+
+            // ── بطاقةُ التحدي بوجهها المجسّم ──
+            // المصفوفةُ نفسُها — التنفّسُ والميلانُ والانضغاط — والوجهُ يأخذ
+            // الضغطَ عمقاً: يغوص في حافّته. فتبقى أختاً لبطاقات الرفّ تحت
+            // الإصبع، وتختلف عنها في ما تُريه.
+            if (widget.section.duelFace) {
+              return Transform(
+                alignment: Alignment.center,
+                transform: matrix,
+                child: PeerChallengeCard(
+                  title: widget.section.title,
+                  press: push,
+                  lift: glow,
+                ),
+              );
+            }
 
             return Transform(
               alignment: Alignment.center,

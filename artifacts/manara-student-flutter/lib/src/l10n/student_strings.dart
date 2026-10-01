@@ -60,6 +60,9 @@ class StudentStrings {
     // وصورتُها معلّقةٌ بهذا المفتاح. والنصُّ وحده تغيّر.
     'portal.challenge': 'تحدَّ زملاءك',
     'portal.challenge.sub': 'مبارزة • صدارة • جواهر',
+    'portal.challenge.live': 'تحدٍّ فوري',
+    'portal.challenge.teaser': 'مين الأسرع؟ ادخل الحلبة!',
+    'portal.challenge.reward': 'جائزة الفوز: جواهر {gems}، وخبرة {xp}',
 
     // Shared actions
     'action.retry': 'إعادة المحاولة',
@@ -792,6 +795,9 @@ class StudentStrings {
     'portal.chat.sub': 'Safe messaging',
     'portal.challenge': 'Challenge a classmate',
     'portal.challenge.sub': 'Duel • Standings • Gems',
+    'portal.challenge.live': 'Live duel',
+    'portal.challenge.teaser': 'Who is fastest? Enter the arena!',
+    'portal.challenge.reward': 'A win earns {gems} gem and {xp} XP',
 
     'action.retry': 'Try again',
     'action.close': 'Close',
