@@ -18,6 +18,9 @@ import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../ut
 import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizTypeLabel as formatQuizTypeLabel, normalizeQuizType as normalizeAssessmentType } from '../../utils/quizTypes';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
+import { keepIfSame } from '../../utils/stableState';
+import { formatSafeDate } from '../../utils/safeDate';
+import CardErrorBoundary from '../../components/CardErrorBoundary';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 import { writeAuthSession } from '../../utils/authSession';
 import {
@@ -34,6 +37,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
   const [menuType, setMenuType] = useState<ParentMenuType>(ParentMenuType.DASHBOARD);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // حالُ السحب من الخادم: مؤشّرٌ خفيفٌ أثناءه، وإشارةٌ إن تعذّر.
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(false);
   const [children, setChildren] = useState<StudentInfo[]>([]);
   const [allQuizzes, setAllQuizzes] = useState<QuizResult[]>([]);
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
@@ -105,14 +111,47 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
    * الأبناء فوراً، وكل نصف دقيقة بعدها، وكلما عاد إلى التبويب — فالعودة
    * إلى الصفحة أصدق إشارة على أنه ينتظر جديداً.
    */
+  /**
+   * ── ولا `activeChild` في قائمة التبعيات، وهذا موضعُ تجمّدٍ كان ──
+   *
+   * كانت `[isAuthenticated, activeChild]`، فدارت حلقةٌ لا تنتهي:
+   *
+   *   `loadChildrenOnly` تقرأ الطلاب من `localStorage` بـ`JSON.parse`، فتخرج
+   *   كائناتٌ جديدةُ الهويّة في كل قراءة ولو لم يتغيّر حرفٌ. ثم
+   *   `setActiveChild` تُمرَّر واحداً منها، فيرى React هويّةً جديدةً فيُعيد
+   *   البناء، فتتغيّر التبعيّة، فيُعاد تشغيل هذا الأثر: يهدم المؤقّتين
+   *   ويبنيهما، ويطلب `rehydrateFromServer` — وهي تسحب الجداول كلَّها من
+   *   الخادم — ثم يقرأ فيُنشئ كائناتٍ جديدةً من جديد. بأسرع ما يجدول React.
+   *
+   * ولذلك كانت اللوحةُ تعمل حتى يُختار ابن: الدالّةُ تُعيد `null` حين لا ابنَ
+   * مختار، و`null === null` فيتخطّى React إعادةَ البناء ولا تدور الحلقة.
+   * فيُفتح ملفُّ ابنٍ — أو مادةٌ من موادّه — فتبدأ الدورة وتتجمّد الصفحة.
+   *
+   * وهذا الأثرُ لا يقرأ `activeChild` أصلاً: `loadChildrenOnly` تُحدّثه
+   * بدالّةٍ تأخذ قيمتَه الحاليّة. فوجودُه في القائمة كان يُغلق الحلقة بلا
+   * فائدة.
+   *
+   * والحرسُ الثاني في `loadChildrenOnly`: تُعيد المرجعَ القديم إن لم يتغيّر
+   * المحتوى — فلا تدور الحلقةُ ولو أُعيدت التبعيّةُ يوماً، ولا تُعاد اللوحةُ
+   * كلُّها كل خمس ثوانٍ على بياناتٍ لم تتغيّر.
+   */
   useEffect(() => {
     if (!isAuthenticated) return;
 
     let alive = true;
     const pullThenRead = async () => {
-      await rehydrateFromServer().catch(error =>
-        console.warn('[parent] تعذّر تحديث البيانات من الخادم:', error?.message || error),
-      );
+      setSyncing(true);
+      try {
+        await rehydrateFromServer();
+        if (alive) setSyncError(false);
+      } catch (error) {
+        console.warn('[parent] تعذّر تحديث البيانات من الخادم:', (error as Error)?.message || error);
+        // ولا يُسقط التعذّرُ شيئاً: النسخةُ المحليّة تُقرأ على كل حال، ويُرفع
+        // مؤشّرٌ خفيفٌ يقول إنّ ما يُعرض قد لا يكون الأحدث.
+        if (alive) setSyncError(true);
+      } finally {
+        if (alive) setSyncing(false);
+      }
       if (alive) loadChildrenOnly();
     };
 
@@ -129,22 +168,24 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       window.clearInterval(read);
       window.removeEventListener('focus', onFocus);
     };
-  }, [isAuthenticated, activeChild]);
+  }, [isAuthenticated]);
 
   const loadChildrenOnly = () => {
     const activeUser = readActiveSession<ParentInfo>(STORAGE_KEYS.ACTIVE_PARENT);
     if (activeUser) {
       const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
       const myChildren = getParentChildren(allStudents, activeUser);
-      setChildren(myChildren);
+      setChildren(current => keepIfSame(current, myChildren));
       const childIds = new Set(myChildren.map(child => child.id));
-      setCreatedQuizzes(readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES));
-      const allQuizzes = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
-       setAllQuizzes(allQuizzes
-         .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
-         .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })));
+      setCreatedQuizzes(current =>
+        keepIfSame(current, readStorageArray<CreatedQuiz>(STORAGE_KEYS.CREATED_QUIZZES)),
+      );
+      const allQuizzes = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS)
+        .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
+        .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) }));
+      setAllQuizzes(current => keepIfSame(current, allQuizzes));
       setActiveChild(current =>
-        current ? myChildren.find(child => child.id === current.id) || null : null,
+        current ? keepIfSame(current, myChildren.find(child => child.id === current.id) || null) : null,
       );
     }
   };
@@ -998,7 +1039,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                   <div key={quiz.id} className="bg-white p-3 rounded-xl border border-rose-100 flex items-center justify-between gap-3">
                                     <div className="min-w-0">
                                       <p className="font-black text-sm text-rose-800 truncate">{quiz.quizTitle || 'اختبار المعلم'}</p>
-                                      <p className="text-[10px] text-rose-400 font-bold">{formatAcademicPath(quizResultPath(quiz, createdQuizzes)) || '—'} • {new Date(quiz.createdAt).toLocaleDateString('ar-SA')}</p>
+                                      <p className="text-[10px] text-rose-400 font-bold">{formatAcademicPath(quizResultPath(quiz, createdQuizzes)) || '—'} • {formatSafeDate(quiz.createdAt)}</p>
                                     </div>
                                     <div className="text-left shrink-0">
                                       <p className="font-black text-rose-700">{getQuizResultScore(quiz)} / {quiz.total || 0}</p>
@@ -1155,7 +1196,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                               <div className="text-xl shrink-0">{q.percentage >= 80 ? '🎉' : q.percentage >= 60 ? '👍' : '📖'}</div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-bold text-rose-800 text-xs truncate">{children.find(c => c.id === q.studentId)?.name || ''} — {q.subject}</p>
-                                <p className="text-rose-400 text-[10px] font-bold">{new Date(q.createdAt).toLocaleDateString('ar-SA', {month:'short', day:'numeric'})}</p>
+                                <p className="text-rose-400 text-[10px] font-bold">{formatSafeDate(q.createdAt)}</p>
                               </div>
                               <div className={`text-sm font-black px-2 py-1 rounded-lg shrink-0 ${q.percentage >= 80 ? 'bg-emerald-100 text-emerald-700' : q.percentage >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{q.percentage}%</div>
                             </div>
@@ -1165,7 +1206,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                               <div className="text-xl shrink-0">{c.type === 'excellence' ? '🏆' : c.type === 'appreciation' ? '⭐' : '🌟'}</div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-bold text-rose-800 text-xs truncate">{c.studentName} — {c.type === 'excellence' ? 'تفوق' : c.type === 'appreciation' ? 'شكر' : 'مشاركة'}</p>
-                                <p className="text-rose-400 text-[10px] font-bold">{new Date(c.date).toLocaleDateString('ar-SA', {month:'short', day:'numeric'})}</p>
+                                <p className="text-rose-400 text-[10px] font-bold">{formatSafeDate(c.date)}</p>
                               </div>
                             </div>
                           ))}
@@ -1362,7 +1403,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                <div className="bg-amber-50 p-2 rounded-xl text-center"><p className="text-amber-900 font-black text-sm">{progress.gems}</p><p className="text-amber-500 text-[9px] font-bold">جواهر</p></div>
                                 <div className="bg-cyan-50 p-2 rounded-xl text-center"><p className="text-cyan-900 font-black text-sm">{progress.xp}</p><p className="text-cyan-500 text-[9px] font-bold">خبرة</p></div>
                             </div>
-                            {lastQuiz && <p className="text-rose-400 text-[10px] font-bold mb-3">آخر نشاط: {new Date(lastQuiz.createdAt).toLocaleDateString('ar-SA', {month:'short', day:'numeric'})}</p>}
+                            {lastQuiz && <p className="text-rose-400 text-[10px] font-bold mb-3">آخر نشاط: {formatSafeDate(lastQuiz.createdAt)}</p>}
                             <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50 p-2.5">
                               <p className="mb-1 text-[10px] font-black text-indigo-700">🔐 صلاحيات الطالب الفعالة</p>
                               <div className="flex flex-wrap gap-1">
@@ -1531,14 +1572,40 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                     </div>
 
                     {/* Active subject detail */}
+                    {/*
+                      ── ويُحاط بحاجزِ خطأ ──
+                      هذه اللوحةُ تقرأ نتائجَ وشهاداتٍ وتواريخَ كتبها الخادمُ
+                      أو نسخةٌ أقدمُ من التطبيق. وحقلٌ ناقصٌ واحدٌ كان يرمي في
+                      أثناء البناء فيُفرَغ الفرعُ كلُّه — واللوحةُ تبدو متجمّدةً
+                      لا تُعلن خطأً. والحاجزُ يُبقي الخطأَ في بطاقةٍ فيها زرُّ
+                      إعادة، ويبقى بقيّةُ ملفّ الابن يُقرأ.
+                    */}
                     {activeSubject && (
+                      <CardErrorBoundary label={`تفاصيل مادة ${activeSubject}`}>
                       <div className="space-y-5 animate-fadeIn">
                         <button onClick={() => setActiveSubject(null)} className="bg-white px-4 py-1.5 rounded-full font-black text-rose-500 border border-rose-200 shadow-sm hover:bg-rose-50 transition-all text-xs">← جميع المواد</button>
+                        {/*
+                          تعذُّرُ السحب لا يُفرِغ الشاشة: النسخةُ المحليّة تُعرض،
+                          ويُقال إنها قد لا تكون الأحدث. وشريطٌ يحجب اللوحةَ على
+                          انقطاعٍ لحظيٍّ أسوأُ من رقمٍ متأخّرٍ بدقيقة.
+                        */}
+                        {syncError && (
+                          <div role="status" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
+                            <span aria-hidden="true">⚠️</span>
+                            <span>تعذّر تحديث البيانات من الخادم — ما يُعرض قد لا يكون الأحدث.</span>
+                          </div>
+                        )}
                         <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-4 rounded-2xl shadow-xl text-white">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
                               <h2 className="text-lg font-black">📚 {activeSubject}</h2>
-                              <div className="flex gap-3 text-rose-200 font-bold text-xs mt-1"><span>{activeChild.name}</span><span>• {activeChild.grade}</span><span>• {activeChild.term}</span></div>
+                              {/* والحقولُ الناقصةُ تُحجب لا تُطبع «undefined». */}
+                              <div className="flex gap-3 text-rose-200 font-bold text-xs mt-1">
+                                <span>{activeChild.name || '—'}</span>
+                                {activeChild.grade && <span>• {activeChild.grade}</span>}
+                                {activeChild.term && <span>• {activeChild.term}</span>}
+                                {syncing && <span className="animate-pulse">• يُحدّث…</span>}
+                              </div>
                             </div>
                             {myChildQuizzes.filter(q => q.subject === activeSubject).length > 0 && (
                               <button onClick={() => printSubjectReport(activeChild, activeSubject)} className="bg-white text-rose-500 px-4 py-2 rounded-xl font-black shadow-lg hover:shadow-xl transition-all text-xs shrink-0">🖨️ طباعة</button>
@@ -1567,7 +1634,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                   <div className="flex-1 min-w-0">
                                     <h5 className="font-bold text-sm text-rose-800">{getQuizTypeLabel(q.quizType)}</h5>
                                     <p className="text-rose-500 font-bold text-[10px]">{formatAcademicPath(quizResultPath(q, createdQuizzes)) || '—'}</p>
-                                    <p className="text-rose-400 font-bold text-[10px]">{new Date(q.createdAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}</p>
+                                    <p className="text-rose-400 font-bold text-[10px]">{formatSafeDate(q.createdAt)}</p>
                                   </div>
                                   <div className="text-center mr-3 shrink-0">
                                     <div className={`text-lg font-black rounded-lg px-3 py-1 ${q.percentage >= 80 ? 'bg-emerald-100 text-emerald-700' : q.percentage >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{q.percentage}%</div>
@@ -1592,7 +1659,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                                     <div className="text-2xl shrink-0">{cert.type === 'excellence' ? '🏆' : cert.type === 'appreciation' ? '⭐' : '🌟'}</div>
                                     <div className="flex-1 min-w-0">
                                       <p className="font-bold text-xs text-rose-800 truncate">{cert.type === 'excellence' ? 'شهادة تفوق' : cert.type === 'appreciation' ? 'شهادة شكر' : 'شهادة مشاركة'}</p>
-                                      <p className="text-[10px] text-rose-400 font-bold">{new Date(cert.date).toLocaleDateString('ar-SA', {month:'short', day:'numeric', year:'numeric'})}</p>
+                                      <p className="text-[10px] text-rose-400 font-bold">{formatSafeDate(cert.date, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                     </div>
                                     <button onClick={() => setPreviewCert(cert)} className="text-xs font-bold text-rose-500 hover:text-rose-800 shrink-0">معاينة</button>
                                   </div>
@@ -1622,6 +1689,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           );
                         })()}
                       </div>
+                      </CardErrorBoundary>
                     )}
                   </div>
                 ) : (
@@ -1747,7 +1815,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         <div className="space-y-0.5 text-[11px] font-bold text-rose-500 mb-3">
                           <p className="truncate">📚 <span className="text-rose-700">{cert.subject}</span> · 📅 <span className="text-rose-700">{cert.term}</span></p>
                           <p className="truncate">🎓 <span className="text-rose-700">{cert.grade}</span> · 👨‍🏫 <span className="text-rose-700">{cert.teacherName || 'غير محدد'}</span></p>
-                          <p>📅 <span className="text-rose-700">{new Date(cert.date).toLocaleDateString('ar-SA', {month:'short', day:'numeric'})}</span></p>
+                          <p>📅 <span className="text-rose-700">{formatSafeDate(cert.date)}</span></p>
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => setPreviewCert(cert)} className="flex-1 bg-rose-500 text-white py-1.5 rounded-xl font-bold hover:bg-rose-600 transition-all text-xs">معاينة</button>
@@ -1831,7 +1899,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               <p className="bg-rose-50 p-2.5 rounded-xl">👤 الطالب: <span className="text-rose-700">{previewCert.studentName}</span></p>
               <p className="bg-rose-50 p-2.5 rounded-xl">📚 المادة: <span className="text-rose-700">{previewCert.subject}</span> · 📅 <span className="text-rose-700">{previewCert.term}</span></p>
               <p className="bg-rose-50 p-2.5 rounded-xl">🎓 الصف: <span className="text-rose-700">{previewCert.grade}</span> · 👨‍🏫 <span className="text-rose-700">{previewCert.teacherName || 'غير محدد'}</span></p>
-              <p className="bg-rose-50 p-2.5 rounded-xl">📅 التاريخ: <span className="text-rose-700">{new Date(previewCert.date).toLocaleDateString('ar-SA')}</span></p>
+              <p className="bg-rose-50 p-2.5 rounded-xl">📅 التاريخ: <span className="text-rose-700">{formatSafeDate(previewCert.date, { year: 'numeric', month: 'long', day: 'numeric' })}</span></p>
             </div>
             <div className="flex gap-2">
               <button onClick={() => { printCertificate(previewCert); setPreviewCert(null); }} className="flex-1 bg-rose-500 text-white py-2.5 rounded-xl font-black hover:bg-rose-600 transition-all text-sm">🖨️ طباعة</button>
