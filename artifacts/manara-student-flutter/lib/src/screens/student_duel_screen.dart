@@ -177,6 +177,72 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     await _load();
   }
 
+  /// يختار مباراةً ويفتح دردشتَها: الرسائلُ تُحفظ في المباراة، فلكلِّ زميلٍ
+  /// سجلُّه.
+  Future<void> _openChat() async {
+    if (_inbox.isEmpty) {
+      _say(tr('duel.chat.none'));
+      return;
+    }
+    final match = _inbox.length == 1
+        ? _inbox.first
+        : await showModalBottomSheet<DuelMatch>(
+            context: context,
+            builder: (sheet) => SafeArea(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Text(
+                      tr('duel.chat.pick'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  for (final item in _inbox)
+                    ListTile(
+                      leading: const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        color: Color(0xFF7C3AED),
+                      ),
+                      title: Text(
+                        _whoIs(item.opponentId).name,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(DuelGame.values
+                          .firstWhere(
+                            (game) => game.id == item.game,
+                            orElse: () => DuelGame.sprint,
+                          )
+                          .label),
+                      onTap: () => Navigator.of(sheet).pop(item),
+                    ),
+                ],
+              ),
+            ),
+          );
+    if (match == null || !mounted) return;
+    final who = _whoIs(match.opponentId);
+    await Navigator.of(context).push(
+      StudentPageRoute<void>(
+        immersive: true,
+        builder: (_) => StudentDuelGameScreen(
+          profile: widget.profile,
+          match: match,
+          duelService: widget.duelService,
+          challengeService: widget.challengeService,
+          opponentName: who.name,
+          opponentAppearance: who.look,
+          chatOnly: true,
+        ),
+      ),
+    );
+  }
+
   /// اسمُ صاحبِ المعرّف وشكلُه، مما قرأناه من الصفّ.
   ({String name, Map<String, dynamic>? look}) _whoIs(String id) {
     for (final mate in _classmates) {
@@ -212,6 +278,20 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
           title: Text(tr('duel.title')),
           centerTitle: true,
           actions: const [StudentSoundToggle()],
+        ),
+        // ── وزرُّ الدردشة في الردهة أيضاً، دائماً ──
+        // الطفلُ يفتح البطاقةَ فيرى الردهة أوّلاً، وزرٌّ لا يظهر إلا داخل
+        // المباراة لا يُعرف أنه موجود.
+        floatingActionButton: FloatingActionButton.extended(
+          heroTag: 'duel-lobby-chat',
+          backgroundColor: const Color(0xFF7C3AED),
+          foregroundColor: Colors.white,
+          onPressed: _openChat,
+          icon: const Icon(Icons.chat_bubble_rounded),
+          label: Text(
+            tr('duel.chat.lobby'),
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
         ),
         body: Stack(
           children: [
@@ -252,7 +332,7 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
       children: [
         StudentEntrance(child: _MyRecord(standing: mine)),
         if (_lessonId.isEmpty) ...[

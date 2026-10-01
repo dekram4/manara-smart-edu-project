@@ -83,7 +83,12 @@ class DuelRules {
     this.pointsCorrect = 10,
     this.pointsSpeedMax = 5,
     this.maxScore = 150,
+    this.announced = false,
   });
+
+  /// هل أعلنها الخادمُ فعلاً؟ خادمٌ أقدمُ لا يعرف النقاط ويقبل عددَ الإجابات
+  /// الصحيحة وحده — فتُرسل له نتيجةٌ يقبلها بدل نقاطٍ يردّها.
+  final bool announced;
 
   /// ثوانيَ السؤال في المباراة الحيّة.
   final int questionSeconds;
@@ -130,6 +135,7 @@ class DuelRules {
       pointsCorrect: read('pointsCorrect', 10),
       pointsSpeedMax: read('pointsSpeedMax', 5),
       maxScore: read('maxScore', 150),
+      announced: raw['maxScore'] is int,
     );
   }
 }
