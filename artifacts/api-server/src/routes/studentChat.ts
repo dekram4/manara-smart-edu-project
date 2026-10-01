@@ -2,11 +2,15 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { apiSupabaseConfig, findStudentsInScope, type StudentActor } from "../lib/studentAccess";
 import { requireStudentSession } from "../middleware/studentAuth";
-import { createRateLimit } from "../middleware/rateLimiter";
+import { createRateLimit, createStudentRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
+import { CHAT_VOICE_MAX_MS, isChatVoiceId, parseChatVoice } from "../lib/chatVoice";
 
 const router = Router();
 const chatRateLimit = createRateLimit(30);
+// المقاطعُ أثقلُ من النصّ، وتُعدّ لكل طالب: صفٌّ كاملٌ يشارك عنواناً واحداً.
+const voiceSendLimit = createStudentRateLimit(12);
+const voiceFetchLimit = createStudentRateLimit(90);
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -26,6 +30,34 @@ function canUseChat(student: StudentActor): boolean {
   // `findStudentsInScope` and message visibility both require the same empty
   // teacher scope, so this does not merge classrooms.
   return student.canAccessChat && Boolean(student.grade);
+}
+
+function serviceHeaders(key: string): Record<string, string> {
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function writeRow(id: string, data: Record<string, unknown>, now: string): Promise<void> {
+  const config = apiSupabaseConfig();
+  if (!config) throw new Error("Supabase is not configured");
+  const response = await fetch(`${config.url}/rest/v1/interactions`, {
+    method: "POST",
+    headers: { ...serviceHeaders(config.key), Prefer: "return=minimal" },
+    body: JSON.stringify({ id, data, updated_at: now }),
+  });
+  if (!response.ok) throw new Error(`Chat write failed (${response.status})`);
+}
+
+/** يعيّن المستلم: «الكل» أو زميلٌ في صفّ المرسِل نفسه، وإلا فلا أحد. */
+async function recipientFor(student: StudentActor, requested: string): Promise<string> {
+  if (requested === "all") return "all";
+  const peers = await findStudentsInScope(student.grade, student.teacherId);
+  return peers.some((peer) => peer.id === requested && peer.id !== student.id)
+    ? requested
+    : "";
 }
 
 async function readMessages(): Promise<Array<Record<string, unknown>>> {
@@ -56,6 +88,7 @@ function publicMessage(row: Record<string, unknown>): Record<string, unknown> {
   const data = row.data && typeof row.data === "object"
     ? row.data as Record<string, unknown>
     : {};
+  const voice = isChatVoiceId(data.voiceId) ? data.voiceId : "";
   return {
     id: text(row.id),
     from: text(data.from),
@@ -63,6 +96,13 @@ function publicMessage(row: Record<string, unknown>): Record<string, unknown> {
     to: text(data.to),
     message: text(data.message),
     time: text(data.time) || text(row.updated_at),
+    ...(voice
+      ? {
+        kind: "voice",
+        voiceId: voice,
+        durationMs: Math.min(Math.max(Number(data.durationMs) || 0, 0), CHAT_VOICE_MAX_MS),
+      }
+      : { kind: "text" }),
   };
 }
 
@@ -95,7 +135,7 @@ router.get("/student/chat/messages", requireStudentSession, async (_req, res) =>
       .filter((row) => row.data && typeof row.data === "object")
       .filter((row) => visibleToStudent(row.data as Record<string, unknown>, student))
       .map(publicMessage)
-      .filter((message) => text(message.message))
+      .filter((message) => text(message.message) || message.kind === "voice")
       .slice(-120);
     return res.json({ messages });
   } catch (error) {
@@ -115,12 +155,7 @@ router.post("/student/chat/messages", chatRateLimit, requireStudentSession, asyn
     return res.status(400).json({ error: "الرسالة يجب أن تكون بين 1 و1000 حرف" });
   }
   try {
-    const peers = await findStudentsInScope(student.grade, student.teacherId);
-    const recipient = requestedRecipient === "all"
-      ? "all"
-      : peers.some((peer) => peer.id === requestedRecipient && peer.id !== student.id)
-        ? requestedRecipient
-        : "";
+    const recipient = await recipientFor(student, requestedRecipient);
     if (!recipient) {
       return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
     }
@@ -153,6 +188,111 @@ router.post("/student/chat/messages", chatRateLimit, requireStudentSession, asyn
   } catch (error) {
     logger.error({ err: error }, "[student-chat] message send failed");
     return res.status(503).json({ error: "تعذر إرسال الرسالة الآن" });
+  }
+});
+
+/**
+ * رسالةٌ صوتية: المقطعُ في صفٍّ، والرسالةُ التي تشير إليه في صفٍّ آخر.
+ *
+ * ويُكتب المقطعُ أوّلاً: رسالةٌ تشير إلى مقطعٍ لم يُكتب تُظهر للصفّ زرَّ تشغيلٍ لا
+ * يعمل. والعكسُ — مقطعٌ بلا رسالة — لا يراه أحد.
+ */
+router.post("/student/chat/voice", requireStudentSession, voiceSendLimit, async (req, res) => {
+  const student = activeStudent(res);
+  if (!canUseChat(student)) {
+    return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
+  }
+  const note = parseChatVoice(req.body?.audio, req.body?.durationMs);
+  if (!note.ok) {
+    return res.status(400).json({
+      error: note.error === "tooBig"
+        ? "الرسالة الصوتية أطول من المسموح"
+        : note.error === "tooShort"
+          ? "الرسالة الصوتية قصيرة جداً"
+          : "الرسالة الصوتية غير صالحة",
+      code: note.error,
+    });
+  }
+  try {
+    const recipient = await recipientFor(student, text(req.body?.to) || "all");
+    if (!recipient) {
+      return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
+    }
+    const now = new Date().toISOString();
+    const scope = {
+      from: student.id,
+      to: recipient,
+      grade: student.grade,
+      teacherId: student.teacherId,
+    };
+    const voiceId = `chatvoice_${Date.now()}_${crypto.randomUUID()}`;
+    await writeRow(voiceId, { type: "student_chat_voice", ...scope, audio: note.base64, time: now }, now);
+    const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
+    const data = {
+      type: "student_chat",
+      ...scope,
+      name: student.name,
+      message: "",
+      voiceId,
+      durationMs: note.durationMs,
+      time: now,
+    };
+    await writeRow(id, data, now);
+    return res.status(201).json({
+      message: {
+        id,
+        from: student.id,
+        name: student.name,
+        to: recipient,
+        message: "",
+        kind: "voice",
+        voiceId,
+        durationMs: note.durationMs,
+        time: now,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, "[student-chat] voice send failed");
+    return res.status(503).json({ error: "تعذر إرسال الرسالة الصوتية الآن" });
+  }
+});
+
+/**
+ * يُرجع المقطعَ لمن يرى رسالتَه وحده: صفُّه ومعلّمُه، والمرسلُ والمستلم.
+ * ومقطعٌ لا يحقّ له يُردّ عليه بـ404 لا 403 — فلا يُعرف أنه موجود.
+ */
+router.get("/student/chat/voice/:id", requireStudentSession, voiceFetchLimit, async (req, res) => {
+  const student = activeStudent(res);
+  if (!canUseChat(student)) {
+    return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
+  }
+  const id = req.params.id;
+  if (!isChatVoiceId(id)) return res.status(404).json({ error: "الرسالة الصوتية غير موجودة" });
+  try {
+    const config = apiSupabaseConfig();
+    if (!config) throw new Error("Supabase is not configured");
+    const url = new URL(`${config.url}/rest/v1/interactions`);
+    url.searchParams.set("select", "id,data");
+    url.searchParams.set("id", `eq.${id}`);
+    url.searchParams.set("limit", "1");
+    const response = await fetch(url, { headers: serviceHeaders(config.key) });
+    if (!response.ok) throw new Error(`Voice read failed (${response.status})`);
+    const rows = await response.json();
+    const data = Array.isArray(rows) && rows[0]?.data && typeof rows[0].data === "object"
+      ? rows[0].data as Record<string, unknown>
+      : null;
+    if (!data || data.type !== "student_chat_voice" || !visibleToStudent(data, student) ||
+        typeof data.audio !== "string") {
+      return res.status(404).json({ error: "الرسالة الصوتية غير موجودة" });
+    }
+    const audio = Buffer.from(data.audio, "base64");
+    res.setHeader("Content-Type", "audio/mp4");
+    // المقطعُ لا يتغيّر بعد كتابته.
+    res.setHeader("Cache-Control", "private, max-age=86400, immutable");
+    return res.status(200).send(audio);
+  } catch (error) {
+    logger.error({ err: error }, "[student-chat] voice load failed");
+    return res.status(503).json({ error: "تعذر تحميل الرسالة الصوتية الآن" });
   }
 });
 

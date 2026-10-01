@@ -309,3 +309,10 @@ test("الملغاةُ والمحسومة كما هي", () => {
   assert.equal(roomStateOf(times({ status: "expired" }), now(1)).phase, "expired");
   assert.equal(roomStateOf(times({ status: "done" }), now(1)).phase, "done");
 });
+
+test("مفتاحُ الجائزة: الدرسُ واللعبة معاً", () => {
+  const { duelRewardActivity } = mod;
+  assert.equal(duelRewardActivity("L1", "tug"), "L1:tug");
+  assert.notEqual(duelRewardActivity("L1", "tug"), duelRewardActivity("L1", "sprint"));
+  assert.notEqual(duelRewardActivity("L1", "tug"), duelRewardActivity("L2", "tug"));
+});

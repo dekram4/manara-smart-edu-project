@@ -100,6 +100,9 @@ app.use((req, res, next) => {
 // والحدّ هنا أوسع قليلاً من حدّ الصورة في المسار (ستة ميغابايتات) لأن
 // الجسد يحمل معها السؤال والمعرّف وترميز JSON.
 app.use("/api/gemini/answer", express.json({ limit: "10mb" }));
+// والرسالةُ الصوتية في الدردشة: ثلاثون ثانيةً ≈ ستون كيلوبايت، وبـ base64 أكثرُ
+// بالثلث. والسقفُ الحقيقيّ في `parseChatVoice`، وهذا أوسعُ منه قليلاً.
+app.use("/api/student/chat/voice", express.json({ limit: "320kb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

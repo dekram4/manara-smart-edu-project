@@ -834,16 +834,17 @@ router.post("/student/progress/interaction", async (req, res) => {
  * والفائزُ قد يكون الزميلَ لا صاحبَ الطلب: النتيجةُ الثانية هي التي تحسم
  * المباراة، وقد يُرسلها الخاسر. فيُقرأ صفُّ الفائز بمعرّفه لا من الجلسة.
  *
- * ومفتاحُ المنع `duel:<معرّف الدرس>` لا المباراة: الفوزُ في الدرس نفسه مرّةً
+ * و[activity] الدرسُ واللعبة (`duelRewardActivity`)، فمفتاحُ المنع
+ * `duel:<الدرس>:<اللعبة>` لا المباراة: الفوزُ في اللعبة نفسها من الدرس نفسه مرّةً
  * ثانيةً لا يصرف شيئاً — وإلا صار تكرارُ التحدي نفسه مع الزميل نفسه طريقاً إلى
- * الجواهر لا إلى التعلّم. ويعود `false` حينها، فيقال للطالب إنّ جائزةَ الدرس صُرفت.
+ * الجواهر لا إلى التعلّم. ويعود `false` حينها، فيقال للطالب إنّ الجائزةَ صُرفت.
  */
 export async function awardDuelWin(
   winnerId: string,
-  lessonId: string,
+  activity: string,
 ): Promise<boolean> {
   const id = text(winnerId);
-  const match = text(lessonId);
+  const match = text(activity);
   if (!id || !match) return false;
   // `readStudentRow` تقرأ بالمعرّف وحده، فيكفيها هذا القدر من الفاعل.
   const row = await readStudentRow({ id } as StudentActor);

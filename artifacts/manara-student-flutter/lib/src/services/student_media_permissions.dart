@@ -1,6 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+/// حالُ الميكروفون قبل رسالةٍ صوتية.
+///
+/// و[blocked] غيرُ [denied]: رفضٌ نهائيٌّ لا يُظهر النظامُ بعده نافذةَ السؤال
+/// أبداً، فلا يفيد إلا أن يُفتح للطفل إعدادُ التطبيق.
+enum MicAccess { granted, denied, blocked }
+
 /// Holds the microphone/camera permission the virtual teacher needs, and
 /// the D-ID session bookkeeping that goes with it.
 ///
@@ -68,6 +74,43 @@ class StudentMediaPermissions {
     } catch (_) {
       return false;
     }
+  }
+
+  /// الميكروفون لرسالةٍ صوتية في الدردشة.
+  ///
+  /// ── ولماذا يُسأل هنا قبل المسجّل ──
+  /// المسجّلُ يعود بـ«لا» ولا يقول لماذا: لا يُفرَّق بين طفلٍ ضغط «رفض» الآن —
+  /// فيُسأل ثانيةً — وطفلٍ رفض نهائياً — فلا تظهر النافذةُ مهما ضُغط الزرّ، ولا
+  /// يبقى إلا الإعدادات. وبلا هذا الفرق يضغط الزرَّ مراراً ولا يحدث شيء.
+  ///
+  /// ولا يرمي: منصّةٌ بلا نظام أذونٍ هنا يُترك القرارُ فيها للمسجّل.
+  static Future<MicAccess> microphoneForVoiceNote() async {
+    if (kIsWeb) return MicAccess.granted;
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      return MicAccess.granted;
+    }
+    try {
+      var status = await Permission.microphone.status;
+      if (status.isGranted || status.isLimited) return MicAccess.granted;
+      if (status.isPermanentlyDenied || status.isRestricted) {
+        return MicAccess.blocked;
+      }
+      status = await Permission.microphone.request();
+      if (status.isGranted || status.isLimited) return MicAccess.granted;
+      return status.isPermanentlyDenied || status.isRestricted
+          ? MicAccess.blocked
+          : MicAccess.denied;
+    } catch (_) {
+      return MicAccess.granted;
+    }
+  }
+
+  /// يفتح إعدادَ التطبيق في النظام، حيث يُعاد السماحُ بعد رفضٍ نهائي.
+  static Future<void> openSettings() async {
+    try {
+      await openAppSettings();
+    } catch (_) {}
   }
 
   /// Test seam: lets a test start from a clean slate.

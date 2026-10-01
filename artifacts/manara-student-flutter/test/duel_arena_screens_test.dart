@@ -272,6 +272,14 @@ void main() {
 
   /// يمرّر الساحةَ حتى يظهر الهدف: بطاقاتُ الألعاب تدفع الزملاءَ تحت حافّة الهاتف.
   Future<void> tapVisible(WidgetTester tester, Finder target) async {
+    // والقائمةُ كسولة: ما تحت الحافّة بكثيرٍ لم يُبنَ بعد، فيُمرَّر إليه.
+    if (target.evaluate().isEmpty) {
+      await tester.scrollUntilVisible(
+        target,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+    }
     await tester.ensureVisible(target);
     await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(target);

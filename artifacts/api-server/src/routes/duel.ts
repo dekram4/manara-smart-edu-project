@@ -10,6 +10,7 @@ import {
   DUEL_ROUNDS,
   DUEL_WIN_GEMS,
   classKey,
+  duelRewardActivity,
   isDuelGame,
   matchId as newMatchId,
   outcomeOf,
@@ -530,7 +531,9 @@ async function settle(id: string, me: string): Promise<ReturnType<typeof settled
     if (settledHere && outcome.settled && outcome.winnerId) {
       // والصرفُ لا يُسقط الحسم: فشلُه يعني جوائزَ لم تُصرف، والفوزُ مكتوبٌ على
       // كل حال — ويُقرأ من الجدول لا من الرصيد.
-      const paid = await awardDuelWin(outcome.winnerId, match.lessonId).catch((error) => {
+      // مرّةً لكل لعبةٍ في كل درس: انظر `duelRewardActivity`.
+      const reward = duelRewardActivity(match.lessonId, match.game);
+      const paid = await awardDuelWin(outcome.winnerId, reward).catch((error) => {
         logger.error({ err: error, id }, "[duel] win gems not paid");
         return false;
       });

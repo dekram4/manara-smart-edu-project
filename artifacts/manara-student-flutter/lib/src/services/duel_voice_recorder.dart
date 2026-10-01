@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 
@@ -33,10 +32,18 @@ class VoiceNote {
 /// الضغطُ المطوّل يُفلت بالخطأ، أو يبقى الإصبعُ على الزرّ وقد انتهى الطفلُ من
 /// الكلام. فالمدّةُ محدودةٌ في المسجّل نفسه لا في يد المستخدم.
 class DuelVoiceRecorder {
-  DuelVoiceRecorder({AudioRecorder? recorder})
-      : _recorder = recorder ?? AudioRecorder();
+  DuelVoiceRecorder({
+    AudioRecorder? recorder,
+    this.maxDuration = duelVoiceMaxDuration,
+    this.maxBytes = duelVoiceMaxBytes,
+  }) : _recorder = recorder ?? AudioRecorder();
 
   final AudioRecorder _recorder;
+
+  /// أقصى مدّةٍ يتوقّف عندها وحده، وأقصى حجمٍ يُقبل. والمبارزةُ تحدّها بخمس
+  /// ثوانٍ، ودردشةُ الصفّ بثلاثين — والترميزُ نفسه في الحالين.
+  final Duration maxDuration;
+  final int maxBytes;
 
   /// الملفُّ الذي يكتب فيه المسجّل الآن.
   String? _path;
@@ -59,7 +66,7 @@ class DuelVoiceRecorder {
       final directory = await _tempDirectory();
       if (directory == null) return false;
       final path =
-          '${directory.path}/duel_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+          '${directory.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
@@ -72,7 +79,7 @@ class DuelVoiceRecorder {
       _path = path;
       _recording = true;
       // الحدُّ في المسجّل: إفلاتٌ منسيٌّ لا يُسجّل دقيقة.
-      _limit = Timer(duelVoiceMaxDuration, () {
+      _limit = Timer(maxDuration, () {
         if (_recording) onAutoStop?.call();
       });
       return true;
@@ -87,7 +94,9 @@ class DuelVoiceRecorder {
   Future<VoiceNote> stop() async {
     _limit?.cancel();
     _limit = null;
-    if (!_recording) return const VoiceNote.failed(VoiceNoteProblem.unavailable);
+    if (!_recording) {
+      return const VoiceNote.failed(VoiceNoteProblem.unavailable);
+    }
     _recording = false;
     try {
       final path = await _recorder.stop() ?? _path;
@@ -107,7 +116,7 @@ class DuelVoiceRecorder {
         // ضغطةٌ عابرةٌ لا كلام: مقطعٌ بهذا القِصر لا يُسمع منه شيء.
         return const VoiceNote.failed(VoiceNoteProblem.tooShort);
       }
-      if (bytes.length > duelVoiceMaxBytes) {
+      if (bytes.length > maxBytes) {
         return const VoiceNote.failed(VoiceNoteProblem.tooBig);
       }
       return VoiceNote.ready(bytes);

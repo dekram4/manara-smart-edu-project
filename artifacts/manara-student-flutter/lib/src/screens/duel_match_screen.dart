@@ -160,10 +160,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   }
 
   bool get _midMatch => switch (_game.phase) {
-        DuelPhase.countdown ||
-        DuelPhase.question ||
-        DuelPhase.reveal =>
-          true,
+        DuelPhase.countdown || DuelPhase.question || DuelPhase.reveal => true,
         _ => false,
       };
 
@@ -184,7 +181,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48)),
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFE11D48)),
               child: Text(tr('arena.leave')),
             ),
           ],
@@ -224,14 +222,16 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                       ),
                       if (_game.rivalLeft && _game.phase != DuelPhase.result)
                         _Banner(
-                          text: trf('arena.rivalLeft', {'name': widget.rivalName}),
+                          text: trf(
+                              'arena.rivalLeft', {'name': widget.rivalName}),
                           color: const Color(0xFFF59E0B),
                         ),
                       Expanded(child: _phaseBody()),
                     ],
                   ),
                   if (_game.roomOpen)
-                    Positioned(top: 56, left: 0, right: 0, child: chatBubbles()),
+                    Positioned(
+                        top: 56, left: 0, right: 0, child: chatBubbles()),
                   Align(
                     alignment: Alignment.topCenter,
                     child: IgnorePointer(
@@ -273,7 +273,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
 
     switch (_game.phase) {
       case DuelPhase.preparing:
-        return versus(_Status(text: tr('arena.preparing')), rivalPresent: false);
+        return versus(_Status(text: tr('arena.preparing')),
+            rivalPresent: false);
       case DuelPhase.waitingRival:
         return versus(
           _Status(text: trf('arena.waitingRival', {'name': widget.rivalName})),
@@ -406,10 +407,13 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               title,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: won ? const Color(0xFFF59E0B) : StudentSurface.ink(context),
+                color:
+                    won ? const Color(0xFFF59E0B) : StudentSurface.ink(context),
                 fontSize: 34,
                 fontWeight: FontWeight.w900,
-                shadows: const [Shadow(color: Color(0x88000000), blurRadius: 6)],
+                shadows: const [
+                  Shadow(color: Color(0x88000000), blurRadius: 6)
+                ],
               ),
             ),
             const SizedBox(height: 14),
@@ -421,6 +425,20 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               myPoints: _game.myPoints,
               rivalPoints: _game.rivalPoints,
               live: false,
+            ),
+            const SizedBox(height: 12),
+            // الحلبةُ تُري الحسم: الحبلُ يُسحب كلُّه إلى الفائز، والسباقُ والجرّتان
+            // على ما انتهت إليه.
+            DuelArena(
+              game: widget.game,
+              mine: _game.myPoints ~/ _game.pointsPerQuestion,
+              theirs: _game.rivalPoints ~/ _game.pointsPerQuestion,
+              total: _game.questions.length,
+              live: false,
+              finished: true,
+              myAppearance: widget.profile.appearance,
+              theirAppearance: widget.rivalAppearance,
+              opponentName: widget.rivalName,
             ),
             const SizedBox(height: 16),
             if (won && (result?.gems ?? 0) > 0)
@@ -596,7 +614,8 @@ class _QuestionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [
           BoxShadow(color: Color(0xFF7C3AED), offset: Offset(0, 6)),
-          BoxShadow(color: Color(0x55000000), blurRadius: 14, offset: Offset(0, 10)),
+          BoxShadow(
+              color: Color(0x55000000), blurRadius: 14, offset: Offset(0, 10)),
         ],
       ),
       child: Column(
@@ -742,7 +761,8 @@ class _GemsBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: Colors.white, width: 2.5),
           boxShadow: const [
-            BoxShadow(color: Color(0x8806B6D4), blurRadius: 20, spreadRadius: 2),
+            BoxShadow(
+                color: Color(0x8806B6D4), blurRadius: 20, spreadRadius: 2),
           ],
         ),
         child: Row(

@@ -1,14 +1,20 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
+import '../services/duel_voice_recorder.dart';
 import '../services/student_auth_service.dart';
+import '../services/student_media_permissions.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/chat_voice.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
@@ -17,6 +23,9 @@ class StudentChatScreen extends StatefulWidget {
     required this.profile,
     required this.apiBaseUrl,
     required this.authService,
+    @visibleForTesting this.httpClient,
+    @visibleForTesting this.recorder,
+    @visibleForTesting this.micAccess,
     super.key,
   });
 
@@ -24,12 +33,43 @@ class StudentChatScreen extends StatefulWidget {
   final String apiBaseUrl;
   final StudentAuthService authService;
 
+  /// منافذُ للاختبار: الشبكةُ والمسجّلُ وإذنُ الميكروفون.
+  final http.Client? httpClient;
+  final DuelVoiceRecorder? recorder;
+  final Future<MicAccess> Function()? micAccess;
+
   @override
   State<StudentChatScreen> createState() => _StudentChatScreenState();
 }
 
-class _StudentChatScreenState extends State<StudentChatScreen> {
+class _StudentChatScreenState extends State<StudentChatScreen>
+    with WidgetsBindingObserver {
   final _messageController = TextEditingController();
+  late final http.Client _client = widget.httpClient ?? http.Client();
+  late final DuelVoiceRecorder _recorder = widget.recorder ??
+      DuelVoiceRecorder(
+        maxDuration: chatVoiceMaxDuration,
+        maxBytes: chatVoiceMaxBytes,
+      );
+
+  // ── التسجيل ──
+  bool _recording = false;
+  bool _cancelArmed = false;
+  bool _sendingVoice = false;
+
+  /// الإصبعُ ما زال على الزرّ. سؤالُ الإذن يأخذ الشاشةَ فيُفلت الطفلُ ليجيب،
+  /// ولا يبدأ بعدها تسجيلٌ لم يعد أحدٌ يضغط له.
+  bool _pointerHeld = false;
+  // من `clock`: يتبع الزمنَ المصطنع في الاختبار.
+  final _stopwatch = clock.stopwatch();
+  final ValueNotifier<Duration> _elapsed = ValueNotifier(Duration.zero);
+  Timer? _tick;
+
+  // ── التشغيل ──
+  /// المقاطعُ التي جُلبت: لا يُجلب مقطعٌ مرّتين في الجلسة.
+  final Map<String, Uint8List> _clips = {};
+  String? _playingId;
+  String? _loadingId;
   List<_ChatMessage> _messages = const [];
   List<_ChatPeer> _peers = const [];
   String _recipient = 'all';
@@ -64,11 +104,34 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refresh();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // خرج الطفلُ من التطبيق وإصبعُه على الزرّ: لا يُرسل ما لم يقصده.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      if (_recording) unawaited(_holdEnd(cancelled: true, quiet: true));
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _tick?.cancel();
+    _elapsed.dispose();
+    if (_playingId != null) {
+      unawaited(StudentSoundService.instance.stopSpeaking());
+    }
+    if (widget.recorder == null) {
+      unawaited(_recorder.dispose());
+    } else {
+      unawaited(_recorder.cancel());
+    }
+    if (widget.httpClient == null) _client.close();
     _messageController.dispose();
     super.dispose();
   }
@@ -85,8 +148,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (token == null || _endpoint('messages') == null) {
       setState(() {
         _loading = false;
-        _error = widget.authService.apiSessionError ??
-            tr('chat.sessionFailed');
+        _error = widget.authService.apiSessionError ?? tr('chat.sessionFailed');
       });
       return;
     }
@@ -96,16 +158,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
     try {
       final responses = await Future.wait([
-        http.get(_endpoint('messages')!, headers: _headers),
-        http.get(_endpoint('peers')!, headers: _headers),
+        _client.get(_endpoint('messages')!, headers: _headers),
+        _client.get(_endpoint('peers')!, headers: _headers),
       ]).timeout(const Duration(seconds: 15));
       final messageData = _decode(responses[0]);
       final peerData = _decode(responses[1]);
       if (responses[0].statusCode != 200 || responses[1].statusCode != 200) {
-        throw Exception(_responseError(messageData) ?? _responseError(peerData) ?? tr('chat.loadFailed'));
+        throw Exception(_responseError(messageData) ??
+            _responseError(peerData) ??
+            tr('chat.loadFailed'));
       }
       final messages = messageData['messages'] is List
-          ? (messageData['messages'] as List).map(_ChatMessage.fromJson).toList()
+          ? (messageData['messages'] as List)
+              .map(_ChatMessage.fromJson)
+              .toList()
           : <_ChatMessage>[];
       final peers = peerData['peers'] is List
           ? (peerData['peers'] as List).map(_ChatPeer.fromJson).toList()
@@ -114,7 +180,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       setState(() {
         _messages = messages;
         _peers = peers;
-        if (_recipient != 'all' && !peers.any((peer) => peer.id == _recipient)) _recipient = 'all';
+        if (_recipient != 'all' &&
+            !peers.any((peer) => peer.id == _recipient)) {
+          _recipient = 'all';
+        }
       });
     } catch (error) {
       if (mounted) setState(() => _error = _safeError(error));
@@ -142,17 +211,27 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<void> _send() async {
     final endpoint = _endpoint('messages');
     final message = _messageController.text.trim();
-    if (!_chatEnabled || message.isEmpty || endpoint == null || _token == null || _sending) return;
+    if (!_chatEnabled ||
+        message.isEmpty ||
+        endpoint == null ||
+        _token == null ||
+        _sending) {
+      return;
+    }
     setState(() {
       _sending = true;
       _error = null;
     });
     try {
-      final response = await http
-          .post(endpoint, headers: _headers, body: jsonEncode({'message': message, 'to': _recipient}))
+      final response = await _client
+          .post(endpoint,
+              headers: _headers,
+              body: jsonEncode({'message': message, 'to': _recipient}))
           .timeout(const Duration(seconds: 15));
       final data = _decode(response);
-      if (response.statusCode != 201) throw Exception(_responseError(data) ?? tr('chat.sendFailed'));
+      if (response.statusCode != 201) {
+        throw Exception(_responseError(data) ?? tr('chat.sendFailed'));
+      }
       StudentSoundService.instance.playTap();
       _messageController.clear();
       await _refresh();
@@ -164,13 +243,221 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
   }
 
+  // ── الرسائلُ الصوتية ──
+
+  void _toast(String text, {bool settings = false}) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          behavior: SnackBarBehavior.floating,
+          action: settings
+              ? SnackBarAction(
+                  label: tr('chat.voice.settings'),
+                  onPressed: () =>
+                      unawaited(StudentMediaPermissions.openSettings()),
+                )
+              : null,
+        ),
+      );
+  }
+
+  Future<void> _holdStart() async {
+    if (_recording || _sendingVoice || _sending || !_chatEnabled) return;
+    _pointerHeld = true;
+    final access = await (widget.micAccess ??
+        StudentMediaPermissions.microphoneForVoiceNote)();
+    if (!mounted) return;
+    if (access == MicAccess.blocked) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      _toast(tr('chat.voice.blocked'), settings: true);
+      return;
+    }
+    if (access == MicAccess.denied) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      _toast(tr('chat.voice.denied'));
+      return;
+    }
+    if (!_pointerHeld) {
+      _toast(tr('chat.voice.hold'));
+      return;
+    }
+    // لا يُسجَّل فوق رسالةٍ تُسمع: يلتقط الميكروفونُ صوتَها.
+    if (_playingId != null) {
+      await StudentSoundService.instance.stopSpeaking();
+      if (mounted) setState(() => _playingId = null);
+    }
+    final began = await _recorder.start();
+    if (!mounted) return;
+    if (!began) {
+      _toast(tr('chat.voice.noMic'));
+      return;
+    }
+    if (!_pointerHeld) {
+      // أفلت قبل أن يجهز المسجّل: ضغطةٌ لا تسجيل.
+      await _recorder.cancel();
+      _toast(tr('chat.voice.hold'));
+      return;
+    }
+    _recorder.onAutoStop = () => unawaited(_holdEnd(cancelled: false));
+    _stopwatch
+      ..reset()
+      ..start();
+    _elapsed.value = Duration.zero;
+    _tick?.cancel();
+    _tick = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      _elapsed.value = _stopwatch.elapsed;
+    });
+    setState(() {
+      _recording = true;
+      _cancelArmed = false;
+    });
+  }
+
+  void _holdMove(double distance) {
+    if (!_recording) return;
+    final armed = distance > chatVoiceCancelDistance;
+    if (armed != _cancelArmed) setState(() => _cancelArmed = armed);
+  }
+
+  Future<void> _holdEnd({required bool cancelled, bool quiet = false}) async {
+    _pointerHeld = false;
+    if (!_recording) return;
+    final dropped = cancelled || _cancelArmed;
+    _tick?.cancel();
+    _stopwatch.stop();
+    final took = _stopwatch.elapsed;
+    if (mounted) {
+      setState(() {
+        _recording = false;
+        _cancelArmed = false;
+      });
+    }
+    _elapsed.value = Duration.zero;
+    if (dropped) {
+      await _recorder.cancel();
+      if (!quiet) _toast(tr('chat.voice.cancelled'));
+      return;
+    }
+    if (took < chatVoiceMinDuration) {
+      await _recorder.cancel();
+      _toast(tr('chat.voice.tooShort'));
+      return;
+    }
+    final note = await _recorder.stop();
+    if (!mounted) return;
+    if (!note.ok) {
+      _toast(switch (note.problem) {
+        VoiceNoteProblem.tooShort => tr('chat.voice.tooShort'),
+        VoiceNoteProblem.tooBig => tr('chat.voice.tooBig'),
+        VoiceNoteProblem.noPermission => tr('chat.voice.denied'),
+        _ => tr('chat.voice.noMic'),
+      });
+      return;
+    }
+    await _sendVoice(note.bytes!, took);
+  }
+
+  Future<void> _sendVoice(Uint8List bytes, Duration took) async {
+    final endpoint = _endpoint('voice');
+    if (endpoint == null || _token == null) return;
+    setState(() {
+      _sendingVoice = true;
+      _error = null;
+    });
+    try {
+      final response = await _client
+          .post(
+            endpoint,
+            headers: _headers,
+            body: jsonEncode({
+              'audio': base64Encode(bytes),
+              'durationMs': took.inMilliseconds,
+              'to': _recipient,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+      final data = _decode(response);
+      if (response.statusCode != 201) {
+        throw Exception(_responseError(data) ?? tr('chat.voice.sendFailed'));
+      }
+      final sent = data['message'];
+      if (sent is Map && sent['voiceId'] is String) {
+        // المرسِلُ يسمع رسالتَه بلا تنزيل: المقطعُ عنده.
+        _clips['${sent['voiceId']}'] = bytes;
+      }
+      StudentSoundService.instance.playTap();
+      await _refresh();
+    } catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      if (mounted) setState(() => _error = _safeError(error));
+    } finally {
+      if (mounted) setState(() => _sendingVoice = false);
+    }
+  }
+
+  Future<void> _toggleVoice(_ChatMessage message) async {
+    final id = message.voiceId;
+    if (id.isEmpty || _recording) return;
+    if (_playingId == id) {
+      await StudentSoundService.instance.stopSpeaking();
+      if (mounted) setState(() => _playingId = null);
+      return;
+    }
+    if (StudentSoundService.instance.muted.value) {
+      _toast(tr('chat.voice.muted'));
+      return;
+    }
+    setState(() => _loadingId = id);
+    try {
+      var bytes = _clips[id];
+      if (bytes == null) {
+        final endpoint = _endpoint('voice/$id');
+        if (endpoint == null || _token == null) throw Exception();
+        final response = await _client
+            .get(endpoint, headers: _headers)
+            .timeout(const Duration(seconds: 20));
+        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+          throw Exception();
+        }
+        bytes = response.bodyBytes;
+        _clips[id] = bytes;
+      }
+      if (!mounted) return;
+      setState(() {
+        _loadingId = null;
+        _playingId = id;
+      });
+      await StudentSoundService.instance.playVoiceNote(
+        bytes,
+        onDone: () {
+          if (mounted && _playingId == id) setState(() => _playingId = null);
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_loadingId == id) _loadingId = null;
+        if (_playingId == id) _playingId = null;
+      });
+      _toast(tr('chat.voice.playFailed'));
+    }
+  }
+
   Map<String, dynamic> _decode(http.Response response) {
     if (response.body.isEmpty) return <String, dynamic>{};
     final decoded = jsonDecode(response.body);
-    return decoded is Map ? decoded.map((key, value) => MapEntry('$key', value)) : <String, dynamic>{};
+    return decoded is Map
+        ? decoded.map((key, value) => MapEntry('$key', value))
+        : <String, dynamic>{};
   }
 
-  String? _responseError(Map<String, dynamic> data) => data['error']?.toString();
+  String? _responseError(Map<String, dynamic> data) =>
+      data['error']?.toString();
 
   @override
   Widget build(BuildContext context) {
@@ -189,7 +476,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           foregroundColor: Colors.white,
           title: Text(
             tr('chat.title'),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w900),
           ),
           actions: [
             const StudentSoundToggle(),
@@ -199,8 +487,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: TextButton.icon(
-                onPressed:
-                    widget.profile.canAccessChat && !_sending ? _toggleChat : null,
+                onPressed: widget.profile.canAccessChat && !_sending
+                    ? _toggleChat
+                    : null,
                 icon: Icon(
                   _chatEnabled
                       ? Icons.pause_circle_outline
@@ -217,7 +506,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   textStyle: const TextStyle(fontWeight: FontWeight.w900),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.75)),
+                    side:
+                        BorderSide(color: Colors.white.withValues(alpha: 0.75)),
                   ),
                 ),
               ),
@@ -264,71 +554,105 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           children: [
             const PortalWatermark(asset: PortalBackgrounds.chat),
             disabled
-            ? _ChatStatus(
-                icon: Icons.lock_outline_rounded,
-                message: tr('chat.disabled'),
-              )
-            : !_chatEnabled
                 ? _ChatStatus(
-                    icon: Icons.pause_circle_outline_rounded,
-                    message: tr('chat.paused'),
+                    icon: Icons.lock_outline_rounded,
+                    message: tr('chat.disabled'),
                   )
-                : _token == null
+                : !_chatEnabled
                     ? _ChatStatus(
-                        icon: Icons.lock_outline_rounded,
-                        message: widget.authService.apiSessionError ??
-                            tr('chat.sessionFailed'),
+                        icon: Icons.pause_circle_outline_rounded,
+                        message: tr('chat.paused'),
                       )
-            : Column(
-                children: [
-                  // The header steps aside while the student is typing.
-                  // The keyboard already takes half a landscape phone, and
-                  // between it, the header and the composer there was
-                  // nothing left for the conversation itself — the point
-                  // of the screen. It comes straight back when the
-                  // keyboard closes.
-                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 0),
-                      child: StudentScreenHero(
-                        title: tr('chat.title'),
-                        subtitle: tr('chat.blurb'),
-                        icon: Icons.forum_rounded,
-                        colors: const [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-                      ),
-                    ),
-                  if (_error != null) _ChatError(text: _error!),
-                  Expanded(
-                    child: _loading
-                        ? Center(
-                            child: StudentRiveLoading(
-                              label: tr('chat.loading'),
-                            ),
+                    : _token == null
+                        ? _ChatStatus(
+                            icon: Icons.lock_outline_rounded,
+                            message: widget.authService.apiSessionError ??
+                                tr('chat.sessionFailed'),
                           )
-                        : _messages.isEmpty
-                            ? _ChatStatus(
-                                icon: Icons.forum_outlined,
-                                message: tr('chat.empty'),
-                              )
-                            : ListView.builder(
-                                physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.all(14),
-                                itemCount: _messages.length,
-                                itemBuilder: (_, index) => StudentEntrance(
-                                  delay: Duration(milliseconds: index < 15 ? index * 30 : 0),
-                                  child: _MessageBubble(
-                                    message: _messages[index],
-                                    mine: _messages[index].from == widget.profile.id,
+                        : Column(
+                            children: [
+                              // The header steps aside while the student is typing.
+                              // The keyboard already takes half a landscape phone, and
+                              // between it, the header and the composer there was
+                              // nothing left for the conversation itself — the point
+                              // of the screen. It comes straight back when the
+                              // keyboard closes.
+                              if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                                Padding(
+                                  padding: const EdgeInsetsDirectional.fromSTEB(
+                                      14, 12, 14, 0),
+                                  child: StudentScreenHero(
+                                    title: tr('chat.title'),
+                                    subtitle: tr('chat.blurb'),
+                                    icon: Icons.forum_rounded,
+                                    colors: const [
+                                      Color(0xFF1E3A8A),
+                                      Color(0xFF2563EB)
+                                    ],
                                   ),
                                 ),
+                              if (_error != null) _ChatError(text: _error!),
+                              Expanded(
+                                child: _loading
+                                    ? Center(
+                                        child: StudentRiveLoading(
+                                          label: tr('chat.loading'),
+                                        ),
+                                      )
+                                    : _messages.isEmpty
+                                        ? _ChatStatus(
+                                            icon: Icons.forum_outlined,
+                                            message: tr('chat.empty'),
+                                          )
+                                        : ListView.builder(
+                                            physics:
+                                                const BouncingScrollPhysics(),
+                                            padding: const EdgeInsets.all(14),
+                                            itemCount: _messages.length,
+                                            itemBuilder: (_, index) =>
+                                                StudentEntrance(
+                                              delay: Duration(
+                                                  milliseconds: index < 15
+                                                      ? index * 30
+                                                      : 0),
+                                              child: _MessageBubble(
+                                                message: _messages[index],
+                                                mine: _messages[index].from ==
+                                                    widget.profile.id,
+                                                voice: _messages[index].isVoice
+                                                    ? ChatVoiceNoteView(
+                                                        seed: _messages[index]
+                                                            .voiceId,
+                                                        duration: Duration(
+                                                          milliseconds:
+                                                              _messages[index]
+                                                                  .durationMs,
+                                                        ),
+                                                        playing: _playingId ==
+                                                            _messages[index]
+                                                                .voiceId,
+                                                        loading: _loadingId ==
+                                                            _messages[index]
+                                                                .voiceId,
+                                                        mine: _messages[index]
+                                                                .from ==
+                                                            widget.profile.id,
+                                                        onTap: () => unawaited(
+                                                          _toggleVoice(
+                                                              _messages[index]),
+                                                        ),
+                                                      )
+                                                    : null,
+                                              ),
+                                            ),
+                                          ),
                               ),
-                  ),
-                  StudentEntrance(
-                    delay: const Duration(milliseconds: 200),
-                    child: _composer(),
-                  ),
-                ],
-              ),
+                              StudentEntrance(
+                                delay: const Duration(milliseconds: 200),
+                                child: _composer(),
+                              ),
+                            ],
+                          ),
           ],
         ),
       ),
@@ -343,31 +667,78 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           child: Column(children: [
             DropdownButtonFormField<String>(
               initialValue: _recipient,
-              decoration: InputDecoration(labelText: tr('chat.sendTo'), isDense: true),
+              decoration:
+                  InputDecoration(labelText: tr('chat.sendTo'), isDense: true),
               items: [
-                DropdownMenuItem(value: 'all', child: Text(tr('chat.classmates'))),
-                ..._peers.map((peer) => DropdownMenuItem(value: peer.id, child: Text(peer.name))),
+                DropdownMenuItem(
+                    value: 'all', child: Text(tr('chat.classmates'))),
+                ..._peers.map((peer) =>
+                    DropdownMenuItem(value: peer.id, child: Text(peer.name))),
               ],
-              onChanged: _sending ? null : (value) => setState(() => _recipient = value ?? 'all'),
+              onChanged: _sending || _recording || _sendingVoice
+                  ? null
+                  : (value) => setState(() => _recipient = value ?? 'all'),
             ),
             const SizedBox(height: 8),
+            if (_sendingVoice)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(children: [
+                  const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 8),
+                  Text(
+                    tr('chat.voice.sending'),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: StudentSurface.mutedInk(context)),
+                  ),
+                ]),
+              ),
             Row(children: [
               Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  enabled: !_sending,
-                  maxLength: 1000,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: InputDecoration(hintText: tr('chat.hint'), counterText: ''),
-                ),
+                child: _recording
+                    ? ChatRecordingStrip(
+                        elapsed: _elapsed, cancelArmed: _cancelArmed)
+                    : TextField(
+                        controller: _messageController,
+                        enabled: !_sending && !_sendingVoice,
+                        maxLength: 1000,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                            hintText: tr('chat.hint'), counterText: ''),
+                      ),
               ),
               const SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: _sending ? null : _send,
-                icon: _sending
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.send_rounded),
+              // حقلٌ فارغٌ: ميكروفون. وما إن يُكتب حرفٌ يصير زرَّ إرسال — كما
+              // في كل تطبيق رسائل. والزرُّ في الموضع نفسه أثناء التسجيل، فلا يضيع
+              // الإصبعُ الذي يضغطه.
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _messageController,
+                builder: (context, value, _) {
+                  if (_recording || value.text.trim().isEmpty) {
+                    return ChatVoiceMicButton(
+                      recording: _recording,
+                      cancelArmed: _cancelArmed,
+                      onHoldStart: () => unawaited(_holdStart()),
+                      onHoldMove: _holdMove,
+                      onHoldEnd: ({required bool cancelled}) =>
+                          unawaited(_holdEnd(cancelled: cancelled)),
+                    );
+                  }
+                  return IconButton.filled(
+                    onPressed: _sending || _sendingVoice ? null : _send,
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send_rounded),
+                  );
+                },
               ),
             ]),
           ]),
@@ -376,45 +747,85 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 }
 
 class _ChatMessage {
-  const _ChatMessage({required this.id, required this.from, required this.name, required this.to, required this.message, required this.time});
+  const _ChatMessage({
+    required this.id,
+    required this.from,
+    required this.name,
+    required this.to,
+    required this.message,
+    required this.time,
+    this.kind = 'text',
+    this.voiceId = '',
+    this.durationMs = 0,
+  });
   factory _ChatMessage.fromJson(dynamic value) {
     final map = value is Map ? value : const <String, dynamic>{};
-    return _ChatMessage(id: '${map['id'] ?? ''}', from: '${map['from'] ?? ''}', name: '${map['name'] ?? tr('chat.student')}', to: '${map['to'] ?? 'all'}', message: '${map['message'] ?? ''}', time: '${map['time'] ?? ''}');
+    final duration = map['durationMs'];
+    return _ChatMessage(
+      id: '${map['id'] ?? ''}',
+      from: '${map['from'] ?? ''}',
+      name: '${map['name'] ?? tr('chat.student')}',
+      to: '${map['to'] ?? 'all'}',
+      message: '${map['message'] ?? ''}',
+      time: '${map['time'] ?? ''}',
+      kind: '${map['kind'] ?? 'text'}',
+      voiceId: '${map['voiceId'] ?? ''}',
+      durationMs: duration is num ? duration.round() : 0,
+    );
   }
-  final String id, from, name, to, message, time;
+  final String id, from, name, to, message, time, kind, voiceId;
+  final int durationMs;
+
+  bool get isVoice => kind == 'voice' && voiceId.isNotEmpty;
 }
 
 class _ChatPeer {
   const _ChatPeer(this.id, this.name);
   factory _ChatPeer.fromJson(dynamic value) {
     final map = value is Map ? value : const <String, dynamic>{};
-    return _ChatPeer('${map['id'] ?? ''}', '${map['name'] ?? tr('chat.student')}');
+    return _ChatPeer(
+        '${map['id'] ?? ''}', '${map['name'] ?? tr('chat.student')}');
   }
   final String id, name;
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.mine});
+  const _MessageBubble({required this.message, required this.mine, this.voice});
   final _ChatMessage message;
   final bool mine;
+
+  /// مشغّلُ الرسالة إن كانت صوتية، مكانَ نصّها.
+  final Widget? voice;
   @override
   Widget build(BuildContext context) => Align(
-    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-    child: Student3DCard(
-      maxTilt: 0.035,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 9),
-        padding: const EdgeInsets.all(12),
-        constraints: const BoxConstraints(maxWidth: 320),
-        decoration: BoxDecoration(color: mine ? const Color(0xFF0B8693) : Colors.white, borderRadius: BorderRadius.circular(16)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(mine ? tr('chat.you') : message.name, style: TextStyle(fontWeight: FontWeight.w800, color: mine ? Colors.white : const Color(0xFF0B8693))),
-          const SizedBox(height: 4),
-          Text(message.message, style: TextStyle(height: 1.45, color: mine ? Colors.white : const Color(0xFF17233A))),
-        ]),
-      ),
-    ),
-  );
+        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Student3DCard(
+          maxTilt: 0.035,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 9),
+            padding: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(maxWidth: 320),
+            decoration: BoxDecoration(
+                color: mine ? const Color(0xFF0B8693) : Colors.white,
+                borderRadius: BorderRadius.circular(16)),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(mine ? tr('chat.you') : message.name,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: mine ? Colors.white : const Color(0xFF0B8693))),
+              const SizedBox(height: 4),
+              if (voice != null)
+                voice!
+              else
+                Text(message.message,
+                    style: TextStyle(
+                        height: 1.45,
+                        color: mine ? Colors.white : const Color(0xFF17233A))),
+            ]),
+          ),
+        ),
+      );
 }
 
 class _ChatStatus extends StatelessWidget {
@@ -422,14 +833,35 @@ class _ChatStatus extends StatelessWidget {
   final IconData icon;
   final String message;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 58, color: Color(0xFF0B8693)), SizedBox(height: 14), Text(message, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900, height: 1.6, color: StudentSurface.ink(context)))])));
+  Widget build(BuildContext context) => Center(
+      child: Padding(
+          padding: EdgeInsets.all(28),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 58, color: Color(0xFF0B8693)),
+            SizedBox(height: 14),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    height: 1.6,
+                    color: StudentSurface.ink(context)))
+          ])));
 }
 
 class _ChatError extends StatelessWidget {
   const _ChatError({required this.text});
   final String text;
   @override
-  Widget build(BuildContext context) => Container(width: double.infinity, margin: const EdgeInsets.all(12), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(12)), child: Text(text, style: const TextStyle(color: Color(0xFFB42318), fontWeight: FontWeight.w700)));
+  Widget build(BuildContext context) => Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+          color: const Color(0xFFFFF1F2),
+          borderRadius: BorderRadius.circular(12)),
+      child: Text(text,
+          style: const TextStyle(
+              color: Color(0xFFB42318), fontWeight: FontWeight.w700)));
 }
 
 String _safeError(Object error) {
@@ -442,8 +874,11 @@ String _safeError(Object error) {
     'chat.loadFailed',
     'chat.sendFailed',
     'chat.sessionFailed',
+    'chat.voice.sendFailed',
   ]) {
     if (text.contains(tr(own))) return text;
   }
+  // ورفضُ الخادم لمقطعٍ صوتيّ جملةٌ عربيةٌ كتبها هو للطفل.
+  if (text.contains('الرسالة الصوتية')) return text;
   return tr('chat.unreachable');
 }
