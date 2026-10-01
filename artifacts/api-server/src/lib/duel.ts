@@ -239,3 +239,85 @@ export function standingsOf(rows: readonly MatchRow[]): DuelStanding[] {
     (a, b) => b.wins - a.wins || b.played - a.played,
   );
 }
+
+// ── المصافحة: لا يبدأ نزالٌ إلا والطرفان فيه ──
+
+/** مهلةُ الردّ على الدعوة. وما بعدها دعوةٌ منتهيةٌ وإن لم يُلغها أحد. */
+export const DUEL_INVITE_SECONDS = 30;
+
+/** مهلةُ دخول الغرفة بعد القَبول: من لم يدخل فيها لم يدخل. */
+export const DUEL_JOIN_SECONDS = 25;
+
+/**
+ * ما بين دخول الثاني وأوّل سؤال: عدٌّ تنازليٌّ يراه الاثنان، ويتّسع لتأخّر
+ * الشبكة بين الجهازين.
+ */
+export const DUEL_START_DELAY_MS = 4000;
+
+/** أوقاتُ المصافحة كما تُقرأ من صفّ المباراة. */
+export interface RoomTimes {
+  status: string;
+  createdAt: string;
+  acceptedAt: string | null;
+  hostJoinedAt: string | null;
+  guestJoinedAt: string | null;
+}
+
+/**
+ * حالُ الغرفة:
+ *   invited  — الدعوةُ تنتظر ردّ الزميل.
+ *   accepted — قَبِل، والغرفةُ تنتظر دخولَ الطرفين.
+ *   ready    — دخلا معاً: النزالُ يبدأ عند [startAt]، لا قبله.
+ *   expired  — رُفضت، أو أُلغيت، أو فاتت مهلتُها.
+ *   done     — حُسمت.
+ */
+export type RoomPhase = "invited" | "accepted" | "ready" | "expired" | "done";
+
+export interface RoomState {
+  phase: RoomPhase;
+  hostJoined: boolean;
+  guestJoined: boolean;
+  /** موعدُ أوّل سؤال، حين يدخل الاثنان. */
+  startAt: Date | null;
+}
+
+const at = (value: string | null): number | null => {
+  if (!value) return null;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? null : time;
+};
+
+/**
+ * حالُ الغرفة من أوقاتها — والخادمُ هو الحَكَم.
+ *
+ * ── لماذا هنا لا على الجهازين ──
+ * كان كلُّ جهازٍ يقرّر بما وصله من بثّ: الضيفُ يدخل لحظةَ يضغط «اقبل»، والداعي
+ * يقرّر بإشارةٍ قد تفوته ومؤقّتٍ ينتهي عنده. فرأى الداعي «لا يستطيع» ودخل الضيفُ
+ * وحده يحلّ ويدردش. والآن القَبولُ والدخولُ والموعدُ أوقاتٌ في صفٍّ واحد، يقرؤها
+ * الجهازان فيريان الشيءَ نفسه.
+ *
+ * والمهلُ تُحسب عند القراءة: دعوةٌ فاتت مهلتُها منتهيةٌ وإن لم يكتب أحدٌ ذلك.
+ */
+export function roomStateOf(row: RoomTimes, now: Date = new Date()): RoomState {
+  const hostJoined = at(row.hostJoinedAt) !== null;
+  const guestJoined = at(row.guestJoinedAt) !== null;
+  const base = { hostJoined, guestJoined, startAt: null };
+  if (row.status === "done") return { ...base, phase: "done" };
+  if (row.status !== "pending") return { ...base, phase: "expired" };
+
+  const accepted = at(row.acceptedAt);
+  if (accepted === null) {
+    const created = at(row.createdAt) ?? now.getTime();
+    return now.getTime() - created > DUEL_INVITE_SECONDS * 1000
+      ? { ...base, phase: "expired" }
+      : { ...base, phase: "invited" };
+  }
+
+  if (hostJoined && guestJoined) {
+    const second = Math.max(at(row.hostJoinedAt)!, at(row.guestJoinedAt)!);
+    return { ...base, phase: "ready", startAt: new Date(second + DUEL_START_DELAY_MS) };
+  }
+  return now.getTime() - accepted > DUEL_JOIN_SECONDS * 1000
+    ? { ...base, phase: "expired" }
+    : { ...base, phase: "accepted" };
+}

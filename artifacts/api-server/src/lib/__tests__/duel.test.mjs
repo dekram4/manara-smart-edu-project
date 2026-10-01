@@ -251,3 +251,61 @@ test("والأعلى نقاطاً يفوز", () => {
   const outcome = outcomeOf({ hostId: "h", guestId: "g", ...scores });
   assert.equal(outcome.winnerId, "h");
 });
+
+// ── المصافحة ──
+
+const { roomStateOf, DUEL_INVITE_SECONDS, DUEL_JOIN_SECONDS, DUEL_START_DELAY_MS } = mod;
+const T0 = Date.parse("2026-10-01T10:00:00Z");
+const iso = (ms) => new Date(T0 + ms).toISOString();
+const times = (over = {}) => ({
+  status: "pending",
+  createdAt: iso(0),
+  acceptedAt: null,
+  hostJoinedAt: null,
+  guestJoinedAt: null,
+  ...over,
+});
+const now = (ms) => new Date(T0 + ms);
+
+test("الدعوةُ تنتظر الردّ في مهلتها، وبعدها منتهية", () => {
+  assert.equal(roomStateOf(times(), now(5_000)).phase, "invited");
+  assert.equal(roomStateOf(times(), now(DUEL_INVITE_SECONDS * 1000 + 1)).phase, "expired");
+});
+
+test("قُبلت: الغرفةُ تنتظر الاثنين، ولا موعدَ قبل دخولهما", () => {
+  const state = roomStateOf(times({ acceptedAt: iso(3_000), hostJoinedAt: iso(4_000) }), now(5_000));
+  assert.equal(state.phase, "accepted");
+  assert.equal(state.startAt, null);
+  assert.equal(state.hostJoined, true);
+  assert.equal(state.guestJoined, false);
+});
+
+test("دخلا: الموعدُ بعد دخول الثاني بمهلة البدء", () => {
+  const state = roomStateOf(
+    times({ acceptedAt: iso(3_000), hostJoinedAt: iso(4_000), guestJoinedAt: iso(6_500) }),
+    now(7_000),
+  );
+  assert.equal(state.phase, "ready");
+  assert.equal(state.startAt.getTime(), T0 + 6_500 + DUEL_START_DELAY_MS);
+});
+
+test("قُبلت ولم يدخل أحدُهما في مهلته: منتهية — لا يبدأ وحده", () => {
+  const state = roomStateOf(
+    times({ acceptedAt: iso(3_000), guestJoinedAt: iso(4_000) }),
+    now(3_000 + DUEL_JOIN_SECONDS * 1000 + 1),
+  );
+  assert.equal(state.phase, "expired");
+});
+
+test("ومهلةُ الدعوة لا تُنهي مباراةً قُبلت ودخلها الاثنان", () => {
+  const state = roomStateOf(
+    times({ acceptedAt: iso(3_000), hostJoinedAt: iso(4_000), guestJoinedAt: iso(5_000) }),
+    now(10 * 60_000),
+  );
+  assert.equal(state.phase, "ready");
+});
+
+test("الملغاةُ والمحسومة كما هي", () => {
+  assert.equal(roomStateOf(times({ status: "expired" }), now(1)).phase, "expired");
+  assert.equal(roomStateOf(times({ status: "done" }), now(1)).phase, "done");
+});

@@ -13,8 +13,10 @@ import {
   isDuelGame,
   matchId as newMatchId,
   outcomeOf,
+  roomStateOf,
   scoresFromAnswers,
   sideOf,
+  type RoomState,
   standingsOf,
   type MatchRow,
 } from "../lib/duel";
@@ -84,6 +86,10 @@ interface StoredMatch extends MatchRow {
    * جائزةُ هذا الدرس قد صُرفت له من قبل.
    */
   rewardPaid: boolean | null;
+  /** المصافحة: متى قبل الزميل، ومتى دخل كلٌّ الغرفة. انظر `roomStateOf`. */
+  acceptedAt: string | null;
+  hostJoinedAt: string | null;
+  guestJoinedAt: string | null;
 }
 
 function readMatch(raw: unknown): StoredMatch | null {
@@ -107,6 +113,9 @@ function readMatch(raw: unknown): StoredMatch | null {
     createdAt: text(row.created_at),
     questions: row.questions ?? null,
     rewardPaid: typeof row.reward_paid === "boolean" ? row.reward_paid : null,
+    acceptedAt: text(row.accepted_at) || null,
+    hostJoinedAt: text(row.host_joined_at) || null,
+    guestJoinedAt: text(row.guest_joined_at) || null,
   };
 }
 
@@ -141,6 +150,7 @@ function toJson(match: StoredMatch, me: string): Record<string, unknown> {
     maxScore: DUEL_MAX_SCORE,
     winGems: DUEL_WIN_GEMS,
     rewardPaid: match.rewardPaid,
+    room: roomJson(match),
   };
 }
 
@@ -281,6 +291,119 @@ router.post("/duel/invite", requireStudentSession, inviteLimit, async (req, res)
 
 const ANSWERS = "match_answers";
 
+/** حالُ غرفة المباراة الآن. انظر `roomStateOf`. */
+function roomOf(match: StoredMatch, now: Date = new Date()): RoomState {
+  return roomStateOf(
+    {
+      status: match.status,
+      createdAt: match.createdAt,
+      acceptedAt: match.acceptedAt,
+      hostJoinedAt: match.hostJoinedAt,
+      guestJoinedAt: match.guestJoinedAt,
+    },
+    now,
+  );
+}
+
+/** الغرفةُ كما تُرسل: والوقتُ الآن في الخادم، ليحسب الجهازُ فرقَ ساعته عنه. */
+function roomJson(match: StoredMatch) {
+  const now = new Date();
+  const room = roomOf(match, now);
+  return {
+    phase: room.phase,
+    hostJoined: room.hostJoined,
+    guestJoined: room.guestJoined,
+    startAt: room.startAt?.toISOString() ?? null,
+    serverNow: now.toISOString(),
+  };
+}
+
+/**
+ * ردُّ الزميل على الدعوة. الجسم: `{ accept: true | false }`.
+ *
+ * ── والقَبولُ يُكتب هنا قبل أن يدخل أحد ──
+ * كان الضيفُ يدخل لحظةَ يضغط «اقبل»، والداعي يعرف ذلك من إشارةٍ قد لا تصله. والآن
+ * لا يدخل الضيفُ إلا إن كتب الخادمُ قَبولَه، والداعي يقرأ القَبولَ نفسه من هنا.
+ *
+ * والكتابةُ مشروطةٌ بأن تكون الدعوةُ ما زالت قائمة: قَبولٌ وإلغاءٌ يصلان معاً
+ * يُكتب أحدُهما فقط، فيرى الطرفان النتيجةَ نفسها.
+ */
+router.post("/duel/:id/respond", requireStudentSession, scoreLimit, async (req, res) => {
+  const student = res.locals.student as StudentActor;
+  const id = text(req.params.id);
+  const accept = req.body?.accept;
+  if (!id || typeof accept !== "boolean") {
+    return res.status(400).json({ error: "ردٌّ ناقص", code: "bad_request" });
+  }
+  try {
+    const match = await findMatch(id);
+    if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
+    if (sideOf(match, student.id) !== "guest") {
+      return res.status(403).json({ error: "الردُّ للمدعوّ وحده", code: "not_guest" });
+    }
+    const room = roomOf(match);
+    if (room.phase !== "invited") {
+      // قُبلت من قبل، أو انتهت: يُعاد حالُها كما هو، فيعرف الجهازُ أين هو.
+      return res.json({ match: toJson(match, student.id), room: roomJson(match) });
+    }
+    const filter = `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending&accepted_at=is.null`;
+    await rest(filter, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(
+        accept
+          ? { accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+          : { status: "expired", updated_at: new Date().toISOString() },
+      ),
+    });
+    const fresh = (await findMatch(id))!;
+    logger.info({ id, accept, phase: roomOf(fresh).phase }, "[duel] invite answered");
+    return res.json({ match: toJson(fresh, student.id), room: roomJson(fresh) });
+  } catch (error) {
+    logger.error({ err: error, id }, "[duel] respond failed");
+    return res.status(503).json({ error: "تعذّر إرسال الردّ الآن", code: "unavailable" });
+  }
+});
+
+/**
+ * دخولُ الغرفة. يُكتب وقتُ دخولي، ويُعاد حالُ الغرفة.
+ *
+ * ولا يبدأ النزالُ إلا حين يدخل الاثنان: الموعدُ يُحسب من دخول الثاني، فلا عدّادَ
+ * ولا سؤالَ عند أحدهما والآخرُ غائب.
+ */
+router.post("/duel/:id/join", requireStudentSession, scoreLimit, async (req, res) => {
+  const student = res.locals.student as StudentActor;
+  const id = text(req.params.id);
+  if (!id) return res.status(400).json({ error: "معرّف المباراة ناقص", code: "bad_request" });
+  try {
+    const match = await findMatch(id);
+    if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
+    const side = sideOf(match, student.id);
+    if (side === null) {
+      return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
+    }
+    const room = roomOf(match);
+    const column = side === "host" ? "host_joined_at" : "guest_joined_at";
+    const already = side === "host" ? match.hostJoinedAt : match.guestJoinedAt;
+    if (room.phase === "accepted" && !already) {
+      await rest(
+        `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending&${column}=is.null`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ [column]: new Date().toISOString() }),
+        },
+      );
+    }
+    const fresh = (await findMatch(id))!;
+    return res.json({ match: toJson(fresh, student.id), room: roomJson(fresh) });
+  } catch (error) {
+    logger.error({ err: error, id }, "[duel] join failed");
+    return res.status(503).json({ error: "تعذّر دخول الغرفة الآن", code: "unavailable" });
+  }
+});
+
+
 /**
  * جوابُ سؤالٍ في المباراة. الجسم: `{ index, choice }`.
  *
@@ -307,6 +430,13 @@ router.post("/duel/:id/answer", requireStudentSession, answerLimit, async (req, 
     }
     if (match.status !== "pending") {
       return res.status(409).json({ error: "انتهت المباراة", code: "settled" });
+    }
+    // ── ولا جوابَ قبل أن يبدأ النزالُ للاثنين ──
+    // جهازٌ يعرض السؤالَ قبل موعده، أو والزميلُ لم يدخل، يكسب أسئلةً لم تُطرح
+    // على زميله. وثانيةٌ من السماحة لفرق ساعتين.
+    const room = roomOf(match);
+    if (room.phase !== "ready" || Date.now() < room.startAt!.getTime() - 1000) {
+      return res.status(409).json({ error: "لم يبدأ النزالُ بعد", code: "not_started" });
     }
     const question = packOf(match)?.questions[index];
     if (!question) {
@@ -435,6 +565,10 @@ async function finishRoute(req: Request, res: Response) {
     if (match.status === "expired") {
       return res.status(409).json({ error: "أُلغيت المباراة", code: "expired" });
     }
+    const phase = roomOf(match).phase;
+    if (phase !== "ready" && phase !== "done") {
+      return res.status(409).json({ error: "لم يبدأ النزالُ بعد", code: "not_started" });
+    }
     const result = await settle(id, student.id);
     if (!result) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
     return res.json(result);
@@ -471,19 +605,41 @@ router.post("/duel/:id/cancel", requireStudentSession, scoreLimit, async (req, r
     if (sideOf(match, student.id) === null) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
     }
-    if (match.status !== "pending") return res.json({ cancelled: false, status: match.status });
+    const room = roomOf(match);
+    // دخلا معاً: بدأ النزال، ومن غادر لا يمحوه على زميله.
+    if (room.phase === "ready" || room.phase === "done") {
+      return res.json({ cancelled: false, status: room.phase, room: roomJson(match) });
+    }
+    if (room.phase === "expired" && match.status !== "pending") {
+      return res.json({ cancelled: true, status: "expired", room: roomJson(match) });
+    }
     const answered = await rest(
       `${ANSWERS}?select=match_id&match_id=eq.${encodeURIComponent(id)}&limit=1`,
     );
     if (Array.isArray(answered) && answered.length > 0) {
-      return res.json({ cancelled: false, status: "playing" });
+      return res.json({ cancelled: false, status: "playing", room: roomJson(match) });
     }
-    await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ status: "expired", updated_at: new Date().toISOString() }),
+    // ── والإلغاءُ مشروطٌ بما رآه ──
+    // قبل القَبول: لا يُكتب إن كُتب قَبولٌ بينهما. وبعده: لا يُكتب إن دخل الاثنان.
+    // فقَبولٌ وإلغاءٌ يتسابقان يُكتب أحدُهما، ويقرأ الجهازان ما كُتب.
+    const guard = room.phase === "invited"
+      ? "accepted_at=is.null"
+      : "or=(host_joined_at.is.null,guest_joined_at.is.null)";
+    const written = await rest(
+      `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending&${guard}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ status: "expired", updated_at: new Date().toISOString() }),
+      },
+    );
+    const fresh = (await findMatch(id))!;
+    const cancelled = Array.isArray(written) && written.length > 0;
+    return res.json({
+      cancelled,
+      status: cancelled ? "expired" : roomOf(fresh).phase,
+      room: roomJson(fresh),
     });
-    return res.json({ cancelled: true, status: "expired" });
   } catch (error) {
     logger.error({ err: error, id }, "[duel] cancel failed");
     return res.status(503).json({ error: "تعذّر إلغاء المباراة الآن", code: "unavailable" });
