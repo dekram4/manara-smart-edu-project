@@ -17,8 +17,13 @@ class StudentWebEmbed extends StatefulWidget {
     this.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture',
     this.onLoaded,
     this.onError,
+    this.allowedHosts,
     super.key,
   });
+
+  /// قفلُ التنقّل — انظر النسخةَ الأصلية. وفي المتصفّح يُقفل بـ`sandbox`: بلا
+  /// `allow-popups` لا نافذة، وبلا `allow-top-navigation` لا تنتقل الصفحةُ الأمّ.
+  final Set<String>? allowedHosts;
 
   final String url;
   final String? htmlContent;
@@ -44,6 +49,12 @@ class _StudentWebEmbedState extends State<StudentWebEmbed> {
         ..style.height = '100%'
         ..allow = widget.allow
         ..allowFullscreen = true;
+      if (widget.allowedHosts != null) {
+        frame.setAttribute(
+          'sandbox',
+          'allow-scripts allow-same-origin allow-pointer-lock allow-forms',
+        );
+      }
       if (widget.htmlContent == null) {
         frame.src = widget.url;
       } else {

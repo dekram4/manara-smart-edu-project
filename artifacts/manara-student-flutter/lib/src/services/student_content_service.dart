@@ -125,10 +125,10 @@ class StudentContentService {
       levelUp: payload['levelUp'] == true,
       newAchievements: achievements is List
           ? achievements
-                .whereType<Map>()
-                .map((item) => StudentAchievement.fromMap(_asMap(item)))
-                .where((item) => item.id.isNotEmpty)
-                .toList()
+              .whereType<Map>()
+              .map((item) => StudentAchievement.fromMap(_asMap(item)))
+              .where((item) => item.id.isNotEmpty)
+              .toList()
           : const [],
       snapshot: StudentGamification.fromMap(payload['snapshot']),
     );
@@ -370,18 +370,16 @@ class StudentContentService {
     final teacherLessons = studentTeacher.isEmpty
         ? const <LessonContent>[]
         : matchingPath
-              .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
-              .toList();
-    final administratorLessons = matchingPath
-        .where(_isAdministratorOrLegacyLesson)
-        .toList();
+            .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
+            .toList();
+    final administratorLessons =
+        matchingPath.where(_isAdministratorOrLegacyLesson).toList();
 
     final teacherSelection = _latestConfiguredExperience(teacherLessons, type);
     // A configured teacher link is authoritative, even if it is malformed.
     // Falling back in that case could show a different experience than the
     // one explicitly configured for the student's teacher.
-    final selected =
-        teacherSelection ??
+    final selected = teacherSelection ??
         _latestConfiguredExperience(administratorLessons, type);
     if (selected == null) {
       return TutorExperienceSelection(
@@ -439,6 +437,9 @@ class StudentContentService {
               ? tr('svc.defaultGameSub')
               : _text(map['subtitle']),
           requiredLevel: _gameRequiredLevel(map),
+          orientation: GameOrientation.parse(map['orientation']),
+          width: _positiveInt(map['width']),
+          height: _positiveInt(map['height']),
         ),
       );
     }
@@ -763,8 +764,7 @@ class StudentContentService {
     // Cinema records are created by the teacher/admin manager with an owner.
     // Treat ownerless records as legacy data, not public student content; this
     // prevents obsolete app_kv entries from appearing as "ghost" videos.
-    final ownerAllowed =
-        owner == 'admin' ||
+    final ownerAllowed = owner == 'admin' ||
         owner == 'supervisor' ||
         (teacher.isNotEmpty && owner == teacher);
     if (!ownerAllowed) return false;
@@ -827,14 +827,13 @@ class StudentContentService {
     List<LessonContent> lessons,
     TutorExperienceType type,
   ) {
-    final configured =
-        lessons
-            .where((lesson) => _experienceUrl(lesson, type).trim().isNotEmpty)
-            .toList()
-          ..sort((a, b) {
-            final timestamp = b.createdAt.compareTo(a.createdAt);
-            return timestamp != 0 ? timestamp : b.id.compareTo(a.id);
-          });
+    final configured = lessons
+        .where((lesson) => _experienceUrl(lesson, type).trim().isNotEmpty)
+        .toList()
+      ..sort((a, b) {
+        final timestamp = b.createdAt.compareTo(a.createdAt);
+        return timestamp != 0 ? timestamp : b.id.compareTo(a.id);
+      });
     return configured.isEmpty ? null : configured.first;
   }
 
@@ -884,10 +883,10 @@ class StudentContentService {
         final teacherOwned = studentTeacher.isEmpty
             ? const <LessonContent>[]
             : exact
-                  .where(
-                    (lesson) => _normalize(lesson.ownerId) == studentTeacher,
-                  )
-                  .toList();
+                .where(
+                  (lesson) => _normalize(lesson.ownerId) == studentTeacher,
+                )
+                .toList();
         final pool = teacherOwned.isNotEmpty ? teacherOwned : exact;
         pool.sort((a, b) {
           // The id the student actually chose outranks every heuristic.
@@ -921,8 +920,8 @@ class StudentContentService {
       final teacherOwned = studentTeacher.isEmpty
           ? const <LessonContent>[]
           : candidates
-                .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
-                .toList();
+              .where((lesson) => _normalize(lesson.ownerId) == studentTeacher)
+              .toList();
       final pool = teacherOwned.isNotEmpty ? teacherOwned : candidates;
       pool.sort((a, b) {
         final timestamp = b.createdAt.compareTo(a.createdAt);
@@ -1186,7 +1185,6 @@ bool _hasPathValues(AcademicPath path) {
   ].every((value) => value.trim().isNotEmpty);
 }
 
-
 /// هل يملك هذا الطالب رؤية هذا الإعداد؟
 ///
 /// شجرة معلّمه وحدها. لا شجرة المشرف ولا إعدادٌ بلا مالك، مهما كانت
@@ -1316,9 +1314,8 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
   if (rawGames is List) {
     for (var index = 0; index < rawGames.length; index++) {
       final item = rawGames[index];
-      final map = item is String
-          ? <String, dynamic>{'url': item}
-          : _asMap(item);
+      final map =
+          item is String ? <String, dynamic>{'url': item} : _asMap(item);
       final url = _resolveUrl(_text(map['url'] ?? map['gameUrl']), baseUrl);
       if (!_isSafeUrl(url)) continue;
       games.add(
@@ -1354,6 +1351,11 @@ List<HtmlGame> _parseGames(Map<String, dynamic> data, {String baseUrl = ''}) {
   return games;
 }
 
+int? _positiveInt(Object? value) {
+  final number = value is num ? value.toInt() : int.tryParse('${value ?? ''}');
+  return number != null && number > 0 ? number : null;
+}
+
 int _gameRequiredLevel(Map<String, dynamic> data) {
   final raw = data['requiredLevel'] ?? data['required_level'] ?? data['level'];
   final level = raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
@@ -1371,12 +1373,55 @@ List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
       title: tr('svc.adventure'),
       subtitle: tr('svc.adventureSub'),
       requiredLevel: 0,
+      orientation: GameOrientation.any,
+      width: null,
+      height: null,
     ),
     (
       id: '172e0bd0c40442dbae3d4adb42a98433',
       title: tr('svc.knowledge'),
       subtitle: tr('svc.knowledgeSub'),
       requiredLevel: 2,
+      orientation: GameOrientation.any,
+      width: null,
+      height: null,
+    ),
+    // ── ألعابٌ أضيفت: بأبعادها واتجاهها كما نشرها صانعوها ──
+    (
+      id: '73c29ef316be4f0bb6d149d8b5a39ff3',
+      title: tr('svc.game.pharaoh'),
+      subtitle: tr('svc.game.pharaohSub'),
+      requiredLevel: 3,
+      orientation: GameOrientation.landscape,
+      width: 1280,
+      height: 720,
+    ),
+    (
+      id: '99ba036a4225425794e2c423fbcf9842',
+      title: tr('svc.game.tunnel'),
+      subtitle: tr('svc.game.tunnelSub'),
+      requiredLevel: 4,
+      orientation: GameOrientation.portrait,
+      width: 1080,
+      height: 1920,
+    ),
+    (
+      id: 'd632553ef7264d99aa438310073a6dc3',
+      title: tr('svc.game.speed'),
+      subtitle: tr('svc.game.speedSub'),
+      requiredLevel: 5,
+      orientation: GameOrientation.landscape,
+      width: 800,
+      height: 600,
+    ),
+    (
+      id: '71b64121c58b4a95b7459e08086dcb00',
+      title: tr('svc.game.robot'),
+      subtitle: tr('svc.game.robotSub'),
+      requiredLevel: 6,
+      orientation: GameOrientation.landscape,
+      width: 960,
+      height: 600,
     ),
   ];
   return entries.map((entry) {
@@ -1393,6 +1438,9 @@ List<HtmlGame> _embeddedGameCatalog(String baseUrl) {
       title: entry.title,
       subtitle: entry.subtitle,
       requiredLevel: entry.requiredLevel,
+      orientation: entry.orientation,
+      width: entry.width,
+      height: entry.height,
     );
   }).toList();
 }
@@ -1401,7 +1449,7 @@ VideoSourceType _videoType(Object? value, String url) {
   final normalizedUrl = url.toLowerCase();
   final isDirectVideo =
       RegExp(r'\.(mp4|m4v|mov|webm|m3u8)(?:$|[?#])').hasMatch(normalizedUrl) ||
-      normalizedUrl.contains('/storage/v1/object/public/');
+          normalizedUrl.contains('/storage/v1/object/public/');
   if (value?.toString().toLowerCase() == 'mp4' || isDirectVideo) {
     return VideoSourceType.mp4;
   }

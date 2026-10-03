@@ -12,6 +12,8 @@ import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../utils/game_navigation.dart';
+import '../utils/student_orientation.dart';
 import '../widgets/video_thumbnail_card.dart';
 import '../widgets/playful_text.dart';
 import '../widgets/portal_watermark.dart';
@@ -80,7 +82,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
 
   void _applyGamification(StudentGamification stats) {
     final previous = _gamification;
-    final earnedNewReward = stats.xp > previous.xp || stats.gems > previous.gems;
+    final earnedNewReward =
+        stats.xp > previous.xp || stats.gems > previous.gems;
     setState(() => _gamification = stats);
     if (!earnedNewReward) return;
     if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
@@ -106,8 +109,10 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   ) {
     final games = _gamesFromLessons;
     if (games.isEmpty) return;
-    final before = _GamesModule.unlockedCount(previous.level).clamp(0, games.length);
-    final after = _GamesModule.unlockedCount(updated.level).clamp(0, games.length);
+    final before =
+        _GamesModule.unlockedCount(previous.level).clamp(0, games.length);
+    final after =
+        _GamesModule.unlockedCount(updated.level).clamp(0, games.length);
     if (after <= before) return;
     final opened = games[after - 1];
     ScaffoldMessenger.of(context).showSnackBar(
@@ -323,13 +328,10 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     var generic = 0;
     return [
       for (var index = 0; index < games.length; index++)
-        HtmlGame(
-          id: games[index].id,
-          url: games[index].url,
+        games[index].copyWith(
           title: isGenericGameTitle(games[index].title)
               ? tr('svc.gameName.${generic++ % catchyGameNameCount + 1}')
               : games[index].title,
-          subtitle: games[index].subtitle,
           requiredLevel: index + 1,
         ),
     ];
@@ -476,8 +478,8 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
   bool _saving = false;
 
   bool get _completed => widget.gamification.completedActivities.contains(
-    'lesson:${widget.lesson.id}',
-  );
+        'lesson:${widget.lesson.id}',
+      );
 
   Future<void> _completeLesson() async {
     if (_completed || _saving) return;
@@ -571,7 +573,8 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                 end: Alignment.bottomLeft,
                 colors: gradient,
               ),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.6),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.6), width: 1.6),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -583,7 +586,8 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white.withValues(alpha: 0.26),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.7)),
                   ),
                   child: Icon(
                     empty
@@ -654,8 +658,10 @@ class _GamesModule extends StatelessWidget {
 
   // القاعدة تعيش في GameUnlockRule لتكون قابلة للاختبار — هذه الشاشة خاصة
   // بملفها فلا يبلغها اختبار. ما هنا تفويض لا نسخة ثانية.
-  static int requiredLevelFor(int index) => GameUnlockRule.requiredLevelFor(index);
-  static bool isUnlocked(int index, int level) => GameUnlockRule.isUnlocked(index, level);
+  static int requiredLevelFor(int index) =>
+      GameUnlockRule.requiredLevelFor(index);
+  static bool isUnlocked(int index, int level) =>
+      GameUnlockRule.isUnlocked(index, level);
   static int unlockedCount(int level) => GameUnlockRule.unlockedCount(level);
 
   @override
@@ -725,7 +731,8 @@ class _GamesModule extends StatelessWidget {
                   currentLevel: gamification.level,
                   onPressed: () {
                     if (!unlocked) {
-                      StudentSoundService.instance.play(StudentSoundCue.warning);
+                      StudentSoundService.instance
+                          .play(StudentSoundCue.warning);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -791,7 +798,8 @@ class _ArcadeProgress extends StatelessWidget {
             end: Alignment.bottomLeft,
           ),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+          border: Border.all(
+              color: Colors.white.withValues(alpha: 0.4), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -863,7 +871,8 @@ class _ArcadeProgress extends StatelessWidget {
 /// فتحمل اللعبة الواحدة شارتها نفسها في كل مرة بدل أن تتبدّل أمام الطفل.
 /// وتُعرّف هنا بألوانها معاً: الشارة ولون البطاقة شيء واحد يُقرأ من بعيد.
 class _GameFlavor {
-  const _GameFlavor(this.badgeKey, this.emoji, this.pastel, this.ink, this.tint);
+  const _GameFlavor(
+      this.badgeKey, this.emoji, this.pastel, this.ink, this.tint);
 
   final String badgeKey;
   final String emoji;
@@ -874,9 +883,12 @@ class _GameFlavor {
   final Color tint;
 
   static const _all = [
-    _GameFlavor('game.badge.brain', '🧠', Color(0xFFEDE9FE), Color(0xFF4C1D95), Color(0xFF8B5CF6)),
-    _GameFlavor('game.badge.challenge', '⚡', Color(0xFFFFF1CC), Color(0xFF92400E), Color(0xFFF59E0B)),
-    _GameFlavor('game.badge.adventure', '🗺️', Color(0xFFD9F5EC), Color(0xFF065F46), Color(0xFF10B981)),
+    _GameFlavor('game.badge.brain', '🧠', Color(0xFFEDE9FE), Color(0xFF4C1D95),
+        Color(0xFF8B5CF6)),
+    _GameFlavor('game.badge.challenge', '⚡', Color(0xFFFFF1CC),
+        Color(0xFF92400E), Color(0xFFF59E0B)),
+    _GameFlavor('game.badge.adventure', '🗺️', Color(0xFFD9F5EC),
+        Color(0xFF065F46), Color(0xFF10B981)),
   ];
 
   static _GameFlavor of(int index) => _all[index % _all.length];
@@ -952,14 +964,16 @@ class _GameCard extends StatelessWidget {
               children: [
                 // الشارة أولاً: نوع اللعبة يُعرف قبل اسمها.
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.82),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     locked
-                        ? trf('content.gameLockedShort', {'level': requiredLevel})
+                        ? trf(
+                            'content.gameLockedShort', {'level': requiredLevel})
                         : tr(flavor.badgeKey),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1019,8 +1033,8 @@ class _GameCard extends StatelessWidget {
                           : (currentLevel / requiredLevel).clamp(0.0, 1.0),
                       minHeight: 6,
                       backgroundColor: Colors.white,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFFF59E0B)),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1095,11 +1109,14 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   void initState() {
     super.initState();
     _enterImmersive();
+    _holdOrientation();
   }
 
   @override
   void dispose() {
     _restoreSystemBars();
+    // يعود الجهازُ إلى سياسة التطبيق: كلُّ الاتجاهات.
+    StudentOrientation.apply();
     super.dispose();
   }
 
@@ -1118,6 +1135,20 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
+  /// ── اللعبةُ في الاتجاه الذي صُمّمت له ──
+  /// لعبةُ سباقٍ أفقيّة على هاتفٍ قائمٍ تصير شريطاً رفيعاً في وسط الشاشة. فيُدار
+  /// الجهازُ إلى اتجاهها ما دامت مفتوحة، ويعود حرّاً عند الخروج.
+  void _holdOrientation() {
+    switch (widget.game.orientation) {
+      case GameOrientation.landscape:
+        StudentOrientation.hold(StudentOrientation.landscapeOnly);
+      case GameOrientation.portrait:
+        StudentOrientation.hold(StudentOrientation.portraitOnly);
+      case GameOrientation.any:
+        break;
+    }
+  }
+
   String get _url {
     final raw = widget.game.url.trim();
     if (!raw.startsWith('/')) return raw;
@@ -1126,8 +1157,8 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   }
 
   bool get _isRelativeApiGame => RegExp(
-    r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)',
-  ).hasMatch(_url);
+        r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)',
+      ).hasMatch(_url);
 
   void _reload() {
     setState(() {
@@ -1137,12 +1168,35 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     });
   }
 
+  void _close() {
+    StudentSoundService.instance.playTap();
+    Navigator.of(context).maybePop();
+  }
+
+  /// ── تملأ اللعبةُ الشاشة ──
+  /// والجهازُ في اتجاهها، فتملؤها كلَّها وتتكفّل بقياس نفسها. أمّا شاشةٌ لا تدور
+  /// — متصفّحٌ أو حاسوب — واتجاهُها غيرُ اتجاه اللعبة، فاللعبةُ في الوسط بنسبتها
+  /// الأصلية: لعبةٌ رأسيّةٌ ممدودةٌ على شاشةٍ عريضة تتشوّه.
+  Widget _fitted(Widget game) {
+    final ratio = widget.game.aspectRatio;
+    if (ratio == null) return game;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screen = constraints.maxWidth / constraints.maxHeight;
+        final gameWide = ratio >= 1;
+        final screenWide = screen >= 1;
+        if (gameWide == screenWide) return game;
+        return Center(
+          child: AspectRatio(aspectRatio: ratio, child: game),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final uri = Uri.tryParse(_url);
-    final validUrl =
-        uri != null &&
+    final validUrl = uri != null &&
             (uri.scheme == 'http' || uri.scheme == 'https') &&
             uri.host.isNotEmpty ||
         _isRelativeApiGame;
@@ -1151,80 +1205,200 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
       // Back out of the game and the phone's own buttons come straight
       // back, without waiting on dispose.
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) _restoreSystemBars();
+        if (didPop) {
+          _restoreSystemBars();
+          StudentOrientation.apply();
+        }
       },
       child: Scaffold(
-      backgroundColor: const Color(0xFF160C2D),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF160C2D),
-        foregroundColor: Colors.white,
-        title: Text(widget.game.title),
-        actions: [
-          IconButton(
-            onPressed: validUrl ? _reload : null,
-            tooltip: tr('lesson.reloadGame'),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
+        backgroundColor: const Color(0xFF0B0618),
+        body: !validUrl
+            ? SafeArea(
+                child: Stack(
+                  children: [
+                    _StateCard(
+                      icon: Icons.link_off_rounded,
+                      title: tr('lesson.badGameLink'),
+                      message: tr('lesson.badGameLinkBody'),
+                    ),
+                    _GameTopControls(
+                      title: widget.game.title,
+                      onClose: _close,
+                      onReload: null,
+                    ),
+                  ],
+                ),
+              )
+            : Stack(
+                children: [
+                  Positioned.fill(
+                    child: _fitted(
+                      StudentWebEmbed(
+                        key: ValueKey(_reloadKey),
+                        url: _url,
+                        allow:
+                            'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write',
+                        // ── تبقى اللعبةُ في التطبيق ──
+                        // لا نافذةَ ولا انتقالَ إلا إلى مضيف اللعبة، ولا ما يُطلب
+                        // من مضيفي الإعلانات. انظر allowGameNavigation.
+                        allowedHosts: gameHostsFor(_url),
+                        onLoaded: () {
+                          if (!mounted) return;
+                          setState(() {
+                            _loading = false;
+                            _error = null;
+                          });
+                        },
+                        onError: (message) {
+                          if (!mounted) return;
+                          setState(() {
+                            _loading = false;
+                            _error = message;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  if (_loading)
+                    ColoredBox(
+                      color: const Color(0xFF160C2D),
+                      child: Center(
+                        child: StudentRiveLoading(
+                          label: tr('content.gameLoading'),
+                        ),
+                      ),
+                    ),
+                  if (_error != null)
+                    ColoredBox(
+                      color: const Color(0xF2160C2D),
+                      child: Center(
+                        child: _StateCard(
+                          icon: Icons.error_outline_rounded,
+                          title: tr('content.gameFailed'),
+                          message: _error!,
+                          actionLabel: tr('action.retry'),
+                          onAction: _reload,
+                        ),
+                      ),
+                    ),
+                  // زرُّ الخروج فوق اللعبة دائماً، صغيراً لا يحجب منها شيئاً.
+                  _GameTopControls(
+                    title: widget.game.title,
+                    onClose: _close,
+                    onReload: _reload,
+                  ),
+                ],
+              ),
       ),
-      body: !validUrl
-          ? _StateCard(
-              icon: Icons.link_off_rounded,
-              title: tr('lesson.badGameLink'),
-              message: tr('lesson.badGameLinkBody'),
-            )
-          : Stack(
-              children: [
-                Positioned.fill(
-                  child: StudentWebEmbed(
-                    key: ValueKey(_reloadKey),
-                    url: _url,
-                    allow:
-                        'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write',
-                    onLoaded: () {
-                      if (!mounted) return;
-                      setState(() {
-                        _loading = false;
-                        _error = null;
-                      });
-                    },
-                    onError: (message) {
-                      if (!mounted) return;
-                      setState(() {
-                        _loading = false;
-                        _error = message;
-                      });
-                    },
+    );
+  }
+}
+
+/// زرّا الخروج والإعادة فوق اللعبة: دائرتان شفّافتان في الزاوية، واسمُ اللعبة
+/// يظهر لحظةً ثم يختفي فلا يغطّي منها شيئاً.
+class _GameTopControls extends StatefulWidget {
+  const _GameTopControls({
+    required this.title,
+    required this.onClose,
+    required this.onReload,
+  });
+
+  final String title;
+  final VoidCallback onClose;
+  final VoidCallback? onReload;
+
+  @override
+  State<_GameTopControls> createState() => _GameTopControlsState();
+}
+
+class _GameTopControlsState extends State<_GameTopControls> {
+  bool _showTitle = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _showTitle = false);
+    });
+  }
+
+  Widget _round({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    Color color = const Color(0x99160C2D),
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: color,
+        shape: const CircleBorder(
+          side: BorderSide(color: Color(0x66FFFFFF), width: 1.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _round(
+              icon: Icons.close_rounded,
+              tooltip: tr('game.close'),
+              onPressed: widget.onClose,
+              color: const Color(0xCCE11D48),
+            ),
+            const SizedBox(width: 8),
+            if (widget.onReload != null)
+              _round(
+                icon: Icons.refresh_rounded,
+                tooltip: tr('lesson.reloadGame'),
+                onPressed: widget.onReload,
+              ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _showTitle ? 1 : 0,
+                  duration: const Duration(milliseconds: 500),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: const Color(0x99160C2D),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0x66FFFFFF)),
+                    ),
+                    child: Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ),
                 ),
-                if (_loading)
-                  ColoredBox(
-                    color: const Color(0xFF160C2D),
-                    child: Center(
-                      child: StudentRiveLoading(
-                        label: tr('content.gameLoading'),
-                      ),
-                    ),
-                  ),
-                if (_error != null)
-                  ColoredBox(
-                    color: const Color(0xF2160C2D),
-                    child: Center(
-                      child: _StateCard(
-                        icon: Icons.error_outline_rounded,
-                        title: tr('content.gameFailed'),
-                        message: _error!,
-                        actionLabel: tr('action.retry'),
-                        onAction: _reload,
-                      ),
-                    ),
-                  ),
-                // The "I finished — collect your XP and gems" button is
-                // gone with the rest of the arcade's bookkeeping. A game
-                // ends when the student is done with it, and they leave
-                // with the app's own back control.
-              ],
+              ),
             ),
+          ],
+        ),
       ),
     );
   }
@@ -1294,8 +1468,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                   // the separate button below.
                   onCompleted: () async {
                     try {
-                      final reward =
-                          await widget.contentService.rewardActivity(
+                      final reward = await widget.contentService.rewardActivity(
                         profile: widget.profile,
                         activityType: 'lesson',
                         activityId: widget.lesson.id,

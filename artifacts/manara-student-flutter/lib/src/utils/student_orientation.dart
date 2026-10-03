@@ -40,9 +40,24 @@ class StudentOrientation {
     DeviceOrientation.landscapeRight,
   ];
 
+  /// لعبةٌ أفقيّة: الجهازُ عرضاً بالاتجاهين.
+  static const landscapeOnly = <DeviceOrientation>[
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
+
+  /// لعبةٌ رأسيّة: الجهازُ قائماً.
+  static const portraitOnly = <DeviceOrientation>[
+    DeviceOrientation.portraitUp,
+  ];
+
+  /// يقيّد الاتجاهَ ما دامت شاشةٌ مفتوحة — لعبةٌ صُمّمت لاتجاهٍ واحد. وتُعيده
+  /// [apply] عند الخروج، ويعيده `StudentOrientationGuard` إن نُسي.
+  static Future<void> hold(List<DeviceOrientation> orientations) =>
+      SystemChrome.setPreferredOrientations(orientations);
+
   /// Puts the device back on the app's policy. Safe to call repeatedly.
-  static Future<void> apply() =>
-      SystemChrome.setPreferredOrientations(allowed);
+  static Future<void> apply() => SystemChrome.setPreferredOrientations(allowed);
 
   /// Lets a player accept any orientation for as long as it is on screen.
   static Future<void> release() =>

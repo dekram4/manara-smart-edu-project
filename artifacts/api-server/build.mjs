@@ -45,6 +45,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/lib/duel.ts"),
       path.resolve(artifactDir, "src/lib/chatVoice.ts"),
       path.resolve(artifactDir, "src/lib/chatLifecycle.ts"),
+      path.resolve(artifactDir, "src/lib/gameEmbed.ts"),
       path.resolve(artifactDir, "src/lib/duelQuestions.ts"),
       path.resolve(artifactDir, "src/lib/duelDomainBank.ts"),
       path.resolve(artifactDir, "src/lib/challengeQuestions.ts"),

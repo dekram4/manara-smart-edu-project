@@ -59,6 +59,25 @@ final _genericGameTitle = RegExp(
 bool isGenericGameTitle(String title) =>
     _genericGameTitle.hasMatch(title.trim().replaceAll(RegExp(r'\s+'), ' '));
 
+/// اتجاهُ الشاشة الذي صُمّمت له اللعبة.
+enum GameOrientation {
+  /// أفقيّة: يُدار الجهازُ عرضاً ما دامت مفتوحة.
+  landscape,
+
+  /// رأسيّة: يُمسك الجهازُ قائماً.
+  portrait,
+
+  /// تعمل بالاتجاهين: لا يُقفل شيء.
+  any;
+
+  static GameOrientation parse(Object? value) =>
+      switch ('${value ?? ''}'.trim()) {
+        'landscape' => GameOrientation.landscape,
+        'portrait' => GameOrientation.portrait,
+        _ => GameOrientation.any,
+      };
+}
+
 class HtmlGame {
   const HtmlGame({
     required this.id,
@@ -66,6 +85,9 @@ class HtmlGame {
     required this.title,
     required this.subtitle,
     this.requiredLevel = 0,
+    this.orientation = GameOrientation.any,
+    this.width,
+    this.height,
   });
 
   final String id;
@@ -73,6 +95,29 @@ class HtmlGame {
   final String title;
   final String subtitle;
   final int requiredLevel;
+
+  /// اتجاهُ اللعبة، وأبعادُها الأصلية كما نشرها صانعُها.
+  final GameOrientation orientation;
+  final int? width;
+  final int? height;
+
+  /// نسبةُ العرض إلى الارتفاع، إن عُرفت الأبعاد.
+  double? get aspectRatio {
+    final w = width, h = height;
+    return w != null && h != null && w > 0 && h > 0 ? w / h : null;
+  }
+
+  /// نسخةٌ بمستوى فتحٍ آخر أو اسمٍ آخر، وبقيّةُ صفاتها كما هي.
+  HtmlGame copyWith({String? title, int? requiredLevel}) => HtmlGame(
+        id: id,
+        url: url,
+        title: title ?? this.title,
+        subtitle: subtitle,
+        requiredLevel: requiredLevel ?? this.requiredLevel,
+        orientation: orientation,
+        width: width,
+        height: height,
+      );
 }
 
 class LessonContent {
@@ -126,6 +171,7 @@ class LessonContent {
       .where((value) => value.trim().isNotEmpty)
       .join(' • ');
 }
+
 /// قاعدة فتح الألعاب حسب المستوى.
 ///
 /// اللعبة رقم N تُفتح عند المستوى N: الفهرس 0 عند المستوى 1، والفهرس 1 عند
