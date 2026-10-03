@@ -7,6 +7,8 @@ import {
   DISABLED_AD_SDK,
   GAME_HOST,
   GAME_IDS,
+  LEGACY_AD_SDK,
+  LEGACY_GAME_IDS,
   catalogJson,
   rewriteGameHtml,
   rewriteGameScript,
@@ -50,7 +52,9 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
   }
 
   if (requestedPath === AD_SDK_PATH.slice(1)) {
-    res.type("application/javascript").send(DISABLED_AD_SDK);
+    res
+      .type("application/javascript")
+      .send(LEGACY_GAME_IDS.has(gameId) ? LEGACY_AD_SDK : DISABLED_AD_SDK);
     return;
   }
 
@@ -72,7 +76,11 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
 
     if (isHtml) {
       const source = await upstream.text();
-      res.type("html").set("Cache-Control", "no-store").send(rewriteGameHtml(gameId, source));
+      // الألعابُ القديمة: صفحتُها كما هي، بلا أيّ تعديل — كما كانت تعمل.
+      res
+        .type("html")
+        .set("Cache-Control", "no-store")
+        .send(LEGACY_GAME_IDS.has(gameId) ? source : rewriteGameHtml(gameId, source));
       return;
     }
 

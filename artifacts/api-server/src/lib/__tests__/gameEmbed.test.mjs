@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import {
+  LEGACY_AD_SDK,
+  LEGACY_GAME_IDS,
   DISABLED_AD_SDK,
   GAME_CATALOG,
   GAME_IDS,
@@ -101,18 +103,20 @@ test("البديلُ الصامت لا يرمي إن لم تُعرّف اللع�
   await window.gdsdk.showAd();
 });
 
-test("صفحةٌ بلا وسم viewport: يُضاف — وإلا رُسمت بعرض حاسوبٍ صغيرةً في ركن", async () => {
-  const { rewriteGameHtml: rewrite } = await import("../../../dist/lib/gameEmbed.mjs");
-  const bare = rewrite("g", "<html><head><title>x</title></head><body></body></html>");
-  assert.equal((bare.match(/name="viewport"/g) ?? []).length, 1);
-  const own = rewrite("g", '<html><head><meta name="viewport" content="width=device-width"></head></html>');
-  assert.equal((own.match(/name=["']?viewport/g) ?? []).length, 1, "لا وسمَ ثانياً");
+test("الألعابُ القديمة كما كانت: البديلُ الأصلي، ورابطُ https وحده يُستبدل", () => {
+  const old = "d4a3629101574bc39bd8f9d1888ca58e";
+  assert.ok(LEGACY_GAME_IDS.has(old));
+  assert.ok(LEGACY_AD_SDK.includes("success: false"));
+  const js = 'a="https://html5.api.gamedistribution.com/main.min.js";b="//html5.api.gamedistribution.com/main.min.js"';
+  const out = rewriteGameScript(old, js);
+  assert.ok(out.includes('a="/api/game-embed/' + old + '/ad-sdk.js"'));
+  assert.ok(out.includes('b="//html5.api.gamedistribution.com/main.min.js"'), "كما كان");
+  for (const id of Object.keys(NEW_GAMES)) assert.ok(!LEGACY_GAME_IDS.has(id), id);
 });
 
-test("اللعبةُ ملءُ الشاشة: الصفحةُ بعرضها وارتفاعها بلا هوامش ولا تمرير", async () => {
-  const { rewriteGameHtml: rewrite } = await import("../../../dist/lib/gameEmbed.mjs");
-  const out = rewrite("g", "<html><head></head><body></body></html>");
-  for (const rule of ["width:100vw!important", "height:100vh!important", "overflow:hidden!important", "position:fixed!important", "inset:0!important", "margin:0!important", "padding:0!important"]) {
-    assert.ok(out.includes(rule), rule);
-  }
+test("صفحاتُ الألعاب الجديدة: لا CSS ولا وسمَ مُضاف — المكتبةُ والنوافذُ وحدهما", () => {
+  const out = rewriteGameHtml("g", "<html><head></head><body></body></html>");
+  assert.ok(!out.includes("manara-fit"));
+  assert.ok(!out.includes('name="viewport"'));
+  assert.ok(out.includes("window.open=function"));
 });

@@ -119,7 +119,12 @@ void main() {
         final path = request.url.path;
         if (path.endsWith('/chat/messages') && request.method == 'GET') {
           return http.Response(
-              jsonEncode({'messages': messages, 'ephemeral': ephemeral}), 200,
+              jsonEncode({
+                'messages': messages,
+                'ephemeral': ephemeral,
+                'visit': '2026-10-03T10:00:00.000Z',
+              }),
+              200,
               headers: {'content-type': 'application/json; charset=utf-8'});
         }
         if (path.endsWith('/chat/peers')) {
@@ -429,12 +434,74 @@ void main() {
     });
 
     testWidgets(
-        'يغادر: يُبلَّغ ما قرأه — النصُّ ورسائلُه، لا المقطعُ الذي لم يسمعه',
+        'يُبلَّغ ما قرأه فور عرضه — النصُّ ورسائلُه، لا المقطعُ الذي لم يسمعه',
         (tester) async {
       await pump(tester);
-      expect(seenIds(), isEmpty, reason: 'لا شيء قبل المغادرة');
-      await leave(tester);
       expect(seenIds()..sort(), ['chat_mine_aaaaaaaa', 'm2']);
+      await leave(tester);
+      expect(seenIds().where((id) => id == 'm1'), isEmpty);
+    });
+
+    testWidgets('الزيارةُ واحدةٌ ما دامت الدردشةُ مفتوحة', (tester) async {
+      await pump(tester);
+      await tester.pump(const Duration(seconds: 9));
+      final gets = requests
+          .where(
+              (r) => r.method == 'GET' && r.url.path.endsWith('/chat/messages'))
+          .toList();
+      expect(gets.length, greaterThanOrEqualTo(2), reason: 'تحديثٌ هادئٌ دوري');
+      expect(gets.first.url.queryParameters['visit'], isNull);
+      expect(
+          gets.last.url.queryParameters['visit'], '2026-10-03T10:00:00.000Z');
+      await leave(tester);
+    });
+
+    testWidgets(
+        'رسالتي الخاصّة قرأتها روز: «✓✓ قرأها: روز»، وتُبلَّغ رؤيتي للقراءة',
+        (tester) async {
+      await pump(tester);
+      expect(find.text(tr('chat.read.sent')), findsOneWidget);
+      expect(seenIds().where((id) => id == 'chat_mine_aaaaaaaa').length, 1);
+      // روز قرأتها: يظهر ذلك في التحديث الهادئ التالي.
+      messages = [
+        for (final m in messages)
+          m['id'] == 'chat_mine_aaaaaaaa'
+              ? {
+                  ...m,
+                  'to': 'rose',
+                  'readBy': ['روز'],
+                  'readByAll': true,
+                  'recipients': 1
+                }
+              : m,
+      ];
+      await tester.pump(const Duration(seconds: 9));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+          find.text(trf('chat.read.readBy', {'names': 'روز'})), findsOneWidget);
+      // ثم يُبلَّغ مرّةً أخرى أني رأيتُ القراءة: فتُستهلك عندي وتختفي حين أعود.
+      expect(seenIds().where((id) => id == 'chat_mine_aaaaaaaa').length, 2);
+      await leave(tester);
+    });
+
+    testWidgets(
+        'رسالتي للصفّ: «شوهدت بواسطة» بأسماء من رآها، ولم يُقرأ بعدُ «أُرسلت»',
+        (tester) async {
+      messages = [
+        for (final m in messages)
+          m['id'] == 'chat_mine_aaaaaaaa'
+              ? {
+                  ...m,
+                  'readBy': ['روز', 'سارة'],
+                  'readByAll': false,
+                  'recipients': 3
+                }
+              : m,
+      ];
+      await pump(tester);
+      expect(find.text(trf('chat.read.seenSome', {'names': 'روز، سارة'})),
+          findsOneWidget);
+      await leave(tester);
     });
 
     testWidgets('سمع المقطع ثم غادر: يُبلَّغ معه', (tester) async {

@@ -1,90 +1,113 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CHAT_SAVE_MS,
-  CHAT_TTL_MS,
+  allSeenAt,
+  consumedAt,
   isChatMessageId,
-  isSaved,
   recipientsOf,
   saveUntil,
+  seenBy,
   shouldPurge,
   visibleTo,
 } from "../../../dist/lib/chatLifecycle.mjs";
 
-const T0 = Date.parse("2026-10-01T10:00:00Z");
+const T0 = Date.parse("2026-10-03T10:00:00Z");
+const MIN = 60 * 1000;
+const HOUR = 60 * MIN;
 const iso = (ms) => new Date(T0 + ms).toISOString();
-const now = (ms) => new Date(T0 + ms);
-const HOUR = 60 * 60 * 1000;
-const msg = (over = {}) => ({ id: "chat_1_aaaaaaaa", from: "a", to: "all", createdAt: iso(0), ...over });
-const receipt = (studentId, over = {}) => ({
-  messageId: "chat_1_aaaaaaaa",
-  studentId,
-  seenAt: null,
-  savedUntil: null,
-  ...over,
+const at = (ms) => new Date(T0 + ms);
+const ID = "chat_1_aaaaaaaa";
+const dm = { id: ID, from: "joury", to: "rose", createdAt: iso(0) };
+const group = { id: ID, from: "joury", to: "all", createdAt: iso(0) };
+const CLASS = ["joury", "rose", "sara"];
+const r = (studentId, over = {}) => ({
+  messageId: ID, studentId, firstSeenAt: null, lastSeenAt: null, savedUntil: null, ...over,
+});
+const seen = (studentId, first, last = first) =>
+  r(studentId, { firstSeenAt: iso(first), lastSeenAt: iso(last) });
+
+test("المستلمون بلا المرسِل", () => {
+  assert.deepEqual(recipientsOf(group, CLASS), ["rose", "sara"]);
+  assert.deepEqual(recipientsOf(dm, CLASS), ["rose"]);
 });
 
-test("العمرُ والحفظُ ٢٤ ساعةً", () => {
-  assert.equal(CHAT_TTL_MS, 24 * HOUR);
-  assert.equal(CHAT_SAVE_MS, 24 * HOUR);
-  assert.equal(saveUntil(now(0)), iso(24 * HOUR));
+// ── خاصّة: جوري → روز ──
+
+test("روز لم ترها: تبقى عند جوري مهما خرجت وعادت", () => {
+  const receipts = [seen("joury", 1 * MIN, 5 * MIN)];
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(10 * MIN)), true);
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(5 * HOUR)), true);
 });
 
-test("لم يقرأها: يراها. قرأها وغادر: لا يراها", () => {
-  assert.equal(visibleTo(msg(), undefined, now(1000)), true);
-  assert.equal(visibleTo(msg(), receipt("b"), now(1000)), true);
-  assert.equal(visibleTo(msg(), receipt("b", { seenAt: iso(500) }), now(1000)), false);
+test("روز رأتها: تبقى ظاهرةً عند روز في الزيارة نفسها، وتختفي بعودتها", () => {
+  const receipts = [seen("rose", 2 * MIN)];
+  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(1 * MIN)), true, "الزيارةُ التي رأتها فيها");
+  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(3 * MIN)), false, "زيارةٌ بعدها");
 });
 
-test("قرأها وحفظها: تبقى له حتى ينتهي حفظُه", () => {
-  const saved = receipt("b", { seenAt: iso(500), savedUntil: iso(500 + 24 * HOUR) });
-  assert.equal(visibleTo(msg(), saved, now(10 * HOUR)), true);
-  assert.equal(visibleTo(msg(), saved, now(24 * HOUR + 501)), false);
-  assert.equal(isSaved(saved, now(24 * HOUR + 501)), false);
+test("جوري: بعد أن رأتها روز ورأت جوري ذلك، تختفي بعودتها — لا قبل", () => {
+  const roseSaw = seen("rose", 2 * MIN);
+  // جوري لم تعرض الرسالةَ بعد قراءة روز: لم تستهلكها.
+  let receipts = [seen("joury", 1 * MIN, 1 * MIN), roseSaw];
+  assert.equal(consumedAt(dm, "joury", ["rose"], receipts), null);
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(10 * MIN)), true);
+  // عُرضت لجوري بعد قراءة روز (رأت المؤشّر): تختفي في زيارتها التالية.
+  receipts = [seen("joury", 1 * MIN, 4 * MIN), roseSaw];
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(3 * MIN)), true, "الزيارةُ الحالية");
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(5 * MIN)), false, "بعد العودة");
 });
 
-test("مضى عمرُها: لا تُرى وإن لم تُقرأ — إلا محفوظة", () => {
-  assert.equal(visibleTo(msg(), undefined, now(24 * HOUR + 1)), false);
-  const saved = receipt("b", { savedUntil: iso(30 * HOUR) });
-  assert.equal(visibleTo(msg(), saved, now(25 * HOUR)), true);
-});
-
-test("المستلمون: الصفُّ كلُّه مع المرسِل، أو اثنان في الخاصّة", () => {
-  assert.deepEqual(recipientsOf(msg(), ["b", "c", "a"]), ["b", "c", "a"]);
-  assert.deepEqual(recipientsOf(msg({ to: "b" }), ["b", "c"]), ["a", "b"]);
-});
-
-test("تُحذف حين يقرؤها الجميع، لا قبل", () => {
-  const people = ["a", "b", "c"];
-  const seen = (id) => receipt(id, { seenAt: iso(100) });
-  assert.equal(shouldPurge(msg(), people, [seen("a"), seen("b")], now(1000)), false, "c لم يقرأها");
-  assert.equal(shouldPurge(msg(), people, [seen("a"), seen("b"), seen("c")], now(1000)), true);
-});
-
-test("حفظٌ قائمٌ عند أحدهم يُبقيها — حتى بعد عمرها", () => {
-  const people = ["a", "b"];
+test("📌 حفظ: تبقى لصاحبه 24 ساعة ثم تذهب", () => {
   const receipts = [
-    receipt("a", { seenAt: iso(100) }),
-    receipt("b", { seenAt: iso(100), savedUntil: iso(30 * HOUR) }),
+    r("rose", { firstSeenAt: iso(2 * MIN), lastSeenAt: iso(2 * MIN), savedUntil: iso(2 * MIN + 24 * HOUR) }),
   ];
-  assert.equal(shouldPurge(msg(), people, receipts, now(1000)), false);
-  assert.equal(shouldPurge(msg(), people, receipts, now(25 * HOUR)), false);
-  assert.equal(shouldPurge(msg(), people, receipts, now(30 * HOUR + 1)), true, "انتهى الحفظ");
+  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(3 * HOUR), at(3 * HOUR)), true);
+  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(25 * HOUR), at(25 * HOUR)), false);
+  assert.equal(saveUntil(at(0)), iso(24 * HOUR));
 });
 
-test("مضى عمرُها بلا حفظ: تُحذف وإن لم يقرأها أحد", () => {
-  assert.equal(shouldPurge(msg(), ["a", "b"], [], now(24 * HOUR + 1)), true);
-  assert.equal(shouldPurge(msg(), ["a", "b"], [], now(HOUR)), false);
+// ── الصفّ ──
+
+test("رسالةُ الصفّ: أسماءُ من رآها، وتبقى عند المرسِل حتى يراها الجميع", () => {
+  let receipts = [seen("joury", 1 * MIN, 9 * MIN), seen("rose", 2 * MIN)];
+  assert.deepEqual(seenBy(group, ["rose", "sara"], receipts), ["rose"]);
+  assert.equal(allSeenAt(group, ["rose", "sara"], receipts), null);
+  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(20 * MIN)), true, "سارة لم ترها");
+  receipts = [...receipts, seen("sara", 30 * MIN)];
+  assert.deepEqual(seenBy(group, ["rose", "sara"], receipts), ["rose", "sara"]);
+  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(40 * MIN)), true, "لم ترَ جوري اكتمالها");
+  receipts = receipts.map((x) => (x.studentId === "joury" ? seen("joury", 1 * MIN, 35 * MIN) : x));
+  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(40 * MIN)), false, "رأت الاكتمال ثم عادت");
 });
 
-test("إيصالاتُ رسالةٍ أخرى لا تُحسب لها", () => {
-  const other = { ...receipt("b", { seenAt: iso(1) }), messageId: "chat_2_bbbbbbbb" };
-  assert.equal(shouldPurge(msg({ to: "b" }), ["a", "b"], [receipt("a", { seenAt: iso(1) }), other], now(1000)), false);
+// ── الحذف النهائي ──
+
+test("تُحذف حين يستهلكها الجميع — المرسِلُ بعد أن رأى القراءة", () => {
+  const roseSaw = seen("rose", 2 * MIN);
+  assert.equal(shouldPurge(dm, ["rose"], [seen("joury", 1 * MIN), roseSaw], at(10 * MIN)), false);
+  assert.equal(shouldPurge(dm, ["rose"], [seen("joury", 1 * MIN, 4 * MIN), roseSaw], at(10 * MIN)), true);
+});
+
+test("لم يرها المستلم: لا تُحذف قبل 7 أيام", () => {
+  const receipts = [seen("joury", 1 * MIN)];
+  assert.equal(shouldPurge(dm, ["rose"], receipts, at(3 * 24 * HOUR)), false);
+  assert.equal(shouldPurge(dm, ["rose"], receipts, at(8 * 24 * HOUR)), true);
+});
+
+test("تنظيف العالق: رآها المستلمون ومضى عليها 24 ساعة، أو بلا أيّ إيصال ومضى عليها 24 ساعة", () => {
+  assert.equal(shouldPurge(dm, ["rose"], [seen("rose", 2 * MIN)], at(25 * HOUR)), true);
+  assert.equal(shouldPurge(dm, ["rose"], [], at(25 * HOUR)), true, "رسالةٌ قديمةٌ قبل الإيصالات");
+  assert.equal(shouldPurge(dm, ["rose"], [], at(2 * HOUR)), false);
+});
+
+test("حفظٌ قائمٌ يمنع الحذف — حتى العالق", () => {
+  const saved = [r("rose", { firstSeenAt: iso(1), lastSeenAt: iso(1), savedUntil: iso(30 * HOUR) })];
+  assert.equal(shouldPurge(dm, ["rose"], saved, at(25 * HOUR)), false);
+  assert.equal(shouldPurge(dm, ["rose"], saved, at(31 * HOUR)), true);
 });
 
 test("معرّفُ الرسالة بشكله وحده", () => {
   assert.equal(isChatMessageId("chat_1700000000000_6f1c2d7e-1111-4222-8333-944445555666"), true);
   assert.equal(isChatMessageId("chatvoice_1_aaaaaaaa"), false);
   assert.equal(isChatMessageId("chat_1,2"), false);
-  assert.equal(isChatMessageId(undefined), false);
 });

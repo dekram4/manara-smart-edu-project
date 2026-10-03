@@ -86,6 +86,31 @@ export const GAME_IDS = new Set<string>([
   "72d861a52f3c4e788ae0421649633be3",
 ]);
 
+/**
+ * الألعابُ التي كانت تعمل قبل إضافة الأربع: تُقدَّم كما كانت حرفياً — صفحتُها بلا
+ * تعديل، وبديلُ الإعلانات الأصلي، واستبدالُ رابط المكتبة بصيغة https وحدها.
+ * والمعالجةُ الجديدة للألعاب الأربع وحدها.
+ */
+export const LEGACY_GAME_IDS = new Set<string>([
+  "d4a3629101574bc39bd8f9d1888ca58e",
+  "172e0bd0c40442dbae3d4adb42a98433",
+  "659090e00bfc4650899550d63f8a130d",
+  "be797a3996324c03b20bad496a82819f",
+  "19c63777ed1e4653b64b2200560907fd",
+  "72d861a52f3c4e788ae0421649633be3",
+]);
+
+/** بديلُ الإعلانات الأصلي، كما كان للألعاب القديمة. */
+export const LEGACY_AD_SDK = `
+  (() => {
+    const safeResult = Promise.resolve({ args: { success: false } });
+    window.gdsdk = window.gdsdk || {
+      showAd: () => safeResult,
+      preloadAd: () => Promise.resolve(),
+    };
+  })();
+`;
+
 /** مضيفُ ملفّات اللعبة نفسها، لا صفحةِ الإعلانات المغلِّفة لها. */
 export const GAME_HOST = "https://html5.gamedistribution.com/rvvASMiM";
 
@@ -146,37 +171,10 @@ export function replaceAdSdk(gameId: string, source: string): string {
   return source.replace(AD_SDK_URL, `/api/game-embed/${gameId}${AD_SDK_PATH}`);
 }
 
-/**
- * عرضُ الجهاز لا عرضُ حاسوب.
- *
- * صفحةٌ بلا هذا الوسم يرسمها WebView أندرويد بعرض ٩٨٠ بكسل ثم يصغّرها لتسع
- * الشاشة: اللعبةُ صغيرةٌ في ركنٍ منها. ولعبةُ «الروبوت الخارق» بلا وسم.
- */
-export const VIEWPORT_META =
-  '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">';
-
-/**
- * اللعبةُ ملءُ الشاشة: الصفحةُ بعرض الشاشة وارتفاعها، بلا هوامش ولا تمرير.
- *
- * و`100dvh` بعد `100vh`: الأولى على ما يدعمها، والثانيةُ احتياطٌ لما لا يدعمها.
- */
-export const FULLSCREEN_STYLE =
-  '<style id="manara-fit">' +
-  "html,body{width:100vw!important;height:100vh!important;height:100dvh!important;" +
-  "margin:0!important;padding:0!important;overflow:hidden!important;}" +
-  "body{position:fixed!important;inset:0!important;}" +
-  "canvas{touch-action:none;}" +
-  "</style>";
-
-/**
- * صفحةُ اللعبة: المكتبةُ بديلة، والنوافذُ معطّلةٌ قبل أيّ سطرٍ من اللعبة، وعرضُ
- * الجهاز، واللعبةُ ملءُ الشاشة.
- */
+/** صفحةُ لعبةٍ جديدة: المكتبةُ بديلة، والنوافذُ معطّلةٌ قبل أيّ سطرٍ من اللعبة. */
 export function rewriteGameHtml(gameId: string, source: string): string {
   const html = replaceAdSdk(gameId, source);
-  const hasViewport = /<meta[^>]+name=["']?viewport/i.test(html);
-  const injected =
-    NO_POPUPS_SCRIPT + (hasViewport ? "" : VIEWPORT_META) + FULLSCREEN_STYLE;
+  const injected = NO_POPUPS_SCRIPT;
   const head = html.match(/<head[^>]*>/i);
   if (head && head.index !== undefined) {
     const at = head.index + head[0].length;
@@ -187,9 +185,16 @@ export function rewriteGameHtml(gameId: string, source: string): string {
 
 /**
  * ملفُّ JS للعبة: المكتبةُ بديلة، ودوالُّ الإعلان في إضافات Construct تعود فوراً.
+ *
+ * والألعابُ القديمة كما كانت: رابطُ https وحده يُستبدل.
  */
 export function rewriteGameScript(gameId: string, source: string): string {
-  let rewritten = replaceAdSdk(gameId, source);
+  let rewritten = LEGACY_GAME_IDS.has(gameId)
+    ? source.replaceAll(
+      "https://html5.api.gamedistribution.com/main.min.js",
+      `/api/game-embed/${gameId}${AD_SDK_PATH}`,
+    )
+    : replaceAdSdk(gameId, source);
 
   const replaceMethod = (methodStart: string, methodEnd: string, replacement: string) => {
     const start = rewritten.indexOf(methodStart);

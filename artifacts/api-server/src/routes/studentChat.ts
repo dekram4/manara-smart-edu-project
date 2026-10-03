@@ -6,10 +6,12 @@ import { createRateLimit, createStudentRateLimit } from "../middleware/rateLimit
 import { logger } from "../lib/logger";
 import { CHAT_VOICE_MAX_MS, isChatVoiceId, parseChatVoice } from "../lib/chatVoice";
 import {
+  allSeenAt,
   isChatMessageId,
   isSaved,
   recipientsOf,
   saveUntil,
+  seenBy,
   shouldPurge,
   visibleTo,
   type ChatMessageMeta,
@@ -134,10 +136,13 @@ function readReceipt(row: Record<string, unknown>): ChatReceipt | null {
   const messageId = text(data.messageId);
   const studentId = text(data.studentId);
   if (!messageId || !studentId) return null;
+  // و`seenAt` من إيصالاتٍ أقدم: أوّلُ العرض وآخرُه معاً.
+  const legacy = text(data.seenAt) || null;
   return {
     messageId,
     studentId,
-    seenAt: text(data.seenAt) || null,
+    firstSeenAt: text(data.firstSeenAt) || legacy,
+    lastSeenAt: text(data.lastSeenAt) || legacy,
     savedUntil: text(data.savedUntil) || null,
   };
 }
@@ -168,7 +173,7 @@ const receiptsOfMessages = (ids: readonly string[]) =>
  */
 async function writeReceipts(
   student: StudentActor,
-  changes: ReadonlyArray<{ messageId: string; seenAt?: string; savedUntil?: string | null }>,
+  changes: ReadonlyArray<{ messageId: string; seen?: boolean; savedUntil?: string | null }>,
 ): Promise<boolean> {
   if (changes.length === 0) return true;
   const existing = new Map<string, ChatReceipt>();
@@ -191,7 +196,9 @@ async function writeReceipts(
         studentId: student.id,
         grade: student.grade,
         teacherId: student.teacherId,
-        seenAt: change.seenAt ?? before?.seenAt ?? null,
+        // أوّلُ العرض يثبت، وآخرُه يتجدّد مع كل عرض.
+        firstSeenAt: change.seen ? before?.firstSeenAt ?? now : before?.firstSeenAt ?? null,
+        lastSeenAt: change.seen ? now : before?.lastSeenAt ?? null,
         savedUntil: "savedUntil" in change ? change.savedUntil ?? null : before?.savedUntil ?? null,
       },
     };
@@ -240,13 +247,12 @@ function inClassOf(data: Record<string, unknown>, student: StudentActor): boolea
 }
 
 
-/** آخرُ كنسٍ لكل صفّ، وللكنس العامّ في القاعدة. */
+/** آخرُ كنسٍ لكل صفّ. */
 const lastClassPurge = new Map<string, number>();
-let lastSweep = 0;
 
 /**
- * يحذف نهائياً رسائلَ الصفّ التي قرأها كلُّ من أُرسلت إليه ولم يحفظها أحد، أو
- * مضى عمرُها — ومعها مقاطعُها وإيصالاتُها. انظر `shouldPurge`.
+ * يحذف نهائياً رسائلَ الصفّ التي استهلكها كلُّ أطرافها، والعالقةَ القديمة — ومعها
+ * مقاطعُها وإيصالاتُها، ما لم تكن محفوظة. انظر `shouldPurge`.
  *
  * [onlyIds]: بعد قراءةٍ تُكنس الرسائلُ المقروءةُ الآن وحدها، بلا انتظار. وبدونها
  * يُكنس الصفُّ كلُّه مرّةً في الدقيقة على الأكثر.
@@ -257,10 +263,6 @@ async function purgeClass(student: StudentActor, onlyIds?: readonly string[]): P
     const last = lastClassPurge.get(key) ?? 0;
     if (Date.now() - last < 60_000) return 0;
     lastClassPurge.set(key, Date.now());
-  }
-  if (Date.now() - lastSweep > 15 * 60_000) {
-    lastSweep = Date.now();
-    void rest("rpc/purge_student_chat", { method: "POST", body: "{}" }).catch(() => null);
   }
   const rows = (await readMessages())
     .filter((row) => inClassOf(dataOf(row), student))
@@ -340,35 +342,70 @@ router.get("/student/chat/peers", requireStudentSession, async (_req, res) => {
   }
 });
 
-router.get("/student/chat/messages", requireStudentSession, async (_req, res) => {
+/**
+ * رسائلُ الطالب في هذه الزيارة. `?visit=<وقت>`: بدايةُ الزيارة كما أعادها الخادمُ في
+ * أوّل طلب — وبدونه تبدأ زيارةٌ الآن.
+ *
+ * ما استهلكه قبل بدء الزيارة لا يُعرض، وما استهلكه أثناءها يبقى حتى يخرج. ومع كل
+ * رسالةٍ أرسلها: من رآها من المستلمين بأسمائهم، وهل رآها الجميع.
+ */
+router.get("/student/chat/messages", requireStudentSession, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
   }
   try {
+    const now = new Date();
+    const asked = Date.parse(text(req.query?.visit));
+    // زيارةٌ في المستقبل أو قبل يومٍ لا تُصدَّق: تبدأ الآن.
+    const visit = Number.isFinite(asked) && asked <= now.getTime() && now.getTime() - asked < 24 * 3600e3
+      ? new Date(asked)
+      : now;
     const rows = (await readMessages())
       .filter((row) => row.data && typeof row.data === "object")
       .filter((row) => visibleToStudent(row.data as Record<string, unknown>, student));
-    // ── ما قرأه وغادر لا يعود — إلا ما حفظه ──
-    const mine = await receiptsOfStudent(student.id);
-    const byId = new Map((mine ?? []).map((receipt) => [receipt.messageId, receipt]));
-    const now = new Date();
+    const classmates = await findStudentsInScope(student.grade, student.teacherId);
+    const classIds = [...new Set([...classmates.map((p) => p.id), student.id])];
+    const names = new Map(classmates.map((p) => [p.id, p.name]));
+    const receipts: ChatReceipt[] = [];
+    let ephemeral = true;
+    for (const part of chunks(rows.map((row) => text(row.id)))) {
+      const found = await receiptsOfMessages(part);
+      if (found === null) {
+        ephemeral = false;
+        break;
+      }
+      receipts.push(...found);
+    }
     const messages = rows
-      .filter((row) => mine === null || visibleTo(metaOf(row), byId.get(text(row.id)), now))
+      .filter((row) => {
+        if (!ephemeral) return true;
+        const meta = metaOf(row);
+        return visibleTo(meta, student.id, recipientsOf(meta, classIds), receipts, visit, now);
+      })
       .map((row): Record<string, unknown> => {
-        const receipt = byId.get(text(row.id));
-        return {
+        const meta = metaOf(row);
+        const recipients = recipientsOf(meta, classIds);
+        const mine = receipts.find((r) => r.messageId === meta.id && r.studentId === student.id);
+        const out: Record<string, unknown> = {
           ...publicMessage(row),
-          savedUntil: isSaved(receipt, now) ? receipt!.savedUntil : null,
+          savedUntil: isSaved(mine, now) ? mine!.savedUntil : null,
         };
+        if (meta.from === student.id) {
+          const readers = seenBy(meta, recipients, receipts);
+          out.readBy = readers.map((id) => names.get(id) || "طالب منارة");
+          out.readByAll = allSeenAt(meta, recipients, receipts) !== null;
+          out.recipients = recipients.length;
+        }
+        return out;
       })
       .filter((message) => text(message.message) || message.kind === "voice")
       .slice(-120);
-    if (mine !== null) {
+    if (ephemeral) {
       void purgeClass(student).catch((error) =>
         logger.error({ err: error }, "[student-chat] purge failed"));
     }
-    return res.json({ messages, ephemeral: mine !== null, saveHours: 24 });
+    return res.json({ messages, ephemeral, saveHours: 24, visit: visit.toISOString() });
   } catch (error) {
     logger.error({ err: error }, "[student-chat] message load failed");
     return res.status(503).json({ error: "تعذر تحميل الرسائل الآن" });
@@ -442,11 +479,10 @@ router.post("/student/chat/seen", requireStudentSession, receiptLimit, async (re
         .filter((row) => visibleToStudent(dataOf(row), student))
         .map((row) => text(row.id)),
     );
-    const now = new Date().toISOString();
     const valid = ids.filter((id) => mineToSee.has(id));
     const written = await writeReceipts(
       student,
-      valid.map((id) => ({ messageId: id, seenAt: now })),
+      valid.map((id) => ({ messageId: id, seen: true })),
     );
     if (!written) return res.json({ seen: 0, purged: 0, ephemeral: false });
     const purged = await purgeClass(student, valid).catch((error) => {

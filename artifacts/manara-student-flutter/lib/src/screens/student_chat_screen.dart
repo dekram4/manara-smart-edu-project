@@ -80,6 +80,16 @@ class _StudentChatScreenState extends State<StudentChatScreen>
   final Set<String> _readNow = {};
   final Set<String> _reported = {};
 
+  /// رسائلي التي أبلغتُ أني رأيتُها بعد أن قرأها الجميع — فتُستهلك عندي.
+  final Set<String> _reportedAllRead = {};
+
+  /// بدايةُ هذه الزيارة كما أعادها الخادم: ما استُهلك قبلها لا يُعرض، وما استُهلك
+  /// أثناءها يبقى حتى أخرج.
+  String? _visit;
+
+  /// تحديثٌ هادئٌ دوري: يصل الجديد، ويظهر لمن أرسل أنّ رسالتَه قُرئت.
+  Timer? _poll;
+
   /// حفظٌ جارٍ لرسالة: لا يُضغط الزرُّ مرّتين.
   String? _savingId;
   List<_ChatMessage> _messages = const [];
@@ -118,6 +128,12 @@ class _StudentChatScreenState extends State<StudentChatScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _refresh();
+    _poll = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted || _loading || _sending || _sendingVoice || !_chatEnabled) {
+        return;
+      }
+      unawaited(_refresh(silent: true));
+    });
   }
 
   @override
@@ -134,6 +150,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
 
   @override
   void dispose() {
+    _poll?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _tick?.cancel();
     _elapsed.dispose();
@@ -156,7 +173,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
     super.dispose();
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refresh({bool silent = false}) async {
     if (!widget.profile.canAccessChat || !_chatEnabled) {
       setState(() {
         _loading = false;
@@ -172,13 +189,19 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       });
       return;
     }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
+      final visit = _visit;
+      final messagesUri = _endpoint('messages')!.replace(
+        queryParameters: visit == null ? null : {'visit': visit},
+      );
       final responses = await Future.wait([
-        _client.get(_endpoint('messages')!, headers: _headers),
+        _client.get(messagesUri, headers: _headers),
         _client.get(_endpoint('peers')!, headers: _headers),
       ]).timeout(const Duration(seconds: 15));
       final messageData = _decode(responses[0]);
@@ -199,12 +222,24 @@ class _StudentChatScreenState extends State<StudentChatScreen>
           : <_ChatPeer>[];
       if (!mounted) return;
       _ephemeral = messageData['ephemeral'] == true;
+      _visit ??= messageData['visit'] is String
+          ? messageData['visit'] as String
+          : null;
       for (final message in messages) {
         // النصُّ يُقرأ بعرضه، والمقطعُ بسماعه — ورسائلي قرأتُها حين كتبتُها.
         if (!message.isVoice || message.from == widget.profile.id) {
           _readNow.add(message.id);
         }
+        // ── رسالتي قرأها الجميع، ورأيتُ ذلك ──
+        // يُبلَّغ مرّةً أخرى بعد اكتمال القراءة: فتُستهلك عندي وتختفي حين أعود.
+        if (message.from == widget.profile.id &&
+            message.readByAll &&
+            _reportedAllRead.add(message.id)) {
+          _reported.remove(message.id);
+        }
       }
+      // يُبلَّغ ما قُرئ فوراً — لا عند المغادرة وحدها — فيرى المرسِلُ أنّ رسالتَه قُرئت.
+      unawaited(_reportRead());
       setState(() {
         _messages = messages;
         _peers = peers;
@@ -214,9 +249,10 @@ class _StudentChatScreenState extends State<StudentChatScreen>
         }
       });
     } catch (error) {
-      if (mounted) setState(() => _error = _safeError(error));
+      // التحديثُ الهادئ لا يُزعج بخطأ: الشبكةُ تعود في النبضة التالية.
+      if (mounted && !silent) setState(() => _error = _safeError(error));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && !silent) setState(() => _loading = false);
     }
   }
 
@@ -474,6 +510,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       }
       if (!mounted) return;
       _readNow.add(message.id);
+      unawaited(_reportRead());
       setState(() {
         _loadingId = null;
         _playingId = id;
@@ -973,6 +1010,9 @@ class _ChatMessage {
     this.voiceId = '',
     this.durationMs = 0,
     this.savedUntil,
+    this.readBy = const [],
+    this.readByAll = false,
+    this.recipients = 0,
   });
   factory _ChatMessage.fromJson(dynamic value) {
     final map = value is Map ? value : const <String, dynamic>{};
@@ -988,8 +1028,21 @@ class _ChatMessage {
       voiceId: '${map['voiceId'] ?? ''}',
       durationMs: duration is num ? duration.round() : 0,
       savedUntil: DateTime.tryParse('${map['savedUntil'] ?? ''}')?.toLocal(),
+      readBy: [
+        for (final name
+            in map['readBy'] is List ? map['readBy'] as List : const [])
+          if ('$name'.trim().isNotEmpty) '$name'.trim(),
+      ],
+      readByAll: map['readByAll'] == true,
+      recipients:
+          map['recipients'] is num ? (map['recipients'] as num).toInt() : 0,
     );
   }
+
+  /// لرسائلي وحدها: من قرأها/استمع إليها بأسمائهم، وهل قرأها كلُّ من أُرسلت إليه.
+  final List<String> readBy;
+  final bool readByAll;
+  final int recipients;
   final String id, from, name, to, message, time, kind, voiceId;
   final int durationMs;
 
@@ -1010,6 +1063,9 @@ class _ChatMessage {
         voiceId: voiceId,
         durationMs: durationMs,
         savedUntil: until,
+        readBy: readBy,
+        readByAll: readByAll,
+        recipients: recipients,
       );
 }
 
@@ -1057,7 +1113,11 @@ class _MessageBubble extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               constraints: const BoxConstraints(maxWidth: 320),
               decoration: BoxDecoration(
-                  color: mine ? const Color(0xFF0B8693) : Colors.white,
+                  color: mine
+                      ? (message.readByAll
+                          ? const Color(0xFF4338CA)
+                          : const Color(0xFF0B8693))
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(16)),
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1142,6 +1202,7 @@ class _MessageBubble extends StatelessWidget {
                               color: mine
                                   ? Colors.white
                                   : const Color(0xFF17233A))),
+                    if (mine) _ReadReceipt(message: message),
                     if (message.saved) ...[
                       const SizedBox(height: 6),
                       Text(
@@ -1261,4 +1322,46 @@ String _safeError(Object error) {
   // ورفضُ الخادم لمقطعٍ صوتيّ جملةٌ عربيةٌ كتبها هو للطفل.
   if (text.contains('الرسالة الصوتية')) return text;
   return tr('chat.unreachable');
+}
+
+/// تحت رسالتي: من قرأها أو استمع إليها.
+///
+/// خاصّة: «✓✓ قرأتها روز» — وفقاعتُها بلونٍ آخر. وللصفّ: «👁️ شاهدها: روز، سارة»
+/// حتى يشاهدها الجميع. ولم يقرأها أحدٌ بعد: «✓ أُرسلت».
+class _ReadReceipt extends StatelessWidget {
+  const _ReadReceipt({required this.message});
+
+  final _ChatMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final voice = message.isVoice;
+    final names = message.readBy.join('، ');
+    final String text;
+    if (message.readBy.isEmpty) {
+      text = tr('chat.read.sent');
+    } else if (message.readByAll && message.recipients <= 1) {
+      text = trf(voice ? 'chat.read.listenedBy' : 'chat.read.readBy',
+          {'names': names});
+    } else if (message.readByAll) {
+      text = trf(voice ? 'chat.read.allListened' : 'chat.read.allSeen',
+          {'names': names});
+    } else {
+      text = trf(voice ? 'chat.read.listenedSome' : 'chat.read.seenSome',
+          {'names': names});
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w900,
+          color: message.readByAll
+              ? const Color(0xFFBEF264)
+              : Colors.white.withValues(alpha: 0.85),
+        ),
+      ),
+    );
+  }
 }
