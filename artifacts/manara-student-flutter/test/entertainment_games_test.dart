@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:manara_student/src/models/student_content.dart';
+import 'package:manara_student/src/models/student_profile.dart';
 import 'package:manara_student/src/services/student_content_service.dart';
 
 /// ألعابُ «عالم الترفيه»: الأربعُ الجديدة، واتجاهُها، ولا خروجَ من التطبيق.
@@ -102,6 +103,44 @@ void main() {
           const HtmlGame(id: 'g', url: 'u', title: 't', subtitle: 's')
               .aspectRatio,
           isNull);
+    });
+  });
+
+  group('المستوى وفتح الألعاب', () {
+    Map<String, dynamic> row(Map<String, dynamic> data) => {
+          'id': 's1',
+          'data': {'username': 'joury', 'name': 'جوري', ...data}
+        };
+
+    test(
+        'المستوى من gamification.xp: 650 → المستوى 6 → الألعابُ الستُّ كلُّها مفتوحة',
+        () {
+      final profile = StudentProfile.fromStudentRow(row({
+        'gamification': {'xp': 650, 'gems': 150, 'level': 6},
+      }));
+      expect(profile.gamification.level, 6);
+      expect(profile.gamification.gems, 150);
+      for (var index = 0; index < 6; index++) {
+        expect(GameUnlockRule.isUnlocked(index, profile.gamification.level),
+            isTrue,
+            reason: 'اللعبة ${index + 1}');
+      }
+      expect(GameUnlockRule.isUnlocked(6, 6), isFalse,
+          reason: 'لا لعبةَ سابعة');
+    });
+
+    test('حقلُ level لا يُقرأ: المستوى من الخبرة وحدها', () {
+      final profile = StudentProfile.fromStudentRow(row({
+        'gamification': {'xp': 120, 'level': 6},
+      }));
+      expect(profile.gamification.level, 1);
+    });
+
+    test('level/xp/gems في جذر data — خارج gamification — لا تُقرأ', () {
+      final profile = StudentProfile.fromStudentRow(
+          row({'level': 6, 'xp': 650, 'gems': 150}));
+      expect(profile.gamification.level, 0);
+      expect(profile.gamification.xp, 0);
     });
   });
 }
