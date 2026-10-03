@@ -14,6 +14,9 @@ import {
 
 const router = Router();
 
+/** أكبرُ ردٍّ يُعلَن حجمُه — دون حدّ منصّة النشر (٣٢ ميغابايت) بهامش. */
+const MAX_DECLARED_LENGTH = 30 * 1024 * 1024;
+
 router.get("/game-catalog", (_req, res) => {
   res.json({ games: catalogJson() });
 });
@@ -88,8 +91,14 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     // بعد نشرها (أسماؤها ببصمتها)، فتُحفظ في الجهاز يوماً.
     res.set("Content-Type", getContentType(requestedPath, upstreamType));
     res.set("Cache-Control", "public, max-age=86400");
-    const length = upstream.headers.get("content-length");
-    if (length) res.set("Content-Length", length);
+    // ── والحجمُ لا يُعلَن فوق ٣٠ ميغابايت ──
+    // منصّةُ النشر (Cloud Run) تردّ ٥٠٠ فارغاً على ردٍّ يُعلن حجماً فوق ٣٢
+    // ميغابايتاً — وبياناتُ «الروبوت الخارق» ٤٤. وبلا \`Content-Length\` يُرسل
+    // الردُّ مقطّعاً (chunked)، وهذا لا حدَّ له.
+    const length = Number(upstream.headers.get("content-length") ?? "");
+    if (Number.isFinite(length) && length > 0 && length <= MAX_DECLARED_LENGTH) {
+      res.set("Content-Length", String(length));
+    }
     if (!upstream.body) {
       res.end();
       return;
