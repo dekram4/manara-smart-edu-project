@@ -93,7 +93,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     res.set("Cache-Control", "public, max-age=86400");
     // ── والحجمُ لا يُعلَن فوق ٣٠ ميغابايت ──
     // منصّةُ النشر (Cloud Run) تردّ ٥٠٠ فارغاً على ردٍّ يُعلن حجماً فوق ٣٢
-    // ميغابايتاً — وبياناتُ «الروبوت الخارق» ٤٤. وبلا \`Content-Length\` يُرسل
+    // ميغابايتاً — وبياناتُ «الروبوت الخارق» ٤٤. وبلا `Content-Length` يُرسل
     // الردُّ مقطّعاً (chunked)، وهذا لا حدَّ له.
     const length = Number(upstream.headers.get("content-length") ?? "");
     if (Number.isFinite(length) && length > 0 && length <= MAX_DECLARED_LENGTH) {
