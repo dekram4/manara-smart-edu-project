@@ -167,8 +167,17 @@ class FakeDuel implements StudentDuelService {
     void Function(String studentId, bool muted)? onMute,
     void Function(String studentId, int index, int points)? onAnswered,
     void Function(String event, Map<String, dynamic> payload)? onSignal,
+    void Function(String studentId, String emoji)? onReaction,
   }) async {
     signal = onSignal;
+    reaction = onReaction;
+  }
+
+  void Function(String studentId, String emoji)? reaction;
+
+  @override
+  void sendReaction({required String myId, required String emoji}) {
+    log.add('react:$emoji');
   }
 
   @override
@@ -536,7 +545,8 @@ void main() {
 
     testWidgets('ولا زرَّ دردشة في الساحة', (tester) async {
       await pumpLobby(tester);
-      expect(find.byType(DuelChatButton), findsNothing);
+      expect(find.byType(DuelVoiceButton), findsNothing);
+      expect(find.byType(DuelReactionBar), findsNothing);
       expect(find.byType(FloatingActionButton), findsNothing);
     });
 
@@ -672,13 +682,13 @@ void main() {
 
     Future<void> toFirstQuestion(WidgetTester tester, FakeDuel duel) async {
       expect(find.text(tr('arena.party.waitingTitle')), findsOneWidget);
-      expect(find.byType(DuelChatButton), findsNothing,
-          reason: 'لا دردشةَ والزميلُ غائب');
+      expect(find.byType(DuelReactionBar), findsNothing,
+          reason: 'لا تواصلَ والزميلُ غائب');
       duel.rivalJoined = true;
       duel.signal!('ready', {'id': 'r1'});
       await settle(tester, 4);
       expect(find.text(tr('arena.getReady')), findsOneWidget);
-      expect(find.byType(DuelChatButton), findsOneWidget);
+      expect(find.byType(DuelReactionBar), findsOneWidget);
       await settle(tester, 24);
       expect(find.text(questions[0].prompt), findsOneWidget);
     }
@@ -689,8 +699,22 @@ void main() {
       await toFirstQuestion(tester, duel);
       expect(find.byType(AnswerTile), findsNWidgets(4));
       expect(find.byType(ArenaTimerRing), findsOneWidget);
-      expect(find.byType(DuelChatButton), findsOneWidget,
-          reason: 'الدردشةُ داخل النزال');
+      expect(find.byType(DuelReactionBar), findsOneWidget,
+          reason: 'التفاعلاتُ داخل النزال');
+      // ولا دردشةَ كتابية: لا حقلَ كتابةٍ في النزال.
+      expect(find.byType(TextField), findsNothing);
+      // وزرُّ الصوت تحت الخيارات.
+      await tester.dragUntilVisible(
+        find.byType(DuelVoiceButton),
+        find.byType(ListView),
+        const Offset(0, -200),
+      );
+      expect(find.byType(DuelVoiceButton), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byType(DuelVoiceButton)).dy,
+        greaterThan(tester.getTopLeft(find.byType(AnswerTile).last).dy),
+        reason: 'أسفلَ الخيارات',
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -747,7 +771,7 @@ void main() {
         await settle(tester, 10);
         expect(find.text(tr('arena.getReady')), findsNothing);
         expect(find.byType(AnswerTile), findsNothing);
-        expect(find.byType(DuelChatButton), findsNothing);
+        expect(find.byType(DuelReactionBar), findsNothing);
       }
       expect(
           find.text(trf('arena.failRival', {'name': 'سارة'})), findsOneWidget);
@@ -786,6 +810,24 @@ void main() {
           find.text(trf('arena.rivalWon', {'name': 'خالد'})), findsOneWidget);
       expect(find.text(trf('arena.party.points', {'n': '10'})), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('تفاعلٌ: يطير عندي ويُبثّ، وتفاعلُ زميلي يطير باسمه',
+        (tester) async {
+      final duel = await pumpMatch(tester);
+      await toFirstQuestion(tester, duel);
+      await tester.tap(find.descendant(
+          of: find.byType(DuelReactionBar), matching: find.text('🔥')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(duel.log, contains('react:🔥'));
+      expect(find.text('🔥'), findsNWidgets(2),
+          reason: 'في الشريط، وطائرٌ فوقه');
+      duel.reaction!('r1', '👏');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('👏'), findsNWidgets(2));
+      expect(find.text('سارة'), findsWidgets);
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.text('🔥'), findsOneWidget, reason: 'طار واختفى');
     });
 
     testWidgets('لا تجاوزَ في السؤال على شاشةٍ ضيّقة وعريضة', (tester) async {

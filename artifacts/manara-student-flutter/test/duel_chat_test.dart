@@ -46,7 +46,8 @@ void main() {
       // فقاعةٌ خاويةٌ تظهر فوق الشخصية ثلاثَ ثوانٍ بلا معنى.
       for (final text in ['', '   ', '\n\n', '\t ']) {
         expect(
-          DuelChatMessage.fromPayload({'id': 'a', 'kind': 'text', 'text': text}),
+          DuelChatMessage.fromPayload(
+              {'id': 'a', 'kind': 'text', 'text': text}),
           isNull,
           reason: 'نصّ: «$text»',
         );
@@ -78,9 +79,11 @@ void main() {
 
     test('ورسالةٌ بلا مُرسِلٍ لا تُقرأ', () {
       // بلا معرّفٍ لا يُعرف أيُّ فقاعةٍ تُعرض — ولا يُعرف أنها رسالتي عائدةً.
-      expect(DuelChatMessage.fromPayload({'kind': 'text', 'text': 'هلا'}), isNull);
       expect(
-        DuelChatMessage.fromPayload({'id': '  ', 'kind': 'text', 'text': 'هلا'}),
+          DuelChatMessage.fromPayload({'kind': 'text', 'text': 'هلا'}), isNull);
+      expect(
+        DuelChatMessage.fromPayload(
+            {'id': '  ', 'kind': 'text', 'text': 'هلا'}),
         isNull,
       );
       expect(DuelChatMessage.fromPayload('نصّ لا خريطة'), isNull);
@@ -127,7 +130,8 @@ void main() {
           reason: bad,
         );
         expect(
-          DuelChatMessage.fromPayload({'id': 'a', 'kind': 'voice', 'audio': bad}),
+          DuelChatMessage.fromPayload(
+              {'id': 'a', 'kind': 'voice', 'audio': bad}),
           isNull,
           reason: bad,
         );
@@ -206,7 +210,8 @@ void main() {
   group('حرسُ الإزعاج', () {
     test('الأولى تمرّ والثانيةُ تُمنع', () {
       var now = DateTime(2026, 10, 1, 9);
-      final gate = DuelChatCooldown(gap: const Duration(seconds: 2), now: () => now);
+      final gate =
+          DuelChatCooldown(gap: const Duration(seconds: 2), now: () => now);
       expect(gate.claim(), isTrue);
       expect(gate.claim(), isFalse);
       now = now.add(const Duration(milliseconds: 1999));
@@ -220,7 +225,8 @@ void main() {
       // لو سجّلت كلُّ محاولةٍ وقتَها لمدّ الطفلُ المنعَ على نفسه بلا نهاية:
       // يضغط كلَّ نصف ثانية فلا يُسمح له أبداً.
       var now = DateTime(2026, 10, 1, 9);
-      final gate = DuelChatCooldown(gap: const Duration(seconds: 2), now: () => now);
+      final gate =
+          DuelChatCooldown(gap: const Duration(seconds: 2), now: () => now);
       expect(gate.claim(), isTrue);
       for (var i = 0; i < 4; i += 1) {
         now = now.add(const Duration(milliseconds: 400));
@@ -234,7 +240,8 @@ void main() {
 
     test('وما بقي يُقرأ ليُعرض للطفل', () {
       var now = DateTime(2026, 10, 1, 9);
-      final gate = DuelChatCooldown(gap: const Duration(seconds: 2), now: () => now);
+      final gate =
+          DuelChatCooldown(gap: const Duration(seconds: 2), now: () => now);
       expect(gate.remaining, Duration.zero);
       gate.claim();
       now = now.add(const Duration(milliseconds: 500));
@@ -244,127 +251,86 @@ void main() {
     });
   });
 
-  group('نافذةُ الدردشة', () {
-    late List<String> sent;
-    late ValueNotifier<bool> recording;
-    late ValueNotifier<Duration> cooldown;
-
-    setUp(() {
-      sent = [];
-      recording = ValueNotifier(false);
-      cooldown = ValueNotifier(Duration.zero);
-    });
-
-    tearDown(() {
-      recording.dispose();
-      cooldown.dispose();
-    });
-
-    Future<void> pump(WidgetTester tester, {bool muted = false}) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: DuelChatSheet(
-              onSendText: (text) {
-                sent.add(text);
-                return true;
-              },
-              onHoldStart: () => sent.add('hold:start'),
-              onHoldEnd: ({required cancelled}) =>
-                  sent.add('hold:end:$cancelled'),
+  group('زرُّ الصوت والتفاعلات', () {
+    testWidgets('الضغطُ المطوّل يبدأ التسجيل، والرفعُ يرسله، والإلغاءُ لا يرسل',
+        (tester) async {
+      final recording = ValueNotifier(false);
+      final log = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: DuelVoiceButton(
               recording: recording,
-              cooldownLeft: cooldown,
-              muted: muted,
-              onUnmute: () => sent.add('unmute'),
+              onHoldStart: () {
+                log.add('start');
+                recording.value = true;
+              },
+              onHoldEnd: ({required bool cancelled}) {
+                log.add(cancelled ? 'cancel' : 'send');
+                recording.value = false;
+              },
             ),
           ),
         ),
-      );
-      await tester.pump();
-    }
-
-    testWidgets('الإيموجي يُرسل بضغطةٍ واحدة', (tester) async {
-      await pump(tester);
-      await tester.tap(find.text('🔥'));
-      await tester.pump();
-      expect(sent, ['🔥']);
-    });
-
-    testWidgets('والعبارةُ السريعة تُرسل نصَّها لا مفتاحَها', (tester) async {
-      // ── ومفتاحٌ يُرسل بدل نصّه يصل إلى الخصم «duel.chat.quick.focus» ──
-      await StudentSettings.setLocale(StudentSettings.arabic);
-      await pump(tester);
-      await tester.tap(find.text('أحسنت!'));
-      await tester.pump();
-      expect(sent, ['أحسنت!']);
-    });
-
-    testWidgets('والمكتوبُ يُرسل ويُفرَّغ الحقل', (tester) async {
-      await pump(tester);
-      await tester.enterText(find.byType(TextField), '  ركّز يا بطل  ');
-      await tester.tap(find.byIcon(Icons.send_rounded));
-      await tester.pump();
-      expect(sent, ['ركّز يا بطل'], reason: 'المسافاتُ تُقلَّم');
-      expect(tester.widget<TextField>(find.byType(TextField)).controller?.text,
-          isEmpty);
-    });
-
-    testWidgets('وحقلٌ فارغٌ لا يُرسل شيئاً', (tester) async {
-      await pump(tester);
-      await tester.tap(find.byIcon(Icons.send_rounded));
-      await tester.pump();
-      expect(sent, isEmpty);
-    });
-
-    testWidgets('والضغطُ المطوّل يبدأ التسجيل، والرفعُ يُرسله', (tester) async {
-      await pump(tester);
-      final mic = find.byIcon(Icons.mic_rounded);
-      expect(mic, findsOneWidget);
-      final gesture = await tester.startGesture(tester.getCenter(mic));
-      await tester.pump();
-      expect(sent, ['hold:start']);
+      ));
+      expect(find.text(tr('duel.voice.hold')), findsOneWidget);
+      final gesture = await tester
+          .startGesture(tester.getCenter(find.byType(DuelVoiceButton)));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text(tr('duel.voice.recording')), findsOneWidget);
       await gesture.up();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(log, ['start', 'send']);
+      final second = await tester
+          .startGesture(tester.getCenter(find.byType(DuelVoiceButton)));
       await tester.pump();
-      expect(sent, ['hold:start', 'hold:end:false']);
+      await second.cancel();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(log, ['start', 'send', 'start', 'cancel']);
     });
 
-    testWidgets('وحالُ التسجيل تُرى', (tester) async {
-      await pump(tester);
-      recording.value = true;
-      await tester.pump();
-      // أيقونةُ النقطة الحمراء تحلّ محلَّ الميكروفون: الطفلُ يعرف أنه يسجّل.
-      expect(find.byIcon(Icons.fiber_manual_record_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.mic_rounded), findsNothing);
+    testWidgets('شريطُ التفاعلات: ستّةُ رموز، وكلُّ ضغطةٍ ترسل رمزَها',
+        (tester) async {
+      final sent = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: Center(child: DuelReactionBar(onReact: sent.add))),
+      ));
+      for (final emoji in duelReactions) {
+        expect(find.text(emoji), findsOneWidget);
+      }
+      await tester.tap(find.text('🔥'));
+      await tester.tap(find.text('👏'));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(sent, ['🔥', '👏']);
     });
 
-    testWidgets('والمكتومةُ لا تعرض أدواتَ إرسالٍ أصلاً', (tester) async {
-      // ── وحجبُها لا تعطيلُها ──
-      // حقلٌ وأزرارٌ لا تعمل تُقرأ عطباً، وطفلٌ يضغطها ولا يحدث شيء يظنّ
-      // التطبيقَ توقّف.
-      await pump(tester, muted: true);
-      expect(find.byType(TextField), findsNothing);
-      expect(find.byIcon(Icons.send_rounded), findsNothing);
-      expect(find.byIcon(Icons.mic_rounded), findsNothing);
-      expect(find.text('🔥'), findsNothing);
-      // ولوحٌ يقول الحالَ وفيه زرٌّ يُعيدها.
-      expect(find.byIcon(Icons.notifications_off_rounded), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.notifications_active_rounded));
+    testWidgets('التفاعلُ يطير باسم صاحبه ثم يختفي', (tester) async {
+      final controller = DuelReactionController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: DuelReactionLayer(controller: controller)),
+      ));
+      controller.pop('🏆', who: 'سارة');
       await tester.pump();
-      expect(sent, ['unmute']);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('🏆'), findsOneWidget);
+      expect(find.text('سارة'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('🏆'), findsNothing);
+      expect(controller.pops, isEmpty);
     });
 
-    testWidgets('وما بقي من المنع يُعرض بالثواني', (tester) async {
-      await StudentSettings.setLocale(StudentSettings.arabic);
-      await pump(tester);
-      expect(find.textContaining('انتظر'), findsNothing);
-      cooldown.value = const Duration(milliseconds: 1400);
-      await tester.pump();
-      expect(find.textContaining('انتظر'), findsOneWidget);
-      expect(find.textContaining('2'), findsOneWidget, reason: 'يُجبَر لأعلى');
+    test('ضغطٌ متتابع لا يملأ الشاشة: اثنا عشر معاً على الأكثر', () {
+      final controller = DuelReactionController();
+      for (var i = 0; i < 30; i++) {
+        controller.pop('👍');
+      }
+      expect(controller.pops.length, 12);
+      controller.dispose();
     });
   });
 
-  group('زرَّا الدردشة والكتم', () {
+  group('زرُّ الكتم', () {
     testWidgets('الكتمُ يقلب الأيقونةَ واللون', (tester) async {
       Future<void> pumpPair({required bool muted}) async {
         await tester.pumpWidget(
@@ -373,11 +339,6 @@ void main() {
               body: Column(
                 children: [
                   DuelMuteToggle(muted: muted, onPressed: () {}),
-                  DuelChatButton(
-                    onPressed: () {},
-                    unread: true,
-                    muted: muted,
-                  ),
                 ],
               ),
             ),
@@ -388,13 +349,9 @@ void main() {
 
       await pumpPair(muted: false);
       expect(find.byIcon(Icons.notifications_active_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
 
       await pumpPair(muted: true);
-      // 🔕 محلّ 💬، في الزرّين.
       expect(find.byIcon(Icons.notifications_off_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.speaker_notes_off_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble_rounded), findsNothing);
     });
 
     testWidgets('وزرُّ الكتم يستجيب للّمس', (tester) async {
@@ -450,7 +407,8 @@ void main() {
         ),
       );
       expect(find.text('أحسنت!'), findsOneWidget);
-      expect(tester.getSize(find.byType(DuelSpeechBubble)).height, empty.height);
+      expect(
+          tester.getSize(find.byType(DuelSpeechBubble)).height, empty.height);
     });
 
     testWidgets('والصوتيةُ تُرسم سماعةً لا نصّاً', (tester) async {

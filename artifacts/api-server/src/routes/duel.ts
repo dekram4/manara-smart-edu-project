@@ -50,7 +50,8 @@ const scoreLimit = createStudentRateLimit(30);
 const answerLimit = createStudentRateLimit(60);
 
 const MATCHES = "challenge_matches";
-const PLAYERS = "challenge_match_players";
+/** نوعُ صفّ اللاعب في `interactions`. */
+const PLAYER_TYPE = "duel_player";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -257,20 +258,83 @@ async function rest(
   return body ? JSON.parse(body) : null;
 }
 
+// ── اللاعبون: صفوفٌ في `interactions` ──
+//
+// ── لماذا لا جدولٌ خاصّ ──
+// كان لهم جدولٌ يُنشئه `scripts/duel-party.sql`، ولم يُشغَّل — فكان التحدي الجماعي
+// يردّ «يحتاج تحديث قاعدة البيانات». و`interactions` قائمٌ ويكتب فيه الخادم: فالتحدي
+// الجماعي يعمل بنشر الخادم وحده. وحقولُ الصفّ في `data` بأسماء الجدول نفسها.
+
+function playerRowId(matchId: string, studentId: string): string {
+  return `duelp_${matchId}__${studentId}`;
+}
+
+const quoted = (ids: readonly string[]) => ids.map((id) => `"${id}"`).join(",");
+
 /**
- * لاعبو المباراة من جدولهم، أو `null` إن لم يُنشأ الجدولُ بعد.
- *
- * ولا يُسقط غيابُه المباريات: تُقرأ بلاعبَيها القديمَين حتى يُشغَّل
- * `scripts/duel-party.sql`.
+ * لاعبون بمرشّح: مباراةٌ، أو مبارياتٌ، أو طالب. `null` إن تعذّرت القراءة —
+ * فتُقرأ المباراةُ بلاعبَيها القديمَين.
  */
-async function readPlayers(filter: string): Promise<unknown[] | null> {
+async function readPlayers(where: {
+  matchId?: string;
+  matchIds?: readonly string[];
+  studentId?: string;
+  limit?: number;
+}): Promise<unknown[] | null> {
+  const parts = [`select=data&data->>type=eq.${PLAYER_TYPE}`];
+  if (where.matchId) parts.push(`data->>match_id=eq.${encodeURIComponent(where.matchId)}`);
+  if (where.matchIds) parts.push(`data->>match_id=in.(${encodeURIComponent(quoted(where.matchIds))})`);
+  if (where.studentId) {
+    parts.push(`data->>student_id=eq.${encodeURIComponent(where.studentId)}`);
+    parts.push("order=updated_at.desc");
+  }
+  parts.push(`limit=${where.limit ?? 2000}`);
   try {
-    const rows = await rest(`${PLAYERS}?select=*&${filter}`);
-    return Array.isArray(rows) ? rows : [];
+    const rows = await rest(`interactions?${parts.join("&")}`);
+    return (Array.isArray(rows) ? rows : []).map((row) => (row as Record<string, unknown>).data);
   } catch (error) {
-    logger.warn({ err: error }, "[duel] players table unavailable");
+    logger.warn({ err: error }, "[duel] players unavailable");
     return null;
   }
+}
+
+/** يكتب لاعبين جدداً. */
+async function insertPlayers(rows: ReadonlyArray<Record<string, unknown>>): Promise<void> {
+  const now = new Date().toISOString();
+  await rest("interactions?on_conflict=id", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(rows.map((row) => ({
+      id: playerRowId(String(row.match_id), String(row.student_id)),
+      updated_at: now,
+      data: { type: PLAYER_TYPE, responded_at: null, accepted: null, score: null, rank: null, ...row },
+    }))),
+  });
+}
+
+/**
+ * يعدّل لاعباً. و[onlyIfUnanswered]: لا يُكتب إن كان قد ردّ — فردّان يصلان معاً
+ * يُكتب أوّلُهما وحده. ويعود بـ`true` إن كُتب.
+ */
+async function updatePlayer(
+  matchId: string,
+  studentId: string,
+  patch: Record<string, unknown>,
+  onlyIfUnanswered = false,
+): Promise<boolean> {
+  const id = playerRowId(matchId, studentId);
+  const rows = await rest(`interactions?select=data&id=eq.${encodeURIComponent(id)}&limit=1`);
+  const current = Array.isArray(rows) && rows[0]
+    ? (rows[0] as Record<string, unknown>).data as Record<string, unknown>
+    : null;
+  if (!current) return false;
+  const guard = onlyIfUnanswered ? "&data->>responded_at=is.null" : "";
+  const written = await rest(`interactions?id=eq.${encodeURIComponent(id)}${guard}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ data: { ...current, ...patch }, updated_at: new Date().toISOString() }),
+  });
+  return Array.isArray(written) && written.length > 0;
 }
 
 async function findMatch(id: string): Promise<StoredMatch | null> {
@@ -279,7 +343,7 @@ async function findMatch(id: string): Promise<StoredMatch | null> {
   );
   const match = Array.isArray(rows) && rows[0] ? readMatch(rows[0]) : null;
   if (!match) return null;
-  const players = await readPlayers(`match_id=eq.${encodeURIComponent(id)}`);
+  const players = await readPlayers({ matchId: id });
   return players ? withPlayers(match, players) : match;
 }
 
@@ -377,10 +441,7 @@ router.post("/duel/invite", requireStudentSession, inviteLimit, async (req, res)
       }),
     });
     try {
-      await rest(PLAYERS, {
-        method: "POST",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify([
+      await insertPlayers([
           {
             match_id: id,
             student_id: student.id,
@@ -395,20 +456,14 @@ router.post("/duel/invite", requireStudentSession, inviteLimit, async (req, res)
             role: "guest",
             invited_at: now,
           })),
-        ]),
-      });
+      ]);
     } catch (error) {
-      // الجدولُ لم يُنشأ: زميلٌ واحدٌ يُلعب بالطريقة القديمة، وأكثرُ لا يمكن.
-      if (guestIds.length > 1) {
-        await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }).catch(
-          () => null,
-        );
-        logger.error({ err: error }, "[duel] party needs duel-party.sql");
-        return res.status(503).json({
-          error: "التحدي الجماعي يحتاج تحديث قاعدة البيانات",
-          code: "party_unavailable",
-        });
-      }
+      // لم يُكتب اللاعبون: لا تبقى مباراةٌ بلا لاعبين.
+      await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }).catch(
+        () => null,
+      );
+      logger.error({ err: error, id }, "[duel] players not written");
+      return res.status(503).json({ error: "تعذّر إرسال التحدي الآن", code: "unavailable" });
     }
     logger.info({ id, game, invited: guestIds.length }, "[duel] invited");
     const created = await findMatch(id);
@@ -464,15 +519,7 @@ router.post("/duel/:id/respond", requireStudentSession, scoreLimit, async (req, 
         },
       );
     } else {
-      await rest(
-        `${PLAYERS}?match_id=eq.${encodeURIComponent(id)}` +
-          `&student_id=eq.${encodeURIComponent(student.id)}&responded_at=is.null`,
-        {
-          method: "PATCH",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({ responded_at: now.toISOString(), accepted: accept }),
-        },
-      );
+      await updatePlayer(id, student.id, { responded_at: now.toISOString(), accepted: accept }, true);
     }
     const fresh = (await findMatch(id))!;
     logger.info({ id, accept, phase: roomOf(fresh).phase }, "[duel] invite answered");
@@ -652,14 +699,8 @@ async function settle(id: string, me: string): Promise<ReturnType<typeof settled
 /** يكتب نتيجةَ كلِّ لاعبٍ ومركزَه. */
 async function writeResults(id: string, standings: readonly PartyStanding[]) {
   await Promise.all(standings.map((entry) =>
-    rest(
-      `${PLAYERS}?match_id=eq.${encodeURIComponent(id)}&student_id=eq.${encodeURIComponent(entry.studentId)}`,
-      {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ score: entry.score, rank: entry.rank }),
-      },
-    ).catch((error) => logger.error({ err: error, id }, "[duel] result not written"))
+    updatePlayer(id, entry.studentId, { score: entry.score, rank: entry.rank })
+      .catch((error) => logger.error({ err: error, id }, "[duel] result not written"))
   ));
 }
 
@@ -735,17 +776,7 @@ router.post("/duel/:id/cancel", requireStudentSession, scoreLimit, async (req, r
       cancelled = Array.isArray(written) && written.length > 0;
     } else {
       // مدعوٌّ يغادر قبل الحسم: رفضٌ — ردٌّ لم يكن، أو قَبولٌ يُسحب.
-      await rest(
-        `${PLAYERS}?match_id=eq.${encodeURIComponent(id)}&student_id=eq.${encodeURIComponent(student.id)}`,
-        {
-          method: "PATCH",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({
-            responded_at: me.respondedAt ?? now,
-            accepted: false,
-          }),
-        },
-      );
+      await updatePlayer(id, student.id, { responded_at: me.respondedAt ?? now, accepted: false });
       cancelled = true;
     }
     const fresh = (await findMatch(id))!;
@@ -761,7 +792,7 @@ router.get("/duel/inbox", requireStudentSession, async (_req, res) => {
   const student = res.locals.student as StudentActor;
   try {
     const id = encodeURIComponent(student.id);
-    const mine = await readPlayers(`student_id=eq.${id}&order=invited_at.desc&limit=40`);
+    const mine = await readPlayers({ studentId: student.id, limit: 40 });
     const partyIds = (mine ?? []).map((row) => text((row as Record<string, unknown>).match_id));
     const filter = partyIds.length > 0
       ? `or=(host_id.eq.${id},guest_id.eq.${id},id.in.(${partyIds.map((m) => `"${m}"`).join(",")}))`
@@ -773,7 +804,7 @@ router.get("/duel/inbox", requireStudentSession, async (_req, res) => {
       .map(readMatch)
       .filter((match): match is StoredMatch => match !== null);
     const players = matches.length > 0
-      ? await readPlayers(`match_id=in.(${matches.map((m) => `"${m.id}"`).join(",")})`)
+      ? await readPlayers({ matchIds: matches.map((m) => m.id) })
       : [];
     const byMatch = new Map<string, unknown[]>();
     for (const row of players ?? []) {
@@ -805,9 +836,7 @@ router.get("/duel/standings", requireStudentSession, async (_req, res) => {
       .map(readMatch)
       .filter((match): match is StoredMatch => match !== null);
     const players = matches.length > 0
-      ? await readPlayers(
-        `match_id=in.(${matches.map((m) => `"${m.id}"`).join(",")})`,
-      )
+      ? await readPlayers({ matchIds: matches.map((m) => m.id) })
       : [];
     const byMatch = new Map<string, string[]>();
     for (const row of players ?? []) {

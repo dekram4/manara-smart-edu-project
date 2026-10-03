@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/duel_chat.dart';
@@ -9,13 +10,12 @@ import '../services/student_duel_service.dart';
 import '../services/student_sound_service.dart';
 import 'duel_chat.dart';
 
-/// الدردشةُ داخل المباراة: نصٌّ وإيموجي ومقاطعُ صوت، وكتمٌ، وفقاعاتٌ فوق
-/// الشخصيتين، وسجلٌّ يُقرأ.
+/// التواصلُ داخل النزال: رسالةٌ صوتيةٌ بالضغط المطوّل، وتفاعلاتٌ سريعةٌ تطير على
+/// شاشات الجميع، وفقاعةٌ فوق الشخصية لما يصل، وكتم.
 ///
-/// ── ولماذا مزيجٌ لا شاشة ──
-/// الدردشةُ تعيش في المباراة وحدها — لا في الساحة — لكنّ منطقها كلَّه (الفاصل
-/// بين الرسائل، والكتم، والتسجيل بالضغط المطوّل، والبثّ والحفظ معاً) لا شأنَ له
-/// بالأسئلة. فيُكتب مرّةً هنا، وتلبسه شاشةُ المباراة.
+/// ── ولا دردشةَ كتابية ──
+/// الكتابةُ تشغل الطفلَ عن السؤال وهو في مباراةٍ بالثواني، ولا رقيبَ على ما يُكتب
+/// فيها. فالصوتُ والتفاعلاتُ وحدهما: يُرسلان بضغطة، ويُفهمان بنظرة.
 mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
   StudentDuelService get chatService;
   String get chatMyId;
@@ -23,18 +23,19 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
   Map<String, dynamic>? get chatMyAppearance;
   Map<String, dynamic>? get chatRivalAppearance;
 
+  /// شخصيةُ من أرسل — في تحدٍّ جماعي ليس المنافسَ الأوّلَ دائماً.
+  Map<String, dynamic>? chatAppearanceOf(String studentId) =>
+      chatRivalAppearance;
+
+  /// اسمُ من أرسل، يُكتب تحت تفاعله الطائر.
+  String chatNameOf(String studentId) => '';
+
   DuelChatMuteState _mute = const DuelChatMuteState();
 
   final _cooldown = DuelChatCooldown();
-  final ValueNotifier<Duration> _cooldownLeft = ValueNotifier(Duration.zero);
-  Timer? _cooldownTick;
 
   late final DuelVoiceRecorder _recorder = DuelVoiceRecorder();
   final ValueNotifier<bool> _recording = ValueNotifier(false);
-
-  /// سجلُّ المحادثة: ما قُرئ من الخادم وما جرى في هذه الجلسة.
-  final List<DuelChatMessage> _transcript = [];
-  bool _loadingChat = false;
 
   /// آخرُ ما أرسلتُه وآخرُ ما وصلني، وكلٌّ يعيش ثلاثَ ثوانٍ فوق الشخصية.
   DuelChatMessage? _myBubble;
@@ -43,38 +44,13 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
   Timer? _theirBubbleTimer;
 
   bool _playingTheirs = false;
-  bool _unread = false;
-  bool _sheetOpen = false;
 
-  Future<void> _loadChat() async {
-    setState(() => _loadingChat = true);
-    try {
-      final stored = await chatService.messages(chatMatchId);
-      if (!mounted) return;
-      setState(() {
-        _transcript
-          ..clear()
-          ..addAll(stored);
-        _loadingChat = false;
-        // ── ونقطةٌ إن تُرك لي شيء ──
-        // المبارزةُ المؤجَّلةُ يفتحها الطفلُ فيجد رسالةً من أمسِ: بلا نقطةٍ
-        // لا يعرف أنّ هناك ما يُقرأ، فلا يفتح النافذةَ أبداً.
-        _unread = stored.any((message) => message.senderId != chatMyId);
-      });
-      // وتُشغَّل آخرُ رسالةٍ صوتيةٍ تُركت لي، مرّةً واحدة.
-      final mine = chatMyId;
-      for (final message in stored.reversed) {
-        if (message.senderId != mine && message.isVoice) {
-          _playVoice(message);
-          break;
-        }
-      }
-    } catch (_) {
-      if (!mounted) return;
-      // سجلٌّ لم يُقرأ لا يُسقط مباراة: تُفتح الدردشةُ فارغةً وتعمل.
-      setState(() => _loadingChat = false);
-    }
-  }
+  /// التفاعلاتُ الطائرة.
+  final DuelReactionController reactions = DuelReactionController();
+
+  /// آخرُ تفاعلٍ أرسلتُه: ضغطٌ متتابعٌ لا يُغرق الغرفة.
+  DateTime _lastReaction = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _reactionGap = Duration(milliseconds: 450);
 
   void _toggleMute() {
     final next = !_mute.isChatMuted;
@@ -83,7 +59,6 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
       if (next) {
         _theirBubble = null;
         _playingTheirs = false;
-        _unread = false;
       }
     });
     _theirBubbleTimer?.cancel();
@@ -99,9 +74,12 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
     if (!mounted || studentId == chatMyId) return;
     final was = _mute.isRivalMuted;
     setState(() => _mute = _mute.copyWith(isRivalMuted: muted));
-    if (muted && !was && _mute.warnsRivalMuted) _say(tr('duel.chat.rivalMuted'));
+    if (muted && !was && _mute.warnsRivalMuted) {
+      _say(tr('duel.chat.rivalMuted'));
+    }
   }
 
+  /// رسالةٌ وصلت. والصوتُ يُشغَّل فوراً.
   void _onChat(DuelChatMessage message) {
     if (!mounted) return;
     if (message.senderId == chatMyId) return;
@@ -109,13 +87,28 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
       chatService.sendChatMute(myId: chatMyId, muted: true);
       return;
     }
-    // ── والبثُّ يُضاف إلى السجلّ أيضاً ──
-    // الخادم يحفظها، لكنّ إعادةَ قراءةِ السجلّ لكل رسالةٍ تصل طلبٌ في كل
-    // إيموجي. فتُضاف هنا، ويُعرف تكرارُها بمعرّفها إن أُعيدت القراءة.
-    setState(() => _transcript.add(message));
     _showBubble(message, mine: false);
-    if (!_sheetOpen) setState(() => _unread = true);
     if (message.isVoice && _mute.playsIncomingVoice) _playVoice(message);
+  }
+
+  /// تفاعلٌ وصل: يطير على الشاشة باسم صاحبه.
+  void _onReaction(String studentId, String emoji) {
+    if (!mounted || studentId == chatMyId || !_mute.showsIncoming) return;
+    reactions.pop(emoji, who: chatNameOf(studentId));
+  }
+
+  /// أضغط تفاعلاً: يطير عندي فوراً، ويُبثّ إلى الجميع.
+  void _react(String emoji) {
+    if (!_mute.canSend) {
+      _say(tr('duel.chat.mutedSelf'));
+      return;
+    }
+    final now = DateTime.now();
+    if (now.difference(_lastReaction) < _reactionGap) return;
+    _lastReaction = now;
+    HapticFeedback.selectionClick();
+    reactions.pop(emoji, who: tr('duel.you'), mine: true);
+    chatService.sendReaction(myId: chatMyId, emoji: emoji);
   }
 
   void _playVoice(DuelChatMessage message) {
@@ -166,37 +159,15 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
       return false;
     }
     if (!_cooldown.claim()) {
-      _startCooldownTick();
+      _say(tr('duel.chat.notSent'));
       return false;
     }
-    // ── والبثُّ والحفظُ معاً، وسقوطُ أحدهما لا يُسقط الآخر ──
-    // البثُّ للحاضر الآن، والحفظُ لمن يفتح لاحقاً. ورسالةٌ وصلت ولم تُحفظ
-    // خيرٌ من لا شيء، ورسالةٌ حُفظت ولم تُبثّ تُقرأ عند الفتح.
+    // يُبثّ لمن في الغرفة الآن، ويُحفظ في سجلّ المباراة.
     chatService.sendChat(message);
-    unawaited(
-      chatService.saveMessage(
-        matchId: chatMatchId,
-        message: message,
-      ),
-    );
-    setState(() => _transcript.add(message));
+    unawaited(chatService.saveMessage(matchId: chatMatchId, message: message));
     _showBubble(message, mine: true);
-    _startCooldownTick();
     if (_mute.warnsRivalMuted) _say(tr('duel.chat.rivalMuted'));
     return true;
-  }
-
-  void _startCooldownTick() {
-    _cooldownTick?.cancel();
-    void beat() {
-      final left = _cooldown.remaining;
-      _cooldownLeft.value = left;
-      if (left == Duration.zero) _cooldownTick?.cancel();
-    }
-
-    beat();
-    _cooldownTick =
-        Timer.periodic(const Duration(milliseconds: 250), (_) => beat());
   }
 
   Future<void> _startHold() async {
@@ -206,7 +177,6 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
       return;
     }
     if (!_cooldown.ready) {
-      _startCooldownTick();
       _say(tr('duel.chat.notSent'));
       return;
     }
@@ -246,92 +216,62 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
     );
   }
 
-  void _openChat() {
-    setState(() {
-      _sheetOpen = true;
-      _unread = false;
-    });
-    _startCooldownTick();
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => DuelChatSheet(
-        recording: _recording,
-        cooldownLeft: _cooldownLeft,
-        muted: _mute.isChatMuted,
-        onUnmute: () {
-          Navigator.of(context).pop();
-          _toggleMute();
-        },
-        transcript: _transcript,
-        myId: chatMyId,
-        loadingTranscript: _loadingChat,
-        onPlay: _playVoice,
-        onSendText: (text) => _send(
-          DuelChatMessage(
-            senderId: chatMyId,
-            kind: DuelChatKind.text,
-            text: text,
-          ),
-        ),
-        onHoldStart: () => unawaited(_startHold()),
-        onHoldEnd: ({required cancelled}) =>
-            unawaited(_endHold(cancelled: cancelled)),
-      ),
-    ).whenComplete(() {
-      unawaited(_endHold(cancelled: true));
-      if (mounted) setState(() => _sheetOpen = false);
-    });
-  }
-
   void _say(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(fontWeight: FontWeight.w800),
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
         ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      );
   }
 
   /// يُستدعى من initState في الشاشة.
   void initChat() {
-    unawaited(_loadChat());
     _recorder.onAutoStop = () => _endHold(cancelled: false);
   }
 
   /// يُستدعى من dispose في الشاشة.
   void disposeChat() {
-    _cooldownTick?.cancel();
     _myBubbleTimer?.cancel();
     _theirBubbleTimer?.cancel();
-    _cooldownLeft.dispose();
     _recording.dispose();
+    reactions.dispose();
     unawaited(_recorder.dispose());
   }
 
-  /// يمرّ بها البثُّ: رسالةٌ وصلت، وكتمٌ أعلنه الزميل.
+  /// يمرّ بها البثُّ: رسالةٌ وصلت، وتفاعل، وكتمٌ أعلنه زميل.
   void onChatMessage(DuelChatMessage message) => _onChat(message);
-  void onRivalMute(String studentId, bool muted) => _onRivalMute(studentId, muted);
+  void onReaction(String studentId, String emoji) =>
+      _onReaction(studentId, emoji);
+  void onRivalMute(String studentId, bool muted) =>
+      _onRivalMute(studentId, muted);
 
-  /// زرّا الدردشة والكتم، والفقاعتان فوق الشخصيتين.
-  Widget chatButtons() => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DuelMuteToggle(muted: _mute.isChatMuted, onPressed: _toggleMute),
-          const SizedBox(height: 10),
-          DuelChatButton(
-            onPressed: _openChat,
-            unread: _unread,
-            muted: _mute.isChatMuted,
-          ),
-        ],
+  /// زرُّ الكتم العائم.
+  Widget chatButtons() =>
+      DuelMuteToggle(muted: _mute.isChatMuted, onPressed: _toggleMute);
+
+  /// زرُّ الرسالة الصوتية — تحت الخيارات.
+  Widget voiceButton() => DuelVoiceButton(
+        recording: _recording,
+        onHoldStart: () => unawaited(_startHold()),
+        onHoldEnd: ({required bool cancelled}) =>
+            unawaited(_endHold(cancelled: cancelled)),
       );
 
+  /// شريطُ التفاعلات السريعة.
+  Widget reactionBar() => DuelReactionBar(onReact: _react);
+
+  /// الطبقةُ التي تطير فيها التفاعلات.
+  Widget reactionLayer() => DuelReactionLayer(controller: reactions);
+
+  /// الفقاعتان فوق الشخصيتين.
   Widget chatBubbles() => IgnorePointer(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -347,7 +287,9 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
               const Spacer(),
               DuelSpeechBubble(
                 message: _theirBubble,
-                appearance: chatRivalAppearance,
+                appearance: _theirBubble == null
+                    ? chatRivalAppearance
+                    : chatAppearanceOf(_theirBubble!.senderId),
                 mine: false,
                 speaking: _playingTheirs,
               ),

@@ -10,7 +10,6 @@ import 'package:manara_student/src/models/duel_chat.dart';
 import 'package:manara_student/src/models/duel_question.dart';
 import 'package:manara_student/src/services/student_duel_service.dart';
 import 'package:manara_student/src/services/student_settings.dart';
-import 'package:manara_student/src/widgets/duel_chat.dart';
 import 'package:manara_student/src/widgets/duel_versus.dart';
 
 /// ترقيةُ المبارزة: أسئلةٌ من الخادم، ونقاطُ سرعة، وسجلُّ محادثةٍ يبقى.
@@ -87,7 +86,8 @@ void main() {
     });
 
     test('ومفتاحُ البابِ يُبنى من اسمه', () {
-      expect(DuelQuestion.fromJson(question())!.categoryKey, 'duel.cat.general');
+      expect(
+          DuelQuestion.fromJson(question())!.categoryKey, 'duel.cat.general');
     });
 
     test('والمباراةُ تحمل أسئلتَها وقواعدَها', () {
@@ -139,7 +139,8 @@ void main() {
     });
 
     test('وفي منتصف الوقتِ نصفُ السرعة', () {
-      expect(rules.pointsFor(correct: true, left: const Duration(seconds: 5)), 13);
+      expect(
+          rules.pointsFor(correct: true, left: const Duration(seconds: 5)), 13);
     });
 
     test('وفي آخر لحظةٍ الأساسُ وحده', () {
@@ -247,7 +248,8 @@ void main() {
           'senderId': 'a',
           'kind': 'voice',
           'audio': voice.storedBody,
-        })!.audio,
+        })!
+            .audio,
         bytes,
       );
     });
@@ -277,81 +279,6 @@ void main() {
         }),
         isNull,
       );
-    });
-  });
-
-  group('نافذةُ الدردشة تعرض السجلّ', () {
-    Future<void> pump(
-      WidgetTester tester, {
-      List<DuelChatMessage> transcript = const [],
-      bool loading = false,
-      void Function(DuelChatMessage)? onPlay,
-    }) async {
-      final recording = ValueNotifier(false);
-      final cooldown = ValueNotifier(Duration.zero);
-      addTearDown(recording.dispose);
-      addTearDown(cooldown.dispose);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: DuelChatSheet(
-              onSendText: (_) => true,
-              onHoldStart: () {},
-              onHoldEnd: ({required cancelled}) {},
-              recording: recording,
-              cooldownLeft: cooldown,
-              transcript: transcript,
-              myId: 'me',
-              loadingTranscript: loading,
-              onPlay: onPlay,
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-    }
-
-    testWidgets('الرسائلُ المتروكةُ تُعرض', (tester) async {
-      // ── والطلبُ المُبلَّغ ──
-      // المبارزةُ المؤجَّلةُ يفتحها الطفلُ فيجد ما تُرك له من أمس.
-      await pump(tester, transcript: const [
-        DuelChatMessage(senderId: 'rival', kind: DuelChatKind.text, text: 'بالتوفيق يا بطل'),
-        DuelChatMessage(senderId: 'me', kind: DuelChatKind.text, text: 'جاهز!'),
-      ]);
-      expect(find.text('بالتوفيق يا بطل'), findsOneWidget);
-      expect(find.text('جاهز!'), findsOneWidget);
-    });
-
-    testWidgets('وسجلٌّ فارغٌ يدعو إلى البدء', (tester) async {
-      await StudentSettings.setLocale(StudentSettings.arabic);
-      await pump(tester);
-      expect(find.textContaining('ما في رسائل'), findsOneWidget);
-    });
-
-    testWidgets('وأثناءُ القراءةِ مؤشّرٌ لا فراغ', (tester) async {
-      await pump(tester, loading: true);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.textContaining('ما في رسائل'), findsNothing);
-    });
-
-    testWidgets('والمقطعُ الصوتيُّ في السجلّ يُعاد تشغيله', (tester) async {
-      // صوتُ طفلٍ في ضجيج صفٍّ يُسمع مرّةً ولا يُفهم، فيُعاد.
-      final played = <String>[];
-      await pump(
-        tester,
-        transcript: [
-          DuelChatMessage(
-            senderId: 'rival',
-            kind: DuelChatKind.voice,
-            audio: Uint8List(600),
-            id: 'row-9',
-          ),
-        ],
-        onPlay: (message) => played.add(message.id),
-      );
-      await tester.tap(find.byIcon(Icons.play_circle_fill_rounded));
-      await tester.pump();
-      expect(played, ['row-9']);
     });
   });
 
@@ -437,7 +364,13 @@ void main() {
     test('لكل بابِ أسئلةٍ عنوانٌ في اللغتين', () async {
       for (final locale in [StudentSettings.arabic, StudentSettings.english]) {
         await StudentSettings.setLocale(locale);
-        for (final category in ['general', 'logic', 'quick', 'school', 'lesson']) {
+        for (final category in [
+          'general',
+          'logic',
+          'quick',
+          'school',
+          'lesson'
+        ]) {
           final key = 'duel.cat.$category';
           expect(StudentStrings.has(key), isTrue, reason: key);
           expect(tr(key), isNot(key), reason: key);

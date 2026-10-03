@@ -12,6 +12,7 @@ import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/arcade_game_card.dart';
 import '../widgets/video_thumbnail_card.dart';
 import '../widgets/playful_text.dart';
 import '../widgets/portal_watermark.dart';
@@ -80,7 +81,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
 
   void _applyGamification(StudentGamification stats) {
     final previous = _gamification;
-    final earnedNewReward = stats.xp > previous.xp || stats.gems > previous.gems;
+    final earnedNewReward =
+        stats.xp > previous.xp || stats.gems > previous.gems;
     setState(() => _gamification = stats);
     if (!earnedNewReward) return;
     if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
@@ -106,8 +108,10 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   ) {
     final games = _gamesFromLessons;
     if (games.isEmpty) return;
-    final before = _GamesModule.unlockedCount(previous.level).clamp(0, games.length);
-    final after = _GamesModule.unlockedCount(updated.level).clamp(0, games.length);
+    final before =
+        _GamesModule.unlockedCount(previous.level).clamp(0, games.length);
+    final after =
+        _GamesModule.unlockedCount(updated.level).clamp(0, games.length);
     if (after <= before) return;
     final opened = games[after - 1];
     ScaffoldMessenger.of(context).showSnackBar(
@@ -476,8 +480,8 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
   bool _saving = false;
 
   bool get _completed => widget.gamification.completedActivities.contains(
-    'lesson:${widget.lesson.id}',
-  );
+        'lesson:${widget.lesson.id}',
+      );
 
   Future<void> _completeLesson() async {
     if (_completed || _saving) return;
@@ -571,7 +575,8 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                 end: Alignment.bottomLeft,
                 colors: gradient,
               ),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.6),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.6), width: 1.6),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -583,7 +588,8 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white.withValues(alpha: 0.26),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.7)),
                   ),
                   child: Icon(
                     empty
@@ -654,8 +660,10 @@ class _GamesModule extends StatelessWidget {
 
   // القاعدة تعيش في GameUnlockRule لتكون قابلة للاختبار — هذه الشاشة خاصة
   // بملفها فلا يبلغها اختبار. ما هنا تفويض لا نسخة ثانية.
-  static int requiredLevelFor(int index) => GameUnlockRule.requiredLevelFor(index);
-  static bool isUnlocked(int index, int level) => GameUnlockRule.isUnlocked(index, level);
+  static int requiredLevelFor(int index) =>
+      GameUnlockRule.requiredLevelFor(index);
+  static bool isUnlocked(int index, int level) =>
+      GameUnlockRule.isUnlocked(index, level);
   static int unlockedCount(int level) => GameUnlockRule.unlockedCount(level);
 
   @override
@@ -711,13 +719,13 @@ class _GamesModule extends StatelessWidget {
                 crossAxisCount: columns,
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 14,
-                childAspectRatio: 0.78,
+                childAspectRatio: 0.7,
               ),
               itemBuilder: (context, index) {
                 final game = games[index];
                 final unlocked = isUnlocked(index, gamification.level);
                 final neededLevel = requiredLevelFor(index);
-                return _GameCard(
+                return ArcadeGameCard(
                   game: game,
                   index: index,
                   locked: !unlocked,
@@ -725,7 +733,8 @@ class _GamesModule extends StatelessWidget {
                   currentLevel: gamification.level,
                   onPressed: () {
                     if (!unlocked) {
-                      StudentSoundService.instance.play(StudentSoundCue.warning);
+                      StudentSoundService.instance
+                          .play(StudentSoundCue.warning);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -791,7 +800,8 @@ class _ArcadeProgress extends StatelessWidget {
             end: Alignment.bottomLeft,
           ),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+          border: Border.all(
+              color: Colors.white.withValues(alpha: 0.4), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -861,215 +871,6 @@ class _ArcadeProgress extends StatelessWidget {
 ///
 /// اللعبة لا تحمل نوعاً في بياناتها، فالشارة تُشتقّ من موضعها — وهو ثابت،
 /// فتحمل اللعبة الواحدة شارتها نفسها في كل مرة بدل أن تتبدّل أمام الطفل.
-/// وتُعرّف هنا بألوانها معاً: الشارة ولون البطاقة شيء واحد يُقرأ من بعيد.
-class _GameFlavor {
-  const _GameFlavor(this.badgeKey, this.emoji, this.pastel, this.ink, this.tint);
-
-  final String badgeKey;
-  final String emoji;
-
-  /// خلفية باستيل هادئة، وحبر داكن منها ليقرأ فوقها، ولون مشبع للزرّ.
-  final Color pastel;
-  final Color ink;
-  final Color tint;
-
-  static const _all = [
-    _GameFlavor('game.badge.brain', '🧠', Color(0xFFEDE9FE), Color(0xFF4C1D95), Color(0xFF8B5CF6)),
-    _GameFlavor('game.badge.challenge', '⚡', Color(0xFFFFF1CC), Color(0xFF92400E), Color(0xFFF59E0B)),
-    _GameFlavor('game.badge.adventure', '🗺️', Color(0xFFD9F5EC), Color(0xFF065F46), Color(0xFF10B981)),
-  ];
-
-  static _GameFlavor of(int index) => _all[index % _all.length];
-}
-
-/// بطاقة لعبة: مربّع مبهج يُضغط فيرتدّ.
-///
-/// كانت سطراً أفقياً في قائمة رأسية — أيقونة ونصّ وسهم — تُقرأ كبند في
-/// جدول لا كلعبة. صارت بطاقة قائمة بذاتها: وجه باستيل بزوايا واسعة، وظلّ
-/// ناعم يرفعها عن الخلفية، ورمز كبير يعرفه الطفل قبل أن يقرأ، وشارة تقول
-/// نوعها، ونجوم تقول كم تقدّم، وزرّ «العب الآن» لا يحتاج شرحاً.
-///
-/// والنجوم محسوبة من مستوى الطالب فعلاً لا مزيّنة: كل لعبة تُفتح عند
-/// مستوى، فكلّما علا مستواه عن ذلك امتلأت نجمة. رقمٌ يُرى ويصدق أفضل من
-/// زينة تُرى ولا تعني شيئاً.
-class _GameCard extends StatelessWidget {
-  const _GameCard({
-    required this.game,
-    required this.index,
-    required this.locked,
-    required this.requiredLevel,
-    required this.currentLevel,
-    required this.onPressed,
-  });
-
-  final HtmlGame game;
-  final int index;
-  final bool locked;
-
-  /// المستوى الذي تُفتح عنده هذه اللعبة.
-  final int requiredLevel;
-
-  /// مستوى الطالب الآن — تُحسب منه النجوم وما بقي للفتح.
-  final int currentLevel;
-  final VoidCallback onPressed;
-
-  /// نجمة لكل مستوى فوق مستوى الفتح، من صفر إلى ثلاث.
-  int get _stars =>
-      locked ? 0 : (currentLevel - requiredLevel + 1).clamp(0, 3).toInt();
-
-  @override
-  Widget build(BuildContext context) {
-    final flavor = _GameFlavor.of(index);
-    final face = locked ? const Color(0xFFE8EAEF) : flavor.pastel;
-    final ink = locked ? const Color(0xFF5B6472) : flavor.ink;
-    final tint = locked ? const Color(0xFF94A3B8) : flavor.tint;
-
-    return StudentPressScale(
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(28),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(28),
-          child: Ink(
-            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
-            decoration: BoxDecoration(
-              color: face,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.white, width: 2.4),
-              boxShadow: [
-                // ظلّ ناعم لا حادّ: يرفع البطاقة عن الخلفية بلا أن يصير
-                // إطاراً ثانياً حولها.
-                BoxShadow(
-                  color: tint.withValues(alpha: 0.30),
-                  blurRadius: 18,
-                  offset: const Offset(0, 9),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // الشارة أولاً: نوع اللعبة يُعرف قبل اسمها.
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    locked
-                        ? trf('content.gameLockedShort', {'level': requiredLevel})
-                        : tr(flavor.badgeKey),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: ink,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  locked ? '🔒' : flavor.emoji,
-                  style: const TextStyle(fontSize: 40),
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      game.title,
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: StudentPlayfulFont.style(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: ink,
-                        height: 1.25,
-                      ),
-                    ),
-                  ),
-                ),
-                if (!locked) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var i = 0; i < 3; i++)
-                        Icon(
-                          i < _stars
-                              ? Icons.star_rounded
-                              : Icons.star_outline_rounded,
-                          size: 16,
-                          color: i < _stars
-                              ? const Color(0xFFF59E0B)
-                              : ink.withValues(alpha: 0.3),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                ] else ...[
-                  // كم بقي للفتح، شريطاً يُرى: الهدف أوضح من الباب المغلق.
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: requiredLevel <= 0
-                          ? 1
-                          : (currentLevel / requiredLevel).clamp(0.0, 1.0),
-                      minHeight: 6,
-                      backgroundColor: Colors.white,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                SizedBox(
-                  width: double.infinity,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: tint,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        // حافة سفلية داكنة: ما يجعل الزرّ يبدو مجسّماً
-                        // يُضغط، لا مستطيلاً ملوّناً.
-                        BoxShadow(
-                          color: Color.lerp(tint, Colors.black, 0.28)!,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        locked
-                            ? trf('content.levelOfRequired', {
-                                'current': currentLevel,
-                                'required': requiredLevel,
-                              })
-                            : tr('game.play'),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: StudentPlayfulFont.style(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// The game itself, full-screen. It reports nothing back: there is no
 /// completion to record and no reward to claim, so a student can start
 /// one, play for a minute and leave without the app keeping score.
@@ -1126,8 +927,8 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   }
 
   bool get _isRelativeApiGame => RegExp(
-    r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)',
-  ).hasMatch(_url);
+        r'^/api/game-embed/[a-zA-Z0-9-]+/index\.html(?:[?#]|$)',
+      ).hasMatch(_url);
 
   void _reload() {
     setState(() {
@@ -1137,12 +938,10 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     final uri = Uri.tryParse(_url);
-    final validUrl =
-        uri != null &&
+    final validUrl = uri != null &&
             (uri.scheme == 'http' || uri.scheme == 'https') &&
             uri.host.isNotEmpty ||
         _isRelativeApiGame;
@@ -1154,77 +953,77 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
         if (didPop) _restoreSystemBars();
       },
       child: Scaffold(
-      backgroundColor: const Color(0xFF160C2D),
-      appBar: AppBar(
         backgroundColor: const Color(0xFF160C2D),
-        foregroundColor: Colors.white,
-        title: Text(widget.game.title),
-        actions: [
-          IconButton(
-            onPressed: validUrl ? _reload : null,
-            tooltip: tr('lesson.reloadGame'),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: !validUrl
-          ? _StateCard(
-              icon: Icons.link_off_rounded,
-              title: tr('lesson.badGameLink'),
-              message: tr('lesson.badGameLinkBody'),
-            )
-          : Stack(
-              children: [
-                Positioned.fill(
-                  child: StudentWebEmbed(
-                    key: ValueKey(_reloadKey),
-                    url: _url,
-                    allow:
-                        'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write',
-                    onLoaded: () {
-                      if (!mounted) return;
-                      setState(() {
-                        _loading = false;
-                        _error = null;
-                      });
-                    },
-                    onError: (message) {
-                      if (!mounted) return;
-                      setState(() {
-                        _loading = false;
-                        _error = message;
-                      });
-                    },
-                  ),
-                ),
-                if (_loading)
-                  ColoredBox(
-                    color: const Color(0xFF160C2D),
-                    child: Center(
-                      child: StudentRiveLoading(
-                        label: tr('content.gameLoading'),
-                      ),
-                    ),
-                  ),
-                if (_error != null)
-                  ColoredBox(
-                    color: const Color(0xF2160C2D),
-                    child: Center(
-                      child: _StateCard(
-                        icon: Icons.error_outline_rounded,
-                        title: tr('content.gameFailed'),
-                        message: _error!,
-                        actionLabel: tr('action.retry'),
-                        onAction: _reload,
-                      ),
-                    ),
-                  ),
-                // The "I finished — collect your XP and gems" button is
-                // gone with the rest of the arcade's bookkeeping. A game
-                // ends when the student is done with it, and they leave
-                // with the app's own back control.
-              ],
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF160C2D),
+          foregroundColor: Colors.white,
+          title: Text(widget.game.title),
+          actions: [
+            IconButton(
+              onPressed: validUrl ? _reload : null,
+              tooltip: tr('lesson.reloadGame'),
+              icon: const Icon(Icons.refresh_rounded),
             ),
+          ],
+        ),
+        body: !validUrl
+            ? _StateCard(
+                icon: Icons.link_off_rounded,
+                title: tr('lesson.badGameLink'),
+                message: tr('lesson.badGameLinkBody'),
+              )
+            : Stack(
+                children: [
+                  Positioned.fill(
+                    child: StudentWebEmbed(
+                      key: ValueKey(_reloadKey),
+                      url: _url,
+                      allow:
+                          'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write',
+                      onLoaded: () {
+                        if (!mounted) return;
+                        setState(() {
+                          _loading = false;
+                          _error = null;
+                        });
+                      },
+                      onError: (message) {
+                        if (!mounted) return;
+                        setState(() {
+                          _loading = false;
+                          _error = message;
+                        });
+                      },
+                    ),
+                  ),
+                  if (_loading)
+                    ColoredBox(
+                      color: const Color(0xFF160C2D),
+                      child: Center(
+                        child: StudentRiveLoading(
+                          label: tr('content.gameLoading'),
+                        ),
+                      ),
+                    ),
+                  if (_error != null)
+                    ColoredBox(
+                      color: const Color(0xF2160C2D),
+                      child: Center(
+                        child: _StateCard(
+                          icon: Icons.error_outline_rounded,
+                          title: tr('content.gameFailed'),
+                          message: _error!,
+                          actionLabel: tr('action.retry'),
+                          onAction: _reload,
+                        ),
+                      ),
+                    ),
+                  // The "I finished — collect your XP and gems" button is
+                  // gone with the rest of the arcade's bookkeeping. A game
+                  // ends when the student is done with it, and they leave
+                  // with the app's own back control.
+                ],
+              ),
       ),
     );
   }
@@ -1294,8 +1093,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
                   // the separate button below.
                   onCompleted: () async {
                     try {
-                      final reward =
-                          await widget.contentService.rewardActivity(
+                      final reward = await widget.contentService.rewardActivity(
                         profile: widget.profile,
                         activityType: 'lesson',
                         activityId: widget.lesson.id,

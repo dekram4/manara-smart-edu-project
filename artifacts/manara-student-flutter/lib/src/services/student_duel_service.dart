@@ -854,6 +854,7 @@ class StudentDuelService {
     void Function(String studentId, bool muted)? onMute,
     void Function(String studentId, int index, int points)? onAnswered,
     void Function(String event, Map<String, dynamic> payload)? onSignal,
+    void Function(String studentId, String emoji)? onReaction,
   }) async {
     try {
       await leaveMatch();
@@ -909,6 +910,21 @@ class StudentDuelService {
             callback: (payload) => onSignal(event, payload),
           );
         }
+      }
+      if (onReaction != null) {
+        // تفاعلٌ سريع: من القائمة الثابتة وحدها.
+        channel.onBroadcast(
+          event: 'react',
+          callback: (payload) {
+            final id = payload['id'];
+            final emoji = payload['emoji'];
+            if (id is String &&
+                emoji is String &&
+                duelReactions.contains(emoji)) {
+              onReaction(id, emoji);
+            }
+          },
+        );
       }
       if (onMute != null) {
         channel.onBroadcast(
@@ -984,6 +1000,20 @@ class StudentDuelService {
     } catch (error) {
       debugPrint('[duel] chat not sent: $error');
       return false;
+    }
+  }
+
+  /// يبثّ تفاعلاً سريعاً إلى كل من في الغرفة.
+  void sendReaction({required String myId, required String emoji}) {
+    final channel = _matchChannel;
+    if (channel == null || !duelReactions.contains(emoji)) return;
+    try {
+      channel.sendBroadcastMessage(
+        event: 'react',
+        payload: {'id': myId, 'emoji': emoji},
+      );
+    } catch (error) {
+      debugPrint('[duel] reaction not sent: $error');
     }
   }
 

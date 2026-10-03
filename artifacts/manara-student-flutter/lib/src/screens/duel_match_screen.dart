@@ -129,6 +129,11 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   Map<String, dynamic>? get chatMyAppearance => widget.profile.appearance;
   @override
   Map<String, dynamic>? get chatRivalAppearance => _leaderLook;
+  @override
+  Map<String, dynamic>? chatAppearanceOf(String studentId) =>
+      _lookOf(studentId);
+  @override
+  String chatNameOf(String studentId) => _nameOf(studentId);
 
   @override
   void initState() {
@@ -145,6 +150,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
       onChat: onChatMessage,
       onMute: onRivalMute,
       onSignal: _game.onSignal,
+      onReaction: onReaction,
     );
     if (mounted) await _game.start();
   }
@@ -289,6 +295,18 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                   if (_game.roomOpen)
                     Positioned(
                         top: 56, left: 0, right: 0, child: chatBubbles()),
+                  // ── التفاعلاتُ تطفو أسفل الشاشة، وتطير فوق كلّ شيء ──
+                  if (_game.roomOpen)
+                    Positioned(
+                      left: 12,
+                      right: 76,
+                      bottom: 12,
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: reactionBar(),
+                      ),
+                    ),
+                  Positioned.fill(child: reactionLayer()),
                   Align(
                     alignment: Alignment.topCenter,
                     child: IgnorePointer(
@@ -451,6 +469,9 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               ? (index) => unawaited(_game.pick(index))
               : null,
         ),
+        // رسالةٌ صوتيةٌ تحت الخيارات مباشرةً: اضغط مطوّلاً وتكلّم، وارفع للإرسال.
+        const SizedBox(height: 14),
+        voiceButton(),
       ],
     );
   }

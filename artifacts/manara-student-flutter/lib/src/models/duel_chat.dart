@@ -13,6 +13,12 @@ import 'dart:typed_data';
 /// نوعُ الرسالة.
 enum DuelChatKind { text, voice }
 
+/// تفاعلاتُ النزال السريعة: تُضغط فتطير على شاشات الجميع.
+///
+/// قائمةٌ ثابتة لا نصٌّ حرّ: ما يصل من القناة يُقبل إن كان منها وحدها، فلا يُكتب
+/// عبرها شيءٌ آخر.
+const duelReactions = ['👏', '🔥', '👍', '🏆', '😂', '😮'];
+
 /// أقصى ما يُقبل من نصٍّ في رسالة.
 ///
 /// جملةٌ تشجيعٍ لا خطاب: الفقاعةُ تظهر ثلاثَ ثوانٍ فوق الشخصية، ونصٌّ أطولُ
@@ -117,7 +123,8 @@ class DuelChatMessage {
     );
 
     if (!voice) {
-      final clean = sanitizeChatText(raw['text'] is String ? raw['text'] as String : '');
+      final clean =
+          sanitizeChatText(raw['text'] is String ? raw['text'] as String : '');
       if (clean.isEmpty) return null;
       return DuelChatMessage(
         senderId: sender.trim(),
