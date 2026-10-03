@@ -229,7 +229,9 @@ export interface DuelStanding {
  * ويُحسب «لُعبت» للطرفين والفوزُ للفائز: طالبٌ لعب عشراً وفاز بثلاثٍ يُقرأ
  * حالُه من الرقمين، ولا يُقرأ من الفوز وحده.
  */
-export function standingsOf(rows: readonly MatchRow[]): DuelStanding[] {
+export function standingsOf(
+  rows: readonly (MatchRow & { players?: readonly string[]; winnerId?: string | null })[],
+): DuelStanding[] {
   const table = new Map<string, DuelStanding>();
   const touch = (id: string): DuelStanding => {
     const found = table.get(id);
@@ -239,6 +241,12 @@ export function standingsOf(rows: readonly MatchRow[]): DuelStanding[] {
     return fresh;
   };
   for (const row of rows) {
+    // مباراةٌ جماعية: لاعبوها من جدولهم، وفائزُها ما كتبه الحسم.
+    if (row.players && row.players.length > 0) {
+      for (const id of row.players) touch(id).played += 1;
+      if (row.winnerId) touch(row.winnerId).wins += 1;
+      continue;
+    }
     const outcome = outcomeOf(row);
     if (!outcome.settled) continue;
     touch(row.hostId).played += 1;
@@ -250,45 +258,54 @@ export function standingsOf(rows: readonly MatchRow[]): DuelStanding[] {
   );
 }
 
-// ── المصافحة: لا يبدأ نزالٌ إلا والطرفان فيه ──
-
-/** مهلةُ الردّ على الدعوة. وما بعدها دعوةٌ منتهيةٌ وإن لم يُلغها أحد. */
-export const DUEL_INVITE_SECONDS = 30;
-
-/** مهلةُ دخول الغرفة بعد القَبول: من لم يدخل فيها لم يدخل. */
-export const DUEL_JOIN_SECONDS = 25;
+// ── الغرفة: الدعوةُ لزميلٍ أو أكثر، ويبدأ النزالُ بمن وافق ──
 
 /**
- * ما بين دخول الثاني وأوّل سؤال: عدٌّ تنازليٌّ يراه الاثنان، ويتّسع لتأخّر
- * الشبكة بين الجهازين.
+ * مهلةُ الردّ على الدعوة.
+ *
+ * عشرون ثانية: تكفي طفلاً ليقرأ الدعوة ويقرّر، ولا تُبقي الداعي ومن وافق ينتظرون
+ * زميلاً لن يردّ. ومن ردّ بعدها لا يدخل — بدأ النزالُ بدونه.
+ */
+export const DUEL_INVITE_SECONDS = 20;
+
+/** أقصى عددٍ من المدعوّين في تحدٍّ واحد: ستّةُ لاعبين مع الداعي. */
+export const DUEL_MAX_INVITEES = 5;
+
+/**
+ * ما بين حسم من يلعب وأوّل سؤال: عدٌّ تنازليٌّ يراه الجميع، ويتّسع لتأخّر الشبكة
+ * بين الأجهزة.
  */
 export const DUEL_START_DELAY_MS = 4000;
 
-/** أوقاتُ المصافحة كما تُقرأ من صفّ المباراة. */
-export interface RoomTimes {
-  status: string;
-  createdAt: string;
-  acceptedAt: string | null;
-  hostJoinedAt: string | null;
-  guestJoinedAt: string | null;
+/** لاعبٌ في المباراة كما يُقرأ من `challenge_match_players`. */
+export interface PlayerRow {
+  studentId: string;
+  role: "host" | "guest";
+  respondedAt: string | null;
+  accepted: boolean | null;
 }
 
 /**
  * حالُ الغرفة:
- *   invited  — الدعوةُ تنتظر ردّ الزميل.
- *   accepted — قَبِل، والغرفةُ تنتظر دخولَ الطرفين.
- *   ready    — دخلا معاً: النزالُ يبدأ عند [startAt]، لا قبله.
- *   expired  — رُفضت، أو أُلغيت، أو فاتت مهلتُها.
- *   done     — حُسمت.
+ *   invited — الدعوةُ تنتظر الردود. الداعي ومن وافق في غرفة الانتظار.
+ *   ready   — حُسم من يلعب: يبدأ النزالُ عند [startAt]، لا قبله.
+ *   expired — أُلغيت، أو لم يوافق أحدٌ في المهلة.
+ *   done    — حُسمت.
  */
-export type RoomPhase = "invited" | "accepted" | "ready" | "expired" | "done";
+export type RoomPhase = "invited" | "ready" | "expired" | "done";
+
+/** حالُ مدعوٍّ كما تُعرض: ينتظر، وافق، رفض، أو تأخّر فاستُبعد. */
+export type PlayerStatus = "host" | "pending" | "accepted" | "declined" | "late";
 
 export interface RoomState {
   phase: RoomPhase;
-  hostJoined: boolean;
-  guestJoined: boolean;
-  /** موعدُ أوّل سؤال، حين يدخل الاثنان. */
+  /** آخرُ لحظةٍ للردّ. */
+  decideBy: Date;
+  /** موعدُ أوّل سؤال، حين يُحسم من يلعب. */
   startAt: Date | null;
+  /** من يلعب: الداعي ومن وافق في المهلة. فارغٌ قبل الحسم. */
+  roster: string[];
+  statuses: Record<string, PlayerStatus>;
 }
 
 const at = (value: string | null): number | null => {
@@ -298,36 +315,152 @@ const at = (value: string | null): number | null => {
 };
 
 /**
- * حالُ الغرفة من أوقاتها — والخادمُ هو الحَكَم.
+ * حالُ الغرفة من الردود وأوقاتها — والخادمُ هو الحَكَم.
  *
- * ── لماذا هنا لا على الجهازين ──
- * كان كلُّ جهازٍ يقرّر بما وصله من بثّ: الضيفُ يدخل لحظةَ يضغط «اقبل»، والداعي
- * يقرّر بإشارةٍ قد تفوته ومؤقّتٍ ينتهي عنده. فرأى الداعي «لا يستطيع» ودخل الضيفُ
- * وحده يحلّ ويدردش. والآن القَبولُ والدخولُ والموعدُ أوقاتٌ في صفٍّ واحد، يقرؤها
- * الجهازان فيريان الشيءَ نفسه.
+ * ── متى يبدأ ──
+ * ردّ كلُّ المدعوّين في المهلة: يبدأ فوراً، فلا ينتظر أحدٌ عشرين ثانيةً بلا سبب.
+ * وإن انتهت المهلةُ يبدأ بمن وافق فيها، ومن لم يردّ يُستبعد. ولا يُلعب نزالٌ بلاعبٍ
+ * واحد: إن لم يوافق أحدٌ أُلغي.
  *
- * والمهلُ تُحسب عند القراءة: دعوةٌ فاتت مهلتُها منتهيةٌ وإن لم يكتب أحدٌ ذلك.
+ * ── ولماذا يُحسب عند القراءة ──
+ * الأجهزةُ كلُّها تسأل الخادمَ فترى الشيءَ نفسه، ولا يحتاج شيءٌ أن «يُعلن» انتهاءَ
+ * المهلة: ردٌّ بعدها لا يُقبل (انظر مسار الردّ)، فالحسمُ لا يتغيّر بعد وقوعه.
  */
-export function roomStateOf(row: RoomTimes, now: Date = new Date()): RoomState {
-  const hostJoined = at(row.hostJoinedAt) !== null;
-  const guestJoined = at(row.guestJoinedAt) !== null;
-  const base = { hostJoined, guestJoined, startAt: null };
-  if (row.status === "done") return { ...base, phase: "done" };
-  if (row.status !== "pending") return { ...base, phase: "expired" };
+export function partyRoomOf(
+  match: { status: string; createdAt: string },
+  players: readonly PlayerRow[],
+  now: Date = new Date(),
+): RoomState {
+  const created = at(match.createdAt) ?? now.getTime();
+  const deadline = created + DUEL_INVITE_SECONDS * 1000;
+  const decideBy = new Date(deadline);
+  const host = players.find((player) => player.role === "host");
+  const guests = players.filter((player) => player.role === "guest");
 
-  const accepted = at(row.acceptedAt);
-  if (accepted === null) {
-    const created = at(row.createdAt) ?? now.getTime();
-    return now.getTime() - created > DUEL_INVITE_SECONDS * 1000
-      ? { ...base, phase: "expired" }
-      : { ...base, phase: "invited" };
+  // ردٌّ في المهلة وحده يُحسب.
+  const inTime = (player: PlayerRow) => {
+    const time = at(player.respondedAt);
+    return time !== null && time <= deadline;
+  };
+  const statuses: Record<string, PlayerStatus> = {};
+  for (const guest of guests) {
+    statuses[guest.studentId] = !inTime(guest)
+      ? guest.respondedAt !== null || now.getTime() > deadline
+        ? "late"
+        : "pending"
+      : guest.accepted
+        ? "accepted"
+        : "declined";
   }
+  if (host) statuses[host.studentId] = "host";
 
-  if (hostJoined && guestJoined) {
-    const second = Math.max(at(row.hostJoinedAt)!, at(row.guestJoinedAt)!);
-    return { ...base, phase: "ready", startAt: new Date(second + DUEL_START_DELAY_MS) };
+  const base = { decideBy, startAt: null, roster: [] as string[], statuses };
+  if (match.status === "expired") return { ...base, phase: "expired" };
+
+  const accepted = guests.filter((guest) => inTime(guest) && guest.accepted === true);
+  const allAnswered = guests.length > 0 && guests.every(inTime);
+  const decidedAt = allAnswered
+    ? Math.max(...guests.map((guest) => at(guest.respondedAt)!))
+    : now.getTime() > deadline
+      ? deadline
+      : null;
+  const roster = host && accepted.length > 0
+    ? [host.studentId, ...accepted.map((guest) => guest.studentId)]
+    : [];
+
+  if (match.status === "done") {
+    return { ...base, phase: "done", roster };
   }
-  return now.getTime() - accepted > DUEL_JOIN_SECONDS * 1000
-    ? { ...base, phase: "expired" }
-    : { ...base, phase: "accepted" };
+  if (decidedAt === null) return { ...base, phase: "invited" };
+  if (roster.length < 2) return { ...base, phase: "expired" };
+  return {
+    ...base,
+    phase: "ready",
+    roster,
+    startAt: new Date(decidedAt + DUEL_START_DELAY_MS),
+  };
+}
+
+/**
+ * هل يُقبل ردُّ هذا المدعوّ الآن؟
+ *
+ * مدعوٌّ في هذه المباراة، لم يردّ بعد، والمهلةُ قائمة، والمباراةُ معلّقة.
+ */
+export function canRespond(
+  match: { status: string; createdAt: string },
+  players: readonly PlayerRow[],
+  studentId: string,
+  now: Date = new Date(),
+): boolean {
+  const me = players.find((player) => player.studentId === studentId);
+  if (!me || me.role !== "guest" || me.respondedAt !== null) return false;
+  return partyRoomOf(match, players, now).phase === "invited";
+}
+
+/** نتائجُ اللاعبين من إجاباتهم المسجّلة: نقاطُ كلِّ سؤالٍ كسبه أوّلاً. */
+export function partyScores(
+  answers: readonly DuelAnswer[],
+  roster: readonly string[],
+): Map<string, number> {
+  const scores = new Map(roster.map((id) => [id, 0]));
+  const counted = new Set<number>();
+  for (const answer of answers) {
+    if (!answer.won || counted.has(answer.questionIndex)) continue;
+    if (!scores.has(answer.studentId)) continue;
+    scores.set(answer.studentId, scores.get(answer.studentId)! + DUEL_POINTS_PER_QUESTION);
+    counted.add(answer.questionIndex);
+  }
+  return scores;
+}
+
+export interface PartyStanding {
+  studentId: string;
+  score: number;
+  /** المركز، والمتساويان يشتركان فيه. */
+  rank: number;
+}
+
+/**
+ * الترتيبُ والفائز.
+ *
+ * ── والفائزُ واحدٌ أو لا أحد ──
+ * صاحبُ أعلى نتيجةٍ وحده ينال الجواهر. وإن تساوى اثنان في القمّة فلا فائز: جوهرةٌ
+ * لكلٍّ تجعل التعادلَ مقصوداً — يتّفق زميلان على أن يتقاسما الأسئلة فيربحا معاً.
+ */
+export function rankParty(scores: ReadonlyMap<string, number>): {
+  standings: PartyStanding[];
+  winnerId: string | null;
+} {
+  const sorted = [...scores.entries()].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+  );
+  const standings: PartyStanding[] = [];
+  sorted.forEach(([studentId, score], index) => {
+    const previous = standings[index - 1];
+    const rank = previous && previous.score === score ? previous.rank : index + 1;
+    standings.push({ studentId, score, rank });
+  });
+  const top = standings.filter((entry) => entry.rank === 1);
+  return { standings, winnerId: top.length === 1 ? top[0].studentId : null };
+}
+
+/**
+ * لاعبو مباراةٍ قديمةٍ قبل جدول اللاعبين: الداعي وزميلُه، والقَبولُ من
+ * `accepted_at`. فتُقرأ بالقواعد نفسها.
+ */
+export function legacyPlayers(match: {
+  hostId: string;
+  guestId: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}): PlayerRow[] {
+  return [
+    { studentId: match.hostId, role: "host", respondedAt: match.createdAt, accepted: true },
+    {
+      studentId: match.guestId,
+      role: "guest",
+      respondedAt: match.acceptedAt,
+      accepted: match.acceptedAt ? true : null,
+    },
+  ];
 }

@@ -34,9 +34,13 @@ class DuelMatchScreen extends StatefulWidget {
     required this.isHost,
     this.game = DuelGame.sprint,
     this.rivalAppearance,
+    this.rivals = const [],
     this.transport,
     super.key,
   });
+
+  /// كلُّ المنافسين في تحدٍّ جماعي. فارغةٌ في نزالٍ بين اثنين: [rivalId] وحده.
+  final List<DuelRival> rivals;
 
   final StudentProfile profile;
   final StudentDuelService duelService;
@@ -66,8 +70,46 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     matchId: widget.matchId,
     myId: widget.profile.id,
     rivalId: widget.rivalId,
+    rivalIds: [for (final rival in _allRivals) rival.id],
     isHost: widget.isHost,
   );
+
+  List<DuelRival> get _allRivals => widget.rivals.isNotEmpty
+      ? widget.rivals
+      : [
+          DuelRival(
+            id: widget.rivalId,
+            name: widget.rivalName,
+            appearance: widget.rivalAppearance,
+          ),
+        ];
+
+  DuelRival? _rivalById(String id) {
+    for (final rival in _allRivals) {
+      if (rival.id == id) return rival;
+    }
+    return null;
+  }
+
+  String _nameOf(String id) {
+    if (id == widget.profile.id) return tr('duel.you');
+    final name = _rivalById(id)?.name ?? '';
+    return name.isEmpty ? tr('duel.rival') : name;
+  }
+
+  Map<String, dynamic>? _lookOf(String id) => id == widget.profile.id
+      ? widget.profile.appearance
+      : _rivalById(id)?.appearance;
+
+  /// تحدٍّ جماعي: أكثرُ من منافسٍ واحد.
+  bool get _party => _game.rivals.length > 1;
+
+  /// المنافسُ المتقدّم: هو من تُرسم أمامه الحلبةُ وشريطُ المواجهة.
+  String get _leaderName => _nameOf(_game.leaderId);
+  Map<String, dynamic>? get _leaderLook => _lookOf(_game.leaderId);
+
+  /// يُغلق الشاشةَ مرّةً بعد أن يُقال للطفل إنّ أحداً لم يوافق.
+  bool _autoClosing = false;
 
   late final ConfettiController _confetti =
       ConfettiController(duration: const Duration(milliseconds: 900));
@@ -86,7 +128,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   @override
   Map<String, dynamic>? get chatMyAppearance => widget.profile.appearance;
   @override
-  Map<String, dynamic>? get chatRivalAppearance => widget.rivalAppearance;
+  Map<String, dynamic>? get chatRivalAppearance => _leaderLook;
 
   @override
   void initState() {
@@ -143,6 +185,19 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
         sound.playApplause();
         if ((result?.gems ?? 0) > 0) sound.play(StudentSoundCue.gameReward);
       }
+    }
+    if (phase == DuelPhase.failed &&
+        _game.failure == DuelFailureKind.nobodyAccepted &&
+        !_autoClosing) {
+      // ── لم يوافق أحد: يعود إلى الساحة وحده ──
+      _autoClosing = true;
+      Future<void>.delayed(const Duration(milliseconds: 2500), () {
+        if (!mounted) return;
+        final route = ModalRoute.of(context);
+        if (route != null && route.isCurrent) {
+          Navigator.of(context).pop('nobody');
+        }
+      });
     }
     _lastPhase = phase;
     setState(() {});
@@ -220,10 +275,12 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                           if (await _confirmLeave() && mounted) navigator.pop();
                         },
                       ),
-                      if (_game.rivalLeft && _game.phase != DuelPhase.result)
+                      if (_game.lastLeft != null &&
+                          _game.phase != DuelPhase.result &&
+                          _game.phase != DuelPhase.failed)
                         _Banner(
-                          text: trf(
-                              'arena.rivalLeft', {'name': widget.rivalName}),
+                          text: trf('arena.rivalLeft',
+                              {'name': _nameOf(_game.lastLeft!)}),
                           color: const Color(0xFFF59E0B),
                         ),
                       Expanded(child: _phaseBody()),
@@ -262,9 +319,9 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
             padding: const EdgeInsets.all(20),
             child: ArenaVersus(
               myName: tr('duel.you'),
-              rivalName: widget.rivalName,
+              rivalName: _leaderName,
               myAppearance: widget.profile.appearance,
-              rivalAppearance: widget.rivalAppearance,
+              rivalAppearance: _leaderLook,
               rivalPresent: rivalPresent,
               footer: footer,
             ),
@@ -276,8 +333,18 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
         return versus(_Status(text: tr('arena.preparing')),
             rivalPresent: false);
       case DuelPhase.waitingRival:
+        // الداعي، أو تحدٍّ جماعي: غرفةُ انتظارٍ بردّ كلِّ مدعوّ وما بقي من المهلة.
+        if (widget.isHost || _allRivals.length > 1) {
+          return _WaitingRoom(
+            room: _game.room,
+            invited: [for (final rival in _allRivals) rival.id],
+            myId: widget.profile.id,
+            nameOf: _nameOf,
+            lookOf: _lookOf,
+          );
+        }
         return versus(
-          _Status(text: trf('arena.waitingRival', {'name': widget.rivalName})),
+          _Status(text: trf('arena.waitingRival', {'name': _leaderName})),
           rivalPresent: false,
         );
       case DuelPhase.countdown:
@@ -302,13 +369,29 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
       children: [
         DuelVersusBar(
           myName: tr('duel.you'),
-          rivalName: widget.rivalName,
+          rivalName: _leaderName,
           myAppearance: widget.profile.appearance,
-          rivalAppearance: widget.rivalAppearance,
+          rivalAppearance: _leaderLook,
           myPoints: _game.myPoints,
           rivalPoints: _game.rivalPoints,
           live: true,
         ),
+        if (_party) ...[
+          const SizedBox(height: 10),
+          _Scoreboard(
+            rows: [
+              for (final row in _game.standings)
+                (
+                  id: row.id,
+                  name: _nameOf(row.id),
+                  look: _lookOf(row.id),
+                  points: row.points,
+                  rank: row.rank,
+                ),
+            ],
+            myId: widget.profile.id,
+          ),
+        ],
         const SizedBox(height: 10),
         // حلبةُ اللعبة: السباقُ أو البالوناتُ أو الحبلُ أو الجواهر — بعدد ما
         // كسبه كلٌّ من الأسئلة.
@@ -319,8 +402,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           total: _game.questions.length,
           live: true,
           myAppearance: widget.profile.appearance,
-          theirAppearance: widget.rivalAppearance,
-          opponentName: widget.rivalName,
+          theirAppearance: _leaderLook,
+          opponentName: _leaderName,
         ),
         const SizedBox(height: 12),
         Row(
@@ -352,7 +435,10 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
         const SizedBox(height: 10),
         _QuestionCard(question: question),
         const SizedBox(height: 10),
-        _Feedback(game: _game, rivalName: widget.rivalName),
+        _Feedback(
+          game: _game,
+          rivalName: _nameOf(_game.winnerId ?? _game.leaderId),
+        ),
         const SizedBox(height: 10),
         DuelChoices(
           game: widget.game,
@@ -391,9 +477,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               children: [
                 StudentAvatarView(
                   size: 120,
-                  appearance: won || draw
-                      ? widget.profile.appearance
-                      : widget.rivalAppearance,
+                  appearance:
+                      won || draw ? widget.profile.appearance : _leaderLook,
                 ),
                 if (!draw)
                   const Positioned(
@@ -419,13 +504,30 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
             const SizedBox(height: 14),
             DuelVersusBar(
               myName: tr('duel.you'),
-              rivalName: widget.rivalName,
+              rivalName: _leaderName,
               myAppearance: widget.profile.appearance,
-              rivalAppearance: widget.rivalAppearance,
+              rivalAppearance: _leaderLook,
               myPoints: _game.myPoints,
               rivalPoints: _game.rivalPoints,
               live: false,
             ),
+            if (_party) ...[
+              const SizedBox(height: 12),
+              _Scoreboard(
+                final_: true,
+                rows: [
+                  for (final row in _game.standings)
+                    (
+                      id: row.id,
+                      name: _nameOf(row.id),
+                      look: _lookOf(row.id),
+                      points: row.points,
+                      rank: _rankFromServer(row.id) ?? row.rank,
+                    ),
+                ],
+                myId: widget.profile.id,
+              ),
+            ],
             const SizedBox(height: 12),
             // الحلبةُ تُري الحسم: الحبلُ يُسحب كلُّه إلى الفائز، والسباقُ والجرّتان
             // على ما انتهت إليه.
@@ -437,8 +539,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               live: false,
               finished: true,
               myAppearance: widget.profile.appearance,
-              theirAppearance: widget.rivalAppearance,
-              opponentName: widget.rivalName,
+              theirAppearance: _leaderLook,
+              opponentName: _leaderName,
             ),
             const SizedBox(height: 16),
             if (won && (result?.gems ?? 0) > 0)
@@ -461,11 +563,22 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     );
   }
 
+  /// المركزُ كما حسمه الخادم.
+  int? _rankFromServer(String id) {
+    for (final player
+        in _game.result?.match?.players ?? const <DuelPlayerScore>[]) {
+      if (player.id == id) return player.rank;
+    }
+    return null;
+  }
+
   Widget _failedView() {
     final text = switch (_game.failure) {
       DuelFailureKind.noQuestions => tr('arena.failNoQuestions'),
+      DuelFailureKind.nobodyAccepted => tr('arena.failNobody'),
+      DuelFailureKind.excluded => tr('arena.failExcluded'),
       DuelFailureKind.rivalMissing =>
-        trf('arena.failRival', {'name': widget.rivalName}),
+        trf('arena.failRival', {'name': _leaderName}),
       _ => tr('arena.failServer'),
     };
     return Center(
@@ -800,6 +913,334 @@ class _Note extends StatelessWidget {
         fontSize: 16,
         height: 1.5,
         fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+/// غرفةُ الانتظار: من دُعي، وبماذا ردّ، وما بقي من المهلة.
+///
+/// يبدأ النزالُ فور ردّ الجميع — أو بعد المهلة مع من وافق. والحكمُ للخادم.
+class _WaitingRoom extends StatefulWidget {
+  const _WaitingRoom({
+    required this.room,
+    required this.invited,
+    required this.myId,
+    required this.nameOf,
+    required this.lookOf,
+  });
+
+  final DuelRoom? room;
+  final List<String> invited;
+  final String myId;
+  final String Function(String id) nameOf;
+  final Map<String, dynamic>? Function(String id) lookOf;
+
+  @override
+  State<_WaitingRoom> createState() => _WaitingRoomState();
+}
+
+class _WaitingRoomState extends State<_WaitingRoom> {
+  Timer? _tick;
+
+  /// إن لم يصل موعدُ الخادم بعد: عشرون ثانيةً من فتح الغرفة.
+  late final DateTime _fallbackEnd =
+      DateTime.now().add(const Duration(seconds: 20));
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final room = widget.room;
+    final statuses = {
+      for (final player in room?.players ?? const <DuelRoomPlayer>[])
+        player.id: player.status,
+    };
+    final ids = [
+      ...?room?.players.map((player) => player.id),
+      for (final id in widget.invited)
+        if (!(room?.players.any((player) => player.id == id) ?? false)) id,
+    ];
+    final left = (room?.decideBy ?? _fallbackEnd).difference(DateTime.now());
+    final accepted =
+        statuses.values.where((s) => s == DuelPlayerStatus.accepted).length;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ArenaTimerRing(
+              left: left.isNegative ? Duration.zero : left,
+              window: const Duration(seconds: 20),
+              size: 76,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              tr('arena.party.waitingTitle'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: StudentSurface.ink(context),
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              tr('arena.party.waitingBody'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: StudentSurface.mutedInk(context),
+                fontSize: 14,
+                height: 1.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              trf('arena.party.acceptedCount', {
+                'n': '$accepted',
+                'total':
+                    '${ids.where((id) => statuses[id] != DuelPlayerStatus.host).length}',
+              }),
+              style: const TextStyle(
+                color: Color(0xFF16A34A),
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 14),
+            for (final id in ids)
+              _WaitingRow(
+                key: ValueKey('wait-$id'),
+                name: widget.nameOf(id),
+                look: widget.lookOf(id),
+                isMe: id == widget.myId,
+                status: statuses[id] ?? DuelPlayerStatus.pending,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WaitingRow extends StatelessWidget {
+  const _WaitingRow({
+    required this.name,
+    required this.look,
+    required this.isMe,
+    required this.status,
+    super.key,
+  });
+
+  final String name;
+  final Map<String, dynamic>? look;
+  final bool isMe;
+  final DuelPlayerStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (String label, Color color) = switch (status) {
+      DuelPlayerStatus.host => (
+          tr('arena.party.host'),
+          const Color(0xFF7C3AED)
+        ),
+      DuelPlayerStatus.accepted => (
+          tr('arena.party.accepted'),
+          const Color(0xFF16A34A)
+        ),
+      DuelPlayerStatus.declined => (
+          tr('arena.party.declined'),
+          const Color(0xFFDC2626)
+        ),
+      DuelPlayerStatus.late => (
+          tr('arena.party.late'),
+          const Color(0xFF64748B)
+        ),
+      DuelPlayerStatus.pending => (
+          tr('arena.party.pending'),
+          const Color(0xFFF59E0B)
+        ),
+    };
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: StudentSurface.card(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.6), width: 1.6),
+      ),
+      child: Row(
+        children: [
+          StudentAvatarView(size: 38, appearance: look, showRing: false),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isMe ? '$name (${tr('arena.party.you')})' : name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: StudentSurface.ink(context),
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          if (status == DuelPlayerStatus.pending)
+            const Padding(
+              padding: EdgeInsetsDirectional.only(end: 6),
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Color(0xFFF59E0B)),
+              ),
+            ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                  color: color, fontSize: 12, fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+typedef _ScoreRow = ({
+  String id,
+  String name,
+  Map<String, dynamic>? look,
+  int points,
+  int rank,
+});
+
+/// لوحةُ النتائج المصغّرة: ترتيبُ الجميع ونقاطُهم، حيّةً أثناء النزال ونهائيةً بعده.
+class _Scoreboard extends StatelessWidget {
+  const _Scoreboard(
+      {required this.rows, required this.myId, this.final_ = false});
+
+  final List<_ScoreRow> rows;
+  final String myId;
+
+  /// بعد الحسم: الأوّلُ بتاجه، والمراكزُ الثلاثةُ بأوسمتها.
+  final bool final_;
+
+  static const _medals = ['🥇', '🥈', '🥉'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      decoration: BoxDecoration(
+        color: StudentSurface.card(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFA78BFA), width: 1.4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '📊 ${tr('arena.scoreboard')}',
+            style: TextStyle(
+              color: StudentSurface.ink(context),
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final row in rows)
+            AnimatedContainer(
+              key: ValueKey('score-${row.id}'),
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: row.id == myId
+                    ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+                    : Colors.transparent,
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      row.rank <= 3 && (final_ || row.points > 0)
+                          ? _medals[row.rank - 1]
+                          : '${row.rank}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: StudentSurface.ink(context),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.topCenter,
+                    children: [
+                      StudentAvatarView(
+                          size: 30, appearance: row.look, showRing: false),
+                      if (final_ && row.rank == 1)
+                        const Positioned(
+                          top: -12,
+                          child: Text('👑', style: TextStyle(fontSize: 13)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      row.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: StudentSurface.ink(context),
+                        fontSize: 14,
+                        fontWeight:
+                            row.id == myId ? FontWeight.w900 : FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  TweenAnimationBuilder<int>(
+                    tween: IntTween(begin: row.points, end: row.points),
+                    duration: const Duration(milliseconds: 400),
+                    builder: (context, value, _) => Text(
+                      trf('arena.party.points', {'n': '$value'}),
+                      style: const TextStyle(
+                        color: Color(0xFF7C3AED),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

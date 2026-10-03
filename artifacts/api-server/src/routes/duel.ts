@@ -4,19 +4,24 @@ import { requireStudentSession } from "../middleware/studentAuth";
 import { createStudentRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
 import {
+  DUEL_INVITE_SECONDS,
+  DUEL_MAX_INVITEES,
   DUEL_MAX_SCORE,
   DUEL_POINTS_PER_QUESTION,
   DUEL_QUESTION_SECONDS,
   DUEL_ROUNDS,
   DUEL_WIN_GEMS,
+  canRespond,
   classKey,
   duelRewardActivity,
   isDuelGame,
+  legacyPlayers,
   matchId as newMatchId,
-  outcomeOf,
-  roomStateOf,
-  scoresFromAnswers,
-  sideOf,
+  partyRoomOf,
+  partyScores,
+  rankParty,
+  type PartyStanding,
+  type PlayerRow,
   type RoomState,
   standingsOf,
   type MatchRow,
@@ -25,29 +30,27 @@ import { awardDuelWin } from "./studentProgress";
 import { parseDuelPack, type DuelPack } from "../lib/duelQuestions";
 
 /**
- * مبارياتُ التحدي بين زملاء الصفّ.
+ * مبارياتُ التحدي بين زملاء الصفّ — لاعبان أو أكثر.
  *
  * ── والقرارُ كلُّه هنا لا في التطبيق ──
- * التطبيقُ يقول «نتيجتي أربع»، والخادم هو من يقرّر أنّ ذلك ممكن، وأنّ هذا
- * الطالبَ طرفٌ في المباراة، وأنه لم يُرسل نتيجتَه قبل، ومن فاز، وأنّ
- * الجوهرةَ تُصرف مرّةً واحدة. ولو تُرك شيءٌ من ذلك للتطبيق لكان رصيدُ
- * الجواهر مسألةَ من يُعدّل الطلب.
+ * من يُدعى، ومن وافق في المهلة، ومتى يبدأ النزال، ومن كسب كلَّ سؤال، ومن فاز،
+ * وأنّ الجواهرَ تُصرف مرّةً واحدة — كلُّه في الخادم. ولو تُرك شيءٌ منه للتطبيق
+ * لكان رصيدُ الجواهر مسألةَ من يُعدّل الطلب.
  *
- * ── والمباراةُ شبحٌ في جوهرها ──
- * كلٌّ يلعب جولتَه وتُسجَّل نتيجتُه، والمقارنةُ تقع حين تحضر الثانية. فلا
- * فرقَ في الخادم بين مباراةٍ حيّةٍ ومؤجَّلة — `mode` وصفٌ لما يُعرض في
- * التطبيق لا منطقٌ ثانٍ يُصان. وانقطاعُ الشبكة يُسقط العرضَ الحيّ ولا
- * يُسقط مباراة.
+ * ── واللاعبون في جدولٍ لهم ──
+ * `challenge_match_players`: الداعي ومن دعاهم، وردُّ كلٍّ ونتيجتُه. ومباراةٌ
+ * قديمةٌ قبله تُقرأ بلاعبَين من `host_id`/`guest_id` — انظر `legacyPlayers`.
  */
 const router = Router();
 
 /** ستُّ دعواتٍ في الدقيقة: تكفي حصّةً ولا تكفي إغراقَ زميل. */
 const inviteLimit = createStudentRateLimit(6);
-const scoreLimit = createStudentRateLimit(20);
+const scoreLimit = createStudentRateLimit(30);
 /** عشرةُ أسئلةٍ في دقيقتين، ومحاولةٌ لكلٍّ: ستّون تكفي ولا تُغرق. */
 const answerLimit = createStudentRateLimit(60);
 
 const MATCHES = "challenge_matches";
+const PLAYERS = "challenge_match_players";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -70,7 +73,7 @@ function headers(extra: Record<string, string> = {}): Record<string, string> {
   };
 }
 
-/** صفُّ المباراة كما يُقرأ من القاعدة. */
+/** صفُّ المباراة كما يُقرأ من القاعدة، ومعه لاعبوها. */
 interface StoredMatch extends MatchRow {
   id: string;
   lessonId: string;
@@ -84,13 +87,16 @@ interface StoredMatch extends MatchRow {
   questions: unknown;
   /**
    * هل صُرفت جوائزُ الفوز؟ `null` قبل الحسم أو لتعادل، و`false` لفائزٍ كانت
-   * جائزةُ هذا الدرس قد صُرفت له من قبل.
+   * جائزةُ هذه اللعبة في الدرس قد صُرفت له من قبل.
    */
   rewardPaid: boolean | null;
-  /** المصافحة: متى قبل الزميل، ومتى دخل كلٌّ الغرفة. انظر `roomStateOf`. */
   acceptedAt: string | null;
-  hostJoinedAt: string | null;
-  guestJoinedAt: string | null;
+  /** اللاعبون: الداعي ومن دعاهم. */
+  players: PlayerRow[];
+  /** نتائجُ اللاعبين بعد الحسم، من جدولهم. */
+  results: Map<string, { score: number | null; rank: number | null }>;
+  /** مباراةٌ بلا صفوفٍ في جدول اللاعبين: قبله، أو والجدولُ لم يُنشأ بعد. */
+  legacy: boolean;
 }
 
 function readMatch(raw: unknown): StoredMatch | null {
@@ -99,7 +105,7 @@ function readMatch(raw: unknown): StoredMatch | null {
   if (!row || !id) return null;
   const score = (value: unknown): number | null =>
     typeof value === "number" && Number.isInteger(value) ? value : null;
-  return {
+  const match: StoredMatch = {
     id,
     lessonId: text(row.lesson_id),
     game: text(row.game),
@@ -115,14 +121,90 @@ function readMatch(raw: unknown): StoredMatch | null {
     questions: row.questions ?? null,
     rewardPaid: typeof row.reward_paid === "boolean" ? row.reward_paid : null,
     acceptedAt: text(row.accepted_at) || null,
-    hostJoinedAt: text(row.host_joined_at) || null,
-    guestJoinedAt: text(row.guest_joined_at) || null,
+    players: [],
+    results: new Map(),
+    legacy: true,
   };
+  match.players = legacyPlayers(match);
+  return match;
+}
+
+/** يقرأ لاعبي المباراة من جدولهم، وإن لم يكونوا فيه بقيت لاعبَيها القديمَين. */
+function withPlayers(match: StoredMatch, rows: unknown): StoredMatch {
+  const list = Array.isArray(rows) ? rows : [];
+  const players: PlayerRow[] = [];
+  const results = new Map<string, { score: number | null; rank: number | null }>();
+  for (const raw of list) {
+    const row = raw as Record<string, unknown>;
+    const studentId = text(row.student_id);
+    if (!studentId) continue;
+    players.push({
+      studentId,
+      role: text(row.role) === "host" ? "host" : "guest",
+      respondedAt: text(row.responded_at) || null,
+      accepted: typeof row.accepted === "boolean" ? row.accepted : null,
+    });
+    results.set(studentId, {
+      score: typeof row.score === "number" ? row.score : null,
+      rank: typeof row.rank === "number" ? row.rank : null,
+    });
+  }
+  if (players.length === 0) return match;
+  return { ...match, players, results, legacy: false };
+}
+
+function isPlayer(match: StoredMatch, studentId: string): boolean {
+  return match.players.some((player) => player.studentId === studentId);
+}
+
+function roomOf(match: StoredMatch, now: Date = new Date()): RoomState {
+  return partyRoomOf(match, match.players, now);
+}
+
+/** الغرفةُ كما تُرسل: والوقتُ الآن في الخادم، ليحسب الجهازُ فرقَ ساعته عنه. */
+function roomJson(match: StoredMatch) {
+  const now = new Date();
+  const room = roomOf(match, now);
+  return {
+    phase: room.phase,
+    decideBy: room.decideBy.toISOString(),
+    startAt: room.startAt?.toISOString() ?? null,
+    roster: room.roster,
+    players: match.players.map((player) => ({
+      id: player.studentId,
+      role: player.role,
+      status: room.statuses[player.studentId] ?? "pending",
+    })),
+    inviteSeconds: DUEL_INVITE_SECONDS,
+    serverNow: now.toISOString(),
+    // لنسخٍ أقدم من التطبيق كانت تنتظر «دخل الاثنان».
+    hostJoined: room.phase === "ready",
+    guestJoined: room.phase === "ready",
+  };
+}
+
+/** نتائجُ اللاعبين كما تُرسل: من جدولهم بعد الحسم. */
+function scoresJson(match: StoredMatch) {
+  return match.players.map((player) => {
+    const result = match.results.get(player.studentId);
+    let score = result?.score ?? null;
+    // مباراةٌ قديمة: النتيجتان في صفّ المباراة.
+    if (match.legacy) {
+      score = player.studentId === match.hostId ? match.hostScore : match.guestScore;
+    }
+    return { id: player.studentId, role: player.role, score, rank: result?.rank ?? null };
+  });
 }
 
 /** ما يُرسَل إلى التطبيق. */
 function toJson(match: StoredMatch, me: string): Record<string, unknown> {
-  const side = sideOf(match, me);
+  const scores = scoresJson(match);
+  const mine = scores.find((entry) => entry.id === me)?.score ?? null;
+  const others = scores.filter((entry) => entry.id !== me);
+  const theirs = others.reduce<number | null>(
+    (best, entry) => (entry.score === null ? best : Math.max(best ?? 0, entry.score)),
+    null,
+  );
   return {
     id: match.id,
     lessonId: match.lessonId,
@@ -131,21 +213,17 @@ function toJson(match: StoredMatch, me: string): Record<string, unknown> {
     status: match.status,
     hostId: match.hostId,
     guestId: match.guestId,
-    // «أنا» و«هو» بدل host/guest: الشاشةُ تعرض نتيجتي أمام نتيجته، ولا
-    // يعنيها من أرسل الدعوة.
-    mine: side === "host" ? match.hostScore : match.guestScore,
-    theirs: side === "host" ? match.guestScore : match.hostScore,
-    opponentId: side === "host" ? match.guestId : match.hostId,
+    // «أنا» و«أفضلُ منافس»: الشاشةُ تعرض نتيجتي أمام من يتقدّمني.
+    mine,
+    theirs,
+    opponentId: others[0]?.id ?? "",
+    players: scores,
     winnerId: match.winnerId,
     iWon: match.winnerId !== null && match.winnerId === me,
     rounds: DUEL_ROUNDS,
     createdAt: match.createdAt,
-    // الأسئلةُ مع المباراة لا في ردّ الصندوق: أسئلةُ أربعين مباراةً تُثقل كل فتحةٍ
-    // للردهة بما لا يُقرأ منه شيء.
     questions: packOf(match)?.questions ?? [],
     questionSeconds: DUEL_QUESTION_SECONDS,
-    // نقاطُ السؤال لأوّل من يُجيب صحيحاً، ولا نقاطَ سرعةٍ فوقها: السرعةُ هي
-    // من يكسب السؤال.
     pointsCorrect: DUEL_POINTS_PER_QUESTION,
     pointsSpeedMax: 0,
     maxScore: DUEL_MAX_SCORE,
@@ -155,15 +233,7 @@ function toJson(match: StoredMatch, me: string): Record<string, unknown> {
   };
 }
 
-/**
- * حزمةُ أسئلة المباراة، أو `null` إن لم تُكتب أو لم تصلح.
- *
- * ولا تُبنى هنا: الحزمةُ تُختار في القاعدة بـ`claim_duel_pack` من بنك
- * `duel_questions` — ستّةٌ من مجال الدرس وأربعةٌ ذكاءٌ وسرعة — وتُكتب مرّةً
- * تحت قفل الصفّ، فيقرأ الجهازان الحزمةَ نفسها. انظر
- * `scripts/duel-question-bank.sql`. وحزمةٌ يكتبها الخادمُ هنا قبلها كانت
- * تُثبَّت بأسئلة الدرس الحرفية، وتمنع الدالّةَ من بناء حزمة المجال.
- */
+/** حزمةُ أسئلة المباراة، أو `null` إن لم تُكتب أو لم تصلح. انظر `claim_duel_pack`. */
 function packOf(match: StoredMatch): DuelPack | null {
   return parseDuelPack(match.questions);
 }
@@ -187,80 +257,109 @@ async function rest(
   return body ? JSON.parse(body) : null;
 }
 
+/**
+ * لاعبو المباراة من جدولهم، أو `null` إن لم يُنشأ الجدولُ بعد.
+ *
+ * ولا يُسقط غيابُه المباريات: تُقرأ بلاعبَيها القديمَين حتى يُشغَّل
+ * `scripts/duel-party.sql`.
+ */
+async function readPlayers(filter: string): Promise<unknown[] | null> {
+  try {
+    const rows = await rest(`${PLAYERS}?select=*&${filter}`);
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    logger.warn({ err: error }, "[duel] players table unavailable");
+    return null;
+  }
+}
+
 async function findMatch(id: string): Promise<StoredMatch | null> {
   const rows = await rest(
     `${MATCHES}?select=*&id=eq.${encodeURIComponent(id)}&limit=1`,
   );
-  return Array.isArray(rows) && rows[0] ? readMatch(rows[0]) : null;
+  const match = Array.isArray(rows) && rows[0] ? readMatch(rows[0]) : null;
+  if (!match) return null;
+  const players = await readPlayers(`match_id=eq.${encodeURIComponent(id)}`);
+  return players ? withPlayers(match, players) : match;
 }
 
 /**
- * هل هذا الزميلُ في صفّ هذا الطالب؟
+ * من هؤلاء في صفّ هذا الطالب؟
  *
  * ── ولماذا يُسأل الجدولُ لا يُصدَّق الطلب ──
- * التطبيقُ يُرسل معرّفَ الزميل، ومعرّفٌ من خارج الصفّ يعني مباراةً مع من
- * لا يعرفه الطالب — وجوهرةً تُصرف في صفٍّ آخر. والقراءةُ بمفتاح الصفّ
- * تجعل الحدَّ محروساً في الخادم.
+ * معرّفٌ من خارج الصفّ يعني مباراةً مع من لا يعرفه الطالب — وجوهرةً تُصرف في صفٍّ
+ * آخر. والقراءةُ بمفتاح الصفّ تجعل الحدَّ محروساً في الخادم.
  */
-async function isClassmateOf(
+async function classmatesAmong(
   student: StudentActor,
-  guestId: string,
-): Promise<boolean> {
+  ids: readonly string[],
+): Promise<Set<string>> {
+  const list = ids.map((id) => `"${id}"`).join(",");
   const rows = await rest(
-    `students?select=id,data&id=eq.${encodeURIComponent(guestId)}&limit=1`,
+    `students?select=id,data&id=in.(${encodeURIComponent(list)})`,
   );
-  const row = Array.isArray(rows) ? rows[0] : null;
-  const data = row && typeof row === "object"
-    ? ((row as Record<string, unknown>).data as Record<string, unknown> | null)
-    : null;
-  if (!data) return false;
-  return (
-    text(data.teacherId ?? data.teacher_id) === student.teacherId &&
-    text(data.grade) === student.grade
-  );
+  const found = new Set<string>();
+  for (const raw of Array.isArray(rows) ? rows : []) {
+    const row = raw as Record<string, unknown>;
+    const data = (row.data ?? {}) as Record<string, unknown>;
+    if (
+      text(data.teacherId ?? data.teacher_id) === student.teacherId &&
+      text(data.grade) === student.grade
+    ) {
+      found.add(text(row.id));
+    }
+  }
+  return found;
+}
+
+/** المدعوّون من الطلب: `guestIds` قائمةً، أو `guestId` واحداً لنسخٍ أقدم. */
+function inviteesOf(body: unknown): string[] {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const list = Array.isArray(raw.guestIds) ? raw.guestIds : [raw.guestId];
+  const ids: string[] = [];
+  for (const value of list) {
+    const id = text(value);
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
 }
 
 /**
- * دعوةُ زميلٍ إلى مباراة.
+ * دعوةُ زميلٍ أو أكثر إلى مباراة. الجسم: `{ lessonId, game, guestIds: [...] }`.
  *
- * تُنشأ المباراةُ معلّقةً بلا نتيجة، ثم يُسجّل كلٌّ نتيجتَه. والمتحدّي قد
- * يلعب قبل أن يقبل الزميلُ — وهي المباراةُ المؤجَّلة.
+ * تُنشأ المباراةُ معلّقة، والداعي لاعبٌ وافق منذ البداية، والمدعوّون ينتظر كلٌّ
+ * ردَّه. ثم يبدأ النزالُ حين يردّ الجميع أو تنتهي المهلة — انظر `partyRoomOf`.
  */
 router.post("/duel/invite", requireStudentSession, inviteLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
   const lessonId = text(req.body?.lessonId);
-  const guestId = text(req.body?.guestId);
   const game = text(req.body?.game);
+  const guestIds = inviteesOf(req.body);
 
-  if (!lessonId || !guestId || !isDuelGame(game)) {
-    return res.status(400).json({
-      error: "بيانات الدعوة ناقصة",
-      code: "bad_request",
-    });
+  if (!lessonId || guestIds.length === 0 || !isDuelGame(game)) {
+    return res.status(400).json({ error: "بيانات الدعوة ناقصة", code: "bad_request" });
   }
-  if (guestId === student.id) {
+  if (guestIds.includes(student.id)) {
     // مباراةٌ مع النفس يفوز فيها دائماً، فتكون باباً إلى جوهرةٍ بكل ضغطة.
+    return res.status(400).json({ error: "لا يمكنك تحدّي نفسك", code: "self_duel" });
+  }
+  if (guestIds.length > DUEL_MAX_INVITEES) {
     return res.status(400).json({
-      error: "لا يمكنك تحدّي نفسك",
-      code: "self_duel",
+      error: `يمكنك دعوة ${DUEL_MAX_INVITEES} زملاء على الأكثر`,
+      code: "too_many",
     });
   }
   const key = classKey(student.teacherId, student.grade);
   if (!key) {
-    return res.status(403).json({
-      error: "حسابك ليس في صفٍّ بعد",
-      code: "no_class",
-    });
+    return res.status(403).json({ error: "حسابك ليس في صفٍّ بعد", code: "no_class" });
   }
   try {
-    if (!(await isClassmateOf(student, guestId))) {
-      return res.status(403).json({
-        error: "هذا الزميل ليس في صفّك",
-        code: "not_classmate",
-      });
+    const mates = await classmatesAmong(student, guestIds);
+    if (guestIds.some((id) => !mates.has(id))) {
+      return res.status(403).json({ error: "أحدُ الزملاء ليس في صفّك", code: "not_classmate" });
     }
     const id = newMatchId();
-    // والحزمةُ لا تُكتب هنا: يثبّتها أوّلُ من يفتح المباراة بـ`claim_duel_pack`.
+    const now = new Date().toISOString();
     await rest(MATCHES, {
       method: "POST",
       headers: { Prefer: "return=minimal" },
@@ -269,65 +368,69 @@ router.post("/duel/invite", requireStudentSession, inviteLimit, async (req, res)
         lesson_id: lessonId,
         game,
         host_id: student.id,
-        guest_id: guestId,
+        // أوّلُ مدعوّ: للتوافق مع ما سبق جدولَ اللاعبين.
+        guest_id: guestIds[0],
         class_key: key,
-        // حيّةٌ دائماً: التحدّي لا يُرسل إلا لزميلٍ متصلٍ الآن، فيلعبان معاً.
         mode: "live",
         status: "pending",
+        created_at: now,
       }),
     });
-    logger.info({ id, game }, "[duel] invited");
+    try {
+      await rest(PLAYERS, {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify([
+          {
+            match_id: id,
+            student_id: student.id,
+            role: "host",
+            invited_at: now,
+            responded_at: now,
+            accepted: true,
+          },
+          ...guestIds.map((guest) => ({
+            match_id: id,
+            student_id: guest,
+            role: "guest",
+            invited_at: now,
+          })),
+        ]),
+      });
+    } catch (error) {
+      // الجدولُ لم يُنشأ: زميلٌ واحدٌ يُلعب بالطريقة القديمة، وأكثرُ لا يمكن.
+      if (guestIds.length > 1) {
+        await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }).catch(
+          () => null,
+        );
+        logger.error({ err: error }, "[duel] party needs duel-party.sql");
+        return res.status(503).json({
+          error: "التحدي الجماعي يحتاج تحديث قاعدة البيانات",
+          code: "party_unavailable",
+        });
+      }
+    }
+    logger.info({ id, game, invited: guestIds.length }, "[duel] invited");
     const created = await findMatch(id);
     return res.status(201).json({
       match: created ? toJson(created, student.id) : { id },
     });
   } catch (error) {
     logger.error({ err: error }, "[duel] invite failed");
-    return res.status(503).json({
-      error: "تعذّر إرسال التحدي الآن",
-      code: "unavailable",
-    });
+    return res.status(503).json({ error: "تعذّر إرسال التحدي الآن", code: "unavailable" });
   }
 });
 
 const ANSWERS = "match_answers";
 
-/** حالُ غرفة المباراة الآن. انظر `roomStateOf`. */
-function roomOf(match: StoredMatch, now: Date = new Date()): RoomState {
-  return roomStateOf(
-    {
-      status: match.status,
-      createdAt: match.createdAt,
-      acceptedAt: match.acceptedAt,
-      hostJoinedAt: match.hostJoinedAt,
-      guestJoinedAt: match.guestJoinedAt,
-    },
-    now,
-  );
-}
-
-/** الغرفةُ كما تُرسل: والوقتُ الآن في الخادم، ليحسب الجهازُ فرقَ ساعته عنه. */
-function roomJson(match: StoredMatch) {
-  const now = new Date();
-  const room = roomOf(match, now);
-  return {
-    phase: room.phase,
-    hostJoined: room.hostJoined,
-    guestJoined: room.guestJoined,
-    startAt: room.startAt?.toISOString() ?? null,
-    serverNow: now.toISOString(),
-  };
-}
-
 /**
- * ردُّ الزميل على الدعوة. الجسم: `{ accept: true | false }`.
+ * ردُّ المدعوّ على الدعوة. الجسم: `{ accept: true | false }`.
  *
- * ── والقَبولُ يُكتب هنا قبل أن يدخل أحد ──
- * كان الضيفُ يدخل لحظةَ يضغط «اقبل»، والداعي يعرف ذلك من إشارةٍ قد لا تصله. والآن
- * لا يدخل الضيفُ إلا إن كتب الخادمُ قَبولَه، والداعي يقرأ القَبولَ نفسه من هنا.
+ * ── وفي المهلة وحدها ──
+ * ردٌّ بعد العشرين ثانية لا يُكتب: بدأ النزالُ بمن وافق، أو أُلغي. ويُعاد حالُ الغرفة
+ * كما هو، فيعرف الجهازُ أين هو.
  *
- * والكتابةُ مشروطةٌ بأن تكون الدعوةُ ما زالت قائمة: قَبولٌ وإلغاءٌ يصلان معاً
- * يُكتب أحدُهما فقط، فيرى الطرفان النتيجةَ نفسها.
+ * والقَبولُ دخولٌ للغرفة: من وافق ينتظر فيها مع الداعي حتى يُحسم من يلعب.
  */
 router.post("/duel/:id/respond", requireStudentSession, scoreLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
@@ -339,24 +442,38 @@ router.post("/duel/:id/respond", requireStudentSession, scoreLimit, async (req, 
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
-    if (sideOf(match, student.id) !== "guest") {
+    const me = match.players.find((player) => player.studentId === student.id);
+    if (!me || me.role !== "guest") {
       return res.status(403).json({ error: "الردُّ للمدعوّ وحده", code: "not_guest" });
     }
-    const room = roomOf(match);
-    if (room.phase !== "invited") {
-      // قُبلت من قبل، أو انتهت: يُعاد حالُها كما هو، فيعرف الجهازُ أين هو.
+    const now = new Date();
+    if (!canRespond(match, match.players, student.id, now) || match.status !== "pending") {
       return res.json({ match: toJson(match, student.id), room: roomJson(match) });
     }
-    const filter = `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending&accepted_at=is.null`;
-    await rest(filter, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify(
-        accept
-          ? { accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-          : { status: "expired", updated_at: new Date().toISOString() },
-      ),
-    });
+    if (match.legacy) {
+      await rest(
+        `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending&accepted_at=is.null`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify(
+            accept
+              ? { accepted_at: now.toISOString(), updated_at: now.toISOString() }
+              : { status: "expired", updated_at: now.toISOString() },
+          ),
+        },
+      );
+    } else {
+      await rest(
+        `${PLAYERS}?match_id=eq.${encodeURIComponent(id)}` +
+          `&student_id=eq.${encodeURIComponent(student.id)}&responded_at=is.null`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ responded_at: now.toISOString(), accepted: accept }),
+        },
+      );
+    }
     const fresh = (await findMatch(id))!;
     logger.info({ id, accept, phase: roomOf(fresh).phase }, "[duel] invite answered");
     return res.json({ match: toJson(fresh, student.id), room: roomJson(fresh) });
@@ -367,10 +484,7 @@ router.post("/duel/:id/respond", requireStudentSession, scoreLimit, async (req, 
 });
 
 /**
- * دخولُ الغرفة. يُكتب وقتُ دخولي، ويُعاد حالُ الغرفة.
- *
- * ولا يبدأ النزالُ إلا حين يدخل الاثنان: الموعدُ يُحسب من دخول الثاني، فلا عدّادَ
- * ولا سؤالَ عند أحدهما والآخرُ غائب.
+ * دخولُ الغرفة — لنسخٍ أقدم من التطبيق. القَبولُ صار هو الدخول، فيُعاد حالُ الغرفة.
  */
 router.post("/duel/:id/join", requireStudentSession, scoreLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
@@ -379,41 +493,24 @@ router.post("/duel/:id/join", requireStudentSession, scoreLimit, async (req, res
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
-    const side = sideOf(match, student.id);
-    if (side === null) {
+    if (!isPlayer(match, student.id)) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
     }
-    const room = roomOf(match);
-    const column = side === "host" ? "host_joined_at" : "guest_joined_at";
-    const already = side === "host" ? match.hostJoinedAt : match.guestJoinedAt;
-    if (room.phase === "accepted" && !already) {
-      await rest(
-        `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending&${column}=is.null`,
-        {
-          method: "PATCH",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({ [column]: new Date().toISOString() }),
-        },
-      );
-    }
-    const fresh = (await findMatch(id))!;
-    return res.json({ match: toJson(fresh, student.id), room: roomJson(fresh) });
+    return res.json({ match: toJson(match, student.id), room: roomJson(match) });
   } catch (error) {
     logger.error({ err: error, id }, "[duel] join failed");
     return res.status(503).json({ error: "تعذّر دخول الغرفة الآن", code: "unavailable" });
   }
 });
 
-
 /**
  * جوابُ سؤالٍ في المباراة. الجسم: `{ index, choice }`.
  *
  * ── والأوّلُ يُحسم في القاعدة ──
- * الصحةُ تُقرأ من حزمة المباراة المحفوظة، لا من ادّعاء التطبيق. ثم
- * `record_duel_answer` تسجّل الجوابَ تحت قفلٍ لكل سؤال، فتقول هل كان أوّلَ صحيح —
- * وجهازان يُرسلان في اللحظة نفسها يُفصل بينهما هناك، في مكانٍ واحد.
+ * الصحةُ تُقرأ من حزمة المباراة المحفوظة، و`record_duel_answer` تسجّل الجوابَ تحت
+ * قفلٍ لكل سؤال فتقول هل كان أوّلَ صحيح — بين لاعبَين أو ستّة، في مكانٍ واحد.
  *
- * ولكل لاعبٍ محاولةٌ واحدةٌ لكل سؤال: الثانيةُ تُعاد بنتيجة الأولى.
+ * ولا يُجيب إلا من في قائمة اللاعبين: من تأخّر في الردّ فاستُبعد لا يكسب أسئلةً.
  */
 router.post("/duel/:id/answer", requireStudentSession, answerLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
@@ -426,16 +523,14 @@ router.post("/duel/:id/answer", requireStudentSession, answerLimit, async (req, 
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
-    if (sideOf(match, student.id) === null) {
-      return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
-    }
     if (match.status !== "pending") {
       return res.status(409).json({ error: "انتهت المباراة", code: "settled" });
     }
-    // ── ولا جوابَ قبل أن يبدأ النزالُ للاثنين ──
-    // جهازٌ يعرض السؤالَ قبل موعده، أو والزميلُ لم يدخل، يكسب أسئلةً لم تُطرح
-    // على زميله. وثانيةٌ من السماحة لفرق ساعتين.
     const room = roomOf(match);
+    if (!room.roster.includes(student.id)) {
+      return res.status(403).json({ error: "لست لاعباً في هذا النزال", code: "not_a_player" });
+    }
+    // ولا جوابَ قبل الموعد: ثانيةٌ من السماحة لفرق الساعات.
     if (room.phase !== "ready" || Date.now() < room.startAt!.getTime() - 1000) {
       return res.status(409).json({ error: "لم يبدأ النزالُ بعد", code: "not_started" });
     }
@@ -473,7 +568,7 @@ function settledJson(match: StoredMatch, me: string) {
   return {
     match: toJson(match, me),
     gems: iWon && match.rewardPaid === true ? DUEL_WIN_GEMS : 0,
-    // فاز، ومكافأةُ هذا الدرس صُرفت له من قبل: يقال له ذلك، لا «صفر» بلا سبب.
+    // فاز، ومكافأةُ هذه اللعبة في الدرس صُرفت له من قبل: يقال له ذلك.
     rewardTaken: iWon && match.rewardPaid === false,
     draw: match.status === "done" && match.winnerId === null,
   };
@@ -483,19 +578,18 @@ function settledJson(match: StoredMatch, me: string) {
  * حسمُ المباراة من إجاباتها المسجّلة.
  *
  * ── ومرّةً واحدة ──
- * الجهازان يطلبان الحسمَ عند آخر سؤال، وغالباً في اللحظة نفسها. فالكتابةُ مشروطةٌ
- * بأن تكون المباراةُ معلّقة: من وجدها كذلك حسمها وصرف الجائزة، والآخرُ يقرأ ما
- * حُسم. وما يُكتب في `reward_paid` يقوله للاثنين: صُرفت الجواهر، أو كانت جائزةُ
- * الدرس قد صُرفت من قبل.
+ * الأجهزةُ كلُّها تطلب الحسمَ عند آخر سؤال. فالكتابةُ مشروطةٌ بأن تكون المباراةُ
+ * معلّقة: من وجدها كذلك حسمها وصرف الجائزة، والباقون يقرؤون ما حُسم.
  */
 async function settle(id: string, me: string): Promise<ReturnType<typeof settledJson> | null> {
   let match = await findMatch(id);
   if (!match) return null;
   if (match.status === "pending") {
+    const roster = roomOf(match).roster;
     const answers = await rest(
       `${ANSWERS}?select=student_id,question_index,won&match_id=eq.${encodeURIComponent(id)}&won=is.true`,
     );
-    const { hostScore, guestScore } = scoresFromAnswers(
+    const scores = partyScores(
       (Array.isArray(answers) ? answers : []).map((row) => {
         const r = row as Record<string, unknown>;
         return {
@@ -504,55 +598,69 @@ async function settle(id: string, me: string): Promise<ReturnType<typeof settled
           won: r.won === true,
         };
       }),
-      match.hostId,
-      match.guestId,
+      roster,
     );
-    const outcome = outcomeOf({
-      hostId: match.hostId,
-      guestId: match.guestId,
-      hostScore,
-      guestScore,
-    });
+    const { standings, winnerId } = rankParty(scores);
+    const hostScore = scores.get(match.hostId) ?? 0;
+    const best = Math.max(0, ...standings.filter((s) => s.studentId !== match!.hostId).map((s) => s.score));
     const written = await rest(
       `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending`,
       {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
         body: JSON.stringify({
+          // صفُّ المباراة يحمل نتيجةَ الداعي وأفضلَ منافس، للتوافق مع ما سبق.
           host_score: hostScore,
-          guest_score: guestScore,
+          guest_score: best,
           status: "done",
-          winner_id: outcome.settled ? outcome.winnerId : null,
+          winner_id: winnerId,
           updated_at: new Date().toISOString(),
         }),
       },
     );
     const settledHere = Array.isArray(written) && written.length > 0;
-    if (settledHere && outcome.settled && outcome.winnerId) {
-      // والصرفُ لا يُسقط الحسم: فشلُه يعني جوائزَ لم تُصرف، والفوزُ مكتوبٌ على
-      // كل حال — ويُقرأ من الجدول لا من الرصيد.
-      // مرّةً لكل لعبةٍ في كل درس: انظر `duelRewardActivity`.
-      const reward = duelRewardActivity(match.lessonId, match.game);
-      const paid = await awardDuelWin(outcome.winnerId, reward).catch((error) => {
-        logger.error({ err: error, id }, "[duel] win gems not paid");
-        return false;
-      });
-      await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ reward_paid: paid }),
-      });
+    if (settledHere) {
+      if (!match.legacy) await writeResults(id, standings);
+      if (winnerId) {
+        // والصرفُ لا يُسقط الحسم. ومرّةً لكل لعبةٍ في كل درس: انظر `duelRewardActivity`.
+        const reward = duelRewardActivity(match.lessonId, match.game);
+        const paid = await awardDuelWin(winnerId, reward).catch((error) => {
+          logger.error({ err: error, id }, "[duel] win gems not paid");
+          return false;
+        });
+        await rest(`${MATCHES}?id=eq.${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ reward_paid: paid }),
+        });
+      }
     }
-    logger.info({ id, hostScore, guestScore, settledHere }, "[duel] settled");
+    logger.info({ id, players: roster.length, winnerId, settledHere }, "[duel] settled");
   }
-  // ومن لم يحسمها قد يقرأ قبل أن تُكتب الجائزة: لحظاتٌ قليلةٌ ينتظرها.
+  // ومن لم يحسمها قد يقرأ قبل أن تُكتب الجائزةُ والنتائج: لحظاتٌ قليلةٌ ينتظرها.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     match = await findMatch(id);
     if (!match) return null;
-    if (match.winnerId === null || match.rewardPaid !== null) break;
+    const resultsWritten = match.legacy ||
+      [...match.results.values()].some((result) => result.rank !== null);
+    if ((match.winnerId === null || match.rewardPaid !== null) && resultsWritten) break;
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
   return settledJson(match!, me);
+}
+
+/** يكتب نتيجةَ كلِّ لاعبٍ ومركزَه. */
+async function writeResults(id: string, standings: readonly PartyStanding[]) {
+  await Promise.all(standings.map((entry) =>
+    rest(
+      `${PLAYERS}?match_id=eq.${encodeURIComponent(id)}&student_id=eq.${encodeURIComponent(entry.studentId)}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ score: entry.score, rank: entry.rank }),
+      },
+    ).catch((error) => logger.error({ err: error, id }, "[duel] result not written"))
+  ));
 }
 
 async function finishRoute(req: Request, res: Response) {
@@ -562,7 +670,7 @@ async function finishRoute(req: Request, res: Response) {
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
-    if (sideOf(match, student.id) === null) {
+    if (!isPlayer(match, student.id)) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
     }
     if (match.status === "expired") {
@@ -584,19 +692,15 @@ async function finishRoute(req: Request, res: Response) {
 /** حسمُ المباراة. انظر [settle]. */
 router.post("/duel/:id/finish", requireStudentSession, scoreLimit, finishRoute);
 
-/**
- * المسارُ القديم، لنسخٍ من التطبيق لم تُحدَّث بعد.
- *
- * يحسم كما يحسم `finish` ويُهمل النتيجةَ المرسلة: النتيجةُ لم تعد ادّعاءً من
- * التطبيق، وقبولُها هنا كان سيفتح باباً يُغلق في المسار الجديد.
- */
+/** المسارُ القديم، لنسخٍ من التطبيق لم تُحدَّث بعد. */
 router.post("/duel/:id/score", requireStudentSession, scoreLimit, finishRoute);
 
 /**
- * إلغاءُ مباراةٍ لم تبدأ: دعوةٌ رُفضت، أو انتهت مهلتُها، أو تراجع عنها صاحبُها.
+ * مغادرةُ مباراةٍ لم تبدأ.
  *
- * ولا تُلغى مباراةٌ سُجّل فيها جواب: من غادر في منتصفها لا يمحوها على زميله،
- * والزميلُ يُكملها ويحسمها.
+ * الداعي يغادر: تُلغى الدعوةُ على الجميع. ومدعوٌّ وافق ثم غادر قبل الحسم: يُكتب
+ * رفضاً، ويبدأ الباقون بدونه. ولا تُلغى مباراةٌ حُسم من يلعب فيها: من غادر لا
+ * يمحوها على زملائه.
  */
 router.post("/duel/:id/cancel", requireStudentSession, scoreLimit, async (req, res) => {
   const student = res.locals.student as StudentActor;
@@ -605,69 +709,80 @@ router.post("/duel/:id/cancel", requireStudentSession, scoreLimit, async (req, r
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة", code: "not_found" });
-    if (sideOf(match, student.id) === null) {
+    const me = match.players.find((player) => player.studentId === student.id);
+    if (!me) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة", code: "not_a_player" });
     }
     const room = roomOf(match);
-    // دخلا معاً: بدأ النزال، ومن غادر لا يمحوه على زميله.
-    if (room.phase === "ready" || room.phase === "done") {
-      return res.json({ cancelled: false, status: room.phase, room: roomJson(match) });
+    if (room.phase !== "invited") {
+      return res.json({
+        cancelled: room.phase === "expired",
+        status: room.phase,
+        room: roomJson(match),
+      });
     }
-    if (room.phase === "expired" && match.status !== "pending") {
-      return res.json({ cancelled: true, status: "expired", room: roomJson(match) });
+    const now = new Date().toISOString();
+    let cancelled = false;
+    if (me.role === "host" || match.legacy) {
+      const written = await rest(
+        `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ status: "expired", updated_at: now }),
+        },
+      );
+      cancelled = Array.isArray(written) && written.length > 0;
+    } else {
+      // مدعوٌّ يغادر قبل الحسم: رفضٌ — ردٌّ لم يكن، أو قَبولٌ يُسحب.
+      await rest(
+        `${PLAYERS}?match_id=eq.${encodeURIComponent(id)}&student_id=eq.${encodeURIComponent(student.id)}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({
+            responded_at: me.respondedAt ?? now,
+            accepted: false,
+          }),
+        },
+      );
+      cancelled = true;
     }
-    const answered = await rest(
-      `${ANSWERS}?select=match_id&match_id=eq.${encodeURIComponent(id)}&limit=1`,
-    );
-    if (Array.isArray(answered) && answered.length > 0) {
-      return res.json({ cancelled: false, status: "playing", room: roomJson(match) });
-    }
-    // ── والإلغاءُ مشروطٌ بما رآه ──
-    // قبل القَبول: لا يُكتب إن كُتب قَبولٌ بينهما. وبعده: لا يُكتب إن دخل الاثنان.
-    // فقَبولٌ وإلغاءٌ يتسابقان يُكتب أحدُهما، ويقرأ الجهازان ما كُتب.
-    const guard = room.phase === "invited"
-      ? "accepted_at=is.null"
-      : "or=(host_joined_at.is.null,guest_joined_at.is.null)";
-    const written = await rest(
-      `${MATCHES}?id=eq.${encodeURIComponent(id)}&status=eq.pending&${guard}`,
-      {
-        method: "PATCH",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ status: "expired", updated_at: new Date().toISOString() }),
-      },
-    );
     const fresh = (await findMatch(id))!;
-    const cancelled = Array.isArray(written) && written.length > 0;
-    return res.json({
-      cancelled,
-      status: cancelled ? "expired" : roomOf(fresh).phase,
-      room: roomJson(fresh),
-    });
+    return res.json({ cancelled, status: roomOf(fresh).phase, room: roomJson(fresh) });
   } catch (error) {
     logger.error({ err: error, id }, "[duel] cancel failed");
     return res.status(503).json({ error: "تعذّر إلغاء المباراة الآن", code: "unavailable" });
   }
 });
 
-/**
- * مبارياتي: ما ينتظرني، وما أنتظر فيه زميلي، وما انتهى حديثاً.
- *
- * والمنتهيةُ تُرسل أيضاً: الطالبُ الذي لعب جولتَه أمس يحتاج أن يرى نتيجتَها
- * حين يفتح التطبيق — وإلا بقيت المباراةُ في ذهنه معلّقةً وقد حُسمت.
- */
+/** مبارياتي: ما ينتظرني، وما انتهى حديثاً — ثنائيةً أو جماعية. */
 router.get("/duel/inbox", requireStudentSession, async (_req, res) => {
   const student = res.locals.student as StudentActor;
   try {
     const id = encodeURIComponent(student.id);
+    const mine = await readPlayers(`student_id=eq.${id}&order=invited_at.desc&limit=40`);
+    const partyIds = (mine ?? []).map((row) => text((row as Record<string, unknown>).match_id));
+    const filter = partyIds.length > 0
+      ? `or=(host_id.eq.${id},guest_id.eq.${id},id.in.(${partyIds.map((m) => `"${m}"`).join(",")}))`
+      : `or=(host_id.eq.${id},guest_id.eq.${id})`;
     const rows = await rest(
-      `${MATCHES}?select=*&or=(host_id.eq.${id},guest_id.eq.${id})` +
-        `&status=neq.expired&order=created_at.desc&limit=40`,
+      `${MATCHES}?select=*&${filter}&status=neq.expired&order=created_at.desc&limit=40`,
     );
     const matches = (Array.isArray(rows) ? rows : [])
       .map(readMatch)
-      .filter((match): match is StoredMatch => match !== null)
-      .map((match) => toJson(match, student.id));
-    return res.json({ matches });
+      .filter((match): match is StoredMatch => match !== null);
+    const players = matches.length > 0
+      ? await readPlayers(`match_id=in.(${matches.map((m) => `"${m.id}"`).join(",")})`)
+      : [];
+    const byMatch = new Map<string, unknown[]>();
+    for (const row of players ?? []) {
+      const key = text((row as Record<string, unknown>).match_id);
+      byMatch.set(key, [...(byMatch.get(key) ?? []), row]);
+    }
+    return res.json({
+      matches: matches.map((match) => toJson(withPlayers(match, byMatch.get(match.id) ?? []), student.id)),
+    });
   } catch (error) {
     logger.error({ err: error }, "[duel] inbox failed");
     return res.status(503).json({ error: "تعذّر قراءة تحدّياتك الآن" });
@@ -675,10 +790,7 @@ router.get("/duel/inbox", requireStudentSession, async (_req, res) => {
 });
 
 /**
- * صدارةُ الصفّ بعدد الانتصارات.
- *
- * تُحسب من المباريات لا من عدّادٍ محفوظ: عدّادٌ يُزاد عند كل فوز يفترق عن
- * السجلّ عند أوّل طلبٍ يُعاد.
+ * صدارةُ الصفّ بعدد الانتصارات، من المباريات المنتهية ولاعبيها.
  */
 router.get("/duel/standings", requireStudentSession, async (_req, res) => {
   const student = res.locals.student as StudentActor;
@@ -686,15 +798,29 @@ router.get("/duel/standings", requireStudentSession, async (_req, res) => {
   if (!key) return res.json({ standings: [] });
   try {
     const rows = await rest(
-      `${MATCHES}?select=host_id,guest_id,host_score,guest_score` +
+      `${MATCHES}?select=id,host_id,guest_id,host_score,guest_score,winner_id` +
         `&class_key=eq.${encodeURIComponent(key)}&status=eq.done&limit=1000`,
     );
     const matches = (Array.isArray(rows) ? rows : [])
       .map(readMatch)
       .filter((match): match is StoredMatch => match !== null);
-    const table = standingsOf(matches);
+    const players = matches.length > 0
+      ? await readPlayers(
+        `match_id=in.(${matches.map((m) => `"${m.id}"`).join(",")})`,
+      )
+      : [];
+    const byMatch = new Map<string, string[]>();
+    for (const row of players ?? []) {
+      const r = row as Record<string, unknown>;
+      const key = text(r.match_id);
+      byMatch.set(key, [...(byMatch.get(key) ?? []), text(r.student_id)]);
+    }
+    const table = standingsOf(matches.map((match) => ({
+      ...match,
+      players: byMatch.get(match.id),
+      winnerId: match.winnerId,
+    })));
 
-    // والأسماءُ من جدول الطلاب: الصدارةُ تُقرأ بأسماءٍ لا بمعرّفات.
     const names = new Map<string, { name: string; appearance: unknown }>();
     if (table.length > 0) {
       const ids = table.map((item) => `"${item.studentId}"`).join(",");
@@ -723,14 +849,7 @@ router.get("/duel/standings", requireStudentSession, async (_req, res) => {
   }
 });
 
-/**
- * مباراةٌ بعينها، بأسئلتها.
- *
- * ── ولماذا مسارٌ لها وحدها ──
- * الحزمةُ تُقرأ من الصفّ، وصندوقُ المباريات يُرسل أربعين صفّاً — فحملُ
- * أسئلةِ أربعين مباراةً في كل فتحةٍ للردهة هدرٌ لا يُقرأ منه شيء. فالردهةُ
- * تأخذ الأسماءَ والنتائج، وفتحُ المباراة يأخذ أسئلتَها.
- */
+/** مباراةٌ بعينها، بأسئلتها وغرفتها. ولا يقرؤها إلا لاعبوها. */
 router.get("/duel/:id", requireStudentSession, async (req, res) => {
   const student = res.locals.student as StudentActor;
   const id = text(req.params.id);
@@ -738,9 +857,7 @@ router.get("/duel/:id", requireStudentSession, async (req, res) => {
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة" });
-    // ولا يقرأ المباراةَ إلا طرفاها: أسئلتُها فيها، وثالثٌ يقرؤها يعرف
-    // أجوبةَ مباراةٍ قد يُدعى إليها.
-    if (sideOf(match, student.id) === null) {
+    if (!isPlayer(match, student.id)) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة" });
     }
     return res.json({ match: toJson(match, student.id) });
@@ -796,7 +913,7 @@ router.get("/duel/:id/messages", requireStudentSession, async (req, res) => {
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة" });
-    if (sideOf(match, student.id) === null) {
+    if (!isPlayer(match, student.id)) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة" });
     }
     const rows = await rest(
@@ -833,7 +950,7 @@ router.post("/duel/:id/messages", requireStudentSession, chatLimit, async (req, 
   try {
     const match = await findMatch(id);
     if (!match) return res.status(404).json({ error: "المباراة غير موجودة" });
-    if (sideOf(match, student.id) === null) {
+    if (!isPlayer(match, student.id)) {
       return res.status(403).json({ error: "لست طرفاً في هذه المباراة" });
     }
     await rest(MESSAGES, {

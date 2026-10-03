@@ -24,6 +24,37 @@ enum DuelGame {
   String get label => tr('duel.game.$id');
 }
 
+/// منافسٌ في النزال كما يُعرض: معرّفُه واسمُه وشخصيتُه.
+class DuelRival {
+  const DuelRival({required this.id, required this.name, this.appearance});
+
+  final String id;
+  final String name;
+  final Map<String, dynamic>? appearance;
+}
+
+/// نتيجةُ لاعبٍ في المباراة بعد حسمها: نقاطُه ومركزُه.
+class DuelPlayerScore {
+  const DuelPlayerScore({required this.id, this.score, this.rank});
+
+  final String id;
+  final int? score;
+
+  /// المركز، والمتساويان يشتركان فيه. `null` لمن لم يلعب (رفض أو تأخّر).
+  final int? rank;
+
+  static DuelPlayerScore? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final id = raw['id'];
+    if (id is! String || id.trim().isEmpty) return null;
+    return DuelPlayerScore(
+      id: id.trim(),
+      score: raw['score'] is int ? raw['score'] as int : null,
+      rank: raw['rank'] is int ? raw['rank'] as int : null,
+    );
+  }
+}
+
 /// مباراةٌ كما يراها صاحبُ الجهاز: نتيجتي أمام نتيجته.
 class DuelMatch {
   const DuelMatch({
@@ -40,7 +71,11 @@ class DuelMatch {
     required this.iWon,
     this.questions = const [],
     this.rules = const DuelRules(),
+    this.players = const [],
   });
+
+  /// كلُّ لاعبي المباراة ونتائجُهم — اثنان أو أكثر.
+  final List<DuelPlayerScore> players;
 
   /// أسئلةُ المباراة كما كتبها الخادم. فارغةٌ في ردّ الصندوق — يُطلب
   /// `fetchMatch` لها عند فتح المباراة، فحملُ أسئلةِ أربعين مباراةً في كل
@@ -94,10 +129,16 @@ class DuelMatch {
       winnerId: raw['winnerId'] is String ? raw['winnerId'] as String : null,
       iWon: raw['iWon'] == true,
       questions: [
-        for (final entry in raw['questions'] is List ? raw['questions'] as List : const [])
+        for (final entry
+            in raw['questions'] is List ? raw['questions'] as List : const [])
           if (DuelQuestion.fromJson(entry) case final question?) question,
       ],
       rules: DuelRules.fromJson(raw),
+      players: [
+        for (final entry
+            in raw['players'] is List ? raw['players'] as List : const [])
+          if (DuelPlayerScore.fromJson(entry) case final player?) player,
+      ],
     );
   }
 }
@@ -174,7 +215,11 @@ class DuelInviteEvent {
     this.fromAppearance,
     this.lessonId = '',
     this.game = DuelGame.sprint,
+    this.players = const [],
   });
+
+  /// كلُّ من في التحدي — الداعي ومن دعاهم — ليعرف المدعوُّ مع من سيلعب.
+  final List<String> players;
 
   final DuelInviteKind kind;
 
@@ -199,8 +244,9 @@ class DuelInviteEvent {
     if (matchId.isEmpty || fromId.isEmpty || fromId == myId) return null;
     final kind = switch (event) {
       'invite' => DuelInviteKind.invite,
-      'invite-reply' =>
-        payload['accepted'] == true ? DuelInviteKind.accepted : DuelInviteKind.declined,
+      'invite-reply' => payload['accepted'] == true
+          ? DuelInviteKind.accepted
+          : DuelInviteKind.declined,
       'invite-cancel' => DuelInviteKind.cancelled,
       _ => null,
     };
@@ -217,12 +263,33 @@ class DuelInviteEvent {
         (game) => game.id == text(payload['game']),
         orElse: () => DuelGame.sprint,
       ),
+      players: [
+        for (final id in payload['players'] is List
+            ? payload['players'] as List
+            : const [])
+          if (text(id).isNotEmpty) text(id),
+      ],
     );
   }
 }
 
-/// حالُ غرفة النزال كما يحكم بها الخادم — `roomStateOf` في `api-server`.
+/// حالُ غرفة النزال كما يحكم بها الخادم — `partyRoomOf` في `api-server`.
+///
+///   invited — الدعوةُ تنتظر الردود (الداعي ومن وافق ينتظرون).
+///   ready   — حُسم من يلعب، والنزالُ يبدأ عند [DuelRoom.startAt].
+///   expired — أُلغيت، أو لم يوافق أحدٌ في المهلة.
+///   accepted — من خادمٍ أقدم.
 enum DuelRoomPhase { invited, accepted, ready, expired, done }
+
+/// ردُّ مدعوٍّ كما يراه الجميع في غرفة الانتظار.
+enum DuelPlayerStatus { host, pending, accepted, declined, late }
+
+class DuelRoomPlayer {
+  const DuelRoomPlayer({required this.id, required this.status});
+
+  final String id;
+  final DuelPlayerStatus status;
+}
 
 class DuelRoom {
   const DuelRoom({
@@ -230,14 +297,33 @@ class DuelRoom {
     this.hostJoined = false,
     this.guestJoined = false,
     this.startAt,
+    this.decideBy,
+    this.roster = const [],
+    this.players = const [],
   });
 
   final DuelRoomPhase phase;
   final bool hostJoined;
   final bool guestJoined;
 
-  /// موعدُ أوّل سؤال بساعة هذا الجهاز، حين يدخل الاثنان.
+  /// موعدُ أوّل سؤال بساعة هذا الجهاز، حين يُحسم من يلعب.
   final DateTime? startAt;
+
+  /// آخرُ لحظةٍ للردّ على الدعوة، بساعة هذا الجهاز.
+  final DateTime? decideBy;
+
+  /// من يلعب: الداعي ومن وافق في المهلة. فارغةٌ قبل الحسم.
+  final List<String> roster;
+
+  /// المدعوّون وحالُ كلٍّ منهم.
+  final List<DuelRoomPlayer> players;
+
+  String? get hostId {
+    for (final player in players) {
+      if (player.status == DuelPlayerStatus.host) return player.id;
+    }
+    return null;
+  }
 
   /// ── والموعدُ بساعة الجهاز لا الخادم ──
   /// ساعتا جهازين تختلفان بثوانٍ، وموعدٌ واحدٌ يُقرأ بساعتين يبدأ في لحظتين. فيُحسب
@@ -255,19 +341,37 @@ class DuelRoom {
     if (phase == null) return null;
     DateTime? read(Object? value) =>
         value is String ? DateTime.tryParse(value) : null;
-    final serverStart = read(raw['startAt']);
     final serverNow = read(raw['serverNow']);
-    DateTime? startAt;
-    if (serverStart != null) {
-      final local = receivedAt ?? clock.now();
-      final skew = serverNow == null ? Duration.zero : local.difference(serverNow);
-      startAt = serverStart.add(skew);
-    }
+    final local = receivedAt ?? clock.now();
+    final skew =
+        serverNow == null ? Duration.zero : local.difference(serverNow);
+    DateTime? toLocal(Object? value) => read(value)?.add(skew);
     return DuelRoom(
       phase: phase,
       hostJoined: raw['hostJoined'] == true,
       guestJoined: raw['guestJoined'] == true,
-      startAt: startAt,
+      startAt: toLocal(raw['startAt']),
+      decideBy: toLocal(raw['decideBy']),
+      roster: [
+        for (final id
+            in raw['roster'] is List ? raw['roster'] as List : const [])
+          if (id is String && id.isNotEmpty) id,
+      ],
+      players: [
+        for (final entry
+            in raw['players'] is List ? raw['players'] as List : const [])
+          if (entry is Map && entry['id'] is String)
+            DuelRoomPlayer(
+              id: entry['id'] as String,
+              status: switch (entry['status']) {
+                'host' => DuelPlayerStatus.host,
+                'accepted' => DuelPlayerStatus.accepted,
+                'declined' => DuelPlayerStatus.declined,
+                'late' => DuelPlayerStatus.late,
+                _ => DuelPlayerStatus.pending,
+              },
+            ),
+      ],
     );
   }
 }
@@ -369,7 +473,8 @@ class StudentDuelService {
     final http.Response response;
     try {
       response = await (post
-              ? _client.post(target, headers: headers, body: jsonEncode(body ?? {}))
+              ? _client.post(target,
+                  headers: headers, body: jsonEncode(body ?? {}))
               : _client.get(target, headers: headers))
           .timeout(_timeout);
     } catch (_) {
@@ -381,7 +486,9 @@ class StudentDuelService {
     } catch (_) {
       payload = null;
     }
-    final map = payload is Map ? Map<String, Object?>.from(payload) : <String, Object?>{};
+    final map = payload is Map
+        ? Map<String, Object?>.from(payload)
+        : <String, Object?>{};
     if (response.statusCode < 200 || response.statusCode >= 300) {
       // ورسالةُ الخادم تُقدَّم: هو يعرف السبب — زميلٌ من خارج الصفّ، أو
       // حسابٌ بلا صفّ — ونحن لا نعرف إلا أنه ردّ.
@@ -395,11 +502,11 @@ class StudentDuelService {
     return map;
   }
 
-  /// يُنشئ مباراةً حيّةً مع زميلٍ متصلٍ الآن. والدعوةُ نفسُها تُبثّ بعدها على
-  /// قناة الصفّ — انظر [sendInvite].
+  /// يُنشئ مباراةً حيّةً مع زميلٍ أو أكثر من المتصلين الآن. والدعوةُ نفسُها
+  /// تُبثّ بعدها على قناة الصفّ — انظر [sendInvite].
   Future<DuelMatch> invite({
     required String lessonId,
-    required String guestId,
+    required List<String> guestIds,
     DuelGame game = DuelGame.sprint,
   }) async {
     final map = await _send(
@@ -407,7 +514,9 @@ class StudentDuelService {
       post: true,
       body: {
         'lessonId': lessonId,
-        'guestId': guestId,
+        'guestIds': guestIds,
+        // لخادمٍ أقدم لا يعرف القائمة.
+        'guestId': guestIds.isEmpty ? '' : guestIds.first,
         'game': game.id,
       },
     );
@@ -436,9 +545,8 @@ class StudentDuelService {
   /// الدرس الحرفية، والمبارزةُ لا تعود إليها.
   Future<List<DuelQuestion>?> claimPack(String matchId) async {
     try {
-      final raw = await authService.client
-          .rpc('claim_duel_pack', params: {'p_match_id': matchId})
-          .timeout(const Duration(seconds: 5));
+      final raw = await authService.client.rpc('claim_duel_pack',
+          params: {'p_match_id': matchId}).timeout(const Duration(seconds: 5));
       return duelPackFrom(raw);
     } catch (error) {
       debugPrint('[duel] pack not claimed: $error');
@@ -560,8 +668,10 @@ class StudentDuelService {
   ///
   /// ولا يدخل الضيفُ إلا إن عادت «accepted»: دعوةٌ أُلغيت أو فاتت مهلتُها لا
   /// تُفتح له غرفةٌ يجلس فيها وحده.
-  Future<DuelRoom> respond({required String matchId, required bool accept}) async {
-    final map = await _send('$matchId/respond', post: true, body: {'accept': accept});
+  Future<DuelRoom> respond(
+      {required String matchId, required bool accept}) async {
+    final map =
+        await _send('$matchId/respond', post: true, body: {'accept': accept});
     return DuelRoom.fromJson(map['room'], receivedAt: clock.now()) ??
         const DuelRoom(phase: DuelRoomPhase.expired);
   }
@@ -610,6 +720,7 @@ class StudentDuelService {
     required DuelMatch match,
     required String myName,
     Map<String, dynamic>? myAppearance,
+    List<String> players = const [],
   }) =>
       _broadcastOnClass('invite', {
         'to': to,
@@ -619,6 +730,7 @@ class StudentDuelService {
         'game': match.game,
         'name': myName,
         'appearance': myAppearance,
+        'players': players,
       });
 
   /// يردّ على دعوة: قبولٌ أو رفض.
@@ -678,7 +790,9 @@ class StudentDuelService {
           event: event,
           callback: (payload) {
             final parsed = DuelInviteEvent.fromPayload(event, payload, _myId);
-            if (parsed != null && !_inviteEvents.isClosed) _inviteEvents.add(parsed);
+            if (parsed != null && !_inviteEvents.isClosed) {
+              _inviteEvents.add(parsed);
+            }
           },
         );
       }
@@ -782,7 +896,14 @@ class StudentDuelService {
       }
       if (onSignal != null) {
         // إشاراتُ الساعة الحيّة: من دخل، ومتى نبدأ، وأيُّ سؤالٍ الآن، ومن كسبه.
-        for (final event in const ['ready', 'start', 'next', 'won', 'answered', 'left']) {
+        for (final event in const [
+          'ready',
+          'start',
+          'next',
+          'won',
+          'answered',
+          'left'
+        ]) {
           channel.onBroadcast(
             event: event,
             callback: (payload) => onSignal(event, payload),

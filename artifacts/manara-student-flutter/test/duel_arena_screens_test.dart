@@ -83,10 +83,10 @@ class FakeDuel implements StudentDuelService {
   @override
   Future<DuelMatch> invite({
     required String lessonId,
-    required String guestId,
+    required List<String> guestIds,
     DuelGame game = DuelGame.sprint,
   }) async {
-    log.add('invite:$guestId:${game.id}');
+    log.add('invite:${guestIds.join(',')}:${game.id}');
     phases['m1'] = DuelRoomPhase.invited;
     return matchOf('m1');
   }
@@ -133,8 +133,9 @@ class FakeDuel implements StudentDuelService {
     required DuelMatch match,
     required String myName,
     Map<String, dynamic>? myAppearance,
+    List<String> players = const [],
   }) {
-    log.add('sendInvite:$to:${match.id}');
+    log.add('sendInvite:$to:${match.id}:${players.join(',')}');
     return true;
   }
 
@@ -394,19 +395,36 @@ void main() {
           findsOneWidget);
     });
 
+    /// يختار زميلاً بالضغط على بطاقته.
+    Future<void> pick(WidgetTester tester, String name) async {
+      final card = find.ancestor(
+        of: find.text(name),
+        matching: find
+            .byWidgetPredicate((w) => w.runtimeType.toString() == '_RivalCard'),
+      );
+      await tapVisible(tester, card);
+      await settle(tester, 2);
+    }
+
     testWidgets('اللعبةُ أوّلاً: التحدي مقفلٌ حتى تُختار', (tester) async {
       final duel = await pumpLobby(tester);
       expect(find.text(tr('arena.pickGameFirst')), findsOneWidget);
       for (final game in DuelGame.values) {
         expect(find.text(game.label), findsOneWidget);
       }
+      await pick(tester, 'سارة');
+      expect(find.text(tr('arena.party.picked')), findsNothing,
+          reason: 'لا اختيارَ قبل اللعبة');
       await tapVisible(tester, find.text(tr('arena.challenge')));
       await settle(tester, 2);
       expect(duel.log.where((e) => e.startsWith('invite')), isEmpty);
       await tapVisible(tester, find.text(DuelGame.balloons.label));
       await settle(tester, 2);
       expect(find.text(tr('arena.pickGameFirst')), findsNothing);
-      await tapVisible(tester, find.text(tr('arena.challenge')));
+      await pick(tester, 'سارة');
+      expect(find.text(tr('arena.party.picked')), findsOneWidget);
+      await tapVisible(
+          tester, find.text(trf('arena.party.challengeN', {'n': '1'})));
       await settle(tester, 3);
       expect(duel.log, contains('invite:r1:balloons'));
     });
@@ -417,23 +435,103 @@ void main() {
       await pumpLobby(tester, size: const Size(390, 1800));
       expect(
           find.textContaining(trf('arena.online', {'n': '1'})), findsOneWidget);
-      expect(find.text(tr('arena.challenge')), findsOneWidget);
+      expect(find.text(tr('arena.party.pick')), findsOneWidget);
       // مرّةً في بطاقة التحدّي، ومرّةً في «أبطال الصف».
       expect(find.text('سارة'), findsNWidgets(2));
       expect(find.text(tr('arena.unavailable')), findsNWidgets(2));
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('غادرتُ الساحةَ والدعوةُ قائمة: تُسحب ولا تبقى معلّقة',
+    testWidgets(
+        'اختيارٌ متعدّد: زميلان بضغطةٍ لكلٍّ، ودعوةٌ واحدةٌ تصلهما معاً',
+        (tester) async {
+      sized(tester, const Size(390, 1800));
+      final duel = FakeDuel();
+      duel.online.value = {'r1', 'r2'};
+      addTearDown(duel.events.close);
+      await tester.pumpWidget(MaterialApp(
+        home: StudentDuelScreen(
+          profile: me,
+          duelService: duel,
+          challengeService: NoChallenge(),
+          leaderboardService: FakeBoard(),
+          academicContext: lessonContext,
+        ),
+      ));
+      await settle(tester);
+      await tapVisible(tester, find.text(DuelGame.tug.label));
+      await settle(tester, 2);
+      await pick(tester, 'سارة');
+      await pick(tester, 'خالد');
+      expect(find.text(tr('arena.party.picked')), findsNWidgets(2));
+      expect(find.text(tr('arena.party.rules')), findsOneWidget);
+      await tapVisible(
+          tester, find.text(trf('arena.party.challengeN', {'n': '2'})));
+      await settle(tester, 3);
+      expect(duel.log, contains('invite:r1,r2:tug'));
+      expect(
+          duel.log,
+          containsAll(
+              ['sendInvite:r1:m1:me,r1,r2', 'sendInvite:r2:m1:me,r1,r2']));
+      final screen =
+          tester.widget<DuelMatchScreen>(find.byType(DuelMatchScreen));
+      expect(screen.rivals.map((r) => r.id), ['r1', 'r2']);
+      expect(find.text(tr('arena.party.waitingTitle')), findsOneWidget);
+    });
+
+    testWidgets('يتحدّى فيدخل غرفةَ الانتظار فوراً، ويبدأ حين يوافق الزميل',
         (tester) async {
       final duel = await pumpLobby(tester);
       await tapVisible(tester, find.text(DuelGame.sprint.label));
       await settle(tester, 2);
-      await tapVisible(tester, find.text(tr('arena.challenge')));
+      await pick(tester, 'سارة');
+      await tapVisible(
+          tester, find.text(trf('arena.party.challengeN', {'n': '1'})));
       await settle(tester, 3);
-      await tester.pumpWidget(const SizedBox());
+      expect(duel.log,
+          containsAll(['invite:r1:sprint', 'sendInvite:r1:m1:me,r1']));
+      expect(find.byType(DuelMatchScreen), findsOneWidget);
+      expect(find.text(tr('arena.party.waitingTitle')), findsOneWidget);
+      expect(find.text(tr('arena.party.pending')), findsOneWidget);
+
+      // الخادمُ: وافق الزميلُ فحُسم من يلعب.
+      duel.phases['m1'] = DuelRoomPhase.accepted;
+      duel.rivalJoined = true;
+      await settle(tester, 6);
+      expect(find.text(tr('arena.getReady')), findsOneWidget);
+    });
+
+    testWidgets('لم يوافق أحد: يعود إلى الساحة وحده ويقال ذلك', (tester) async {
+      final duel = await pumpLobby(tester);
+      await tapVisible(tester, find.text(DuelGame.sprint.label));
+      await settle(tester, 2);
+      await pick(tester, 'سارة');
+      await tapVisible(
+          tester, find.text(trf('arena.party.challengeN', {'n': '1'})));
       await settle(tester, 3);
-      expect(duel.log, containsAll(['cancelInvite:m1', 'cancel:m1']));
+      duel.phases['m1'] = DuelRoomPhase.expired;
+      await settle(tester, 10);
+      expect(find.text(tr('arena.failNobody')), findsOneWidget);
+      await settle(tester, 30);
+      expect(find.byType(DuelMatchScreen), findsNothing,
+          reason: 'عاد إلى الساحة');
+      expect(find.text(tr('arena.failNobody')), findsOneWidget,
+          reason: 'رسالةٌ في الساحة');
+      expect(duel.log, contains('cancelInvite:m1'));
+    });
+
+    testWidgets('غادرتُ غرفةَ الانتظار: تُلغى الدعوة', (tester) async {
+      final duel = await pumpLobby(tester);
+      await tapVisible(tester, find.text(DuelGame.sprint.label));
+      await settle(tester, 2);
+      await pick(tester, 'سارة');
+      await tapVisible(
+          tester, find.text(trf('arena.party.challengeN', {'n': '1'})));
+      await settle(tester, 3);
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await settle(tester, 5);
+      expect(duel.log, containsAll(['cancel:m1', 'cancelInvite:m1']));
+      expect(find.byType(DuelMatchScreen), findsNothing);
     });
 
     testWidgets('ولا زرَّ دردشة في الساحة', (tester) async {
@@ -442,85 +540,24 @@ void main() {
       expect(find.byType(FloatingActionButton), findsNothing);
     });
 
-    testWidgets('يتحدّى فينتظر، ويُقبل فتُفتح غرفةُ النزال وتبقى مفتوحة',
+    testWidgets('تحدٍّ جماعيٌّ يصلني: أعرف من معي، وأدخل بهم جميعاً',
         (tester) async {
       final duel = await pumpLobby(tester);
-      await tapVisible(tester, find.text(DuelGame.sprint.label));
-      await settle(tester, 2);
-      await tapVisible(tester, find.text(tr('arena.challenge')));
-      await settle(tester, 3);
-      expect(duel.log, containsAll(['invite:r1:sprint', 'sendInvite:r1:m1']));
-      expect(find.text(trf('arena.waitingTitle', {'name': 'سارة'})),
-          findsOneWidget);
-
-      // الخادمُ كتب القَبول؛ والإشارةُ تُسرّع السؤالَ عنه.
-      duel.phases['m1'] = DuelRoomPhase.accepted;
       duel.events.add(const DuelInviteEvent(
-        kind: DuelInviteKind.accepted,
-        matchId: 'm1',
+        kind: DuelInviteKind.invite,
+        matchId: 'm9',
         fromId: 'r1',
+        fromName: 'سارة',
+        players: ['r1', 'me', 'r2'],
       ));
-      await settle(tester, 5);
-      // والنافذةُ أزالت مسارَها هي: الغرفةُ التي فُتحت للتوّ باقية.
-      expect(find.byType(DuelMatchScreen), findsOneWidget);
-      expect(
-          find.text(trf('arena.waitingTitle', {'name': 'سارة'})), findsNothing);
-    });
-
-    testWidgets('إشارةُ «قبل» وحدها لا تفتح الغرفة: الخادمُ هو الحَكَم',
-        (tester) async {
-      final duel = await pumpLobby(tester);
-      await tapVisible(tester, find.text(DuelGame.sprint.label));
-      await settle(tester, 2);
-      await tapVisible(tester, find.text(tr('arena.challenge')));
       await settle(tester, 3);
-      duel.events.add(const DuelInviteEvent(
-        kind: DuelInviteKind.accepted,
-        matchId: 'm1',
-        fromId: 'r1',
-      ));
+      expect(find.textContaining('خالد'), findsWidgets);
+      await tester.tap(find.text(tr('arena.accept')));
       await settle(tester, 5);
-      expect(find.byType(DuelMatchScreen), findsNothing,
-          reason: 'لم يكتب الخادمُ قَبولاً');
-      expect(find.text(trf('arena.waitingTitle', {'name': 'سارة'})),
-          findsOneWidget);
-      // وتنتهي المهلةُ بلا قَبول: يُلغى ويقال ذلك.
-      await settle(tester, 300);
-      expect(
-          find.text(trf('arena.noAnswer', {'name': 'سارة'})), findsOneWidget);
-      expect(duel.log, contains('cancel:m1'));
-    });
-
-    testWidgets('المهلةُ انتهت عندي والزميلُ قبل في آخر لحظة: أدخل ولا أتركه',
-        (tester) async {
-      final duel = await pumpLobby(tester);
-      await tapVisible(tester, find.text(DuelGame.sprint.label));
-      await settle(tester, 2);
-      await tapVisible(tester, find.text(tr('arena.challenge')));
-      await settle(tester, 295);
-      // قبل الزميلُ والإلغاءُ في طريقه: الخادمُ يردّ الإلغاءَ لأنّ القَبولَ سبقه.
-      duel.phases['m1'] = DuelRoomPhase.accepted;
-      duel.rivalJoined = true;
-      await settle(tester, 10);
-      expect(find.byType(DuelMatchScreen), findsOneWidget);
-    });
-
-    testWidgets('يُرفض التحدي: يقال ذلك، وتُلغى المباراة', (tester) async {
-      final duel = await pumpLobby(tester);
-      await tapVisible(tester, find.text(DuelGame.sprint.label));
-      await settle(tester, 2);
-      await tapVisible(tester, find.text(tr('arena.challenge')));
-      await settle(tester, 3);
-      duel.phases['m1'] = DuelRoomPhase.expired;
-      duel.events.add(const DuelInviteEvent(
-        kind: DuelInviteKind.declined,
-        matchId: 'm1',
-        fromId: 'r1',
-      ));
-      await settle(tester, 5);
-      expect(
-          find.text(trf('arena.declined', {'name': 'سارة'})), findsOneWidget);
-      expect(find.byType(DuelMatchScreen), findsNothing);
+      final screen =
+          tester.widget<DuelMatchScreen>(find.byType(DuelMatchScreen));
+      expect(screen.rivals.map((r) => r.id), ['r1', 'r2']);
+      expect(screen.isHost, isFalse);
     });
 
     testWidgets('يصلني تحدٍّ فأقبله: أردّ، وتُفتح الغرفةُ ضيفاً',
@@ -634,8 +671,7 @@ void main() {
     }
 
     Future<void> toFirstQuestion(WidgetTester tester, FakeDuel duel) async {
-      expect(find.text(trf('arena.waitingRival', {'name': 'سارة'})),
-          findsOneWidget);
+      expect(find.text(tr('arena.party.waitingTitle')), findsOneWidget);
       expect(find.byType(DuelChatButton), findsNothing,
           reason: 'لا دردشةَ والزميلُ غائب');
       duel.rivalJoined = true;
@@ -707,7 +743,7 @@ void main() {
     testWidgets('الزميلُ لم يدخل: لا عدَّ ولا سؤالَ ولا دردشة، ثم رسالةٌ وعودة',
         (tester) async {
       await pumpMatch(tester);
-      for (var i = 0; i < 27; i++) {
+      for (var i = 0; i < 33; i++) {
         await settle(tester, 10);
         expect(find.text(tr('arena.getReady')), findsNothing);
         expect(find.byType(AnswerTile), findsNothing);
@@ -716,6 +752,40 @@ void main() {
       expect(
           find.text(trf('arena.failRival', {'name': 'سارة'})), findsOneWidget);
       expect(find.text(tr('arena.back')), findsOneWidget);
+    });
+
+    testWidgets('نزالٌ جماعي: لوحةُ نتائجٍ حيّة، ومن كسب السؤالَ يُسمّى',
+        (tester) async {
+      sized(tester, const Size(390, 1000));
+      final duel = FakeDuel();
+      addTearDown(duel.events.close);
+      await tester.pumpWidget(MaterialApp(
+        home: DuelMatchScreen(
+          profile: me,
+          duelService: duel,
+          matchId: 'm1',
+          rivalId: 'r1',
+          rivalName: 'سارة',
+          rivals: const [
+            DuelRival(id: 'r1', name: 'سارة'),
+            DuelRival(id: 'r2', name: 'خالد'),
+          ],
+          isHost: true,
+          transport: ServiceDuelTransport(duel),
+        ),
+      ));
+      await settle(tester, 3);
+      expect(find.text(tr('arena.party.waitingTitle')), findsOneWidget);
+      expect(find.text('سارة'), findsOneWidget);
+      expect(find.text('خالد'), findsOneWidget);
+      await toFirstQuestion(tester, duel);
+      expect(find.textContaining(tr('arena.scoreboard')), findsOneWidget);
+      duel.signal!('won', {'by': 'r2', 'index': 0});
+      await settle(tester, 6);
+      expect(
+          find.text(trf('arena.rivalWon', {'name': 'خالد'})), findsOneWidget);
+      expect(find.text(trf('arena.party.points', {'n': '10'})), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('لا تجاوزَ في السؤال على شاشةٍ ضيّقة وعريضة', (tester) async {

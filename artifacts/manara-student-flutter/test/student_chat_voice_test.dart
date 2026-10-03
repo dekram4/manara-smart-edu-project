@@ -81,8 +81,12 @@ void main() {
   /// ردٌّ بديل لرفع المقطع: يُحاكى به خادمٌ يرفض أو لم يُنشر عليه المسار.
   http.Response? voiceReply;
 
+  /// الخادمُ يدعم الاختفاءَ والحفظ.
+  late bool ephemeral;
+
   setUp(() {
     voiceReply = null;
+    ephemeral = false;
     requests = [];
     recorder = FakeRecorder();
     access = MicAccess.granted;
@@ -114,7 +118,8 @@ void main() {
         requests.add(request);
         final path = request.url.path;
         if (path.endsWith('/chat/messages') && request.method == 'GET') {
-          return http.Response(jsonEncode({'messages': messages}), 200,
+          return http.Response(
+              jsonEncode({'messages': messages, 'ephemeral': ephemeral}), 200,
               headers: {'content-type': 'application/json; charset=utf-8'});
         }
         if (path.endsWith('/chat/peers')) {
@@ -138,6 +143,24 @@ void main() {
           messages = [...messages, message];
           return http.Response(jsonEncode({'message': message}), 201,
               headers: {'content-type': 'application/json; charset=utf-8'});
+        }
+        if (path.endsWith('/chat/seen')) {
+          return http.Response(jsonEncode({'seen': 1}), 200);
+        }
+        if (path.endsWith('/chat/save')) {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({
+              'id': body['id'],
+              'savedUntil': body['saved'] == true
+                  ? DateTime.now()
+                      .add(const Duration(hours: 24))
+                      .toUtc()
+                      .toIso8601String()
+                  : null,
+            }),
+            200,
+          );
         }
         if (path.contains('/chat/voice/')) {
           return http.Response.bytes(List.filled(2048, 3), 200,
@@ -360,5 +383,124 @@ void main() {
     expect(post.headers['Content-Type'], startsWith('application/json'));
     final body = jsonDecode(post.body) as Map<String, dynamic>;
     expect(body.keys, containsAll(['audio', 'durationMs', 'to']));
+  });
+
+  group('رسائلُ تختفي بعد قراءتها', () {
+    setUp(() {
+      ephemeral = true;
+      messages = [
+        ...messages,
+        {
+          'id': 'chat_mine_aaaaaaaa',
+          'from': 'me',
+          'name': 'أنا',
+          'to': 'all',
+          'message': 'رسالتي',
+          'kind': 'text',
+          'time': '2026-10-01T10:02:00Z',
+        },
+      ];
+    });
+
+    Future<void> leave(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox());
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    List<String> seenIds() {
+      final post = requests.where((r) => r.url.path.endsWith('/chat/seen'));
+      return [
+        for (final r in post)
+          ...((jsonDecode(r.body) as Map)['ids'] as List).cast<String>(),
+      ];
+    }
+
+    testWidgets('يُشرح للطفل كيف تعمل الدردشة', (tester) async {
+      await pump(tester);
+      expect(find.text(tr('chat.ephemeral.notice')), findsOneWidget);
+    });
+
+    testWidgets(
+        'يغادر: يُبلَّغ ما قرأه — النصُّ ورسائلُه، لا المقطعُ الذي لم يسمعه',
+        (tester) async {
+      await pump(tester);
+      expect(seenIds(), isEmpty, reason: 'لا شيء قبل المغادرة');
+      await leave(tester);
+      expect(seenIds()..sort(), ['chat_mine_aaaaaaaa', 'm2']);
+    });
+
+    testWidgets('سمع المقطع ثم غادر: يُبلَّغ معه', (tester) async {
+      await pump(tester);
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await leave(tester);
+      expect(seenIds(), containsAll(['m1', 'm2', 'chat_mine_aaaaaaaa']));
+    });
+
+    testWidgets('ضغطةٌ مطوّلة: «حفظ الرسالة 📌» يحفظها 24 ساعة ويظهر الدبّوس',
+        (tester) async {
+      await pump(tester);
+      await tester.longPress(find.text('مرحبا'));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text(tr('chat.save.action')), findsOneWidget);
+      await tester.tap(find.text(tr('chat.save.action')));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final save =
+          requests.singleWhere((r) => r.url.path.endsWith('/chat/save'));
+      expect(jsonDecode(save.body), {'id': 'm2', 'saved': true});
+      expect(find.textContaining('📌 '), findsWidgets);
+      expect(find.text(tr('chat.save.done')), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('زرُّ 📌 يلغي حفظ رسالةٍ محفوظة', (tester) async {
+      messages = [
+        for (final m in messages)
+          m['id'] == 'm2'
+              ? {
+                  ...m,
+                  'savedUntil': DateTime.now()
+                      .add(const Duration(hours: 5))
+                      .toUtc()
+                      .toIso8601String(),
+                }
+              : m,
+      ];
+      await pump(tester);
+      expect(find.text(trf('chat.save.left', {'h': '4'})), findsOneWidget);
+      final pin = find.descendant(
+        of: find
+            .ancestor(of: find.text('مرحبا'), matching: find.byType(Column))
+            .first,
+        matching: find.text('📌'),
+      );
+      await tester.tap(pin);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final save =
+          requests.singleWhere((r) => r.url.path.endsWith('/chat/save'));
+      expect(jsonDecode(save.body), {'id': 'm2', 'saved': false});
+      expect(find.text(tr('chat.save.undone')), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    });
+  });
+
+  testWidgets('خادمٌ بلا جدول الإيصالات: لا شرحَ ولا دبّوسَ ولا إبلاغ',
+      (tester) async {
+    await pump(tester);
+    expect(find.text(tr('chat.ephemeral.notice')), findsNothing);
+    expect(find.text('📌'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(requests.where((r) => r.url.path.endsWith('/chat/seen')), isEmpty);
   });
 }

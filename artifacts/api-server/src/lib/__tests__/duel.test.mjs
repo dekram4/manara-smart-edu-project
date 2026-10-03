@@ -252,62 +252,149 @@ test("والأعلى نقاطاً يفوز", () => {
   assert.equal(outcome.winnerId, "h");
 });
 
-// ── المصافحة ──
+// ── الغرفة: دعوةُ زميلٍ أو أكثر ──
 
-const { roomStateOf, DUEL_INVITE_SECONDS, DUEL_JOIN_SECONDS, DUEL_START_DELAY_MS } = mod;
+const {
+  partyRoomOf,
+  canRespond,
+  partyScores,
+  rankParty,
+  legacyPlayers,
+  DUEL_INVITE_SECONDS,
+  DUEL_MAX_INVITEES,
+  DUEL_START_DELAY_MS,
+} = mod;
 const T0 = Date.parse("2026-10-01T10:00:00Z");
 const iso = (ms) => new Date(T0 + ms).toISOString();
-const times = (over = {}) => ({
-  status: "pending",
-  createdAt: iso(0),
-  acceptedAt: null,
-  hostJoinedAt: null,
-  guestJoinedAt: null,
-  ...over,
-});
 const now = (ms) => new Date(T0 + ms);
-
-test("الدعوةُ تنتظر الردّ في مهلتها، وبعدها منتهية", () => {
-  assert.equal(roomStateOf(times(), now(5_000)).phase, "invited");
-  assert.equal(roomStateOf(times(), now(DUEL_INVITE_SECONDS * 1000 + 1)).phase, "expired");
+const pending = { status: "pending", createdAt: iso(0) };
+const host = { studentId: "h", role: "host", respondedAt: iso(0), accepted: true };
+const guest = (id, ms = null, accepted = null) => ({
+  studentId: id,
+  role: "guest",
+  respondedAt: ms === null ? null : iso(ms),
+  accepted,
 });
 
-test("قُبلت: الغرفةُ تنتظر الاثنين، ولا موعدَ قبل دخولهما", () => {
-  const state = roomStateOf(times({ acceptedAt: iso(3_000), hostJoinedAt: iso(4_000) }), now(5_000));
-  assert.equal(state.phase, "accepted");
-  assert.equal(state.startAt, null);
-  assert.equal(state.hostJoined, true);
-  assert.equal(state.guestJoined, false);
+test("المهلةُ عشرون ثانية، وخمسةُ مدعوّين على الأكثر", () => {
+  assert.equal(DUEL_INVITE_SECONDS, 20);
+  assert.equal(DUEL_MAX_INVITEES, 5);
 });
 
-test("دخلا: الموعدُ بعد دخول الثاني بمهلة البدء", () => {
-  const state = roomStateOf(
-    times({ acceptedAt: iso(3_000), hostJoinedAt: iso(4_000), guestJoinedAt: iso(6_500) }),
-    now(7_000),
+test("الكلُّ لم يردّ والمهلةُ قائمة: ننتظر، ولا موعد", () => {
+  const room = partyRoomOf(pending, [host, guest("a"), guest("b")], now(5_000));
+  assert.equal(room.phase, "invited");
+  assert.equal(room.startAt, null);
+  assert.deepEqual(room.statuses, { h: "host", a: "pending", b: "pending" });
+  assert.equal(room.decideBy.getTime(), T0 + 20_000);
+});
+
+test("وافق الجميعُ في خمس ثوانٍ: يبدأ فوراً لا بعد العشرين", () => {
+  const room = partyRoomOf(
+    pending,
+    [host, guest("a", 3_000, true), guest("b", 5_000, true)],
+    now(5_100),
   );
-  assert.equal(state.phase, "ready");
-  assert.equal(state.startAt.getTime(), T0 + 6_500 + DUEL_START_DELAY_MS);
+  assert.equal(room.phase, "ready");
+  assert.deepEqual(room.roster, ["h", "a", "b"]);
+  assert.equal(room.startAt.getTime(), T0 + 5_000 + DUEL_START_DELAY_MS);
 });
 
-test("قُبلت ولم يدخل أحدُهما في مهلته: منتهية — لا يبدأ وحده", () => {
-  const state = roomStateOf(
-    times({ acceptedAt: iso(3_000), guestJoinedAt: iso(4_000) }),
-    now(3_000 + DUEL_JOIN_SECONDS * 1000 + 1),
+test("ردّ الجميعُ وبعضُهم رفض: يبدأ فوراً بمن وافق", () => {
+  const room = partyRoomOf(
+    pending,
+    [host, guest("a", 2_000, true), guest("b", 4_000, false)],
+    now(4_500),
   );
-  assert.equal(state.phase, "expired");
+  assert.equal(room.phase, "ready");
+  assert.deepEqual(room.roster, ["h", "a"]);
+  assert.equal(room.statuses.b, "declined");
 });
 
-test("ومهلةُ الدعوة لا تُنهي مباراةً قُبلت ودخلها الاثنان", () => {
-  const state = roomStateOf(
-    times({ acceptedAt: iso(3_000), hostJoinedAt: iso(4_000), guestJoinedAt: iso(5_000) }),
-    now(10 * 60_000),
+test("ما زال واحدٌ لم يردّ: ننتظره حتى المهلة", () => {
+  const room = partyRoomOf(pending, [host, guest("a", 2_000, true), guest("b")], now(10_000));
+  assert.equal(room.phase, "invited");
+});
+
+test("انتهت المهلة: من لم يردّ يُستبعد، ويبدأ بمن وافق من موعد المهلة", () => {
+  const room = partyRoomOf(
+    pending,
+    [host, guest("a", 2_000, true), guest("b"), guest("c")],
+    now(20_500),
   );
-  assert.equal(state.phase, "ready");
+  assert.equal(room.phase, "ready");
+  assert.deepEqual(room.roster, ["h", "a"]);
+  assert.equal(room.startAt.getTime(), T0 + 20_000 + DUEL_START_DELAY_MS);
+  assert.equal(room.statuses.b, "late");
+});
+
+test("لم يوافق أحد — رفضوا أو لم يردّوا: يُلغى", () => {
+  assert.equal(
+    partyRoomOf(pending, [host, guest("a", 1_000, false), guest("b", 2_000, false)], now(2_100)).phase,
+    "expired",
+  );
+  assert.equal(partyRoomOf(pending, [host, guest("a"), guest("b")], now(20_001)).phase, "expired");
+});
+
+test("ردٌّ بعد المهلة لا يُحسب ولا يُقبل", () => {
+  const players = [host, guest("a", 2_000, true), guest("b", 21_000, true)];
+  const room = partyRoomOf(pending, players, now(22_000));
+  assert.deepEqual(room.roster, ["h", "a"]);
+  assert.equal(room.statuses.b, "late");
+  assert.equal(canRespond(pending, [host, guest("a")], "a", now(19_000)), true);
+  assert.equal(canRespond(pending, [host, guest("a")], "a", now(20_001)), false);
+  assert.equal(canRespond(pending, [host, guest("a", 1_000, true)], "a", now(2_000)), false, "ردّ من قبل");
+  assert.equal(canRespond(pending, [host, guest("a")], "h", now(1_000)), false, "الداعي لا يردّ");
+  assert.equal(canRespond(pending, [host, guest("a")], "x", now(1_000)), false, "ليس مدعوّاً");
 });
 
 test("الملغاةُ والمحسومة كما هي", () => {
-  assert.equal(roomStateOf(times({ status: "expired" }), now(1)).phase, "expired");
-  assert.equal(roomStateOf(times({ status: "done" }), now(1)).phase, "done");
+  assert.equal(partyRoomOf({ ...pending, status: "expired" }, [host, guest("a", 1_000, true)], now(2_000)).phase, "expired");
+  const done = partyRoomOf({ ...pending, status: "done" }, [host, guest("a", 1_000, true)], now(60_000));
+  assert.equal(done.phase, "done");
+  assert.deepEqual(done.roster, ["h", "a"]);
+});
+
+test("مباراةٌ قديمةٌ بلاعبَين: قُبلت فتبدأ بعد قَبولها", () => {
+  const players = legacyPlayers({ hostId: "h", guestId: "g", acceptedAt: iso(3_000), createdAt: iso(0) });
+  const room = partyRoomOf(pending, players, now(3_500));
+  assert.equal(room.phase, "ready");
+  assert.deepEqual(room.roster, ["h", "g"]);
+  assert.equal(room.startAt.getTime(), T0 + 3_000 + DUEL_START_DELAY_MS);
+});
+
+test("النتائج: أوّلُ صحيحٍ يكسب السؤال، ومن ليس في القائمة لا يُحسب", () => {
+  const scores = partyScores(
+    [
+      { studentId: "a", questionIndex: 0, won: true },
+      { studentId: "b", questionIndex: 1, won: true },
+      { studentId: "a", questionIndex: 2, won: true },
+      { studentId: "late", questionIndex: 3, won: true },
+      { studentId: "b", questionIndex: 0, won: true }, // مكرّر: السؤالُ كُسب
+    ],
+    ["h", "a", "b"],
+  );
+  assert.deepEqual([...scores], [["h", 0], ["a", 20], ["b", 10]]);
+});
+
+test("الترتيب: الأعلى أوّلاً، والمتساويان في مركزٍ واحد، والفائزُ واحدٌ أو لا أحد", () => {
+  const ranked = rankParty(new Map([["h", 10], ["a", 30], ["b", 10], ["c", 0]]));
+  assert.equal(ranked.winnerId, "a");
+  assert.deepEqual(ranked.standings.map((s) => [s.studentId, s.rank]), [["a", 1], ["b", 2], ["h", 2], ["c", 4]]);
+  assert.equal(rankParty(new Map([["h", 20], ["a", 20], ["b", 10]])).winnerId, null, "تعادلٌ في القمّة");
+});
+
+test("الصدارة: الجماعيةُ تُحسب لكل لاعبيها، والفوزُ لمن كتبه الحسم", () => {
+  const { standingsOf } = mod;
+  const table = standingsOf([
+    { hostId: "h", guestId: "a", hostScore: 0, guestScore: 30, players: ["h", "a", "b"], winnerId: "b" },
+    { hostId: "a", guestId: "b", hostScore: 5, guestScore: 1 },
+  ]);
+  assert.deepEqual(table, [
+    { studentId: "a", wins: 1, played: 2 },
+    { studentId: "b", wins: 1, played: 2 },
+    { studentId: "h", wins: 0, played: 1 },
+  ]);
 });
 
 test("مفتاحُ الجائزة: الدرسُ واللعبة معاً", () => {

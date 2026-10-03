@@ -96,13 +96,27 @@ enum DuelPhase {
 }
 
 /// لماذا لم تُكمل المباراة.
-enum DuelFailureKind { noQuestions, rivalMissing, server }
+///
+///   nobodyAccepted — دعوتُ ولم يوافق أحدٌ في المهلة: يُلغى التحدي.
+///   excluded       — وافقتُ لكنّ النزالَ بدأ بدوني (ردٌّ متأخّر).
+enum DuelFailureKind {
+  noQuestions,
+  rivalMissing,
+  nobodyAccepted,
+  excluded,
+  server
+}
 
 /// من كسب السؤالَ الحالي.
 enum QuestionWinner { none, me, rival }
 
-/// محرّكُ المبارزة الحيّة: السؤالُ نفسه للاثنين في اللحظة نفسها، وأوّلُ صحيحٍ
-/// يكسبه.
+/// محرّكُ المبارزة الحيّة: السؤالُ نفسه للجميع في اللحظة نفسها، وأوّلُ صحيحٍ
+/// يكسبه — بين لاعبَين أو ستّة.
+///
+/// ── من يلعب يقرّره الخادم ──
+/// الداعي ومن وافق ينتظرون في الغرفة، ويسألون الخادمَ عن حالها. حين يردّ كلُّ
+/// المدعوّين — أو تنتهي مهلةُ العشرين ثانية — يقول الخادمُ «ready» ومعه قائمةُ
+/// اللاعبين وموعدُ أوّل سؤال. ومن لم يوافق في المهلة ليس في القائمة.
 ///
 /// ── ولا يبدأ إلا والاثنان في الغرفة ──
 /// كلُّ جهازٍ يدخل الغرفةَ في الخادم ثم يسأله عن حالها حتى يقول «دخلا» ويعطي
@@ -125,16 +139,31 @@ class DuelLiveController extends ChangeNotifier {
     required this.myId,
     required this.rivalId,
     required this.isHost,
+    List<String>? rivalIds,
     this.questionWindow = const Duration(seconds: duelQuestionSeconds),
     this.revealHold = const Duration(milliseconds: 1600),
-    this.rivalWait = const Duration(seconds: 25),
+    this.rivalWait = const Duration(seconds: 32),
     this.pointsPerQuestion = 10,
-  });
+  }) : _rivals = [
+          ...(rivalIds ?? [rivalId])
+        ];
 
   final DuelLiveTransport transport;
   final String matchId;
   final String myId;
+
+  /// أوّلُ منافس — للعرض في نزالٍ بين اثنين.
   final String rivalId;
+
+  /// المنافسون: المدعوّون قبل الحسم، ثم من وافق منهم.
+  List<String> _rivals;
+  List<String> get rivals => List.unmodifiable(_rivals);
+
+  /// غرفةُ الانتظار كما قالها الخادمُ آخرَ مرّة: من وافق ومن ينتظر.
+  DuelRoom? _room;
+  DuelRoom? get room => _room;
+
+  String? _hostId;
   final bool isHost;
   final Duration questionWindow;
   final Duration revealHold;
@@ -160,8 +189,36 @@ class DuelLiveController extends ChangeNotifier {
 
   int _myPoints = 0;
   int get myPoints => _myPoints;
-  int _rivalPoints = 0;
-  int get rivalPoints => _rivalPoints;
+
+  /// نقاطُ كلِّ منافس.
+  final Map<String, int> _points = {};
+  int pointsOf(String id) => id == myId ? _myPoints : (_points[id] ?? 0);
+
+  /// نقاطُ المتقدّم بين المنافسين — من أنافسه على القمّة.
+  int get rivalPoints => _rivals.fold<int>(
+      0, (best, id) => (_points[id] ?? 0) > best ? _points[id]! : best);
+
+  /// المنافسُ المتقدّم. وعند التساوي أوّلُهم.
+  String get leaderId {
+    var leader = _rivals.isEmpty ? rivalId : _rivals.first;
+    for (final id in _rivals) {
+      if ((_points[id] ?? 0) > (_points[leader] ?? 0)) leader = id;
+    }
+    return leader;
+  }
+
+  /// الترتيبُ الحيّ: أنا والمنافسون، الأعلى أوّلاً، والمتساويان في مركزٍ واحد.
+  List<({String id, int points, int rank})> get standings {
+    final ids = [myId, ..._rivals];
+    ids.sort((a, b) => pointsOf(b).compareTo(pointsOf(a)));
+    final out = <({String id, int points, int rank})>[];
+    for (var i = 0; i < ids.length; i++) {
+      final points = pointsOf(ids[i]);
+      final rank = i > 0 && out.last.points == points ? out.last.rank : i + 1;
+      out.add((id: ids[i], points: points, rank: rank));
+    }
+    return out;
+  }
 
   /// ما اخترتُه في السؤال الحالي.
   int? _picked;
@@ -178,9 +235,20 @@ class DuelLiveController extends ChangeNotifier {
   QuestionWinner _winner = QuestionWinner.none;
   QuestionWinner get winner => _winner;
 
-  bool _rivalAnswered = false;
-  bool _rivalLeft = false;
-  bool get rivalLeft => _rivalLeft;
+  /// من كسب السؤالَ الحالي، إن كسبه منافس.
+  String? _winnerId;
+  String? get winnerId => _winnerId;
+
+  /// من أجاب السؤالَ الحاليّ من المنافسين، ومن غادر النزال.
+  final Set<String> _answered = {};
+  final Set<String> _left = {};
+
+  /// غادر المنافسون كلُّهم.
+  bool get rivalLeft => _rivals.isNotEmpty && _rivals.every(_left.contains);
+
+  /// آخرُ من غادر — يُذكر اسمُه.
+  String? _lastLeft;
+  String? get lastLeft => _lastLeft;
 
   DateTime? _deadline;
   Duration get timeLeft {
@@ -272,17 +340,32 @@ class DuelLiveController extends ChangeNotifier {
   /// ما قاله الخادمُ عن الغرفة.
   void _onRoom(DuelRoom? room) {
     if (room == null || _phase != DuelPhase.waitingRival) return;
+    _room = room;
+    _hostId = room.hostId ?? _hostId;
     switch (room.phase) {
       case DuelRoomPhase.ready:
+        // ── من يلعب: من في القائمة ──
+        if (room.roster.isNotEmpty) {
+          if (!room.roster.contains(myId)) {
+            _fail(DuelFailureKind.excluded);
+            return;
+          }
+          _rivals = [
+            for (final id in room.roster)
+              if (id != myId) id
+          ];
+        }
         final startAt = room.startAt;
         if (startAt != null) _beginCountdown(startAt);
       case DuelRoomPhase.expired:
       case DuelRoomPhase.done:
-        // أُلغيت أو فاتت مهلتُها: الزميلُ لن يدخل.
-        _fail(DuelFailureKind.rivalMissing);
+        // الداعي: لم يوافق أحد. والمدعوّ: أُلغي التحدي.
+        _fail(isHost
+            ? DuelFailureKind.nobodyAccepted
+            : DuelFailureKind.rivalMissing);
       case DuelRoomPhase.invited:
       case DuelRoomPhase.accepted:
-        break;
+        notifyListeners();
     }
   }
 
@@ -291,24 +374,28 @@ class DuelLiveController extends ChangeNotifier {
     if (_disposed) return;
     final from = payload['id'] ?? payload['by'];
     if (from is String && from == myId) return;
+    if (from is! String) return;
     switch (event) {
       case 'ready':
-        if (from == rivalId) unawaited(_checkRoom());
+        unawaited(_checkRoom());
       case 'won':
         final at = payload['index'];
-        if (at is int && at == _index && from == rivalId) _rivalWon();
+        if (at is int && at == _index && _rivals.contains(from)) {
+          _rivalWon(from);
+        }
       case 'answered':
         final at = payload['index'];
-        if (at is int && at == _index && from == rivalId) {
-          _rivalAnswered = true;
+        if (at is int && at == _index && _rivals.contains(from)) {
+          _answered.add(from);
           _maybeAllAnswered();
         }
       case 'next':
         final at = payload['index'];
         if (!isHost && at is int && _questions.isNotEmpty) _goTo(at);
       case 'left':
-        if (from == rivalId) {
-          _rivalLeft = true;
+        if (_rivals.contains(from) && _left.add(from)) {
+          _lastLeft = from;
+          _maybeAllAnswered();
           notifyListeners();
         }
     }
@@ -350,7 +437,8 @@ class DuelLiveController extends ChangeNotifier {
     _pickedCorrect = null;
     _submitting = false;
     _winner = QuestionWinner.none;
-    _rivalAnswered = false;
+    _winnerId = null;
+    _answered.clear();
     _deadline = clock.now().add(questionWindow);
     _set(DuelPhase.question);
     _tick?.cancel();
@@ -375,7 +463,8 @@ class DuelLiveController extends ChangeNotifier {
 
     DuelAnswerResult? answer;
     try {
-      answer = await transport.answer(matchId: matchId, index: at, choice: choice);
+      answer =
+          await transport.answer(matchId: matchId, index: at, choice: choice);
     } catch (_) {
       answer = null;
     }
@@ -400,10 +489,11 @@ class DuelLiveController extends ChangeNotifier {
     _maybeAllAnswered();
   }
 
-  void _rivalWon() {
+  void _rivalWon(String id) {
     if (_winner != QuestionWinner.none) return;
     _winner = QuestionWinner.rival;
-    _rivalPoints += pointsPerQuestion;
+    _winnerId = id;
+    _points[id] = (_points[id] ?? 0) + pointsPerQuestion;
     if (_phase == DuelPhase.question) {
       _reveal();
     } else {
@@ -411,13 +501,16 @@ class DuelLiveController extends ChangeNotifier {
     }
   }
 
-  /// أجاب الاثنان ولم يكسب أحد: لا معنى لانتظار الوقت كلّه.
+  /// أجاب الجميعُ ولم يكسب أحد: لا معنى لانتظار الوقت كلّه.
   void _maybeAllAnswered() {
     if (_phase != DuelPhase.question) return;
-    if (_picked != null && !_submitting && (_rivalAnswered || _rivalLeft)) {
-      _reveal();
-    }
+    final everyone =
+        _rivals.every((id) => _answered.contains(id) || _left.contains(id));
+    if (_picked != null && !_submitting && everyone) _reveal();
   }
+
+  /// غادر الداعي: لا أحدَ يُعلن «التالي»، فيمضي كلٌّ بساعته.
+  bool get _hostGone => _hostId != null && _left.contains(_hostId);
 
   void _reveal() {
     if (_phase != DuelPhase.question) return;
@@ -427,9 +520,11 @@ class DuelLiveController extends ChangeNotifier {
     _hold?.cancel();
     _hold = Timer(revealHold, () {
       if (_phase != DuelPhase.reveal || at != _index) return;
-      if (isHost || _rivalLeft) {
+      if (isHost || rivalLeft || _hostGone) {
         final next = at + 1;
-        if (!_rivalLeft) transport.send('next', {'id': myId, 'index': next});
+        if (isHost && !rivalLeft) {
+          transport.send('next', {'id': myId, 'index': next});
+        }
         _goTo(next);
       } else {
         // الضيفُ ينتظر «التالي»، وله مهلةٌ إن فاتته.
@@ -476,7 +571,15 @@ class DuelLiveController extends ChangeNotifier {
     final match = result.match;
     if (match != null) {
       _myPoints = match.mine ?? _myPoints;
-      _rivalPoints = match.theirs ?? _rivalPoints;
+      for (final player in match.players) {
+        if (player.id != myId && player.score != null) {
+          _points[player.id] = player.score!;
+        }
+      }
+      // خادمٌ أقدمُ بلا قائمة: نتيجةُ المنافس الواحد.
+      if (match.players.isEmpty && match.theirs != null) {
+        _points[rivalId] = match.theirs!;
+      }
     }
     _set(DuelPhase.result);
   }

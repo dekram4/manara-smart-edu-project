@@ -53,12 +53,10 @@ class StudentDuelScreen extends StatefulWidget {
 }
 
 /// مهلةُ الردّ على الدعوة: \`DUEL_INVITE_SECONDS\` في الخادم.
-const _inviteWindow = Duration(seconds: 30);
+const _inviteWindow = Duration(seconds: 20);
 
-/// ما يُسأل به الخادمُ عن ردّ الزميل.
-const _pollEvery = Duration(seconds: 1);
-
-enum _WaitOutcome { accepted, declined, timeout, cancelled }
+/// أقصى عددٍ من الزملاء في تحدٍّ واحد: \`DUEL_MAX_INVITEES\` في الخادم.
+const _maxInvitees = 5;
 
 enum _IncomingOutcome { accepted, declined, withdrawn }
 
@@ -89,15 +87,13 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
   /// نزالٌ يُجهَّز أو يُلعب: لا تُقبل دعوةٌ أخرى ولا تُرسل.
   bool _busy = false;
 
-  String? _waitingMatch;
+  /// الزملاءُ المختارون للتحدي — واحدٌ أو أكثر.
+  final Set<String> _picked = {};
+
   String? _incomingMatch;
 
-  /// مؤقّتاتُ الدعوة الجارية، وزميلُها. تُوقف عند مغادرة الساحة — وكانت تبقى
-  /// تعمل، والمباراةُ معلّقةٌ في الخادم لا يُلغيها أحد.
-  Timer? _waitPoll;
-  Timer? _waitTimer;
+  /// مؤقّتُ الدعوة الواردة. يُوقف عند مغادرة الساحة.
   Timer? _incomingTimer;
-  String? _waitingRival;
   DuelInviteEvent? _incomingEvent;
   Completer<_IncomingOutcome>? _incoming;
 
@@ -132,20 +128,9 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
   @override
   void dispose() {
     _boardTick?.cancel();
-    _waitPoll?.cancel();
-    _waitTimer?.cancel();
     _incomingTimer?.cancel();
     // ── ومن غادر والدعوةُ قائمة لا يتركها معلّقة ──
-    // دعوتي تُسحب في الخادم وعند زميلي، ودعوةٌ وصلتني تُرفض: وإلا قبلها زميلٌ
-    // ودخل غرفةً لن أدخلها.
-    final waiting = _waitingMatch;
-    final rival = _waitingRival;
-    if (waiting != null) {
-      if (rival != null) {
-        widget.duelService.cancelInvite(to: rival, matchId: waiting);
-      }
-      unawaited(widget.duelService.cancel(waiting));
-    }
+    // دعوةٌ وصلتني تُرفض: وإلا انتظرني الداعي حتى نهاية المهلة.
     final incoming = _incomingEvent;
     if (incoming != null) unawaited(_decline(incoming));
     unawaited(_invites?.cancel());
@@ -198,9 +183,27 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
 
   // ── أتحدّى ──
 
-  Future<void> _challenge(LeaderboardEntry rival) async {
+  void _togglePick(LeaderboardEntry mate) {
+    StudentSoundService.instance.playTap();
+    setState(() {
+      if (!_picked.remove(mate.id)) {
+        if (_picked.length >= _maxInvitees) {
+          _say(trf('arena.party.max', {'n': '$_maxInvitees'}));
+          return;
+        }
+        _picked.add(mate.id);
+      }
+    });
+  }
+
+  /// يتحدّى المختارين: زميلاً أو أكثر.
+  ///
+  /// ── والانتظارُ في غرفة النزال لا في نافذة ──
+  /// الداعي يدخل غرفةَ الانتظار فوراً، فيرى ردَّ كلِّ زميلٍ وما بقي من المهلة.
+  /// ويبدأ النزالُ حين يردّ الجميع أو تنتهي العشرون ثانية — والحكمُ للخادم.
+  Future<void> _challenge(List<LeaderboardEntry> rivals) async {
     final game = _game;
-    if (_busy) return;
+    if (_busy || rivals.isEmpty) return;
     if (game == null) {
       _say(tr('arena.pickGameFirst'));
       return;
@@ -215,7 +218,7 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     try {
       match = await widget.duelService.invite(
         lessonId: _lessonId,
-        guestId: rival.id,
+        guestIds: [for (final rival in rivals) rival.id],
         game: game,
       );
     } on DuelFailure catch (failure) {
@@ -229,112 +232,44 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     }
     if (!mounted) return;
 
-    if (!widget.duelService.sendInvite(
-      to: rival.id,
-      match: match,
-      myName: widget.profile.name,
-      myAppearance: widget.profile.appearance,
-    )) {
+    final everyone = [widget.profile.id, for (final rival in rivals) rival.id];
+    var reached = 0;
+    for (final rival in rivals) {
+      if (widget.duelService.sendInvite(
+        to: rival.id,
+        match: match,
+        myName: widget.profile.name,
+        myAppearance: widget.profile.appearance,
+        players: everyone,
+      )) {
+        reached += 1;
+      }
+    }
+    if (reached == 0) {
       unawaited(widget.duelService.cancel(match.id));
       setState(() => _busy = false);
       _say(tr('arena.notSent'));
       return;
     }
+    setState(() => _picked.clear());
 
-    final waiting = Completer<_WaitOutcome>();
-    _waitingMatch = match.id;
-    _waitingRival = rival.id;
-
-    // ── والردُّ من الخادم ──
-    // الإشارةُ تُسرّع السؤال ولا تُغني عنه: كلَّ ثانيةٍ يُسأل الخادمُ عن حال الدعوة،
-    // وما يقوله هو ما يُفعل.
-    var asking = false;
-    Future<void> ask() async {
-      if (asking || waiting.isCompleted) return;
-      asking = true;
-      try {
-        final room = await widget.duelService.room(match.id);
-        if (waiting.isCompleted) return;
-        if (room.phase == DuelRoomPhase.accepted ||
-            room.phase == DuelRoomPhase.ready) {
-          waiting.complete(_WaitOutcome.accepted);
-        } else if (room.phase == DuelRoomPhase.expired) {
-          waiting.complete(_WaitOutcome.declined);
-        }
-      } catch (_) {
-        // سؤالٌ تعثّر: يُعاد في النبضة التالية.
-      } finally {
-        asking = false;
-      }
-    }
-
-    _askWaiting = ask;
-    _waitPoll = Timer.periodic(_pollEvery, (_) => unawaited(ask()));
-    _waitTimer = Timer(_inviteWindow, () {
-      if (!waiting.isCompleted) waiting.complete(_WaitOutcome.timeout);
-    });
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _WaitingDialog(
-          name: rival.name,
-          appearance: rival.appearance,
-          window: _inviteWindow,
-          outcome: waiting.future,
-          onCancel: () {
-            if (!waiting.isCompleted) waiting.complete(_WaitOutcome.cancelled);
-          },
-        ),
-      ),
+    final outcome = await _play(
+      matchId: match.id,
+      rivals: [
+        for (final rival in rivals)
+          DuelRival(
+              id: rival.id, name: rival.name, appearance: rival.appearance),
+      ],
+      isHost: true,
+      game: game,
     );
-    var outcome = await waiting.future;
-    _waitPoll?.cancel();
-    _waitTimer?.cancel();
-    if (!mounted) return;
-    _waitingMatch = null;
-    _waitingRival = null;
-    _askWaiting = null;
-    if (!mounted) return;
-
-    if (outcome == _WaitOutcome.timeout) {
-      // ── المهلةُ عندي ليست الحكم ──
-      // يُلغى في الخادم، والإلغاءُ مشروط: إن كان الزميلُ قد قبل في اللحظة الأخيرة
-      // لم يُكتب، وتعود الغرفةُ قائمةً فأدخلها — لا أتركه فيها وحده.
-      final room = await widget.duelService.cancel(match.id);
-      if (!mounted) return;
-      if (room != null &&
-          (room.phase == DuelRoomPhase.accepted ||
-              room.phase == DuelRoomPhase.ready)) {
-        outcome = _WaitOutcome.accepted;
-      }
+    // ── وما لم يُردَّ عليه يُسحب ──
+    // نافذةُ الدعوة عند من لم يردّ تُغلق: بدأ النزالُ بدونه، أو أُلغي.
+    for (final rival in rivals) {
+      widget.duelService.cancelInvite(to: rival.id, matchId: match.id);
     }
-
-    switch (outcome) {
-      case _WaitOutcome.accepted:
-        await _play(
-          matchId: match.id,
-          rivalId: rival.id,
-          rivalName: rival.name,
-          rivalLook: rival.appearance,
-          isHost: true,
-          game: game,
-        );
-        return;
-      case _WaitOutcome.declined:
-        _say(trf('arena.declined', {'name': rival.name}));
-      case _WaitOutcome.timeout:
-        widget.duelService.cancelInvite(to: rival.id, matchId: match.id);
-        _say(trf('arena.noAnswer', {'name': rival.name}));
-      case _WaitOutcome.cancelled:
-        widget.duelService.cancelInvite(to: rival.id, matchId: match.id);
-        unawaited(widget.duelService.cancel(match.id));
-    }
-    setState(() => _busy = false);
+    if (outcome == 'nobody') _say(tr('arena.failNobody'));
   }
-
-  /// يسأل الخادمَ فوراً عن الدعوة الجارية — تُناديه إشارةُ الردّ.
-  Future<void> Function()? _askWaiting;
 
   // ── يتحدّاني ──
 
@@ -348,7 +283,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
         unawaited(_onInvited(event));
       case DuelInviteKind.accepted:
       case DuelInviteKind.declined:
-        if (_waitingMatch == event.matchId) unawaited(_askWaiting?.call());
+        // الداعي في غرفة النزال يسأل الخادمَ بنفسه.
+        break;
       case DuelInviteKind.cancelled:
         final incoming = _incoming;
         if (incoming != null &&
@@ -398,6 +334,11 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
           name: name,
           appearance: look,
           game: event.game,
+          others: [
+            for (final id in event.players)
+              if (id != event.fromId && id != widget.profile.id)
+                _whoIs(id).name,
+          ],
           window: _inviteWindow,
           outcome: incoming.future,
           onAccept: () {
@@ -437,8 +378,10 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
           room = null;
         }
         if (!mounted) return;
+        // وافقتُ: أنتظر في الغرفة مع الداعي حتى يُحسم من يلعب.
         final open = room != null &&
-            (room.phase == DuelRoomPhase.accepted ||
+            (room.phase == DuelRoomPhase.invited ||
+                room.phase == DuelRoomPhase.accepted ||
                 room.phase == DuelRoomPhase.ready);
         if (!open) {
           setState(() => _busy = false);
@@ -452,9 +395,13 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
         );
         await _play(
           matchId: event.matchId,
-          rivalId: event.fromId,
-          rivalName: name,
-          rivalLook: look,
+          rivals: [
+            DuelRival(id: event.fromId, name: name, appearance: look),
+            for (final id in event.players)
+              if (id != event.fromId && id != widget.profile.id)
+                DuelRival(
+                    id: id, name: _whoIs(id).name, appearance: _whoIs(id).look),
+          ],
           isHost: false,
           game: event.game,
         );
@@ -465,33 +412,35 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     }
   }
 
-  Future<void> _play({
+  /// يفتح غرفةَ النزال ويعود بما أُغلقت به — `'nobody'` إن لم يوافق أحد.
+  Future<Object?> _play({
     required String matchId,
-    required String rivalId,
-    required String rivalName,
-    required Map<String, dynamic>? rivalLook,
+    required List<DuelRival> rivals,
     required bool isHost,
     required DuelGame game,
   }) async {
     setState(() => _busy = true);
-    await Navigator.of(context).push(
-      StudentPageRoute<void>(
+    final first = rivals.first;
+    final outcome = await Navigator.of(context).push<Object?>(
+      StudentPageRoute<Object?>(
         immersive: true,
         builder: (_) => DuelMatchScreen(
           profile: widget.profile,
           duelService: widget.duelService,
           matchId: matchId,
-          rivalId: rivalId,
-          rivalName: rivalName,
-          rivalAppearance: rivalLook,
+          rivalId: first.id,
+          rivalName: first.name,
+          rivalAppearance: first.appearance,
+          rivals: rivals,
           isHost: isHost,
           game: game,
         ),
       ),
     );
-    if (!mounted) return;
+    if (!mounted) return outcome;
     setState(() => _busy = false);
     await _load();
+    return outcome;
   }
 
   void _say(String message) {
@@ -543,6 +492,11 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     for (final item in _standings) {
       if (item.isMe) mine = item;
     }
+    // المختارون من المتصلين الآن: من غاب يسقط من الاختيار.
+    final picked = [
+      for (final mate in present)
+        if (_picked.contains(mate.id)) mate
+    ];
     final ink = StudentSurface.ink(context);
     return ListView(
       physics:
@@ -638,15 +592,27 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
                       width: width,
                       child: _RivalCard(
                         entry: mate,
+                        selected: _picked.contains(mate.id),
                         enabled:
                             !_busy && _lessonId.isNotEmpty && _game != null,
-                        onChallenge: () => unawaited(_challenge(mate)),
+                        onToggle: () => _togglePick(mate),
                       ),
                     ),
                 ],
               );
             },
           ),
+        if (present.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _ChallengeBar(
+            count: picked.length,
+            enabled: !_busy &&
+                _lessonId.isNotEmpty &&
+                _game != null &&
+                picked.isNotEmpty,
+            onChallenge: () => unawaited(_challenge(picked)),
+          ),
+        ],
         const SizedBox(height: 22),
         _SectionTitle(text: tr('arena.champions'), leading: const Text('🏆')),
         const SizedBox(height: 4),
@@ -844,73 +810,157 @@ class _GameCardState extends State<_GameCard> {
 class _RivalCard extends StatelessWidget {
   const _RivalCard({
     required this.entry,
+    required this.selected,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  final LeaderboardEntry entry;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    const pick = Color(0xFFF97316);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: entry.name,
+      child: GestureDetector(
+        onTap: enabled ? onToggle : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? pick.withValues(alpha: 0.12)
+                : StudentSurface.card(context),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? pick : const Color(0xFF22C55E),
+              width: selected ? 2.6 : 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (selected ? pick : const Color(0xFF22C55E))
+                    .withValues(alpha: selected ? 0.35 : 0.18),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  StudentAvatarView(size: 64, appearance: entry.appearance),
+                  const PositionedDirectional(
+                      end: 0, bottom: 2, child: OnlinePulse(size: 14)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                entry.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: StudentSurface.ink(context),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(7),
+                      color: selected ? pick : Colors.transparent,
+                      border: Border.all(
+                        color:
+                            enabled ? pick : StudentSurface.mutedInk(context),
+                        width: 2,
+                      ),
+                    ),
+                    child: selected
+                        ? const Icon(Icons.check_rounded,
+                            size: 16, color: Colors.white)
+                        : null,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      tr(selected ? 'arena.party.picked' : 'arena.party.pick'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color:
+                            selected ? pick : StudentSurface.mutedInk(context),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// زرُّ التحدي تحت قائمة المتصلين: «⚔️ تحدَّ (٣)».
+class _ChallengeBar extends StatelessWidget {
+  const _ChallengeBar({
+    required this.count,
     required this.enabled,
     required this.onChallenge,
   });
 
-  final LeaderboardEntry entry;
+  final int count;
   final bool enabled;
   final VoidCallback onChallenge;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
-      decoration: BoxDecoration(
-        color: StudentSurface.card(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF22C55E), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF22C55E).withValues(alpha: 0.18),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Arena3DButton(
+          onPressed: enabled ? onChallenge : null,
+          color: const Color(0xFFF97316),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              StudentAvatarView(size: 64, appearance: entry.appearance),
-              const PositionedDirectional(
-                  end: 0, bottom: 2, child: OnlinePulse(size: 14)),
+              const Text('⚔️', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Text(count == 0
+                  ? tr('arena.challenge')
+                  : trf('arena.party.challengeN', {'n': '$count'})),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            entry.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: StudentSurface.ink(context),
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-            ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          tr(count > 1 ? 'arena.party.rules' : 'arena.party.selectHint'),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: StudentSurface.mutedInk(context),
+            fontSize: 12.5,
+            height: 1.45,
+            fontWeight: FontWeight.w700,
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: Arena3DButton(
-              onPressed: enabled ? onChallenge : null,
-              color: const Color(0xFFF97316),
-              ledge: 5,
-              radius: 14,
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('⚔️', style: TextStyle(fontSize: 15)),
-                  const SizedBox(width: 6),
-                  Text(tr('arena.challenge')),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1304,48 +1354,6 @@ class _WindowCountdownState extends State<_WindowCountdown> {
   }
 }
 
-class _WaitingDialog extends StatefulWidget {
-  const _WaitingDialog({
-    required this.name,
-    required this.appearance,
-    required this.window,
-    required this.outcome,
-    required this.onCancel,
-  });
-
-  final String name;
-  final Map<String, dynamic>? appearance;
-  final Duration window;
-  final Future<_WaitOutcome> outcome;
-  final VoidCallback onCancel;
-
-  @override
-  State<_WaitingDialog> createState() => _WaitingDialogState();
-}
-
-class _WaitingDialogState extends State<_WaitingDialog>
-    with _ClosesOnOutcome<_WaitingDialog, _WaitOutcome> {
-  @override
-  Future<_WaitOutcome> get outcome => widget.outcome;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ArenaDialog(
-      appearance: widget.appearance,
-      title: trf('arena.waitingTitle', {'name': widget.name}),
-      body: tr('arena.waitingBody'),
-      top: _WindowCountdown(window: widget.window),
-      actions: [
-        Arena3DButton(
-          onPressed: widget.onCancel,
-          color: const Color(0xFF64748B),
-          child: Text(tr('arena.cancel')),
-        ),
-      ],
-    );
-  }
-}
-
 class _IncomingDialog extends StatefulWidget {
   const _IncomingDialog({
     required this.name,
@@ -1355,11 +1363,15 @@ class _IncomingDialog extends StatefulWidget {
     required this.outcome,
     required this.onAccept,
     required this.onDecline,
+    this.others = const [],
   });
 
   final String name;
   final Map<String, dynamic>? appearance;
   final DuelGame game;
+
+  /// زملاءُ آخرون في التحدي نفسه.
+  final List<String> others;
   final Duration window;
   final Future<_IncomingOutcome> outcome;
   final VoidCallback onAccept;
@@ -1382,7 +1394,10 @@ class _IncomingDialogState extends State<_IncomingDialog>
       title: trf('arena.inviteTitle', {'name': widget.name}),
       body: '$emoji ${trf('arena.inviteGame', {
             'game': widget.game.label
-          })}\n${tr('arena.inviteBody')}',
+          })}\n${widget.others.isEmpty ? '' : '${trf('arena.party.withOthers', {
+              'names': widget.others.where((n) => n.isNotEmpty).join('، '),
+              'n': '${widget.others.length}',
+            })}\n'}${tr('arena.inviteBody')}',
       top: _WindowCountdown(window: widget.window),
       actions: [
         Arena3DButton(

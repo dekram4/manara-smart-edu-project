@@ -70,6 +70,18 @@ class _StudentChatScreenState extends State<StudentChatScreen>
   final Map<String, Uint8List> _clips = {};
   String? _playingId;
   String? _loadingId;
+
+  // ── رسائلُ تختفي بعد قراءتها ──
+  /// الخادمُ يدعم الاختفاءَ والحفظ (جدولُ الإيصالات منشأ).
+  bool _ephemeral = false;
+
+  /// ما قرأه الطالبُ في هذه الزيارة: النصوصُ التي عُرضت له، ورسائلُه، والمقاطعُ
+  /// التي سمعها. تُبلَّغ حين يغادر فلا تعود له.
+  final Set<String> _readNow = {};
+  final Set<String> _reported = {};
+
+  /// حفظٌ جارٍ لرسالة: لا يُضغط الزرُّ مرّتين.
+  String? _savingId;
   List<_ChatMessage> _messages = const [];
   List<_ChatPeer> _peers = const [];
   String _recipient = 'all';
@@ -115,6 +127,8 @@ class _StudentChatScreenState extends State<StudentChatScreen>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       if (_recording) unawaited(_holdEnd(cancelled: true, quiet: true));
+      // وخروجٌ من التطبيق مغادرةٌ للدردشة أيضاً: ما قرأه لا يعود.
+      unawaited(_reportRead());
     }
   }
 
@@ -131,7 +145,13 @@ class _StudentChatScreenState extends State<StudentChatScreen>
     } else {
       unawaited(_recorder.cancel());
     }
-    if (widget.httpClient == null) _client.close();
+    // يُبلَّغ ما قُرئ قبل أن يُغلق العميل: الطلبُ يُكمل بعد إغلاق الشاشة.
+    final report = _reportRead();
+    if (widget.httpClient == null) {
+      unawaited(report.whenComplete(_client.close));
+    } else {
+      unawaited(report);
+    }
     _messageController.dispose();
     super.dispose();
   }
@@ -178,6 +198,13 @@ class _StudentChatScreenState extends State<StudentChatScreen>
           ? (peerData['peers'] as List).map(_ChatPeer.fromJson).toList()
           : <_ChatPeer>[];
       if (!mounted) return;
+      _ephemeral = messageData['ephemeral'] == true;
+      for (final message in messages) {
+        // النصُّ يُقرأ بعرضه، والمقطعُ بسماعه — ورسائلي قرأتُها حين كتبتُها.
+        if (!message.isVoice || message.from == widget.profile.id) {
+          _readNow.add(message.id);
+        }
+      }
       setState(() {
         _messages = messages;
         _peers = peers;
@@ -446,6 +473,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
         _clips[id] = bytes;
       }
       if (!mounted) return;
+      _readNow.add(message.id);
       setState(() {
         _loadingId = null;
         _playingId = id;
@@ -475,6 +503,110 @@ class _StudentChatScreenState extends State<StudentChatScreen>
   ///
   /// كان يرمي على صفحة HTML — «Cannot POST» من خادمٍ لم يُنشر عليه المسار —
   /// فيبتلع الخطأُ رمزَ الردّ، ويرى الطفلُ «تعذّر الوصول» عن خادمٍ وصل إليه.
+  /// يُبلغ الخادمَ بما قُرئ في هذه الزيارة، فلا يعود عند الرجوع.
+  ///
+  /// ولا يرمي: مغادرةٌ لم تُبلَّغ تعني أن تظهر الرسائلُ مرّةً أخرى، لا أن تتعطّل
+  /// الشاشة. ويُعاد في المغادرة التالية.
+  Future<void> _reportRead() async {
+    final ids = _readNow.difference(_reported).toList();
+    final endpoint = _endpoint('seen');
+    if (!_ephemeral || ids.isEmpty || endpoint == null || _token == null) {
+      return;
+    }
+    _reported.addAll(ids);
+    try {
+      final response = await _client
+          .post(endpoint, headers: _headers, body: jsonEncode({'ids': ids}))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        _reported.removeAll(ids);
+        debugPrint('[chat] seen not recorded: ${response.statusCode}');
+      }
+    } catch (error) {
+      _reported.removeAll(ids);
+      debugPrint('[chat] seen not recorded: $error');
+    }
+  }
+
+  /// يحفظ الرسالةَ ٢٤ ساعة، أو يلغي حفظها.
+  Future<void> _toggleSave(_ChatMessage message) async {
+    final endpoint = _endpoint('save');
+    if (!_ephemeral ||
+        endpoint == null ||
+        _token == null ||
+        _savingId != null) {
+      return;
+    }
+    final save = !message.saved;
+    setState(() => _savingId = message.id);
+    try {
+      final response = await _client
+          .post(
+            endpoint,
+            headers: _headers,
+            body: jsonEncode({'id': message.id, 'saved': save}),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) {
+        throw _failure(response, fallbackKey: 'chat.save.failed');
+      }
+      final data = _decode(response);
+      final until = DateTime.tryParse('${data['savedUntil'] ?? ''}');
+      if (!mounted) return;
+      StudentSoundService.instance.playTap();
+      setState(() {
+        _messages = [
+          for (final entry in _messages)
+            entry.id == message.id
+                ? entry.withSavedUntil(until?.toLocal())
+                : entry,
+        ];
+      });
+      _toast(tr(save ? 'chat.save.done' : 'chat.save.undone'));
+    } catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      _toast(
+          error is ChatRequestFailure ? error.message : tr('chat.save.failed'));
+    } finally {
+      if (mounted) setState(() => _savingId = null);
+    }
+  }
+
+  /// خياراتُ الرسالة بضغطةٍ مطوّلة: الحفظُ أو إلغاؤه.
+  Future<void> _messageActions(_ChatMessage message) async {
+    if (!_ephemeral) return;
+    StudentSoundService.instance.playTap();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Text(message.saved ? '📍' : '📌',
+                    style: const TextStyle(fontSize: 24)),
+                title: Text(
+                  tr(message.saved ? 'chat.save.remove' : 'chat.save.action'),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                subtitle: Text(tr(message.saved
+                    ? 'chat.save.removeHint'
+                    : 'chat.save.actionHint')),
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  unawaited(_toggleSave(message));
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Map<String, dynamic> _decode(http.Response response) {
     if (response.body.isEmpty) return <String, dynamic>{};
     try {
@@ -662,6 +794,9 @@ class _StudentChatScreenState extends State<StudentChatScreen>
                                     ],
                                   ),
                                 ),
+                              if (_ephemeral &&
+                                  MediaQuery.viewInsetsOf(context).bottom == 0)
+                                const _EphemeralNotice(),
                               if (_error != null) _ChatError(text: _error!),
                               Expanded(
                                 child: _loading
@@ -690,6 +825,15 @@ class _StudentChatScreenState extends State<StudentChatScreen>
                                                 message: _messages[index],
                                                 mine: _messages[index].from ==
                                                     widget.profile.id,
+                                                canSave: _ephemeral,
+                                                saving: _savingId ==
+                                                    _messages[index].id,
+                                                onLongPress: () => unawaited(
+                                                    _messageActions(
+                                                        _messages[index])),
+                                                onTogglePin: () => unawaited(
+                                                    _toggleSave(
+                                                        _messages[index])),
                                                 voice: _messages[index].isVoice
                                                     ? ChatVoiceNoteView(
                                                         seed: _messages[index]
@@ -828,6 +972,7 @@ class _ChatMessage {
     this.kind = 'text',
     this.voiceId = '',
     this.durationMs = 0,
+    this.savedUntil,
   });
   factory _ChatMessage.fromJson(dynamic value) {
     final map = value is Map ? value : const <String, dynamic>{};
@@ -842,12 +987,30 @@ class _ChatMessage {
       kind: '${map['kind'] ?? 'text'}',
       voiceId: '${map['voiceId'] ?? ''}',
       durationMs: duration is num ? duration.round() : 0,
+      savedUntil: DateTime.tryParse('${map['savedUntil'] ?? ''}')?.toLocal(),
     );
   }
   final String id, from, name, to, message, time, kind, voiceId;
   final int durationMs;
 
+  /// محفوظةٌ لي حتى هذا الوقت، أو `null`.
+  final DateTime? savedUntil;
+
   bool get isVoice => kind == 'voice' && voiceId.isNotEmpty;
+  bool get saved => savedUntil != null && savedUntil!.isAfter(DateTime.now());
+
+  _ChatMessage withSavedUntil(DateTime? until) => _ChatMessage(
+        id: id,
+        from: from,
+        name: name,
+        to: to,
+        message: message,
+        time: time,
+        kind: kind,
+        voiceId: voiceId,
+        durationMs: durationMs,
+        savedUntil: until,
+      );
 }
 
 class _ChatPeer {
@@ -861,39 +1024,135 @@ class _ChatPeer {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.mine, this.voice});
+  const _MessageBubble({
+    required this.message,
+    required this.mine,
+    this.voice,
+    this.canSave = false,
+    this.saving = false,
+    this.onLongPress,
+    this.onTogglePin,
+  });
   final _ChatMessage message;
   final bool mine;
 
   /// مشغّلُ الرسالة إن كانت صوتية، مكانَ نصّها.
   final Widget? voice;
+
+  /// الحفظُ متاح: ضغطةٌ مطوّلة، أو زرُّ الدبّوس.
+  final bool canSave;
+  final bool saving;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onTogglePin;
+
   @override
   Widget build(BuildContext context) => Align(
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-        child: Student3DCard(
-          maxTilt: 0.035,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 9),
-            padding: const EdgeInsets.all(12),
-            constraints: const BoxConstraints(maxWidth: 320),
-            decoration: BoxDecoration(
-                color: mine ? const Color(0xFF0B8693) : Colors.white,
-                borderRadius: BorderRadius.circular(16)),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(mine ? tr('chat.you') : message.name,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: mine ? Colors.white : const Color(0xFF0B8693))),
-              const SizedBox(height: 4),
-              if (voice != null)
-                voice!
-              else
-                Text(message.message,
-                    style: TextStyle(
-                        height: 1.45,
-                        color: mine ? Colors.white : const Color(0xFF17233A))),
-            ]),
+        child: GestureDetector(
+          onLongPress: canSave ? onLongPress : null,
+          child: Student3DCard(
+            maxTilt: 0.035,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 9),
+              padding: const EdgeInsets.all(12),
+              constraints: const BoxConstraints(maxWidth: 320),
+              decoration: BoxDecoration(
+                  color: mine ? const Color(0xFF0B8693) : Colors.white,
+                  borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Flexible(
+                        child: Text(mine ? tr('chat.you') : message.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: mine
+                                    ? Colors.white
+                                    : const Color(0xFF0B8693))),
+                      ),
+                      if (canSave) ...[
+                        const SizedBox(width: 6),
+                        Semantics(
+                          button: true,
+                          label: tr(message.saved
+                              ? 'chat.save.remove'
+                              : 'chat.save.action'),
+                          child: InkResponse(
+                            onTap: saving ? null : onTogglePin,
+                            radius: 18,
+                            child: saving
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                                : Opacity(
+                                    opacity: message.saved ? 1 : 0.45,
+                                    child: const Text('📌',
+                                        style: TextStyle(fontSize: 14)),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ]),
+                    const SizedBox(height: 4),
+                    if (voice != null)
+                      voice!
+                    else
+                      Text(message.message,
+                          style: TextStyle(
+                              height: 1.45,
+                              color: mine
+                                  ? Colors.white
+                                  : const Color(0xFF17233A))),
+                    if (message.saved) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        trf('chat.save.left', {
+                          'h':
+                              '${message.savedUntil!.difference(DateTime.now()).inHours.clamp(1, 24)}',
+                        }),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: mine
+                              ? Colors.white.withValues(alpha: 0.85)
+                              : const Color(0xFFB45309),
+                        ),
+                      ),
+                    ],
+                  ]),
+            ),
+          ),
+        ),
+      );
+}
+
+/// يقول للطفل كيف تعمل الدردشة: ما يقرؤه يختفي، وما يحفظه يبقى يوماً.
+class _EphemeralNotice extends StatelessWidget {
+  const _EphemeralNotice();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          tr('chat.ephemeral.notice'),
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            height: 1.45,
+            color: StudentSurface.ink(context),
           ),
         ),
       );
