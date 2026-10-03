@@ -1089,10 +1089,44 @@ class _MessageBubble extends StatelessWidget {
                                     height: 14,
                                     child: CircularProgressIndicator(
                                         strokeWidth: 2))
-                                : Opacity(
-                                    opacity: message.saved ? 1 : 0.45,
-                                    child: const Text('📌',
-                                        style: TextStyle(fontSize: 14)),
+                                // زرٌّ يُرى ويُقرأ: «📌 حفظ» أو «📌 محفوظة» — لا
+                                // دبّوسٌ باهتٌ لا يُعرف أنه يُضغط.
+                                : Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(999),
+                                      color: message.saved
+                                          ? const Color(0xFFF59E0B)
+                                          : (mine
+                                              ? Colors.white
+                                                  .withValues(alpha: 0.22)
+                                              : const Color(0xFF0B8693)
+                                                  .withValues(alpha: 0.12)),
+                                      border: Border.all(
+                                        color: message.saved
+                                            ? const Color(0xFFB45309)
+                                            : (mine
+                                                ? Colors.white
+                                                    .withValues(alpha: 0.6)
+                                                : const Color(0xFF0B8693)
+                                                    .withValues(alpha: 0.5)),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      tr(message.saved
+                                          ? 'chat.save.pinned'
+                                          : 'chat.save.pin'),
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: message.saved
+                                            ? Colors.white
+                                            : (mine
+                                                ? Colors.white
+                                                : const Color(0xFF0B8693)),
+                                      ),
+                                    ),
                                   ),
                           ),
                         ),

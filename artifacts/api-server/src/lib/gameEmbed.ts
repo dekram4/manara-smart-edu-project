@@ -2,12 +2,12 @@
  * ألعابُ «عالم الترفيه»: الفهرس، وتنظيفُ ملفّات اللعبة من الإعلانات والروابط.
  *
  * ── كيف تُشغَّل لعبة ──
- * رابطُ GameDistribution العامّ (\`html5.gamedistribution.com/<id>/\`) صفحةٌ تغلّف
+ * رابطُ GameDistribution العامّ (`html5.gamedistribution.com/<id>/`) صفحةٌ تغلّف
  * اللعبةَ بمكتبة إعلاناتها ثم تفتحها في إطار. فلا يُستعمل: الخادمُ يجلب اللعبةَ نفسها
- * من \`/rvvASMiM/<id>/\` ويمرّرها عبر \`/api/game-embed/<id>/...\`، وفي الطريق:
- *   • يستبدل مكتبةَ الإعلانات (\`main.min.js\`) ببديلٍ صامتٍ يكمل ما تنتظره اللعبة —
+ * من `/rvvASMiM/<id>/` ويمرّرها عبر `/api/game-embed/<id>/...`، وفي الطريق:
+ *   • يستبدل مكتبةَ الإعلانات (`main.min.js`) ببديلٍ صامتٍ يكمل ما تنتظره اللعبة —
  *     انظر [DISABLED_AD_SDK] — بكل صيغ رابطها، في HTML وJS.
- *   • يعطّل \`window.open\` في الصفحة: «ألعابٌ أخرى» لا تفتح متصفّحاً ولا نافذة.
+ *   • يعطّل `window.open` في الصفحة: «ألعابٌ أخرى» لا تفتح متصفّحاً ولا نافذة.
  */
 
 export type GameOrientation = "landscape" | "portrait" | "any";
@@ -95,7 +95,7 @@ export const AD_SDK_PATH = "/ad-sdk.js";
  * بديلُ مكتبة إعلانات GameDistribution: لا إعلان، واللعبةُ تمضي.
  *
  * ── لماذا لا يكفي «لا شيء» ──
- * اللعبةُ تطلب إعلاناً ثم تنتظر حدثَين: \`SDK_GAME_PAUSE\` ثم \`SDK_GAME_START\`، ولا
+ * اللعبةُ تطلب إعلاناً ثم تنتظر حدثَين: `SDK_GAME_PAUSE` ثم `SDK_GAME_START`، ولا
  * تكمل قبلهما. بديلٌ يعود بلا أحداث يُجمّدها عند أوّل استراحة. فهذا يُطلق الحدثين
  * فوراً كأنّ الإعلانَ انتهى، ويَمنح مكافأةَ «شاهد إعلاناً» بلا إعلان.
  */
@@ -146,15 +146,43 @@ export function replaceAdSdk(gameId: string, source: string): string {
   return source.replace(AD_SDK_URL, `/api/game-embed/${gameId}${AD_SDK_PATH}`);
 }
 
-/** صفحةُ اللعبة: المكتبةُ بديلةٌ، والنوافذُ معطّلةٌ قبل أيّ سطرٍ من اللعبة. */
+/**
+ * عرضُ الجهاز لا عرضُ حاسوب.
+ *
+ * صفحةٌ بلا هذا الوسم يرسمها WebView أندرويد بعرض ٩٨٠ بكسل ثم يصغّرها لتسع
+ * الشاشة: اللعبةُ صغيرةٌ في ركنٍ منها. ولعبةُ «الروبوت الخارق» بلا وسم.
+ */
+export const VIEWPORT_META =
+  '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">';
+
+/**
+ * اللعبةُ ملءُ الشاشة: الصفحةُ بعرض الشاشة وارتفاعها، بلا هوامش ولا تمرير.
+ *
+ * و`100dvh` بعد `100vh`: الأولى على ما يدعمها، والثانيةُ احتياطٌ لما لا يدعمها.
+ */
+export const FULLSCREEN_STYLE =
+  '<style id="manara-fit">' +
+  "html,body{width:100vw!important;height:100vh!important;height:100dvh!important;" +
+  "margin:0!important;padding:0!important;overflow:hidden!important;}" +
+  "body{position:fixed!important;inset:0!important;}" +
+  "canvas{touch-action:none;}" +
+  "</style>";
+
+/**
+ * صفحةُ اللعبة: المكتبةُ بديلة، والنوافذُ معطّلةٌ قبل أيّ سطرٍ من اللعبة، وعرضُ
+ * الجهاز، واللعبةُ ملءُ الشاشة.
+ */
 export function rewriteGameHtml(gameId: string, source: string): string {
   const html = replaceAdSdk(gameId, source);
+  const hasViewport = /<meta[^>]+name=["']?viewport/i.test(html);
+  const injected =
+    NO_POPUPS_SCRIPT + (hasViewport ? "" : VIEWPORT_META) + FULLSCREEN_STYLE;
   const head = html.match(/<head[^>]*>/i);
   if (head && head.index !== undefined) {
     const at = head.index + head[0].length;
-    return html.slice(0, at) + NO_POPUPS_SCRIPT + html.slice(at);
+    return html.slice(0, at) + injected + html.slice(at);
   }
-  return NO_POPUPS_SCRIPT + html;
+  return injected + html;
 }
 
 /**

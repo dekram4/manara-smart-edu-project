@@ -23,7 +23,8 @@ const voiceSendLimit = createStudentRateLimit(12);
 const voiceFetchLimit = createStudentRateLimit(90);
 const receiptLimit = createStudentRateLimit(60);
 
-const RECEIPTS = "student_chat_receipts";
+/** نوعُ صفّ الإيصال في `interactions` — بجانب الرسائل نفسها. */
+const RECEIPT_TYPE = "student_chat_receipt";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -105,32 +106,97 @@ async function rest(path: string, init: RequestInit = {}): Promise<Response> {
   });
 }
 
+/** قوائمُ `in.(...)` قصيرة: معرّفاتٌ كثيرةٌ في عنوانٍ واحد تتجاوز حدَّه. */
+function chunks<T>(items: readonly T[], size = 40): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+const inList = (ids: readonly string[]) => `in.(${ids.map((id) => `"${id}"`).join(",")})`;
+
 /**
- * إيصالاتٌ بمرشّح، أو `null` إن لم يُنشأ جدولُها بعد.
+ * إيصالاتُ القراءة والحفظ — في `interactions` بجانب الرسائل، لا في جدولٍ وحدها.
  *
- * ── ولا تتعطّل الدردشةُ بغيابه ──
- * قبل تشغيل `scripts/chat-ephemeral.sql` تعمل الدردشةُ كما كانت: لا اختفاءَ ولا
- * حفظ، والرسائلُ كلُّها تُرى.
+ * ── لماذا لا جدولٌ خاصّ ──
+ * كان لها جدولٌ يُنشئه `scripts/chat-ephemeral.sql`، ولم يُشغَّل — فبقيت الدردشةُ بلا
+ * اختفاءٍ ولا حفظ، ولم يظهر للطالب شيءٌ مما بُني. و`interactions` قائمٌ ويكتب فيه
+ * الخادمُ الرسائلَ نفسها: فالميزةُ تعمل بنشر الخادم وحده.
+ *
+ * صفٌّ لكل (رسالة، طالب)، معرّفُه منهما فيُكتب فوقه. و`null` إن تعذّرت القراءة.
  */
+function receiptId(messageId: string, studentId: string): string {
+  return `chatrcpt_${messageId}__${studentId}`;
+}
+
+function readReceipt(row: Record<string, unknown>): ChatReceipt | null {
+  const data = row.data && typeof row.data === "object" ? row.data as Record<string, unknown> : {};
+  const messageId = text(data.messageId);
+  const studentId = text(data.studentId);
+  if (!messageId || !studentId) return null;
+  return {
+    messageId,
+    studentId,
+    seenAt: text(data.seenAt) || null,
+    savedUntil: text(data.savedUntil) || null,
+  };
+}
+
 async function receiptsWhere(filter: string): Promise<ChatReceipt[] | null> {
-  const response = await rest(`${RECEIPTS}?select=message_id,student_id,seen_at,saved_until&${filter}`);
+  const response = await rest(
+    `interactions?select=id,data&data->>type=eq.${RECEIPT_TYPE}&${filter}&limit=5000`,
+  );
   if (!response.ok) {
     logger.warn({ status: response.status }, "[student-chat] receipts unavailable");
     return null;
   }
   const rows = await response.json();
-  return (Array.isArray(rows) ? rows : []).map((row: Record<string, unknown>) => ({
-    messageId: text(row.message_id),
-    studentId: text(row.student_id),
-    seenAt: text(row.seen_at) || null,
-    savedUntil: text(row.saved_until) || null,
-  }));
+  return (Array.isArray(rows) ? rows : [])
+    .map((row: Record<string, unknown>) => readReceipt(row))
+    .filter((receipt): receipt is ChatReceipt => receipt !== null);
 }
 
-/** يكتب إيصالات (قراءةً أو حفظاً) دون أن يمسّ ما لم يُذكر من أعمدتها. */
-async function upsertReceipts(rows: Array<Record<string, unknown>>): Promise<boolean> {
-  if (rows.length === 0) return true;
-  const response = await rest(`${RECEIPTS}?on_conflict=message_id,student_id`, {
+const receiptsOfStudent = (studentId: string) =>
+  receiptsWhere(`data->>studentId=eq.${encodeURIComponent(studentId)}`);
+
+const receiptsOfMessages = (ids: readonly string[]) =>
+  receiptsWhere(`data->>messageId=${inList(ids)}`);
+
+/**
+ * يكتب قراءةً أو حفظاً لطالب. وما لم يُذكر يبقى كما كان: قراءةٌ لا تمحو حفظاً،
+ * وحفظٌ لا يمحو قراءة.
+ */
+async function writeReceipts(
+  student: StudentActor,
+  changes: ReadonlyArray<{ messageId: string; seenAt?: string; savedUntil?: string | null }>,
+): Promise<boolean> {
+  if (changes.length === 0) return true;
+  const existing = new Map<string, ChatReceipt>();
+  for (const part of chunks(changes.map((change) => change.messageId))) {
+    const found = await receiptsWhere(
+      `data->>studentId=eq.${encodeURIComponent(student.id)}&data->>messageId=${inList(part)}`,
+    );
+    if (found === null) return false;
+    for (const receipt of found) existing.set(receipt.messageId, receipt);
+  }
+  const now = new Date().toISOString();
+  const rows = changes.map((change) => {
+    const before = existing.get(change.messageId);
+    return {
+      id: receiptId(change.messageId, student.id),
+      updated_at: now,
+      data: {
+        type: RECEIPT_TYPE,
+        messageId: change.messageId,
+        studentId: student.id,
+        grade: student.grade,
+        teacherId: student.teacherId,
+        seenAt: change.seenAt ?? before?.seenAt ?? null,
+        savedUntil: "savedUntil" in change ? change.savedUntil ?? null : before?.savedUntil ?? null,
+      },
+    };
+  });
+  const response = await rest("interactions?on_conflict=id", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify(rows),
@@ -142,6 +208,15 @@ async function upsertReceipts(rows: Array<Record<string, unknown>>): Promise<boo
     );
   }
   return response.ok;
+}
+
+async function deleteReceipts(messageIds: readonly string[]): Promise<void> {
+  for (const part of chunks(messageIds)) {
+    await rest(
+      `interactions?data->>type=eq.${RECEIPT_TYPE}&data->>messageId=${inList(part)}`,
+      { method: "DELETE" },
+    );
+  }
 }
 
 function dataOf(row: Record<string, unknown>): Record<string, unknown> {
@@ -164,14 +239,6 @@ function inClassOf(data: Record<string, unknown>, student: StudentActor): boolea
     normalized(data.teacherId) === normalized(student.teacherId);
 }
 
-/** قوائمُ `in.(...)` قصيرة: معرّفاتٌ كثيرةٌ في عنوانٍ واحد تتجاوز حدَّه. */
-function chunks<T>(items: readonly T[], size = 40): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-}
-
-const inList = (ids: readonly string[]) => `in.(${ids.map((id) => `"${id}"`).join(",")})`;
 
 /** آخرُ كنسٍ لكل صفّ، وللكنس العامّ في القاعدة. */
 const lastClassPurge = new Map<string, number>();
@@ -202,7 +269,7 @@ async function purgeClass(student: StudentActor, onlyIds?: readonly string[]): P
   const classIds = (await findStudentsInScope(student.grade, student.teacherId)).map((p) => p.id);
   const receipts: ChatReceipt[] = [];
   for (const part of chunks(rows.map((row) => text(row.id)))) {
-    const found = await receiptsWhere(`message_id=${inList(part)}`);
+    const found = await receiptsOfMessages(part);
     if (found === null) return 0;
     receipts.push(...found);
   }
@@ -219,9 +286,7 @@ async function purgeClass(student: StudentActor, onlyIds?: readonly string[]): P
   for (const part of chunks([...ids, ...voices])) {
     await rest(`interactions?id=${inList(part)}`, { method: "DELETE" });
   }
-  for (const part of chunks(ids)) {
-    await rest(`${RECEIPTS}?message_id=${inList(part)}`, { method: "DELETE" });
-  }
+  await deleteReceipts(ids);
   logger.info({ messages: ids.length, voices: voices.length }, "[student-chat] purged");
   return ids.length;
 }
@@ -285,7 +350,7 @@ router.get("/student/chat/messages", requireStudentSession, async (_req, res) =>
       .filter((row) => row.data && typeof row.data === "object")
       .filter((row) => visibleToStudent(row.data as Record<string, unknown>, student));
     // ── ما قرأه وغادر لا يعود — إلا ما حفظه ──
-    const mine = await receiptsWhere(`student_id=eq.${encodeURIComponent(student.id)}`);
+    const mine = await receiptsOfStudent(student.id);
     const byId = new Map((mine ?? []).map((receipt) => [receipt.messageId, receipt]));
     const now = new Date();
     const messages = rows
@@ -379,12 +444,10 @@ router.post("/student/chat/seen", requireStudentSession, receiptLimit, async (re
     );
     const now = new Date().toISOString();
     const valid = ids.filter((id) => mineToSee.has(id));
-    const written = await upsertReceipts(valid.map((id) => ({
-      message_id: id,
-      student_id: student.id,
-      seen_at: now,
-      updated_at: now,
-    })));
+    const written = await writeReceipts(
+      student,
+      valid.map((id) => ({ messageId: id, seenAt: now })),
+    );
     if (!written) return res.json({ seen: 0, purged: 0, ephemeral: false });
     const purged = await purgeClass(student, valid).catch((error) => {
       logger.error({ err: error }, "[student-chat] purge after seen failed");
@@ -419,17 +482,9 @@ router.post("/student/chat/save", requireStudentSession, receiptLimit, async (re
     }
     const now = new Date();
     const until = saved ? saveUntil(now) : null;
-    const written = await upsertReceipts([{
-      message_id: id,
-      student_id: student.id,
-      saved_until: until,
-      updated_at: now.toISOString(),
-    }]);
+    const written = await writeReceipts(student, [{ messageId: id, savedUntil: until }]);
     if (!written) {
-      return res.status(503).json({
-        error: "حفظ الرسائل يحتاج تحديث قاعدة البيانات",
-        code: "save_unavailable",
-      });
+      return res.status(503).json({ error: "تعذر حفظ الرسالة الآن", code: "save_unavailable" });
     }
     return res.json({ id, savedUntil: until });
   } catch (error) {

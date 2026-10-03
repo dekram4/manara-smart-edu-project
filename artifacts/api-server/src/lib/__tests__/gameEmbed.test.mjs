@@ -100,3 +100,19 @@ test("البديلُ الصامت لا يرمي إن لم تُعرّف اللع�
   vm.runInContext(DISABLED_AD_SDK, vm.createContext({ window, setTimeout, Promise }));
   await window.gdsdk.showAd();
 });
+
+test("صفحةٌ بلا وسم viewport: يُضاف — وإلا رُسمت بعرض حاسوبٍ صغيرةً في ركن", async () => {
+  const { rewriteGameHtml: rewrite } = await import("../../../dist/lib/gameEmbed.mjs");
+  const bare = rewrite("g", "<html><head><title>x</title></head><body></body></html>");
+  assert.equal((bare.match(/name="viewport"/g) ?? []).length, 1);
+  const own = rewrite("g", '<html><head><meta name="viewport" content="width=device-width"></head></html>');
+  assert.equal((own.match(/name=["']?viewport/g) ?? []).length, 1, "لا وسمَ ثانياً");
+});
+
+test("اللعبةُ ملءُ الشاشة: الصفحةُ بعرضها وارتفاعها بلا هوامش ولا تمرير", async () => {
+  const { rewriteGameHtml: rewrite } = await import("../../../dist/lib/gameEmbed.mjs");
+  const out = rewrite("g", "<html><head></head><body></body></html>");
+  for (const rule of ["width:100vw!important", "height:100vh!important", "overflow:hidden!important", "position:fixed!important", "inset:0!important", "margin:0!important", "padding:0!important"]) {
+    assert.ok(out.includes(rule), rule);
+  }
+});

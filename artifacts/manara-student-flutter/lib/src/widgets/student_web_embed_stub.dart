@@ -61,6 +61,19 @@ class StudentWebEmbed extends StatelessWidget {
               ],
         iframeAllow: allow,
         iframeAllowFullscreen: true,
+        // ── إعداداتُ الألعاب صريحة ──
+        // ألعابُ Unity وPhaser تحفظ تقدّمها في التخزين المحلي، وتقرأ الشاشةَ
+        // بمقياس الجهاز (useWideViewPort مع وسم viewport)، ولا يُكبَّر فيها بإصبعين.
+        domStorageEnabled: true,
+        databaseEnabled: true,
+        useWideViewPort: true,
+        loadWithOverviewMode: false,
+        supportZoom: locked == null,
+        builtInZoomControls: locked == null,
+        displayZoomControls: false,
+        hardwareAcceleration: true,
+        useHybridComposition: true,
+        disableContextMenu: locked != null,
       ),
       onCreateWindow: locked == null ? null : (_, __) async => false,
       shouldOverrideUrlLoading: locked == null

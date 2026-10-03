@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:confetti/confetti.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -1105,15 +1108,44 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   bool _loading = true;
   var _reloadKey = 0;
 
+  /// انتهت مهلةُ انتظار الدوران: تُفتح اللعبةُ على كل حال.
+  bool _rotationWaitOver = false;
+  Timer? _rotationWait;
+
+  /// هاتفٌ أو لوحٌ يدور — لا متصفّحٌ ولا حاسوب.
+  static bool get _rotatable =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
   @override
   void initState() {
     super.initState();
     _enterImmersive();
     _holdOrientation();
+    _rotationWait = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _rotationWaitOver = true);
+    });
+  }
+
+  /// ── لا تبدأ اللعبةُ قبل أن يكتمل الدوران ──
+  /// اللعبةُ تقيس الشاشةَ مرّةً حين تُحمَّل. فإن حُمّلت والجهازُ ما زال قائماً ثم دار،
+  /// بقيت بمقاس القائم: صغيرةً في ركن. فتُنتظر الشاشةُ حتى تصير بالاتجاه المطلوب
+  /// — أو ثانيةً ونصفاً، إن رفض الجهازُ الدوران.
+  bool _waitingForRotation(BuildContext context) {
+    if (!_rotatable || _rotationWaitOver) return false;
+    final landscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    return switch (widget.game.orientation) {
+      GameOrientation.landscape => !landscape,
+      GameOrientation.portrait => landscape,
+      GameOrientation.any => false,
+    };
   }
 
   @override
   void dispose() {
+    _rotationWait?.cancel();
     _restoreSystemBars();
     // يعود الجهازُ إلى سياسة التطبيق: كلُّ الاتجاهات.
     StudentOrientation.apply();
@@ -1177,17 +1209,31 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
   /// والجهازُ في اتجاهها، فتملؤها كلَّها وتتكفّل بقياس نفسها. أمّا شاشةٌ لا تدور
   /// — متصفّحٌ أو حاسوب — واتجاهُها غيرُ اتجاه اللعبة، فاللعبةُ في الوسط بنسبتها
   /// الأصلية: لعبةٌ رأسيّةٌ ممدودةٌ على شاشةٍ عريضة تتشوّه.
+  ///
+  /// ── والشجرةُ ثابتةُ الشكل ──
+  /// كانت تُلفّ اللعبةُ في إطارٍ بنسبتها أثناء الدوران ثم تُفكّ منه حين يكتمل. وتغيُّرُ
+  /// شكل الشجرة يُعيد بناءَ الـWebView من الصفر: فبقيت اللعبةُ الأولى صغيرةً في ركن
+  /// ولم تبدأ. فالآن الشكلُ واحدٌ دائماً — مركزٌ وصندوقٌ بمقاس — ويتغيّر المقاسُ وحده.
   Widget _fitted(Widget game) {
     final ratio = widget.game.aspectRatio;
-    if (ratio == null) return game;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final screen = constraints.maxWidth / constraints.maxHeight;
-        final gameWide = ratio >= 1;
-        final screenWide = screen >= 1;
-        if (gameWide == screenWide) return game;
+        var width = constraints.maxWidth;
+        var height = constraints.maxHeight;
+        if (ratio != null && !_rotatable && width > 0 && height > 0) {
+          final gameWide = ratio >= 1;
+          final screenWide = width / height >= 1;
+          if (gameWide != screenWide) {
+            // شاشةٌ لا تدور واتجاهُها غيرُ اتجاه اللعبة: بنسبتها في الوسط.
+            if (width / height > ratio) {
+              width = height * ratio;
+            } else {
+              height = width / ratio;
+            }
+          }
+        }
         return Center(
-          child: AspectRatio(aspectRatio: ratio, child: game),
+          child: SizedBox(width: width, height: height, child: game),
         );
       },
     );
@@ -1231,40 +1277,43 @@ class _GamePlayerScreenState extends State<_GamePlayerScreen> {
               )
             : Stack(
                 children: [
-                  Positioned.fill(
-                    child: _fitted(
-                      StudentWebEmbed(
-                        key: ValueKey(_reloadKey),
-                        url: _url,
-                        allow:
-                            'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write',
-                        // ── تبقى اللعبةُ في التطبيق ──
-                        // لا نافذةَ ولا انتقالَ إلا إلى مضيف اللعبة، ولا ما يُطلب
-                        // من مضيفي الإعلانات. انظر allowGameNavigation.
-                        allowedHosts: gameHostsFor(_url),
-                        onLoaded: () {
-                          if (!mounted) return;
-                          setState(() {
-                            _loading = false;
-                            _error = null;
-                          });
-                        },
-                        onError: (message) {
-                          if (!mounted) return;
-                          setState(() {
-                            _loading = false;
-                            _error = message;
-                          });
-                        },
+                  if (!_waitingForRotation(context))
+                    Positioned.fill(
+                      child: _fitted(
+                        StudentWebEmbed(
+                          key: ValueKey(_reloadKey),
+                          url: _url,
+                          allow:
+                              'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write',
+                          // ── تبقى اللعبةُ في التطبيق ──
+                          // لا نافذةَ ولا انتقالَ إلا إلى مضيف اللعبة، ولا ما يُطلب
+                          // من مضيفي الإعلانات. انظر allowGameNavigation.
+                          allowedHosts: gameHostsFor(_url),
+                          onLoaded: () {
+                            if (!mounted) return;
+                            setState(() {
+                              _loading = false;
+                              _error = null;
+                            });
+                          },
+                          onError: (message) {
+                            if (!mounted) return;
+                            setState(() {
+                              _loading = false;
+                              _error = message;
+                            });
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                  if (_loading)
+                  if (_loading || _waitingForRotation(context))
                     ColoredBox(
                       color: const Color(0xFF160C2D),
                       child: Center(
                         child: StudentRiveLoading(
-                          label: tr('content.gameLoading'),
+                          label: tr(_waitingForRotation(context)
+                              ? 'game.rotate'
+                              : 'content.gameLoading'),
                         ),
                       ),
                     ),

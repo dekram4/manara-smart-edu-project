@@ -422,6 +422,12 @@ void main() {
       expect(find.text(tr('chat.ephemeral.notice')), findsOneWidget);
     });
 
+    testWidgets('زرُّ «📌 حفظ» ظاهرٌ على كل رسالة — نصّاً وصوتاً',
+        (tester) async {
+      await pump(tester);
+      expect(find.text(tr('chat.save.pin')), findsNWidgets(3));
+    });
+
     testWidgets(
         'يغادر: يُبلَّغ ما قرأه — النصُّ ورسائلُه، لا المقطعُ الذي لم يسمعه',
         (tester) async {
@@ -480,7 +486,7 @@ void main() {
         of: find
             .ancestor(of: find.text('مرحبا'), matching: find.byType(Column))
             .first,
-        matching: find.text('📌'),
+        matching: find.text(tr('chat.save.pinned')),
       );
       await tester.tap(pin);
       for (var i = 0; i < 10; i++) {
@@ -498,7 +504,7 @@ void main() {
       (tester) async {
     await pump(tester);
     expect(find.text(tr('chat.ephemeral.notice')), findsNothing);
-    expect(find.text('📌'), findsNothing);
+    expect(find.text(tr('chat.save.pin')), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 200));
     expect(requests.where((r) => r.url.path.endsWith('/chat/seen')), isEmpty);
