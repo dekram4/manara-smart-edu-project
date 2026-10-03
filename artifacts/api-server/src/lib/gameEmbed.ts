@@ -171,120 +171,16 @@ export function replaceAdSdk(gameId: string, source: string): string {
   return source.replace(AD_SDK_URL, `/api/game-embed/${gameId}${AD_SDK_PATH}`);
 }
 
-// ── أزرارُ اللمس فوق اللعبة ──
-
-/** زرٌّ يضغط مفتاحاً: ما دام الإصبعُ عليه فالمفتاحُ مضغوط. */
-interface TouchKey {
-  label: string;
-  key: string;
-  code: string;
-  keyCode: number;
-}
-
-const UP: TouchKey = { label: "⬆", key: "ArrowUp", code: "ArrowUp", keyCode: 38 };
-const DOWN: TouchKey = { label: "⬇", key: "ArrowDown", code: "ArrowDown", keyCode: 40 };
-const LEFT: TouchKey = { label: "◀", key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 };
-const RIGHT: TouchKey = { label: "▶", key: "ArrowRight", code: "ArrowRight", keyCode: 39 };
-
-/**
- * أزرارُ كلِّ لعبة: يسارُ الشاشة للاتجاه، ويمينُها للقفز والانزلاق.
- *
- * ── لماذا ──
- * ألعابُ الجري والسباق تُلعب بالأسهم، والسحبُ عليها باللمس بطيءٌ وصعبٌ على طفل.
- * فزرٌّ كبيرٌ شفّافٌ لكل مفتاح، يرسل للعبة ما يرسله المفتاحُ نفسه.
- */
-export const TOUCH_CONTROLS: Record<string, { left: TouchKey[]; right: TouchKey[] }> = {
-  // سباق الفراعنة: قفزٌ وانزلاق.
-  "73c29ef316be4f0bb6d149d8b5a39ff3": {
-    left: [],
-    right: [{ ...UP, label: "⬆ قفز" }, { ...DOWN, label: "⬇ انزلاق" }],
-  },
-  // انطلاقة النفق: مساراتٌ يميناً ويساراً، وقفزٌ وانزلاق.
-  "99ba036a4225425794e2c423fbcf9842": {
-    left: [LEFT, RIGHT],
-    right: [{ ...UP, label: "⬆ قفز" }, { ...DOWN, label: "⬇ انزلاق" }],
-  },
-  // إعصار السرعة: توجيهٌ، وتسارعٌ وفرامل.
-  "d632553ef7264d99aa438310073a6dc3": {
-    left: [LEFT, RIGHT],
-    right: [{ ...UP, label: "⬆ تسارع" }, { ...DOWN, label: "⬇ فرامل" }],
-  },
-  // الروبوت الخارق: الأسهمُ الأربعة.
-  "71b64121c58b4a95b7459e08086dcb00": {
-    left: [LEFT, RIGHT],
-    right: [UP, DOWN],
-  },
-};
-
-/**
- * سكربتُ الأزرار: يُلحق آخرَ الصفحة.
- *
- * كلُّ زرٍّ يرسل `keydown` حين يُلمس و`keyup` حين يُرفع الإصبع — بـ`key` و`code`
- * و`keyCode` معاً: Phaser يقرأ `keyCode` على `window`، وUnity يقرأ `code`. ويُرسل
- * الحدثُ من لوحة اللعبة فيصعد إلى `document` و`window`، فيصل أيَّهما استمعت اللعبة.
- * ولمسُ الزرّ لا يصل اللعبة لمسةً: لا يُحسب سحباً ولا ضغطةً على شيءٍ تحته.
- */
-export function touchControlsScript(gameId: string): string {
-  const layout = TOUCH_CONTROLS[gameId];
-  if (!layout) return "";
-  return `<script>(function(){
-var L=${JSON.stringify(layout)};
-function fire(type,k){
-  var ev;try{ev=new KeyboardEvent(type,{key:k.key,code:k.code,bubbles:true,cancelable:true});}
-  catch(e){ev=document.createEvent("Event");ev.initEvent(type,true,true);ev.key=k.key;ev.code=k.code;}
-  ["keyCode","which"].forEach(function(n){try{Object.defineProperty(ev,n,{get:function(){return k.keyCode;}});}catch(e){}});
-  var t=document.querySelector("canvas")||document.body||document;
-  t.dispatchEvent(ev);
-}
-function button(k){
-  var b=document.createElement("div");
-  b.textContent=k.label;
-  b.style.cssText="pointer-events:auto;min-width:72px;height:72px;padding:0 14px;margin:6px;border-radius:36px;"+
-    "display:flex;align-items:center;justify-content:center;font:900 18px system-ui,sans-serif;color:#fff;"+
-    "background:rgba(20,10,45,.38);border:2px solid rgba(255,255,255,.55);backdrop-filter:blur(2px);"+
-    "user-select:none;-webkit-user-select:none;touch-action:none;box-shadow:0 4px 12px rgba(0,0,0,.25);";
-  var down=false;
-  function press(e){e.preventDefault();e.stopPropagation();if(down)return;down=true;b.style.background="rgba(249,115,22,.7)";fire("keydown",k);}
-  function release(e){if(e){e.preventDefault();e.stopPropagation();}if(!down)return;down=false;b.style.background="rgba(20,10,45,.38)";fire("keyup",k);}
-  b.addEventListener("pointerdown",function(e){try{b.setPointerCapture(e.pointerId);}catch(_){}press(e);});
-  b.addEventListener("pointerup",release);b.addEventListener("pointercancel",release);
-  b.addEventListener("lostpointercapture",function(){release();});
-  ["touchstart","touchend","mousedown","mouseup","click"].forEach(function(n){b.addEventListener(n,function(e){e.stopPropagation();},{passive:true});});
-  return b;
-}
-function column(keys,side){
-  var c=document.createElement("div");
-  c.style.cssText="position:fixed;bottom:12px;"+side+":12px;z-index:2147483647;display:flex;flex-direction:"+
-    (side==="left"?"row":"column")+";align-items:center;pointer-events:none;";
-  keys.forEach(function(k){c.appendChild(button(k));});
-  return c;
-}
-function mount(){
-  if(document.getElementById("manara-touch"))return;
-  var root=document.createElement("div");root.id="manara-touch";
-  if(L.left.length)root.appendChild(column(L.left,"left"));
-  if(L.right.length)root.appendChild(column(L.right,"right"));
-  document.body.appendChild(root);
-}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();
-})();</script>`;
-}
-
 /** صفحةُ لعبةٍ جديدة: المكتبةُ بديلة، والنوافذُ معطّلةٌ قبل أيّ سطرٍ من اللعبة. */
 export function rewriteGameHtml(gameId: string, source: string): string {
   const html = replaceAdSdk(gameId, source);
   const injected = NO_POPUPS_SCRIPT;
   const head = html.match(/<head[^>]*>/i);
-  let out = head && head.index !== undefined
-    ? html.slice(0, head.index + head[0].length) + injected + html.slice(head.index + head[0].length)
-    : injected + html;
-  // وأزرارُ اللمس آخرَ الصفحة، بعد أن تُبنى اللعبة.
-  const controls = touchControlsScript(gameId);
-  if (controls) {
-    const end = out.search(/<\/body>/i);
-    out = end >= 0 ? out.slice(0, end) + controls + out.slice(end) : out + controls;
+  if (head && head.index !== undefined) {
+    const at = head.index + head[0].length;
+    return html.slice(0, at) + injected + html.slice(at);
   }
-  return out;
+  return injected + html;
 }
 
 /**

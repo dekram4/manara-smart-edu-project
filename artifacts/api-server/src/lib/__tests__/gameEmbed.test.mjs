@@ -120,22 +120,3 @@ test("صفحاتُ الألعاب الجديدة: لا CSS ولا وسمَ مُ�
   assert.ok(!out.includes('name="viewport"'));
   assert.ok(out.includes("window.open=function"));
 });
-
-test("أزرارُ اللمس: للألعاب الأربع الجديدة آخرَ الصفحة، ولا شيءَ للقديمة", async () => {
-  const { TOUCH_CONTROLS, touchControlsScript } = await import("../../../dist/lib/gameEmbed.mjs");
-  for (const id of Object.keys(NEW_GAMES)) {
-    assert.ok(TOUCH_CONTROLS[id], id);
-    const out = rewriteGameHtml(id, "<html><head></head><body><canvas></canvas></body></html>");
-    assert.ok(out.indexOf("manara-touch") < out.indexOf("</body>"), id);
-  }
-  assert.equal(touchControlsScript("d4a3629101574bc39bd8f9d1888ca58e"), "");
-  const pharaoh = TOUCH_CONTROLS["73c29ef316be4f0bb6d149d8b5a39ff3"];
-  assert.deepEqual(pharaoh.right.map((k) => [k.key, k.keyCode]), [["ArrowUp", 38], ["ArrowDown", 40]]);
-  const tunnel = TOUCH_CONTROLS["99ba036a4225425794e2c423fbcf9842"];
-  assert.deepEqual(tunnel.left.map((k) => k.keyCode), [37, 39]);
-  // الضغطُ يرسل keydown والرفعُ keyup، بـ keyCode معه — Phaser يقرؤه.
-  const script = touchControlsScript("73c29ef316be4f0bb6d149d8b5a39ff3");
-  for (const piece of ['fire("keydown",k)', 'fire("keyup",k)', '"keyCode","which"', "pointercancel"]) {
-    assert.ok(script.includes(piece), piece);
-  }
-});
