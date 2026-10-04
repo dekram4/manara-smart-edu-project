@@ -120,3 +120,22 @@ test("صفحاتُ الألعاب الجديدة: لا CSS ولا وسمَ مُ�
   assert.ok(!out.includes('name="viewport"'));
   assert.ok(out.includes("window.open=function"));
 });
+
+test("سياسةُ أمان صفحات الألعاب: صارمة، وتسمح بما تحتاجه الألعابُ وحده", async () => {
+  const { GAME_PAGE_CSP } = await import("../../../dist/lib/gameEmbed.mjs");
+  const d = Object.fromEntries(GAME_PAGE_CSP.split("; ").map((part) => {
+    const [name, ...values] = part.split(" ");
+    return [name, values];
+  }));
+  assert.deepEqual(d["default-src"], ["'self'"]);
+  // WebAssembly لألعاب Unity — لا eval لـ JavaScript.
+  assert.ok(d["script-src"].includes("'wasm-unsafe-eval'"));
+  assert.ok(!d["script-src"].includes("'unsafe-eval'"));
+  // محرّكُ «سباق الفراعنة» من مضيفٍ واحدٍ بعينه، لا أيُّ مضيف.
+  assert.ok(d["script-src"].includes("https://cdn.jsdelivr.net"));
+  assert.ok(!d["script-src"].some((v) => v === "*" || v === "https:"));
+  for (const closed of ["frame-src", "object-src", "form-action"]) {
+    assert.deepEqual(d[closed], ["'none'"], closed);
+  }
+  assert.ok(!d["connect-src"].some((v) => v.startsWith("http")), "لا اتصالَ بمضيفٍ خارجي");
+});

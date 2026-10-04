@@ -111,6 +111,32 @@ export const LEGACY_AD_SDK = `
   })();
 `;
 
+/**
+ * سياسةُ أمان المحتوى لصفحات الألعاب: تمنع حقنَ ما ليس من اللعبة (XSS).
+ *
+ * ── ولماذا ليست `default-src 'self' 'unsafe-inline' data: blob:` وحدها ──
+ * جُرّبت في متصفّحٍ حقيقيّ على الألعاب الستّ: «سباق الفراعنة» يحمّل محرّكه (Phaser)
+ * من cdn.jsdelivr.net فيُحجب، وألعابُ Unity الثلاث لا يُترجَم فيها WebAssembly — فلا
+ * تعمل أربعٌ من ستّ. وهذه تسمح بالأمرين وحدهما: 'wasm-unsafe-eval' (WebAssembly
+ * وحده، لا eval لـ JavaScript) وذلك المضيفَ وحده. وما سواهما مغلق: لا اتصالَ بمضيفٍ
+ * خارجيّ، ولا إطارات، ولا كائنات، ولا نماذجَ تُرسل، ولا تبديلَ لأصل الروابط.
+ * والستُّ كلُّها تعمل بها بلا مخالفةٍ واحدة.
+ */
+export const GAME_PAGE_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "media-src 'self' data: blob:",
+  "connect-src 'self' data: blob:",
+  "worker-src 'self' blob:",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join("; ");
+
 /** مضيفُ ملفّات اللعبة نفسها، لا صفحةِ الإعلانات المغلِّفة لها. */
 export const GAME_HOST = "https://html5.gamedistribution.com/rvvASMiM";
 

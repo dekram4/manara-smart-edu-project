@@ -5,6 +5,7 @@ import { logger } from "../lib/logger";
 import {
   AD_SDK_PATH,
   DISABLED_AD_SDK,
+  GAME_PAGE_CSP,
   GAME_HOST,
   GAME_IDS,
   LEGACY_AD_SDK,
@@ -62,9 +63,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
   try {
     const upstream = await fetch(upstreamUrl);
     if (!upstream.ok) {
-      res
-        .status(upstream.status)
-        .send(`Game asset request failed (${upstream.status})`);
+      res.status(upstream.status).json({ error: "Game asset request failed" });
       return;
     }
 
@@ -77,9 +76,11 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     if (isHtml) {
       const source = await upstream.text();
       // الألعابُ القديمة: صفحتُها كما هي، بلا أيّ تعديل — كما كانت تعمل.
+      // وسياسةُ أمان المحتوى على الكلّ: لا يُحقن فيها ما ليس منها. انظر GAME_PAGE_CSP.
       res
         .type("html")
         .set("Cache-Control", "no-store")
+        .set("Content-Security-Policy", GAME_PAGE_CSP)
         .send(LEGACY_GAME_IDS.has(gameId) ? source : rewriteGameHtml(gameId, source));
       return;
     }
