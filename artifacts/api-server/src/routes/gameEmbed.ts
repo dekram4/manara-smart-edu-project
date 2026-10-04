@@ -13,6 +13,7 @@ import {
   catalogJson,
   isSafeGameAssetPath,
   resolveGameId,
+  resolveRewrittenGameFile,
   rewriteGameHtml,
   rewriteGameScript,
 } from "../lib/gameEmbed";
@@ -101,49 +102,44 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     return;
   }
 
-  const upstreamUrl = `${GAME_HOST}/${gameId}/${requestedPath}`;
   try {
-    const upstream = await fetch(upstreamUrl);
+    // ── الملفّاتُ المُعادُ كتابتُها: مسارُها ومعرّفُها ثابتان من الكود ──
+    // هذه وحدها تُبنى نصّاً وتُرسل (انظر REWRITTEN_GAME_FILES)؛ فلا يصل إليها
+    // من الطلب شيءٌ إلا عبر مطابقةٍ تامّةٍ مع القائمة.
+    const rewrittenFile = resolveRewrittenGameFile(gameId, requestedPath);
+    if (rewrittenFile) {
+      const upstream = await fetch(`${GAME_HOST}/${gameId}/${rewrittenFile}`);
+      if (!upstream.ok) {
+        res.status(upstream.status).json({ error: "Game asset request failed" });
+        return;
+      }
+      const source = await upstream.text();
+      const isPage = rewrittenFile.endsWith(".html");
+      res
+        .set("Content-Type", isPage ? "text/html; charset=utf-8" : "application/javascript; charset=utf-8")
+        .set("Cache-Control", "no-store")
+        .set("Content-Security-Policy", GAME_PAGE_CSP)
+        .send(isPage ? rewriteGameHtml(gameId, source) : rewriteGameScript(gameId, source));
+      return;
+    }
+
+    // ── وكلُّ ما سواها يُمرَّر كما هو، تدفّقاً ──
+    // صفحاتُ الألعاب القديمة وسكربتاتُ لا تحتاج تعديلاً، وبياناتُ لعبة Unity
+    // (عشراتُ الميغابايتات: كانت تُحمَّل كلُّها في الذاكرة قبل أن يصل بايتٌ للطالب).
+    const upstream = await fetch(`${GAME_HOST}/${gameId}/${requestedPath}`);
     if (!upstream.ok) {
       res.status(upstream.status).json({ error: "Game asset request failed" });
       return;
     }
-
-    const upstreamType = upstream.headers.get("content-type") || "";
-    const isHtml =
-      requestedPath.endsWith(".html") || upstreamType.includes("text/html");
-    const isJavaScript =
-      requestedPath.endsWith(".js") || upstreamType.includes("javascript");
-
-    if (isHtml) {
-      const source = await upstream.text();
-      // الألعابُ القديمة: صفحتُها كما هي، بلا أيّ تعديل — كما كانت تعمل.
-      // وسياسةُ أمان المحتوى على الكلّ: لا يُحقن فيها ما ليس منها. انظر GAME_PAGE_CSP.
-      res
-        .set("Content-Type", "text/html; charset=utf-8")
-        .set("Cache-Control", "no-store")
-        .set("Content-Security-Policy", GAME_PAGE_CSP)
-        .send(LEGACY_GAME_IDS.has(gameId) ? source : rewriteGameHtml(gameId, source));
-      return;
+    const contentType = getContentType(requestedPath, upstream.headers.get("content-type") || "");
+    res.set("Content-Type", contentType);
+    if (/^(?:text\/html|application\/javascript)/.test(contentType)) {
+      // الصفحاتُ والسكربتاتُ كما كانت: لا تُخزَّن، وسياسةُ أمان المحتوى عليها.
+      res.set("Cache-Control", "no-store").set("Content-Security-Policy", GAME_PAGE_CSP);
+    } else {
+      // والبياناتُ لا تتغيّر بعد نشرها (أسماؤها ببصمتها)، فتُحفظ في الجهاز يوماً.
+      res.set("Cache-Control", "public, max-age=86400");
     }
-
-    if (isJavaScript) {
-      const source = await upstream.text();
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      res
-        .set("Content-Type", "application/javascript; charset=utf-8")
-        .set("Cache-Control", "no-store")
-        .set("Content-Security-Policy", GAME_PAGE_CSP)
-        .send(rewriteGameScript(gameId, source));
-      return;
-    }
-
-    // ── والملفّاتُ الكبيرة تُمرَّر تدفّقاً ──
-    // بياناتُ لعبة Unity عشراتُ الميغابايتات. وكانت تُحمَّل كلُّها في ذاكرة الخادم
-    // قبل أن يصل بايتٌ للطالب — فصفٌّ يفتح اللعبةَ معاً يملأ الذاكرة. ولا تتغيّر
-    // بعد نشرها (أسماؤها ببصمتها)، فتُحفظ في الجهاز يوماً.
-    res.set("Content-Type", getContentType(requestedPath, upstreamType));
-    res.set("Cache-Control", "public, max-age=86400");
     // ── والحجمُ لا يُعلَن فوق ٣٠ ميغابايت ──
     // منصّةُ النشر (Cloud Run) تردّ ٥٠٠ فارغاً على ردٍّ يُعلن حجماً فوق ٣٢
     // ميغابايتاً — وبياناتُ «الروبوت الخارق» ٤٤. وبلا `Content-Length` يُرسل
@@ -164,7 +160,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
       .pipe(res);
   } catch (error) {
     logger.error({ err: error }, "Game asset proxy error");
-    res.status(502).send("Game asset proxy failed");
+    res.status(502).json({ error: "Game asset proxy failed" });
   }
 });
 

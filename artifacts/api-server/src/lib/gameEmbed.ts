@@ -104,6 +104,36 @@ export function resolveGameId(value: unknown): string | null {
 }
 
 /**
+ * الملفّاتُ التي تُعاد كتابتُها قبل إرسالها — وحدها، بمسارٍ ثابتٍ هنا.
+ *
+ * فُحص كلُّ ملفّ HTML وJS تطلبه الألعابُ العشر (الستّ والأقدمُ الأربع): هذه وحدها
+ * يغيّرها rewriteGameHtml أو rewriteGameScript؛ وكلُّ ما سواها يُمرَّر كما هو
+ * تدفّقاً. فما يُبنى نصّاً ويُرسل لا يأتي مسارُه ولا معرّفُه من الطلب، بل من هنا.
+ *
+ * وإن غيّر ناشرُ لعبةٍ اسمَ ملفّها (Build/<بصمة>.framework.js) يُمرَّر الجديد كما
+ * هو — فيُحجب عنه رابطُ مكتبة الإعلانات بسياسة أمان المحتوى (GAME_PAGE_CSP) —
+ * ويُضاف اسمُه هنا.
+ */
+const REWRITTEN_GAME_FILES: ReadonlyMap<string, readonly string[]> = new Map([
+  ["d4a3629101574bc39bd8f9d1888ca58e", ["js/init.js"]],
+  ["73c29ef316be4f0bb6d149d8b5a39ff3", ["index.html"]],
+  ["99ba036a4225425794e2c423fbcf9842", ["index.html", "Build/6.framework.js"]],
+  ["d632553ef7264d99aa438310073a6dc3", ["index.html", "yes2sdk-gamedistribution.js"]],
+  ["71b64121c58b4a95b7459e08086dcb00", [
+    "index.html",
+    "Build/b87cb569842ecaed08a4ace4f6d461fa.framework.js",
+  ]],
+]);
+
+/** المسارُ الثابتُ من REWRITTEN_GAME_FILES إن كان الملفُّ يُعاد كتابتُه — أو `null`. */
+export function resolveRewrittenGameFile(gameId: string, path: string): string | null {
+  for (const file of REWRITTEN_GAME_FILES.get(gameId) ?? []) {
+    if (file === path) return file;
+  }
+  return null;
+}
+
+/**
  * مسارُ ملفٍّ داخل لعبة: مقاطعُ من حروفٍ وأرقامٍ و`_ . ~ -` يفصلها `/` — وكلُّ ما
  * تطلبه الألعابُ الستّ (٦٩ ملفاً) على هذا الشكل. ولا مقطعَ `.` أو `..`.
  */

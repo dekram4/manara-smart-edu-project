@@ -54,7 +54,7 @@ export function html(strings: TemplateStringsArray, ...values: HtmlValue[]): Saf
 
 /**
  * إعداداتُ تعقيم مستند الطباعة: مستندٌ كامل (head وstyle وtitle) بلا أيّ سكربت.
- * فالطباعةُ نفسُها لا تُكتب في المستند — بل يربطها openPrintDocument من هنا.
+ * فالطباعةُ نفسُها لا تُكتب في المستند — بل يشغّلها printDocument من هنا.
  */
 const PRINT_SANITIZE_CONFIG = {
   WHOLE_DOCUMENT: true,
@@ -64,74 +64,71 @@ const PRINT_SANITIZE_CONFIG = {
 };
 
 export interface PrintDocumentOptions {
-  /** يطبع تلقائياً بعد هذه المهلة (ملّي ثانية) من تحميل المستند. */
+  /** يطبع بعد هذه المهلة (ملّي ثانية) من تحميل المستند؛ وإلا فور التحميل. */
   autoPrintDelayMs?: number;
 }
 
-/** أطولُ انتظارٍ لتحميل مستند الطباعة قبل التخلّي عنه. */
-const PRINT_LOAD_TIMEOUT_MS = 15_000;
+/**
+ * أطولُ بقاءٍ لإطار الطباعة إن لم يصل حدثُ انتهاء الطباعة (afterprint) — فبعضُ
+ * متصفّحات الهاتف لا ترسله. والإطارُ مخفيٌّ، فبقاؤه هذه المدّة لا يضرّ.
+ */
+const PRINT_FRAME_LIFETIME_MS = 5 * 60_000;
 
 /**
- * يعرض مستنداً كاملاً في نافذة الطباعة — ولا يقبل إلا ما بناه `html`.
+ * يطبع مستنداً كاملاً — ولا يقبل إلا ما بناه `html`.
  *
- * ── بلا كتابةٍ مباشرةٍ في المستند ──
  * يُعقَّم المستند بـ DOMPurify (طبقةٌ ثانيةٌ فوق تعقيم `html` للقيم: لا سكربتَ ولا
- * معالجَ أحداث)، ثم يصير ملفّاً (Blob) تنتقل إليه النافذةُ المفتوحة. فيبقى ما يراه
- * المستخدم كما كان: التقريرُ في لسانٍ جديد، بتنسيقه، ويُطبع تلقائياً أو بزرّه.
- * ولم نستعمل iframe مخفياً: يُلغي معاينةَ التقرير قبل الطباعة، وطباعتُه على iOS قد
- * تُخرج الصفحةَ الأمَّ بدل التقرير.
+ * معالجَ أحداث)، ثم يوضع في إطارٍ مخفيٍّ في الصفحة نفسها عبر `srcdoc` — لا نافذةَ
+ * تُفتح ولا انتقالَ إلى رابط. وبعد تحميله يُطبع الإطارُ نفسه، ثم يُزال.
  *
- * ولأنّ التعقيم يُسقط السكربتات، فالطباعةُ تُربط من هنا بعد التحميل: كلُّ عنصرٍ
- * يحمل `data-print-button` يطبع عند الضغط، و[autoPrintDelayMs] يطبع تلقائياً.
+ * والإطارُ معزولٌ (`sandbox`): لا يجري فيه أيُّ سكربت؛ و`allow-modals` ليُسمح بنافذة
+ * الطباعة، و`allow-same-origin` لتصل إليه الصفحةُ فتطبعه.
  * وDOMPurify يُسقط `<!DOCTYPE>` — فيُعاد إن كان في المستند، كي لا يتغيّر وضعُ العرض.
- *
- * [target] نافذةٌ فُتحت بـ `window.open('', '_blank')` عند ضغطة المستخدم نفسها —
- * فتحُها لاحقاً يمنعه مانعُ النوافذ المنبثقة.
  */
-export function openPrintDocument(
-  target: Window,
+export function printDocument(
   documentHtml: SafeHtml,
   options: PrintDocumentOptions = {},
 ): void {
   const source = documentHtml.value;
   const doctype = /^\s*<!DOCTYPE html>/i.test(source) ? '<!DOCTYPE html>' : '';
   const sanitized = DOMPurify.sanitize(source, PRINT_SANITIZE_CONFIG);
-  const url = URL.createObjectURL(
-    new Blob([doctype + sanitized], { type: 'text/html;charset=utf-8' }),
-  );
-  target.location.replace(url);
 
-  // النافذةُ تنتقل إلى الملف بعد حين؛ يُنتظر مستندُه هو (لا about:blank الذي قبله)
-  // حتى يكتمل، ثم تُربط الطباعة. والملفُّ يُحرَّر بعد التحميل أو عند التخلّي.
-  const startedAt = Date.now();
-  const wait = window.setInterval(() => {
-    let loaded: Document | null = null;
-    try {
-      if (!target.closed && target.location.href === url && target.document.readyState === 'complete') {
-        loaded = target.document;
-      }
-    } catch {
-      // Not reachable yet (mid-navigation) — try again on the next tick.
-    }
-    if (!loaded) {
-      if (target.closed || Date.now() - startedAt > PRINT_LOAD_TIMEOUT_MS) {
-        window.clearInterval(wait);
-        URL.revokeObjectURL(url);
-      }
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  Object.assign(frame.style, {
+    position: 'fixed',
+    right: '0',
+    bottom: '0',
+    width: '0',
+    height: '0',
+    border: '0',
+    opacity: '0',
+    pointerEvents: 'none',
+  });
+
+  let removed = false;
+  const remove = () => {
+    if (removed) return;
+    removed = true;
+    frame.remove();
+  };
+
+  frame.addEventListener('load', () => {
+    const view = frame.contentWindow;
+    if (!view) {
+      remove();
       return;
     }
-    window.clearInterval(wait);
-    URL.revokeObjectURL(url);
+    view.addEventListener('afterprint', () => window.setTimeout(remove, 0), { once: true });
+    window.setTimeout(() => {
+      view.focus();
+      view.print();
+    }, options.autoPrintDelayMs ?? 0);
+    window.setTimeout(remove, PRINT_FRAME_LIFETIME_MS);
+  }, { once: true });
 
-    const print = () => {
-      target.focus();
-      target.print();
-    };
-    loaded.querySelectorAll('[data-print-button]').forEach((button) => {
-      button.addEventListener('click', print);
-    });
-    if (options.autoPrintDelayMs !== undefined) {
-      target.setTimeout(print, options.autoPrintDelayMs);
-    }
-  }, 50);
+  frame.srcdoc = doctype + sanitized;
+  document.body.appendChild(frame);
 }

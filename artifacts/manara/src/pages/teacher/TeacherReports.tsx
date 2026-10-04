@@ -7,7 +7,7 @@ import { normalizeQuizType } from '../../utils/quizTypes';
 import { QuizType } from '../../types';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 import { formatAcademicPath, quizResultPath } from '../../utils/academicPath';
-import { html, openPrintDocument } from '../../utils/printHtml';
+import { html, printDocument } from '../../utils/printHtml';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -99,10 +99,8 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     const parentName = getParentName(student.parentId);
     const date = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
     
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
 
-    openPrintDocument(printWindow, html`
+    printDocument(html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -194,10 +192,8 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       teacherResults.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / teacherResults.length,
     );
     const level = average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين';
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
 
-    openPrintDocument(printWindow, html`
+    printDocument(html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>

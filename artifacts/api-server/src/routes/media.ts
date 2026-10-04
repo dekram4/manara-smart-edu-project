@@ -573,11 +573,16 @@ const rawVideoParser = express.raw({
 
 router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVideoParser, async (req, res) => {
   // الجسمُ من rawVideoParser: Buffer — أو شيءٌ آخر إن لم يكن الطلبُ فيديو.
-  // يُفحص مرّةً هنا، ثم يُستعمل videoBuffer المتحقَّقُ منه وحده.
-  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+  // يُفحص نوعُه صراحةً مرّةً هنا، ثم يُستعمل videoBuffer وحجمُه المتحقَّقان وحدهما.
+  const body: unknown = req.body;
+  if (typeof body !== "object" || body === null || !Buffer.isBuffer(body)) {
     return res.status(400).json({ error: "لم يتم اختيار ملف MP4" });
   }
-  const videoBuffer: Buffer = req.body;
+  const videoBuffer: Buffer = body;
+  const videoSize: number = videoBuffer.byteLength;
+  if (videoSize === 0) {
+    return res.status(400).json({ error: "لم يتم اختيار ملف MP4" });
+  }
   const contentType = String(req.headers["content-type"] || "")
     .split(";")[0]
     .toLowerCase();
@@ -602,7 +607,7 @@ router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVid
         return res.status(201).json({
           url,
           fileName: originalName,
-          size: videoBuffer.length,
+          size: videoSize,
           contentType: "video/mp4",
           storage: "supabase",
           storagePath,
@@ -622,7 +627,7 @@ router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVid
     return res.status(201).json({
       url: localPublicVideoUrl(req, fileName),
       fileName: originalName,
-      size: videoBuffer.length,
+      size: videoSize,
       contentType: "video/mp4",
       storage: "local",
       warning:

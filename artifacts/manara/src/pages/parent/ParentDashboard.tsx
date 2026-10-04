@@ -23,7 +23,7 @@ import { formatSafeDate } from '../../utils/safeDate';
 import CardErrorBoundary from '../../components/CardErrorBoundary';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 import { writeAuthSession } from '../../utils/authSession';
-import { html, openPrintDocument, type SafeHtml } from '../../utils/printHtml';
+import { html, printDocument, type SafeHtml } from '../../utils/printHtml';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -573,9 +573,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         message: html`نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.` },
     };
     const t = typeMap[cert.type];
-    const w = window.open('', '_blank');
-    if (!w) return;
-    openPrintDocument(w, html`
+    printDocument(html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -666,9 +664,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const teacherAvg = teacherQuizzes.length > 0 ? (teacherQuizzes.reduce((acc, q) => acc + q.percentage, 0) / teacherQuizzes.length).toFixed(1) : '0';
       const certificates = readStorageArray<CertificateRecord>(CERT_KEY);
     const studentCertificates = certificates.filter((c: any) => c.studentId === child.id && c.subject === subject);
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    openPrintDocument(printWindow, html`
+    printDocument(html`
       <html dir="rtl" lang="ar"><head><title>تقرير مادة ${subject} - ${child.name}</title>
       <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: linear-gradient(to bottom, #f8fafc, #e2e8f0); }
@@ -715,10 +711,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       teacherQuizzes.reduce((sum, quiz) => sum + getQuizResultPercentage(quiz), 0) / teacherQuizzes.length,
     );
     const level = average >= 90 ? 'ممتاز' : average >= 70 ? 'جيد جداً' : average >= 50 ? 'جيد' : 'يحتاج تحسين';
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
 
-    openPrintDocument(printWindow, html`
+    printDocument(html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>

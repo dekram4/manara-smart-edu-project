@@ -6,7 +6,7 @@ import { getParentChildren, getTeacherParents, getTeacherStudents } from '../../
 import { getQuizTypeLabel as formatQuizTypeLabel } from '../../utils/quizTypes';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { pathCell, quizResultPath } from '../../utils/academicPath';
-import { html, openPrintDocument, type HtmlValue } from '../../utils/printHtml';
+import { html, printDocument, type HtmlValue } from '../../utils/printHtml';
 
 const Reports: React.FC = () => {
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -37,8 +37,6 @@ const Reports: React.FC = () => {
   };
 
   const handlePrint = (type: string) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
 
     let content: HtmlValue = '';
     let title = '';
@@ -63,7 +61,7 @@ const Reports: React.FC = () => {
       content = generateInteractionsReport();
     }
 
-    openPrintDocument(printWindow, html`
+    printDocument(html`
       <html dir="rtl" lang="ar">
         <head>
           <title>${title}</title>
@@ -388,8 +386,6 @@ const Reports: React.FC = () => {
   };
 
   const handlePrintOld = (type: string) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
 
     let content: HtmlValue = '';
     const title = type === 'students' ? 'تقرير الطلاب المسجلين' : type === 'quizzes' ? 'تقرير النتائج العامة' : 'تقرير المحتوى التعليمي';
@@ -499,7 +495,7 @@ const Reports: React.FC = () => {
       `;
     }
 
-    openPrintDocument(printWindow, html`
+    printDocument(html`
       <html dir="rtl" lang="ar">
         <head>
           <title>${title}</title>

@@ -170,3 +170,14 @@ test("isSafeGameAssetPath: مساراتُ الألعاب الحقيقية تمر
     assert.equal(isSafeGameAssetPath(bad), false, JSON.stringify(bad));
   }
 });
+
+test("resolveRewrittenGameFile: المسارُ الثابتُ من القائمة وحده", async () => {
+  const { resolveRewrittenGameFile } = await import("../../../dist/lib/gameEmbed.mjs");
+  assert.equal(resolveRewrittenGameFile("d632553ef7264d99aa438310073a6dc3", "index.html"), "index.html");
+  assert.equal(resolveRewrittenGameFile("d4a3629101574bc39bd8f9d1888ca58e", "js/init.js"), "js/init.js");
+  // الصفحاتُ القديمة لا تُعاد كتابتُها، ولا ملفٌّ خارج القائمة.
+  assert.equal(resolveRewrittenGameFile("d4a3629101574bc39bd8f9d1888ca58e", "index.html"), null);
+  assert.equal(resolveRewrittenGameFile("d632553ef7264d99aa438310073a6dc3", "yes2sdk.umd.js"), null);
+  assert.equal(resolveRewrittenGameFile("0123456789abcdef0123456789abcdef", "index.html"), null);
+  assert.equal(resolveRewrittenGameFile("d632553ef7264d99aa438310073a6dc3", "INDEX.html"), null);
+});

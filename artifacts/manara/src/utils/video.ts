@@ -67,9 +67,19 @@ const parseSafeVideoUrl = (value?: string | null): URL | null => {
 
 export const isSafeVideoUrl = (value?: string | null): boolean => parseSafeVideoUrl(value) !== null;
 
-/** الرابطُ نفسه إن كان آمناً، وإلا `''` — لما يُمرَّر إلى مكوّن عرض. */
-export const safeVideoUrl = (value?: string | null): string =>
-  isSafeVideoUrl(value) ? (value || '').trim() : '';
+/** البروتوكولاتُ الوحيدةُ التي يصل بها رابطٌ إلى مكوّن عرض. */
+const DISPLAY_PROTOCOLS: ReadonlySet<string> = new Set(['https:', 'http:']);
+
+/**
+ * رابطٌ مطلقٌ آمنٌ لما يُمرَّر إلى مكوّن عرض — أو `''`.
+ *
+ * يُعاد الرابطُ المحلَّلُ نفسه (`href`) لا النصُّ الوارد، وبروتوكولُه http/https
+ * حصراً؛ والمسارُ المحليُّ (`/api/media/videos/…`) يصير رابطاً كاملاً على أصل المنصّة.
+ */
+export const safeVideoUrl = (value?: string | null): string => {
+  const parsed = parseSafeVideoUrl(value);
+  return parsed && DISPLAY_PROTOCOLS.has(parsed.protocol) ? parsed.href : '';
+};
 
 /**
  * ملفُّ MP4 — يُعرض في `<video src>`، فلا يكون إلا رابطاً آمناً (انظر parseSafeVideoUrl).
