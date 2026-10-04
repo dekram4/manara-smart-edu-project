@@ -1,0 +1,9 @@
+# Snyk (https://snyk.io) policy file
+version: v1.25.0
+# Third-party game files (GameDistribution), stored as reviewed fixed copies and
+# served as-is — see REWRITTEN_GAME_FILES in artifacts/api-server/src/lib/gameEmbed.ts
+# and scripts/vendor-game-files.mjs. They are not our code, so Snyk Code skips them.
+exclude:
+  code:
+    - artifacts/api-server/static-games/**
+    - artifacts/api-server/static-games
