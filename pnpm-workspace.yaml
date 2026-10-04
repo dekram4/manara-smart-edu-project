@@ -104,6 +104,9 @@ overrides:
   # وحرمان الخدمة. وهي المسار الوحيد من الاعتماديات الذي يصل الإنتاج
   # فعلاً — يحلّل استعلامات يتحكّم بها المهاجم.
   qs: '>=6.16.0'
+  # ثغرةٌ في proxy-addr تحت express (يحلّل عناوين X-Forwarded-For). والتجاوزُ
+  # هنا لا في package.json الفرعي: pnpm يقرأ التجاوزات من إعداد مساحة العمل وحده.
+  proxy-addr: '>=2.0.8'
   rollup>@rollup/rollup-android-arm-eabi: '-'
   rollup>@rollup/rollup-android-arm64: '-'
   rollup>@rollup/rollup-darwin-arm64: '-'
