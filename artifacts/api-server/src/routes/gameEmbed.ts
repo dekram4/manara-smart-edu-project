@@ -1,5 +1,7 @@
 import { Router } from "express";
+import path from "node:path";
 import { Readable } from "node:stream";
+import { fileURLToPath } from "node:url";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { logger } from "../lib/logger";
 import {
@@ -14,11 +16,15 @@ import {
   isSafeGameAssetPath,
   resolveGameId,
   resolveRewrittenGameFile,
-  rewriteGameHtml,
-  rewriteGameScript,
 } from "../lib/gameEmbed";
 
 const router = Router();
+
+/**
+ * نسخُ ملفّات الألعاب المُعادةِ كتابتُها (انظر REWRITTEN_GAME_FILES). ومن
+ * dist/index.mjs هو artifacts/api-server/static-games.
+ */
+const STATIC_GAMES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../static-games");
 
 /** أكبرُ ردٍّ يُعلَن حجمُه — دون حدّ منصّة النشر (٣٢ ميغابايت) بهامش. */
 const MAX_DECLARED_LENGTH = 30 * 1024 * 1024;
@@ -103,32 +109,29 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
   }
 
   try {
-    // ── الملفّاتُ المُعادُ كتابتُها: مسارُها ومعرّفُها ثابتان من الكود ──
-    // هذه وحدها تُبنى نصّاً وتُرسل (انظر REWRITTEN_GAME_FILES)؛ فلا يصل إليها
-    // من الطلب شيءٌ إلا عبر مطابقةٍ تامّةٍ مع القائمة.
+    // ── الملفّاتُ المُعادُ كتابتُها: نسخٌ مثبّتةٌ في المستودع ──
+    // تُقدَّم من static-games كما هي — لا تُجلب ولا تُبنى عند الطلب. ومسارُها
+    // ومعرّفُها من القائمة الثابتة (REWRITTEN_GAME_FILES)، لا من الطلب؛ وroot يحصرها
+    // في المجلّد. انظر scripts/vendor-game-files.mjs.
     const rewrittenFile = resolveRewrittenGameFile(gameId, requestedPath);
     if (rewrittenFile) {
-      const upstream = await fetch(`${GAME_HOST}/${gameId}/${rewrittenFile}`);
-      if (!upstream.ok) {
-        res.status(upstream.status).json({ error: "Game asset request failed" });
-        return;
-      }
-      const source = await upstream.text();
       const isPage = rewrittenFile.endsWith(".html");
-      // يُكتب الردُّ مباشرةً (writeHead ثم end) بنوعه وحجمه. هذا لا يعقّم شيئاً:
-      // المحتوى شيفرةُ اللعبة نفسُها ولا يُعقَّم دون أن تتعطّل. وما يحميه: مصدرٌ ثابتٌ
-      // من القائمة (REWRITTEN_GAME_FILES)، وسياسةُ أمان المحتوى GAME_PAGE_CSP على الردّ.
-      const body = Buffer.from(
-        isPage ? rewriteGameHtml(gameId, source) : rewriteGameScript(gameId, source),
-        "utf-8",
-      );
-      res.writeHead(200, {
-        "Content-Type": isPage ? "text/html; charset=utf-8" : "application/javascript; charset=utf-8",
-        "Cache-Control": "no-store",
-        "Content-Security-Policy": GAME_PAGE_CSP,
-        "Content-Length": body.byteLength,
+      res.sendFile(`${gameId}/${rewrittenFile}`, {
+        root: STATIC_GAMES_DIR,
+        dotfiles: "deny",
+        cacheControl: false,
+        etag: false,
+        lastModified: false,
+        headers: {
+          "Content-Type": isPage ? "text/html; charset=utf-8" : "application/javascript; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Content-Security-Policy": GAME_PAGE_CSP,
+        },
+      }, (error) => {
+        if (!error) return;
+        logger.error({ err: error, gameId, file: rewrittenFile }, "Vendored game file missing");
+        if (!res.headersSent) res.status(500).json({ error: "Game asset unavailable" });
       });
-      res.end(body);
       return;
     }
 

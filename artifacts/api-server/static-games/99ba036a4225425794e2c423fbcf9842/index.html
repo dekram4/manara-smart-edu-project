@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head><script>(function(){try{window.open=function(){return null};}catch(e){}})();</script>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Block Runner: Subway Escape</title>
+
+    <link rel="stylesheet" href="TemplateData/style.css">
+    <link rel="stylesheet" href="TemplateData/animate.css">
+    <script src="TemplateData/jquery-3.5.0.min.js"></script>
+    <script src="TemplateData/progress.js"></script>
+
+    <style>
+        html, body {
+            background: #000000;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #orientation {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: url('TemplateData/images/orientation.jpg');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: #000;
+            z-index: 999;
+            display: none;
+        }
+
+        #blurBackground {
+            background: url('TemplateData/images/gamelogo.png');
+            filter: blur(20px);
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: center;
+            z-index: 0;
+        }
+
+        #gameContainer {
+            background: transparent !important;
+            position: absolute;
+            z-index: 1;
+        }
+
+        #unity-canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        #unity-canvas[data-pixel-art="true"] {
+            image-rendering: optimizeSpeed;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -o-crisp-edges;
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: optimize-contrast;
+            image-rendering: pixelated;
+            -ms-interpolation-mode: nearest-neighbor;
+        }
+
+        #loadingBox {
+            width: 100%;
+            height: 80%;
+            position: absolute;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 5;
+        }
+
+        #bgBar {
+            width: 200px;
+            height: 22px;
+            background-color: #2f2f2f;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #progressBar {
+            width: 0px;
+            height: 22px;
+            background: linear-gradient(to right, #ff7400 0%, #ffc700 100%);
+            border-radius: 10px;
+            transition: all .2s;
+        }
+
+        #loadingInfo {
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-transform: uppercase;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        #gameLogo img {
+            width: 25vh;
+            border-radius: 20px;
+        }
+
+        #gameTitle {
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffffff;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px #ffffff, 2px 2px 2px rgb(27, 99, 245);
+        }
+
+        #studioLogo img {
+            height: 100px;
+        }
+
+        #gameContainer.hide {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="blurBackground"></div>
+    <div id="orientation"></div>
+
+    <div id="loadingBox">
+        <a id="gameLogo" class="animated zoomIn noselect" target="_blank">
+            <img src="TemplateData/images/gamelogo.png" alt="Logo">
+            <p id="gameTitle">Block Runner: Subway Escape</p>
+        </a>
+
+        <div id="loadingSection">
+            <div id="bgBar">
+                <div id="progressBar"></div>
+            </div>
+            <p id="loadingInfo">Loading...</p>
+        </div>
+
+        <a id="studioLogo" class="animated fadeIn noselect" target="_blank">
+            <img src="TemplateData/images/studiologo.png" alt="Studio Logo">
+        </a>
+    </div>
+
+    <div id="gameContainer" class="hide">
+        <canvas id="unity-canvas" data-pixel-art="false"></canvas>
+    </div>
+
+    <script src="Build/6.loader.js"></script>
+    <script>
+        var canvas = document.querySelector("#unity-canvas");
+        var unityInstance = null;
+        var scaleToFit;
+
+        // Unity 2020.3 does not always provide SCALE_TO_FIT as a template variable.
+        // Keep it fixed to true to avoid Preprocess.js failing on an undefined variable.
+        scaleToFit = true;
+
+        var config = {
+            dataUrl: "Build/6.data",
+            frameworkUrl: "Build/6.framework.js",
+            codeUrl: "Build/6.wasm",
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "Todos For Games",
+            productName: "Block Runner: Subway Escape",
+            productVersion: "1.0"
+        };
+
+        function onResize() {
+            var container = document.getElementById("gameContainer");
+            var w, h;
+
+            if (scaleToFit) {
+                var targetRatio = 1080 / 1920;
+                var windowRatio = window.innerWidth / window.innerHeight;
+
+                if (windowRatio > targetRatio) {
+                    h = window.innerHeight;
+                    w = Math.floor(h * targetRatio);
+                } else {
+                    w = window.innerWidth;
+                    h = Math.floor(w / targetRatio);
+                }
+            } else {
+                w = 1080;
+                h = 1920;
+            }
+
+            container.style.width = w + "px";
+            container.style.height = h + "px";
+            container.style.top = Math.floor((window.innerHeight - h) / 2) + "px";
+            container.style.left = Math.floor((window.innerWidth - w) / 2) + "px";
+
+            canvas.style.width = w + "px";
+            canvas.style.height = h + "px";
+        }
+
+        function isMobileDevice() {
+            return /android|iphone|ipad|ipod|iemobile|blackberry|bada/i.test(navigator.userAgent);
+        }
+
+        function setOrientation() {
+            if (!isMobileDevice()) return;
+            // Portrait game: show the orientation overlay only when the device is landscape.
+            // If you do not want an orientation overlay at all, set show = false.
+            var show = window.innerWidth > window.innerHeight;
+            document.getElementById("orientation").style.display = show ? "block" : "none";
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            document.getElementById("gameTitle").innerHTML = "Block Runner: Subway Escape";
+            setOrientation();
+        });
+
+        createUnityInstance(canvas, config, function (progress) {
+            UnityProgress(null, progress);
+        }).then(function (instance) {
+            unityInstance = instance;
+            canvas = instance.Module.canvas;
+            onResize();
+            setOrientation();
+        }).catch(function (message) {
+            alert(message);
+        });
+
+        window.addEventListener("resize", function () {
+            onResize();
+            setOrientation();
+        });
+
+        window.addEventListener("orientationchange", function () {
+            setTimeout(function () {
+                onResize();
+                setOrientation();
+            }, 300);
+        });
+
+        onResize();
+    </script>
+</body>
+</html>

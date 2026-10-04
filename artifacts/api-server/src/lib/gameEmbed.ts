@@ -104,15 +104,15 @@ export function resolveGameId(value: unknown): string | null {
 }
 
 /**
- * الملفّاتُ التي تُعاد كتابتُها قبل إرسالها — وحدها، بمسارٍ ثابتٍ هنا.
+ * الملفّاتُ التي تُعاد كتابتُها — وحدها، بمسارٍ ثابتٍ هنا.
  *
  * فُحص كلُّ ملفّ HTML وJS تطلبه الألعابُ العشر (الستّ والأقدمُ الأربع): هذه وحدها
- * يغيّرها rewriteGameHtml أو rewriteGameScript؛ وكلُّ ما سواها يُمرَّر كما هو
- * تدفّقاً. فما يُبنى نصّاً ويُرسل لا يأتي مسارُه ولا معرّفُه من الطلب، بل من هنا.
+ * يغيّرها rewriteGameHtml أو rewriteGameScript؛ وكلُّ ما سواها يُمرَّر كما هو.
  *
- * وإن غيّر ناشرُ لعبةٍ اسمَ ملفّها (Build/<بصمة>.framework.js) يُمرَّر الجديد كما
- * هو — فيُحجب عنه رابطُ مكتبة الإعلانات بسياسة أمان المحتوى (GAME_PAGE_CSP) —
- * ويُضاف اسمُه هنا.
+ * ونسخُها المُعادةُ كتابتُها مثبّتةٌ في المستودع (static-games/<معرّف>/<مسار>) تُقدَّم
+ * كما هي — لا تُجلب من GameDistribution عند الطلب، فلا يصل تغييرٌ هناك إلى الطلاب
+ * دون مراجعة. وتُولَّد بـ scripts/vendor-game-files.mjs؛ فإن حدّث الناشرُ لعبةً
+ * فتوقّفت، يُعاد توليدُها، ويُضاف هنا أيُّ اسمٍ جديد (Build/<بصمة>.framework.js).
  */
 const REWRITTEN_GAME_FILES: ReadonlyMap<string, readonly string[]> = new Map([
   ["d4a3629101574bc39bd8f9d1888ca58e", ["js/init.js"]],
@@ -124,6 +124,11 @@ const REWRITTEN_GAME_FILES: ReadonlyMap<string, readonly string[]> = new Map([
     "Build/b87cb569842ecaed08a4ace4f6d461fa.framework.js",
   ]],
 ]);
+
+/** كلُّ [معرّف اللعبة، المسار] في REWRITTEN_GAME_FILES — لسكربت توليد النسخ واختبارها. */
+export function rewrittenGameFileList(): Array<[string, string]> {
+  return [...REWRITTEN_GAME_FILES].flatMap(([id, files]) => files.map((file): [string, string] => [id, file]));
+}
 
 /** المسارُ الثابتُ من REWRITTEN_GAME_FILES إن كان الملفُّ يُعاد كتابتُه — أو `null`. */
 export function resolveRewrittenGameFile(gameId: string, path: string): string | null {

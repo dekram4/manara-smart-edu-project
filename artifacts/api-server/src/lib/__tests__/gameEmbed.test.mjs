@@ -181,3 +181,18 @@ test("resolveRewrittenGameFile: المسارُ الثابتُ من القائم�
   assert.equal(resolveRewrittenGameFile("0123456789abcdef0123456789abcdef", "index.html"), null);
   assert.equal(resolveRewrittenGameFile("d632553ef7264d99aa438310073a6dc3", "INDEX.html"), null);
 });
+
+test("كلُّ ملفٍّ في REWRITTEN_GAME_FILES له نسخةٌ مثبّتةٌ في static-games", async () => {
+  const { rewrittenGameFileList } = await import("../../../dist/lib/gameEmbed.mjs");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../static-games");
+  const files = rewrittenGameFileList();
+  assert.equal(files.length, 8);
+  for (const [gameId, file] of files) {
+    const full = path.join(root, gameId, file);
+    assert.ok(fs.existsSync(full), `${gameId}/${file}`);
+    assert.ok(fs.statSync(full).size > 1000, `${gameId}/${file} not empty`);
+  }
+});
