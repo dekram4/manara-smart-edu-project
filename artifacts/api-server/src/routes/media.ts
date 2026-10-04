@@ -12,6 +12,7 @@ import {
   type WriteActor,
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
+import { safeFilePath, VIDEO_FILE_NAME } from "../lib/safePath";
 
 const router = Router();
 
@@ -28,13 +29,18 @@ const legacyUploadDirectories = [
   path.resolve(__dirname, "../../../smart-edu-project/uploads/videos"),
 ];
 
-function videoFilePath(fileName: string): string {
-  const primaryPath = path.join(uploadDirectory, fileName);
+/**
+ * مسارُ ملف فيديو — أو `null` إن لم يكن اسمُه اسمَ فيديو، أو خرج عن مجلد الرفع.
+ * انظر `safeFilePath`: كلُّ قراءةٍ وحذفٍ تمرّ به.
+ */
+function videoFilePath(fileName: string): string | null {
+  const primaryPath = safeFilePath(uploadDirectory, fileName, { pattern: VIDEO_FILE_NAME });
+  if (!primaryPath) return null;
   if (fs.existsSync(primaryPath)) return primaryPath;
 
   for (const directory of legacyUploadDirectories) {
-    const legacyPath = path.join(directory, fileName);
-    if (fs.existsSync(legacyPath)) return legacyPath;
+    const legacyPath = safeFilePath(directory, fileName, { pattern: VIDEO_FILE_NAME });
+    if (legacyPath && fs.existsSync(legacyPath)) return legacyPath;
   }
 
   return primaryPath;
@@ -306,8 +312,12 @@ async function deleteFromSupabase(
   }
 }
 
-function ownerFilePath(fileName: string): string {
-  return path.join(uploadDirectory, `${fileName}.owner.json`);
+/** ملفُّ مالك الفيديو بجانبه — أو `null` لاسمٍ غير صالح. */
+function ownerFilePath(fileName: string): string | null {
+  return safeFilePath(uploadDirectory, fileName, {
+    pattern: VIDEO_FILE_NAME,
+    suffix: ".owner.json",
+  });
 }
 
 async function writeOwner(fileName: string, actor: WriteActor): Promise<void> {
@@ -315,12 +325,16 @@ async function writeOwner(fileName: string, actor: WriteActor): Promise<void> {
     actor.role === "admin"
       ? { role: "admin" }
       : { role: "teacher", teacherId: actor.teacherId };
-  await fs.promises.writeFile(ownerFilePath(fileName), JSON.stringify(owner), "utf8");
+  const ownerPath = ownerFilePath(fileName);
+  if (!ownerPath) throw new Error("Invalid upload file name");
+  await fs.promises.writeFile(ownerPath, JSON.stringify(owner), "utf8");
 }
 
 async function readOwner(fileName: string): Promise<UploadOwner | null> {
+  const ownerPath = ownerFilePath(fileName);
+  if (!ownerPath) return null;
   try {
-    const raw = await fs.promises.readFile(ownerFilePath(fileName), "utf8");
+    const raw = await fs.promises.readFile(ownerPath, "utf8");
     const owner = JSON.parse(raw) as UploadOwner;
     if (
       owner?.role === "admin" ||
@@ -343,6 +357,9 @@ router.get("/media/videos/:fileName", (req, res) => {
     return res.status(400).json({ error: "اسم ملف فيديو غير صالح" });
   }
   const filePath = videoFilePath(fileName);
+  if (!filePath) {
+    return res.status(400).json({ error: "اسم ملف فيديو غير صالح" });
+  }
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "ملف الفيديو غير موجود" });
   }
@@ -542,10 +559,9 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
       }
     }
 
-    await fs.promises.writeFile(
-      path.join(uploadDirectory, fileName),
-      req.body as Buffer,
-    );
+    const filePath = safeFilePath(uploadDirectory, fileName, { pattern: VIDEO_FILE_NAME });
+    if (!filePath) throw new Error("Invalid upload file name");
+    await fs.promises.writeFile(filePath, req.body as Buffer);
     await writeOwner(fileName, actor);
     return res.status(201).json({
       url: localPublicVideoUrl(req, fileName),
@@ -606,9 +622,10 @@ router.post("/media/delete", requireContentManager, async (req, res) => {
     if (!localMatch) {
       return res.status(400).json({ error: "مسار ملف غير صالح" });
     }
+    // اسمٌ مجرّدٌ داخل مجلد الرفع وحده — قبل أيّ قراءةٍ أو حذف.
     const filePath = videoFilePath(localMatch[1]);
-    if (![uploadDirectory, ...legacyUploadDirectories].some((directory) =>
-      filePath.startsWith(`${directory}${path.sep}`))) {
+    if (!filePath || ![uploadDirectory, ...legacyUploadDirectories].some((directory) =>
+      filePath.startsWith(`${path.resolve(directory)}${path.sep}`))) {
       return res.status(400).json({ error: "مسار ملف غير صالح" });
     }
     const owner = await readOwner(localMatch[1]);
@@ -619,7 +636,8 @@ router.post("/media/delete", requireContentManager, async (req, res) => {
       return res.status(403).json({ error: "لا تملك صلاحية حذف هذا الملف" });
     }
     await fs.promises.unlink(filePath);
-    await fs.promises.unlink(ownerFilePath(localMatch[1])).catch(() => {});
+    const ownerPath = ownerFilePath(localMatch[1]);
+    if (ownerPath) await fs.promises.unlink(ownerPath).catch(() => {});
   } catch (error: any) {
     if (error?.code !== "ENOENT") {
       return res.status(500).json({ error: "تعذر حذف ملف الفيديو" });

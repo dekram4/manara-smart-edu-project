@@ -24,19 +24,54 @@ router.get("/game-catalog", (_req, res) => {
   res.json({ games: catalogJson() });
 });
 
+/**
+ * نوعُ الملف من امتداده أولاً، ثم ممّا أعلنه المصدر.
+ *
+ * مع `nosniff` لا يخمّن المتصفّح: نوعٌ عامٌّ (`binary/octet-stream`) على ملفّ أنماطٍ
+ * أو wasm يُرفض. وخادمُ الألعاب يرسل أنواعاً عامّةً كهذه أحياناً — فالامتدادُ أصدق.
+ */
+const EXTENSION_TYPES: Record<string, string> = {
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".wasm": "application/wasm",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
+};
+
 function getContentType(pathname: string, upstreamType: string): string {
+  const clean = pathname.split("?")[0].toLowerCase();
+  const dot = clean.lastIndexOf(".");
+  const known = dot >= 0 ? EXTENSION_TYPES[clean.slice(dot)] : undefined;
+  if (known) return known;
   if (upstreamType) return upstreamType;
-  if (pathname.endsWith(".js")) return "application/javascript; charset=utf-8";
-  if (pathname.endsWith(".json") || pathname.endsWith(".webmanifest"))
-    return "application/json; charset=utf-8";
-  if (pathname.endsWith(".css")) return "text/css; charset=utf-8";
-  if (pathname.endsWith(".html")) return "text/html; charset=utf-8";
-  if (pathname.endsWith(".wasm")) return "application/wasm";
   return "application/octet-stream";
 }
 
 // Express 5 requires named wildcards — use *gameAssetPath
 router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
+  // لا تخمينَ لنوع أيِّ ردٍّ من هنا: يُعامَل بما أُعلن فقط. انظر getContentType.
+  res.setHeader("X-Content-Type-Options", "nosniff");
   const { gameId, gameAssetPath: rawAssetPath } = req.params as any;
   // Express 5 named wildcards may be delivered as an array of segments
   const requestedPath: string = Array.isArray(rawAssetPath)
@@ -87,9 +122,11 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
 
     if (isJavaScript) {
       const source = await upstream.text();
+      res.setHeader("X-Content-Type-Options", "nosniff");
       res
         .type("application/javascript")
         .set("Cache-Control", "no-store")
+        .set("Content-Security-Policy", GAME_PAGE_CSP)
         .send(rewriteGameScript(gameId, source));
       return;
     }
