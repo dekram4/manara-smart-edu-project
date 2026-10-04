@@ -115,11 +115,18 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
       }
       const source = await upstream.text();
       const isPage = rewrittenFile.endsWith(".html");
+      // يُرسل بايتاتٍ (Buffer) بنوعه المضبوط أعلاه. هذا لا يعقّم شيئاً: المحتوى شيفرةُ
+      // اللعبة نفسُها ولا يُعقَّم دون أن تتعطّل. وما يحميه: مصدرٌ ثابتٌ من القائمة
+      // (REWRITTEN_GAME_FILES)، وسياسةُ أمان المحتوى GAME_PAGE_CSP على الردّ.
+      const body = Buffer.from(
+        isPage ? rewriteGameHtml(gameId, source) : rewriteGameScript(gameId, source),
+        "utf-8",
+      );
       res
         .set("Content-Type", isPage ? "text/html; charset=utf-8" : "application/javascript; charset=utf-8")
         .set("Cache-Control", "no-store")
         .set("Content-Security-Policy", GAME_PAGE_CSP)
-        .send(isPage ? rewriteGameHtml(gameId, source) : rewriteGameScript(gameId, source));
+        .send(body);
       return;
     }
 
