@@ -87,7 +87,7 @@ const Reports: React.FC = () => {
           ${content}
           <div class="footer">منصة التعليم الذكي - الإدارة العامة • جميع الحقوق محفوظة © ${new Date().getFullYear()}</div>
           <div class="no-print" style="text-align:center; margin-top:40px;">
-             <button onclick="window.print()" style="padding:15px 50px; background:#3b82f6; color:white; border:none; border-radius:15px; cursor:pointer; font-weight:black; font-size:18px;">طباعة الآن</button>
+             <button data-print-button style="padding:15px 50px; background:#3b82f6; color:white; border:none; border-radius:15px; cursor:pointer; font-weight:black; font-size:18px;">طباعة الآن</button>
           </div>
         </body>
       </html>
@@ -521,7 +521,7 @@ const Reports: React.FC = () => {
           ${content}
           <div class="footer">منصة التعليم الذكي - الإدارة العامة • جميع الحقوق محفوظة © ${new Date().getFullYear()}</div>
           <div class="no-print" style="text-align:center; margin-top:40px;">
-             <button onclick="window.print()" style="padding:15px 50px; background:#3b82f6; color:white; border:none; border-radius:15px; cursor:pointer; font-weight:black; font-size:18px;">طباعة الان</button>
+             <button data-print-button style="padding:15px 50px; background:#3b82f6; color:white; border:none; border-radius:15px; cursor:pointer; font-weight:black; font-size:18px;">طباعة الان</button>
           </div>
         </body>
       </html>

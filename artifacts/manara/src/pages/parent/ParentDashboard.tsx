@@ -652,12 +652,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               </div>
             </div>
           </div>
-          <script>
-            window.onload = function() { setTimeout(() => { window.print(); }, 500); };
-          </script>
         </body>
       </html>
-    `);
+    `, { autoPrintDelayMs: 500 });
   };
 
   const printSubjectReport = (child: StudentInfo, subject: string) => {
@@ -791,10 +788,9 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             </section>
           `)}
           <div class="footer">تم إنشاء التقرير بواسطة منصة التعليم الذكي — ${new Date().toLocaleString('ar-SA')}</div>
-          <script>window.onload = function() { setTimeout(() => window.print(), 400); };</script>
         </body>
       </html>
-    `);
+    `, { autoPrintDelayMs: 400 });
   };
 
   if (!isAuthenticated) {

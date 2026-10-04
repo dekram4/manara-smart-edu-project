@@ -86,6 +86,7 @@
     "@splinetool/runtime": "^1.12.98",
     "@supabase/supabase-js": "^2.112.3",
     "canvas-confetti": "^1.9.4",
+    "dompurify": "^3.4.16",
     "emoji-mart": "^5.6.0",
     "emoji-picker-react": "^4.19.1",
     "gsap": "^3.15.0",

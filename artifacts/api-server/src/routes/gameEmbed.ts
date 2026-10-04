@@ -5,12 +5,14 @@ import { logger } from "../lib/logger";
 import {
   AD_SDK_PATH,
   DISABLED_AD_SDK,
+  GAME_ID_PATTERN,
   GAME_PAGE_CSP,
   GAME_HOST,
-  GAME_IDS,
   LEGACY_AD_SDK,
   LEGACY_GAME_IDS,
   catalogJson,
+  isSafeGameAssetPath,
+  resolveGameId,
   rewriteGameHtml,
   rewriteGameScript,
 } from "../lib/gameEmbed";
@@ -72,24 +74,29 @@ function getContentType(pathname: string, upstreamType: string): string {
 router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
   // لا تخمينَ لنوع أيِّ ردٍّ من هنا: يُعامَل بما أُعلن فقط. انظر getContentType.
   res.setHeader("X-Content-Type-Options", "nosniff");
-  const { gameId, gameAssetPath: rawAssetPath } = req.params as any;
+  const { gameId: rawGameId, gameAssetPath: rawAssetPath } = req.params as Record<string, unknown>;
   // Express 5 named wildcards may be delivered as an array of segments
-  const requestedPath: string = Array.isArray(rawAssetPath)
+  const rawPath = Array.isArray(rawAssetPath)
     ? rawAssetPath.join("/")
     : (rawAssetPath || "index.html");
 
-  if (
-    !GAME_IDS.has(gameId) ||
-    requestedPath.includes("..") ||
-    requestedPath.startsWith("/")
-  ) {
-    res.status(404).send("Game asset not found");
+  // ── المدخلاتُ تُفحص كلُّها قبل أيّ طلبٍ أو ردّ ──
+  // شكلٌ غير صالحٍ ← 400؛ ومعرّفٌ سليمُ الشكل خارج القائمة ← 404. ثم لا يُستعمل
+  // إلا gameId الثابتُ من القائمة، وrequestedPath الذي اجتاز الفحص.
+  if (typeof rawGameId !== "string" || !GAME_ID_PATTERN.test(rawGameId) || !isSafeGameAssetPath(rawPath)) {
+    res.status(400).json({ error: "Invalid game asset request" });
     return;
   }
+  const gameId = resolveGameId(rawGameId);
+  if (!gameId) {
+    res.status(404).json({ error: "Game not found" });
+    return;
+  }
+  const requestedPath: string = rawPath;
 
   if (requestedPath === AD_SDK_PATH.slice(1)) {
     res
-      .type("application/javascript")
+      .set("Content-Type", "application/javascript; charset=utf-8")
       .send(LEGACY_GAME_IDS.has(gameId) ? LEGACY_AD_SDK : DISABLED_AD_SDK);
     return;
   }
@@ -113,7 +120,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
       // الألعابُ القديمة: صفحتُها كما هي، بلا أيّ تعديل — كما كانت تعمل.
       // وسياسةُ أمان المحتوى على الكلّ: لا يُحقن فيها ما ليس منها. انظر GAME_PAGE_CSP.
       res
-        .type("html")
+        .set("Content-Type", "text/html; charset=utf-8")
         .set("Cache-Control", "no-store")
         .set("Content-Security-Policy", GAME_PAGE_CSP)
         .send(LEGACY_GAME_IDS.has(gameId) ? source : rewriteGameHtml(gameId, source));
@@ -124,7 +131,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
       const source = await upstream.text();
       res.setHeader("X-Content-Type-Options", "nosniff");
       res
-        .type("application/javascript")
+        .set("Content-Type", "application/javascript; charset=utf-8")
         .set("Cache-Control", "no-store")
         .set("Content-Security-Policy", GAME_PAGE_CSP)
         .send(rewriteGameScript(gameId, source));

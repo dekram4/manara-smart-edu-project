@@ -139,3 +139,34 @@ test("سياسةُ أمان صفحات الألعاب: صارمة، وتسمح �
   }
   assert.ok(!d["connect-src"].some((v) => v.startsWith("http")), "لا اتصالَ بمضيفٍ خارجي");
 });
+
+test("resolveGameId: الثابتُ من القائمة لمعرّفٍ معروف، ولا شيء لغيره", async () => {
+  const { resolveGameId, GAME_IDS } = await import("../../../dist/lib/gameEmbed.mjs");
+  for (const id of GAME_IDS) {
+    assert.equal(resolveGameId(id), id);
+  }
+  for (const bad of [
+    "0123456789abcdef0123456789abcdef", // سليمُ الشكل، خارج القائمة
+    "D4A3629101574BC39BD8F9D1888CA58E", // أحرفٌ كبيرة
+    "d4a3629101574bc39bd8f9d1888ca58e/", "d4a3629101574bc39bd8f9d1888ca58", "../x",
+    "<script>", "", null, undefined, 42, ["d4a3629101574bc39bd8f9d1888ca58e"],
+  ]) {
+    assert.equal(resolveGameId(bad), null, JSON.stringify(bad));
+  }
+});
+
+test("isSafeGameAssetPath: مساراتُ الألعاب الحقيقية تمرّ، والخروجُ والحقنُ يُرفضان", async () => {
+  const { isSafeGameAssetPath } = await import("../../../dist/lib/gameEmbed.mjs");
+  for (const ok of [
+    "index.html", "main.min.js", "Build/6.framework.js", "Build/985728d049f55275c34c826df80833c7.wasm.unityweb",
+    "bower_components/requirejs/require.js", "icon-256x256.png", "assets/fonts/font~1.woff2", "manifest.json",
+  ]) {
+    assert.equal(isSafeGameAssetPath(ok), true, ok);
+  }
+  for (const bad of [
+    "../secret", "a/../../b", "./index.html", "a/./b", "/etc/passwd", "a//b", "a/", "",
+    "a\b", "x.html?<script>", "<img src=x>.html", "a b.js", "%2e%2e/x", "a\0.js", "x".repeat(301), null, 1,
+  ]) {
+    assert.equal(isSafeGameAssetPath(bad), false, JSON.stringify(bad));
+  }
+});

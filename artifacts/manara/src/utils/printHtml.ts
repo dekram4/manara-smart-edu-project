@@ -9,6 +9,8 @@
  * إلى تقريرٍ لاحقاً لا يُنسى تعقيمُها.
  */
 
+import DOMPurify from 'dompurify';
+
 const HTML_ESCAPES: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',
@@ -50,9 +52,52 @@ export function html(strings: TemplateStringsArray, ...values: HtmlValue[]): Saf
   return new SafeHtml(out);
 }
 
-/** يكتب مستنداً كاملاً في نافذة الطباعة — ولا يقبل إلا ما بناه `html`. */
-export function writePrintDocument(target: Window, documentHtml: SafeHtml): void {
+/**
+ * إعداداتُ تعقيم مستند الطباعة: مستندٌ كامل (head وstyle وtitle) بلا أيّ سكربت.
+ * فالطباعةُ نفسُها لا تُكتب في المستند — بل يربطها writePrintDocument من هنا.
+ */
+const PRINT_SANITIZE_CONFIG = {
+  WHOLE_DOCUMENT: true,
+  ADD_TAGS: ['title', 'meta'],
+  ADD_ATTR: ['charset'],
+  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'base', 'link'],
+};
+
+export interface PrintDocumentOptions {
+  /** يطبع تلقائياً بعد هذه المهلة (ملّي ثانية) من كتابة المستند. */
+  autoPrintDelayMs?: number;
+}
+
+/**
+ * يكتب مستنداً كاملاً في نافذة الطباعة — ولا يقبل إلا ما بناه `html`.
+ *
+ * ثم يعقّمه بـ DOMPurify قبل الكتابة: طبقةٌ ثانيةٌ فوق تعقيم `html` للقيم، فلا يصل
+ * إلى النافذة سكربتٌ ولا معالجُ أحداثٍ (`onclick`/`onerror`…) وإن تسرّب.
+ *
+ * ولأنّ التعقيم يُسقط السكربتات، فالطباعةُ تُربط من هنا: كلُّ عنصرٍ يحمل
+ * `data-print-button` يطبع عند الضغط، و[autoPrintDelayMs] يطبع تلقائياً.
+ * وDOMPurify يُسقط `<!DOCTYPE>` — فيُعاد إن كان في المستند، كي لا يتغيّر وضعُ العرض.
+ */
+export function writePrintDocument(
+  target: Window,
+  documentHtml: SafeHtml,
+  options: PrintDocumentOptions = {},
+): void {
+  const source = documentHtml.value;
+  const doctype = /^\s*<!DOCTYPE html>/i.test(source) ? '<!DOCTYPE html>' : '';
+  const sanitized = DOMPurify.sanitize(source, PRINT_SANITIZE_CONFIG);
   target.document.open();
-  target.document.write(documentHtml.value);
+  target.document.write(doctype + sanitized);
   target.document.close();
+
+  const print = () => {
+    target.focus();
+    target.print();
+  };
+  target.document.querySelectorAll('[data-print-button]').forEach((button) => {
+    button.addEventListener('click', print);
+  });
+  if (options.autoPrintDelayMs !== undefined) {
+    target.setTimeout(print, options.autoPrintDelayMs);
+  }
 }

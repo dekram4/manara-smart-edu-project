@@ -86,6 +86,35 @@ export const GAME_IDS = new Set<string>([
   "72d861a52f3c4e788ae0421649633be3",
 ]);
 
+/** شكلُ معرّف لعبة GameDistribution: ٣٢ محرفاً ستّ‌عشرياً صغيراً، لا غير. */
+export const GAME_ID_PATTERN = /^[a-f0-9]{32}$/;
+
+/**
+ * المعرّفُ من القائمة البيضاء نفسها — أو `null`.
+ *
+ * يُعاد الثابتُ المخزَّن في GAME_IDS لا القيمةُ الواردة في الطلب: فكلُّ ما يُبنى
+ * بعدها (رابطُ المصدر، وrewriteGameHtml) يأخذ معرّفاً من الكود لا من الطالب.
+ */
+export function resolveGameId(value: unknown): string | null {
+  if (typeof value !== "string" || !GAME_ID_PATTERN.test(value)) return null;
+  for (const id of GAME_IDS) {
+    if (id === value) return id;
+  }
+  return null;
+}
+
+/**
+ * مسارُ ملفٍّ داخل لعبة: مقاطعُ من حروفٍ وأرقامٍ و`_ . ~ -` يفصلها `/` — وكلُّ ما
+ * تطلبه الألعابُ الستّ (٦٩ ملفاً) على هذا الشكل. ولا مقطعَ `.` أو `..`.
+ */
+const GAME_ASSET_PATH_PATTERN = /^[A-Za-z0-9_.~-]+(?:\/[A-Za-z0-9_.~-]+)*$/;
+
+export function isSafeGameAssetPath(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 300) return false;
+  if (!GAME_ASSET_PATH_PATTERN.test(value)) return false;
+  return value.split("/").every((segment) => segment !== "." && segment !== "..");
+}
+
 /**
  * الألعابُ التي كانت تعمل قبل إضافة الأربع: تُقدَّم كما كانت حرفياً — صفحتُها بلا
  * تعديل، وبديلُ الإعلانات الأصلي، واستبدالُ رابط المكتبة بصيغة https وحدها.

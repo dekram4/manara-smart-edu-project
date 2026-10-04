@@ -310,12 +310,9 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
               </div>
             </div>
           </div>
-          <script>
-            window.onload = function() { setTimeout(() => { window.print(); }, 500); };
-          </script>
         </body>
       </html>
-    `);
+    `, { autoPrintDelayMs: 500 });
   };
 
   const filteredStudents = students.filter(student => {

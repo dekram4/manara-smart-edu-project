@@ -181,16 +181,9 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             <p>للاستفسارات يرجى التواصل مع إدارة المنصة</p>
           </div>
           
-          <script>
-            window.onload = function() {
-              setTimeout(() => {
-                window.print();
-              }, 500);
-            };
-          </script>
         </body>
       </html>
-    `);
+    `, { autoPrintDelayMs: 500 });
   };
 
   const printTeacherResultsReport = (student: StudentInfo) => {
@@ -273,10 +266,9 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             </section>
           `)}
           <div class="footer">تم إنشاء التقرير بواسطة منصة التعليم الذكي — ${new Date().toLocaleString('ar-SA')}</div>
-          <script>window.onload = function() { setTimeout(() => window.print(), 400); };</script>
         </body>
       </html>
-    `);
+    `, { autoPrintDelayMs: 400 });
   };
 
   const filteredStudents = students.filter(student => {
