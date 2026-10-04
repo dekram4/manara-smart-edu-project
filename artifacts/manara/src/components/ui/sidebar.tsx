@@ -24,8 +24,9 @@ import { cn } from '@/lib/utils';
 import { cva, VariantProps } from 'class-variance-authority';
 import { PanelLeftIcon } from 'lucide-react';
 
-const SIDEBAR_COOKIE_NAME = 'sidebar_state';
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+// حالةُ الشريط الجانبي تفضيلُ عرضٍ في المتصفّح وحده — لا يقرؤها الخادم — فتُحفظ في
+// localStorage لا في كوكي يُرسل مع كل طلب.
+const SIDEBAR_STORAGE_KEY = 'sidebar_state';
 const SIDEBAR_WIDTH = '16rem';
 const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '3rem';
@@ -81,8 +82,13 @@ function SidebarProvider({
         _setOpen(openState);
       }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      // Keep the sidebar state in this browser. Storage can be unavailable
+      // (private mode, blocked site data) — the sidebar works without it.
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(openState));
+      } catch {
+        // Not persisted; nothing else depends on it.
+      }
     },
     [setOpenProp, open],
   );
