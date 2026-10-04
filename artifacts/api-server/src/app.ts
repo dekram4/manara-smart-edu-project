@@ -4,7 +4,7 @@ import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import router from "./routes";
-import { uploadDirectory } from "./routes/media";
+import { uploadDirectory, videoDownloadRateLimit } from "./routes/media";
 import { logger } from "./lib/logger";
 import { isTrustedOrigin } from "./lib/trustedOrigin";
 
@@ -107,7 +107,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve locally-uploaded videos
-app.use("/uploads/videos", express.static(uploadDirectory, { index: false }));
+// الملفّاتُ نفسُها التي يخدمها /api/media/videos — وبالحدّ نفسه.
+app.use("/uploads/videos", videoDownloadRateLimit, express.static(uploadDirectory, { index: false }));
 
 app.use("/api", router);
 

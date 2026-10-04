@@ -7,6 +7,7 @@ import { normalizeQuizType } from '../../utils/quizTypes';
 import { QuizType } from '../../types';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 import { formatAcademicPath, quizResultPath } from '../../utils/academicPath';
+import { html, writePrintDocument } from '../../utils/printHtml';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -101,7 +102,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    printWindow.document.write(`
+    writePrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -190,8 +191,6 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
         </body>
       </html>
     `);
-    
-    printWindow.document.close();
   };
 
   const printTeacherResultsReport = (student: StudentInfo) => {
@@ -205,7 +204,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    printWindow.document.write(`
+    writePrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -249,7 +248,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             <div><strong>أعلى نتيجة</strong><div class="value">${Math.max(...teacherResults.map(getQuizResultPercentage))}%</div></div>
             <div><strong>التقدير العام</strong><div class="value">${level}</div></div>
           </div>
-          ${teacherResults.map((result) => `
+          ${teacherResults.map((result) => html`
             <section class="result">
               <h2>${result.quizTitle || 'اختبار المعلم'}</h2>
               <div class="result-meta">
@@ -257,10 +256,10 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                 <span><b>التاريخ:</b> ${new Date(result.createdAt).toLocaleString('ar-SA')}</span>
               </div>
               <div class="score">النتيجة: ${getQuizResultScore(result)} / ${result.total || 0} — ${getQuizResultPercentage(result)}% — ${result.level || '—'}</div>
-              ${Array.isArray(result.details) && result.details.length > 0 ? `
+              ${Array.isArray(result.details) && result.details.length > 0 ? html`
                 <table>
                   <thead><tr><th>#</th><th>السؤال</th><th>إجابة الطالب</th><th>الإجابة الصحيحة</th><th>الحالة</th></tr></thead>
-                  <tbody>${result.details.map((detail, index) => `
+                  <tbody>${result.details.map((detail, index) => html`
                     <tr>
                       <td>${index + 1}</td>
                       <td>${detail.question}</td>
@@ -268,17 +267,16 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                       <td>${detail.correctAnswer || '—'}</td>
                       <td class="${detail.isCorrect ? 'correct' : 'wrong'}">${detail.isCorrect ? 'صحيحة' : 'خاطئة'}</td>
                     </tr>
-                  `).join('')}</tbody>
+                  `)}</tbody>
                 </table>
               ` : ''}
             </section>
-          `).join('')}
+          `)}
           <div class="footer">تم إنشاء التقرير بواسطة منصة التعليم الذكي — ${new Date().toLocaleString('ar-SA')}</div>
           <script>window.onload = function() { setTimeout(() => window.print(), 400); };</script>
         </body>
       </html>
     `);
-    printWindow.document.close();
   };
 
   const filteredStudents = students.filter(student => {

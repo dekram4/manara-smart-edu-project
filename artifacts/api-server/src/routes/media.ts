@@ -13,6 +13,7 @@ import {
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
 import { safeFilePath, VIDEO_FILE_NAME } from "../lib/safePath";
+import { createClientRateLimit } from "../middleware/rateLimiter";
 
 const router = Router();
 
@@ -350,8 +351,17 @@ async function readOwner(fileName: string): Promise<UploadOwner | null> {
   return null;
 }
 
+/**
+ * حدُّ تنزيل الفيديو: ١٠٠ طلبٍ في الدقيقة لكل عميل.
+ *
+ * كلُّ طلبٍ يفتح ملفاً ويبثّه من القرص؛ وبلا حدٍّ تستنزف طلباتٌ متزامنةٌ الخادم.
+ * والمشغّلُ يرسل عدّة طلبات Range للفيديو الواحد (وعند كل تقديم)، فالحدُّ في
+ * أعلى المدى لا أدناه. ويُعدّ لكل عميلٍ لا للخادم كلّه — انظر createClientRateLimit.
+ */
+export const videoDownloadRateLimit = createClientRateLimit(100);
+
 // GET /api/media/videos/:fileName — legacy local-media compatibility route
-router.get("/media/videos/:fileName", (req, res) => {
+router.get("/media/videos/:fileName", videoDownloadRateLimit, (req, res) => {
   const fileName = String(req.params.fileName || "");
   if (!/^[a-zA-Z0-9-]+\.mp4$/.test(fileName)) {
     return res.status(400).json({ error: "اسم ملف فيديو غير صالح" });

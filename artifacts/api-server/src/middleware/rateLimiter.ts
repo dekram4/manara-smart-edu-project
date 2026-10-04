@@ -40,6 +40,30 @@ export function createRateLimit(maxPerMinute: number) {
 }
 
 /**
+ * The same window, counted per client address as the platform's proxy saw it.
+ *
+ * For public routes with no session to count by — such as serving videos. The
+ * socket address is the proxy's (127.0.0.1 on Replit), so counting by it is one
+ * window for every visitor: a class opening the same video together — each
+ * player sending several Range requests — would lock everyone out.
+ *
+ * The client address is the LAST entry of X-Forwarded-For: the proxy appends
+ * what it saw to whatever the caller sent, so the caller controls the entries
+ * to its left but never the last one. Rotating forged entries changes nothing.
+ * Without the header (a direct connection) the socket address is used.
+ */
+export function createClientRateLimit(maxPerMinute: number) {
+  const windows = new Map<string, Window>();
+  allWindows.push(windows);
+  return limiter(maxPerMinute, windows, (req) => {
+    const header = req.headers["x-forwarded-for"];
+    const raw = Array.isArray(header) ? header[header.length - 1] : header;
+    const last = raw?.split(",").pop()?.trim();
+    return last ? `client:${last}` : clientIp(req);
+  });
+}
+
+/**
  * The same window, counted per signed-in student rather than per address.
  *
  * Must run after `requireStudentSession`, which puts the student on
