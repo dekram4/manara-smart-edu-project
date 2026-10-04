@@ -32,23 +32,50 @@ export const establishTeacherMediaSession = async (
   }
 };
 
-export const isMp4VideoUrl = (value?: string | null): boolean => {
-  const url = (value || '').trim().toLowerCase();
-  return url.startsWith('/uploads/videos/') || url.includes('.mp4');
+const BLOCKED_SCHEME = /^(?:javascript|data|vbscript|blob|file):/i;
+
+/**
+ * رابطُ فيديو آمنٌ مُحلَّلاً — أو `null`.
+ *
+ * يُقبل نوعان فقط:
+ *   • مسارٌ محليٌّ يبدأ بـ `/` — لا `//` ولا `/\` (فالمتصفّح يقرؤهما رابطاً لموقعٍ
+ *     آخر)، ويبقى بعد التحليل على أصل المنصّة نفسه؛
+ *   • رابطٌ مطلقٌ بـ `https:`، أو `http:` على أصل المنصّة نفسه.
+ * وكلُّ ما سواهما مرفوض — ومنه `javascript:` و`data:` و`vbscript:` و`blob:` بأيّ
+ * حالةِ أحرف، وبمحارف تحكّمٍ قبلها أو داخلها، وأيُّ رابطٍ نسبيٍّ آخر.
+ */
+const parseSafeVideoUrl = (value?: string | null): URL | null => {
+  const raw = (value || '').trim();
+  // محارفُ التحكّم يُسقطها المتصفّح من الرابط فتُخفي البروتوكول (`java\tscript:`)
+  // — ولا مكان لها في رابط فيديو.
+  if (!raw || /[\u0000-\u001f\u007f]/.test(raw) || BLOCKED_SCHEME.test(raw)) return null;
+  const origin = window.location.origin;
+  try {
+    if (raw.startsWith('/')) {
+      if (raw.startsWith('//') || raw.startsWith('/\\')) return null;
+      const parsed = new URL(raw, origin);
+      return parsed.origin === origin ? parsed : null;
+    }
+    const parsed = new URL(raw);
+    if (parsed.protocol === 'https:') return parsed;
+    if (parsed.protocol === 'http:' && parsed.origin === origin) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
 };
 
-export const isSafeVideoUrl = (value?: string | null): boolean => {
-  const raw = (value || '').trim();
-  if (!raw || raw.startsWith('javascript:') || raw.startsWith('data:') || raw.startsWith('blob:')) {
-    return false;
-  }
-  if (raw.startsWith('/uploads/videos/')) return true;
-  try {
-    const parsed = new URL(raw, window.location.origin);
-    return parsed.protocol === 'https:' || (parsed.protocol === 'http:' && parsed.origin === window.location.origin);
-  } catch {
-    return false;
-  }
+export const isSafeVideoUrl = (value?: string | null): boolean => parseSafeVideoUrl(value) !== null;
+
+/**
+ * ملفُّ MP4 — يُعرض في `<video src>`، فلا يكون إلا رابطاً آمناً (انظر parseSafeVideoUrl).
+ * والامتدادُ من مسار الرابط نفسه، لا من أيّ موضعٍ فيه (`javascript:…//.mp4`).
+ */
+export const isMp4VideoUrl = (value?: string | null): boolean => {
+  const parsed = parseSafeVideoUrl(value);
+  if (!parsed) return false;
+  const pathname = parsed.pathname.toLowerCase();
+  return pathname.startsWith('/uploads/videos/') || pathname.endsWith('.mp4');
 };
 
 export const getVideoSourceType = (

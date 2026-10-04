@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getVideoEmbedUrl, getVideoSourceType, getVideoThumbnailUrl, isMp4VideoUrl } from '../utils/video';
+import { getVideoEmbedUrl, getVideoSourceType, getVideoThumbnailUrl, isMp4VideoUrl, isSafeVideoUrl } from '../utils/video';
 import { VideoSourceType } from '../utils/video';
 
 interface VideoThumbnailProps {
@@ -21,7 +21,8 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({
   const touchPreviewTimerRef = useRef<number | null>(null);
   const [mp4Poster, setMp4Poster] = useState<string | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const isMp4 = source === 'mp4' || isMp4VideoUrl(url);
+  // يُعرض في <video src> — فرابطٌ غير آمنٍ لا يصل إليه وإن وُسم mp4.
+  const isMp4 = isSafeVideoUrl(url) && (source === 'mp4' || isMp4VideoUrl(url));
 
   const getPreviewEmbedUrl = (value: string): string => {
     const embedUrl = getVideoEmbedUrl(value);
