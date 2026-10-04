@@ -546,9 +546,12 @@ const rawVideoParser = express.raw({
 });
 
 router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVideoParser, async (req, res) => {
-  if (!Buffer.isBuffer(req.body) || (req.body as Buffer).length === 0) {
+  // الجسمُ من rawVideoParser: Buffer — أو شيءٌ آخر إن لم يكن الطلبُ فيديو.
+  // يُفحص مرّةً هنا، ثم يُستعمل videoBuffer المتحقَّقُ منه وحده.
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: "لم يتم اختيار ملف MP4" });
   }
+  const videoBuffer: Buffer = req.body;
   const contentType = String(req.headers["content-type"] || "")
     .split(";")[0]
     .toLowerCase();
@@ -569,11 +572,11 @@ router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVid
       const storagePath = `videos/${ownerKey}/${fileName}`;
       try {
         await ensureSupabaseBucket(storage);
-        const url = await uploadToSupabase(storage, storagePath, req.body as Buffer);
+        const url = await uploadToSupabase(storage, storagePath, videoBuffer);
         return res.status(201).json({
           url,
           fileName: originalName,
-          size: (req.body as Buffer).length,
+          size: videoBuffer.length,
           contentType: "video/mp4",
           storage: "supabase",
           storagePath,
@@ -588,12 +591,12 @@ router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVid
 
     const filePath = safeFilePath(uploadDirectory, fileName, { pattern: VIDEO_FILE_NAME });
     if (!filePath) throw new Error("Invalid upload file name");
-    await fs.promises.writeFile(filePath, req.body as Buffer);
+    await fs.promises.writeFile(filePath, videoBuffer);
     await writeOwner(fileName, actor);
     return res.status(201).json({
       url: localPublicVideoUrl(req, fileName),
       fileName: originalName,
-      size: (req.body as Buffer).length,
+      size: videoBuffer.length,
       contentType: "video/mp4",
       storage: "local",
       warning:

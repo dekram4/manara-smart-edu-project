@@ -67,6 +67,10 @@ const parseSafeVideoUrl = (value?: string | null): URL | null => {
 
 export const isSafeVideoUrl = (value?: string | null): boolean => parseSafeVideoUrl(value) !== null;
 
+/** الرابطُ نفسه إن كان آمناً، وإلا `''` — لما يُمرَّر إلى مكوّن عرض. */
+export const safeVideoUrl = (value?: string | null): string =>
+  isSafeVideoUrl(value) ? (value || '').trim() : '';
+
 /**
  * ملفُّ MP4 — يُعرض في `<video src>`، فلا يكون إلا رابطاً آمناً (انظر parseSafeVideoUrl).
  * والامتدادُ من مسار الرابط نفسه، لا من أيّ موضعٍ فيه (`javascript:…//.mp4`).

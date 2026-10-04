@@ -6,7 +6,7 @@ import { playLamsaSound } from '../../utils/sounds';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getTeacherPermissions, getTeacherVideoUsageMb, isLimitReached } from '../../permissions';
-import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, showVideoStorageNotice, uploadMp4Video, VideoSourceType } from '../../utils/video';
+import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, safeVideoUrl, showVideoStorageNotice, uploadMp4Video, VideoSourceType } from '../../utils/video';
 import VideoThumbnail from '../../components/VideoThumbnail';
 import { syncSharedValue } from '../../db/sync';
 
@@ -850,7 +850,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           return (
             <div key={video.id} className="dashboard-video-card bg-white rounded-[30px] shadow-xl border-2 border-amber-100 hover:shadow-2xl hover:-translate-y-2 transition-all group">
               <div className="relative aspect-video bg-black">
-                <VideoThumbnail url={video.url} sourceType={video.sourceType} alt={video.title} />
+                <VideoThumbnail url={safeVideoUrl(video.url)} sourceType={video.sourceType} alt={video.title} />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 transition-all group-hover:bg-black/20">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-3xl shadow-xl transition-transform group-hover:scale-110">
                     <span>▶</span>
