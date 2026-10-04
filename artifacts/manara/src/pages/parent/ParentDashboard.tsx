@@ -23,7 +23,7 @@ import { formatSafeDate } from '../../utils/safeDate';
 import CardErrorBoundary from '../../components/CardErrorBoundary';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 import { writeAuthSession } from '../../utils/authSession';
-import { html, writePrintDocument, type SafeHtml } from '../../utils/printHtml';
+import { html, openPrintDocument, type SafeHtml } from '../../utils/printHtml';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -575,7 +575,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const t = typeMap[cert.type];
     const w = window.open('', '_blank');
     if (!w) return;
-    writePrintDocument(w, html`
+    openPrintDocument(w, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -668,7 +668,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const studentCertificates = certificates.filter((c: any) => c.studentId === child.id && c.subject === subject);
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    writePrintDocument(printWindow, html`
+    openPrintDocument(printWindow, html`
       <html dir="rtl" lang="ar"><head><title>تقرير مادة ${subject} - ${child.name}</title>
       <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: linear-gradient(to bottom, #f8fafc, #e2e8f0); }
@@ -702,8 +702,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
        <div class="summary"><div style="color:#64748b;font-size:16px;margin-bottom:10px;">📊 المعدل العام للمادة</div><div style="font-size:48px;color:${parseFloat(avg) >= 80 ? '#10b981' : parseFloat(avg) >= 60 ? '#f59e0b' : '#ef4444'};">${avg}%</div><div style="margin-top:15px;font-size:14px;color:#64748b;">إجمالي النتائج: ${childQuizzes.length} | أعلى درجة: ${childQuizzes.length > 0 ? Math.max(...childQuizzes.map(q => q.percentage)) : 0}% | أقل درجة: ${childQuizzes.length > 0 ? Math.min(...childQuizzes.map(q => q.percentage)) : 0}%</div></div>
       <div style="text-align:center;margin-top:40px;padding:20px;background:#f8fafc;border-radius:15px;color:#64748b;font-size:12px;"><p style="margin:0;">تم إنشاء هذا التقرير بواسطة منصة SmartEdu التعليمية</p><p style="margin:5px 0 0 0;">${new Date().toLocaleString('ar-SA')}</p></div>
       </body></html>
-    `);
-    printWindow.print();
+    `, { autoPrintDelayMs: 0 });
   };
 
   const printTeacherResultsReport = (child: StudentInfo) => {
@@ -719,7 +718,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    writePrintDocument(printWindow, html`
+    openPrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>

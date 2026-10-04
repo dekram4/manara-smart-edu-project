@@ -6,7 +6,7 @@ import { getParentChildren, getTeacherParents, getTeacherStudents } from '../../
 import { getQuizTypeLabel as formatQuizTypeLabel } from '../../utils/quizTypes';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { pathCell, quizResultPath } from '../../utils/academicPath';
-import { html, writePrintDocument, type HtmlValue } from '../../utils/printHtml';
+import { html, openPrintDocument, type HtmlValue } from '../../utils/printHtml';
 
 const Reports: React.FC = () => {
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -63,7 +63,7 @@ const Reports: React.FC = () => {
       content = generateInteractionsReport();
     }
 
-    writePrintDocument(printWindow, html`
+    openPrintDocument(printWindow, html`
       <html dir="rtl" lang="ar">
         <head>
           <title>${title}</title>
@@ -499,7 +499,7 @@ const Reports: React.FC = () => {
       `;
     }
 
-    writePrintDocument(printWindow, html`
+    openPrintDocument(printWindow, html`
       <html dir="rtl" lang="ar">
         <head>
           <title>${title}</title>

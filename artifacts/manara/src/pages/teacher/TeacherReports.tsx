@@ -7,7 +7,7 @@ import { normalizeQuizType } from '../../utils/quizTypes';
 import { QuizType } from '../../types';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 import { formatAcademicPath, quizResultPath } from '../../utils/academicPath';
-import { html, writePrintDocument } from '../../utils/printHtml';
+import { html, openPrintDocument } from '../../utils/printHtml';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -102,7 +102,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    writePrintDocument(printWindow, html`
+    openPrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -197,7 +197,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    writePrintDocument(printWindow, html`
+    openPrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>

@@ -5,7 +5,7 @@ import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, getTeacherParents, getTeacherStudents, normalizeScopeValue } from '../../utils/scope';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { normalizeQuizType } from '../../utils/quizTypes';
-import { html, writePrintDocument } from '../../utils/printHtml';
+import { html, openPrintDocument } from '../../utils/printHtml';
 
 interface TeacherCertificatesProps {
   teacherId: string;
@@ -229,7 +229,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    writePrintDocument(printWindow, html`
+    openPrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
