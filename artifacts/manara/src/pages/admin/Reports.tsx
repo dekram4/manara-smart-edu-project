@@ -6,6 +6,7 @@ import { getParentChildren, getTeacherParents, getTeacherStudents } from '../../
 import { getQuizTypeLabel as formatQuizTypeLabel } from '../../utils/quizTypes';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { pathCell, quizResultPath } from '../../utils/academicPath';
+import { html, writePrintDocument, type HtmlValue } from '../../utils/printHtml';
 
 const Reports: React.FC = () => {
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -39,7 +40,7 @@ const Reports: React.FC = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    let content = '';
+    let content: HtmlValue = '';
     let title = '';
     
     // تحديد العنوان والمحتوى حسب نوع التقرير
@@ -62,7 +63,7 @@ const Reports: React.FC = () => {
       content = generateInteractionsReport();
     }
 
-    printWindow.document.write(`
+    writePrintDocument(printWindow, html`
       <html dir="rtl" lang="ar">
         <head>
           <title>${title}</title>
@@ -91,11 +92,10 @@ const Reports: React.FC = () => {
         </body>
       </html>
     `);
-    printWindow.document.close();
   };
 
   const generateAllStudentsReport = () => {
-    return `
+    return html`
       <table border="1">
         <thead>
           <tr>
@@ -111,7 +111,7 @@ const Reports: React.FC = () => {
           ${data.students.map((s: StudentInfo) => {
             const parent = (data.parents as ParentInfo[]).find(p => p.id === s.parentId);
             const teacher = (data.teachers as any[]).find(t => t.id === (s.teacherId ?? s.createdBy));
-            return `
+            return html`
               <tr>
                 <td>${s.name}</td>
                 <td>${s.studentIdNumber || '—'}</td>
@@ -121,7 +121,7 @@ const Reports: React.FC = () => {
                 <td>${new Date(s.createdAt).toLocaleDateString('ar-SA')}</td>
               </tr>
             `;
-          }).join('')}
+          })}
         </tbody>
       </table>
     `;
@@ -134,7 +134,7 @@ const Reports: React.FC = () => {
       const parents = getTeacherParents(data.parents as ParentInfo[], selectedTeacherId);
       const students = getTeacherStudents(data.students as StudentInfo[], selectedTeacherId, parents);
       
-      return `
+      return html`
         <div class="teacher-section">
           <h2>👨‍🏫 المعلم: ${teacher?.name || 'غير معروف'}</h2>
           <p><strong>عدد أولياء الأمور:</strong> ${parents.length}</p>
@@ -151,14 +151,14 @@ const Reports: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              ${parents.map(p => `
+              ${parents.map(p => html`
                 <tr>
                   <td>${p.name}</td>
                   <td>${p.username}</td>
                   <td>${p.phoneNumber}</td>
                   <td>${(data.students as StudentInfo[]).filter(s => s.parentId === p.id).length}</td>
                 </tr>
-              `).join('')}
+              `)}
             </tbody>
           </table>
 
@@ -176,7 +176,7 @@ const Reports: React.FC = () => {
             <tbody>
               ${students.map(s => {
                 const parent = parents.find(p => p.id === s.parentId);
-                return `
+                return html`
                   <tr>
                     <td>${s.name}</td>
                     <td>${s.studentIdNumber || '—'}</td>
@@ -185,7 +185,7 @@ const Reports: React.FC = () => {
                     <td>${new Date(s.createdAt).toLocaleDateString('ar-SA')}</td>
                   </tr>
                 `;
-              }).join('')}
+              })}
             </tbody>
           </table>
         </div>
@@ -196,7 +196,7 @@ const Reports: React.FC = () => {
         const parents = getTeacherParents(data.parents as ParentInfo[], teacher.id);
         const students = getTeacherStudents(data.students as StudentInfo[], teacher.id, parents);
         
-        return `
+        return html`
           <div class="teacher-section">
             <h2>👨‍🏫 المعلم: ${teacher.name}</h2>
             <p><strong>المادة:</strong> ${teacher.subject || '—'} | <strong>عدد أولياء الأمور:</strong> ${parents.length} | <strong>عدد الطلاب:</strong> ${students.length}</p>
@@ -212,7 +212,7 @@ const Reports: React.FC = () => {
               <tbody>
                 ${students.map(s => {
                   const parent = parents.find(p => p.id === s.parentId);
-                  return `
+                  return html`
                     <tr>
                       <td>${s.name}</td>
                       <td>${s.studentIdNumber || '—'}</td>
@@ -220,12 +220,12 @@ const Reports: React.FC = () => {
                       <td>${parent?.name || '—'}</td>
                     </tr>
                   `;
-                }).join('') || '<tr><td colspan="4" style="text-align:center;">لا يوجد طلاب</td></tr>'}
+                })}${students.length ? '' : html`<tr><td colspan="4" style="text-align:center;">لا يوجد طلاب</td></tr>`}
               </tbody>
             </table>
           </div>
         `;
-      }).join('');
+      });
     }
   };
 
@@ -237,7 +237,7 @@ const Reports: React.FC = () => {
         ? getParentChildren(data.students as StudentInfo[], parent)
         : [];
       
-      return `
+      return html`
         <div class="teacher-section">
           <h2>👨‍👩‍👧‍👦 ولي الأمر: ${parent?.name || 'غير معروف'}</h2>
           <p><strong>رقم الجوال:</strong> ${parent?.phoneNumber || '—'} | <strong>عدد الأبناء:</strong> ${students.length}</p>
@@ -251,14 +251,14 @@ const Reports: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              ${students.map(s => `
+              ${students.map(s => html`
                 <tr>
                   <td>${s.name}</td>
                   <td>${s.studentIdNumber || '—'}</td>
                   <td>${s.primaryGrade || s.grade}</td>
                   <td>${new Date(s.createdAt).toLocaleDateString('ar-SA')}</td>
                 </tr>
-              `).join('') || '<tr><td colspan="4" style="text-align:center;">لا يوجد أبناء</td></tr>'}
+              `)}${students.length ? '' : html`<tr><td colspan="4" style="text-align:center;">لا يوجد أبناء</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -268,7 +268,7 @@ const Reports: React.FC = () => {
       return parents.map(parent => {
         const students = getParentChildren(data.students as StudentInfo[], parent);
         
-        return `
+        return html`
           <div class="teacher-section">
             <h2>👨‍👩‍👧‍👦 ولي الأمر: ${parent.name}</h2>
             <p><strong>رقم الجوال:</strong> ${parent.phoneNumber} | <strong>عدد الأبناء:</strong> ${students.length}</p>
@@ -281,18 +281,18 @@ const Reports: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                ${students.map(s => `
+                ${students.map(s => html`
                   <tr>
                     <td>${s.name}</td>
                     <td>${s.studentIdNumber || '—'}</td>
                     <td>${s.primaryGrade || s.grade}</td>
                   </tr>
-                `).join('') || '<tr><td colspan="3" style="text-align:center;">لا يوجد أبناء</td></tr>'}
+                `)}${students.length ? '' : html`<tr><td colspan="3" style="text-align:center;">لا يوجد أبناء</td></tr>`}
               </tbody>
             </table>
           </div>
         `;
-      }).join('');
+      });
     }
   };
 
@@ -302,7 +302,7 @@ const Reports: React.FC = () => {
     let quizList: QuizResult[] = data.quizzes;
     if (selectedStudentId && selectedStudentId !== 'all') quizList = quizList.filter((q: QuizResult) => q.studentId === selectedStudentId);
     
-    return `
+    return html`
       <table border="1">
         <thead>
           <tr>
@@ -326,7 +326,7 @@ const Reports: React.FC = () => {
             const studentIdNumber = s ? (s.studentIdNumber || '—') : (q.studentId || '—');
             // الفصل الدراسي والدرس يسكنان الاختبار نفسه لا نتيجته، فيُوصلان به.
             const path = quizResultPath(q, data.quizzes);
-            return `
+            return html`
               <tr>
                 <td>${studentName}</td>
                 <td>${studentIdNumber}</td>
@@ -341,7 +341,7 @@ const Reports: React.FC = () => {
                 <td>${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td>
               </tr>
             `;
-          }).join('')}
+          })}
         </tbody>
       </table>
     `;
@@ -352,7 +352,7 @@ const Reports: React.FC = () => {
     const studentsMap: Record<string, StudentInfo> = {};
     (data.students as StudentInfo[]).forEach(s => (studentsMap[s.id] = s));
     
-    return `
+    return html`
       <table border="1">
         <thead>
           <tr>
@@ -370,7 +370,7 @@ const Reports: React.FC = () => {
             const s = studentsMap[it.studentId] || null;
             const name = s ? s.name : it.studentName || '—';
             const idNum = s ? (s.studentIdNumber || '—') : (it.studentId || '—');
-            return `
+            return html`
               <tr>
                 <td>${name}</td>
                 <td>${idNum}</td>
@@ -381,7 +381,7 @@ const Reports: React.FC = () => {
                 <td>${new Date(it.timestamp || it.time || Date.now()).toLocaleString('ar-SA')}</td>
               </tr>
             `;
-          }).join('')}
+          })}
         </tbody>
       </table>
     `;
@@ -391,12 +391,12 @@ const Reports: React.FC = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    let content = '';
+    let content: HtmlValue = '';
     const title = type === 'students' ? 'تقرير الطلاب المسجلين' : type === 'quizzes' ? 'تقرير النتائج العامة' : 'تقرير المحتوى التعليمي';
 
     if (type === 'students') {
       // Student report: only the requested columns (Name, ID number, Grade, Registration Date)
-      content = `
+      content = html`
         <table border="1">
           <thead>
             <tr>
@@ -407,14 +407,14 @@ const Reports: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            ${data.students.map((s: StudentInfo) => `
+            ${data.students.map((s: StudentInfo) => html`
               <tr>
                 <td>${s.name}</td>
                 <td>${s.studentIdNumber || '—'}</td>
                 <td>${s.grade}</td>
                 <td>${new Date(s.createdAt).toLocaleDateString('ar-SA')}</td>
               </tr>
-            `).join('')}
+            `)}
           </tbody>
         </table>
       `;
@@ -424,7 +424,7 @@ const Reports: React.FC = () => {
       (data.students as StudentInfo[]).forEach(s => (studentsMap[s.id] = s));
       let quizList: QuizResult[] = data.quizzes;
       if (selectedStudentId && selectedStudentId !== 'all') quizList = quizList.filter((q: QuizResult) => q.studentId === selectedStudentId);
-      content = `
+      content = html`
         <table border="1">
           <thead>
             <tr>
@@ -443,7 +443,7 @@ const Reports: React.FC = () => {
               const s = studentsMap[q.studentId] || null;
               const studentName = s ? s.name : q.studentName || 'غير معروف';
               const studentIdNumber = s ? (s.studentIdNumber || '—') : (q.studentId || '—');
-              return `
+              return html`
                 <tr>
                   <td>${studentName}</td>
                   <td>${studentIdNumber}</td>
@@ -455,7 +455,7 @@ const Reports: React.FC = () => {
                   <td>${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td>
                 </tr>
               `;
-            }).join('')}
+            })}
           </tbody>
         </table>
       `;
@@ -464,7 +464,7 @@ const Reports: React.FC = () => {
       const interactions = JSON.parse(localStorage.getItem(STORAGE_KEYS.INTERACTIONS) || '[]');
       const studentsMap: Record<string, StudentInfo> = {};
       (data.students as StudentInfo[]).forEach(s => (studentsMap[s.id] = s));
-      content = `
+      content = html`
         <table border="1">
           <thead>
             <tr>
@@ -482,7 +482,7 @@ const Reports: React.FC = () => {
               const s = studentsMap[it.studentId] || null;
               const name = s ? s.name : it.studentName || '—';
               const idNum = s ? (s.studentIdNumber || '—') : (it.studentId || '—');
-              return `
+              return html`
                 <tr>
                   <td>${name}</td>
                   <td>${idNum}</td>
@@ -493,13 +493,13 @@ const Reports: React.FC = () => {
                   <td>${new Date(it.timestamp || it.time || Date.now()).toLocaleString('ar-SA')}</td>
                 </tr>
               `;
-            }).join('')}
+            })}
           </tbody>
         </table>
       `;
     }
 
-    printWindow.document.write(`
+    writePrintDocument(printWindow, html`
       <html dir="rtl" lang="ar">
         <head>
           <title>${title}</title>
@@ -526,7 +526,6 @@ const Reports: React.FC = () => {
         </body>
       </html>
     `);
-    printWindow.document.close();
   };
 
   return (
