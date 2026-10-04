@@ -353,21 +353,13 @@ async function readOwner(fileName: string): Promise<UploadOwner | null> {
 }
 
 /**
- * حدُّ تنزيل الفيديو: ١٠٠ طلبٍ في الدقيقة لكل عميل.
- *
- * كلُّ طلبٍ يفتح ملفاً ويبثّه من القرص؛ وبلا حدٍّ تستنزف طلباتٌ متزامنةٌ الخادم.
- * والمشغّلُ يرسل عدّة طلبات Range للفيديو الواحد (وعند كل تقديم)، فالحدُّ في
- * أعلى المدى لا أدناه. ويُعدّ لكل عميلٍ لا للخادم كلّه — انظر MEDIA_RATE_LIMIT.
- */
-/**
- * إعداداتُ express-rate-limit المشتركة لمسارات الوسائط: نافذةُ دقيقة، لكل عميل.
+ * ما تشترك فيه حدودُ الوسائط (express-rate-limit): لكل عميل، برؤوسٍ معيارية.
  *
  * يُعدّ بـ forwardedClientKey لا بـ req.ip: فـ trust proxy مطفأٌ عمداً (app.ts)،
  * وreq.ip حينها عنوانُ الوكيل للجميع — حدٌّ واحدٌ للمنصّة كلّها. ولذا يُطفأ فحصُ
  * المكتبة لترويسة X-Forwarded-For: نقرؤها نحن، آخرَ عنوانٍ فيها، عمداً.
  */
-const MEDIA_RATE_LIMIT: Partial<RateLimitOptions> = {
-  windowMs: 60_000,
+const MEDIA_RATE_LIMIT_SHARED: Partial<RateLimitOptions> = {
   standardHeaders: "draft-8",
   legacyHeaders: false,
   keyGenerator: (req) => forwardedClientKey(req),
@@ -376,7 +368,21 @@ const MEDIA_RATE_LIMIT: Partial<RateLimitOptions> = {
   validate: { xForwardedForHeader: false },
 };
 
-export const videoDownloadRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 100 });
+/**
+ * سقفٌ لكل طلبات /media معاً: ٢٠٠ في الدقيقة لكل عميل — فلا يفلت مسارٌ من حدٍّ،
+ * ولا مسارٌ يُضاف لاحقاً. وهو فوق حدّ التنزيل (١٠٠) عمداً: كي لا يخنق صفّاً
+ * يشاهد الفيديوهات. وتحته حدُّ كل مسارٍ بعدّاده.
+ */
+const mediaRateLimiter = rateLimit({ ...MEDIA_RATE_LIMIT_SHARED, windowMs: 60_000, limit: 200 });
+
+/**
+ * حدُّ تنزيل الفيديو: ١٠٠ طلبٍ في الدقيقة لكل عميل.
+ *
+ * كلُّ طلبٍ يفتح ملفاً ويبثّه من القرص؛ وبلا حدٍّ تستنزف طلباتٌ متزامنةٌ الخادم.
+ * والمشغّلُ يرسل عدّة طلبات Range للفيديو الواحد (وعند كل تقديم)، فالحدُّ في
+ * أعلى المدى لا أدناه.
+ */
+export const videoDownloadRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT_SHARED, windowMs: 60_000, limit: 100 });
 
 /**
  * حدودُ عمليات الكتابة — لكل عميل، ولكلّ مسارٍ عدّادُه (فالحذفُ لا يستهلك حصّة الرفع).
@@ -385,9 +391,11 @@ export const videoDownloadRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 10
  * (حتى ٥٠٠ ميغابايت) في الذاكرة. والحدودُ فوق الاستعمال العادي بكثير: حذفُ درسٍ
  * يرسل طلبَ حذفٍ لكلّ فيديو فيه، والنقلُ عمليةُ إدارةٍ تُشغَّل مرّة.
  */
-const videoUploadRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 20 });
-const videoDeleteRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 30 });
-const legacyMigrationRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 20 });
+const videoUploadRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT_SHARED, windowMs: 60_000, limit: 20 });
+const videoDeleteRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT_SHARED, windowMs: 60_000, limit: 30 });
+const legacyMigrationRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT_SHARED, windowMs: 60_000, limit: 20 });
+
+router.use("/media", mediaRateLimiter);
 
 // GET /api/media/videos/:fileName — legacy local-media compatibility route
 router.get("/media/videos/:fileName", videoDownloadRateLimit, (req, res) => {
