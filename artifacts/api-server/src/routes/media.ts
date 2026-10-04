@@ -507,6 +507,17 @@ router.post("/media/migrate-legacy", requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * مجلّدُ المعلّم في التخزين: بصمةُ معرّفه بسرّ الجلسة، لا المعرّفُ نفسه.
+ *
+ * السرُّ من البيئة وحدها — بلا قيمةٍ احتياطيةٍ في الكود؛ فبدونه تُرفض العملية.
+ */
+function teacherStorageKey(teacherId: string): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET is not configured");
+  return crypto.createHmac("sha256", secret).update(teacherId).digest("hex").slice(0, 24);
+}
+
 // POST /api/media/upload — save video to Supabase Storage (raw body)
 const rawVideoParser = express.raw({
   type: ["video/mp4", "application/octet-stream"],
@@ -531,12 +542,7 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
     const storage = supabaseStorageConfig();
     const actor = res.locals.contentActor as WriteActor;
     const fileName = `${crypto.randomUUID()}.mp4`;
-    const ownerKey = actor.role === "admin"
-      ? "admin"
-      : crypto.createHmac("sha256", process.env.SESSION_SECRET || "manara")
-          .update(actor.teacherId)
-          .digest("hex")
-          .slice(0, 24);
+    const ownerKey = actor.role === "admin" ? "admin" : teacherStorageKey(actor.teacherId);
 
     if (storage) {
       const storagePath = `videos/${ownerKey}/${fileName}`;
@@ -607,12 +613,7 @@ router.post("/media/delete", requireContentManager, async (req, res) => {
         return res.status(400).json({ error: "مسار ملف غير صالح" });
       }
       const ownerKey = remotePath.split("/")[1];
-      const teacherKey = actor?.role === "teacher"
-        ? crypto.createHmac("sha256", process.env.SESSION_SECRET || "manara")
-            .update(actor.teacherId)
-            .digest("hex")
-            .slice(0, 24)
-        : "";
+      const teacherKey = actor?.role === "teacher" ? teacherStorageKey(actor.teacherId) : "";
       if (actor?.role !== "admin" && ownerKey !== teacherKey) {
         return res.status(403).json({ error: "لا تملك صلاحية حذف هذا الملف" });
       }

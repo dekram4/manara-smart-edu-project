@@ -18,7 +18,7 @@ type AuthSessionRecord = {
   expiresAt: number;
 };
 
-const AUTH_SESSION_KEY = 'smartEdu_authSession';
+const AUTH_STORAGE_NAME = 'smartEdu_authSession';
 const AUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const hasPrincipalIdentity = (value: unknown): value is { id?: string; username?: string; studentIdNumber?: string } => {
@@ -41,10 +41,10 @@ const getSubjectId = (principal: unknown): string | undefined => {
 };
 
 export const readAuthSession = (): AuthSessionRecord | null => {
-  const session = readSessionJson<AuthSessionRecord | null>(AUTH_SESSION_KEY, null);
+  const session = readSessionJson<AuthSessionRecord | null>(AUTH_STORAGE_NAME, null);
   if (!session || !session.role || !Number.isFinite(session.expiresAt)) return null;
   if (session.expiresAt <= Date.now()) {
-    removeSessionValue(AUTH_SESSION_KEY);
+    removeSessionValue(AUTH_STORAGE_NAME);
     return null;
   }
   return session;
@@ -72,7 +72,7 @@ export const ensureRoleSession = (role: AuthRole): boolean => {
 
 export const writeAuthSession = (role: AuthRole, subjectId?: string): void => {
   const now = Date.now();
-  writeSessionJson(AUTH_SESSION_KEY, {
+  writeSessionJson(AUTH_STORAGE_NAME, {
     role,
     subjectId,
     issuedAt: now,
@@ -81,5 +81,5 @@ export const writeAuthSession = (role: AuthRole, subjectId?: string): void => {
 };
 
 export const clearAuthSessions = (): void => {
-  removeSessionValue(AUTH_SESSION_KEY);
+  removeSessionValue(AUTH_STORAGE_NAME);
 };
