@@ -23,6 +23,7 @@ import { formatSafeDate } from '../../utils/safeDate';
 import CardErrorBoundary from '../../components/CardErrorBoundary';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 import { writeAuthSession } from '../../utils/authSession';
+import { html, writePrintDocument, type SafeHtml } from '../../utils/printHtml';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -563,18 +564,18 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const printCertificate = (cert: CertificateRecord) => {
     const date = new Date(cert.date).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
-    const typeMap: Record<string, { title: string; emoji: string; color: string; grad: string; message: string }> = {
+    const typeMap: Record<string, { title: string; emoji: string; color: string; grad: string; message: SafeHtml }> = {
       excellence: { title: 'شهادة تفوق وامتياز', emoji: '🏆', color: '#FFD700', grad: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>، حيث حقق/ت معدلاً عاماً قدره <strong>${cert.average !== undefined ? cert.average + '%' : 'ممتاز'}</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.` },
+        message: html`يسرنا أن نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>، حيث حقق/ت معدلاً عاماً قدره <strong>${cert.average !== undefined ? cert.average + '%' : 'ممتاز'}</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.` },
       appreciation: { title: 'شهادة شكر وتقدير', emoji: '⭐', color: '#4169E1', grad: 'linear-gradient(135deg, #4169E1 0%, #1E90FF 100%)',
-        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${cert.studentName}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>، ولالتزامه/ها المتواصل في أداء واجباته/ها الدراسية. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.` },
+        message: html`نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${cert.studentName}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>، ولالتزامه/ها المتواصل في أداء واجباته/ها الدراسية. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.` },
       participation: { title: 'شهادة مشاركة فعالة', emoji: '🌟', color: '#32CD32', grad: 'linear-gradient(135deg, #32CD32 0%, #228B22 100%)',
-        message: `نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.` },
+        message: html`نشهد بأن الطالب/ة <strong>${cert.studentName}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${cert.subject}</strong> للفصل <strong>${cert.term}</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.` },
     };
     const t = typeMap[cert.type];
     const w = window.open('', '_blank');
     if (!w) return;
-    w.document.write(`
+    writePrintDocument(w, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -657,7 +658,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         </body>
       </html>
     `);
-    w.document.close();
   };
 
   const printSubjectReport = (child: StudentInfo, subject: string) => {
@@ -671,7 +671,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const studentCertificates = certificates.filter((c: any) => c.studentId === child.id && c.subject === subject);
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    printWindow.document.write(`
+    writePrintDocument(printWindow, html`
       <html dir="rtl" lang="ar"><head><title>تقرير مادة ${subject} - ${child.name}</title>
       <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: linear-gradient(to bottom, #f8fafc, #e2e8f0); }
@@ -699,14 +699,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
          <div class="stat-card unit"><h3>📘 الاختبار الدوري</h3><div class="value">${periodicAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد المحاولات: ${periodicQuizzes.length}</p></div>
          <div class="stat-card grade"><h3>📕 اختبار المعلم</h3><div class="value">${teacherAvg}%</div><p style="color:#64748b;margin:5px 0;">عدد الاختبارات: ${teacherQuizzes.length}</p></div>
       </div>
-      ${studentCertificates.length > 0 ? `<div class="certificates"><h2>🏆 الشهادات الممنوحة</h2><div style="text-align:center;">${studentCertificates.map((cert: any) => `<div class="cert-item ${cert.type}"><div style="font-size:40px;margin-bottom:10px;">${cert.type === 'excellence' ? '🏆' : cert.type === 'appreciation' ? '⭐' : '🌟'}</div><strong style="font-size:16px;">${cert.type === 'excellence' ? 'شهادة تميز' : cert.type === 'appreciation' ? 'شهادة تقدير' : 'شهادة مشاركة'}</strong><p style="margin:10px 0 5px 0;font-size:14px;">المعلم: ${cert.teacherName || 'غير محدد'}</p><p style="margin:0;font-size:12px;color:#64748b;">${new Date(cert.date).toLocaleDateString('ar-SA')}</p></div>`).join('')}</div></div>` : ''}
+      ${studentCertificates.length > 0 ? html`<div class="certificates"><h2>🏆 الشهادات الممنوحة</h2><div style="text-align:center;">${studentCertificates.map((cert: any) => html`<div class="cert-item ${cert.type}"><div style="font-size:40px;margin-bottom:10px;">${cert.type === 'excellence' ? '🏆' : cert.type === 'appreciation' ? '⭐' : '🌟'}</div><strong style="font-size:16px;">${cert.type === 'excellence' ? 'شهادة تميز' : cert.type === 'appreciation' ? 'شهادة تقدير' : 'شهادة مشاركة'}</strong><p style="margin:10px 0 5px 0;font-size:14px;">المعلم: ${cert.teacherName || 'غير محدد'}</p><p style="margin:0;font-size:12px;color:#64748b;">${new Date(cert.date).toLocaleDateString('ar-SA')}</p></div>`)}</div></div>` : ''}
        <div class="section-title">📋 تفاصيل جميع الاختبارات</div>
-       <table><thead><tr><th>الصف</th><th>المادة</th><th>الفصل الدراسي</th><th>الوحدة</th><th>الدرس</th><th>نوع الاختبار</th><th>النتيجة</th><th>المستوى</th><th>التاريخ</th></tr></thead><tbody>${childQuizzes.map(q => { const p = quizResultPath(q, createdQuizzes); return `<tr><td>${pathCell(p.grade)}</td><td>${pathCell(p.subject)}</td><td>${pathCell(p.term)}</td><td>${pathCell(p.unit)}</td><td style="font-weight:bold;">${pathCell(p.lesson)}</td><td>${getQuizTypeLabel(q.quizType)}</td><td style="font-weight:bold;font-size:18px;color:${q.percentage >= 80 ? '#10b981' : q.percentage >= 60 ? '#f59e0b' : '#ef4444'};">${q.percentage}%</td><td style="font-weight:bold;color:${q.percentage >= 60 ? '#10b981' : '#ef4444'};">${q.level}</td><td style="font-size:12px;color:#64748b;">${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td></tr>`; }).join('')}</tbody></table>
+       <table><thead><tr><th>الصف</th><th>المادة</th><th>الفصل الدراسي</th><th>الوحدة</th><th>الدرس</th><th>نوع الاختبار</th><th>النتيجة</th><th>المستوى</th><th>التاريخ</th></tr></thead><tbody>${childQuizzes.map(q => { const p = quizResultPath(q, createdQuizzes); return html`<tr><td>${pathCell(p.grade)}</td><td>${pathCell(p.subject)}</td><td>${pathCell(p.term)}</td><td>${pathCell(p.unit)}</td><td style="font-weight:bold;">${pathCell(p.lesson)}</td><td>${getQuizTypeLabel(q.quizType)}</td><td style="font-weight:bold;font-size:18px;color:${q.percentage >= 80 ? '#10b981' : q.percentage >= 60 ? '#f59e0b' : '#ef4444'};">${q.percentage}%</td><td style="font-weight:bold;color:${q.percentage >= 60 ? '#10b981' : '#ef4444'};">${q.level}</td><td style="font-size:12px;color:#64748b;">${new Date(q.createdAt).toLocaleDateString('ar-SA')}</td></tr>`; })}</tbody></table>
        <div class="summary"><div style="color:#64748b;font-size:16px;margin-bottom:10px;">📊 المعدل العام للمادة</div><div style="font-size:48px;color:${parseFloat(avg) >= 80 ? '#10b981' : parseFloat(avg) >= 60 ? '#f59e0b' : '#ef4444'};">${avg}%</div><div style="margin-top:15px;font-size:14px;color:#64748b;">إجمالي النتائج: ${childQuizzes.length} | أعلى درجة: ${childQuizzes.length > 0 ? Math.max(...childQuizzes.map(q => q.percentage)) : 0}% | أقل درجة: ${childQuizzes.length > 0 ? Math.min(...childQuizzes.map(q => q.percentage)) : 0}%</div></div>
       <div style="text-align:center;margin-top:40px;padding:20px;background:#f8fafc;border-radius:15px;color:#64748b;font-size:12px;"><p style="margin:0;">تم إنشاء هذا التقرير بواسطة منصة SmartEdu التعليمية</p><p style="margin:5px 0 0 0;">${new Date().toLocaleString('ar-SA')}</p></div>
       </body></html>
     `);
-    printWindow.document.close();
     printWindow.print();
   };
 
@@ -723,7 +722,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    printWindow.document.write(`
+    writePrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -767,7 +766,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             <div><strong>أعلى نتيجة</strong><div class="value">${Math.max(...teacherQuizzes.map(getQuizResultPercentage))}%</div></div>
             <div><strong>التقدير العام</strong><div class="value">${level}</div></div>
           </div>
-          ${teacherQuizzes.map((quiz) => `
+          ${teacherQuizzes.map((quiz) => html`
             <section class="result">
               <h2>${quiz.quizTitle || 'اختبار المعلم'}</h2>
               <div class="result-meta">
@@ -775,10 +774,10 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                 <span><b>التاريخ:</b> ${new Date(quiz.createdAt).toLocaleString('ar-SA')}</span>
               </div>
               <div class="score">النتيجة: ${getQuizResultScore(quiz)} / ${quiz.total || 0} — ${getQuizResultPercentage(quiz)}% — ${quiz.level || '—'}</div>
-              ${Array.isArray(quiz.details) && quiz.details.length > 0 ? `
+              ${Array.isArray(quiz.details) && quiz.details.length > 0 ? html`
                 <table>
                   <thead><tr><th>#</th><th>السؤال</th><th>إجابة الطالب</th><th>الإجابة الصحيحة</th><th>الحالة</th></tr></thead>
-                  <tbody>${quiz.details.map((detail, index) => `
+                  <tbody>${quiz.details.map((detail, index) => html`
                     <tr>
                       <td>${index + 1}</td>
                       <td>${detail.question}</td>
@@ -786,17 +785,16 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                       <td>${detail.correctAnswer || '—'}</td>
                       <td class="${detail.isCorrect ? 'correct' : 'wrong'}">${detail.isCorrect ? 'صحيحة' : 'خاطئة'}</td>
                     </tr>
-                  `).join('')}</tbody>
+                  `)}</tbody>
                 </table>
               ` : ''}
             </section>
-          `).join('')}
+          `)}
           <div class="footer">تم إنشاء التقرير بواسطة منصة التعليم الذكي — ${new Date().toLocaleString('ar-SA')}</div>
           <script>window.onload = function() { setTimeout(() => window.print(), 400); };</script>
         </body>
       </html>
     `);
-    printWindow.document.close();
   };
 
   if (!isAuthenticated) {

@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, getTeacherParents, getTeacherStudents, normalizeScopeValue } from '../../utils/scope';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { normalizeQuizType } from '../../utils/quizTypes';
+import { html, writePrintDocument } from '../../utils/printHtml';
 
 interface TeacherCertificatesProps {
   teacherId: string;
@@ -205,21 +206,21 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
         emoji: '🏆',
         color: '#FFD700',
         gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-        message: `يسرنا أن نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.`,
+        message: html`يسرنا أن نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.`,
       },
       appreciation: {
         title: 'شهادة شكر وتقدير',
         emoji: '⭐',
         color: '#4169E1',
         gradient: 'linear-gradient(135deg, #4169E1 0%, #1E90FF 100%)',
-        message: `نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${student.name}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.`,
+        message: html`نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${student.name}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.`,
       },
       participation: {
         title: 'شهادة مشاركة فعالة',
         emoji: '🌟',
         color: '#32CD32',
         gradient: 'linear-gradient(135deg, #32CD32 0%, #228B22 100%)',
-        message: `نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، وحقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.`,
+        message: html`نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، وحقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.`,
       },
     };
 
@@ -228,7 +229,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    printWindow.document.write(`
+    writePrintDocument(printWindow, html`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
@@ -315,8 +316,6 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
         </body>
       </html>
     `);
-
-    printWindow.document.close();
   };
 
   const filteredStudents = students.filter(student => {

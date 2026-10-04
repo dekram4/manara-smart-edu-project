@@ -11,6 +11,7 @@ import { isTrustedOrigin } from "./lib/trustedOrigin";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
+app.disable("x-powered-by");
 
 // Do NOT set trust proxy: with it, req.ip reads from X-Forwarded-For which
 // clients can forge. Without it, req.ip = req.socket.remoteAddress = 127.0.0.1
