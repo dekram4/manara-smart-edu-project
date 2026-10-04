@@ -3,6 +3,7 @@
  * Tracks request counts per IP in a sliding 60-second window.
  */
 import type { Request, Response, NextFunction } from "express";
+import { ipKeyGenerator } from "express-rate-limit";
 
 interface Window {
   count: number;
@@ -40,27 +41,27 @@ export function createRateLimit(maxPerMinute: number) {
 }
 
 /**
- * The same window, counted per client address as the platform's proxy saw it.
+ * The express-rate-limit key for a client, by its address as the platform's
+ * proxy saw it.
  *
  * For public routes with no session to count by — such as serving videos. The
- * socket address is the proxy's (127.0.0.1 on Replit), so counting by it is one
- * window for every visitor: a class opening the same video together — each
- * player sending several Range requests — would lock everyone out.
+ * socket address is the proxy's (127.0.0.1 on Replit), and so is `req.ip` with
+ * trust proxy off (see app.ts) — counting by either is one window for every
+ * visitor: a class opening the same video together, each player sending
+ * several Range requests, would lock everyone out.
  *
  * The client address is the LAST entry of X-Forwarded-For: the proxy appends
  * what it saw to whatever the caller sent, so the caller controls the entries
  * to its left but never the last one. Rotating forged entries changes nothing.
  * Without the header (a direct connection) the socket address is used.
+ * [ipKeyGenerator] folds an IPv6 address into its /56 subnet, so one client
+ * cannot step around the limit across the addresses of its own range.
  */
-export function createClientRateLimit(maxPerMinute: number) {
-  const windows = new Map<string, Window>();
-  allWindows.push(windows);
-  return limiter(maxPerMinute, windows, (req) => {
-    const header = req.headers["x-forwarded-for"];
-    const raw = Array.isArray(header) ? header[header.length - 1] : header;
-    const last = raw?.split(",").pop()?.trim();
-    return last ? `client:${last}` : clientIp(req);
-  });
+export function forwardedClientKey(req: Request): string {
+  const header = req.headers["x-forwarded-for"];
+  const raw = Array.isArray(header) ? header[header.length - 1] : header;
+  const last = raw?.split(",").pop()?.trim();
+  return ipKeyGenerator(last || clientIp(req));
 }
 
 /**

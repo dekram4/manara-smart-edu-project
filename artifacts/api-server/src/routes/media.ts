@@ -13,7 +13,8 @@ import {
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
 import { safeFilePath, VIDEO_FILE_NAME } from "../lib/safePath";
-import { createClientRateLimit } from "../middleware/rateLimiter";
+import rateLimit, { type Options as RateLimitOptions } from "express-rate-limit";
+import { forwardedClientKey } from "../middleware/rateLimiter";
 
 const router = Router();
 
@@ -356,9 +357,26 @@ async function readOwner(fileName: string): Promise<UploadOwner | null> {
  *
  * كلُّ طلبٍ يفتح ملفاً ويبثّه من القرص؛ وبلا حدٍّ تستنزف طلباتٌ متزامنةٌ الخادم.
  * والمشغّلُ يرسل عدّة طلبات Range للفيديو الواحد (وعند كل تقديم)، فالحدُّ في
- * أعلى المدى لا أدناه. ويُعدّ لكل عميلٍ لا للخادم كلّه — انظر createClientRateLimit.
+ * أعلى المدى لا أدناه. ويُعدّ لكل عميلٍ لا للخادم كلّه — انظر MEDIA_RATE_LIMIT.
  */
-export const videoDownloadRateLimit = createClientRateLimit(100);
+/**
+ * إعداداتُ express-rate-limit المشتركة لمسارات الوسائط: نافذةُ دقيقة، لكل عميل.
+ *
+ * يُعدّ بـ forwardedClientKey لا بـ req.ip: فـ trust proxy مطفأٌ عمداً (app.ts)،
+ * وreq.ip حينها عنوانُ الوكيل للجميع — حدٌّ واحدٌ للمنصّة كلّها. ولذا يُطفأ فحصُ
+ * المكتبة لترويسة X-Forwarded-For: نقرؤها نحن، آخرَ عنوانٍ فيها، عمداً.
+ */
+const MEDIA_RATE_LIMIT: Partial<RateLimitOptions> = {
+  windowMs: 60_000,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => forwardedClientKey(req),
+  statusCode: 429,
+  message: { error: "تجاوزت الحد المسموح به من الطلبات. يرجى الانتظار دقيقة." },
+  validate: { xForwardedForHeader: false },
+};
+
+export const videoDownloadRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 100 });
 
 /**
  * حدودُ عمليات الكتابة — لكل عميل، ولكلّ مسارٍ عدّادُه (فالحذفُ لا يستهلك حصّة الرفع).
@@ -367,9 +385,9 @@ export const videoDownloadRateLimit = createClientRateLimit(100);
  * (حتى ٥٠٠ ميغابايت) في الذاكرة. والحدودُ فوق الاستعمال العادي بكثير: حذفُ درسٍ
  * يرسل طلبَ حذفٍ لكلّ فيديو فيه، والنقلُ عمليةُ إدارةٍ تُشغَّل مرّة.
  */
-const videoUploadRateLimit = createClientRateLimit(20);
-const videoDeleteRateLimit = createClientRateLimit(30);
-const legacyMigrationRateLimit = createClientRateLimit(20);
+const videoUploadRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 20 });
+const videoDeleteRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 30 });
+const legacyMigrationRateLimit = rateLimit({ ...MEDIA_RATE_LIMIT, limit: 20 });
 
 // GET /api/media/videos/:fileName — legacy local-media compatibility route
 router.get("/media/videos/:fileName", videoDownloadRateLimit, (req, res) => {
