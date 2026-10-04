@@ -360,6 +360,17 @@ async function readOwner(fileName: string): Promise<UploadOwner | null> {
  */
 export const videoDownloadRateLimit = createClientRateLimit(100);
 
+/**
+ * حدودُ عمليات الكتابة — لكل عميل، ولكلّ مسارٍ عدّادُه (فالحذفُ لا يستهلك حصّة الرفع).
+ *
+ * تسبق التحقّقَ من الجلسة وقراءةَ الجسم: طلبٌ فوق الحدّ يُرفض قبل أن يُحمَّل فيديوه
+ * (حتى ٥٠٠ ميغابايت) في الذاكرة. والحدودُ فوق الاستعمال العادي بكثير: حذفُ درسٍ
+ * يرسل طلبَ حذفٍ لكلّ فيديو فيه، والنقلُ عمليةُ إدارةٍ تُشغَّل مرّة.
+ */
+const videoUploadRateLimit = createClientRateLimit(20);
+const videoDeleteRateLimit = createClientRateLimit(30);
+const legacyMigrationRateLimit = createClientRateLimit(20);
+
 // GET /api/media/videos/:fileName — legacy local-media compatibility route
 router.get("/media/videos/:fileName", videoDownloadRateLimit, (req, res) => {
   const fileName = String(req.params.fileName || "");
@@ -378,7 +389,7 @@ router.get("/media/videos/:fileName", videoDownloadRateLimit, (req, res) => {
 
 // POST /api/media/migrate-legacy — admin-only migration for pre-Supabase MP4 files.
 // dryRun defaults to true so an accidental request cannot change content.
-router.post("/media/migrate-legacy", requireAdmin, async (req, res) => {
+router.post("/media/migrate-legacy", legacyMigrationRateLimit, requireAdmin, async (req, res) => {
   const storage = supabaseStorageConfig();
   if (!storage) {
     return res.status(503).json({
@@ -534,7 +545,7 @@ const rawVideoParser = express.raw({
   limit: "500mb",
 });
 
-router.post("/media/upload", requireContentManager, rawVideoParser, async (req, res) => {
+router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVideoParser, async (req, res) => {
   if (!Buffer.isBuffer(req.body) || (req.body as Buffer).length === 0) {
     return res.status(400).json({ error: "لم يتم اختيار ملف MP4" });
   }
@@ -597,7 +608,7 @@ router.post("/media/upload", requireContentManager, rawVideoParser, async (req, 
 });
 
 // POST /api/media/delete
-router.post("/media/delete", requireContentManager, async (req, res) => {
+router.post("/media/delete", videoDeleteRateLimit, requireContentManager, async (req, res) => {
   const rawUrl = typeof req.body?.url === "string" ? req.body.url : "";
   // Accept both the new API-routed URL and the legacy /uploads/videos/ path
   const localMatch =
