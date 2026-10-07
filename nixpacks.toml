@@ -5,7 +5,7 @@ nixPkgs = ["nodejs"]
 cmds = ["corepack enable"]
 
 [phases.install]
-cmds = ["npx pnpm install --no-frozen-lockfile"]
+cmds = ["npx pnpm install --no-frozen-lockfile --ignore-scripts"]
 
 [phases.build]
 cmds = ["npx pnpm --filter @workspace/mockup-sandbox build"]
