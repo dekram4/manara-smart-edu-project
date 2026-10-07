@@ -1,0 +1,14 @@
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs"]
+cmds = ["npm install -g pnpm"]
+
+[phases.install]
+cmds = ["pnpm install --no-frozen-lockfile"]
+
+[phases.build]
+cmds = ["pnpm --filter @workspace/mockup-sandbox build"]
+
+[start]
+cmd = "pnpm --filter @workspace/mockup-sandbox dev"
