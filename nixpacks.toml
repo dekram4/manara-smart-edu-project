@@ -10,4 +10,4 @@ cmds = ["npx pnpm@9 install --no-frozen-lockfile"]
 cmds = ["npx pnpm@9 --filter @workspace/mockup-sandbox build"]
 
 [start]
-cmd = "npx --yes serve -s artifacts/mockup-sandbox/dist -l ${PORT:-5000}"
+cmd = "node serve-frontend.mjs"
