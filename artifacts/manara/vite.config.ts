@@ -17,12 +17,10 @@ if (Number.isNaN(port) || port <= 0) {
   process.env.PORT || 3000
 }
 
-const basePath = process.env.BASE_PATH;
+const basePath = (process.env.BASE_PATH || "/");
 
 if (!basePath) {
-  throw new Error(
-    'BASE_PATH environment variable is required but was not provided.',
-  );
+  
 }
 
 export default defineConfig({
