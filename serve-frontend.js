@@ -3,11 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 5000;
-const DIST_DIR = path.resolve(__dirname, 'artifacts/mockup-sandbox/dist');
+const DIST_DIR = path.resolve(process.cwd(), 'artifacts/mockup-sandbox/dist');
 
-console.log(`[INFO] Starting static server on port ${PORT}...`);
-console.log(`[INFO] Target directory: ${DIST_DIR}`);
-console.log(`[INFO] Directory exists: ${fs.existsSync(DIST_DIR)}`);
+console.log(`[STARTUP] Working Directory: ${process.cwd()}`);
+console.log(`[STARTUP] Target Dist Path: ${DIST_DIR}`);
+console.log(`[STARTUP] Dist Directory Exists: ${fs.existsSync(DIST_DIR)}`);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -16,7 +16,6 @@ const MIME_TYPES = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
-  '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
@@ -47,5 +46,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[SUCCESS] Server successfully listening on http://0.0.0.0:${PORT}`);
+  console.log(`[SUCCESS] Frontend server live on 0.0.0.0:${PORT}`);
 });
