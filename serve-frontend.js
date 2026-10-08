@@ -1,15 +1,16 @@
-import http from 'http';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DIST_DIR = path.join(__dirname, 'artifacts/mockup-sandbox/dist');
 const PORT = process.env.PORT || 5000;
+const DIST_DIR = path.resolve(__dirname, 'artifacts/mockup-sandbox/dist');
+
+console.log(`[INFO] Starting static server on port ${PORT}...`);
+console.log(`[INFO] Target directory: ${DIST_DIR}`);
+console.log(`[INFO] Directory exists: ${fs.existsSync(DIST_DIR)}`);
 
 const MIME_TYPES = {
-  '.html': 'text/html',
+  '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
@@ -36,15 +37,15 @@ const server = http.createServer((req, res) => {
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      res.writeHead(500);
-      res.end('Server Error');
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Server Error: ' + err.message);
     } else {
       res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content, 'utf-8');
+      res.end(content);
     }
   });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Frontend server is listening on port ${PORT}`);
+  console.log(`[SUCCESS] Server successfully listening on http://0.0.0.0:${PORT}`);
 });
