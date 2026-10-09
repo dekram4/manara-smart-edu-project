@@ -1,20 +1,26 @@
 # بناءُ Railway (Nixpacks) — والتشغيلُ وفحصُ الصحة في railway.json.
 #
-# pnpm بإصدارٍ مثبّت: الإصدارُ الذي يختاره Railway تلقائياً قد يقرأ إعداداتِ
-# المستودع (overrides في pnpm-workspace.yaml) بغير ما كُتب به ملفُّ القفل،
-# فيرفض التثبيتَ المجمَّد بـ ERR_PNPM_LOCKFILE_CONFIG_MISMATCH. ولذا أيضاً
-# --no-frozen-lockfile: يُكمل التثبيتَ بدلَ أن يتوقّف عند ذلك.
+# pnpm بإصدارٍ مثبّت، ومثبّتٌ على مستوى النظام (npm -g) لا عبر npx وحده: فأيُّ
+# أمرٍ يناديه — في البناء أو عند تشغيل الحاوية، ومنه أمرٌ محفوظٌ في لوحة Railway —
+# يجده. وكان غيابُه يوقف الحاويةَ بـ "pnpm: command not found".
+#
+# والإصدارُ الذي يختاره Railway تلقائياً قد يقرأ إعداداتِ المستودع (overrides في
+# pnpm-workspace.yaml) بغير ما كُتب به ملفُّ القفل، فيرفض التثبيتَ المجمَّد بـ
+# ERR_PNPM_LOCKFILE_CONFIG_MISMATCH. ولذا أيضاً --no-frozen-lockfile.
 providers = ["node"]
 
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["npx --yes pnpm@10.34.5 install --no-frozen-lockfile"]
+cmds = [
+  "npm install -g pnpm@10.34.5",
+  "pnpm install --no-frozen-lockfile",
+]
 
 # الواجهةُ (artifacts/manara) ثم الخادم — والخادمُ يقدّمها على عنوانه.
 [phases.build]
-cmds = [
-  "npx --yes pnpm@10.34.5 --filter @workspace/manara run build",
-  "npx --yes pnpm@10.34.5 --filter @workspace/api-server run build",
-]
+cmds = ["pnpm run build:deploy"]
+
+[start]
+cmd = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
