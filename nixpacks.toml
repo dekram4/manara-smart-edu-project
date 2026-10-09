@@ -1,8 +1,8 @@
 # بناءُ Railway (Nixpacks) — والتشغيلُ وفحصُ الصحة في railway.json.
 #
-# pnpm بإصدارٍ مثبّت، ومثبّتٌ على مستوى النظام (/usr/local) لا عبر npx وحده: فأيُّ
-# أمرٍ يناديه — في البناء أو عند تشغيل الحاوية، ومنه أمرٌ محفوظٌ في لوحة Railway —
-# يجده. وكان غيابُه يوقف الحاويةَ بـ "pnpm: command not found".
+# pnpm عبر npx بإصدارٍ مثبّت، في كلِّ أمر: صورةُ Nixpacks تبني PATH من حزم Nix،
+# فـ pnpm المثبَّتُ عامّاً (npm -g، ولو في /usr/local) لا يُوجد في السطر الذي يليه.
+# و npx يجده دائماً — وبه نجح التثبيت. والتشغيلُ node وحده، فلا يحتاج pnpm.
 #
 # والإصدارُ الذي يختاره Railway تلقائياً قد يقرأ إعداداتِ المستودع (overrides في
 # pnpm-workspace.yaml) بغير ما كُتب به ملفُّ القفل، فيرفض التثبيتَ المجمَّد بـ
@@ -12,19 +12,16 @@ providers = ["node"]
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
-# في /usr/local صراحةً: مجلّدُ npm العامُّ الافتراضيُّ في صورة Nixpacks ليس في
-# PATH (ثبّت pnpm فلم يجده السطرُ الذي يليه)، و/usr/local/bin فيه — عند البناء
-# وعند تشغيل الحاوية. و`pnpm --version` يُوقف البناءَ هنا إن لم يُوجد.
 [phases.install]
-cmds = [
-  "npm install --global --prefix /usr/local pnpm@10.34.5",
-  "pnpm --version",
-  "pnpm install --no-frozen-lockfile",
-]
+cmds = ["npx --yes pnpm@10.34.5 install --no-frozen-lockfile"]
 
 # الواجهةُ (artifacts/manara) ثم الخادم — والخادمُ يقدّمها على عنوانه.
+# (railway.json يحمل الأمرَ نفسه، فيتقدّم على أيِّ أمرٍ محفوظٍ في لوحة Railway.)
 [phases.build]
-cmds = ["pnpm run build:deploy"]
+cmds = [
+  "npx --yes pnpm@10.34.5 --filter @workspace/manara run build",
+  "npx --yes pnpm@10.34.5 --filter @workspace/api-server run build",
+]
 
 [start]
 cmd = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
