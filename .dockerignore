@@ -1,0 +1,40 @@
+# ما لا تحتاجه صورةُ النشر (انظر Dockerfile، ومثلُه في .replitignore): تطبيقُ
+# الطالب (فلاتر) وما بناه، والأصولُ الكبيرة، ومخرجاتُ البناء والحزمُ المحلية
+# — تُبنى وتُثبَّت داخل الصورة من جديد.
+.git
+**/node_modules
+**/dist
+.local
+
+/artifacts/manara-student-flutter/
+/lib/main.dart
+/lib/src/
+/build/
+/.dart_tool/
+/android/
+/windows/
+/web/
+/ios/
+/macos/
+/linux/
+/test/
+/assets/
+/screenshots/
+/attached_assets/
+/uploads/
+/pubspec.lock
+/analysis_options.yaml
+/devtools_options.yaml
+/manara_student.iml
+/.metadata
+/.idea/
+/.claude/
+/.agents/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.apk
+*.aab
+.pub-cache/
+.pub/
+*.iml
