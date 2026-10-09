@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import router from "./routes";
@@ -128,6 +129,42 @@ app.use("/api", (req: express.Request, res: express.Response) => {
     path: req.path,
   });
 });
+
+/**
+ * واجهةُ الويب (artifacts/manara) من الخادم نفسه — إن بُنيت بجانبه.
+ *
+ * ── لماذا ──
+ * الواجهةُ تنادي الخادم بمساراتٍ نسبية (`fetch('/api/…')`، والجلسةُ كوكي
+ * same-origin)، فلا تعمل إلا على عنوانه نفسه. على Replit يجمعهما موجّهُ النشر
+ * (`/` للواجهة و`/api` للخادم). وعلى خادمٍ بلا موجّه (Railway) لا يجمعهما شيء:
+ * يُنشر الخادم وحده، فلا صفحةَ على عنوانه — فيقدّمها هو هنا.
+ *
+ * والملفّاتُ المبصومة (`/assets/<اسم>-<بصمة>.js`) تُحفظ في الجهاز سنة؛ و
+ * `index.html` لا تُحفظ، فيصل كلُّ نشرٍ جديدٍ عند أوّل فتح. وأيُّ مسارٍ آخر
+ * (`/teacher` …) يُعطى `index.html` لتتولّاه الواجهة — إلا /api و/uploads.
+ */
+const webAppDirectory = path.resolve(__dirname, "../../manara/dist/public");
+if (fs.existsSync(path.join(webAppDirectory, "index.html"))) {
+  app.use(
+    express.static(webAppDirectory, {
+      index: false,
+      setHeaders(res, filePath) {
+        res.setHeader(
+          "Cache-Control",
+          filePath.includes(`${path.sep}assets${path.sep}`)
+            ? "public, max-age=31536000, immutable"
+            : "no-cache",
+        );
+      },
+    }),
+  );
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (req.path.startsWith("/api/") || req.path.startsWith("/uploads/")) return next();
+    res.sendFile("index.html", { root: webAppDirectory, headers: { "Cache-Control": "no-cache" } });
+  });
+  logger.info({ webAppDirectory }, "Serving the web app");
+}
 
 /**
  * آخرُ حارس: خطأٌ أفلت من مسارٍ يعود JSON ويُسجَّل.

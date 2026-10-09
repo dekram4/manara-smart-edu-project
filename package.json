@@ -24,5 +24,8 @@
       "react-tsparticles",
       "tsparticles-engine"
     ]
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

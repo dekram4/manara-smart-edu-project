@@ -5,22 +5,29 @@ import { defineConfig } from 'vite';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
-const rawPort = process.env.PORT;
+// البناءُ لا يفتح منفذاً: PORT و BASE_PATH لازمان لخادم التطوير وحده. ودونهما
+// يُبنى للجذر — كما على خادمٍ غير Replit (Railway) يقدّم الواجهةَ بنفسه.
+const isBuild = process.argv.includes('build');
+const rawPort = process.env.PORT || (isBuild ? '5173' : undefined);
 
 if (!rawPort) {
-  process.env.PORT || 3000
+  throw new Error(
+    'PORT environment variable is required but was not provided.',
+  );
 }
 
 const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
-  process.env.PORT || 3000
+  throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = (process.env.BASE_PATH || "/");
+const basePath = process.env.BASE_PATH || (isBuild ? '/' : undefined);
 
 if (!basePath) {
-  
+  throw new Error(
+    'BASE_PATH environment variable is required but was not provided.',
+  );
 }
 
 export default defineConfig({
