@@ -1,6 +1,6 @@
 # بناءُ Railway (Nixpacks) — والتشغيلُ وفحصُ الصحة في railway.json.
 #
-# pnpm بإصدارٍ مثبّت، ومثبّتٌ على مستوى النظام (npm -g) لا عبر npx وحده: فأيُّ
+# pnpm بإصدارٍ مثبّت، ومثبّتٌ على مستوى النظام (/usr/local) لا عبر npx وحده: فأيُّ
 # أمرٍ يناديه — في البناء أو عند تشغيل الحاوية، ومنه أمرٌ محفوظٌ في لوحة Railway —
 # يجده. وكان غيابُه يوقف الحاويةَ بـ "pnpm: command not found".
 #
@@ -12,9 +12,13 @@ providers = ["node"]
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
+# في /usr/local صراحةً: مجلّدُ npm العامُّ الافتراضيُّ في صورة Nixpacks ليس في
+# PATH (ثبّت pnpm فلم يجده السطرُ الذي يليه)، و/usr/local/bin فيه — عند البناء
+# وعند تشغيل الحاوية. و`pnpm --version` يُوقف البناءَ هنا إن لم يُوجد.
 [phases.install]
 cmds = [
-  "npm install -g pnpm@10.34.5",
+  "npm install --global --prefix /usr/local pnpm@10.34.5",
+  "pnpm --version",
   "pnpm install --no-frozen-lockfile",
 ]
 
