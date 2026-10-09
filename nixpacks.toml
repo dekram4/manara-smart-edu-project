@@ -1,0 +1,20 @@
+# بناءُ Railway (Nixpacks) — والتشغيلُ وفحصُ الصحة في railway.json.
+#
+# pnpm بإصدارٍ مثبّت: الإصدارُ الذي يختاره Railway تلقائياً قد يقرأ إعداداتِ
+# المستودع (overrides في pnpm-workspace.yaml) بغير ما كُتب به ملفُّ القفل،
+# فيرفض التثبيتَ المجمَّد بـ ERR_PNPM_LOCKFILE_CONFIG_MISMATCH. ولذا أيضاً
+# --no-frozen-lockfile: يُكمل التثبيتَ بدلَ أن يتوقّف عند ذلك.
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npx --yes pnpm@10.34.5 install --no-frozen-lockfile"]
+
+# الواجهةُ (artifacts/manara) ثم الخادم — والخادمُ يقدّمها على عنوانه.
+[phases.build]
+cmds = [
+  "npx --yes pnpm@10.34.5 --filter @workspace/manara run build",
+  "npx --yes pnpm@10.34.5 --filter @workspace/api-server run build",
+]
