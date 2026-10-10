@@ -81,7 +81,10 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = trf('cinema.loadError', {'error': error});
+        // بطاقةٌ أُغلقت بعد فتح الواجهة: رسالتُها كما هي، لا «تعذّر التحميل».
+        _error = error is StudentCardLockedException
+            ? error.toString()
+            : trf('cinema.loadError', {'error': error});
       });
     }
   }

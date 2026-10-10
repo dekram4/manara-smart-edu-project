@@ -1,32 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { readHierarchicalConfigs } from '../../utils/academic';
-import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { STORAGE_KEYS } from '../../constants';
 import { playLamsaSound } from '../../utils/sounds';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
-import { getTeacherPermissions, getTeacherVideoUsageMb, isLimitReached } from '../../permissions';
+import { getTeacherPermissions, isLimitReached } from '../../permissions';
 import { deleteUploadedVideo, getVideoSourceType, isMp4VideoUrl, safeVideoUrl, showVideoStorageNotice, uploadMp4Video, VideoSourceType } from '../../utils/video';
 import VideoThumbnail from '../../components/VideoThumbnail';
-import { syncSharedValue } from '../../db/sync';
+import { managementRequest } from '../../utils/managementApi';
 
-interface VideoRecord {
+/**
+ * إدارة سينما منارة.
+ *
+ * ── الفيديو للصفّ، لا للدرس ──
+ * كان الفيديو يُحفظ بمسارٍ سداسيّ (صفّ، مادة، فصل، وحدة، درس) ولا يراه
+ * الطالب إلا داخل ذلك الدرس. صار الربطُ الصفَّ الدراسيّ والمعلمَ المسؤول
+ * وحدهما — وكلاهما إلزاميّ — فيرى طلابُ المعلم في ذلك الصفّ الفيديو أيّاً
+ * كان الدرس الذي يتصفّحونه.
+ *
+ * والحفظ عبر `/api/cinema/videos` لا عبر التخزين المحلي: الخادم يتحقّق من
+ * الصفّ والمعلم والرابط، ويكتب في جدول `cinema_videos`.
+ */
+
+interface CinemaVideo {
   id: string;
   title: string;
   description: string;
   url: string;
   sourceType?: VideoSourceType;
-  grade: string;
-  subject: string;
-  term: string;
-  unit: string;
-  /// اختياري لأن الفيديوهات المنشورة قبل إضافة المستوى السادس لا تحمله،
-  /// وهي تبقى صالحة على مستوى الوحدة.
-  lesson?: string;
-  createdBy: string;
-  teacher_id?: string;
-  teacherId?: string;
+  gradeId: string;
+  teacherId: string;
   teacherName: string;
+  createdBy: string;
   createdAt: string;
 }
 
@@ -36,7 +41,12 @@ interface CinemaVideoDraft {
   description: string;
   url: string;
   sourceType: VideoSourceType;
-  createdAt: string;
+}
+
+interface CinemaListResponse {
+  storage: 'table' | 'kv';
+  teachers: Array<{ id: string; name: string }>;
+  videos: CinemaVideo[];
 }
 
 interface VideoManagementProps {
@@ -46,151 +56,100 @@ interface VideoManagementProps {
   isAdmin?: boolean;
 }
 
+const EMPTY_FORM = {
+  title: '',
+  description: '',
+  url: '',
+  sourceType: 'embed' as VideoSourceType,
+  file: null as File | null,
+  pendingVideos: [] as CinemaVideoDraft[],
+  gradeId: '',
+};
+
+const readStringArray = (key: string): string[] => {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())) : [];
+  } catch {
+    return [];
+  }
+};
+
 const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherName, permissionPackageId, isAdmin = false }) => {
-  const [videos, setVideos] = useState<VideoRecord[]>([]);
-  const [academicConfigs, setAcademicConfigs] = useState<HierarchicalConfig[]>([]);
-  const [teachers, setTeachers] = useState<Array<{ id: string; name: string; subject?: string }>>([]);
+  const [videos, setVideos] = useState<CinemaVideo[]>([]);
+  const [teachers, setTeachers] = useState<Array<{ id: string; name: string }>>([]);
+  const [storage, setStorage] = useState<'table' | 'kv' | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
-  const [selectedTeacherName, setSelectedTeacherName] = useState('');
-  const [filters, setFilters] = useState({ grade: '', subject: '', term: '', unit: '', lesson: '' });
+  const [filters, setFilters] = useState({ grade: '', teacher: '' });
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '', description: '', url: '', sourceType: 'embed' as VideoSourceType, file: null as File | null,
-    pendingVideos: [] as CinemaVideoDraft[],
-    grade: '', subject: '', term: '', unit: '', lesson: ''
-  });
-  const [editingVideo, setEditingVideo] = useState<VideoRecord | null>(null);
-  /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
-  const hydrating = useSyncHydrating();
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [editingVideo, setEditingVideo] = useState<CinemaVideo | null>(null);
+
+  const permissions = getTeacherPermissions({ permissionPackageId });
+  const canManageVideos = isAdmin || permissions.canManageVideos;
+
+  const loadVideos = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const data = await managementRequest<CinemaListResponse>('/api/cinema/videos');
+      setVideos(Array.isArray(data.videos) ? data.videos : []);
+      setTeachers(Array.isArray(data.teachers) ? data.teachers : []);
+      setStorage(data.storage ?? null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'تعذر تحميل فيديوهات السينما');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    loadVideos();
-    loadAcademicConfigs();
-    if (isAdmin) {
-      try {
-        const savedTeachers = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
-        setTeachers(Array.isArray(savedTeachers) ? savedTeachers : []);
-      } catch {
-        setTeachers([]);
-      }
-    }
-  }, [teacherId, isAdmin, selectedTeacherId]);
+    void loadVideos();
+  }, [loadVideos, teacherId, isAdmin]);
 
-  const handleTeacherChange = (value: string) => {
-    setSelectedTeacherId(value);
-    const teacher = teachers.find(item => item.id === value);
-    setSelectedTeacherName(teacher?.name || '');
+  // المعلم المسؤول: للمعلم هو نفسه دائماً، وللمشرف ما يختاره.
+  const ownerId = isAdmin ? selectedTeacherId : teacherId || '';
+  const ownerName = isAdmin
+    ? teachers.find(teacher => teacher.id === selectedTeacherId)?.name || editingVideo?.teacherName || ''
+    : teacherName || '';
+
+  /// صفوف المعلم المسؤول من شجرته الأكاديمية، ومعها قائمة الصفوف العامة —
+  /// فلا يبقى الحقل فارغاً لمعلمٍ لم يبنِ شجرته بعد.
+  const availableGrades = useMemo(() => {
+    const configs: HierarchicalConfig[] = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
+    const owned = ownerId
+      ? configs.filter(config => getRecordTeacherId(config) === normalizeScopeValue(ownerId))
+      : [];
+    const grades = [
+      ...owned.map(config => config.grade),
+      ...readStringArray(STORAGE_KEYS.GRADES),
+    ].filter(Boolean);
+    if (formData.gradeId) grades.unshift(formData.gradeId);
+    return Array.from(new Set(grades));
+  }, [ownerId, formData.gradeId]);
+
+  const resetForm = () => {
+    setFormData(EMPTY_FORM);
+    setEditingVideo(null);
+    if (isAdmin) setSelectedTeacherId('');
   };
 
-  const beginEditingVideo = (video: VideoRecord) => {
-    const ownerId = String(video.teacher_id ?? video.teacherId ?? video.createdBy ?? '').trim();
-    if (isAdmin) {
-      setSelectedTeacherId(ownerId);
-      setSelectedTeacherName(video.teacherName || teachers.find(item => item.id === ownerId)?.name || '');
-    }
+  const beginEditingVideo = (video: CinemaVideo) => {
+    if (isAdmin) setSelectedTeacherId(video.teacherId);
     setEditingVideo(video);
     setFormData({
+      ...EMPTY_FORM,
       title: video.title,
       description: video.description,
       url: video.url,
       sourceType: getVideoSourceType(video.sourceType, video.url),
-      file: null,
-      pendingVideos: [],
-      grade: video.grade,
-      subject: video.subject,
-      term: video.term,
-      unit: video.unit,
-      lesson: video.lesson || '',
+      gradeId: video.gradeId,
     });
     setShowForm(true);
     playLamsaSound('click');
-  };
-
-  const loadVideos = () => {
-    const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
-    if (saved) {
-      const all = JSON.parse(saved);
-       setVideos(isAdmin
-         ? all
-         : all.filter((v: VideoRecord) => getRecordTeacherId(v) === normalizeScopeValue(teacherId)));
-    }
-  };
-
-  const loadAcademicConfigs = () => {
-    const allConfigs: HierarchicalConfig[] = readHierarchicalConfigs(
-      STORAGE_KEYS.HIERARCHICAL_CONFIGS,
-    );
-    const academicOwnerId = isAdmin ? selectedTeacherId : teacherId;
-    setAcademicConfigs(isAdmin && !academicOwnerId
-      ? allConfigs
-      : allConfigs.filter(config => getRecordTeacherId(config) === normalizeScopeValue(academicOwnerId)));
-  };
-
-  const selectedGradeConfig = academicConfigs.find(
-    config => config.grade === formData.grade,
-  );
-  const selectedSubjectConfig = selectedGradeConfig?.subjects.find(
-    subject => subject.subject === formData.subject,
-  );
-  const selectedTermConfig = selectedSubjectConfig?.terms.find(
-    term => term.term === formData.term,
-  );
-
-  const withCurrentValue = (values: string[], currentValue: string) =>
-    currentValue && !values.includes(currentValue)
-      ? [currentValue, ...values]
-      : values;
-
-  const availableGrades = withCurrentValue(
-    Array.from(new Set(academicConfigs.map(config => config.grade))),
-    formData.grade,
-  );
-  const availableSubjects = withCurrentValue(
-    selectedGradeConfig?.subjects.map(subject => subject.subject) || [],
-    formData.subject,
-  );
-  const availableTerms = withCurrentValue(
-    selectedSubjectConfig?.terms.map(term => term.term) || [],
-    formData.term,
-  );
-  const availableUnits = withCurrentValue(
-    selectedTermConfig?.units || [],
-    formData.unit,
-  );
-
-  /// دروس الوحدة المختارة، من الشجرة الأكاديمية نفسها.
-  ///
-  /// الدروس مخزّنة في خريطة `term.lessons` مفتاحها اسم الوحدة — نفس الشكل
-  /// الذي تكتبه الإعدادات الأكاديمية ويقرأه تطبيق الطالب، فالثلاثة تتفق
-  /// على بنية واحدة بلا تحويل بينها.
-  const availableLessons = withCurrentValue(
-    selectedTermConfig?.lessons?.[formData.unit] ?? [],
-    formData.lesson,
-  );
-
-  const updateAcademicField = (
-    field: 'grade' | 'subject' | 'term' | 'unit' | 'lesson',
-    value: string,
-  ) => {
-    const next = { ...formData, [field]: value };
-    if (field === 'grade') {
-      next.subject = '';
-      next.term = '';
-      next.unit = '';
-      next.lesson = '';
-    } else if (field === 'subject') {
-      next.term = '';
-      next.unit = '';
-      next.lesson = '';
-    } else if (field === 'term') {
-      next.unit = '';
-      next.lesson = '';
-    } else if (field === 'unit') {
-      // The lesson belongs to its unit: changing the unit leaves a chosen
-      // lesson pointing into a branch it is no longer part of.
-      next.lesson = '';
-    }
-    setFormData(next);
   };
 
   const makeVideoId = () =>
@@ -198,22 +157,22 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  const addCinemaVideo = async () => {
-    if (isAdmin && !editingVideo && !selectedTeacherId) {
-      alert('يرجى اختيار اسم المعلم المسؤول قبل إضافة فيديو السينما');
-      return;
-    }
+  /// يجهّز ما في الحقول (رابطاً أو ملفاً أو كليهما) كمسوّداتٍ تُحفظ معاً.
+  const draftsFromInputs = async (startIndex: number): Promise<CinemaVideoDraft[] | null> => {
     const embedUrl = formData.url.trim();
     const selectedFile = formData.file;
-    if (!embedUrl && !selectedFile) {
-      alert('أدخل رابطًا مضمنًا أو اختر ملف MP4 واحدًا على الأقل');
-      return;
-    }
-
     const title = formData.title.trim();
     const description = formData.description.trim();
     const drafts: CinemaVideoDraft[] = [];
-
+    if (embedUrl) {
+      drafts.push({
+        id: makeVideoId(),
+        title: title || `رابط سينما ${startIndex + 1}`,
+        description,
+        url: embedUrl,
+        sourceType: 'embed',
+      });
+    }
     if (selectedFile) {
       try {
         const uploaded = await uploadMp4Video(selectedFile);
@@ -224,25 +183,22 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           description,
           url: uploaded.url,
           sourceType: 'mp4',
-          createdAt: new Date().toISOString(),
         });
       } catch (error) {
         alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
-        return;
+        return null;
       }
     }
+    return drafts;
+  };
 
-    if (embedUrl) {
-      drafts.unshift({
-        id: makeVideoId(),
-        title: title || `رابط سينما ${formData.pendingVideos.length + 1}`,
-        description,
-        url: embedUrl,
-        sourceType: 'embed',
-        createdAt: new Date().toISOString(),
-      });
+  const addCinemaVideo = async () => {
+    if (!formData.url.trim() && !formData.file) {
+      alert('أدخل رابطًا مضمنًا أو اختر ملف MP4 واحدًا على الأقل');
+      return;
     }
-
+    const drafts = await draftsFromInputs(formData.pendingVideos.length);
+    if (!drafts) return;
     setFormData(current => ({
       ...current,
       pendingVideos: [...current.pendingVideos, ...drafts],
@@ -264,291 +220,174 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     if (video?.sourceType === 'mp4') void deleteUploadedVideo(video.url);
   };
 
+  const saveVideo = (video: {
+    id?: string;
+    title: string;
+    description: string;
+    url: string;
+    sourceType: VideoSourceType;
+  }) =>
+    managementRequest<{ video: CinemaVideo }>('/api/cinema/videos', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...video,
+        embedUrl: video.url,
+        gradeId: formData.gradeId,
+        teacherId: ownerId,
+        teacherName: ownerName,
+      }),
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      !formData.grade ||
-      !formData.subject ||
-      !formData.term ||
-      !formData.unit
-    ) {
-      alert('يرجى اختيار الصف والمادة والفصل والوحدة');
-      return;
-    }
-
-    // الدرس مستوى إلزامي كبقية الخمسة: فيديو بلا درس يظهر لكل دروس الوحدة،
-    // وهو الخلط الذي يمنعه هذا الشرط.
-    if (!formData.lesson.trim()) {
-      alert('يرجى اختيار الدرس التابع للوحدة');
-      return;
-    }
-
-    const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
-    const all: VideoRecord[] = saved ? JSON.parse(saved) : [];
-    const permissions = getTeacherPermissions({ permissionPackageId });
-    const canManageVideos = isAdmin || permissions.canManageVideos;
-    if (isAdmin && !editingVideo && !selectedTeacherId) {
-      alert('يرجى اختيار المعلم قبل إضافة فيديوهات السينما');
-      return;
-    }
-    const ownerId = isAdmin
-      ? selectedTeacherId || editingVideo?.teacher_id || editingVideo?.teacherId || editingVideo?.createdBy || 'admin'
-      : teacherId || '';
-    const ownerName = isAdmin
-      ? selectedTeacherName || editingVideo?.teacherName || 'المشرف - سينما منارة'
-      : teacherName || 'المعلم';
-    const teacherVideos = all.filter(
-      video => getRecordTeacherId(video) === normalizeScopeValue(ownerId),
-    );
-
     if (!canManageVideos) {
       alert(`⚠️ ليس لديك صلاحية ${editingVideo ? 'إدارة' : 'إضافة'} الفيديوهات`);
       return;
     }
+    if (!ownerId) {
+      alert('يرجى اختيار المعلم المسؤول عن الفيديو');
+      return;
+    }
+    if (!formData.gradeId.trim()) {
+      alert('يرجى اختيار الصف الدراسي');
+      return;
+    }
 
-    if (editingVideo) {
-      if (formData.sourceType === 'embed' && !formData.url.trim()) {
-        alert('يرجى إدخال الرابط المضمن أولاً');
-        return;
-      }
-      if (formData.sourceType === 'mp4' && !formData.file && !isMp4VideoUrl(editingVideo.url)) {
-        alert('يرجى اختيار ملف MP4');
-        return;
-      }
-
-      let videoUrl = formData.url.trim();
-      if (formData.sourceType === 'mp4' && formData.file) {
-        try {
-          const uploaded = await uploadMp4Video(formData.file);
-          showVideoStorageNotice(uploaded);
-          videoUrl = uploaded.url;
-        } catch (error) {
-          alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+    setSaving(true);
+    try {
+      if (editingVideo) {
+        if (formData.sourceType === 'embed' && !formData.url.trim()) {
+          alert('يرجى إدخال الرابط المضمن أولاً');
           return;
         }
-      } else if (formData.sourceType === 'mp4' && isMp4VideoUrl(editingVideo.url)) {
-        videoUrl = editingVideo.url;
-      }
-
-      const updated = all.map(video => video.id === editingVideo.id ? {
-        ...video,
-        title: formData.title.trim() || editingVideo.title,
-        description: formData.description.trim(),
-        url: videoUrl,
-        sourceType: formData.sourceType,
-        grade: formData.grade,
-        subject: formData.subject,
-        term: formData.term,
-        unit: formData.unit,
-        lesson: formData.lesson.trim(),
-        createdBy: ownerId,
-        teacherId: ownerId,
-        teacher_id: ownerId,
-        teacherName: ownerName,
-      } : video);
-      localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(updated));
-      if (editingVideo.url && editingVideo.url !== videoUrl) void deleteUploadedVideo(editingVideo.url);
-      setEditingVideo(null);
-    } else {
-      let videosToCreate = [...formData.pendingVideos];
-      const hasUnaddedVideoInput = Boolean(
-        formData.title.trim() || formData.description.trim() || formData.url.trim() || formData.file,
-      );
-
-      // Like the lesson-content form, the last video can be entered and saved
-      // directly without requiring a second click on «إضافة فيديو جديد».
-      if (hasUnaddedVideoInput) {
-        const embedUrl = formData.url.trim();
-        const selectedFile = formData.file;
-        if (!embedUrl && !selectedFile) {
-          alert('أدخل رابطًا مضمنًا أو اختر ملف MP4 قبل الحفظ');
+        if (formData.sourceType === 'mp4' && !formData.file && !isMp4VideoUrl(editingVideo.url)) {
+          alert('يرجى اختيار ملف MP4');
           return;
         }
-
-        const title = formData.title.trim();
-        const description = formData.description.trim();
-        if (embedUrl) {
-          videosToCreate.push({
-            id: makeVideoId(),
-            title: title || `رابط سينما ${videosToCreate.length + 1}`,
-            description,
-            url: embedUrl,
-            sourceType: 'embed',
-            createdAt: new Date().toISOString(),
-          });
-        }
-        if (selectedFile) {
+        let videoUrl = formData.url.trim();
+        if (formData.sourceType === 'mp4' && formData.file) {
           try {
-            const uploaded = await uploadMp4Video(selectedFile);
+            const uploaded = await uploadMp4Video(formData.file);
             showVideoStorageNotice(uploaded);
-            videosToCreate.push({
-              id: makeVideoId(),
-              title: title || selectedFile.name,
-              description,
-              url: uploaded.url,
-              sourceType: 'mp4',
-              createdAt: new Date().toISOString(),
-            });
+            videoUrl = uploaded.url;
           } catch (error) {
             alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
             return;
           }
+        } else if (formData.sourceType === 'mp4') {
+          videoUrl = editingVideo.url;
+        }
+        await saveVideo({
+          id: editingVideo.id,
+          title: formData.title.trim() || editingVideo.title,
+          description: formData.description.trim(),
+          url: videoUrl,
+          sourceType: formData.sourceType,
+        });
+        if (editingVideo.url && editingVideo.url !== videoUrl) void deleteUploadedVideo(editingVideo.url);
+      } else {
+        let videosToCreate = [...formData.pendingVideos];
+        // كنموذج المحتوى: آخر فيديو يُحفظ مباشرةً بلا ضغطة «إضافة» ثانية.
+        if (formData.title.trim() || formData.description.trim() || formData.url.trim() || formData.file) {
+          if (!formData.url.trim() && !formData.file) {
+            alert('أدخل رابطًا مضمنًا أو اختر ملف MP4 قبل الحفظ');
+            return;
+          }
+          const drafts = await draftsFromInputs(videosToCreate.length);
+          if (!drafts) return;
+          videosToCreate = [...videosToCreate, ...drafts];
+        }
+        if (videosToCreate.length === 0) {
+          alert('أضف فيديو واحدًا على الأقل إلى سينما منارة');
+          return;
+        }
+        if (!isAdmin && isLimitReached(videos.length + videosToCreate.length, permissions.maxVideos)) {
+          alert(`⚠️ ستتجاوز الحد الأقصى المسموح به (${permissions.maxVideos}) من الفيديوهات`);
+          return;
+        }
+        for (const draft of videosToCreate) {
+          await saveVideo({
+            title: draft.title,
+            description: draft.description,
+            url: draft.url,
+            sourceType: draft.sourceType,
+          });
+        }
+        if (!isAdmin) {
+          const notifs = JSON.parse(localStorage.getItem(STORAGE_KEYS.VIDEO_NOTIFICATIONS) || '[]');
+          videosToCreate.forEach(video => {
+            notifs.push({
+              id: `${Date.now()}-${video.id}`,
+              type: 'new_video',
+              message: `🎬 أضاف المعلم ${ownerName} فيديو جديد: "${video.title}" (${formData.gradeId})`,
+              teacherId: ownerId,
+              teacherName: ownerName,
+              videoId: video.id,
+              videoTitle: video.title,
+              grade: formData.gradeId,
+              createdAt: new Date().toISOString(),
+              read: false,
+            });
+          });
+          localStorage.setItem(STORAGE_KEYS.VIDEO_NOTIFICATIONS, JSON.stringify(notifs));
         }
       }
-
-      if (videosToCreate.length === 0) {
-        alert('أضف فيديو واحدًا على الأقل إلى سينما منارة');
-        return;
-      }
-      if (
-        !isAdmin &&
-        isLimitReached(teacherVideos.length + videosToCreate.length, permissions.maxVideos)
-      ) {
-        alert(`⚠️ ستتجاوز الحد الأقصى المسموح به (${permissions.maxVideos}) من الفيديوهات`);
-        return;
-      }
-
-      const newVideos: VideoRecord[] = videosToCreate.map(video => ({
-        ...video,
-        grade: formData.grade,
-        subject: formData.subject,
-        term: formData.term,
-        unit: formData.unit,
-        lesson: formData.lesson.trim(),
-        createdBy: ownerId,
-        teacherId: ownerId,
-        teacher_id: ownerId,
-        teacherName: ownerName,
-      }));
-      const nextVideos = [...all, ...newVideos];
-      if (
-        permissions.maxStorageMb >= 0 &&
-        getTeacherVideoUsageMb(nextVideos.filter(video =>
-          getRecordTeacherId(video) === normalizeScopeValue(ownerId),
-        )) > permissions.maxStorageMb
-      ) {
-        alert(`⚠️ ستتجاوز مساحة الفيديوهات المسموحة (${permissions.maxStorageMb} MB)`);
-        return;
-      }
-      localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(nextVideos));
-
-      if (!isAdmin) {
-        const notifs = JSON.parse(localStorage.getItem(STORAGE_KEYS.VIDEO_NOTIFICATIONS) || '[]');
-        newVideos.forEach(newVideo => {
-          notifs.push({
-            id: `${Date.now()}-${newVideo.id}`,
-            type: 'new_video',
-            message: `🎬 أضاف المعلم ${ownerName} فيديو جديد: "${newVideo.title}" (${formData.grade} • ${formData.subject} • ${formData.term} • ${formData.unit})`,
-            teacherId: ownerId,
-            teacherName: ownerName,
-            videoId: newVideo.id,
-            videoTitle: newVideo.title,
-            grade: newVideo.grade,
-            subject: newVideo.subject,
-            term: newVideo.term,
-            unit: newVideo.unit,
-            createdAt: new Date().toISOString(),
-            read: false,
-          });
-        });
-        localStorage.setItem(STORAGE_KEYS.VIDEO_NOTIFICATIONS, JSON.stringify(notifs));
-      }
+      resetForm();
+      setShowForm(false);
+      await loadVideos();
+      playLamsaSound('success');
+    } catch (error) {
+      alert(`⚠️ ${error instanceof Error ? error.message : 'تعذر حفظ فيديو السينما'}`);
+    } finally {
+      setSaving(false);
     }
-
-    setFormData({
-      title: '',
-      description: '',
-      url: '',
-      sourceType: 'embed',
-      file: null,
-      pendingVideos: [],
-      grade: '',
-      subject: '',
-      term: '',
-      unit: '',
-      lesson: '',
-    });
-    setShowForm(false);
-    loadVideos();
-    playLamsaSound('success');
   };
 
-  const handleDelete = (id: string) => {
-    if (!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos) {
+  const handleDelete = async (video: CinemaVideo) => {
+    if (!canManageVideos) {
       alert('⚠️ ليس لديك صلاحية حذف الفيديوهات');
       return;
     }
     if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
-    const deletedIds = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.DELETED_VIDEOS) || '[]',
-    );
-    const nextDeletedIds = Array.from(
-      new Set([...deletedIds.filter((value: unknown) => value != null).map(String), String(id)]),
-    );
-    // Save the tombstone before removing the record so a later Supabase hydrate
-    // cannot merge this deliberately deleted video back into the local list.
-    localStorage.setItem(STORAGE_KEYS.DELETED_VIDEOS, JSON.stringify(nextDeletedIds));
-    // The Flutter student app reads this shared tombstone to exclude deleted
-    // cinema videos, even when an older smartEdu_videos record is still cached.
-    syncSharedValue(STORAGE_KEYS.DELETED_VIDEOS, nextDeletedIds);
-    const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
-    if (saved) {
-      const all = JSON.parse(saved).filter((v: VideoRecord) => v.id !== id);
-      localStorage.setItem(STORAGE_KEYS.VIDEOS, JSON.stringify(all));
-      const deletedVideo = videos.find(video => video.id === id);
-      if (deletedVideo?.url) void deleteUploadedVideo(deletedVideo.url);
-      loadVideos();
+    try {
+      await managementRequest<null>(`/api/cinema/videos/${encodeURIComponent(video.id)}`, { method: 'DELETE' });
+      if (video.url) void deleteUploadedVideo(video.url);
+      await loadVideos();
       playLamsaSound('pop');
+    } catch (error) {
+      alert(`⚠️ ${error instanceof Error ? error.message : 'تعذر حذف الفيديو'}`);
     }
   };
 
-  const filteredVideos = videos.filter((video) => {
-    if (filters.grade && video.grade !== filters.grade) return false;
-    if (filters.subject && video.subject !== filters.subject) return false;
-    if (filters.term && video.term !== filters.term) return false;
-    if (filters.unit && video.unit !== filters.unit) return false;
-    if (filters.lesson && video.lesson !== filters.lesson) return false;
+  const filteredVideos = videos.filter(video => {
+    if (filters.grade && video.gradeId !== filters.grade) return false;
+    if (filters.teacher && video.teacherId !== filters.teacher) return false;
     return true;
   });
 
-  const filterOptions = {
-    grades: Array.from(new Set(videos.map((video) => video.grade).filter(Boolean))),
-    subjects: Array.from(new Set(videos.map((video) => video.subject).filter(Boolean))),
-    terms: Array.from(new Set(videos.map((video) => video.term).filter(Boolean))),
-    units: Array.from(new Set(videos.map((video) => video.unit).filter(Boolean))),
-    lessons: Array.from(new Set(videos.map((video) => video.lesson).filter(Boolean))),
-  };
+  const filterGrades = Array.from(new Set(videos.map(video => video.gradeId).filter(Boolean)));
+  const filterTeachers = Array.from(
+    new Map(videos.map(video => [video.teacherId, video.teacherName || video.teacherId])).entries(),
+  );
 
   return (
      <div className="dashboard-page dashboard-consistent-page dashboard-video-page animate-fadeIn">
        <div className="dashboard-section-header">
         <div>
            <h2 className="text-4xl font-black text-amber-800">🎬 إدارة سينما منارة</h2>
-           <p className="text-amber-500 font-medium mt-1">{isAdmin ? 'إدارة الفيديوهات العامة لجميع الطلاب' : 'أضف فيديوهات تعليمية لطلابك'}</p>
+           <p className="text-amber-500 font-medium mt-1">
+             {isAdmin ? 'فيديوهات لكل صف دراسي، مسندة إلى المعلم المسؤول' : 'أضف فيديوهات لطلابك في كل صف دراسي'}
+           </p>
         </div>
         <button
-           disabled={!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos}
+           disabled={!canManageVideos}
            onClick={() => {
-             setShowForm(!showForm);
-             setEditingVideo(null);
-             if (!showForm) {
-               if (isAdmin) {
-                 setSelectedTeacherId('');
-                 setSelectedTeacherName('');
-               }
-               setFormData({
-                 title: '',
-                 description: '',
-                 url: '',
-                 sourceType: 'embed',
-                 file: null,
-                 pendingVideos: [],
-                 grade: '',
-                 subject: '',
-                 term: '',
-                 unit: '',
-                 lesson: '',
-               });
+             if (showForm) {
+               setShowForm(false);
+               resetForm();
+             } else {
+               resetForm();
+               setShowForm(true);
              }
              playLamsaSound('click');
            }}
@@ -558,37 +397,34 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         </button>
       </div>
 
+      {storage === 'kv' && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+          ℹ️ جدول <code>cinema_videos</code> لم يُنشأ بعد في Supabase، فتُحفظ الفيديوهات مؤقتاً في التخزين المشترك القديم وتعمل كاملةً.
+          شغّل ملف <code>cinema-and-card-permissions.sql</code> في محرّر SQL لنقلها إلى الجدول.
+        </div>
+      )}
+
        <div className="dashboard-filter-surface border-amber-200 bg-amber-50/80">
          <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-black text-amber-800">🔎 فلترة الفيديوهات</h3>
           <button
-            onClick={() => setFilters({ grade: '', subject: '', term: '', unit: '', lesson: '' })}
+            onClick={() => setFilters({ grade: '', teacher: '' })}
              className="min-h-11 rounded-lg bg-white px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100 sm:min-h-0 sm:py-1"
           >
             مسح الفلاتر
           </button>
         </div>
-         <div className="dashboard-filter-grid dashboard-filter-grid-wide">
+         <div className="dashboard-filter-grid">
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
             <option value="">🎓 كل الصفوف</option>
-            {filterOptions.grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+            {filterGrades.map(grade => <option key={grade} value={grade}>{grade}</option>)}
           </select>
-          <select value={filters.subject} onChange={(e) => setFilters({ ...filters, subject: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
-            <option value="">📖 كل المواد</option>
-            {filterOptions.subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
-          </select>
-          <select value={filters.term} onChange={(e) => setFilters({ ...filters, term: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
-            <option value="">📑 كل الفصول</option>
-            {filterOptions.terms.map((term) => <option key={term} value={term}>{term}</option>)}
-          </select>
-          <select value={filters.unit} onChange={(e) => setFilters({ ...filters, unit: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
-            <option value="">📦 كل الوحدات</option>
-            {filterOptions.units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-          </select>
-          <select value={filters.lesson} onChange={(e) => setFilters({ ...filters, lesson: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
-            <option value="">📘 كل الدروس</option>
-            {filterOptions.lessons.map((lesson) => <option key={lesson} value={lesson}>{lesson}</option>)}
-          </select>
+          {isAdmin && (
+            <select value={filters.teacher} onChange={(e) => setFilters({ ...filters, teacher: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
+              <option value="">👨‍🏫 كل المعلمين</option>
+              {filterTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          )}
         </div>
       </div>
 
@@ -600,7 +436,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                 {editingVideo ? '✏️ تعديل فيديو سينما منارة' : '🎬 إضافة فيديوهات إلى سينما منارة'}
               </h3>
               <p className="mt-1 text-sm font-bold text-amber-600">
-                أضف أكثر من فيديو لنفس الصف والمادة والفصل والوحدة قبل الحفظ.
+                الفيديو يظهر لكل طلاب المعلم المسؤول في الصف المختار، أيّاً كان الدرس الذي يتصفّحونه.
               </p>
             </div>
             {formData.pendingVideos.length > 0 && (
@@ -610,38 +446,65 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             )}
           </div>
 
-          <div className="order-2 grid grid-cols-1 gap-5 md:grid-cols-2">
-            {isAdmin && (
-              <div className="md:col-span-2">
-                <label htmlFor="cinema-teacher" className="mb-2 block text-sm font-black text-amber-900">
-                  👨‍🏫 المعلم المسؤول عن الفيديو
-                </label>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div>
+              <label htmlFor="cinema-teacher" className="mb-2 block text-sm font-black text-amber-900">
+                👨‍🏫 المعلم المسؤول <span className="text-red-600">*</span>
+              </label>
+              {isAdmin ? (
                 <select
                   id="cinema-teacher"
                   value={selectedTeacherId}
-                  onChange={e => handleTeacherChange(e.target.value)}
-                  required={!editingVideo}
+                  onChange={e => {
+                    e.currentTarget.setCustomValidity('');
+                    setSelectedTeacherId(e.target.value);
+                  }}
+                  onInvalid={e => e.currentTarget.setCustomValidity('يرجى اختيار المعلم المسؤول عن الفيديو')}
+                  required
                   className="w-full rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 text-lg font-black text-amber-900 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
                 >
                   <option value="">اختر المعلم</option>
                   {teachers.map(teacher => (
-                    <option key={teacher.id} value={teacher.id}>
-                      👨‍🏫 {teacher.name}{teacher.subject ? ` - ${teacher.subject}` : ''}
-                    </option>
+                    <option key={teacher.id} value={teacher.id}>👨‍🏫 {teacher.name}</option>
                   ))}
                 </select>
-                {!editingVideo && teachers.length === 0 && (
-                  <p className="mt-2 text-sm font-bold text-red-600">
-                    لا يوجد معلمون مسجلون بعد لإسناد فيديو السينما.
-                  </p>
-                )}
-                {selectedTeacherName && (
-                  <p className="mt-2 text-xs font-bold text-amber-700">
-                    سيتم ربط الفيديوهات بالمعلم: {selectedTeacherName}
-                  </p>
-                )}
-              </div>
-            )}
+              ) : (
+                <div className="w-full rounded-2xl border-[3px] border-amber-100 bg-amber-50/60 p-4 text-lg font-black text-amber-900">
+                  👨‍🏫 {teacherName || 'أنت'}
+                </div>
+              )}
+              {isAdmin && teachers.length === 0 && !loading && (
+                <p className="mt-2 text-sm font-bold text-red-600">لا يوجد معلمون مسجلون بعد لإسناد فيديو السينما.</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="cinema-grade" className="mb-2 block text-sm font-black text-amber-900">
+                🎓 الصف الدراسي <span className="text-red-600">*</span>
+              </label>
+              <select
+                id="cinema-grade"
+                value={formData.gradeId}
+                onChange={e => {
+                  e.currentTarget.setCustomValidity('');
+                  setFormData({ ...formData, gradeId: e.target.value });
+                }}
+                onInvalid={e => e.currentTarget.setCustomValidity('يرجى اختيار الصف الدراسي')}
+                required
+                disabled={isAdmin && !selectedTeacherId}
+                className="w-full rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 text-lg font-black text-amber-900 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 disabled:opacity-60"
+              >
+                <option value="">{isAdmin && !selectedTeacherId ? 'اختر المعلم أولاً' : 'اختر الصف'}</option>
+                {availableGrades.map(grade => <option key={grade} value={grade}>{grade}</option>)}
+              </select>
+              {ownerId && availableGrades.length === 0 && (
+                <p className="mt-2 text-sm font-bold text-red-600">
+                  لا توجد صفوف معرّفة لهذا المعلم. أضفها أولاً من «الإعدادات الأكاديمية».
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <input
               type="text"
               placeholder="عنوان الفيديو (اختياري لملفات MP4)"
@@ -718,7 +581,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           </div>
 
           <textarea
-            className="order-3 w-full resize-none rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+            className="w-full resize-none rounded-2xl border-[3px] border-amber-200 bg-amber-50 p-4 font-bold outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
             placeholder="وصف الفيديو (اختياري)"
             value={formData.description}
             onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -729,17 +592,17 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             <button
               type="button"
               onClick={addCinemaVideo}
-              className="order-4 w-full rounded-2xl border-2 border-amber-300 bg-amber-100 px-4 py-4 text-lg font-black text-amber-800 transition hover:bg-amber-200 active:scale-[.99]"
+              className="w-full rounded-2xl border-2 border-amber-300 bg-amber-100 px-4 py-4 text-lg font-black text-amber-800 transition hover:bg-amber-200 active:scale-[.99]"
             >
               ➕ إضافة هذا الفيديو إلى القائمة
             </button>
           )}
 
           {formData.pendingVideos.length > 0 && (
-            <div className="order-5 space-y-3 rounded-3xl border-2 border-amber-200 bg-amber-50/70 p-4">
+            <div className="space-y-3 rounded-3xl border-2 border-amber-200 bg-amber-50/70 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-black text-amber-900">🎬 فيديوهات هذه الإضافة</p>
-                <span className="text-xs font-bold text-amber-600">ستُحفظ كلها بنفس التصنيف الأكاديمي</span>
+                <span className="text-xs font-bold text-amber-600">ستُحفظ كلها لنفس الصف والمعلم</span>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {formData.pendingVideos.map((video, index) => (
@@ -765,89 +628,25 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             </div>
           )}
 
-          <div className="order-1 grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-            <select
-              value={formData.grade}
-              onChange={e => updateAcademicField('grade', e.target.value)}
-              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              required
-            >
-              <option value="">🎓 الصف</option>
-              {availableGrades.map(grade => <option key={grade} value={grade}>{grade}</option>)}
-            </select>
-            <select
-              value={formData.subject}
-              onChange={e => updateAcademicField('subject', e.target.value)}
-              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              disabled={!formData.grade}
-              required
-            >
-              <option value="">📖 المادة</option>
-              {availableSubjects.map(subject => <option key={subject} value={subject}>{subject}</option>)}
-            </select>
-            <select
-              value={formData.term}
-              onChange={e => updateAcademicField('term', e.target.value)}
-              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              disabled={!formData.subject}
-              required
-            >
-              <option value="">📑 الفصل</option>
-              {availableTerms.map(term => <option key={term} value={term}>{term}</option>)}
-            </select>
-            <select
-              value={formData.unit}
-              onChange={e => updateAcademicField('unit', e.target.value)}
-              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              disabled={!formData.term}
-              required
-            >
-              <option value="">📦 الوحدة</option>
-              {availableUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-            </select>
-            {/* الدرس — آخر خطوة، فيصبح مسار الفيديو سداسياً كاملاً مثل
-                إدارة المحتوى تماماً.
-
-                قائمة مغلقة كبقية المستويات الخمسة ومصدرها الوحيد شجرة
-                الإعدادات الأكاديمية: اسم حر لا يطابق الشجرة يُنتج فيديو لا
-                يصل الطالب أبداً. */}
-            <select
-              value={formData.lesson}
-              onChange={e => {
-                // مسح رسالة الخطأ المخصّصة، وإلا بقي الحقل غير صالح في نظر
-                // المتصفح حتى بعد اختيار درس صحيح.
-                e.currentTarget.setCustomValidity('');
-                updateAcademicField('lesson', e.target.value);
-              }}
-              // تحقّق المتصفح يسبق `handleSubmit` فلا تظهر رسالتنا أبداً؛
-              // رسالته العامة «يُرجى اختيار عنصر من القائمة» لا تقول أي حقل
-              // ولا لماذا. هذه تستبدلها بالنص المطلوب حرفياً.
-              onInvalid={e => e.currentTarget.setCustomValidity('يرجى اختيار الدرس التابع للوحدة')}
-              className="p-3 bg-amber-50 border-2 border-amber-200 rounded-xl font-bold focus:border-amber-400 outline-none"
-              disabled={!formData.unit}
-              required
-            >
-              <option value="">{hydrating && availableLessons.length === 0 ? '⏳ جارٍ تحميل الدروس…' : '📘 الدرس'}</option>
-              {availableLessons.map(lesson => (
-                <option key={lesson} value={lesson}>{lesson}</option>
-              ))}
-            </select>
-          </div>
-          {formData.unit && availableLessons.length === 0 && !hydrating && (
-            <div className="order-5 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">
-              ⚠️ لا توجد دروس معرّفة في هذه الوحدة. أضفها أولاً من «الإعدادات
-              الأكاديمية ← الخطوة 6: اختر وحدة وأضف درساً»، ثم عد إلى هنا.
-            </div>
-          )}
-          <button type="submit" className="order-6 w-full bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black text-white rounded-2xl shadow-xl transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 animate-pulse-glow">
-            {editingVideo ? '💾 حفظ التعديل' : '💾 حفظ ونشر فيديوهات السينما'}
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black text-white rounded-2xl shadow-xl transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+          >
+            {saving ? '⏳ جارٍ الحفظ…' : editingVideo ? '💾 حفظ التعديل' : '💾 حفظ ونشر فيديوهات السينما'}
           </button>
         </form>
       )}
 
+      {loadError && (
+        <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-bold text-red-700">
+          ⚠️ {loadError}
+          <button onClick={() => void loadVideos()} className="mr-3 rounded-lg bg-white px-3 py-1 text-sm text-red-700 hover:bg-red-100">إعادة المحاولة</button>
+        </div>
+      )}
+
        <div className="dashboard-card-grid dashboard-card-grid-wide dashboard-video-grid">
-        {filteredVideos.map((video) => {
-          return (
+        {filteredVideos.map((video) => (
             <div key={video.id} className="dashboard-video-card bg-white rounded-[30px] shadow-xl border-2 border-amber-100 hover:shadow-2xl hover:-translate-y-2 transition-all group">
               <div className="relative aspect-video bg-black">
                 <VideoThumbnail url={safeVideoUrl(video.url)} sourceType={video.sourceType} alt={video.title} />
@@ -861,26 +660,28 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                 <h3 className="text-xl font-black text-amber-900 mb-2">{video.title}</h3>
                 <p className="text-amber-600 text-sm font-medium mb-3 line-clamp-2">{video.description}</p>
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {video.grade && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">📚 {video.grade}</span>}
-                  {video.subject && <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold">📖 {video.subject}</span>}
-                  {video.term && <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-xs font-bold">📑 {video.term}</span>}
-                  {video.unit && <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">📦 {video.unit}</span>}
-                  {video.lesson && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-lg text-xs font-bold">📘 {video.lesson}</span>}
+                  {video.gradeId && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">🎓 {video.gradeId}</span>}
+                  {(video.teacherName || video.teacherId) && (
+                    <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold">👨‍🏫 {video.teacherName || video.teacherId}</span>
+                  )}
+                  {video.createdBy === 'admin' && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-lg text-xs font-bold">🛡️ أضافه المشرف</span>}
                 </div>
                 <div className="flex gap-2">
-                     <button disabled={!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => beginEditingVideo(video)} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
-                    <button disabled={!isAdmin && !getTeacherPermissions({ permissionPackageId }).canManageVideos} onClick={() => handleDelete(video.id)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
+                  <button disabled={!canManageVideos} onClick={() => beginEditingVideo(video)} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
+                  <button disabled={!canManageVideos} onClick={() => void handleDelete(video)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
                 </div>
               </div>
             </div>
-          );
-        })}
-        {filteredVideos.length === 0 && (
+        ))}
+        {!loading && filteredVideos.length === 0 && (
           <div className="col-span-full p-16 bg-amber-50 rounded-[40px] border-2 border-dashed border-amber-300 text-center animate-popIn">
             <div className="text-7xl mb-6">🎬</div>
             <h3 className="text-2xl font-black text-amber-800 mb-3">لا توجد فيديوهات مطابقة للفلاتر</h3>
             <p className="text-amber-600 font-bold">جرّب تغيير الفلاتر أو أضف فيديو جديد ✓</p>
           </div>
+        )}
+        {loading && (
+          <div className="col-span-full p-10 text-center font-black text-amber-700">⏳ جارٍ تحميل الفيديوهات…</div>
         )}
       </div>
     </div>

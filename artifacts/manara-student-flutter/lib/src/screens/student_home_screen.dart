@@ -110,6 +110,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   AcademicSelectionData? _selectionData;
   bool _loadingSelection = false;
 
+  /// صلاحيات البطاقات من الخادم: معرّف البطاقة ← مفتوحة؟
+  ///
+  /// تبدأ فارغة — أي كلّها مفتوحة — حتى يصل ردّ الخادم: طالبٌ بلا شبكة لا
+  /// يرى كلَّ شيء مقفلاً، والخادمُ يرفض ما يجب رفضه على كل حال (السينما).
+  Map<String, bool> _cardAccess = const {};
+  DateTime? _cardAccessAt;
+  Future<void>? _cardAccessLoad;
+
+  /// المدّة التي يُوثق فيها بآخر قراءة قبل أن تُعاد عند لمس بطاقة.
+  static const _cardAccessFreshFor = Duration(seconds: 20);
+
   @override
   void initState() {
     super.initState();
@@ -153,6 +164,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
     _loadGamification();
+    unawaited(_loadCardAccess());
     WidgetsBinding.instance.addPostFrameCallback((_) => _runOpeningSequence());
   }
 
@@ -210,6 +222,82 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // offering what the hub happened to fetch an hour ago.
     _selectionData = null;
     unawaited(_loadGamification());
+    // معلّمٌ أغلق بطاقةً أو فتحها والطالبُ داخل بطاقةٍ أخرى: يراها عند عودته.
+    unawaited(_loadCardAccess());
+  }
+
+  /// يقرأ صلاحيات البطاقات، وقراءةٌ واحدة في كل مرة.
+  Future<void> _loadCardAccess() {
+    return _cardAccessLoad ??= () async {
+      try {
+        final access = await _contentService.fetchCardPermissions();
+        if (access == null || !mounted) return;
+        setState(() {
+          _cardAccess = access;
+          _cardAccessAt = DateTime.now();
+        });
+      } finally {
+        _cardAccessLoad = null;
+      }
+    }();
+  }
+
+  /// معرّف البطاقة كما يعرفه الخادم: ما بعد `portal.` في مفتاح عنوانها.
+  static String _cardIdOf(_HomeSection section) =>
+      section.titleKey.replaceFirst('portal.', '');
+
+  bool _isCardLocked(int index) =>
+      index >= 0 &&
+      index < _homeSections.length &&
+      _cardAccess[_cardIdOf(_homeSections[index])] == false;
+
+  void _showCardLocked() {
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF374151),
+        content: Row(
+          children: [
+            const Icon(Icons.lock_rounded, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                tr('cards.locked'),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// يتحقّق من صلاحية البطاقة قبل فتحها.
+  ///
+  /// المقفلةُ تُردّ فوراً برسالتها. والمفتوحةُ تُفتح فوراً إن كانت القراءة
+  /// حديثة، وإلا سُئل الخادم أولاً — بمهلةٍ قصيرة، فإن لم يردّ مضت بما عندها
+  /// ولا يُترك الطفل أمام بطاقةٍ لا تستجيب.
+  Future<void> _openCard(int index) async {
+    if (_isCardLocked(index)) {
+      _showCardLocked();
+      unawaited(_loadCardAccess());
+      return;
+    }
+    final at = _cardAccessAt;
+    final stale = at == null || DateTime.now().difference(at) > _cardAccessFreshFor;
+    if (stale) {
+      await _loadCardAccess()
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      if (!mounted) return;
+      if (_isCardLocked(index)) {
+        _showCardLocked();
+        return;
+      }
+    }
+    _openModule(index);
   }
 
   Future<void> _loadGamification() async {
@@ -862,7 +950,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: _HomeSectionGrid(
-                      onSectionPressed: _openModule,
+                      onSectionPressed: (index) => unawaited(_openCard(index)),
+                      isLocked: _isCardLocked,
                       dealTracker: _dealTracker,
                     ),
                   ),
@@ -1083,10 +1172,14 @@ const _homeSections = <_HomeSection>[
 class _HomeSectionGrid extends StatelessWidget {
   const _HomeSectionGrid({
     required this.onSectionPressed,
+    required this.isLocked,
     required this.dealTracker,
   });
 
   final ValueChanged<int> onSectionPressed;
+
+  /// هل أغلق المعلمُ أو المشرف البطاقةَ ذات هذا الموضع المنطقي؟
+  final bool Function(int index) isLocked;
   final DealEntranceTracker dealTracker;
 
   @override
@@ -1166,6 +1259,7 @@ class _HomeSectionGrid extends StatelessWidget {
                     // Staggers each card's float so the rail breathes rather
                     // than pulsing as one block.
                     index: index,
+                    locked: isLocked(homeVisualOrder[index]),
                     // الموضعُ المنطقيّ لا البصريّ: المستقبِل يوزّع به.
                     onPressed: () => onSectionPressed(homeVisualOrder[index]),
                   ),
@@ -1192,12 +1286,17 @@ class _SectionTile extends StatefulWidget {
     required this.section,
     required this.index,
     required this.onPressed,
+    this.locked = false,
     super.key,
   });
 
   final _HomeSection section;
   final int index;
   final VoidCallback? onPressed;
+
+  /// أغلقها المعلم أو المشرف: رماديةٌ بقفل. واللمسُ يبقى يصل إلى
+  /// [onPressed] — هو من يقول للطالب لماذا لا تُفتح.
+  final bool locked;
 
   @override
   State<_SectionTile> createState() => _SectionTileState();
@@ -1592,9 +1691,84 @@ class _SectionTileState extends State<_SectionTile>
       ),
     );
 
-    return Semantics(button: true, label: widget.section.title, child: interactive);
+    if (!widget.locked) {
+      return Semantics(button: true, label: widget.section.title, child: interactive);
+    }
+
+    // ── البطاقةُ المقفلة ──
+    // رماديةٌ باهتة، وقفلٌ واضح في وسطها. الحركةُ تبقى تحت الإصبع — اللمسةُ
+    // تُرى وتُسمع، والرسالةُ تشرح — فلا تبدو البطاقةُ معطوبة.
+    return Semantics(
+      button: true,
+      label: '${widget.section.title} — ${tr('cards.lockedBadge')}',
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Opacity(
+            opacity: 0.55,
+            child: ColorFiltered(
+              colorFilter: _lockedGreyscale,
+              child: interactive,
+            ),
+          ),
+          IgnorePointer(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: const Color(0xE6374151),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x55000000),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.lock_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE6374151),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    tr('cards.lockedBadge'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
+
+/// تدرّجٌ رماديّ كامل (أوزان الإضاءة القياسية) للبطاقة المقفلة.
+const _lockedGreyscale = ColorFilter.matrix(<double>[
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0, 0, 0, 1, 0,
+]);
 
 /// The dashboard's one and only background: the Manara lighthouse over a
 /// warm light wash.

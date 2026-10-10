@@ -565,6 +565,9 @@ function canCurrentActorWriteKv(key: string): boolean {
   // ولي الأمر أولاً: بدون هذا الشرط كان بإمكانه الكتابة على `smartEdu_videos`
   // لأن الاستثناء التالي غير مقيّد بدور.
   if (isReadOnlyActor()) return false;
+  // فيديوهات السينما يكتبها مسارُها `/api/cinema/videos` وحده. ونسخةُ هذا
+  // المتصفّح منها قد تكون أقدم مما في الخادم، فرفعُها يمحو ما أُضيف بعدها.
+  if (key === 'smartEdu_videos') return false;
   if (activeSyncContext?.role === 'admin') return true;
   // شجرة المعلم الأكاديمية: كان المفتاح للمشرف وحده، فما كانت إعدادات
   // المعلم تصل إلى قاعدة البيانات أبداً — يراها أمامه ولا يراها طلابه.

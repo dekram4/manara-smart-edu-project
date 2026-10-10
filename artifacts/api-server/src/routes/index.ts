@@ -10,6 +10,8 @@ import studentProgressRouter from "./studentProgress";
 import duelRouter from "./duel";
 import duelQuestionsRouter from "./duelQuestions";
 import didAgentRouter from "./didAgent";
+import cinemaRouter from "./cinema";
+import cardPermissionsRouter from "./cardPermissions";
 
 const router: IRouter = Router();
 
@@ -21,6 +23,8 @@ router.use(studentProgressRouter);
 router.use(duelRouter);
 router.use(duelQuestionsRouter);
 router.use(didAgentRouter);
+router.use(cinemaRouter);
+router.use(cardPermissionsRouter);
 router.use(mediaRouter);
 router.use(gameEmbedRouter);
 router.use(supabaseBridgeRouter);

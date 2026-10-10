@@ -151,6 +151,12 @@ export async function findStudentsInScope(
   );
 }
 
+/** كلُّ الطلاب، لشاشات الإدارة التي تقصرهم بعدها على المعلم. */
+export async function listStudents(): Promise<StudentActor[]> {
+  const rows = await readStudents("limit=2000");
+  return rows.map(fromRow).filter((student): student is StudentActor => Boolean(student));
+}
+
 export function passwordsMatch(input: string, stored: unknown): boolean {
   if (typeof stored !== "string" || !stored) return false;
   // Existing student records may use either a SHA-256 digest or the legacy

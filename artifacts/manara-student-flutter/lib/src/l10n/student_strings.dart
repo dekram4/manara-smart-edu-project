@@ -92,6 +92,9 @@ class StudentStrings {
     'cinema.lockedBody': 'هذا الفيديو مقفول. تحتاج 5 جواهر لكل فيديو جديد.',
     'cinema.gemRule': 'كل 5 جواهر تفتح فيديو واحدًا. مشاهدة السينما لا تمنح مكافآت.',
     'cinema.loadError': 'تعذر تحميل فيديوهات السينما: {error}',
+    'cards.locked':
+        'عذراً، ليس لديك صلاحية لهذه البطاقة، يرجى مراجعة المشرف أو المعلم',
+    'cards.lockedBadge': 'مقفلة',
 
     // Progress
     'progress.title': 'تقدمي وإنجازاتي',
@@ -936,6 +939,9 @@ class StudentStrings {
     'cinema.lockedBody': 'This video is locked. Each new video costs 5 gems.',
     'cinema.gemRule': 'Every 5 gems opens one video. Watching earns no rewards.',
     'cinema.loadError': 'Could not load the cinema videos: {error}',
+    'cards.locked':
+        'Sorry, you do not have access to this card. Please contact your supervisor or teacher.',
+    'cards.lockedBadge': 'Locked',
 
     'progress.title': 'My progress',
     'progress.gemsLabel': 'Gems',

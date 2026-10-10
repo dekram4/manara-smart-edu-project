@@ -14,6 +14,7 @@ import TeacherReports from './TeacherReports';
 import TeacherCertificates from './TeacherCertificates';
 import QuizManagement from '../admin/QuizManagement';
 import DuelQuestionReview from '../shared/DuelQuestionReview';
+import CardPermissions from '../shared/CardPermissions';
 import { getTeacherPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
@@ -308,6 +309,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       case TeacherMenuType.DUEL_QUESTIONS:
         // المعلمُ يُعرَف في الخادم من جلسته لا من هنا: ما يُرى وما يُعطَّل يحسمه هو.
         return <DuelQuestionReview role="teacher" />;
+      case TeacherMenuType.CARD_PERMISSIONS:
+        // الخادمُ يقصر الطلابَ والقواعد على هذا المعلم من جلسته.
+        return <CardPermissions role="teacher" teacherId={currentTeacher.id} />;
       case TeacherMenuType.ACCOUNT_MANAGEMENT:
          return <ParentStudentManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.PERMISSION_PACKAGES:
@@ -401,6 +405,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.VIDEO_MANAGEMENT]: '🎬',
               [TeacherMenuType.QUIZ_MANAGEMENT]: '📝',
               [TeacherMenuType.DUEL_QUESTIONS]: '⚔️',
+              [TeacherMenuType.CARD_PERMISSIONS]: '🔐',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: '👥',
               [TeacherMenuType.PERMISSION_PACKAGES]: '📦',
               [TeacherMenuType.REPORTS]: '📊',
@@ -415,6 +420,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
               [TeacherMenuType.VIDEO_MANAGEMENT]: 'فيديوهاتي',
               [TeacherMenuType.QUIZ_MANAGEMENT]: 'إدارة الاختبارات',
               [TeacherMenuType.DUEL_QUESTIONS]: 'أسئلة «تحدَّ زملاءك»',
+              [TeacherMenuType.CARD_PERMISSIONS]: 'صلاحيات البطاقات',
               [TeacherMenuType.ACCOUNT_MANAGEMENT]: 'إدارة الحسابات',
               [TeacherMenuType.PERMISSION_PACKAGES]: 'إدارة الصلاحيات',
               [TeacherMenuType.REPORTS]: 'التقارير',

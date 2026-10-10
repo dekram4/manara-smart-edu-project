@@ -464,6 +464,10 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
       // hydrateKv can batch unrelated legacy keys. This bridge owns the
       // shared keys. Unknown keys are ignored rather than persisted blindly.
       if (!SYNC_KV_KEYS.has(key)) continue;
+      // فيديوهات السينما صار لها مسارُها (`/api/cinema/videos`) وهو وحده
+      // يكتبها. ونسخةُ متصفّحٍ مخزّنة قبل ذلك كانت ستستبدل بها فيديوهاتِ
+      // المعلم في المفتاح — فتمحو ما أضافه من اللوحة الجديدة. تُتجاهل بصمت.
+      if (key === VIDEO_KEY) continue;
       const remoteValue = await readValue(config, key);
       if (!canWriteKv(key, actor)) {
         res.status(403).json({ error: "لا يمكن للمعلم تعديل هذا الإعداد المشترك" });

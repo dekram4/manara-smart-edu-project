@@ -21,6 +21,16 @@ class TeacherQuizAlreadySubmittedException implements Exception {
   String toString() => tr('svc.quizAlreadyDone');
 }
 
+/// بطاقةٌ أغلقها المعلم أو المشرف على هذا الطالب.
+///
+/// نصُّها هو الرسالة نفسها التي تُعرض للطالب، فلا تُصاغ في كل شاشة من جديد.
+class StudentCardLockedException implements Exception {
+  const StudentCardLockedException();
+
+  @override
+  String toString() => tr('cards.locked');
+}
+
 class StudentContentService {
   StudentContentService(this.client, {this.baseUrl = '', this.authService});
 
@@ -114,6 +124,74 @@ class StudentContentService {
     final detail = _text(decoded['detail']);
     final headline = message.isEmpty ? tr('auth.serviceUnreachable') : message;
     throw StateError(detail.isEmpty ? headline : '$headline — $detail');
+  }
+
+  /// عنوانٌ على الخادم نفسه الذي يخدم التقدّم — بأيّ مسارٍ قبل `/api` كان.
+  Uri _apiEndpoint(String path) {
+    const probe = '/api/student/progress/x';
+    final progress = _progressEndpoint('x').toString();
+    return Uri.parse(
+      '${progress.substring(0, progress.length - probe.length)}$path',
+    );
+  }
+
+  /// قراءةٌ من الخادم بجلسة الطالب، تُجدّدها مرة واحدة إن انتهت — كـ
+  /// [_postProgress]. تُرجع رمز الحالة مع الجسم، فيقرّر المستدعي ما يفعل
+  /// بالرفض (بطاقةٌ مغلقة مثلاً) بدل أن يُرمى خطأٌ عامّ.
+  Future<(int, Map<String, dynamic>)> _apiGet(String path) async {
+    final auth = authService;
+    if (auth == null) throw StateError(tr('svc.noSession'));
+
+    Future<http.Response> send(String token) => http.get(
+          _apiEndpoint(path),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ).timeout(_requestTimeout);
+
+    var token = auth.apiSessionToken?.trim();
+    if (token == null || token.isEmpty) {
+      token = (await auth.ensureApiSession())?.trim();
+    }
+    if (token == null || token.isEmpty) throw StateError(tr('svc.noSession'));
+
+    var response = await send(token);
+    if (response.statusCode == 401) {
+      auth.clearApiSession();
+      final refreshed = (await auth.ensureApiSession())?.trim();
+      if (refreshed == null || refreshed.isEmpty) {
+        throw StateError(tr('svc.noSession'));
+      }
+      response = await send(refreshed);
+    }
+    var body = const <String, dynamic>{};
+    try {
+      if (response.body.trim().isNotEmpty) {
+        body = _asMap(jsonDecode(response.body));
+      }
+    } catch (_) {
+      // جسمٌ ليس JSON (صفحة خطأ من الوكيل): الحالةُ وحدها تكفي المستدعي.
+    }
+    return (response.statusCode, body);
+  }
+
+  /// صلاحيات البطاقات كما يحسبها الخادم لهذا الطالب: معرّف البطاقة ← مفتوحة؟
+  ///
+  /// `null` إن تعذّرت القراءة، فيُبقي المستدعي ما عنده — لا يُغلق كلّ شيء
+  /// ولا يفتح ما أُغلق لمجرد انقطاع لحظي.
+  Future<Map<String, bool>?> fetchCardPermissions() async {
+    try {
+      final (status, body) = await _apiGet('/api/student/card-permissions');
+      if (status < 200 || status >= 300) return null;
+      final cards = _asMap(body['cards']);
+      return {
+        for (final entry in cards.entries)
+          if (entry.value is bool) entry.key: entry.value as bool,
+      };
+    } catch (_) {
+      return null;
+    }
   }
 
   RewardResult _rewardFromResponse(Map<String, dynamic> payload) {
@@ -446,10 +524,69 @@ class StudentContentService {
     return games.isEmpty ? _embeddedGameCatalog(base) : games;
   }
 
+  /// فيديوهات السينما: كلُّ ما نُشر لصفّ الطالب من معلّمه أو المشرف، أيّاً
+  /// كان الدرس أو المادة المفتوحة الآن.
+  ///
+  /// الخادم يحسمها من سجلّ الطالب (`/api/student/cinema`)، ويرفض إن كانت
+  /// بطاقة السينما مغلقة. وإن لم يكن المسار متاحاً — خادمٌ أقدم من التطبيق —
+  /// يُقرأ المفتاح القديم مباشرةً بالقاعدة نفسها: الصفّ والمعلم وحدهما.
+  /// [academicContext] لم يعد يقيّد شيئاً، ويبقى في التوقيع لمن يمرّره.
   Future<List<LessonVideo>> fetchCinemaVideos(
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
+    int? status;
+    var body = const <String, dynamic>{};
+    try {
+      (status, body) = await _apiGet('/api/student/cinema');
+    } catch (_) {
+      status = null;
+    }
+    if (status == 403 && _text(body['code']) == 'card_locked') {
+      throw const StudentCardLockedException();
+    }
+    if (status != null && status >= 200 && status < 300) {
+      return _cinemaVideosFrom(_asList(body['videos']));
+    }
+    return _fetchLegacyCinemaVideos(profile);
+  }
+
+  List<LessonVideo> _cinemaVideosFrom(List<Object?> rawVideos) {
+    final videos = <LessonVideo>[];
+    final seen = <String>{};
+    for (final rawVideo in rawVideos) {
+      final data = _asMap(rawVideo);
+      final rawUrl = _text(data['embedUrl']).isEmpty
+          ? _text(data['url'])
+          : _text(data['embedUrl']);
+      final url = _resolveVideoUrl(
+        rawUrl,
+        baseUrl: baseUrl,
+        storageClient: client,
+      );
+      if (!_isSafeUrl(url)) continue;
+      final recordId = _text(data['id']);
+      final id = recordId.isEmpty ? url : recordId;
+      if (!seen.add('$id|$url')) continue;
+      videos.add(
+        LessonVideo(
+          id: id,
+          url: url,
+          sourceType: _videoType(data['sourceType'], url),
+          title: _text(data['title']).isEmpty
+              ? tr('svc.defaultCinemaVideo')
+              : _text(data['title']),
+          description: _nullableText(data['description']),
+        ),
+      );
+    }
+    return videos;
+  }
+
+  Future<List<LessonVideo>> _fetchLegacyCinemaVideos(
+    StudentProfile profile,
+  ) async {
+    final identities = await _teacherIdentities(profile);
     final rows = await Future.wait([
       client
           .from('app_kv')
@@ -473,7 +610,7 @@ class StudentContentService {
       final recordId = _text(data['id']);
       if (recordId.isNotEmpty && deletedIds.contains(recordId)) continue;
       if (_isDeletedVideo(data)) continue;
-      if (!_matchesCinemaScope(data, profile, academicContext)) continue;
+      if (!_matchesCinemaScope(data, profile, identities)) continue;
 
       final url = _resolveVideoUrl(
         _text(data['url']),
@@ -752,38 +889,28 @@ class StudentContentService {
         _matches(lesson.unit, unit);
   }
 
+  /// الصفّ والمعلم وحدهما — نفسُ قاعدة الخادم في `lib/cinema.ts`.
+  ///
+  /// كانت المطابقة سداسية (صفّ، مادة، فصل، وحدة، درس) فلا يُرى الفيديو إلا
+  /// داخل درسه، وكان المالك يُقارن بقيمةٍ واحدة من سجلّ الطالب فيُحجب عنه
+  /// فيديو معلّمه إن كُتب باسمه لا بمعرّفه.
   bool _matchesCinemaScope(
     Map<String, dynamic> video,
     StudentProfile profile,
-    AcademicContext? academicContext,
+    Set<String> teacherIdentities,
   ) {
     final owner = _normalize(
       video['teacher_id'] ?? video['teacherId'] ?? video['createdBy'],
     );
-    final teacher = _normalize(profile.teacherId);
-    // Cinema records are created by the teacher/admin manager with an owner.
-    // Treat ownerless records as legacy data, not public student content; this
-    // prevents obsolete app_kv entries from appearing as "ghost" videos.
+    // سجلٌّ بلا مالك بقايا قديمة لا محتوى منشور: لا يظهر «فيديو شبح».
     final ownerAllowed = owner == 'admin' ||
         owner == 'supervisor' ||
-        (teacher.isNotEmpty && owner == teacher);
+        (owner.isNotEmpty && teacherIdentities.contains(owner));
     if (!ownerAllowed) return false;
-
-    final grade = academicContext?.grade ?? profile.grade;
-    final subject = academicContext?.subject ?? profile.subject;
-    final term = academicContext?.term ?? profile.term;
-    final unit = academicContext?.unit ?? profile.unit;
-    // The manager now tags every new cinema video with the lesson it belongs
-    // to, so the sixth level is filtered like the other five. It stays
-    // permissive on an empty value: videos published before the lesson level
-    // existed carry none, and those belong to the whole unit rather than to
-    // no-one.
-    final lesson = academicContext?.lesson;
-    return _matches(_text(video['grade']), grade) &&
-        _matches(_text(video['subject']), subject) &&
-        _matches(_text(video['term']), term) &&
-        _matches(_text(video['unit']), unit) &&
-        _matches(_text(video['lesson']), lesson);
+    final grade = _text(video['gradeId']).isEmpty
+        ? _text(video['grade'])
+        : _text(video['gradeId']);
+    return _matches(grade, profile.grade);
   }
 
   bool _matches(String contentValue, String? selectedValue) {
