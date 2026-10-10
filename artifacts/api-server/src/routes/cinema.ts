@@ -54,6 +54,11 @@ const RATE_LIMIT_SHARED = {
 const cinemaReadLimit = rateLimit({ ...RATE_LIMIT_SHARED, limit: 120 });
 const cinemaWriteLimit = rateLimit({ ...RATE_LIMIT_SHARED, limit: 30 });
 
+/** سببُ الفشل كما قاله Supabase، مختصراً — للمعلم والمشرف وحدهما. */
+function failureDetail(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 300) : "";
+}
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -164,7 +169,7 @@ router.get("/cinema/videos", async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error({ err: error }, "[cinema] list failed");
-    res.status(502).json({ error: "تعذر تحميل فيديوهات السينما" });
+    res.status(502).json({ error: "تعذر تحميل فيديوهات السينما", detail: failureDetail(error) });
   }
 });
 
@@ -207,7 +212,7 @@ router.post("/cinema/videos", cinemaWriteLimit, async (req: Request, res: Respon
     res.status(existing ? 200 : 201).json({ storage, video: publicCinemaVideo(built.video) });
   } catch (error) {
     logger.error({ err: error }, "[cinema] save failed");
-    res.status(502).json({ error: "تعذر حفظ فيديو السينما" });
+    res.status(502).json({ error: "تعذر حفظ فيديو السينما", detail: failureDetail(error) });
   }
 });
 
@@ -245,7 +250,7 @@ router.delete("/cinema/videos/:id", cinemaWriteLimit, async (req: Request, res: 
     res.status(204).end();
   } catch (error) {
     logger.error({ err: error }, "[cinema] delete failed");
-    res.status(502).json({ error: "تعذر حذف فيديو السينما" });
+    res.status(502).json({ error: "تعذر حذف فيديو السينما", detail: failureDetail(error) });
   }
 });
 
@@ -289,7 +294,7 @@ router.get(
       });
     } catch (error) {
       logger.error({ err: error }, "[cinema] student list failed");
-      res.status(502).json({ error: "تعذر تحميل فيديوهات السينما" });
+      res.status(502).json({ error: "تعذر تحميل فيديوهات السينما", detail: failureDetail(error) });
     }
   },
 );

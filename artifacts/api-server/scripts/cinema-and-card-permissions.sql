@@ -1,18 +1,24 @@
 -- سينما منارة مستقلّةً عن الدروس، وصلاحياتُ بطاقات الطالب.
 --
--- التشغيل: الصقه في محرّر SQL في Supabase وشغّله مرّةً واحدة. يُعاد تشغيله
--- بلا ضرر (كلُّ شيءٍ فيه «if not exists»).
+-- التشغيل: الصقه كلَّه في محرّر SQL في Supabase وشغّله. يُعاد تشغيله بلا ضرر.
+--
+-- ── ويُصلح الجدولين إن وُجدا بغير بنيتهما ──
+-- كان في Supabase جدولان بالاسمين نفسيهما أُنشئا قبل هذا الملف وبأعمدةٍ
+-- أخرى: `cinema_videos` بمعرّفٍ من نوع uuid وبلا `description` ولا
+-- `source_type`، و`student_card_permissions` بصفٍّ لكل بطاقة (`card_key`،
+-- `is_enabled`). والنسخةُ الأولى من هذا الملف كانت «create table if not
+-- exists» وحدها، فتركتهما كما هما — وكلُّ حفظٍ من اللوحة رُفض بـ PGRST204
+-- («تعذر حفظ فيديو السينما»).
 --
 -- ── وقبل تشغيله لا يتعطّل شيء ──
--- الخادمُ يكتشف غيابَ الجدولين فيرتدّ إلى مفاتيح `app_kv`
--- (`smartEdu_videos` للسينما و`smartEdu_cardPermissions` للصلاحيات).
--- وبعد تشغيله ينتقل إليهما وحده، وفيديوهاتُ `smartEdu_videos` القديمة تبقى
--- ظاهرةً معهما حتى تُعدَّل أو تُحذف.
+-- الخادمُ إن وجد الجدول غائباً أو بغير بنيته حفظ في `app_kv`
+-- (`smartEdu_videos` للسينما و`smartEdu_cardPermissions` للصلاحيات)، ويقرأ
+-- المكانين معاً دائماً — فما حُفظ قبل التشغيل يبقى ظاهراً بعده.
 --
 -- ── والوصولُ للخادم وحده ──
--- RLS مفعّل بلا سياسة واحدة: مفتاحُ anon لا يقرأ ولا يكتب. الطالبُ يصل إلى
--- الفيديوهات والصلاحيات عبر `/api/student/...` بجلسته الموقّعة، والمعلمُ
--- والمشرف عبر `/api/cinema/...` و`/api/card-permissions`.
+-- RLS مفعّل بلا سياسة: مفتاحُ anon لا يقرأ ولا يكتب. الطالبُ يصل عبر
+-- `/api/student/...` بجلسته الموقّعة، والمعلمُ والمشرف عبر `/api/cinema/...`
+-- و`/api/card-permissions`.
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- 1) فيديوهات سينما منارة
@@ -35,11 +41,23 @@ create table if not exists public.cinema_videos (
   teacher_id text not null,
   teacher_name text not null default '',
   -- من أضافه فعلاً: «admin» للمشرف، أو معرّفُ المعلم.
-  created_by text not null,
+  created_by text not null default '',
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- إصلاحُ جدولٍ قديمٍ بالاسم نفسه: كلُّ عمودٍ ناقص يُضاف، والمعرّف يصير نصّاً
+-- (الفيديوهات القديمة معرّفاتُها ليست uuid). ولا يُمسّ صفٌّ موجود.
+alter table public.cinema_videos alter column id drop default;
+alter table public.cinema_videos alter column id type text using id::text;
+alter table public.cinema_videos add column if not exists source_type text not null default 'embed';
+alter table public.cinema_videos add column if not exists description text not null default '';
+alter table public.cinema_videos add column if not exists teacher_name text not null default '';
+alter table public.cinema_videos add column if not exists created_by text not null default '';
+alter table public.cinema_videos add column if not exists created_at timestamptz not null default now();
+alter table public.cinema_videos add column if not exists updated_at timestamptz not null default now();
+alter table public.cinema_videos alter column created_by set default '';
 
 create index if not exists cinema_videos_grade_teacher_idx
   on public.cinema_videos (grade_id, teacher_id);
@@ -49,6 +67,33 @@ alter table public.cinema_videos enable row level security;
 -- ═══════════════════════════════════════════════════════════════════════
 -- 2) صلاحيات بطاقات الطالب
 -- ═══════════════════════════════════════════════════════════════════════
+-- الجدولُ القديم (صفٌّ لكل بطاقة لكل طالب، بلا قواعد صفّ) لا يُرقَّع:
+-- بنيتُه غير هذه. فإن كان فارغاً حُذف، وإن كان فيه شيء نُقل جانباً باسم
+-- `student_card_permissions_old` بفهارسه — لا يُحذف عملُ أحد.
+do $$
+declare
+  idx record;
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'student_card_permissions'
+      and column_name = 'card_key'
+  ) then
+    if (select count(*) from public.student_card_permissions) = 0 then
+      drop table public.student_card_permissions;
+    else
+      alter table public.student_card_permissions rename to student_card_permissions_old;
+      for idx in
+        select indexname from pg_indexes
+        where schemaname = 'public' and tablename = 'student_card_permissions_old'
+      loop
+        execute format('alter index public.%I rename to %I', idx.indexname, idx.indexname || '_old');
+      end loop;
+    end if;
+  end if;
+end $$;
+
 -- صفٌّ لكل قاعدة. نطاقان:
 --   class   : لكل طلاب معلمٍ في صفّ   → id = 'class:<teacher_id>:<grade_id>'
 --   student : لطالبٍ واحد             → id = 'student:<student_id>'
@@ -79,5 +124,5 @@ create index if not exists student_card_permissions_teacher_idx
 
 alter table public.student_card_permissions enable row level security;
 
--- يُعلم PostgREST بالجدولين الجديدين فورًا بدل انتظار تحديث ذاكرته.
+-- يُعلم PostgREST بالبنية الجديدة فورًا بدل انتظار تحديث ذاكرته.
 notify pgrst, 'reload schema';

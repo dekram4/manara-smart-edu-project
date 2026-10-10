@@ -49,14 +49,28 @@ export async function rest(
 }
 
 /**
- * هل الخطأ «الجدول غير موجود»؟
+ * هل الجدول غير صالحٍ للاستعمال — غائبٌ أو بغير البنية المنتظرة؟
  *
- * PostgREST يقولها بـ PGRST205 (لا يجده في ذاكرة المخطط)، وPostgres بـ 42P01.
- * وما سواهما خطأٌ حقيقيّ لا يُبتلع بالارتداد.
+ * ── لا الغيابُ وحده ──
+ * كان الفحص «الجدول غير موجود» لا غير. ثم تبيّن أن في Supabase جدولين
+ * بالاسمين نفسيهما أُنشئا قبل ملف SQL وبأعمدةٍ أخرى (`id` من نوع uuid، ولا
+ * عمود `description`)، و`create table if not exists` تركهما كما هما. فكان
+ * كلُّ حفظٍ يُرفض بـ PGRST204 ويصل المعلمَ «تعذر حفظ فيديو السينما» — والرفعُ
+ * نفسه سليم.
+ *
+ * فالجدولُ الذي يرفض الصفَّ لبنيته يُعامل كالغائب: يُرتدّ إلى `app_kv`،
+ * ويعمل الحفظ، حتى يُصلح ملفُّ SQL الجدول.
+ *
+ *   PGRST205 / 42P01  الجدول غير موجود
+ *   PGRST204 / 42703  عمودٌ غير موجود
+ *   22P02             قيمةٌ لا يقبلها نوع العمود (معرّفٌ نصّي في عمود uuid)
+ *   23502             عمودٌ إلزاميّ لا يعرفه هذا الكود
+ *
+ * وما سواها خطأٌ حقيقيّ (شبكة، صلاحية) لا يُبتلع بالارتداد.
  */
-export function isMissingTable(error: unknown): boolean {
+export function isTableUnusable(error: unknown): boolean {
   if (!(error instanceof SupabaseRestError)) return false;
-  return /PGRST205|42P01|does not exist|Could not find the table/i.test(error.body);
+  return /PGRST20[45]|42P01|42703|22P02|23502|does not exist|Could not find the/i.test(error.body);
 }
 
 /**
@@ -87,7 +101,7 @@ export async function withTableFallback<T>(
     try {
       return { value: await onTable(), storage: "table" };
     } catch (error) {
-      if (!isMissingTable(error)) throw error;
+      if (!isTableUnusable(error)) throw error;
       markTableMissing(table);
     }
   }

@@ -191,7 +191,9 @@ export const uploadMp4Video = async (file: File): Promise<Mp4UploadResult> => {
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'video/mp4',
-      'X-File-Name': file.name,
+      // مرمَّزاً: رؤوس HTTP لا تقبل إلا ISO-8859-1، فاسمُ ملفٍ عربيّ («درس
+      // الكسور.mp4») كان يُسقط الطلب في المتصفح قبل أن يخرج. والخادم يفكّه.
+      'X-File-Name': encodeURIComponent(file.name),
     },
     body: file,
   });

@@ -586,7 +586,15 @@ router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVid
   const contentType = String(req.headers["content-type"] || "")
     .split(";")[0]
     .toLowerCase();
-  const originalName = String(req.headers["x-file-name"] || "video.mp4");
+  // اللوحةُ ترسل الاسم مرمَّزاً (encodeURIComponent) لأن الرأس لا يحمل
+  // العربية. واسمٌ غير مرمَّز من عميلٍ أقدم يبقى كما هو.
+  const rawName = String(req.headers["x-file-name"] || "video.mp4");
+  let originalName = rawName;
+  try {
+    originalName = decodeURIComponent(rawName);
+  } catch {
+    originalName = rawName;
+  }
   if (
     contentType !== "video/mp4" &&
     path.extname(originalName).toLowerCase() !== ".mp4"

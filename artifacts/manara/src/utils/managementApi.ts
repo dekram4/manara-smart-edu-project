@@ -24,11 +24,13 @@ export async function managementRequest<T>(
     payload = null;
   }
   if (!response.ok) {
-    const message =
-      payload && typeof payload === 'object' && typeof (payload as { error?: unknown }).error === 'string'
-        ? (payload as { error: string }).error
-        : `تعذر الاتصال بالخادم (${response.status})`;
-    throw new Error(message);
+    const fields = (payload && typeof payload === 'object' ? payload : {}) as { error?: unknown; detail?: unknown };
+    const message = typeof fields.error === 'string'
+      ? fields.error
+      : `تعذر الاتصال بالخادم (${response.status})`;
+    // السببُ التقنيّ سطراً ثانياً: بدونه يصل كلُّ فشلٍ بالجملة نفسها ولا يُعرف ما يُصلح.
+    const detail = typeof fields.detail === 'string' && fields.detail.trim() ? fields.detail.trim() : '';
+    throw new Error(detail ? `${message}\n${detail}` : message);
   }
   return payload as T;
 }

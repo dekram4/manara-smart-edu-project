@@ -50,17 +50,43 @@ const RATE_LIMIT_SHARED = {
 const readLimit = rateLimit({ ...RATE_LIMIT_SHARED, limit: 120 });
 const writeLimit = rateLimit({ ...RATE_LIMIT_SHARED, limit: 60 });
 
+/** سببُ الفشل كما قاله Supabase، مختصراً — للمعلم والمشرف وحدهما. */
+function failureDetail(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 300) : "";
+}
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * القواعد من الجدول ومن مفتاح `app_kv` معاً، والجدول يغلب عند تكرار المعرّف.
+ *
+ * لا أحدهما وحده: جدولٌ بالاسم نفسه وبنيةٍ أخرى يُقرأ بلا خطأ ويرفض الكتابة،
+ * فتُحفظ القواعد في المفتاح — ولو قُرئ الجدولُ وحده لضاع ما حُفظ هناك.
+ * وصفوفُ تلك البنية الأخرى لا تُفهم قاعدةً فتسقط في `ruleFromRecord`.
+ */
 async function loadRules(config: StoreConfig): Promise<CardRule[]> {
-  const { value } = await withTableFallback(
-    TABLE,
-    async () => asRecords(await rest(config, `${TABLE}?select=*&limit=10000`)),
-    async () => asRecords(await readKv(config, KV_KEY)),
-  );
-  return value.map(ruleFromRecord).filter((rule): rule is CardRule => Boolean(rule));
+  const [table, kv] = await Promise.all([
+    withTableFallback(
+      TABLE,
+      async () => asRecords(await rest(config, `${TABLE}?select=*&limit=10000`)),
+      async () => [] as Record<string, unknown>[],
+    ),
+    readKv(config, KV_KEY).then(asRecords),
+  ]);
+  const byId = new Map<string, CardRule>();
+  for (const record of [...kv, ...table.value]) {
+    const rule = ruleFromRecord(record);
+    if (rule) byId.set(rule.id, rule);
+  }
+  return Array.from(byId.values());
+}
+
+async function removeFromKv(config: StoreConfig, id: string): Promise<void> {
+  const records = asRecords(await readKv(config, KV_KEY));
+  const kept = records.filter((item) => text(item.id) !== id);
+  if (kept.length !== records.length) await writeKv(config, KV_KEY, kept);
 }
 
 async function saveRule(config: StoreConfig, rule: CardRule): Promise<"table" | "kv"> {
@@ -72,6 +98,8 @@ async function saveRule(config: StoreConfig, rule: CardRule): Promise<"table" | 
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify(ruleToTableRow(rule)),
       });
+      // نسخةٌ قديمة في المفتاح لا تبقى بعد أن صار للقاعدة صفّ.
+      await removeFromKv(config, rule.id);
     },
     async () => {
       const records = asRecords(await readKv(config, KV_KEY)).filter((item) => text(item.id) !== rule.id);
@@ -91,12 +119,10 @@ async function deleteRule(config: StoreConfig, id: string): Promise<void> {
         headers: { Prefer: "return=minimal" },
       });
     },
-    async () => {
-      const records = asRecords(await readKv(config, KV_KEY));
-      const kept = records.filter((item) => text(item.id) !== id);
-      if (kept.length !== records.length) await writeKv(config, KV_KEY, kept);
-    },
+    async () => undefined,
   );
+  // والمفتاح دائماً: القاعدة قد تكون فيه وإن كان الجدول موجوداً.
+  await removeFromKv(config, id);
 }
 
 /**
@@ -188,7 +214,7 @@ router.get("/card-permissions", async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error({ err: error }, "[card-permissions] list failed");
-    res.status(502).json({ error: "تعذر تحميل صلاحيات البطاقات" });
+    res.status(502).json({ error: "تعذر تحميل صلاحيات البطاقات", detail: failureDetail(error) });
   }
 });
 
@@ -267,7 +293,7 @@ router.put("/card-permissions", writeLimit, async (req: Request, res: Response) 
     res.json({ storage, rule });
   } catch (error) {
     logger.error({ err: error }, "[card-permissions] save failed");
-    res.status(502).json({ error: "تعذر حفظ صلاحيات البطاقات" });
+    res.status(502).json({ error: "تعذر حفظ صلاحيات البطاقات", detail: failureDetail(error) });
   }
 });
 
@@ -309,7 +335,7 @@ router.delete("/card-permissions/:id", writeLimit, async (req: Request, res: Res
     res.status(204).end();
   } catch (error) {
     logger.error({ err: error }, "[card-permissions] delete failed");
-    res.status(502).json({ error: "تعذر حذف صلاحيات البطاقات" });
+    res.status(502).json({ error: "تعذر حذف صلاحيات البطاقات", detail: failureDetail(error) });
   }
 });
 
@@ -338,7 +364,7 @@ router.get(
       });
     } catch (error) {
       logger.error({ err: error }, "[card-permissions] student read failed");
-      res.status(502).json({ error: "تعذر تحميل صلاحيات البطاقات" });
+      res.status(502).json({ error: "تعذر تحميل صلاحيات البطاقات", detail: failureDetail(error) });
     }
   },
 );
