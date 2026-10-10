@@ -124,5 +124,19 @@ create index if not exists student_card_permissions_teacher_idx
 
 alter table public.student_card_permissions enable row level security;
 
+-- ═══════════════════════════════════════════════════════════════════════
+-- 3) تطبيقُ الطالب يقرأ صلاحيات البطاقات من Supabase مباشرةً
+-- ═══════════════════════════════════════════════════════════════════════
+-- الخادمُ يحفظ كلَّ قاعدةٍ في الجدول وفي `app_kv/smartEdu_cardPermissions`
+-- معاً. والتطبيقُ يسأل الخادمَ أولاً، فإن لم يصل إليه — نسخةٌ بُنيت بعنوان
+-- خادمٍ قديم، وهو ما أبقى البطاقاتِ المقفلة مفتوحةً عند الطالبة — قرأ
+-- المفتاحَ مباشرةً. وسياسةُ `anon_read_app_kv` (harden-rls.sql) قائمةُ
+-- مفاتيح لا يرد فيها هذا، فتُضاف له سياسةٌ مستقلّة: سياساتُ القراءة تُجمع
+-- بـ «أو»، فلا يُمسّ ما سواه. وما فيه حالةُ بطاقاتٍ ومعرّفات، لا بياناتٌ شخصية.
+drop policy if exists "anon_read_card_permissions" on public.app_kv;
+create policy "anon_read_card_permissions" on public.app_kv
+  for select to anon, authenticated
+  using (key = 'smartEdu_cardPermissions');
+
 -- يُعلم PostgREST بالبنية الجديدة فورًا بدل انتظار تحديث ذاكرته.
 notify pgrst, 'reload schema';

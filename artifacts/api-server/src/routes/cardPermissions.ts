@@ -98,16 +98,22 @@ async function saveRule(config: StoreConfig, rule: CardRule): Promise<"table" | 
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify(ruleToTableRow(rule)),
       });
-      // نسخةٌ قديمة في المفتاح لا تبقى بعد أن صار للقاعدة صفّ.
-      await removeFromKv(config, rule.id);
     },
-    async () => {
-      const records = asRecords(await readKv(config, KV_KEY)).filter((item) => text(item.id) !== rule.id);
-      records.push(ruleToTableRow(rule));
-      await writeKv(config, KV_KEY, records);
-    },
+    async () => undefined,
   );
+  // ── ونسخةٌ في `app_kv` دائماً، لا عند غياب الجدول وحده ──
+  // تطبيقُ الطالب يقرأ `app_kv` مباشرةً من Supabase بمفتاح anon حين لا يصل
+  // إلى هذا الخادم — وهو ما وقع فعلاً: نسخةٌ من التطبيق بُنيت بعنوان الخادم
+  // القديم، فلم تسأل هنا قطّ، وبقيت البطاقاتُ المقفلة عندها مفتوحة. والجدولُ
+  // لا يقرؤه anon (RLS)، فالمفتاحُ هو الطريق الذي لا يتوقّف على العنوان.
+  await upsertKv(config, rule);
   return storage;
+}
+
+async function upsertKv(config: StoreConfig, rule: CardRule): Promise<void> {
+  const records = asRecords(await readKv(config, KV_KEY)).filter((item) => text(item.id) !== rule.id);
+  records.push(ruleToTableRow(rule));
+  await writeKv(config, KV_KEY, records);
 }
 
 async function deleteRule(config: StoreConfig, id: string): Promise<void> {
@@ -142,6 +148,7 @@ export async function isCardOpenForStudent(
     const rules = await loadRules(config);
     return effectiveCards(rules, {
       id: student.id,
+      ids: [student.rowId],
       grade: student.grade,
       teacherIdentities: identities,
     })[card];
@@ -250,7 +257,7 @@ router.put("/card-permissions", writeLimit, async (req: Request, res: Response) 
     if (scope === "student") {
       const studentId = text(body.studentId);
       const student = manageableStudents(await listStudents(), actor, identities)
-        .find((item) => item.id === studentId);
+        .find((item) => item.id === studentId || item.rowId === studentId);
       if (!student) {
         res.status(403).json({ error: "لا يمكنك تعديل صلاحيات هذا الطالب" });
         return;
@@ -358,6 +365,7 @@ router.get(
       res.json({
         cards: effectiveCards(rules, {
           id: student.id,
+          ids: [student.rowId],
           grade: student.grade,
           teacherIdentities: identities,
         }),

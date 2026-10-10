@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 
 export type StudentActor = {
   id: string;
+  /** معرّفُ صفّ الجدول. يختلف عن `id` في سجلاتٍ قديمة، والتطبيق يعرف الطالب به. */
+  rowId: string;
   name: string;
   username: string;
   password: unknown;
@@ -87,6 +89,7 @@ function fromRow(row: { id?: unknown; data?: unknown }): StudentActor | null {
   if (role && role !== "student" && role !== "طالب") return null;
   return {
     id,
+    rowId: text(row.id) || id,
     name: text(data.name) || text(data.fullName) || "طالب منارة",
     username: text(data.username),
     password: data.password,

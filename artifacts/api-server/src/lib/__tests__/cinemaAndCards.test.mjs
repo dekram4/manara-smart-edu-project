@@ -153,3 +153,15 @@ test("قاعدة صف معلم آخر أو صف آخر لا تمسّ الطال�
 test("بطاقات غير معروفة وقيم غير منطقية تُسقط", () => {
   assert.deepEqual(cards.sanitizeCards({ tutor: false, hack: false, cinema: "no" }), { tutor: false });
 });
+
+test("قاعدة الطالب تُطابق أيّ معرّفٍ له (معرّف السجل أو معرّف الصف)", () => {
+  const rules = [
+    cards.ruleFromRecord({
+      id: "student:row-7", scope: "student", student_id: "row-7", teacher_id: "test", cards: { meeting: false },
+    }),
+  ];
+  // المعرّف المعتمد في الخادم غير معرّف الصفّ الذي يعرفه التطبيق.
+  const result = cards.effectiveCards(rules, { ...student, id: "data-7", ids: ["row-7"] });
+  assert.equal(result.meeting, false);
+  assert.equal(cards.effectiveCards(rules, { ...student, id: "data-7" }).meeting, true);
+});

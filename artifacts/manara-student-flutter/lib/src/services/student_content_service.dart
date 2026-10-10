@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/academic_context.dart';
+import '../models/card_permissions.dart';
 import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../l10n/student_strings.dart';
@@ -176,22 +177,72 @@ class StudentContentService {
     return (response.statusCode, body);
   }
 
-  /// صلاحيات البطاقات كما يحسبها الخادم لهذا الطالب: معرّف البطاقة ← مفتوحة؟
+  /// أحدثُ صلاحيات البطاقات لهذا الطالب: معرّف البطاقة ← مفتوحة؟
   ///
-  /// `null` إن تعذّرت القراءة، فيُبقي المستدعي ما عنده — لا يُغلق كلّ شيء
-  /// ولا يفتح ما أُغلق لمجرد انقطاع لحظي.
-  Future<Map<String, bool>?> fetchCardPermissions() async {
+  /// تُقرأ في كل مرة من المصدر — لا نسخة محفوظة على الجهاز:
+  ///  1. الخادم (`/api/student/card-permissions`)، وهو يحسبها من سجلّ الطالب.
+  ///  2. وإن لم يُجب — عنوانُ خادمٍ قديم في هذه النسخة، أو انقطاع — فالقواعد
+  ///     من `app_kv/smartEdu_cardPermissions` في Supabase مباشرةً، محسوبةً
+  ///     بالقاعدة نفسها ([CardPermissionRules]).
+  ///
+  /// `null` إن تعذّر الطريقان معاً، فيُبقي المستدعي آخر ما عرفه.
+  Future<Map<String, bool>?> fetchCardPermissions(StudentProfile profile) async {
     try {
       final (status, body) = await _apiGet('/api/student/card-permissions');
-      if (status < 200 || status >= 300) return null;
-      final cards = _asMap(body['cards']);
-      return {
-        for (final entry in cards.entries)
-          if (entry.value is bool) entry.key: entry.value as bool,
-      };
+      if (status >= 200 && status < 300) {
+        final cards = _asMap(body['cards']);
+        if (cards.isNotEmpty) {
+          return {
+            for (final entry in cards.entries)
+              if (entry.value is bool) entry.key: entry.value as bool,
+          };
+        }
+      }
+    } catch (_) {
+      // يُجرَّب الطريق الثاني.
+    }
+    try {
+      return await _cardPermissionsFromSupabase(profile);
     } catch (_) {
       return null;
     }
+  }
+
+  Future<Map<String, bool>> _cardPermissionsFromSupabase(
+    StudentProfile profile,
+  ) async {
+    final results = await Future.wait<Object?>([
+      client
+          .from('app_kv')
+          .select('value')
+          .eq('key', 'smartEdu_cardPermissions')
+          .maybeSingle()
+          .timeout(_requestTimeout),
+      client
+          .from('students')
+          .select('id,data')
+          .eq('id', profile.id)
+          .maybeSingle()
+          .timeout(_requestTimeout)
+          .catchError((_) => null),
+      _teacherIdentities(profile),
+    ]);
+    final rules = _asList(_asMap(results[0])['value']);
+    final row = _asMap(results[1]);
+    final data = _asMap(row['data']);
+    // معرّفُ الصفّ ومعرّفُ السجلّ كلاهما: المعلمُ يحفظ القاعدة بأحدهما.
+    final ids = <String>{
+      profile.id,
+      _text(row['id']),
+      _text(data['id']),
+    }..removeWhere((id) => id.isEmpty);
+    final grade = _text(data['grade']).isEmpty ? profile.grade : _text(data['grade']);
+    return CardPermissionRules.effective(
+      rules: rules,
+      studentIds: ids,
+      grade: grade,
+      teacherIdentities: results[2] as Set<String>,
+    );
   }
 
   RewardResult _rewardFromResponse(Map<String, dynamic> payload) {

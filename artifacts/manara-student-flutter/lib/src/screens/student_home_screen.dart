@@ -110,16 +110,21 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   AcademicSelectionData? _selectionData;
   bool _loadingSelection = false;
 
-  /// صلاحيات البطاقات من الخادم: معرّف البطاقة ← مفتوحة؟
+  /// صلاحيات البطاقات: معرّف البطاقة ← مفتوحة؟ آخرُ ما قاله المصدر في هذه
+  /// الجلسة — في الذاكرة لا على الجهاز، ويُستبدل بكل قراءة.
   ///
-  /// تبدأ فارغة — أي كلّها مفتوحة — حتى يصل ردّ الخادم: طالبٌ بلا شبكة لا
-  /// يرى كلَّ شيء مقفلاً، والخادمُ يرفض ما يجب رفضه على كل حال (السينما).
+  /// ── متى تُقرأ ──
+  /// عند فتح الواجهة، وكل [_cardAccessPollEvery] ما دامت ظاهرة، وعند العودة
+  /// إليها من بطاقةٍ أو من خلفية الجهاز، وقبل فتح أيّ بطاقة. فإن أغلق المعلم
+  /// بطاقةً صارت رماديةً أمام الطالب خلال ثوانٍ، بلا لمسٍ ولا إعادة دخول.
   Map<String, bool> _cardAccess = const {};
-  DateTime? _cardAccessAt;
   Future<void>? _cardAccessLoad;
+  Timer? _cardAccessPoll;
 
-  /// المدّة التي يُوثق فيها بآخر قراءة قبل أن تُعاد عند لمس بطاقة.
-  static const _cardAccessFreshFor = Duration(seconds: 20);
+  static const _cardAccessPollEvery = Duration(seconds: 15);
+
+  /// أقصى انتظارٍ لقراءة الصلاحيات قبل فتح بطاقة.
+  static const _cardAccessTapWait = Duration(seconds: 4);
 
   @override
   void initState() {
@@ -165,6 +170,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
     _loadGamification();
     unawaited(_loadCardAccess());
+    _startCardAccessPoll();
+    _lifecycle = AppLifecycleListener(onResume: () {
+      // عائدٌ من خلفية الجهاز: ما تغيّر وهو خارج التطبيق يُرى فوراً.
+      unawaited(_loadCardAccess());
+      _startCardAccessPoll();
+    }, onPause: _stopCardAccessPoll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _runOpeningSequence());
   }
 
@@ -207,7 +218,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   /// A card was opened on top of the hub: the lesson gets the silence.
   @override
-  void didPushNext() => StudentSoundService.instance.pauseAmbient();
+  void didPushNext() {
+    StudentSoundService.instance.pauseAmbient();
+    // الواجهةُ مغطّاة: لا داعي لسؤال الخادم كل ربع دقيقة عن بطاقاتٍ لا تُرى.
+    _stopCardAccessPoll();
+  }
 
   /// Back on the hub: the music comes back where it left off.
   @override
@@ -224,18 +239,32 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     unawaited(_loadGamification());
     // معلّمٌ أغلق بطاقةً أو فتحها والطالبُ داخل بطاقةٍ أخرى: يراها عند عودته.
     unawaited(_loadCardAccess());
+    _startCardAccessPoll();
   }
 
-  /// يقرأ صلاحيات البطاقات، وقراءةٌ واحدة في كل مرة.
+  AppLifecycleListener? _lifecycle;
+
+  void _startCardAccessPoll() {
+    _cardAccessPoll?.cancel();
+    _cardAccessPoll = Timer.periodic(
+      _cardAccessPollEvery,
+      (_) => unawaited(_loadCardAccess()),
+    );
+  }
+
+  void _stopCardAccessPoll() {
+    _cardAccessPoll?.cancel();
+    _cardAccessPoll = null;
+  }
+
+  /// يقرأ أحدث الصلاحيات من المصدر، وقراءةٌ واحدة في كل مرة.
   Future<void> _loadCardAccess() {
     return _cardAccessLoad ??= () async {
       try {
-        final access = await _contentService.fetchCardPermissions();
+        final access =
+            await _contentService.fetchCardPermissions(widget.profile);
         if (access == null || !mounted) return;
-        setState(() {
-          _cardAccess = access;
-          _cardAccessAt = DateTime.now();
-        });
+        setState(() => _cardAccess = access);
       } finally {
         _cardAccessLoad = null;
       }
@@ -275,27 +304,31 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
   }
 
-  /// يتحقّق من صلاحية البطاقة قبل فتحها.
+  bool _checkingCard = false;
+
+  /// يتحقّق من صلاحية البطاقة من المصدر قبل فتحها — في كل لمسة.
   ///
-  /// المقفلةُ تُردّ فوراً برسالتها. والمفتوحةُ تُفتح فوراً إن كانت القراءة
-  /// حديثة، وإلا سُئل الخادم أولاً — بمهلةٍ قصيرة، فإن لم يردّ مضت بما عندها
-  /// ولا يُترك الطفل أمام بطاقةٍ لا تستجيب.
+  /// المقفلةُ تُردّ فوراً برسالتها، ثم تُقرأ الصلاحيات (لعلّها فُتحت).
+  /// والمفتوحةُ لا تُفتح على ما في الذاكرة: تُقرأ الصلاحيات أولاً، فبطاقةٌ
+  /// أغلقها المعلمُ للتوّ لا تُفتح. وبمهلةٍ ([_cardAccessTapWait]): إن لم يُجب
+  /// المصدر مضت بآخر ما عرفته، ولا يُترك الطفل أمام بطاقةٍ لا تستجيب.
   Future<void> _openCard(int index) async {
     if (_isCardLocked(index)) {
       _showCardLocked();
       unawaited(_loadCardAccess());
       return;
     }
-    final at = _cardAccessAt;
-    final stale = at == null || DateTime.now().difference(at) > _cardAccessFreshFor;
-    if (stale) {
-      await _loadCardAccess()
-          .timeout(const Duration(seconds: 3), onTimeout: () {});
-      if (!mounted) return;
-      if (_isCardLocked(index)) {
-        _showCardLocked();
-        return;
-      }
+    if (_checkingCard) return;
+    _checkingCard = true;
+    try {
+      await _loadCardAccess().timeout(_cardAccessTapWait, onTimeout: () {});
+    } finally {
+      _checkingCard = false;
+    }
+    if (!mounted) return;
+    if (_isCardLocked(index)) {
+      _showCardLocked();
+      return;
     }
     _openModule(index);
   }
@@ -350,6 +383,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   @override
   void dispose() {
     studentRouteObserver.unsubscribe(this);
+    _stopCardAccessPoll();
+    _lifecycle?.dispose();
     _dealCue?.cancel();
     _dealTracker.dispose();
     _rewardController.dispose();

@@ -109,7 +109,13 @@ export function ruleToTableRow(rule: CardRule): Record<string, unknown> {
  */
 export function effectiveCards(
   rules: CardRule[],
-  student: { id: string; grade: string; teacherIdentities: Set<string> },
+  student: {
+    id: string;
+    /** كلُّ معرّفات الطالب (معرّف السجلّ ومعرّف الصفّ): القاعدةُ تُطابق أيّاً منها. */
+    ids?: string[];
+    grade: string;
+    teacherIdentities: Set<string>;
+  },
 ): Record<StudentCardId, boolean> {
   const result = Object.fromEntries(
     STUDENT_CARDS.map((card) => [card.id, true]),
@@ -123,8 +129,9 @@ export function effectiveCards(
   );
   for (const rule of classRules) Object.assign(result, rule.cards);
 
+  const ids = new Set([student.id, ...(student.ids ?? [])].map(text).filter(Boolean));
   const own = rules.find((rule) =>
-    rule.scope === "student" && text(rule.studentId) === text(student.id),
+    rule.scope === "student" && ids.has(text(rule.studentId)),
   );
   if (own) Object.assign(result, own.cards);
   return result;
