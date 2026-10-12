@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
+import '../theme/motion.dart';
 import '../theme/student_theme.dart';
 import '../l10n/student_strings.dart';
 import 'student_avatar_view.dart';
@@ -16,9 +17,16 @@ class StudentPageRoute<T> extends PageRouteBuilder<T> {
     required WidgetBuilder builder,
     super.settings,
     bool immersive = false,
+    // مستطيلُ ما لُمس لفتح الصفحة: إن وُجد نمت الصفحةُ منه بتحوّل الحاوية
+    // (مواصفة الحركة §5.2) بدل الانزلاق المعتاد.
+    Rect? sourceRect,
   }) : super(
-          transitionDuration: const Duration(milliseconds: 320),
-          reverseTransitionDuration: const Duration(milliseconds: 240),
+          transitionDuration: sourceRect != null
+              ? MotionDurations.morph
+              : const Duration(milliseconds: 320),
+          reverseTransitionDuration: sourceRect != null
+              ? MotionDurations.morph
+              : const Duration(milliseconds: 240),
           // Every screen in the app is pushed through this route, so
           // wrapping here is what makes the orientation release universal:
           // the cinema, the lesson player, the live meeting, the avatar
@@ -36,6 +44,14 @@ class StudentPageRoute<T> extends PageRouteBuilder<T> {
           },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return child;
+            if (sourceRect != null) {
+              return motionContainerTransform(
+                context: context,
+                animation: animation,
+                source: sourceRect,
+                child: child,
+              );
+            }
             final curve = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
             return FadeTransition(
               opacity: curve,
@@ -1457,6 +1473,7 @@ class StudentPressScale extends StatefulWidget {
 
 class _StudentPressScaleState extends State<StudentPressScale> {
   bool _pressed = false;
+  final GlobalKey _cardKey = GlobalKey();
 
   void _setPressed(bool value) {
     if (mounted && _pressed != value) setState(() => _pressed = value);
@@ -1471,11 +1488,33 @@ class _StudentPressScaleState extends State<StudentPressScale> {
       onPointerDown: (_) => _setPressed(true),
       onPointerUp: (_) => _setPressed(false),
       onPointerCancel: (_) => _setPressed(false),
+      // مواصفة الحركة §4: 0.965 ولونُ الضغط في 80ms، والعودة في 140ms.
+      // المنحنيان كما كانا.
       child: AnimatedScale(
         scale: _pressed ? 0.965 : 1,
-        duration: const Duration(milliseconds: 120),
+        duration: _pressed ? MotionDurations.pressIn : MotionDurations.pressOut,
         curve: _pressed ? Curves.easeOut : Curves.elasticOut,
-        child: Student3DCard(child: widget.child),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: _pressed ? 1 : 0),
+          duration: _pressed ? MotionDurations.pressIn : MotionDurations.pressOut,
+          builder: (context, tint, child) => tint == 0
+              ? child!
+              : ColorFiltered(
+                  // srcATop: اللونُ على ما رُسم وحده، فتبقى الحوافُّ
+                  // المستديرة كما هي.
+                  colorFilter: ColorFilter.mode(
+                    MotionColors.cardPressed.withValues(alpha: 0.32 * tint),
+                    BlendMode.srcATop,
+                  ),
+                  child: child,
+                ),
+          // مفتاحٌ عامّ: طبقةُ اللون تُدرج أثناء الضغط وحده، وبدونه يُعاد
+          // بناءُ البطاقة من الصفر مع كل لمسة فتفقد حالتها.
+          child: KeyedSubtree(
+            key: _cardKey,
+            child: Student3DCard(child: widget.child),
+          ),
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -296,7 +297,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// سؤالٌ لا خصمٌ صامت: الجواهر تُجمع بالدروس والاختبارات، ومن يجدها
   /// نقصت بلا أن يختار يفقد الثقة في العدّاد كلّه.
   Future<bool> _confirmGems(int price, int balance) async {
-    final agreed = await showDialog<bool>(
+    final agreed = await showMotionDialog<bool>(
       context: context,
       builder: (context) => Directionality(
         textDirection: StudentSettings.direction,

@@ -1,5 +1,6 @@
 ﻿import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_assessment.dart';
@@ -418,7 +419,12 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         body: Stack(
           children: [
             const PortalWatermark(asset: PortalBackgrounds.quiz),
-            _buildBody(),
+            // انتقال القسم (مواصفة الحركة §5.4).
+            MotionSectionOverlay(
+              ready: !_loading,
+              label: tr('widget.loading'),
+              child: _loading ? const SizedBox.expand() : _buildBody(),
+            ),
             StudentCelebration(controller: _celebrationController),
           ],
         ),
@@ -427,7 +433,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
   }
 
   Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
     if (_shownResult != null) {
       return StudentEntrance(

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -623,10 +624,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
   }
 
-  void _openPersonality() {
+  /// [from]: مستطيلُ ما لُمس. إن وُجد نمت الصفحةُ منه بتحوّل الحاوية
+  /// (مواصفة الحركة §5.2) — من صورة الشخصية في الشريط إلى قائمة الشخصيات.
+  void _openPersonality({Rect? from}) {
     Navigator.of(context).push(
       StudentPageRoute<void>(
         immersive: true,
+        sourceRect: from,
         builder: (_) => StudentPersonalityScreen(
           profile: widget.profile,
           contentService: StudentContentService(widget.authService.client,
@@ -883,7 +887,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           // the card always agree.
           Padding(
             padding: EdgeInsets.symmetric(horizontal: narrowBar ? 0 : 4),
-            child: StudentAvatarView(size: narrowBar ? 34 : 38, onTap: _openPersonality),
+            child: Builder(
+              builder: (avatarContext) => StudentAvatarView(
+                size: narrowBar ? 34 : 38,
+                onTap: () => _openPersonality(from: motionRectOf(avatarContext)),
+              ),
+            ),
           ),
           const StudentSoundToggle(),
           IconButton(
@@ -1510,6 +1519,9 @@ class _SectionTileState extends State<_SectionTile>
             widget.section.image,
             fit: BoxFit.contain,
             filterQuality: FilterQuality.medium,
+            // البطاقةُ وعنوانُها أولاً، والفنُّ يدخل في 90ms (مواصفة الحركة
+            // §5.1). وتوزيعُ البطاقات وتنفّسُها كما هما.
+            frameBuilder: motionArtFrameBuilder,
             errorBuilder: (_, __, ___) => Icon(
               Icons.image_not_supported_rounded,
               color: tint.withValues(alpha: 0.5),

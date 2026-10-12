@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/academic_context.dart';
@@ -327,7 +328,7 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
       if (!incoming.isCompleted) incoming.complete(_IncomingOutcome.declined);
     });
     unawaited(
-      showDialog<void>(
+      showMotionDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => _IncomingDialog(

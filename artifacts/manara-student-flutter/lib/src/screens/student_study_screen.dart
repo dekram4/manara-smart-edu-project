@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/academic_context.dart';
@@ -270,7 +271,16 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
                       setState(() {});
                     },
                   ),
-                  Expanded(child: _body(context)),
+                  // انتقال القسم (مواصفة الحركة §5.4)، وسطرُ «جارٍ التحضير»
+                  // تحت الشخصيتين لأن التحضير يطول.
+                  Expanded(
+                    child: MotionSectionOverlay(
+                      ready: !_loading,
+                      label: tr('study.preparing'),
+                      caption: tr('study.preparing'),
+                      child: _loading ? const SizedBox.expand() : _body(context),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -297,25 +307,6 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   }
 
   Widget _body(BuildContext context) {
-    if (_loading) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(color: _StudyTokens.violet),
-            const SizedBox(height: 14),
-            Text(
-              tr('study.preparing'),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: StudentSurface.ink(context),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
     final error = _error;
     if (error != null) {
       return Center(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -122,18 +123,19 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       body: Stack(
         children: [
           const PortalWatermark(asset: PortalBackgrounds.cinema, dark: true),
-          _buildBody(),
+          // انتقال القسم (مواصفة الحركة §5.4): تعتيمٌ ومُحمِّلُ الشخصيتين حتى
+          // تصل الفيديوهات، ثم يتلاشى الغطاء في 240ms.
+          MotionSectionOverlay(
+            ready: !_loading,
+            label: tr('widget.loading'),
+            child: _loading ? const SizedBox.expand() : _buildBody(),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildBody() {
-    if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF5EEAD4)),
-      );
-    }
     if (_error != null) {
       return _CinemaStateCard(
         icon: Icons.cloud_off_rounded,
@@ -356,6 +358,13 @@ class _CinemaPlayerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // دخول المشغّل (مواصفة الحركة §5.7): أسودُ بمؤشّرٍ وزرّ إغلاق، ثم تظهر
+    // الشاشة من 0.96 إلى 1. المشغّلُ نفسه يُبنى من اللحظة الأولى تحت الأسود،
+    // فيبدأ التحميل ولا يُنتظر.
+    return MotionPlayerEntrance(child: _buildScaffold(context));
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF17364F),
       appBar: AppBar(

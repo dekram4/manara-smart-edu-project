@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 
 import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
@@ -21,7 +22,7 @@ import 'student_experience.dart';
 /// «not yet» all mean no.
 Future<bool> confirmUnitExam(BuildContext context) async {
   StudentSoundService.instance.playTap();
-  final ready = await showDialog<bool>(
+  final ready = await showMotionDialog<bool>(
     context: context,
     barrierDismissible: true,
     barrierColor: const Color(0x99101828),

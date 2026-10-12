@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/student_profile.dart';
@@ -208,23 +209,31 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
               ),
               itemBuilder: (context, index) {
                 final avatar = StudentAvatars.all[index];
-                return _AvatarTile(
-                  avatar: avatar,
+                // مواصفة الحركة §5.2: الشخصياتُ تظهر تباعاً (80ms بين كل
+                // واحدة، 200ms لكلٍّ) بعد 60% من تحوّل الحاوية، وغيرُ
+                // المختارة بنصف شفافية. الشخصياتُ نفسُها كما هي.
+                return MotionStaggeredPick(
+                  index: index,
                   selected: avatar.id == _staged.id,
-                  // Tapping a character *is* choosing it.
-                  //
-                  // The tap used to only stage the pick; it reached disk
-                  // only if the student then found and pressed the save
-                  // button underneath. A child who tapped a character and
-                  // left saw it revert on the next launch, which reads as
-                  // the app forgetting. It is written through immediately
-                  // now — the save button below stays, because it is also
-                  // what confirms a character built in the 3D creator.
-                  onTap: () {
-                    StudentSoundService.instance.playTap();
-                    setState(() => _staged = avatar);
-                    unawaited(_chooseAvatar(avatar));
-                  },
+                  startDelay: MotionDurations.morph * 0.6,
+                  child: _AvatarTile(
+                    avatar: avatar,
+                    selected: avatar.id == _staged.id,
+                    // Tapping a character *is* choosing it.
+                    //
+                    // The tap used to only stage the pick; it reached disk
+                    // only if the student then found and pressed the save
+                    // button underneath. A child who tapped a character and
+                    // left saw it revert on the next launch, which reads as
+                    // the app forgetting. It is written through immediately
+                    // now — the save button below stays, because it is also
+                    // what confirms a character built in the 3D creator.
+                    onTap: () {
+                      StudentSoundService.instance.playTap();
+                      setState(() => _staged = avatar);
+                      unawaited(_chooseAvatar(avatar));
+                    },
+                  ),
                 );
               },
             ),

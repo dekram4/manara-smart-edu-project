@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
@@ -228,7 +229,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   /// المغادرةُ في منتصف النزال تُسأل عنها: زميلُه يكمل ويفوز.
   Future<bool> _confirmLeave() async {
     if (!_midMatch) return true;
-    final leave = await showDialog<bool>(
+    final leave = await showMotionDialog<bool>(
       context: context,
       builder: (context) => Directionality(
         textDirection: StudentSettings.direction,

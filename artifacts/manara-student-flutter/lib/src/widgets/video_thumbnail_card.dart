@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../models/student_content.dart';
@@ -118,8 +119,12 @@ class VideoThumbnailCard extends StatelessWidget {
                     child: Container(
                       width: 54,
                       height: 54,
+                      // المقفل بشارة المواصفة (§5.6): دائرةٌ فيروزية وقفلٌ
+                      // أصفر في وسط الصورة. وزرُّ التشغيل كما كان.
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
+                        color: locked
+                            ? MotionColors.teal
+                            : Colors.black.withValues(alpha: 0.45),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.85),
@@ -130,7 +135,7 @@ class VideoThumbnailCard extends StatelessWidget {
                         locked
                             ? Icons.lock_rounded
                             : Icons.play_arrow_rounded,
-                        color: Colors.white,
+                        color: locked ? MotionColors.lockYellow : Colors.white,
                         size: 30,
                       ),
                     ),
@@ -224,6 +229,8 @@ class _Cover extends StatelessWidget {
         errorBuilder: (_, __, ___) => const _CoverPlaceholder(),
         loadingBuilder: (context, child, progress) =>
             progress == null ? child : const _CoverPlaceholder(),
+        // الغلافُ أولاً، والصورةُ تدخل بتلاشٍ في 90ms (مواصفة الحركة §5.1).
+        frameBuilder: motionArtFrameBuilder,
       );
     }
     return _Mp4FrameCover(url: video.url);

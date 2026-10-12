@@ -1,5 +1,6 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../theme/motion.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -259,7 +260,17 @@ class _StudentContentScreenState extends State<StudentContentScreen>
                         : const [Color(0xFF4B267F), Color(0xFF8B5CF6)],
                   ),
                 ),
-                Expanded(child: StudentEntrance(child: _buildBody())),
+                // انتقال القسم (مواصفة الحركة §5.4): العنوانُ ظاهر، والجسمُ
+                // تحت التعتيم ومُحمِّلِ الشخصيتين حتى يصل المحتوى.
+                Expanded(
+                  child: MotionSectionOverlay(
+                    ready: !_loading,
+                    label: tr('content.loading'),
+                    child: _loading
+                        ? const SizedBox.expand()
+                        : StudentEntrance(child: _buildBody()),
+                  ),
+                ),
               ],
             ),
           ),
@@ -270,11 +281,6 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   }
 
   Widget _buildBody() {
-    if (_loading) {
-      return Center(
-        child: StudentRiveLoading(label: tr('content.loading')),
-      );
-    }
     if (_error != null &&
         (_activeModule == StudentContentModule.lesson ||
             (_activeModule == StudentContentModule.games &&
