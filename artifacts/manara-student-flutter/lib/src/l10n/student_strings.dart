@@ -90,6 +90,15 @@ class StudentStrings {
     'cinema.unlocked': 'المفتوح',
     'cinema.locked': 'مقفول — تحتاج 5 جواهر لفتحه',
     'cinema.lockedBody': 'هذا الفيديو مقفول. تحتاج 5 جواهر لكل فيديو جديد.',
+    'cinema.lockedNeed': 'مقفول — باقي لك {missing} 💎 لفتحه',
+    'cinema.lockedTitle': 'هذا الفيديو مقفول 🔒',
+    'cinema.lockedStatus':
+        'معك {gems} 💎، وهذا الفيديو يُفتح عند {required} 💎. باقي لك {missing} 💎 فقط!',
+    'cinema.howToEarn':
+        'كيف تكسب الجواهر؟\n• أكمل شرح درس: 5 جواهر.\n• كل إجابة صحيحة في الاختبارات: جوهرة.',
+    'cinema.goLesson': 'شرح الدرس',
+    'cinema.goQuiz': 'الاختبارات',
+    'cinema.unlockedNow': 'رائع! جواهرك فتحت هذا الفيديو 🎉',
     'cinema.gemRule': 'كل 5 جواهر تفتح فيديو واحدًا. مشاهدة السينما لا تمنح مكافآت.',
     'cinema.loadError': 'تعذر تحميل فيديوهات السينما: {error}',
     'cards.locked':
@@ -937,6 +946,15 @@ class StudentStrings {
     'cinema.unlocked': 'Unlocked',
     'cinema.locked': 'Locked — 5 gems to open',
     'cinema.lockedBody': 'This video is locked. Each new video costs 5 gems.',
+    'cinema.lockedNeed': 'Locked — {missing} 💎 more to open',
+    'cinema.lockedTitle': 'This video is locked 🔒',
+    'cinema.lockedStatus':
+        'You have {gems} 💎 and this video opens at {required} 💎. Just {missing} 💎 to go!',
+    'cinema.howToEarn':
+        'How do you earn gems?\n• Finish a lesson: 5 gems.\n• Each correct quiz answer: 1 gem.',
+    'cinema.goLesson': 'The Lesson',
+    'cinema.goQuiz': 'Quizzes',
+    'cinema.unlockedNow': 'Great! Your gems opened this video 🎉',
     'cinema.gemRule': 'Every 5 gems opens one video. Watching earns no rewards.',
     'cinema.loadError': 'Could not load the cinema videos: {error}',
     'cards.locked':

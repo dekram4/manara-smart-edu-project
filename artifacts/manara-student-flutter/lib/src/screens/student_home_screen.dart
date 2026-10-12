@@ -8,6 +8,7 @@ import 'package:flutter/physics.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
+import '../models/cinema_unlock.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
@@ -445,7 +446,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     if (index == 1) {
       Navigator.of(context)
           .push(
-        StudentPageRoute<void>(
+        StudentPageRoute<CinemaEarnRoute>(
           immersive: true,
           builder: (_) => StudentCinemaScreen(
             profile: widget.profile,
@@ -455,7 +456,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           ),
         ),
       )
-          .then((_) => _loadGamification());
+          .then((earn) {
+        _loadGamification();
+        // من نافذة الفيديو المقفل: «شرح الدرس» أو «الاختبارات» — حيث تُكسب
+        // الجواهر. تُفتح عبر `_openCard` فتمرّ بفحص صلاحيات البطاقة.
+        if (!mounted || earn == null) return;
+        unawaited(_openCard(earn == CinemaEarnRoute.lesson ? 0 : 5));
+      });
       return;
     }
 

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import '../theme/motion.dart';
 
 import '../models/academic_context.dart';
+import '../models/cinema_unlock.dart';
 import '../models/student_content.dart';
 import '../models/student_gamification.dart';
 import '../models/student_profile.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_content_service.dart';
 import '../l10n/student_strings.dart';
+import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../widgets/video_thumbnail_card.dart';
 import '../widgets/portal_watermark.dart';
@@ -33,15 +35,15 @@ class StudentCinemaScreen extends StatefulWidget {
 }
 
 class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
-  static const _gemsPerVideo = 5;
-
   late final StudentContentService _contentService;
   List<LessonVideo> _videos = const [];
   StudentGamification _gamification = const StudentGamification();
   bool _loading = true;
   String? _error;
+  bool _checkingLocked = false;
 
-  int get _unlockedVideoCount => _gamification.gems ~/ _gemsPerVideo;
+  int get _unlockedVideoCount =>
+      CinemaUnlockRules.unlockedCount(_gamification.gems);
 
   @override
   void initState() {
@@ -65,12 +67,16 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       _error = null;
     });
     try {
-      final values = await Future.wait([
+      final values = await Future.wait<Object>([
         _contentService.fetchCinemaVideos(
           widget.profile,
           academicContext: widget.academicContext,
         ),
-        _contentService.fetchGamification(widget.profile),
+        // تعذّرُ قراءة الرصيد لا يُسقط السينما كلّها: يُعرض آخرُ رصيدٍ معروف
+        // من حساب الطالب، ويُعاد السؤالُ عنه عند لمس فيديو مقفل.
+        _contentService
+            .fetchGamification(widget.profile)
+            .catchError((Object _) => widget.profile.gamification),
       ]);
       if (!mounted) return;
       setState(() {
@@ -90,15 +96,108 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     }
   }
 
-  Future<void> _openVideo(LessonVideo video, int index) async {
-    if (index >= _unlockedVideoCount) {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('cinema.lockedBody')),
+  /// نافذةُ الفيديو المقفل: كم معك، وكم يحتاج، وكيف تكسب الباقي — وزرّان
+  /// يأخذان الطالب إلى حيث يكسب الجواهر فعلاً (شرح الدرس والاختبارات).
+  Future<void> _showLockedDialog(int index) async {
+    final gems = _gamification.gems;
+    final route = await showMotionDialog<CinemaEarnRoute>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: StudentSettings.direction,
+        child: AlertDialog(
+          icon: Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              color: MotionColors.teal,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.lock_rounded,
+              color: MotionColors.lockYellow,
+              size: 34,
+            ),
+          ),
+          title: Text(
+            tr('cinema.lockedTitle'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                trf('cinema.lockedStatus', {
+                  'gems': gems,
+                  'required': CinemaUnlockRules.requiredGems(index),
+                  'missing': CinemaUnlockRules.missingGems(index, gems),
+                }),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w800, height: 1.5),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                tr('cinema.howToEarn'),
+                style: const TextStyle(fontWeight: FontWeight.w700, height: 1.6),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsOverflowAlignment: OverflowBarAlignment.center,
+          actions: [
+            FilledButton.icon(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(CinemaEarnRoute.lesson),
+              icon: const Icon(Icons.play_lesson_rounded),
+              label: Text(tr('cinema.goLesson')),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(CinemaEarnRoute.quiz),
+              icon: const Icon(Icons.quiz_rounded),
+              label: Text(tr('cinema.goQuiz')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(tr('action.close')),
+            ),
+          ],
         ),
+      ),
+    );
+    // تُغلق السينما وتفتح الواجهةُ البطاقةَ المطلوبة — بفحص صلاحياتها
+    // المعتاد، فبطاقةٌ أغلقها المعلم لا تُفتح من هنا.
+    if (route != null && mounted) Navigator.of(context).pop(route);
+  }
+
+  Future<void> _openVideo(LessonVideo video, int index) async {
+    if (!CinemaUnlockRules.isUnlocked(index, _gamification.gems)) {
+      if (_checkingLocked) return;
+      // ── الرصيدُ أولاً من المصدر ──
+      // لعلّ الطالب كسب جواهر منذ فُتحت السينما (من جهازٍ آخر أو بطاقةٍ
+      // أخرى). فإن كفى الرصيدُ الجديد فُتح الفيديو مباشرةً.
+      _checkingLocked = true;
+      try {
+        final fresh = await _contentService
+            .fetchGamification(widget.profile)
+            .timeout(const Duration(seconds: 4));
+        if (mounted) setState(() => _gamification = fresh);
+      } catch (_) {
+        // يبقى الرصيد المعروف.
+      } finally {
+        _checkingLocked = false;
+      }
+      if (!mounted) return;
+      if (!CinemaUnlockRules.isUnlocked(index, _gamification.gems)) {
+        StudentSoundService.instance.play(StudentSoundCue.warning);
+        await _showLockedDialog(index);
+        return;
+      }
+      StudentSoundService.instance.play(StudentSoundCue.success);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr('cinema.unlockedNow'))),
       );
-      return;
     }
 
     StudentSoundService.instance.playTap();
@@ -221,6 +320,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
                 video: video,
                 apiBaseUrl: widget.apiBaseUrl,
                 locked: index >= _unlockedVideoCount,
+                missingGems:
+                    CinemaUnlockRules.missingGems(index, _gamification.gems),
                 onPressed: () => _openVideo(video, index),
               );
             },
@@ -319,12 +420,14 @@ class _CinemaVideoCard extends StatelessWidget {
     required this.video,
     required this.apiBaseUrl,
     required this.locked,
+    required this.missingGems,
     required this.onPressed,
   });
 
   final LessonVideo video;
   final String apiBaseUrl;
   final bool locked;
+  final int missingGems;
   final VoidCallback onPressed;
 
   @override
@@ -341,7 +444,7 @@ class _CinemaVideoCard extends StatelessWidget {
           locked: locked,
           onTap: onPressed,
           subtitle: locked
-              ? tr('cinema.locked')
+              ? trf('cinema.lockedNeed', {'missing': missingGems})
               : video.description ?? tr('cinema.watchHint'),
         ),
       ),

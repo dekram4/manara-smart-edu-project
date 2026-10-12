@@ -35,14 +35,14 @@ test("المستلمون بلا المرسِل", () => {
 
 test("روز لم ترها: تبقى عند جوري مهما خرجت وعادت", () => {
   const receipts = [seen("joury", 1 * MIN, 5 * MIN)];
-  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(10 * MIN)), true);
-  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(5 * HOUR)), true);
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(10 * MIN), at(10 * MIN)), true);
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(5 * HOUR), at(5 * HOUR)), true);
 });
 
 test("روز رأتها: تبقى ظاهرةً عند روز في الزيارة نفسها، وتختفي بعودتها", () => {
   const receipts = [seen("rose", 2 * MIN)];
-  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(1 * MIN)), true, "الزيارةُ التي رأتها فيها");
-  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(3 * MIN)), false, "زيارةٌ بعدها");
+  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(1 * MIN), at(1 * MIN)), true, "الزيارةُ التي رأتها فيها");
+  assert.equal(visibleTo(dm, "rose", ["rose"], receipts, at(3 * MIN), at(3 * MIN)), false, "زيارةٌ بعدها");
 });
 
 test("جوري: بعد أن رأتها روز ورأت جوري ذلك، تختفي بعودتها — لا قبل", () => {
@@ -50,11 +50,11 @@ test("جوري: بعد أن رأتها روز ورأت جوري ذلك، تخت�
   // جوري لم تعرض الرسالةَ بعد قراءة روز: لم تستهلكها.
   let receipts = [seen("joury", 1 * MIN, 1 * MIN), roseSaw];
   assert.equal(consumedAt(dm, "joury", ["rose"], receipts), null);
-  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(10 * MIN)), true);
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(10 * MIN), at(10 * MIN)), true);
   // عُرضت لجوري بعد قراءة روز (رأت المؤشّر): تختفي في زيارتها التالية.
   receipts = [seen("joury", 1 * MIN, 4 * MIN), roseSaw];
-  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(3 * MIN)), true, "الزيارةُ الحالية");
-  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(5 * MIN)), false, "بعد العودة");
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(3 * MIN), at(3 * MIN)), true, "الزيارةُ الحالية");
+  assert.equal(visibleTo(dm, "joury", ["rose"], receipts, at(5 * MIN), at(5 * MIN)), false, "بعد العودة");
 });
 
 test("📌 حفظ: تبقى لصاحبه 24 ساعة ثم تذهب", () => {
@@ -72,12 +72,12 @@ test("رسالةُ الصفّ: أسماءُ من رآها، وتبقى عند ا
   let receipts = [seen("joury", 1 * MIN, 9 * MIN), seen("rose", 2 * MIN)];
   assert.deepEqual(seenBy(group, ["rose", "sara"], receipts), ["rose"]);
   assert.equal(allSeenAt(group, ["rose", "sara"], receipts), null);
-  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(20 * MIN)), true, "سارة لم ترها");
+  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(20 * MIN), at(20 * MIN)), true, "سارة لم ترها");
   receipts = [...receipts, seen("sara", 30 * MIN)];
   assert.deepEqual(seenBy(group, ["rose", "sara"], receipts), ["rose", "sara"]);
-  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(40 * MIN)), true, "لم ترَ جوري اكتمالها");
+  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(40 * MIN), at(40 * MIN)), true, "لم ترَ جوري اكتمالها");
   receipts = receipts.map((x) => (x.studentId === "joury" ? seen("joury", 1 * MIN, 35 * MIN) : x));
-  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(40 * MIN)), false, "رأت الاكتمال ثم عادت");
+  assert.equal(visibleTo(group, "joury", ["rose", "sara"], receipts, at(40 * MIN), at(40 * MIN)), false, "رأت الاكتمال ثم عادت");
 });
 
 // ── الحذف النهائي ──

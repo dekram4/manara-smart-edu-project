@@ -257,6 +257,19 @@ router.delete("/cinema/videos/:id", cinemaWriteLimit, async (req: Request, res: 
 // ── تطبيق الطالب ─────────────────────────────────────────────────────────
 
 /**
+ * الأقدمُ أولاً: التطبيقُ يفتح الفيديوهات بالموضع (كل 5 جواهر تفتح التالي).
+ *
+ * كانت الأحدثُ أولاً، فإذا أضاف المعلم فيديو صار في الموضع الأول وأزاح ما
+ * قبله: فيديو فتحه الطالبُ بجواهره يعود مقفلاً. والأقدمُ أولاً يجعل الجديدَ
+ * آخرَ القائمة، فلا يتغيّر ما فُتح.
+ */
+function orderForUnlocking(videos: CinemaVideo[]): CinemaVideo[] {
+  return [...videos].sort((a, b) =>
+    (a.createdAt || "").localeCompare(b.createdAt || ""),
+  );
+}
+
+/**
  * فيديوهات صفّ الطالب من معلّمه — أيّاً كانت المادة أو الدرس المفتوح.
  *
  * الصفّ والمعلم من سجلّ الطالب على الخادم لا من الطلب: لا يطلب طالبٌ
@@ -285,12 +298,12 @@ router.get(
       const { videos } = await loadCinemaVideos(config);
       res.json({
         grade: student.grade,
-        videos: videos
-          .filter((video) => isVisibleToStudent(video, {
+        videos: orderForUnlocking(
+          videos.filter((video) => isVisibleToStudent(video, {
             grade: student.grade,
             teacherIdentities: identities,
-          }))
-          .map(publicCinemaVideo),
+          })),
+        ).map(publicCinemaVideo),
       });
     } catch (error) {
       logger.error({ err: error }, "[cinema] student list failed");

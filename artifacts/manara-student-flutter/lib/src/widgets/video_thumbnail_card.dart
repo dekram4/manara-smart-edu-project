@@ -87,7 +87,10 @@ class VideoThumbnailCard extends StatelessWidget {
     final durationLabel = formatVideoDuration(duration);
 
     return InkWell(
-      onTap: locked ? null : onTap,
+      // المقفلُ يُلمس أيضاً: صاحبُ البطاقة هو من يقرّر ما يحدث — يشرح للطالب
+      // كم ينقصه من الجواهر وكيف يكسبها. كان اللمسُ هنا يُعطَّل، فلا يحدث
+      // شيءٌ ولا تظهر رسالةُ «تحتاج 5 جواهر» أبداً.
+      onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
