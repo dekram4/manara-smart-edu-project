@@ -11,6 +11,7 @@ import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/splash_intro.dart';
 import '../widgets/student_experience.dart';
 import 'login_screen.dart';
 import 'student_home_screen.dart';
@@ -39,7 +40,15 @@ class StudentStartupScreen extends StatefulWidget {
 }
 
 class _StudentStartupScreenState extends State<StudentStartupScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  /// ساعةُ الافتتاحية (مواصفة الحركة §3): الأيقوناتُ وضربةُ الفرشاة ثم
+  /// القصاصات. تُشغَّل مرةً واحدة، وما بعدها عناصرُ الشاشة الأصلية.
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: SplashIntroTimeline.total,
+  );
+  bool _introStarted = false;
+
   /// How long the characters take to pop in. The voice starts as the
   /// bounce does, not before, so the greeting lands with the movement.
   static const _entrance = Duration(milliseconds: 900);
@@ -70,12 +79,15 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// away, and the spin is timed to land exactly on the moment of leaving
   /// so the composition is gone as the route changes rather than being cut
   /// off mid-movement. It is recomputed when the clip's length is known.
-  static const _spinAt = Duration(seconds: 2);
+  ///
+  /// كان عند الثانية الثانية؛ صار بعد الافتتاحية — أيقوناتٌ وضربةٌ وشعارٌ
+  /// واسمٌ وبطلٌ وقصاصات — فلا يدور البطلُ بعيداً قبل أن يُرى.
+  static const _spinAt = SplashIntroTimeline.spinOutAt;
 
   /// How long the spin-out takes. Not const: it stretches to land on the
   /// new leaving time when the greeting turns out to be longer than the
   /// floor.
-  Duration _spinFor = const Duration(seconds: 5);
+  Duration _spinFor = _dwell - _spinAt;
 
   /// When the screen will leave, measured from the first frame.
   Duration _leaveAt = _dwell;
@@ -128,7 +140,21 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_introStarted) return;
+    _introStarted = true;
+    // حركةٌ أقلّ: الافتتاحيةُ تُتخطّى إلى نهايتها، وتبقى الشاشةُ كما كانت.
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _intro.value = 1;
+    } else {
+      _intro.forward();
+    }
+  }
+
+  @override
   void dispose() {
+    _intro.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _clock.stop();
     _voiceTimer?.cancel();
@@ -348,6 +374,8 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
                 ),
               ),
             ),
+            // الافتتاحية خلف العناصر: أيقوناتُ البطاقات وضربةُ الفرشاة.
+            SafeArea(child: SplashIconStorm(animation: _intro)),
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -397,6 +425,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
                               asset: 'assets/images/herrrro.png',
                               height: characterHeight * 1.15,
                               entrance: _entrance,
+                              startAfter: SplashIntroTimeline.heroAt,
                             ),
                             SizedBox(height: shortest * 0.05),
                             Text(
@@ -415,6 +444,8 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
                 },
               ),
             ),
+            // والقصاصاتُ فوقها، حول البطل حين يهبط.
+            SafeArea(child: SplashConfettiBurst(animation: _intro)),
           ],
         ),
       ),
@@ -447,7 +478,8 @@ class _WelcomeBrand extends StatelessWidget {
             errorBuilder: (_, __, ___) => const SizedBox.shrink(),
           ),
         )
-            .animate()
+            // الحركةُ الأصلية، تبدأ حين تستقرّ ضربةُ الفرشاة في مكان الشعار.
+            .animate(delay: SplashIntroTimeline.logoAt)
             .fadeIn(duration: 400.ms)
             .scale(
               begin: const Offset(0.55, 0.55),
@@ -472,8 +504,15 @@ class _WelcomeBrand extends StatelessWidget {
             ],
           ),
         )
-            .animate(delay: 260.ms)
-            .fadeIn(duration: 520.ms)
+            // يُكتب الاسم من اليمين إلى اليسار (مواصفة الحركة §3: 2.7–3.2)،
+            // مع صعوده الأصليّ الخفيف.
+            .animate(delay: SplashIntroTimeline.wordmarkAt)
+            .custom(
+              duration: SplashIntroTimeline.wordmarkFor,
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) =>
+                  SplashWordmarkWipe(progress: value, child: child),
+            )
             .moveY(begin: 14, end: 0, curve: Curves.easeOutBack),
       ],
     );
@@ -497,11 +536,16 @@ class _GreetingCharacter extends StatefulWidget {
     required this.asset,
     required this.height,
     required this.entrance,
+    this.startAfter = Duration.zero,
   });
 
   final String asset;
   final double height;
   final Duration entrance;
+
+  /// متى يبدأ المشهد. قبله البطلُ غيرُ ظاهر (المشهدُ عند صفره)، فيبدأ طيرانُه
+  /// بعد أن تخلي الافتتاحيةُ الساحة.
+  final Duration startAfter;
 
   @override
   State<_GreetingCharacter> createState() => _GreetingCharacterState();
@@ -531,6 +575,7 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
   );
 
   bool _started = false;
+  Timer? _startTimer;
 
   @override
   void didChangeDependencies() {
@@ -541,11 +586,18 @@ class _GreetingCharacterState extends State<_GreetingCharacter>
       _scene.value = 1;
       return;
     }
-    _scene.repeat();
+    if (widget.startAfter <= Duration.zero) {
+      _scene.repeat();
+    } else {
+      _startTimer = Timer(widget.startAfter, () {
+        if (mounted) _scene.repeat();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _startTimer?.cancel();
     _scene.dispose();
     super.dispose();
   }

@@ -21,6 +21,7 @@ import '../services/student_duel_service.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/lesson_scope_sheet.dart';
+import '../widgets/living_tile_art.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/student_experience.dart';
@@ -1522,16 +1523,24 @@ class _SectionTileState extends State<_SectionTile>
         // card after the label, and `contain` keeps every one of the
         // nine at its own aspect — none is stretched to fit.
         Expanded(
-          child: Image.asset(
-            widget.section.image,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
-            // البطاقةُ وعنوانُها أولاً، والفنُّ يدخل في 90ms (مواصفة الحركة
-            // §5.1). وتوزيعُ البطاقات وتنفّسُها كما هما.
-            frameBuilder: motionArtFrameBuilder,
-            errorBuilder: (_, __, ___) => Icon(
-              Icons.image_not_supported_rounded,
-              color: tint.withValues(alpha: 0.5),
+          // الرسمةُ حيّة (مواصفة الحركة §4): لكل بوابةٍ حركتُها المستمرّة
+          // ونجومٌ تلمع، وقفزةٌ بدورةٍ عند اللمس. الرسمةُ نفسُها كما هي،
+          // والبطاقةُ حولها تتنفّس وتميل كما كانت.
+          child: LivingTileArt(
+            motion: tileArtMotionFor(widget.section.titleKey),
+            accent: widget.section.colors.last,
+            index: widget.index,
+            child: Image.asset(
+              widget.section.image,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+              // البطاقةُ وعنوانُها أولاً، والفنُّ يدخل في 90ms (مواصفة الحركة
+              // §5.1). وتوزيعُ البطاقات وتنفّسُها كما هما.
+              frameBuilder: motionArtFrameBuilder,
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.image_not_supported_rounded,
+                color: tint.withValues(alpha: 0.5),
+              ),
             ),
           ),
         ),
