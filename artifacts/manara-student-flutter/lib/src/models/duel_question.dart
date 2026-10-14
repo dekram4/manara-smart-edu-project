@@ -73,6 +73,12 @@ class DuelQuestion {
     'quick',
     'school',
     'lesson',
+    // ‏أبوابُ المعرفة العامّة: تبقى بأسمائها، فيعرف الطفل عمّ يُسأل.
+    'culture',
+    'sports',
+    'geography',
+    'history',
+    'science',
   };
 
   static String _text(Object? value) =>

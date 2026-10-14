@@ -33,7 +33,9 @@ export type DuelCategory =
   | "lesson"
   | "domain"
   // الأعدادُ والحساب: تُولَّد في `mathBank.ts` لكل مباراةٍ ببذرتها فلا تتكرّر.
-  | "numbers";
+  | "numbers"
+  // المعرفةُ العامّة بأبوابها الخمسة — انظر `knowledgeBank.ts`.
+  | KnowledgeCategory;
 
 export interface DuelQuestion {
   /** معرّفٌ ثابتٌ للسؤال، يُستعمل لمنع تكراره في الحزمة. */
@@ -135,6 +137,7 @@ const SEEDS: Seed[] = [
 ];
 
 import { generateMathSet } from "./mathBank";
+import { KNOWLEDGE_SEEDS, KNOWLEDGE_CATEGORIES, type KnowledgeCategory } from "./knowledgeBank";
 
 /** نواةُ عشوائيةٍ ثابتة: البذرةُ نفسها تُخرج الترتيبَ نفسه دائماً. */
 function seededRandom(seed: number): () => number {
@@ -222,7 +225,8 @@ export function buildDuelPack(
   // الأبوابُ تُدار بالتناوب فلا يأتي بابٌ واحدٌ متتابعاً، والاختيارُ داخل
   // كلِّ بابٍ بالبذرة.
   const byCategory = new Map<DuelCategory, Seed[]>();
-  for (const seed of SEEDS) {
+  // وأبوابُ المعرفة العامّة الخمسة: ثقافةٌ ورياضةٌ وجغرافيا وتاريخٌ وعلوم.
+  for (const seed of [...SEEDS, ...KNOWLEDGE_SEEDS]) {
     const bucket = byCategory.get(seed.category) ?? [];
     bucket.push(seed);
     byCategory.set(seed.category, bucket);
@@ -330,5 +334,8 @@ function parseQuestion(raw: unknown): DuelQuestion | null {
 }
 
 function isCategory(value: string): value is DuelCategory {
-  return ["general", "logic", "quick", "school", "lesson", "domain", "numbers"].includes(value);
+  return (
+    ["general", "logic", "quick", "school", "lesson", "domain", "numbers"].includes(value) ||
+    (KNOWLEDGE_CATEGORIES as readonly string[]).includes(value)
+  );
 }
