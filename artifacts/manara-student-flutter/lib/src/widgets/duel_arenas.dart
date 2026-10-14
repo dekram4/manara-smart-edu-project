@@ -1,14 +1,17 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
 import '../services/student_duel_service.dart';
 import '../theme/student_theme.dart';
 import 'arena_widgets.dart';
-import 'student_avatar_view.dart';
+import 'duel_game_arenas.dart';
+
+export 'duel_game_arenas.dart' show ArenaRacer;
 
 /// حلباتُ المبارزة الأربع، وخياراتُها.
+///
+/// الحلباتُ نفسها في `duel_game_arenas.dart`: سباقُ الحواجز وبستانُ الأرقام
+/// ومغامرةُ الفضاء وأبراجُ التحدي. وهنا ما يختارها ويُلبسها الخيارات.
 ///
 /// ── لماذا الشكلُ وحده هنا ──
 /// الألعابُ الأربع مباراةٌ واحدة في جوهرها: الأسئلةُ نفسها ببذرةٍ واحدة،
@@ -19,7 +22,7 @@ import 'student_avatar_view.dart';
 /// المنافسة، وخياراتٌ تُلمس. وكلُّها تقرأ الشيءَ نفسه — نتيجتي ونتيجته من
 /// خمسة — فلا تُخترع لعبةٌ حساباً خاصّاً بها.
 
-/// الحلبة: كيف تُرى المنافسةُ في هذه اللعبة.
+/// الحلبة: كيف تُرى المنافسةُ في هذه اللعبة — انظر `duel_game_arenas.dart`.
 class DuelArena extends StatelessWidget {
   const DuelArena({
     required this.game,
@@ -31,10 +34,11 @@ class DuelArena extends StatelessWidget {
     required this.theirAppearance,
     required this.opponentName,
     this.finished = false,
+    this.players,
     super.key,
   });
 
-  /// انتهت المباراة: الحلبةُ تُري الحسم — الحبلُ يُسحب كلُّه إلى الفائز.
+  /// انتهت المباراة: الحلبةُ تُري الحسم — التاجُ لمن تقدّم.
   final bool finished;
 
   final DuelGame game;
@@ -46,1051 +50,37 @@ class DuelArena extends StatelessWidget {
   final Map<String, dynamic>? theirAppearance;
   final String opponentName;
 
+  /// التحدي الجماعي: كلُّ اللاعبين بمساراتهم المرقّمة ١، ٢، ٣… وإن غاب
+  /// فاللاعبان: أنا والمتقدّم من خصومي.
+  final List<ArenaRacer>? players;
+
   String get _rival => opponentName.isEmpty ? tr('duel.rival') : opponentName;
 
   /// نقطةٌ تقول إن كان الخصم يلعب الآن أو لعب من قبل.
   String? get _badge => live ? tr('duel.liveNow') : null;
 
+  List<ArenaRacer> get _racers =>
+      players ??
+      [
+        ArenaRacer(name: tr('duel.you'), at: mine, appearance: myAppearance, me: true),
+        ArenaRacer(name: _rival, at: theirs, appearance: theirAppearance, badge: _badge),
+      ];
+
   @override
   Widget build(BuildContext context) {
+    final racers = _racers;
     return Card(
       color: StudentSurface.card(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: switch (game) {
-          DuelGame.sprint => _RaceTrack(
-              mine: mine,
-              theirs: theirs,
-              total: total,
-              myAppearance: myAppearance,
-              theirAppearance: theirAppearance,
-              rival: _rival,
-              badge: _badge,
-            ),
-          DuelGame.balloons => _BalloonWar(
-              mine: mine,
-              theirs: theirs,
-              total: total,
-              rival: _rival,
-              badge: _badge,
-            ),
-          DuelGame.tug => _TugRope(
-              mine: mine,
-              theirs: theirs,
-              total: total,
-              myAppearance: myAppearance,
-              theirAppearance: theirAppearance,
-              rival: _rival,
-              badge: _badge,
-              finished: finished,
-            ),
-          DuelGame.gems => _GemHaul(
-              mine: mine,
-              theirs: theirs,
-              total: total,
-              rival: _rival,
-              badge: _badge,
-            ),
+          DuelGame.sprint => HurdleRaceArena(racers: racers, total: total, finished: finished),
+          DuelGame.balloons => NumberOrchardArena(racers: racers, total: total, finished: finished),
+          DuelGame.tug => SpaceVoyageArena(racers: racers, total: total, finished: finished),
+          DuelGame.gems => ChallengeTowersArena(racers: racers, total: total, finished: finished),
         },
       ),
-    );
-  }
-}
-
-/// عنوانُ مسارٍ في الحلبة: الاسمُ، وحالُ الخصم، والنتيجة.
-class _LaneLabel extends StatelessWidget {
-  const _LaneLabel({
-    required this.name,
-    required this.at,
-    required this.total,
-    required this.tint,
-    this.badge,
-  });
-
-  final String name;
-  final int at;
-  final int total;
-  final Color tint;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: StudentSurface.ink(context),
-            ),
-          ),
-        ),
-        // يتقلّص ولا يتجاوز: في جرّة الجواهر نصفُ الشاشة للاسم والشارة والعدد.
-        if (badge != null)
-          Flexible(
-            child: Text(
-              badge!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: StudentSurface.mutedInk(context),
-              ),
-            ),
-          ),
-        const SizedBox(width: 6),
-        Text(
-          '$at/$total',
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w900,
-            color: tint,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-const _mineTint = Color(0xFF16A34A);
-const _rivalTint = Color(0xFFDC2626);
-
-// ── سباقُ الحلبة ──
-
-/// مضمارٌ يمشي عليه العدّاء، وخطُّ النهاية في آخره.
-class _RaceTrack extends StatelessWidget {
-  const _RaceTrack({
-    required this.mine,
-    required this.theirs,
-    required this.total,
-    required this.myAppearance,
-    required this.theirAppearance,
-    required this.rival,
-    required this.badge,
-  });
-
-  final int mine;
-  final int theirs;
-  final int total;
-  final Map<String, dynamic>? myAppearance;
-  final Map<String, dynamic>? theirAppearance;
-  final String rival;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _Lane(
-          name: tr('duel.you'),
-          appearance: myAppearance,
-          at: mine,
-          total: total,
-          tint: _mineTint,
-        ),
-        const SizedBox(height: 10),
-        _Lane(
-          name: rival,
-          appearance: theirAppearance,
-          at: theirs,
-          total: total,
-          tint: _rivalTint,
-          badge: badge,
-        ),
-      ],
-    );
-  }
-}
-
-/// هل يُحرَّك شيء؟ إعدادُ «تقليل الحركة» في الجهاز طلبٌ لا تفضيل.
-bool _still(BuildContext context) =>
-    MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-
-/// يُشغّل [controller] من أوّله حين يزيد [now] على [before] — حين يُحرز اللاعبُ
-/// نقطة — ولا شيء حين ينقص أو يبقى.
-void _playOnGain(
-  AnimationController controller,
-  int before,
-  int now,
-  BuildContext context,
-) {
-  if (now <= before || _still(context)) return;
-  controller.forward(from: 0);
-}
-
-/// مسارٌ بخطّ نهاية، والمتسابقُ يقفز خطوةً إلى الأمام مع كل إجابةٍ صحيحة،
-/// ويترك وراءه غبارَ ركضه.
-class _Lane extends StatefulWidget {
-  const _Lane({
-    required this.name,
-    required this.appearance,
-    required this.at,
-    required this.total,
-    required this.tint,
-    this.badge,
-  });
-
-  final String name;
-  final Map<String, dynamic>? appearance;
-  final int at;
-  final int total;
-  final Color tint;
-  final String? badge;
-
-  @override
-  State<_Lane> createState() => _LaneState();
-}
-
-class _LaneState extends State<_Lane> with SingleTickerProviderStateMixin {
-  late final AnimationController _hop = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 520),
-  );
-
-  /// من أين قفز: الغبارُ يبقى هناك لحظة.
-  double _from = 0;
-
-  @override
-  void didUpdateWidget(_Lane old) {
-    super.didUpdateWidget(old);
-    if (widget.at > old.at) {
-      _from = old.total <= 0 ? 0 : (old.at / old.total).clamp(0.0, 1.0);
-    }
-    _playOnGain(_hop, old.at, widget.at, context);
-  }
-
-  @override
-  void dispose() {
-    _hop.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final fraction =
-        widget.total <= 0 ? 0.0 : (widget.at / widget.total).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _LaneLabel(
-          name: widget.name,
-          at: widget.at,
-          total: widget.total,
-          tint: widget.tint,
-          badge: widget.badge,
-        ),
-        const SizedBox(height: 6),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const runner = 34.0;
-            final span = (constraints.maxWidth - runner).clamp(0.0, 4000.0);
-            return SizedBox(
-              height: runner + 14,
-              child: AnimatedBuilder(
-                animation: _hop,
-                builder: (context, _) {
-                  final t = _hop.value;
-                  final hopping = _hop.isAnimating;
-                  // قفزةٌ قوسية: ترتفع وتهبط في مسار الخطوة نفسها.
-                  final lift = hopping ? math.sin(math.pi * t) * 12 : 0.0;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        top: runner / 2 + 8,
-                        child: Container(
-                          height: 6,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            color: widget.tint.withValues(alpha: 0.16),
-                          ),
-                        ),
-                      ),
-                      // ما قُطع من المسار يتلوّن خلف المتسابق.
-                      PositionedDirectional(
-                        start: 0,
-                        top: runner / 2 + 8,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 420),
-                          curve: Curves.easeOutCubic,
-                          width: span * fraction + runner / 2,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            color: widget.tint.withValues(alpha: 0.55),
-                          ),
-                        ),
-                      ),
-                      PositionedDirectional(
-                        end: 0,
-                        top: 6,
-                        child: Text('🏁',
-                            style: TextStyle(fontSize: runner * 0.6)),
-                      ),
-                      // غبارُ الانطلاق حيث كان، يتبدّد.
-                      if (hopping)
-                        PositionedDirectional(
-                          start: span * _from - 6,
-                          top: runner / 2,
-                          child: Opacity(
-                            opacity: (1 - t).clamp(0.0, 1.0),
-                            child: Transform.scale(
-                              scale: 0.7 + t * 0.8,
-                              child: const Text('💨',
-                                  style: TextStyle(fontSize: 16)),
-                            ),
-                          ),
-                        ),
-                      AnimatedPositionedDirectional(
-                        duration: const Duration(milliseconds: 420),
-                        curve: Curves.easeOutCubic,
-                        start: span * fraction,
-                        top: 6 - lift,
-                        child: StudentAvatarView(
-                          size: runner,
-                          appearance: widget.appearance,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-// ── حربُ البالونات ──
-
-/// صفٌّ من البالونات لكلِّ لاعب، تُفرقع واحدةً بكل إجابةٍ صحيحة.
-///
-/// والفرقعةُ تُرى وتُسمع بالعين: البالونةُ تنتفخ لحظةً ثم تنفجر شظايا ملوّنةً
-/// تتطاير وتتلاشى، ويبقى أثرُها مكانها — فيُعرف عددُ ما فُرقع بالنظر.
-class _BalloonWar extends StatelessWidget {
-  const _BalloonWar({
-    required this.mine,
-    required this.theirs,
-    required this.total,
-    required this.rival,
-    required this.badge,
-  });
-
-  final int mine;
-  final int theirs;
-  final int total;
-  final String rival;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _BalloonRow(
-          name: tr('duel.you'),
-          popped: mine,
-          total: total,
-          tint: _mineTint,
-          colors: const [Color(0xFF22C55E), Color(0xFF15803D)],
-        ),
-        const SizedBox(height: 12),
-        _BalloonRow(
-          name: rival,
-          popped: theirs,
-          total: total,
-          tint: _rivalTint,
-          badge: badge,
-          colors: const [Color(0xFFF87171), Color(0xFFB91C1C)],
-        ),
-      ],
-    );
-  }
-}
-
-class _BalloonRow extends StatelessWidget {
-  const _BalloonRow({
-    required this.name,
-    required this.popped,
-    required this.total,
-    required this.tint,
-    required this.colors,
-    this.badge,
-  });
-
-  final String name;
-  final int popped;
-  final int total;
-  final Color tint;
-  final List<Color> colors;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _LaneLabel(
-          name: name,
-          at: popped,
-          total: total,
-          tint: tint,
-          badge: badge,
-        ),
-        const SizedBox(height: 8),
-        // يتقلّص ولا يتجاوز: عشرُ بالوناتٍ في عرض هاتفٍ صغير.
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < total; index += 1)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: _Balloon(burst: index < popped, colors: colors),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Balloon extends StatefulWidget {
-  const _Balloon({required this.burst, required this.colors});
-
-  final bool burst;
-  final List<Color> colors;
-
-  @override
-  State<_Balloon> createState() => _BalloonState();
-}
-
-class _BalloonState extends State<_Balloon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pop = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 650),
-  );
-
-  @override
-  void didUpdateWidget(_Balloon old) {
-    super.didUpdateWidget(old);
-    if (widget.burst && !old.burst && !_still(context)) _pop.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _pop.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = widget.colors;
-    return SizedBox(
-      width: 30,
-      height: 40,
-      child: AnimatedBuilder(
-        animation: _pop,
-        builder: (context, _) {
-          final t = _pop.value;
-          final popping = _pop.isAnimating;
-          // تنتفخ في أوّل الحركة ثم تنفجر: ٠–٠٫٢٥ انتفاخ، وبعدها الشظايا.
-          final swell = popping && t < 0.25 ? 1 + (t / 0.25) * 0.35 : 1.0;
-          final burstNow = widget.burst && (!popping || t >= 0.25);
-          return Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: [
-              Transform.scale(
-                scale: burstNow ? 0.6 : swell,
-                child: Opacity(
-                  opacity: burstNow ? 0.45 : 1,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 26,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: burstNow
-                              ? null
-                              : LinearGradient(
-                                  colors: colors,
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                          color: burstNow
-                              ? StudentSurface.mutedInk(context)
-                                  .withValues(alpha: 0.18)
-                              : null,
-                        ),
-                        child: burstNow
-                            ? const Center(
-                                child:
-                                    Text('💥', style: TextStyle(fontSize: 14)),
-                              )
-                            : null,
-                      ),
-                      // خيطُ البالونة: يُسقط عند الفرقعة.
-                      if (!burstNow)
-                        Container(
-                          width: 1.6,
-                          height: 8,
-                          color: colors.last.withValues(alpha: 0.6),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              // الشظايا: تتطاير من مركز البالونة وتتلاشى.
-              if (popping && t >= 0.25)
-                Positioned(
-                  left: -30,
-                  right: -30,
-                  top: -30,
-                  bottom: -20,
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _PopPainter(
-                        progress: (t - 0.25) / 0.75,
-                        colors: colors,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// شظايا الفرقعة: نقاطٌ وخطوطٌ تنطلق من المركز بزوايا متساوية وتتلاشى.
-class _PopPainter extends CustomPainter {
-  const _PopPainter({required this.progress, required this.colors});
-
-  final double progress;
-  final List<Color> colors;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, 30 + 15);
-    final eased = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
-    final fade = (1 - progress).clamp(0.0, 1.0);
-    const pieces = 10;
-    for (var i = 0; i < pieces; i++) {
-      final angle = (i / pieces) * math.pi * 2 + (i.isEven ? 0.15 : -0.1);
-      final reach = (i.isEven ? 26.0 : 20.0) * eased;
-      final at = center + Offset(math.cos(angle), math.sin(angle)) * reach;
-      final paint = Paint()
-        ..color =
-            (i % 3 == 0 ? const Color(0xFFFDE047) : colors[i % colors.length])
-                .withValues(alpha: fade);
-      if (i.isEven) {
-        canvas.drawCircle(at, 3.2 * (1 - eased * 0.4), paint);
-      } else {
-        canvas.drawLine(
-          at,
-          at - Offset(math.cos(angle), math.sin(angle)) * 6,
-          paint
-            ..strokeWidth = 2.4
-            ..strokeCap = StrokeCap.round,
-        );
-      }
-    }
-    // حلقةُ الصدمة.
-    canvas.drawCircle(
-      center,
-      8 + eased * 20,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = colors.first.withValues(alpha: fade * 0.6),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_PopPainter old) => old.progress != progress;
-}
-
-// ── شدُّ الحبل ──
-
-/// لاعبان على طرفي الحبل، والعقدةُ — ومعها الحبلُ كلُّه — تنزلق نحو المتقدّم.
-///
-/// ── لماذا اللاعبان على الطرفين ──
-/// كان الاثنان فوق الحبل وتحته، والعقدةُ تتحرّك يميناً ويساراً: فلا يُعرف «نحو
-/// مَن» تنزلق. والآن أنا في جهة البداية وزميلي في جهة النهاية، والمتقدّمُ يميل
-/// إلى الوراء يشدّ، والعقدةُ تقترب منه بكل إجابةٍ صحيحة.
-///
-/// والموضعُ هو الفرقُ بين النتيجتين: عقدةٌ في المنتصف تعادل. وفي النهاية
-/// ([finished]) يُسحب الحبلُ كلُّه إلى الفائز.
-class _TugRope extends StatefulWidget {
-  const _TugRope({
-    required this.mine,
-    required this.theirs,
-    required this.total,
-    required this.myAppearance,
-    required this.theirAppearance,
-    required this.rival,
-    required this.badge,
-    required this.finished,
-  });
-
-  final int mine;
-  final int theirs;
-  final int total;
-  final Map<String, dynamic>? myAppearance;
-  final Map<String, dynamic>? theirAppearance;
-  final String rival;
-  final String? badge;
-  final bool finished;
-
-  @override
-  State<_TugRope> createState() => _TugRopeState();
-}
-
-class _TugRopeState extends State<_TugRope>
-    with SingleTickerProviderStateMixin {
-  /// هزّةُ الشدّ: حين يُحرز أحدُهما يرتجّ الحبلُ نحوه.
-  late final AnimationController _jerk = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 380),
-  );
-
-  @override
-  void didUpdateWidget(_TugRope old) {
-    super.didUpdateWidget(old);
-    if (widget.mine + widget.theirs > old.mine + old.theirs &&
-        !_still(context)) {
-      _jerk.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _jerk.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final mine = widget.mine;
-    final theirs = widget.theirs;
-    final total = widget.total;
-    // من ‎+1‎ (كلُّه لي) إلى ‎-1‎ (كلُّه له). والنهايةُ تحسم الطرف كلَّه.
-    final live =
-        total <= 0 ? 0.0 : ((mine - theirs) / total * 2).clamp(-0.85, 0.85);
-    final double lead = widget.finished
-        ? (mine == theirs ? 0 : (mine > theirs ? 1 : -1))
-        : live;
-    // شاشةُ النتيجة تُبنى من جديد: فيبدأ الحبلُ من حيث كان في المباراة ثم
-    // يُسحب كلُّه — لا أن يظهر مسحوباً بلا حركة.
-    final double? begin = widget.finished && !_still(context) ? live : null;
-    final duration = widget.finished
-        ? const Duration(milliseconds: 1400)
-        : const Duration(milliseconds: 520);
-    final iLead = lead > 0;
-    final theyLead = lead < 0;
-
-    Widget puller(
-        Map<String, dynamic>? look, bool leading, bool won, bool mirror) {
-      // المتقدّمُ يميل إلى الوراء يشدّ، والفائزُ يرفع تاجَه.
-      final lean = leading ? (mirror ? -0.22 : 0.22) : 0.0;
-      return SizedBox(
-        width: 54,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 18,
-              child:
-                  won ? const Text('👑', style: TextStyle(fontSize: 15)) : null,
-            ),
-            AnimatedRotation(
-              turns: lean / (2 * math.pi),
-              duration: const Duration(milliseconds: 300),
-              child: StudentAvatarView(
-                  size: 44, appearance: look, showRing: false),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _LaneLabel(
-                  name: tr('duel.you'),
-                  at: mine,
-                  total: total,
-                  tint: _mineTint),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _LaneLabel(
-                name: widget.rival,
-                at: theirs,
-                total: total,
-                tint: _rivalTint,
-                badge: widget.badge,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            puller(widget.myAppearance, iLead, widget.finished && iLead, false),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  const knot = 30.0;
-                  final half = (constraints.maxWidth - knot) / 2;
-                  return TweenAnimationBuilder<double>(
-                    tween: Tween(begin: begin, end: lead),
-                    duration: duration,
-                    curve: Curves.easeOutCubic,
-                    builder: (context, pull, _) => AnimatedBuilder(
-                      animation: _jerk,
-                      builder: (context, _) {
-                        // ارتجاجٌ قصيرٌ نحو المتقدّم.
-                        final shake = _jerk.isAnimating
-                            ? math.sin(_jerk.value * math.pi * 3) *
-                                (1 - _jerk.value) *
-                                5
-                            : 0.0;
-                        return SizedBox(
-                          height: knot + 16,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              // الحبل: خطوطٌ مائلةٌ تنزلق مع العقدة فيُرى أنه يُسحب.
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                top: knot / 2 + 5,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: CustomPaint(
-                                    size: const Size.fromHeight(9),
-                                    painter: _RopePainter(
-                                      shift: pull * half + shake,
-                                      rtl: Directionality.of(context) ==
-                                          TextDirection.rtl,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // علامةُ المنتصف: بها يُقرأ الميل.
-                              Positioned(
-                                left: constraints.maxWidth / 2 - 1,
-                                top: 4,
-                                child: Container(
-                                  width: 2,
-                                  height: knot + 6,
-                                  color: StudentSurface.mutedInk(context)
-                                      .withValues(alpha: 0.4),
-                                ),
-                              ),
-                              // العقدةُ: نحو المتقدّم — جهةُ البداية لي، والنهايةُ له.
-                              PositionedDirectional(
-                                start: half - half * pull - shake,
-                                top: 5,
-                                child: Container(
-                                  width: knot,
-                                  height: knot,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xFFB45309),
-                                    border: Border.all(
-                                        color: Colors.white, width: 2),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                          color: Color(0x55000000),
-                                          blurRadius: 4,
-                                          offset: Offset(0, 2)),
-                                    ],
-                                  ),
-                                  child: const Text('🪢',
-                                      style: TextStyle(fontSize: 14)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-            puller(widget.theirAppearance, theyLead,
-                widget.finished && theyLead, true),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// الحبلُ مضفوراً: خطوطٌ مائلةٌ تنزاح بقدر [shift] فيُرى منسحباً.
-class _RopePainter extends CustomPainter {
-  const _RopePainter({required this.shift, required this.rtl});
-
-  final double shift;
-  final bool rtl;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(size.height / 2)),
-      Paint()..color = const Color(0xFFD97706),
-    );
-    // الانزياحُ نحو البداية لي: في العربية البدايةُ يمين.
-    final dx = rtl ? shift : -shift;
-    final braid = Paint()
-      ..color = const Color(0xFF92400E)
-      ..strokeWidth = 2;
-    const step = 9.0;
-    final offset = dx % step;
-    for (var x = -step + offset; x < size.width + step; x += step) {
-      canvas.drawLine(Offset(x, size.height), Offset(x + 5, 0), braid);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RopePainter old) => old.shift != shift || old.rtl != rtl;
-}
-
-// ── جمعُ الجواهر ──
-
-/// جرّتان تمتلئان، وجوهرةٌ تطير من وسط الحلبة إلى جرّة من أجاب أوّلاً.
-class _GemHaul extends StatefulWidget {
-  const _GemHaul({
-    required this.mine,
-    required this.theirs,
-    required this.total,
-    required this.rival,
-    required this.badge,
-  });
-
-  final int mine;
-  final int theirs;
-  final int total;
-  final String rival;
-  final String? badge;
-
-  @override
-  State<_GemHaul> createState() => _GemHaulState();
-}
-
-class _GemHaulState extends State<_GemHaul>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _flight = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 700),
-  );
-
-  /// إلى أيّ جرّةٍ تطير الجوهرةُ الآن: لي أو له.
-  bool _toMine = true;
-
-  @override
-  void didUpdateWidget(_GemHaul old) {
-    super.didUpdateWidget(old);
-    if (_still(context)) return;
-    if (widget.mine > old.mine) {
-      _toMine = true;
-      _flight.forward(from: 0);
-    } else if (widget.theirs > old.theirs) {
-      _toMine = false;
-      _flight.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _flight.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _GemJar(
-                name: tr('duel.you'),
-                count: widget.mine,
-                total: widget.total,
-                tint: _mineTint,
-                catching: _toMine && _flight.isAnimating,
-                flight: _flight,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _GemJar(
-                name: widget.rival,
-                count: widget.theirs,
-                total: widget.total,
-                tint: _rivalTint,
-                badge: widget.badge,
-                catching: !_toMine && _flight.isAnimating,
-                flight: _flight,
-              ),
-            ),
-          ],
-        ),
-        // الجوهرةُ الطائرة: من أعلى الوسط في قوسٍ إلى الجرّة، تكبر ثم تدخل.
-        Positioned.fill(
-          child: IgnorePointer(
-            child: AnimatedBuilder(
-              animation: _flight,
-              builder: (context, _) {
-                if (!_flight.isAnimating) return const SizedBox.shrink();
-                final t = Curves.easeInCubic.transform(_flight.value);
-                final targetX = _toMine ? -0.5 : 0.5;
-                final x = targetX * t;
-                final y = -1.1 + 1.6 * t - math.sin(math.pi * t) * 0.6;
-                final scale = 1 + math.sin(math.pi * _flight.value) * 0.8;
-                return Align(
-                  alignment: AlignmentDirectional(x, y),
-                  child: Transform.scale(
-                    scale: scale,
-                    child: Opacity(
-                      opacity:
-                          _flight.value > 0.92 ? (1 - _flight.value) / 0.08 : 1,
-                      child: const Text(
-                        '💎',
-                        style: TextStyle(
-                          fontSize: 22,
-                          shadows: [
-                            Shadow(color: Color(0xAA22D3EE), blurRadius: 12)
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GemJar extends StatelessWidget {
-  const _GemJar({
-    required this.name,
-    required this.count,
-    required this.total,
-    required this.tint,
-    required this.catching,
-    required this.flight,
-    this.badge,
-  });
-
-  final String name;
-  final int count;
-  final int total;
-  final Color tint;
-  final String? badge;
-
-  /// الجوهرةُ تطير إلى هذه الجرّة الآن: تتوهّج حين تصل.
-  final bool catching;
-  final Animation<double> flight;
-
-  @override
-  Widget build(BuildContext context) {
-    final fraction = total <= 0 ? 0.0 : (count / total).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _LaneLabel(
-            name: name, at: count, total: total, tint: tint, badge: badge),
-        const SizedBox(height: 8),
-        AnimatedBuilder(
-          animation: flight,
-          builder: (context, child) {
-            // توهّجٌ في آخر الطيران، حين تدخل الجوهرة.
-            final glow = catching && flight.value > 0.8
-                ? (flight.value - 0.8) / 0.2
-                : 0.0;
-            return Container(
-              height: 74,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: tint.withValues(alpha: 0.4 + glow * 0.6),
-                  width: 1.4 + glow * 1.6,
-                ),
-                color: tint.withValues(alpha: 0.06),
-                boxShadow: glow > 0
-                    ? [
-                        BoxShadow(
-                            color: tint.withValues(alpha: 0.45 * glow),
-                            blurRadius: 16 * glow)
-                      ]
-                    : null,
-              ),
-              child: child,
-            );
-          },
-          child: Stack(
-            children: [
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: AnimatedFractionallySizedBox(
-                  duration: const Duration(milliseconds: 420),
-                  curve: Curves.easeOutCubic,
-                  heightFactor: fraction,
-                  widthFactor: 1,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: tint.withValues(alpha: 0.26),
-                    ),
-                  ),
-                ),
-              ),
-              Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    '💎' * (count > 3 ? 3 : count),
-                    style: const TextStyle(fontSize: 17),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1160,7 +150,7 @@ class DuelChoices extends StatelessWidget {
           picked: picked,
           onPick: onPick,
         ),
-      // السباقُ وشدُّ الحبل: بلاطاتٌ مجسّمةٌ على طراز Kahoot — لونٌ وشكلٌ لكل
+      // سباقُ الحواجز ومغامرةُ الفضاء: بلاطاتٌ مجسّمةٌ على طراز Kahoot — لونٌ وشكلٌ لكل
       // موضع. والفرقُ بينهما في الحلبة لا في الخيار.
       DuelGame.sprint || DuelGame.tug => LayoutBuilder(
           builder: (context, constraints) {
@@ -1235,7 +225,7 @@ _ChoiceState _stateOf(
         ),
     };
 
-/// بالوناتٌ تُفرقع: الجوابُ في واحدةٍ منها.
+/// ثمارُ البستان: الجوابُ في واحدةٍ منها، تُقطف فتسقط في السلّة.
 class _BalloonChoices extends StatelessWidget {
   const _BalloonChoices({
     required this.options,
@@ -1291,7 +281,8 @@ class _BalloonChoice extends StatelessWidget {
       // المفرقعةُ تصغر: أثرُ الضغطة يُرى على البالونة التي لُمست.
       scale: popped ? 0.86 : 1,
       child: Material(
-        color: neutral ? const Color(0xFFEDE9FE) : paint.fill,
+        color: neutral ? const Color(0xFFFFE4E6) : paint.fill,
+        // ثمرةٌ بعُنقٍ صغير — الشكلُ نفسُه الذي كان بالونة، مقلوباً.
         shape: const _BalloonBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1422,8 +413,8 @@ class _GemChoice extends StatelessWidget {
       curve: Curves.easeOutBack,
       scale: taken ? 1.06 : 1,
       child: Material(
-        color: neutral ? const Color(0xFFCFFAFE) : paint.fill,
-        // معيَّنٌ لا مستطيل: شكلُ الجوهرة يُعرف قبل أن يُقرأ ما فيها.
+        color: neutral ? const Color(0xFFFFEDD5) : paint.fill,
+        // مكعّبٌ بزوايا ناعمة: شكلُ قطعة البناء يُعرف قبل أن يُقرأ ما فيها.
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1438,7 +429,8 @@ class _GemChoice extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('💎', style: TextStyle(fontSize: 20)),
+                // مكعّبٌ يُختار فيسقط في البرج.
+                const Text('🧱', style: TextStyle(fontSize: 20)),
                 const SizedBox(height: 6),
                 Text(
                   text,

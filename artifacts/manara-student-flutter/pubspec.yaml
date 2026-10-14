@@ -122,6 +122,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    # مشهدُ الدخول الحيّ: الرسمُ مفصولاً (انظر LivingLoginScene).
+    - assets/images/login_scene/
     - assets/animations/
     - assets/sounds/
     - assets/audio/

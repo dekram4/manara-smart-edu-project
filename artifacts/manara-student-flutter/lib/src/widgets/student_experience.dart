@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../services/student_sound_service.dart';
 import '../theme/motion.dart';
+import 'lively.dart';
 import '../theme/student_theme.dart';
 import '../l10n/student_strings.dart';
 import 'student_avatar_view.dart';
@@ -1020,10 +1021,16 @@ class StudentScreenHero extends StatelessWidget {
               ),
               Row(
                 children: [
-                  StudentCardAvatar(
-                    icon: icon,
-                    accent: night ? const Color(0xFFBFFBFA) : colors.first,
-                    label: title,
+                  // أيقونةُ البطاقة تقفز إلى مكانها، ثم شخصيةُ الطالب بعدها —
+                  // في رأس كل بطاقةٍ يفتحها (الشرح والسينما والألعاب
+                  // والاختبارات وحلّ المسائل والتقدّم).
+                  LivelyStagger(
+                    index: 1,
+                    child: StudentCardAvatar(
+                      icon: icon,
+                      accent: night ? const Color(0xFFBFFBFA) : colors.first,
+                      label: title,
+                    ),
                   ),
                   const SizedBox(width: 13),
                   Expanded(
@@ -1060,7 +1067,7 @@ class StudentScreenHero extends StatelessWidget {
                     // opened card — cinema, lesson, games, quizzes, the
                     // solver, progress — so binding it here is what makes
                     // the character follow the student through all of them.
-                    const StudentAvatarView(size: 68),
+                    const LivelyStagger(index: 3, child: StudentAvatarView(size: 68)),
                   ],
                 ],
               ),
@@ -1484,7 +1491,10 @@ class _StudentPressScaleState extends State<StudentPressScale> {
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       return widget.child;
     }
-    return Listener(
+    // تموّجٌ من موضع الإصبع ونجيماتٌ تتطاير (على طريقة «لمسة») — فوق
+    // انضغاط البطاقة ولونِها، في كل بطاقةٍ تلبس هذا.
+    return LivelyTouch(
+      child: Listener(
       onPointerDown: (_) => _setPressed(true),
       onPointerUp: (_) => _setPressed(false),
       onPointerCancel: (_) => _setPressed(false),
@@ -1515,6 +1525,7 @@ class _StudentPressScaleState extends State<StudentPressScale> {
             child: Student3DCard(child: widget.child),
           ),
         ),
+      ),
       ),
     );
   }

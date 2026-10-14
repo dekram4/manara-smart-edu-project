@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../widgets/lively.dart';
 import '../theme/motion.dart';
 
 import '../l10n/student_strings.dart';
@@ -13,6 +14,7 @@ import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
+import '../services/study_rotation.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/study_challenges.dart';
@@ -81,6 +83,9 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
 
   final _random = math.Random();
 
+  /// ما لعبه هذا الطالب من مغامرات هذا الدرس — لا يتكرّر قبل أخواته.
+  StudyRotation? _rotation;
+
   @override
   void initState() {
     super.initState();
@@ -127,10 +132,14 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
       return;
     }
     try {
-      final pack = await widget.studyService.fetch(lessonId: lessonId);
+      final results = await Future.wait<Object>([
+        widget.studyService.fetch(lessonId: lessonId),
+        StudyRotation.load(studentId: widget.profile.id, lessonId: lessonId),
+      ]);
       if (!mounted) return;
       setState(() {
-        _pack = pack;
+        _pack = results[0] as StudyPack;
+        _rotation = results[1] as StudyRotation;
         _loading = false;
       });
     } on StudyServerFailure catch (failure) {
@@ -154,19 +163,30 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     }
   }
 
-  /// يبدأ تحدياً، ويختار غيرَ الذي سبق ما أمكن.
+  /// يبدأ تحدياً لم يُلعب في هذا الدرس بعد، ما أمكن.
   ///
   /// عشوائيةٌ محضةٌ بين اثنين تُعيد الأول في نصف الجولات، والطفل يقرأ
-  /// الحكايةَ نفسها فيظنّ البطاقة معطوبة.
+  /// الحكايةَ نفسها فيظنّ البطاقة معطوبة. فيُختار ممّا لم يلعبه هذا الطالب
+  /// في هذا الدرس — محفوظاً بين الجلسات ([StudyRotation]) — ثم تبدأ دورة.
   void _start([String branch = '']) {
     final pack = _pack;
     if (pack == null || pack.scenarios.isEmpty) return;
     if (branch.isNotEmpty) _branch = branch;
     final scoped = pack.forBranch(_branch);
+    final rotation = _rotation;
+    final chosenTitle = rotation?.pick(
+      [for (final item in scoped) item.title],
+      current: _scenario?.title,
+      random: _random,
+    );
     final others = scoped.where((item) => item != _scenario).toList();
     final pool = others.isEmpty ? scoped : others;
+    final chosen = scoped.firstWhere(
+      (item) => item.title == chosenTitle,
+      orElse: () => pool[_random.nextInt(pool.length)],
+    );
     setState(() {
-      _scenario = pool[_random.nextInt(pool.length)];
+      _scenario = chosen;
       _at = 0;
       _correct = 0;
       _picked = null;
@@ -1124,7 +1144,17 @@ class _SituationCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        Container(
+        // كلُّ موقفٍ يقفز إلى مكانه، ويتوهّج حين يُصاب ويهتزّ حين يُخطأ —
+        // لحظةً ثم يهدأ.
+        LivelyStagger(
+          key: ValueKey('situation-${scenario.title}-$at'),
+          index: 0,
+          child: LivelyShake(
+          active: answered && !right,
+          child: LivelyGlow(
+          active: answered && right,
+          radius: 24,
+          child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: StudentSurface.card(context),
@@ -1175,13 +1205,21 @@ class _SituationCard extends StatelessWidget {
             ],
           ),
         ),
+        ),
+        ),
+        ),
         if (answered) ...[
           const SizedBox(height: 14),
-          _Feedback(
-            right: right,
-            text: situation.because.isEmpty
-                ? tr(right ? 'study.right' : 'study.wrong')
-                : situation.because,
+          // والشرحُ بعد القرار يقفز إلى مكانه كذلك.
+          LivelyStagger(
+            key: ValueKey('feedback-${scenario.title}-$at'),
+            index: 0,
+            child: _Feedback(
+              right: right,
+              text: situation.because.isEmpty
+                  ? tr(right ? 'study.right' : 'study.wrong')
+                  : situation.because,
+            ),
           ),
           const SizedBox(height: 14),
           _StudyButton(

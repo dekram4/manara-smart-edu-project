@@ -21,13 +21,18 @@ import {
   snapshotOf,
   spend,
 } from "../lib/aiQuota";
-import { stripDiacritics } from "../lib/arabicText";
+import { lightDiacritics } from "../lib/arabicText";
 import { sameQuantities } from "../lib/questionMath";
 import {
   type StudyPack,
+  expansionPrompt,
+  lessonStampOf,
+  mergeScenarios,
+  parseExpansion,
   parseStudyPack,
   readStudyPack,
   studyPrompt,
+  targetScenarios,
 } from "../lib/interactiveStudy";
 import { VECTOR_THRESHOLD, embedQuestion } from "../lib/embeddings";
 import {
@@ -986,7 +991,7 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       // ويُنقّى المحفوظ عند قراءته: ما كُتب في الذاكرة قبل هذه
       // التنقية مشكولٌ كما ردّه النموذج.
       return res.json({
-        answer: stripDiacritics(cached),
+        answer: lightDiacritics(cached),
         cached: true,
         quota: seen.quota.snapshot,
       });
@@ -1049,8 +1054,11 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       "اكتب بلهجة سعودية بيضاء عامية دافئة وبسيطة مئة بالمئة، ككلام شخصي يومي من معلّم لطالبه — لا كلام كتب. " +
       "استخدم دائمًا كلمات مثل: «عشان»، «كذا»، «شوف يا بطل»، «ما فيه»، «تخيّل». " +
       "وممنوع منعًا باتًا أي لغة فصحى أو كلمات معربة رسمية أو مصطلحات متكلّفة. " +
-      "ولا تكتب أي حركات تشكيل أو تنوين على الحروف إطلاقًا. " +
-      "واجعل جملك قصيرة يفصل بينها فاصلة أو نقطة، فالإجابة تُقرأ بصوت مسموع ويحتاج الطالب أن يلتقط أنفاسه معك.";
+      // التشكيلُ الخفيف لا المنعُ ولا الكامل — انظر `lightDiacritics`.
+      "ضع الشدّة دائمًا، وضع الحركة داخل الكلمة فقط حين تمنع الالتباس في نطقها (مثل: عَلّم، فَهِمت، يُفرِّق)، " +
+      "ولا تضع أي حركة أو سكون على آخر حرف في الكلمة، ولا تنوين أبدًا. " +
+      "واجعل جملك قصيرة يفصل بينها فاصلة أو نقطة، فالإجابة تُقرأ بصوت مسموع ويحتاج الطالب أن يلتقط أنفاسه معك. " +
+      "وجملةٌ واحدة لكل فكرة، لا تتجاوز عشر كلمات تقريبًا، بلا أقواس ولا رموز زخرفية.";
     const prompt = image
       ? `أنت مساعد تعليمي ذكي لطفلٍ في المرحلة الابتدائية. في الصورة المرفقة مسألةٌ من كتابه أو دفتره.
 
@@ -1073,7 +1081,7 @@ ${lesson.text}`
     //
     // الطلبُ يمنعه، والنموذج يمتثل في الغالب لا دائماً: عبارةٌ منقولةٌ
     // من نصّ الدرس تأتي مشكولةً كما في الكتاب. فالطلبُ نيّة، وهذه حراسة.
-    const answer = stripDiacritics(getGeminiText(data));
+    const answer = lightDiacritics(getGeminiText(data));
     if (!answer) {
       logger.warn({ lessonId }, "[gemini] answer rejected: empty completion");
       return res.status(502).json({
@@ -1288,10 +1296,17 @@ const STUDY_BUDGET_MS = 75_000;
 /** وسقفُ ما يُخرجه النموذج لها: خريطةٌ وثلاث مغامرات تحتاج متّسعاً. */
 const STUDY_MAX_TOKENS = 8_000;
 
-/** يحفظ حزمة المذاكرة مع الدرس، فلا تُولَّد ثانيةً. */
+/**
+ * يحفظ حزمة المذاكرة مع الدرس، فلا تُولَّد ثانيةً.
+ *
+ * و[build] يبني ما يُكتب من السجلّ كما هو الآن — لا من نسخةٍ قُرئت قبل نداء
+ * النموذج: التوسعةُ تضمّ مغامراتها إلى المحفوظ فعلاً، فلا تمحو توسعةٌ أخرى
+ * سبقتها. ويُرجع `null` ليُترك السجلّ كما هو — نصُّ الدرس تغيّر مثلاً.
+ */
 async function persistStudyPack(
   lessonId: string,
   pack: StudyPack,
+  build?: (data: Record<string, unknown>) => StudyPack | null,
 ): Promise<void> {
   const config = apiSupabaseConfig();
   if (!config) return;
@@ -1310,18 +1325,73 @@ async function persistStudyPack(
     ? (rows[0].data as Record<string, unknown>)
     : null;
   if (!data) throw new Error("lesson row vanished before the pack was saved");
+  const next = build ? build(data) : pack;
+  if (!next) return;
   const write = await fetch(
     `${config.url}/rest/v1/lesson_configs?id=eq.${encodeURIComponent(lessonId)}`,
     {
       method: "PATCH",
       headers: { ...headers, Prefer: "return=minimal" },
       body: JSON.stringify({
-        data: { ...data, interactiveStudy: pack },
+        data: { ...data, interactiveStudy: next },
         updated_at: new Date().toISOString(),
       }),
     },
   );
   if (!write.ok) throw new Error(`study write failed (${write.status})`);
+}
+
+/** دروسٌ تُوسَّع حزمتُها الآن، فلا تُطلق توسعتان لدرسٍ واحد. */
+const expandingStudy = new Set<string>();
+
+/** محاولاتُ التوسعة لكل درس في عمر الخادم: نموذجٌ يُخفق مرّةً بعد مرّة لا يُنادى بلا نهاية. */
+const studyExpansionTries = new Map<string, number>();
+const STUDY_EXPANSION_MAX_TRIES = 3;
+
+/**
+ * يوسّع حزمةَ درسٍ في الخلفية بمغامراتٍ جديدة من نصّه، حتى تبلغ هدفَها.
+ *
+ * لا يُنتظر ولا يمسّ الردّ: الطفلُ يلعب ما في الحزمة الآن، والجديدُ يصله
+ * في فتحته التالية. ويُكتب بشرط أن يبقى نصُّ الدرس كما هو — درسٌ عُدّل
+ * أثناء التوسعة يُولَّد من جديد لا يُرقَّع.
+ */
+function expandStudyInBackground(
+  lesson: { id: string; text: string; unit?: string; lesson?: string; subject?: string },
+  pack: StudyPack,
+): void {
+  if (pack.scenarios.length >= targetScenarios(pack)) return;
+  const tries = studyExpansionTries.get(lesson.id) ?? 0;
+  if (expandingStudy.has(lesson.id) || tries >= STUDY_EXPANSION_MAX_TRIES) return;
+  expandingStudy.add(lesson.id);
+  studyExpansionTries.set(lesson.id, tries + 1);
+  const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
+  void (async () => {
+    try {
+      const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
+      const data = await callGemini(
+        expansionPrompt({ lessonTitle: title || lesson.lesson || lesson.subject || "", lessonText: lesson.text, pack }),
+        { maxOutputTokens: STUDY_MAX_TOKENS, budgetMs: STUDY_BUDGET_MS },
+      );
+      const extra = parseExpansion(getGeminiText(data));
+      if (extra.length === 0) {
+        logger.warn({ lessonId: lesson.id }, "[study] expansion returned nothing usable");
+        return;
+      }
+      await persistStudyPack(lesson.id, pack, (row) => {
+        const text = typeof row.lessonContent === "string" && row.lessonContent.trim()
+          ? row.lessonContent.trim()
+          : typeof row.lessonText === "string" ? row.lessonText.trim() : "";
+        if (lessonStampOf(text) !== owner.lessonStamp) return null;
+        const current = readStudyPack(row.interactiveStudy, owner) ?? pack;
+        return mergeScenarios(current, extra);
+      });
+      logger.info({ lessonId: lesson.id, added: extra.length }, "[study] expanded");
+    } catch (error) {
+      logger.warn({ err: error, lessonId: lesson.id }, "[study] expansion failed");
+    } finally {
+      expandingStudy.delete(lesson.id);
+    }
+  })();
 }
 
 /**
@@ -1368,10 +1438,14 @@ router.post(
           .json({ error: messages[lesson.reason], code: lesson.reason });
       }
 
-      // ── المحفوظ أوّلاً ──
-      const stored = readStudyPack(lesson.interactiveStudy);
+      // ── المحفوظ أوّلاً، إن كان لهذا الدرس ولنصّه الحالي ──
+      // حزمةٌ نُسخت مع مخطّطٍ من درسٍ آخر، أو بقيت بعد تعديل نصّ الدرس،
+      // لا تُقرأ: كلُّ مخطّطٍ مستقلٌّ بأسئلته من نصّه هو.
+      const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
+      const stored = readStudyPack(lesson.interactiveStudy, owner);
       if (stored) {
         logger.info({ lessonId }, "[study] served from the lesson row");
+        expandStudyInBackground(lesson, stored);
         return res.json({ pack: stored, generated: false });
       }
 
@@ -1384,7 +1458,7 @@ router.post(
         }),
         { maxOutputTokens: STUDY_MAX_TOKENS, budgetMs: STUDY_BUDGET_MS },
       );
-      const pack = parseStudyPack(getGeminiText(data), title);
+      const pack = parseStudyPack(getGeminiText(data), title, undefined, owner);
       if (!pack) {
         // ولا يُخزَّن ناقصٌ: الإخفاقُ الصريح يُعيد التوليد في المرّة
         // القادمة، والنصفُ المخزَّن يبقى ناقصاً إلى الأبد.
@@ -1397,9 +1471,12 @@ router.post(
 
       // الحفظُ لا يُنتظر ولا يُسقط الردّ: فشلُه يعني توليداً ثانياً في
       // المرّة القادمة لا حزمةً ضائعة.
-      void persistStudyPack(lessonId, pack).catch((error) =>
-        logger.error({ err: error, lessonId }, "[study] pack not saved"),
-      );
+      // والتوسعةُ بعد الحفظ لا معه: تضمّ إلى المحفوظ، فتنتظر أن يُحفظ.
+      void persistStudyPack(lessonId, pack)
+        .then(() => expandStudyInBackground(lesson, pack))
+        .catch((error) =>
+          logger.error({ err: error, lessonId }, "[study] pack not saved"),
+        );
       logger.info(
         { lessonId, scenarios: pack.scenarios.length },
         "[study] generated",

@@ -11,6 +11,8 @@ import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../l10n/student_strings.dart';
 import '../widgets/student_display_toggles.dart';
+import '../widgets/lively.dart';
+import '../widgets/login_scene.dart';
 import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
@@ -157,6 +159,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
+          // ‏خلفيةٌ حيّة على طريقة «لمسة»: حروفٌ وأرقامٌ وفقاعاتٌ تطفو خلف
+          // ‏السبورة. طبقةٌ مرسومة لا تستقبل لمسة ولا تمسّ تخطيط المشهد.
+          const Positioned.fill(child: LoginAmbience()),
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -303,16 +308,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: areaSize.height,
                     child: Transform.translate(
                   offset: Offset(0, -lift),
+                  // ‏السبورةُ تطفو وتتأرجح بخفّة — المشهدُ والحقولُ والبطلان
+                  // ‏كتلةً واحدة — وتسكن ما دام الطالب يكتب.
+                  child: LivelyFloatScope(
+                  enabled: !typing,
                   child: Stack(
                   clipBehavior: Clip.none,
                   children: [
+                    // ‏المشهدُ حيّ: الكتبُ والكرةُ الأرضية تتمايل وتقفز عند اللمس،
+                    // ‏والكرةُ تدور على محورها. وفي السكون الصورةُ الأصلية نفسها.
                     Positioned.fromRect(
                       rect: imageRect,
-                      child: Image.asset(
-                        'assets/images/board_login_bg.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
+                      child: const LivelyFloating(child: LivingLoginScene()),
                     ),
                     // The mark, recoloured to a single deep teal so it
                     // reads crisply on the light backdrop instead of the
@@ -357,22 +364,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          DecoratedBox(
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: Colors.white, blurRadius: 18, spreadRadius: 2),
-                                BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
-                              ],
-                            ),
-                            child: ColorFiltered(
-                              colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
-                              child: Image.asset(
-                                'assets/images/manara-logo-mark-transparent.png',
-                                width: logoSize,
-                                height: logoSize,
-                                fit: BoxFit.contain,
-                                errorBuilder: _emptyImageFallback,
+                          // ‏الشعارُ يتمايل بهدوء — تحويلٌ لا يغيّر موضعَه في الحساب.
+                          LivelyBob(
+                            amplitude: 3,
+                            child: DecoratedBox(
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(color: Colors.white, blurRadius: 18, spreadRadius: 2),
+                                  BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
+                                ],
+                              ),
+                              child: ColorFiltered(
+                                colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
+                                child: Image.asset(
+                                  'assets/images/manara-logo-mark-transparent.png',
+                                  width: logoSize,
+                                  height: logoSize,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: _emptyImageFallback,
+                                ),
                               ),
                             ),
                           ),
@@ -406,6 +417,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // formWidth above.
                     Positioned.fromRect(
                       rect: boardRect,
+                      child: LivelyFloating(
                       child: Padding(
                         // A margin proportional to the green area, so the
                         // block keeps the same visual inset at any size.
@@ -480,6 +492,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
+                      ),
                     ),
                     // The heroes sit right at the foot of the easel. They
                     // are anchored to where the *artwork* actually ends
@@ -497,7 +510,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       top: imageRect.top +
                           _artworkBottomFraction * imageRect.height -
                           mascotSize,
-                      child: StudentInteractiveMascot(size: mascotSize),
+                      child: LivelyFloating(child: StudentInteractiveMascot(size: mascotSize)),
                     ),
                     Positioned(
                       top: 4,
@@ -511,6 +524,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
+                  ),
                   ),
                     ),
                   ),
@@ -714,7 +728,11 @@ class _BoardLoginForm extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 8),
-            StudentPressScale(
+            // ‏هالةٌ تنبض حول زرّ الدخول تدعو إليه — ظلٌّ لا يغيّر مقاسه.
+            LivelyPulseGlow(
+              radius: 28,
+              color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
+              child: StudentPressScale(
               child: StudentEmbossedShell(
                 color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
                 depth: 4,
@@ -761,6 +779,7 @@ class _BoardLoginForm extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
             ),
           ],
         ),
@@ -880,7 +899,9 @@ class _LandscapeBrand extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DecoratedBox(
+              LivelyBob(
+                amplitude: 2,
+                child: DecoratedBox(
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   boxShadow: [
@@ -900,6 +921,7 @@ class _LandscapeBrand extends StatelessWidget {
                     fit: BoxFit.contain,
                     errorBuilder: _emptyImageFallback,
                   ),
+                ),
                 ),
               ),
               const SizedBox(width: 10),

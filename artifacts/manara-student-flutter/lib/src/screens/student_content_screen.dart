@@ -1,5 +1,6 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../widgets/lively.dart';
 import '../theme/motion.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -552,7 +553,12 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
             ? const Color(0xFF04543A)
             : const Color(0xFFB4630C);
 
-    return StudentPressScale(
+    // نبضةُ توهّجٍ خضراء لحظةَ يُنهى الدرس — فوق تصفيقه.
+    return LivelyGlow(
+      active: _completed,
+      radius: 30,
+      color: const Color(0xFF0E9F6E),
+      child: StudentPressScale(
       child: GestureDetector(
         onTap: enabled ? _completeLesson : null,
         behavior: HitTestBehavior.opaque,
@@ -635,6 +641,7 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -731,7 +738,9 @@ class _GamesModule extends StatelessWidget {
                 final game = games[index];
                 final unlocked = isUnlocked(index, gamification.level);
                 final neededLevel = requiredLevelFor(index);
-                return ArcadeGameCard(
+                // تموّجُ اللمسة فوق ضغطة البطاقة الخاصة بها.
+                return LivelyTouch(
+                  child: ArcadeGameCard(
                   game: game,
                   index: index,
                   locked: !unlocked,
@@ -768,6 +777,7 @@ class _GamesModule extends StatelessWidget {
                       ),
                     );
                   },
+                ),
                 )
                     .animate()
                     .fadeIn(duration: 260.ms, delay: (60 * index).ms)

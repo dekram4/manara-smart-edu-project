@@ -300,3 +300,66 @@ test("وسقفُ ما يُكافأ عليه عددُ المواقف في الح�
   const capped = parseStudyPack(JSON.stringify(many), "الخلية");
   assert.equal(capped.scenarios.length, MAX_SCENARIOS);
 });
+
+// ── كلُّ مخطّطٍ مستقلٌّ بحزمته، وتغتني بلا تكرار ──
+
+test("البصمةُ تتبع نصَّ الدرس كلَّه", () => {
+  assert.equal(mod.lessonStampOf("نص الدرس"), mod.lessonStampOf("نص الدرس"));
+  assert.notEqual(mod.lessonStampOf("نص الدرس"), mod.lessonStampOf("نص الدرس."));
+  // ولو تطابق الطولُ والطرفان.
+  assert.notEqual(mod.lessonStampOf("أ ب ج د"), mod.lessonStampOf("أ ج ب د"));
+});
+
+test("حزمةُ درسٍ آخر أو نصٍّ تغيّر لا تُقرأ لهذا الدرس", () => {
+  const owner = { lessonId: "lesson-1", lessonStamp: mod.lessonStampOf("نص الخلية") };
+  const stored = parseStudyPack(JSON.stringify(pack()), "الخلية", undefined, owner);
+  assert.equal(stored.lessonId, "lesson-1");
+  assert.ok(readStudyPack(stored, owner));
+  // مخطّطٌ نُسخ ومعه حزمةُ أصله.
+  assert.equal(readStudyPack(stored, { ...owner, lessonId: "lesson-2" }), null);
+  // والمعلمُ عدّل نصَّ درسه.
+  assert.equal(readStudyPack(stored, { ...owner, lessonStamp: mod.lessonStampOf("نص جديد") }), null);
+});
+
+test("الطلبُ يُلزم بنصّ الدرس وحده ويطلب التنويع", () => {
+  const prompt = studyPrompt({ lessonTitle: "الخلية", lessonText: "نص" });
+  assert.match(prompt, /من نص الدرس اعلاه وحده/);
+  assert.match(prompt, /لا تكرر المعلومة نفسها/);
+});
+
+test("التوسعة: طلبٌ يذكر الفروعَ والمواقفَ الموجودة لتُتجنّب", () => {
+  const stored = parseStudyPack(JSON.stringify(pack()), "الخلية");
+  const prompt = mod.expansionPrompt({ lessonTitle: "الخلية", lessonText: "نص الخلية", pack: stored });
+  assert.match(prompt, /الغشاء: يحيط بالخلية/);
+  assert.match(prompt, /لا تكرر اياً منها/);
+  assert.ok(prompt.includes(stored.scenarios[0].situations[0].prompt));
+  assert.match(prompt, /من نص الدرس اعلاه وحده/);
+});
+
+test("التوسعة: الجديدُ يُضمّ، والمكرَّرُ عنواناً أو موقفاً يُترك، والسقفُ يُحترم", () => {
+  const stored = parseStudyPack(JSON.stringify(pack()), "الخلية");
+  const extra = mod.parseExpansion(JSON.stringify({
+    scenarios: [
+      scenario(7, "الغشاء"),
+      scenario(1, "النواة"), // عنوانٌ موجود
+      { ...scenario(8, "النواة"), situations: scenario(2).situations }, // مواقفُ موجودة
+      scenario(9, "فرعٌ لا وجود له"),
+    ],
+  }));
+  assert.equal(extra.length, 4);
+  const merged = mod.mergeScenarios(stored, extra);
+  assert.equal(merged.scenarios.length, stored.scenarios.length + 2);
+  assert.ok(merged.scenarios.some((s) => s.title === "مغامرة 7" && s.branch === "الغشاء"));
+  // لفرعٍ ليس في الخريطة: إلى «كل الدرس».
+  assert.equal(merged.scenarios.find((s) => s.title === "مغامرة 9").branch, "");
+
+  const many = Array.from({ length: 40 }, (_, i) => scenario(100 + i, "النواة"));
+  const full = mod.mergeScenarios(stored, many);
+  assert.equal(full.scenarios.length, mod.MAX_TOTAL_SCENARIOS);
+  assert.equal(mod.targetScenarios(stored), 3 * mod.TARGET_SCENARIOS_PER_BRANCH);
+});
+
+test("التوسعة: ردٌّ لا يصلح يعود فارغاً لا يرفع خطأ", () => {
+  assert.deepEqual(mod.parseExpansion("ليس JSON"), []);
+  assert.deepEqual(mod.parseExpansion(JSON.stringify({ scenarios: [{ title: "ناقصة" }] })), []);
+});

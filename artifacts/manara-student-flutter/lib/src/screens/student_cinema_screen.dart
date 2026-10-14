@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/lively.dart';
 import '../theme/motion.dart';
 
 import '../models/academic_context.dart';
@@ -316,13 +317,16 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             ),
             itemBuilder: (context, index) {
               final video = _videos[index];
-              return _CinemaVideoCard(
+              return LivelyStagger(
+                index: index,
+                child: _CinemaVideoCard(
                 video: video,
                 apiBaseUrl: widget.apiBaseUrl,
                 locked: index >= _unlockedVideoCount,
                 missingGems:
                     CinemaUnlockRules.missingGems(index, _gamification.gems),
                 onPressed: () => _openVideo(video, index),
+              ),
               );
             },
           ),

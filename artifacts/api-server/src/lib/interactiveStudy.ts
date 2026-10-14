@@ -11,7 +11,10 @@
  */
 
 /** نسخةُ الحزمة المخزَّنة. تُرفع حين يتغيّر شكلُها فيُعاد التوليد. */
-export const STUDY_VERSION = 3;
+///
+/// ٤: الحزمةُ تحمل درسَها (`lessonId`) وبصمةَ نصّه (`lessonStamp`). وكلُّ
+/// حزمةٍ من نسخةٍ أقدم تُولَّد من جديد من نصّ درسها الفعليّ.
+export const STUDY_VERSION = 4;
 
 /** فروعُ الخريطة الذهنية: ثلاثةٌ أو أربعة، لا أكثر. */
 export const MIN_BRANCHES = 3;
@@ -41,6 +44,44 @@ export const SCENARIOS_PER_BRANCH = 2;
  */
 export const MIN_SCENARIOS = MIN_BRANCHES * SCENARIOS_PER_BRANCH;
 export const MAX_SCENARIOS = MAX_BRANCHES * SCENARIOS_PER_BRANCH;
+
+/**
+ * ما تبلغه الحزمةُ مع الوقت: أربعُ مغامراتٍ لكل فرع.
+ *
+ * ── ولا يُطلب ذلك في النداء الأول ──
+ * النداءُ الأوّل يبقى بمغامرتين لكل فرع — طلبُ أكثرَ منه يطول ويُقتطع
+ * فتُردّ الحزمةُ كلُّها. ثم تُوسَّع في الخلفية بنداءٍ ثانٍ يطلب مغامراتٍ
+ * جديدة لكل فرع غيرَ ما فيها ([expansionPrompt])، فتغتني البطاقةُ ولا
+ * ينتظر الطفلُ شيئاً.
+ */
+export const TARGET_SCENARIOS_PER_BRANCH = 4;
+export const MAX_TOTAL_SCENARIOS = MAX_BRANCHES * TARGET_SCENARIOS_PER_BRANCH;
+
+/** كم مغامرةً تبلغها هذه الحزمة. */
+export function targetScenarios(pack: StudyPack): number {
+  return Math.min(
+    MAX_TOTAL_SCENARIOS,
+    pack.mindMap.branches.length * TARGET_SCENARIOS_PER_BRANCH,
+  );
+}
+
+/**
+ * بصمةُ نصّ الدرس: طولُه وتجزئةٌ لكل حروفه.
+ *
+ * ── لماذا ──
+ * الحزمةُ تُحفظ في سجلّ الدرس. فكان مخطّطٌ يُنسخ من آخر يحمل حزمةَ أصله،
+ * وتعديلُ المعلم لنصّ درسه يترك الحزمةَ القديمة — فيُسأل الطفلُ عمّا ليس
+ * في درسه. والبصمةُ مع معرّف الدرس تجعل كلَّ مخطّطٍ مستقلّاً: حزمةٌ لدرسٍ
+ * آخر أو لنصٍّ تغيّر لا تُقرأ، وتُولَّد من النصّ الفعليّ.
+ */
+export function lessonStampOf(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${text.length}:${hash.toString(16)}`;
+}
 
 /** وكلُّ سيناريو ثلاثةُ مواقف. */
 export const SITUATIONS_PER_SCENARIO = 3;
@@ -116,9 +157,19 @@ export interface Scenario {
 
 export interface StudyPack {
   version: number;
+  /** الدرسُ الذي وُلّدت منه — لا تُقرأ لغيره. */
+  lessonId: string;
+  /** بصمةُ نصّه حين وُلّدت — [lessonStampOf]. */
+  lessonStamp: string;
   mindMap: MindMap;
   scenarios: Scenario[];
   createdAt: string;
+}
+
+/** صاحبُ الحزمة: الدرسُ وبصمةُ نصّه. */
+export interface StudyOwner {
+  lessonId: string;
+  lessonStamp: string;
 }
 
 /** نصٌّ منقّى: بلا تشكيل ولا فراغٍ زائد، ومحدودُ الطول. */
@@ -222,6 +273,11 @@ export function studyPrompt(input: {
     '- "answer" رقم يبدا من صفر.',
     "- الخيارات في الموقف مختلفة، والخطأ منها معقول لا سخيف.",
     "- كل موقف يقيس مفهوما من مفاهيم الدرس، لا معلومة عامة من خارجه.",
+    // ── من نصّ الدرس وحده ──
+    // المذاكرةُ لدرسٍ بعينه أضافه المعلم: سؤالٌ من معرفةٍ عامّة — ولو صحّ —
+    // يسأل الطفلَ عمّا لم يُدرَّس، ويجعل مخطّطين مختلفين يتشابهان.
+    "- كل موقف يُجاب عنه من نص الدرس اعلاه وحده، ولا تستعمل اي معلومة غير مذكورة فيه.",
+    "- لا تكرر المعلومة نفسها في موقفين، ونوّع: تعريفات، وامثلة، ومقارنات، واسباب، وخطوات — مما في النص.",
     "- اكتب بلهجة سعودية بيضاء سهلة، وبلا اي تشكيل على الحروف.",
   ].join("\n");
 }
@@ -368,6 +424,7 @@ export function parseStudyPack(
   raw: unknown,
   fallbackTitle: string,
   now: () => Date = () => new Date(),
+  owner: StudyOwner = { lessonId: "", lessonStamp: "" },
 ): StudyPack | null {
   const payload = extractJson(raw) ?? raw;
   const map = payload && typeof payload === "object"
@@ -390,6 +447,8 @@ export function parseStudyPack(
 
   return {
     version: STUDY_VERSION,
+    lessonId: owner.lessonId,
+    lessonStamp: owner.lessonStamp,
     mindMap,
     scenarios,
     createdAt: now().toISOString(),
@@ -401,11 +460,18 @@ export function parseStudyPack(
  *
  * ونسخةٌ أقدم تُهمل ولا تُصلَح: شكلُها تغيّر، والتوليدُ نداءٌ واحد.
  */
-export function readStudyPack(value: unknown): StudyPack | null {
+export function readStudyPack(value: unknown, expected?: StudyOwner): StudyPack | null {
   const map = value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : null;
   if (!map || map.version !== STUDY_VERSION) return null;
+  // صاحبُها المنتظر: حزمةٌ لدرسٍ آخر (نُسخت مع مخطّطه) أو لنصٍّ تغيّر بعدها
+  // تُهمل كذلك، فتُولَّد للدرس من نصّه الفعليّ.
+  const lessonId = typeof map.lessonId === "string" ? map.lessonId : "";
+  const lessonStamp = typeof map.lessonStamp === "string" ? map.lessonStamp : "";
+  if (expected && (lessonId !== expected.lessonId || lessonStamp !== expected.lessonStamp)) {
+    return null;
+  }
   const mindMap = parseMindMap(map.mindMap, "");
   if (!mindMap) return null;
   const scenarios = asArray(map.scenarios)
@@ -414,10 +480,102 @@ export function readStudyPack(value: unknown): StudyPack | null {
   if (scenarios.length < MIN_SCENARIOS) return null;
   return {
     version: STUDY_VERSION,
+    lessonId,
+    lessonStamp,
     mindMap,
-    scenarios,
+    scenarios: scenarios.slice(0, MAX_TOTAL_SCENARIOS),
     createdAt: typeof map.createdAt === "string" ? map.createdAt : "",
   };
+}
+
+/**
+ * طلبُ التوسعة: مغامراتٌ جديدة لكل فرع، غيرُ ما في الحزمة.
+ *
+ * يُرسل فروعَ الخريطة كما هي — فتُنسب المغامراتُ الجديدة إليها — ومواقفَ
+ * الحزمة الحالية ليُتجنّب تكرارُها.
+ */
+export function expansionPrompt(input: {
+  lessonTitle: string;
+  lessonText: string;
+  pack: StudyPack;
+  perBranch?: number;
+}): string {
+  const perBranch = input.perBranch ?? SCENARIOS_PER_BRANCH;
+  const existing = input.pack.scenarios
+    .flatMap((scenario) => scenario.situations.map((situation) => situation.prompt))
+    .slice(0, 80);
+  return [
+    "انت معلم سعودي تضيف مغامرات مذاكرة جديدة لدرس، لطالب في المرحلة الابتدائية.",
+    "",
+    `عنوان الدرس: ${clean(input.lessonTitle, 120)}`,
+    "نص الدرس:",
+    input.lessonText.slice(0, 6000),
+    "",
+    "فروع الدرس:",
+    ...input.pack.mindMap.branches.map((branch) => `- ${branch.title}: ${branch.summary}`),
+    "",
+    "وهذه مواقف موجودة مسبقا، لا تكرر اياً منها ولا معلومتها:",
+    ...existing.map((prompt) => `- ${prompt}`),
+    "",
+    'اخرج كائن JSON واحدا فقط بهذا الشكل: { "scenarios": [ ... ] } — وكل مغامرة بالشكل نفسه تماما:',
+    '{ "title": "...", "branch": "...", "situations": [ { "type": "avatar_path", ... }, { "type": "swipe_fact", ... }, { "type": "spot_imposter", ... } ] }',
+    "",
+    "وهذه شروط لازمة:",
+    `- لكل فرع من الفروع اعلاه ${perBranch} مغامرات جديدة، و"branch" يطابق حرفيا عنوان الفرع.`,
+    `- كل مغامرة فيها ${SITUATIONS_PER_SCENARIO} مواقف بالترتيب: "avatar_path" ثم "swipe_fact" ثم "spot_imposter".`,
+    '- "avatar_path": خياران و"answer" موضع الصحيح. "swipe_fact": "options" فارغة و"isTrue". "spot_imposter": ثلاثة خيارات و"answer" موضع المتسللة.',
+    "- كل موقف يُجاب عنه من نص الدرس اعلاه وحده، ولا تستعمل اي معلومة غير مذكورة فيه.",
+    "- عناوين المغامرات جديدة لا تشبه ما سبق، والمواقف تسأل عن معلومات اخرى من النص.",
+    "- اكتب بلهجة سعودية بيضاء سهلة، وبلا اي تشكيل على الحروف.",
+  ].join("\n");
+}
+
+/** مغامراتُ التوسعة الصالحة من ردّ النموذج. */
+export function parseExpansion(raw: unknown): Scenario[] {
+  const payload = extractJson(raw) ?? raw;
+  const map = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+  if (!map) return [];
+  return asArray(map.scenarios)
+    .map((entry) => parseScenario(entry))
+    .filter((entry): entry is Scenario => entry !== null);
+}
+
+/**
+ * مفتاحُ مقارنة موقف: نصُّه وخياراته، بلا فراغٍ ولا ترقيم.
+ *
+ * والخياراتُ منه لا النصُّ وحده: سؤالُ «المتسلّلة» جملةٌ ثابتةٌ في كل مغامرة
+ * («أي معلومة من الثلاث متسللة؟») — فمقارنةُ النصّ وحده كانت تعدّ كلَّ
+ * مغامرةٍ جديدة مكرّرةً وتُسقطها.
+ */
+function situationKey(situation: Situation): string {
+  return [situation.prompt, ...situation.options]
+    .join("|")
+    .replace(/[\s.،,؟?!«»"']/g, "");
+}
+
+/**
+ * يضمّ مغامراتٍ جديدة إلى الحزمة: لا عنوانَ مكرّر، ولا موقفَ يكرّر موقفاً
+ * فيها، ولا أكثرَ من [MAX_TOTAL_SCENARIOS].
+ */
+export function mergeScenarios(pack: StudyPack, extra: Scenario[]): StudyPack {
+  const titles = new Set(pack.scenarios.map((scenario) => scenario.title));
+  const prompts = new Set(
+    pack.scenarios.flatMap((scenario) => scenario.situations.map((s) => situationKey(s))),
+  );
+  const branches = new Set(pack.mindMap.branches.map((branch) => branch.title));
+  const scenarios = [...pack.scenarios];
+  for (const scenario of extra) {
+    if (scenarios.length >= MAX_TOTAL_SCENARIOS) break;
+    if (titles.has(scenario.title)) continue;
+    const keys = scenario.situations.map((s) => situationKey(s));
+    if (keys.some((key) => prompts.has(key))) continue;
+    // مغامرةٌ لفرعٍ ليس في الخريطة تُنسب إلى «كل الدرس» لا تُسقط.
+    const placed = branches.has(scenario.branch) ? scenario : { ...scenario, branch: "" };
+    scenarios.push(placed);
+    titles.add(scenario.title);
+    keys.forEach((key) => prompts.add(key));
+  }
+  return { ...pack, scenarios };
 }
 
 /**
