@@ -105,15 +105,15 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   /// تحدٍّ جماعي: أكثرُ من منافسٍ واحد.
   bool get _party => _game.rivals.length > 1;
 
-  /// لاعبو الحلبة في التحدي الجماعي: أنا في المسار الأول، ثم المتقدّمون من
-  /// زملائي إلى أربعة مسارات — بترتيب دعوتهم، فلا يقفز أحدٌ بين المسارات.
+  /// لاعبو الحلبة في التحدي الجماعي: أنا في المسار الأول، ثم كلُّ زملائي
+  /// بترتيب دعوتهم — فلا يقفز أحدٌ بين المسارات، ولا يُخفى أحد.
+  ///
+  /// كانت المساراتُ أربعةً وحدّ الدعوة خمسة زملاء: فاثنان في غرفةٍ كاملة لا
+  /// يُرى لهما مسار. والآن مسارٌ لكل من في الغرفة.
   List<ArenaRacer>? get _racers {
     if (!_party) return null;
     final per = _game.pointsPerQuestion;
-    final rivals = [..._allRivals]
-      ..sort((a, b) => _game.pointsOf(b.id).compareTo(_game.pointsOf(a.id)));
-    final shown = rivals.take(3).toList()
-      ..sort((a, b) => _allRivals.indexOf(a).compareTo(_allRivals.indexOf(b)));
+    final shown = _allRivals;
     return [
       ArenaRacer(
         name: tr('duel.you'),

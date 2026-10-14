@@ -43,7 +43,15 @@ class ArenaRacer {
 }
 
 const _mineTint = Color(0xFF16A34A);
-const _rivalTints = [Color(0xFFDC2626), Color(0xFF2563EB), Color(0xFF9333EA), Color(0xFFEA580C)];
+/// لونٌ لكل زميل — ستّةُ ألوانٍ متمايزة تكفي غرفةً كاملة (المضيفُ وخمسة).
+const _rivalTints = [
+  Color(0xFFDC2626),
+  Color(0xFF2563EB),
+  Color(0xFF9333EA),
+  Color(0xFFEA580C),
+  Color(0xFF0891B2),
+  Color(0xFFDB2777),
+];
 
 Color _tintOf(List<ArenaRacer> racers, int index) {
   if (racers[index].me) return _mineTint;
@@ -130,6 +138,49 @@ class _RacerHeader extends StatelessWidget {
         const SizedBox(width: 6),
         score,
       ],
+    );
+  }
+}
+
+/// أعمدةُ اللاعبين (البستان والأبراج) في صفوف: لا يقلّ العمودُ عن ١٠٠ نقطة.
+///
+/// ثلاثةٌ في صفٍّ واحد على الهاتف، وخمسةٌ أو ستّة تنقسم صفّين متساويين —
+/// فلا تنضغط الشجرةُ أو البرجُ حتى يتداخل ما فيه. وفي الشاشة العريضة صفٌّ
+/// واحد ما اتّسع.
+class _ColumnsGrid extends StatelessWidget {
+  const _ColumnsGrid({required this.count, required this.builder});
+
+  final int count;
+  final Widget Function(int index) builder;
+
+  static const _minColumn = 100.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count == 0) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, box) {
+        final fit = math.max(1, (box.maxWidth / _minColumn).floor());
+        final rows = (count / fit).ceil();
+        // صفوفٌ متقاربة العدد: ستّةٌ في صفّين ثلاثةً ثلاثة، لا أربعةً واثنين.
+        final perRow = (count / rows).ceil();
+        final width = box.maxWidth / perRow;
+        return Column(
+          children: [
+            for (var row = 0; row < rows; row++) ...[
+              if (row > 0) const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = row * perRow; i < math.min(count, (row + 1) * perRow); i++)
+                    SizedBox(width: width, child: builder(i)),
+                ],
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -515,21 +566,16 @@ class NumberOrchardArena extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final winner = _winnerOf(racers, finished);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < racers.length; i++)
-          Expanded(
-            child: _OrchardTree(
-              racer: racers[i],
-              lane: i + 1,
-              total: total,
-              tint: _tintOf(racers, i),
-              crowned: winner == i,
-              compact: racers.length > 2,
-            ),
-          ),
-      ],
+    return _ColumnsGrid(
+      count: racers.length,
+      builder: (i) => _OrchardTree(
+        racer: racers[i],
+        lane: i + 1,
+        total: total,
+        tint: _tintOf(racers, i),
+        crowned: winner == i,
+        compact: racers.length > 2,
+      ),
     );
   }
 }
@@ -1044,20 +1090,15 @@ class ChallengeTowersArena extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final winner = _winnerOf(racers, finished);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < racers.length; i++)
-          Expanded(
-            child: _Tower(
-              racer: racers[i],
-              lane: i + 1,
-              total: total,
-              tint: _tintOf(racers, i),
-              crowned: winner == i,
-            ),
-          ),
-      ],
+    return _ColumnsGrid(
+      count: racers.length,
+      builder: (i) => _Tower(
+        racer: racers[i],
+        lane: i + 1,
+        total: total,
+        tint: _tintOf(racers, i),
+        crowned: winner == i,
+      ),
     );
   }
 }

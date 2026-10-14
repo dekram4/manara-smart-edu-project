@@ -96,6 +96,33 @@ void main() {
     });
 
     for (final size in const [Size(360, 740), Size(800, 380)]) {
+      testWidgets('${game.name}: غرفةٌ كاملة — ستّةُ لاعبين بستّة مسارات (${size.width > size.height ? 'أفقي' : 'رأسي'})',
+          (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final players = [
+          const ArenaRacer(name: 'أنا', at: 2, me: true),
+          for (var i = 1; i <= 5; i++) ArenaRacer(name: 'زميل $i', at: i % 5),
+        ];
+        await tester.pumpWidget(arena(game, mine: 0, theirs: 0, players: players, size: size));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'لا فيضانَ ولا تداخل');
+        for (var lane = 1; lane <= 6; lane++) {
+          expect(find.text('$lane'), findsOneWidget, reason: 'المسار $lane');
+        }
+        // وكلُّ مسارٍ في موضعٍ لا يركب غيرَه: أرقامُ المسارات لا تتطابق مواضعُها.
+        final centers = [for (var lane = 1; lane <= 6; lane++) tester.getCenter(find.text('$lane'))];
+        for (var a = 0; a < centers.length; a++) {
+          for (var b = a + 1; b < centers.length; b++) {
+            expect((centers[a] - centers[b]).distance, greaterThan(20));
+          }
+        }
+        // ونقاطُ كل لاعب: 2/5 لي، و1..4 و0 لزملائي.
+        expect(find.text('2/5'), findsNWidgets(2));
+      });
+
+
       testWidgets('${game.name}: بلا فيضانٍ في ${size.width > size.height ? 'الأفقي' : 'الرأسي'}',
           (tester) async {
         tester.view.physicalSize = size;
