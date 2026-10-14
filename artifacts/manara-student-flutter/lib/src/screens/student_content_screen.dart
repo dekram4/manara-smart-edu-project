@@ -1,5 +1,6 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../widgets/lively.dart';
 import '../theme/motion.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -731,7 +732,9 @@ class _GamesModule extends StatelessWidget {
                 final game = games[index];
                 final unlocked = isUnlocked(index, gamification.level);
                 final neededLevel = requiredLevelFor(index);
-                return ArcadeGameCard(
+                // تموّجُ اللمسة فوق ضغطة البطاقة الخاصة بها.
+                return LivelyTouch(
+                  child: ArcadeGameCard(
                   game: game,
                   index: index,
                   locked: !unlocked,
@@ -768,6 +771,7 @@ class _GamesModule extends StatelessWidget {
                       ),
                     );
                   },
+                ),
                 )
                     .animate()
                     .fadeIn(duration: 260.ms, delay: (60 * index).ms)

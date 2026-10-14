@@ -1,5 +1,6 @@
 ﻿import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../widgets/lively.dart';
 import '../theme/motion.dart';
 
 import '../models/academic_context.dart';
@@ -667,7 +668,11 @@ class _QuestionList extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        Student3DCard(
+        // كلُّ سؤالٍ يقفز إلى مكانه حين يُفتح.
+        LivelyStagger(
+          key: ValueKey('question-$questionIndex'),
+          index: 0,
+          child: Student3DCard(
           child: Card(
             margin: EdgeInsets.zero,
             child: Padding(
@@ -689,12 +694,22 @@ class _QuestionList extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (final option in options)
-                          RadioListTile<String>(
-                            value: option,
-                            enabled: !submitting && option.isNotEmpty,
-                            title: Text(option),
-                            contentPadding: EdgeInsets.zero,
+                        // الخيارُ المختار يتوهّج لحظةَ اختياره، والخياراتُ
+                        // تظهر تباعاً.
+                        for (var i = 0; i < options.length; i++)
+                          LivelyStagger(
+                            key: ValueKey('option-$questionIndex-$i'),
+                            index: i + 1,
+                            child: LivelyGlow(
+                              active: options[i] == selected,
+                              color: const Color(0xFFF59E0B),
+                              child: RadioListTile<String>(
+                                value: options[i],
+                                enabled: !submitting && options[i].isNotEmpty,
+                                title: Text(options[i]),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -703,6 +718,7 @@ class _QuestionList extends StatelessWidget {
               ),
             ),
           ),
+        ),
         ),
         const SizedBox(height: 18),
         Row(

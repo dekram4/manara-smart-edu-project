@@ -11,6 +11,7 @@ import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../l10n/student_strings.dart';
 import '../widgets/student_display_toggles.dart';
+import '../widgets/lively.dart';
 import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
@@ -157,6 +158,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
+          // ‏خلفيةٌ حيّة على طريقة «لمسة»: حروفٌ وأرقامٌ وفقاعاتٌ تطفو خلف
+          // ‏السبورة. طبقةٌ مرسومة لا تستقبل لمسة ولا تمسّ تخطيط المشهد.
+          const Positioned.fill(child: LoginAmbience()),
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -357,22 +361,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          DecoratedBox(
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: Colors.white, blurRadius: 18, spreadRadius: 2),
-                                BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
-                              ],
-                            ),
-                            child: ColorFiltered(
-                              colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
-                              child: Image.asset(
-                                'assets/images/manara-logo-mark-transparent.png',
-                                width: logoSize,
-                                height: logoSize,
-                                fit: BoxFit.contain,
-                                errorBuilder: _emptyImageFallback,
+                          // ‏الشعارُ يتمايل بهدوء — تحويلٌ لا يغيّر موضعَه في الحساب.
+                          LivelyBob(
+                            amplitude: 3,
+                            child: DecoratedBox(
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(color: Colors.white, blurRadius: 18, spreadRadius: 2),
+                                  BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
+                                ],
+                              ),
+                              child: ColorFiltered(
+                                colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
+                                child: Image.asset(
+                                  'assets/images/manara-logo-mark-transparent.png',
+                                  width: logoSize,
+                                  height: logoSize,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: _emptyImageFallback,
+                                ),
                               ),
                             ),
                           ),
@@ -714,7 +722,11 @@ class _BoardLoginForm extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 8),
-            StudentPressScale(
+            // ‏هالةٌ تنبض حول زرّ الدخول تدعو إليه — ظلٌّ لا يغيّر مقاسه.
+            LivelyPulseGlow(
+              radius: 28,
+              color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
+              child: StudentPressScale(
               child: StudentEmbossedShell(
                 color: loginSucceeded ? const Color(0xFF3B9C70) : const Color(0xFFFF9F1C),
                 depth: 4,
@@ -761,6 +773,7 @@ class _BoardLoginForm extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
             ),
           ],
         ),
@@ -880,7 +893,9 @@ class _LandscapeBrand extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DecoratedBox(
+              LivelyBob(
+                amplitude: 2,
+                child: DecoratedBox(
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   boxShadow: [
@@ -900,6 +915,7 @@ class _LandscapeBrand extends StatelessWidget {
                     fit: BoxFit.contain,
                     errorBuilder: _emptyImageFallback,
                   ),
+                ),
                 ),
               ),
               const SizedBox(width: 10),

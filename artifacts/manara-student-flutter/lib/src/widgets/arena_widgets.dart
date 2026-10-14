@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'lively.dart';
 
 import '../theme/student_theme.dart';
 import 'portal_watermark.dart';
@@ -206,7 +207,12 @@ class AnswerTile extends StatelessWidget {
         ),
       _ => null,
     };
-    return AnimatedScale(
+    // الصحيحُ يتوهّج بنبضةٍ خضراء، والخطأُ يهتزّ «لا» — كلاهما لحظةً ثم يهدأ.
+    return LivelyShake(
+      active: state == AnswerTileState.wrong,
+      child: LivelyGlow(
+        active: state == AnswerTileState.correct,
+        child: AnimatedScale(
       scale: state == AnswerTileState.correct ? 1.04 : 1,
       duration: const Duration(milliseconds: 180),
       child: Arena3DButton(
@@ -233,6 +239,8 @@ class AnswerTile extends StatelessWidget {
             ),
             if (trailing != null) ...[const SizedBox(width: 8), trailing],
           ],
+        ),
+      ),
         ),
       ),
     );
