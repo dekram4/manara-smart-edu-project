@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'living_art.dart';
+
 /// Every portal's own artwork, faded behind that portal's screen.
 ///
 /// Each destination binds one of these once, at the bottom of its body
@@ -68,14 +70,14 @@ class PortalWatermark extends StatelessWidget {
               ),
             ),
           ),
+          // ‏عناصرُ الرسم حيّة: تتنفّس وتتمايل وتطير، ونجيماتٌ تلمع — وفي
+          // ‏«تقليل الحركة» الصورةُ نفسها ساكنة. ودقّةٌ أقلّ: العلامةُ باهتة.
           Opacity(
             opacity: opacity,
-            child: Image.asset(
-              asset,
+            child: LivingArt(
+              asset: asset,
               fit: BoxFit.cover,
-              alignment: Alignment.center,
-              filterQuality: FilterQuality.medium,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              resolution: 0.6,
             ),
           ),
         ],

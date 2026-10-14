@@ -529,3 +529,115 @@ class _AmbiencePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AmbiencePainter old) => old.t != t;
 }
+
+/// طفوُ السبورة: محرّكٌ واحد يقرأ منه كلُّ ما يطفو معاً — المشهدُ والحقولُ
+/// والبطلان — فيتحرّكون كتلةً واحدة لا قطعاً متفرّقة.
+///
+/// إزاحةٌ وحدها، بلا دورانٍ ولا تحجيم: المقاساتُ التي تحسبها شاشةُ الدخول
+/// (عرضُ السبورة، وموضعُ الحقل فوق الكيبورد) تبقى كما هي. والطفوُ نزولٌ
+/// من موضع الراحة ثم عودةٌ إليه، فلا يرتفع شيءٌ فوق ما حُسب له. ويقف حين
+/// [enabled] كاذب (الكيبورد مفتوح) ومع «تقليل الحركة».
+class LivelyFloatScope extends StatefulWidget {
+  const LivelyFloatScope({
+    required this.child,
+    this.enabled = true,
+    this.amplitude = const Offset(3, 6),
+    this.period = const Duration(milliseconds: 4600),
+    super.key,
+  });
+
+  final Widget child;
+  final bool enabled;
+
+  /// أقصى انجرافٍ أفقيّ (تأرجحٌ يمنةً ويسرة) وأقصى نزول.
+  final Offset amplitude;
+  final Duration period;
+
+  @override
+  State<LivelyFloatScope> createState() => _LivelyFloatScopeState();
+}
+
+class _LivelyFloatScopeState extends State<LivelyFloatScope> with SingleTickerProviderStateMixin {
+  late final AnimationController _loop;
+
+  @override
+  void initState() {
+    super.initState();
+    _loop = AnimationController(vsync: this, duration: widget.period);
+  }
+
+  bool get _on => widget.enabled && !_reduce(context);
+
+  void _sync() {
+    if (_on) {
+      if (!_loop.isAnimating) _loop.repeat();
+    } else {
+      _loop
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(LivelyFloatScope old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _FloatInherited(loop: _loop, amplitude: widget.amplitude, child: widget.child);
+}
+
+class _FloatInherited extends InheritedWidget {
+  const _FloatInherited({required this.loop, required this.amplitude, required super.child});
+
+  final Animation<double> loop;
+  final Offset amplitude;
+
+  @override
+  bool updateShouldNotify(_FloatInherited old) => old.loop != loop || old.amplitude != amplitude;
+}
+
+/// ما يطفو مع [LivelyFloatScope] الأقرب. بلا نطاقٍ فوقه: ساكنٌ كما هو.
+class LivelyFloating extends StatelessWidget {
+  const LivelyFloating({required this.child, super.key});
+
+  final Widget child;
+
+  /// الإزاحةُ عند [t] من الدورة: نزولٌ ناعم من الصفر وعودة، وتأرجحٌ أفقيّ
+  /// بدورةٍ كاملة — مسارٌ كالرقم ثمانية، يبدأ وينتهي عند الراحة.
+  static Offset offsetAt(double t, Offset amplitude) {
+    final phase = t * 2 * math.pi;
+    return Offset(
+      math.sin(phase) * amplitude.dx,
+      (1 - math.cos(phase)) / 2 * amplitude.dy,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_FloatInherited>();
+    if (scope == null) return child;
+    return AnimatedBuilder(
+      animation: scope.loop,
+      child: child,
+      builder: (context, child) => Transform.translate(
+        offset: offsetAt(scope.loop.value, scope.amplitude),
+        child: child,
+      ),
+    );
+  }
+}

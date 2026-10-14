@@ -83,7 +83,7 @@ class _LivingLoginSceneState extends State<LivingLoginScene> with TickerProvider
   /// النَّفَسُ المستمرّ: دورةٌ واحدة يقرأ منها الكلّ بأطوارٍ مختلفة.
   late final AnimationController _loop = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 5600),
+    duration: const Duration(milliseconds: 4200),
   );
 
   /// الظهور: المجموعتان تقفزان إلى حجمهما تباعاً.
@@ -241,12 +241,15 @@ class _ScenePainter extends CustomPainter {
     final phase = loop.value * 2 * math.pi;
 
     // ── الكرةُ وكتبُها ──
+    // نبضٌ مزدوج كدقّة القلب، وميلٌ واضح، وقفزةُ انضغاطٍ وتمدّد — حركةٌ
+    // حادّةٌ حيّة لا مجرّد تنفّس.
     final gPoke = pokeGlobe.value;
-    final gWobble = math.sin(gPoke * math.pi * 4) * 0.06 * (1 - gPoke);
-    final gTilt = math.sin(phase) * 0.022 + gWobble;
-    final gScale = _pop(intro.value, 0) * (1 + math.sin(gPoke * math.pi) * 0.06);
+    final gWobble = math.sin(gPoke * math.pi * 4) * 0.11 * (1 - gPoke);
+    final gTilt = math.sin(phase) * 0.055 + math.sin(phase * 3) * 0.012 + gWobble;
+    final gScale = _pop(intro.value, 0) *
+        (1 + _beat(loop.value, 0.08) * 0.055 + math.sin(gPoke * math.pi) * 0.10);
     canvas.save();
-    _pivot(canvas, at(SceneLayout.globePivot), gTilt, gScale, squash: math.sin(phase * 2) * 0.008);
+    _pivot(canvas, at(SceneLayout.globePivot), gTilt, gScale, squash: math.sin(phase * 2) * 0.022);
     canvas.drawImageRect(images.globe, whole(images.globe), scaled(SceneLayout.globeRect), _imagePaint);
     _shine(canvas, at(SceneLayout.sphereCenter), SceneLayout.sphereRadius * size.width, loop.value, gPoke);
     canvas.restore();
@@ -254,12 +257,26 @@ class _ScenePainter extends CustomPainter {
     // ── الكتبُ وكوبُ الأقلام والحقيبة ──
     final bPoke = pokeBooks.value;
     final breath = math.sin(phase + 1.3);
-    final bTilt = breath * 0.012 + math.sin(bPoke * math.pi * 3) * 0.04 * (1 - bPoke);
-    final bScale = _pop(intro.value, 0.25) * (1 + math.sin(bPoke * math.pi) * 0.05);
+    final bTilt = breath * 0.034 + math.sin(phase * 2 + 0.4) * 0.008 +
+        math.sin(bPoke * math.pi * 3) * 0.075 * (1 - bPoke);
+    final bScale = _pop(intro.value, 0.25) *
+        (1 + _beat(loop.value, 0.58) * 0.045 + math.sin(bPoke * math.pi) * 0.09);
     canvas.save();
-    _pivot(canvas, at(SceneLayout.booksPivot), bTilt, bScale, squash: breath * 0.012);
+    _pivot(canvas, at(SceneLayout.booksPivot), bTilt, bScale, squash: math.sin(phase * 2 + 1.3) * 0.03);
     canvas.drawImageRect(images.books, whole(images.books), scaled(SceneLayout.booksRect), _imagePaint);
     canvas.restore();
+  }
+
+  /// دقّتان متتاليتان («دُق-دُق») تبدآن عند [at] من الدورة، ثم سكون —
+  /// قمّةٌ ١، وصفرٌ خارجهما.
+  static double _beat(double t, double at) {
+    double bump(double c) {
+      var d = (t - c).abs();
+      d = math.min(d, 1 - d); // الدورةُ تلتفّ على نفسها بلا قفزة
+      return math.exp(-math.pow(d / 0.032, 2).toDouble());
+    }
+
+    return math.min(1.0, bump(at) + 0.7 * bump((at + 0.13) % 1.0));
   }
 
   /// الظهور: من ٠٫٨٥ إلى ١ بارتدادٍ مطّاطيّ، بعد [delay] من مدّته.
@@ -278,7 +295,7 @@ class _ScenePainter extends CustomPainter {
 
   /// بريقٌ يعبر الكرة من جانبٍ إلى جانب، فتبدو تدور. ومع اللمس يعبر مرّتين.
   void _shine(Canvas canvas, Offset center, double radius, double t, double poke) {
-    final sweep = poke > 0 ? (poke * 2) % 1.0 : (t * 1.6) % 1.0;
+    final sweep = poke > 0 ? (poke * 2) % 1.0 : (t * 2) % 1.0;
     if (poke == 0 && sweep > 0.55) return; // استراحةٌ بين مرّتين
     final p = poke > 0 ? sweep : sweep / 0.55;
     final x = center.dx - radius * 1.4 + radius * 2.8 * p;

@@ -308,6 +308,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: areaSize.height,
                     child: Transform.translate(
                   offset: Offset(0, -lift),
+                  // ‏السبورةُ تطفو وتتأرجح بخفّة — المشهدُ والحقولُ والبطلان
+                  // ‏كتلةً واحدة — وتسكن ما دام الطالب يكتب.
+                  child: LivelyFloatScope(
+                  enabled: !typing,
                   child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -315,7 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // ‏والكرةُ تدور على محورها. وفي السكون الصورةُ الأصلية نفسها.
                     Positioned.fromRect(
                       rect: imageRect,
-                      child: const LivingLoginScene(),
+                      child: const LivelyFloating(child: LivingLoginScene()),
                     ),
                     // The mark, recoloured to a single deep teal so it
                     // reads crisply on the light backdrop instead of the
@@ -413,6 +417,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // formWidth above.
                     Positioned.fromRect(
                       rect: boardRect,
+                      child: LivelyFloating(
                       child: Padding(
                         // A margin proportional to the green area, so the
                         // block keeps the same visual inset at any size.
@@ -487,6 +492,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
+                      ),
                     ),
                     // The heroes sit right at the foot of the easel. They
                     // are anchored to where the *artwork* actually ends
@@ -504,7 +510,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       top: imageRect.top +
                           _artworkBottomFraction * imageRect.height -
                           mascotSize,
-                      child: StudentInteractiveMascot(size: mascotSize),
+                      child: LivelyFloating(child: StudentInteractiveMascot(size: mascotSize)),
                     ),
                     Positioned(
                       top: 4,
@@ -518,6 +524,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
+                  ),
                   ),
                     ),
                   ),

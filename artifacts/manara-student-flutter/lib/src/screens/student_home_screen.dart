@@ -21,6 +21,7 @@ import '../services/student_duel_service.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/lesson_scope_sheet.dart';
+import '../widgets/living_art.dart';
 import '../widgets/living_tile_art.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_display_toggles.dart';
@@ -1879,10 +1880,12 @@ class _LighthouseBackdrop extends StatelessWidget {
           ),
           Opacity(
             opacity: night ? 0.22 : 0.55,
-            child: const Image(
-              image: AssetImage('assets/images/lighthouse_main_bg.png'),
+            // ‏المنارةُ حيّة: مصباحُها ينبض وشعاعُه يدور، والطائرُ والسمكة
+            // ‏يطيران، والكرةُ والألعاب تتمايل وتقفز، ونجيماتٌ تلمع.
+            child: const LivingArt(
+              asset: 'assets/images/lighthouse_main_bg.png',
               fit: BoxFit.contain,
-              alignment: Alignment.center,
+              resolution: 0.8,
             ),
           ),
         ],
