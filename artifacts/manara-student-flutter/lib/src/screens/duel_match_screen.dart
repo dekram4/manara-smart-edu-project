@@ -105,6 +105,31 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   /// تحدٍّ جماعي: أكثرُ من منافسٍ واحد.
   bool get _party => _game.rivals.length > 1;
 
+  /// لاعبو الحلبة في التحدي الجماعي: أنا في المسار الأول، ثم المتقدّمون من
+  /// زملائي إلى أربعة مسارات — بترتيب دعوتهم، فلا يقفز أحدٌ بين المسارات.
+  List<ArenaRacer>? get _racers {
+    if (!_party) return null;
+    final per = _game.pointsPerQuestion;
+    final rivals = [..._allRivals]
+      ..sort((a, b) => _game.pointsOf(b.id).compareTo(_game.pointsOf(a.id)));
+    final shown = rivals.take(3).toList()
+      ..sort((a, b) => _allRivals.indexOf(a).compareTo(_allRivals.indexOf(b)));
+    return [
+      ArenaRacer(
+        name: tr('duel.you'),
+        at: _game.myPoints ~/ per,
+        appearance: widget.profile.appearance,
+        me: true,
+      ),
+      for (final rival in shown)
+        ArenaRacer(
+          name: _nameOf(rival.id),
+          at: _game.pointsOf(rival.id) ~/ per,
+          appearance: rival.appearance,
+        ),
+    ];
+  }
+
   /// المنافسُ المتقدّم: هو من تُرسم أمامه الحلبةُ وشريطُ المواجهة.
   String get _leaderName => _nameOf(_game.leaderId);
   Map<String, dynamic>? get _leaderLook => _lookOf(_game.leaderId);
@@ -117,6 +142,14 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
 
   DuelPhase? _lastPhase;
   int _lastCountdown = -1;
+
+  /// «انطلق!» لحظةَ يُفتح السؤالُ الأول بعد العدّ — مع طلقة البدء.
+  bool _go = false;
+  Timer? _goTimer;
+
+  /// «⚡ سريع!» وزمنُ إجابتي، لحظةَ أسبق إليها.
+  String? _fastLabel;
+  Timer? _fastTimer;
   QuestionWinner _lastWinner = QuestionWinner.none;
   bool? _lastCorrect;
 
@@ -168,11 +201,31 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     if (phase == DuelPhase.question && _lastPhase != DuelPhase.question) {
       _lastWinner = QuestionWinner.none;
       _lastCorrect = null;
-      sound.play(StudentSoundCue.answerSelected);
+      if (_lastPhase == DuelPhase.countdown) {
+        // ── انطلق! ──
+        // نهايةُ العدّ التنازليّ: طلقةُ البدء وكلمةٌ كبيرة تملأ الشاشة لحظة.
+        sound.playStartGun();
+        _go = true;
+        _goTimer?.cancel();
+        _goTimer = Timer(const Duration(milliseconds: 950), () {
+          if (mounted) setState(() => _go = false);
+        });
+      } else {
+        sound.play(StudentSoundCue.answerSelected);
+      }
     }
     if (_game.winner != _lastWinner) {
       _lastWinner = _game.winner;
       if (_game.winner == QuestionWinner.me) {
+        // ── السرعةُ تُرى ──
+        // من يجيب صحيحاً أوّلاً هو من يتقدّم، فزمنُ إجابته يُكتب له لحظة.
+        final took = _game.questionWindow - _game.timeLeft;
+        final seconds = (took.inMilliseconds / 1000).clamp(0.1, 99.0);
+        _fastLabel = trf('arena.fast', {'seconds': seconds.toStringAsFixed(1)});
+        _fastTimer?.cancel();
+        _fastTimer = Timer(const Duration(milliseconds: 1600), () {
+          if (mounted) setState(() => _fastLabel = null);
+        });
         HapticFeedback.mediumImpact();
         sound.play(StudentSoundCue.success);
         _confetti.play();
@@ -212,6 +265,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
 
   @override
   void dispose() {
+    _goTimer?.cancel();
+    _fastTimer?.cancel();
     _game.removeListener(_onGame);
     _game.leave();
     _game.dispose();
@@ -308,6 +363,12 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                       ),
                     ),
                   Positioned.fill(child: reactionLayer()),
+                  if (_go)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Center(child: _GoFlash(text: tr('arena.go'))),
+                      ),
+                    ),
                   Align(
                     alignment: Alignment.topCenter,
                     child: IgnorePointer(
@@ -423,8 +484,23 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           myAppearance: widget.profile.appearance,
           theirAppearance: _leaderLook,
           opponentName: _leaderName,
+          players: _racers,
         ),
-        const SizedBox(height: 12),
+        // ⚡ سريع! — زمنُ إجابتي حين أسبق.
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          transitionBuilder: (child, animation) => ScaleTransition(
+            scale: CurvedAnimation(parent: animation, curve: MotionCurves.backOut),
+            child: FadeTransition(opacity: animation, child: child),
+          ),
+          child: _fastLabel == null
+              ? const SizedBox(height: 12)
+              : Padding(
+                  key: ValueKey(_fastLabel),
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Center(child: _FastChip(text: _fastLabel!)),
+                ),
+        ),
         Row(
           children: [
             Expanded(
@@ -452,7 +528,20 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           ],
         ),
         const SizedBox(height: 10),
-        _QuestionCard(question: question),
+        // بطاقةُ السؤال تقفز إلى مكانها مع كل سؤالٍ جديد (مواصفة الحركة §5.3).
+        TweenAnimationBuilder<double>(
+          key: ValueKey(_game.index),
+          tween: Tween(begin: 0, end: 1),
+          duration: MotionDurations.promoIn,
+          builder: (context, v, child) => Opacity(
+            opacity: math.min(1.0, v * 1.4),
+            child: Transform.scale(
+              scale: 0.9 + 0.1 * MotionCurves.backOut.transform(v),
+              child: child,
+            ),
+          ),
+          child: _QuestionCard(question: question),
+        ),
         const SizedBox(height: 10),
         _Feedback(
           game: _game,
@@ -563,6 +652,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               myAppearance: widget.profile.appearance,
               theirAppearance: _leaderLook,
               opponentName: _leaderName,
+              players: _racers,
             ),
             const SizedBox(height: 16),
             if (won && (result?.gems ?? 0) > 0)
@@ -713,22 +803,55 @@ class _CountdownNumber extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
+        // لكلّ رقمٍ لونُه — ٣ أحمر، ٢ برتقالي، ١ أخضر — وحلقةٌ تتّسع منه
+        // كنبضة، فيُحسّ العدُّ تنازلاً نحو الانطلاق لا رقماً يتبدّل.
         TweenAnimationBuilder<double>(
           key: ValueKey(value),
-          tween: Tween(begin: 1.8, end: 1),
-          duration: const Duration(milliseconds: 420),
-          curve: Curves.easeOutBack,
-          builder: (context, scale, child) =>
-              Transform.scale(scale: scale, child: child),
-          child: Text(
-            '$value',
-            style: const TextStyle(
-              color: Color(0xFFF59E0B),
-              fontSize: 84,
-              fontWeight: FontWeight.w900,
-              shadows: [Shadow(color: Color(0xAAF97316), blurRadius: 24)],
-            ),
-          ),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 620),
+          builder: (context, t, _) {
+            final color = switch (value) {
+              >= 3 => const Color(0xFFEF4444),
+              2 => const Color(0xFFF59E0B),
+              _ => const Color(0xFF16A34A),
+            };
+            final scale =
+                1 + 0.8 * (1 - Curves.easeOutBack.transform(math.min(1.0, t / 0.68)));
+            return SizedBox(
+              width: 150,
+              height: 150,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Opacity(
+                    opacity: (1 - t).clamp(0.0, 1.0),
+                    child: Container(
+                      width: 70 + 80 * t,
+                      height: 70 + 80 * t,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: color, width: 5),
+                      ),
+                    ),
+                  ),
+                  Transform.scale(
+                    scale: scale,
+                    child: Text(
+                      '$value',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 84,
+                        fontWeight: FontWeight.w900,
+                        shadows: [
+                          Shadow(color: color.withValues(alpha: 0.6), blurRadius: 24),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
@@ -1263,6 +1386,75 @@ class _Scoreboard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// «انطلق!» تملأ الشاشة لحظةَ البدء ثم تتلاشى.
+class _GoFlash extends StatelessWidget {
+  const _GoFlash({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 900),
+      builder: (context, t, child) => Opacity(
+        opacity: t < 0.7 ? 1 : (1 - (t - 0.7) / 0.3).clamp(0.0, 1.0),
+        child: Transform.scale(
+          scale: 0.6 + 0.6 * Curves.easeOutBack.transform(math.min(1.0, t / 0.5)),
+          child: child,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF16A34A),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: const [
+            BoxShadow(color: Color(0x6616A34A), blurRadius: 30, spreadRadius: 4),
+          ],
+        ),
+        child: Text(
+          '$text 🏁',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 40,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// شارةُ السرعة: ⚡ وزمنُ الإجابة.
+class _FastChip extends StatelessWidget {
+  const _FastChip({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFACC15), Color(0xFFF97316)],
+        ),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [BoxShadow(color: Color(0x55F97316), blurRadius: 12)],
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFF431407),
+          fontSize: 15,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }

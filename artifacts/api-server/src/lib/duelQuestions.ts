@@ -25,7 +25,15 @@
  */
 
 /** بابُ السؤال. يُعرض للطفل فيعرف ما يُسأل عنه قبل أن يقرأ. */
-export type DuelCategory = "general" | "logic" | "quick" | "school" | "lesson" | "domain";
+export type DuelCategory =
+  | "general"
+  | "logic"
+  | "quick"
+  | "school"
+  | "lesson"
+  | "domain"
+  // الأعدادُ والحساب: تُولَّد في `mathBank.ts` لكل مباراةٍ ببذرتها فلا تتكرّر.
+  | "numbers";
 
 export interface DuelQuestion {
   /** معرّفٌ ثابتٌ للسؤال، يُستعمل لمنع تكراره في الحزمة. */
@@ -126,6 +134,8 @@ const SEEDS: Seed[] = [
   { category: "school", prompt: "ماذا نفعل عند سماع جرس نهاية الحصة؟", choices: ["ننظّم أدواتنا", "نجري", "نصرخ", "ننام"] },
 ];
 
+import { generateMathSet } from "./mathBank";
+
 /** نواةُ عشوائيةٍ ثابتة: البذرةُ نفسها تُخرج الترتيبَ نفسه دائماً. */
 function seededRandom(seed: number): () => number {
   let state = seed % 2147483647;
@@ -217,7 +227,16 @@ export function buildDuelPack(
     bucket.push(seed);
     byCategory.set(seed.category, bucket);
   }
-  const order = shuffled([...byCategory.keys()], next);
+  // ── وبابُ الأعداد مولَّدٌ لا مكتوب ──
+  // نصيبُه في الدورة مرّتان من ستّ — نحو الثلث — والبنكُ المكتوب يأخذ الباقي.
+  // وهو ما يجعل الحزمةَ تختلف من مباراةٍ لأخرى وإن بقي البنكُ المكتوب كما هو.
+  const generated: Seed[] = generateMathSet(count, next).map((question) => ({
+    category: "numbers",
+    prompt: question.prompt,
+    choices: question.choices,
+  }));
+  byCategory.set("numbers", generated);
+  const order = shuffled([...byCategory.keys(), "numbers" as DuelCategory], next);
   const pools = new Map(
     [...byCategory.entries()].map(([key, list]) => [key, shuffled(list, next)]),
   );
@@ -311,5 +330,5 @@ function parseQuestion(raw: unknown): DuelQuestion | null {
 }
 
 function isCategory(value: string): value is DuelCategory {
-  return ["general", "logic", "quick", "school", "lesson", "domain"].includes(value);
+  return ["general", "logic", "quick", "school", "lesson", "domain", "numbers"].includes(value);
 }

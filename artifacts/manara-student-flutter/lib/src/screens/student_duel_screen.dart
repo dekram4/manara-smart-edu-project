@@ -63,10 +63,10 @@ enum _IncomingOutcome { accepted, declined, withdrawn }
 
 /// شكلُ كل لعبة في بطاقتها: رمزٌ ولون.
 const _gameLooks = <DuelGame, (String, Color)>{
-  DuelGame.sprint: ('🏁', Color(0xFF7C3AED)),
-  DuelGame.balloons: ('🎈', Color(0xFFDB2777)),
-  DuelGame.tug: ('🪢', Color(0xFFEA580C)),
-  DuelGame.gems: ('💎', Color(0xFF0891B2)),
+  DuelGame.sprint: ('🏃', Color(0xFF7C3AED)),
+  DuelGame.balloons: ('🍎', Color(0xFFDB2777)),
+  DuelGame.tug: ('🚀', Color(0xFFEA580C)),
+  DuelGame.gems: ('🧱', Color(0xFF0891B2)),
 };
 
 class _StudentDuelScreenState extends State<StudentDuelScreen> {

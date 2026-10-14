@@ -56,3 +56,18 @@ test("وما ليس نصاً يعود فارغاً لا يُسقط الخدمة"
   assert.equal(stripDiacritics(undefined), "");
   assert.equal(stripDiacritics(42), "");
 });
+
+// ── التشكيل الخفيف للنطق ──
+
+test("الخفيف: تسقط حركةُ آخر الكلمة وتبقى حركاتُ وسطها والشدّة", () => {
+  assert.equal(mod.lightDiacritics("الخَلِيَّةُ"), "الخَلِيَّة");
+  assert.equal(mod.lightDiacritics("عَلَّمَ المُعَلِّمُ"), "عَلَّم المُعَلِّم");
+  assert.equal(mod.lightDiacritics("حَلٌّ"), "حَلّ");
+});
+
+test("الخفيف: التنوينُ والتطويلُ يسقطان، والنصُّ بلا تشكيلٍ كما هو", () => {
+  assert.equal(mod.lightDiacritics("جَيِّدًا"), "جَيِّدا");
+  assert.equal(mod.lightDiacritics("مرحبـــا"), "مرحبا");
+  assert.equal(mod.lightDiacritics("شوف يا بطل، الجواب ٥"), "شوف يا بطل، الجواب ٥");
+  assert.equal(mod.lightDiacritics(null), "");
+});

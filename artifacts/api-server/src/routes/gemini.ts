@@ -21,7 +21,7 @@ import {
   snapshotOf,
   spend,
 } from "../lib/aiQuota";
-import { stripDiacritics } from "../lib/arabicText";
+import { lightDiacritics } from "../lib/arabicText";
 import { sameQuantities } from "../lib/questionMath";
 import {
   type StudyPack,
@@ -986,7 +986,7 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       // ويُنقّى المحفوظ عند قراءته: ما كُتب في الذاكرة قبل هذه
       // التنقية مشكولٌ كما ردّه النموذج.
       return res.json({
-        answer: stripDiacritics(cached),
+        answer: lightDiacritics(cached),
         cached: true,
         quota: seen.quota.snapshot,
       });
@@ -1049,8 +1049,11 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
       "اكتب بلهجة سعودية بيضاء عامية دافئة وبسيطة مئة بالمئة، ككلام شخصي يومي من معلّم لطالبه — لا كلام كتب. " +
       "استخدم دائمًا كلمات مثل: «عشان»، «كذا»، «شوف يا بطل»، «ما فيه»، «تخيّل». " +
       "وممنوع منعًا باتًا أي لغة فصحى أو كلمات معربة رسمية أو مصطلحات متكلّفة. " +
-      "ولا تكتب أي حركات تشكيل أو تنوين على الحروف إطلاقًا. " +
-      "واجعل جملك قصيرة يفصل بينها فاصلة أو نقطة، فالإجابة تُقرأ بصوت مسموع ويحتاج الطالب أن يلتقط أنفاسه معك.";
+      // التشكيلُ الخفيف لا المنعُ ولا الكامل — انظر `lightDiacritics`.
+      "ضع الشدّة دائمًا، وضع الحركة داخل الكلمة فقط حين تمنع الالتباس في نطقها (مثل: عَلّم، فَهِمت، يُفرِّق)، " +
+      "ولا تضع أي حركة أو سكون على آخر حرف في الكلمة، ولا تنوين أبدًا. " +
+      "واجعل جملك قصيرة يفصل بينها فاصلة أو نقطة، فالإجابة تُقرأ بصوت مسموع ويحتاج الطالب أن يلتقط أنفاسه معك. " +
+      "وجملةٌ واحدة لكل فكرة، لا تتجاوز عشر كلمات تقريبًا، بلا أقواس ولا رموز زخرفية.";
     const prompt = image
       ? `أنت مساعد تعليمي ذكي لطفلٍ في المرحلة الابتدائية. في الصورة المرفقة مسألةٌ من كتابه أو دفتره.
 
@@ -1073,7 +1076,7 @@ ${lesson.text}`
     //
     // الطلبُ يمنعه، والنموذج يمتثل في الغالب لا دائماً: عبارةٌ منقولةٌ
     // من نصّ الدرس تأتي مشكولةً كما في الكتاب. فالطلبُ نيّة، وهذه حراسة.
-    const answer = stripDiacritics(getGeminiText(data));
+    const answer = lightDiacritics(getGeminiText(data));
     if (!answer) {
       logger.warn({ lessonId }, "[gemini] answer rejected: empty completion");
       return res.status(502).json({

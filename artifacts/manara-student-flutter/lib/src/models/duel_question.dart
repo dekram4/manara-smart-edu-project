@@ -68,6 +68,7 @@ class DuelQuestion {
   static const _known = {
     'domain',
     'general',
+    'numbers',
     'logic',
     'quick',
     'school',

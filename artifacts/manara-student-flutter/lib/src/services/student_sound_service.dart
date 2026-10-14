@@ -1135,6 +1135,15 @@ class StudentSoundService with WidgetsBindingObserver {
   bool _applauseCancelled = false;
 
   /// Applause: `clap2.mp3` then `clap.mp3`, back to back.
+  /// طلقةُ البدء: لحظةَ «انطلق!» في ألعاب «تحدَّ زملاءك».
+  ///
+  /// `start_gun.wav` مولَّدٌ في المشروع (طقطقةٌ حادّة ثم دويٌّ منخفض)، لا
+  /// تسجيلٌ من مصدرٍ خارجي. ويمرّ بالكتم كبقية المؤثّرات.
+  void playStartGun() {
+    HapticFeedback.heavyImpact();
+    unawaited(_playSequence(const [('audio/start_gun.wav', 0.85)]));
+  }
+
   void playApplause() {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;

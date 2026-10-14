@@ -53,6 +53,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/lib/leaderboard.ts"),
       path.resolve(artifactDir, "src/lib/cinema.ts"),
       path.resolve(artifactDir, "src/lib/cardPermissions.ts"),
+      path.resolve(artifactDir, "src/lib/mathBank.ts"),
     ],
     platform: "node",
     bundle: true,
