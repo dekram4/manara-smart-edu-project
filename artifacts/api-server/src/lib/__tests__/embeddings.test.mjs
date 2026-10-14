@@ -52,6 +52,9 @@ test("الطلبُ يحمل النموذج والنصّ ونوعَ المهمّ�
   // متناظرٌ لا استرجاعيّ: الطرفان سؤالان، ولو حُسب المحفوظ «مستنداً»
   // والوارد «سؤالاً» لاختلف الفضاءان وخرجت نسبةٌ أقلَّ من الحقيقة.
   assert.equal(body.taskType, "SEMANTIC_SIMILARITY");
+  // ‏النموذجُ الحيّ لا المتوقَّف (text-embedding-004 يردّ ٤٠٤)، وبمقاس العمود.
+  assert.equal(EMBEDDING_MODEL, "gemini-embedding-001");
+  assert.equal(body.outputDimensionality, EMBEDDING_DIMENSIONS);
 });
 
 test("العتبةُ هي نفسها المكتوبة في دالّة القاعدة", () => {
@@ -68,9 +71,8 @@ test("العتبةُ هي نفسها المكتوبة في دالّة القاع
   const declared = sql.match(/match_threshold\s+double\s+precision\s+default\s+([\d.]+)/);
   assert.ok(declared, "لم يُعثر على العتبة في ai-qa-cache-vectors.sql");
   assert.equal(VECTOR_THRESHOLD, Number(declared[1]));
-  // ومخفوضةٌ عن عتبة المقياس اللفظي: المتّجهُ يقيس معنىً لا كلمات،
-  // وسؤالان متطابقا المعنى مختلفا اللفظ يقعان دون ٠٫٨٨ فيه.
-  assert.equal(VECTOR_THRESHOLD, 0.78);
+  // ‏وفي النموذج الجديد سؤالان مختلفان يبلغان ٠٫٩٤، فالعتبةُ فوقهما.
+  assert.equal(VECTOR_THRESHOLD, 0.95);
 });
 
 test("المتّجهُ الصالح يُقرأ كما هو", () => {
