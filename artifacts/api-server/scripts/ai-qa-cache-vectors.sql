@@ -51,7 +51,7 @@ create or replace function public.match_qa_cache(
   -- الافتراضيُّ هنا احتياطٌ لا سياسة: الخادم يُرسل العتبة مع كل نداء
   -- من `VECTOR_THRESHOLD`، فهي مكتوبةٌ في موضعٍ واحد. وهذا لمن ينادي
   -- الدالّة من محرّر SQL ليجرّبها.
-  match_threshold double precision default 0.78
+  match_threshold double precision default 0.95
 )
 returns table (
   id text,

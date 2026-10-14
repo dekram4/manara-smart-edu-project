@@ -17,8 +17,16 @@
 
 import { logger } from "./logger";
 
-/** النموذج ومقاسُ متّجهه. */
-export const EMBEDDING_MODEL = "text-embedding-004";
+/**
+ * النموذج ومقاسُ متّجهه.
+ *
+ * ── لماذا لا `text-embedding-004` ──
+ * أوقفته Google فصار يردّ ٤٠٤ على كل نداء، فتعطّلت طبقةُ المعنى صامتةً:
+ * سجلّاتُ Railway فيها «[embed] refused 404» عند كل سؤال، والذاكرةُ فيها
+ * عشراتُ الصفوف وليس في واحدٍ منها متّجه. والبديلُ يُطلب منه المقاسُ نفسه
+ * (`outputDimensionality`) فيبقى عمودُ `vector(768)` كما هو بلا ترحيل.
+ */
+export const EMBEDDING_MODEL = "gemini-embedding-001";
 
 /**
  * عددُ أبعاد المتّجه.
@@ -32,6 +40,14 @@ export const EMBEDDING_DIMENSIONS = 768;
 /**
  * أدنى تشابهٍ يُعَدّ سؤالاً واحداً — وهو نفسُه في `match_qa_cache`.
  *
+ * ── لماذا ٠٫٩٥ (بعد تغيير النموذج) ──
+ * قيس على أسئلةٍ حقيقية بالنموذج الجديد: المتطابقةُ معنىً بين ٠٫٩٥ و١،
+ * والمختلفةُ تبلغ ٠٫٩٤ — «كيف أحسب محيط المستطيل» و«... مساحة المستطيل».
+ * فـ٠٫٧٨ في هذا النموذج تُعيد جوابَ المحيط على من سأل عن المساحة.
+ * والخطأُ هنا غيرُ متناظر: الإخفاقُ نداءٌ للنموذج، والإصابةُ الكاذبة
+ * جوابُ سؤالٍ آخر يصل الطفل. فالعتبةُ فوق أعلى المختلف.
+ *
+ * ── وما كُتب قبلها (للنموذج القديم) ──
  * ── لماذا ٠٫٧٨ لا ٠٫٨٨ ──
  * ٠٫٨٨ عتبةُ المقياس اللفظيّ، ونُقلت إلى المتّجهات بلا أن تُقاس فيها.
  * وهما مقياسان لا يُعطيان الرقم نفسه للقرب نفسه: اللفظيُّ يقيس كلماتاً
@@ -46,7 +62,7 @@ export const EMBEDDING_DIMENSIONS = 768;
  * تُشترط مطابقةً قاطعةً بعد الإصابة — انظر `sameQuantities` — فما خُفض
  * هنا يُشدّ هناك.
  */
-export const VECTOR_THRESHOLD = 0.78;
+export const VECTOR_THRESHOLD = 0.95;
 
 /** ما لا يُنتظر أكثر منه لمتّجه. */
 export const EMBEDDING_TIMEOUT_MS = 5_000;
@@ -66,6 +82,8 @@ export function embeddingRequest(text: string): Record<string, unknown> {
     model: `models/${EMBEDDING_MODEL}`,
     content: { parts: [{ text }] },
     taskType: "SEMANTIC_SIMILARITY",
+    // ‏النموذجُ يُخرج ٣٠٧٢ بُعداً افتراضياً؛ والعمودُ ٧٦٨.
+    outputDimensionality: EMBEDDING_DIMENSIONS,
   };
 }
 
