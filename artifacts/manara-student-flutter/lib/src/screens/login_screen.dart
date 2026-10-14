@@ -12,6 +12,7 @@ import '../widgets/student_no_back.dart';
 import '../l10n/student_strings.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/lively.dart';
+import '../widgets/login_scene.dart';
 import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
@@ -310,13 +311,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Stack(
                   clipBehavior: Clip.none,
                   children: [
+                    // ‏المشهدُ حيّ: الكتبُ والكرةُ الأرضية تتمايل وتقفز عند اللمس،
+                    // ‏والكرةُ تدور على محورها. وفي السكون الصورةُ الأصلية نفسها.
                     Positioned.fromRect(
                       rect: imageRect,
-                      child: Image.asset(
-                        'assets/images/board_login_bg.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
+                      child: const LivingLoginScene(),
                     ),
                     // The mark, recoloured to a single deep teal so it
                     // reads crisply on the light backdrop instead of the

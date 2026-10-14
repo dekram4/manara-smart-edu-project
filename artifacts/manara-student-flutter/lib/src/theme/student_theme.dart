@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -121,6 +122,10 @@ abstract final class StudentTheme {
   static ThemeData light() {
     final base = ThemeData(
       useMaterial3: true,
+      // تموّجُ اللمس بلمعاتٍ صغيرة (على طريقة «لمسة») في كل زرٍّ وقائمةٍ
+      // وبطاقةٍ قابلةٍ للضغط في التطبيق — بإعدادٍ واحد لا بكل زرّ. والويبُ
+      // يبقى على التموّج العاديّ: لمعاتُه تحتاج مظلِّلاً لا يملكه كلُّ متصفّح.
+      splashFactory: kIsWeb ? InkRipple.splashFactory : InkSparkle.splashFactory,
       colorScheme: ColorScheme.fromSeed(
         seedColor: StudentPalette.indigo,
         primary: StudentPalette.indigo,
@@ -303,6 +308,10 @@ abstract final class StudentTheme {
 
     final base = ThemeData(
       useMaterial3: true,
+      // تموّجُ اللمس بلمعاتٍ صغيرة (على طريقة «لمسة») في كل زرٍّ وقائمةٍ
+      // وبطاقةٍ قابلةٍ للضغط في التطبيق — بإعدادٍ واحد لا بكل زرّ. والويبُ
+      // يبقى على التموّج العاديّ: لمعاتُه تحتاج مظلِّلاً لا يملكه كلُّ متصفّح.
+      splashFactory: kIsWeb ? InkRipple.splashFactory : InkSparkle.splashFactory,
       colorScheme: ColorScheme.fromSeed(
         seedColor: StudentPalette.indigo,
         primary: StudentPalette.sky,

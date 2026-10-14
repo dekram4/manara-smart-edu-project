@@ -1021,10 +1021,16 @@ class StudentScreenHero extends StatelessWidget {
               ),
               Row(
                 children: [
-                  StudentCardAvatar(
-                    icon: icon,
-                    accent: night ? const Color(0xFFBFFBFA) : colors.first,
-                    label: title,
+                  // أيقونةُ البطاقة تقفز إلى مكانها، ثم شخصيةُ الطالب بعدها —
+                  // في رأس كل بطاقةٍ يفتحها (الشرح والسينما والألعاب
+                  // والاختبارات وحلّ المسائل والتقدّم).
+                  LivelyStagger(
+                    index: 1,
+                    child: StudentCardAvatar(
+                      icon: icon,
+                      accent: night ? const Color(0xFFBFFBFA) : colors.first,
+                      label: title,
+                    ),
                   ),
                   const SizedBox(width: 13),
                   Expanded(
@@ -1061,7 +1067,7 @@ class StudentScreenHero extends StatelessWidget {
                     // opened card — cinema, lesson, games, quizzes, the
                     // solver, progress — so binding it here is what makes
                     // the character follow the student through all of them.
-                    const StudentAvatarView(size: 68),
+                    const LivelyStagger(index: 3, child: StudentAvatarView(size: 68)),
                   ],
                 ],
               ),

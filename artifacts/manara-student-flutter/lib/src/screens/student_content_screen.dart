@@ -553,7 +553,12 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
             ? const Color(0xFF04543A)
             : const Color(0xFFB4630C);
 
-    return StudentPressScale(
+    // نبضةُ توهّجٍ خضراء لحظةَ يُنهى الدرس — فوق تصفيقه.
+    return LivelyGlow(
+      active: _completed,
+      radius: 30,
+      color: const Color(0xFF0E9F6E),
+      child: StudentPressScale(
       child: GestureDetector(
         onTap: enabled ? _completeLesson : null,
         behavior: HitTestBehavior.opaque,
@@ -636,6 +641,7 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

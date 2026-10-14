@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import '../widgets/lively.dart';
 import '../theme/motion.dart';
 
 import '../l10n/student_strings.dart';
@@ -1143,7 +1144,17 @@ class _SituationCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        Container(
+        // كلُّ موقفٍ يقفز إلى مكانه، ويتوهّج حين يُصاب ويهتزّ حين يُخطأ —
+        // لحظةً ثم يهدأ.
+        LivelyStagger(
+          key: ValueKey('situation-${scenario.title}-$at'),
+          index: 0,
+          child: LivelyShake(
+          active: answered && !right,
+          child: LivelyGlow(
+          active: answered && right,
+          radius: 24,
+          child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: StudentSurface.card(context),
@@ -1194,13 +1205,21 @@ class _SituationCard extends StatelessWidget {
             ],
           ),
         ),
+        ),
+        ),
+        ),
         if (answered) ...[
           const SizedBox(height: 14),
-          _Feedback(
-            right: right,
-            text: situation.because.isEmpty
-                ? tr(right ? 'study.right' : 'study.wrong')
-                : situation.because,
+          // والشرحُ بعد القرار يقفز إلى مكانه كذلك.
+          LivelyStagger(
+            key: ValueKey('feedback-${scenario.title}-$at'),
+            index: 0,
+            child: _Feedback(
+              right: right,
+              text: situation.because.isEmpty
+                  ? tr(right ? 'study.right' : 'study.wrong')
+                  : situation.because,
+            ),
           ),
           const SizedBox(height: 14),
           _StudyButton(
