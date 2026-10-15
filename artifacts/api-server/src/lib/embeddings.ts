@@ -158,3 +158,62 @@ export async function embedQuestion(text: string): Promise<number[] | null> {
     clearTimeout(timer);
   }
 }
+
+/**
+ * متّجهٌ كما يعيده PostgREST من عمود `vector`: نصٌّ «[0.1,0.2,…]» أو
+ * مصفوفة. أو `null` لما لا يصلح.
+ */
+export function parseStoredVector(raw: unknown): number[] | null {
+  let values: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      values = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS) return null;
+  const vector = values.map(Number);
+  return vector.every(Number.isFinite) ? vector : null;
+}
+
+/** جيبُ التمام بين متّجهين — القياسُ نفسه في `match_qa_cache`. */
+export function cosineSimilarity(a: readonly number[], b: readonly number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let left = 0;
+  let right = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    left += a[i] * a[i];
+    right += b[i] * b[i];
+  }
+  return left > 0 && right > 0 ? dot / Math.sqrt(left * right) : 0;
+}
+
+/**
+ * أقربُ صفٍّ معنىً إن بلغ [threshold] — بديلُ `match_qa_cache` حين تغيب
+ * الدالّةُ من القاعدة أو تتعطّل.
+ *
+ * ── لماذا بديلٌ في الخادم ──
+ * الدالّةُ في القاعدة تُنشأ باليد في محرّر SQL، ووُجدت في الإنتاج بتوقيعٍ
+ * آخر وجسمٍ يشير إلى عمودٍ غير موجود — فكانت كلُّ مطابقةٍ بالمعنى تُردّ،
+ * والخادمُ لا يملك أن يُصلحها. فإن رُدّت قيس هنا على صفوف الدرس نفسه:
+ * أبطأُ قليلاً من فهرس القاعدة، ولا يتوقّف على أحد.
+ */
+export function bestByMeaning<T extends { id?: unknown; embedding?: unknown }>(
+  rows: readonly T[],
+  query: readonly number[],
+  threshold: number = VECTOR_THRESHOLD,
+): { row: T; similarity: number } | null {
+  let best: { row: T; similarity: number } | null = null;
+  for (const row of rows) {
+    const stored = parseStoredVector(row.embedding);
+    if (!stored) continue;
+    const similarity = cosineSimilarity(query, stored);
+    if (similarity >= threshold && (!best || similarity > best.similarity)) {
+      best = { row, similarity };
+    }
+  }
+  return best;
+}

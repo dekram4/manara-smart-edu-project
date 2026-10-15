@@ -63,3 +63,10 @@ test("كلُّ إجابةٍ جديدة تُحفظ: بمتّجهها، وبإعا
   assert.equal(imageKeyText("abc123", ""), "صوره abc123");
   assert.equal(imageKeyText("abc123", "احسب المحيط"), "صوره abc123 احسب المحيط");
 });
+
+test("المطابقةُ بالمعنى لا تتوقّف على دالّة القاعدة", () => {
+  // وُجدت match_qa_cache في الإنتاج معطوبة: إن رُدّت قيس في الخادم.
+  assert.match(gemini, /async function nearestByMeaning\(/);
+  assert.match(gemini, /bestByMeaning\(rows, vector\)/);
+  assert.match(gemini, /meaningRpcDownUntil = Date\.now\(\) \+ MEANING_RPC_RETRY_MS/);
+});
