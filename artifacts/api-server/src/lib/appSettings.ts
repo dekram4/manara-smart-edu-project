@@ -12,12 +12,17 @@
 export const STUDENT_APK_KEY = "smartEdu_studentApkUrl";
 
 /**
- * الرابطُ المؤقّت إلى أن يضع المشرف رابطه: آخرُ نسخةٍ بُنيت في GitHub
- * Actions من الفرع الرئيسي. وتنزيلُه يتطلّب تسجيلَ الدخول إلى GitHub ويصل
- * ملفَّ zip فيه الـAPK — فهو مؤقّتٌ حقاً، ويُستبدل من لوحة المشرف.
+ * الرابطُ الافتراضي: ملفُّ الـAPK نفسه في آخر GitHub Release.
+ *
+ * ── لماذا `latest/download` لا رقمُ الإصدار ──
+ * GitHub يحوّل هذا العنوان إلى ملفّ آخر إصدارٍ منشور، فيبقى الرابطُ صالحاً
+ * مع كل إصدارٍ جديد (v1.0.1 وما بعده) بلا تعديلٍ هنا ولا في لوحة المشرف.
+ * وهو تنزيلٌ مباشرٌ لملفّ `.apk` للجميع بلا تسجيل دخول — بخلاف رابط
+ * GitHub Actions المؤقّت الذي سبقه (يتطلّب الدخول ويصل ملفَّ zip).
+ * ويبقى للمشرف أن يضع غيره من لوحته.
  */
 export const DEFAULT_STUDENT_APK_URL =
-  "https://github.com/dekram4/manara-smart-edu-project/actions/runs/38700904400/artifacts/11956607324";
+  "https://github.com/dekram4/manara-smart-edu-project/releases/latest/download/manara-student.apk";
 
 /** أطولُ رابطٍ يُقبل. */
 export const MAX_APK_URL_LENGTH = 2048;
