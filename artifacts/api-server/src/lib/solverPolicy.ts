@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /**
  * سياسةُ «حل المسائل»: ما يُجاب عنه، وما لا يُحفظ في الذاكرة الدائمة.
  *
@@ -72,4 +74,29 @@ export function isRefusalAnswer(answer: unknown): boolean {
 export function imageKeyText(fingerprint: string, typed: string): string {
   const asked = typed.trim();
   return `صوره ${fingerprint}${asked ? ` ${asked}` : ""}`;
+}
+
+/**
+ * الأعمدةُ المقروءة في صفّ الذاكرة — ما يعرضه `solved_questions_cache`.
+ *
+ * أُضيفت إلى `ai_qa_cache` في الإنتاج خارج الكود، والخادمُ يكتب في `data`
+ * وحده، فبقيت فارغةً في كل صفّ وبدا المحفوظُ كأنه لم يُحفظ. ونقيّةٌ هنا
+ * لتُختبر، ويستعملها الخادمُ عند الحفظ وسكربتُ الإكمال للصفوف القديمة.
+ *
+ * `question_hash`: بصمةُ المفتاح (الدرسُ والسؤالُ مطبَّعاً) — السؤالان
+ * اللذان يلتقيان على مفتاحٍ واحد لهما بصمةٌ واحدة.
+ */
+export function cacheReadableColumns(
+  key: string,
+  lessonId: string,
+  question: string,
+  answer: string,
+  domain?: string,
+): { question_hash: string; question_text: string; answer_json: Record<string, string>; domain: string } {
+  return {
+    question_hash: createHash("sha256").update(key).digest("hex"),
+    question_text: question,
+    answer_json: { answer, question, lessonId },
+    domain: (domain ?? "").trim() || "problem_solver",
+  };
 }
