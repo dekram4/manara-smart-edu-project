@@ -35,6 +35,8 @@ import {
   targetScenarios,
 } from "../lib/interactiveStudy";
 import { VECTOR_THRESHOLD, embedQuestion } from "../lib/embeddings";
+import { createHash } from "node:crypto";
+import { SOLVER_SCOPE_INSTRUCTION, imageKeyText, isRefusalAnswer } from "../lib/solverPolicy";
 import {
   BANK_SIZE,
   BANK_VERSION,
@@ -530,6 +532,12 @@ async function readCachedAnswer(key: string): Promise<string | null> {
     const rows = await response.json();
     const answer = Array.isArray(rows) ? rows[0]?.data?.answer : null;
     if (typeof answer === "string" && answer.trim()) {
+      // رفضٌ حُفظ قبل توسيع النطاق: إخفاقٌ لا إصابة — فيُولَّد جوابٌ
+      // صحيح ويُكتب فوقه بالمفتاح نفسه. انظر `isRefusalAnswer`.
+      if (isRefusalAnswer(answer)) {
+        logger.warn({ key }, "[cache] MISS — stored refusal ignored, will be replaced");
+        return null;
+      }
       logger.info({ key }, "[cache] HIT");
       return answer;
     }
@@ -611,6 +619,10 @@ async function findByMeaning(
     const answer = typeof row?.answer === "string" ? row.answer.trim() : "";
     if (!answer) {
       logger.info({ lessonId }, "[cache] MISS — nothing close in meaning");
+      return { answer: null, vector };
+    }
+    if (isRefusalAnswer(answer)) {
+      logger.warn({ key: row?.id }, "[cache] MISS — closest match is a stored refusal");
       return { answer: null, vector };
     }
     // ── والمعنى لا يكفي في المسائل ──
@@ -708,6 +720,58 @@ async function findSimilarCachedAnswer(
   } catch (error) {
     logger.warn({ err: error }, "[cache] similar lookup failed");
     return null;
+  }
+}
+
+/** محاولاتُ الكتابة قبل أن يُسلَّم بالفشل، والانتظارُ يطول بينها. */
+const SAVE_ATTEMPTS = 3;
+
+/**
+ * يحفظ إجابةً جديدة في الذاكرة الدائمة — كلَّ إجابة، بمتّجهها.
+ *
+ * ── ما كان يُفلت، وما يسدّه هذا ──
+ * • المتّجهُ: كان يُحفظ ما حُسب في أثناء البحث، فإن تعثّر نداؤه حُفظ الصفُّ
+ *   بلا متّجه ولم يُصَب بالمعنى أبداً. فيُعاد حسابُه هنا مرّتين قبل الكتابة.
+ * • الكتابةُ: كانت محاولةً واحدة، وتعثّرُ شبكةٍ لحظةً يُضيّع الإجابة.
+ *   فثلاثُ محاولاتٍ يطول الانتظار بينها.
+ * • الرفضُ لا يُحفظ: الذاكرةُ دائمة، ورفضٌ محفوظ يُعاد على الجميع.
+ *
+ * ولا يرمي أبداً: يُنادى ولا يُنتظر، وكلُّ فشلٍ يُكتب في السجلّ باسمه.
+ */
+async function persistAnswer(entry: {
+  key: string;
+  lessonId: string;
+  question: string;
+  answer: string;
+  vector: number[] | null;
+  /** للسؤال نصٌّ يُقاس بالمعنى (لا صورةٌ لم تُقرأ). */
+  searchable: boolean;
+}): Promise<void> {
+  try {
+    if (isRefusalAnswer(entry.answer)) {
+      logger.warn({ key: entry.key }, "[cache] refusal not saved");
+      return;
+    }
+    let vector = entry.vector;
+    for (let attempt = 0; !vector && entry.searchable && attempt < 2; attempt += 1) {
+      vector = await embedQuestion(normalizeQuestion(entry.question));
+    }
+    if (entry.searchable && !vector) {
+      logger.warn({ key: entry.key }, "[cache] saving without a vector — embedding unavailable");
+    }
+    for (let attempt = 1; attempt <= SAVE_ATTEMPTS; attempt += 1) {
+      try {
+        await writeCachedAnswer(entry.key, entry.lessonId, entry.question, entry.answer, vector);
+        return;
+      } catch (error) {
+        logger.error({ err: error, key: entry.key, attempt }, "[cache] SAVE FAILED");
+        if (attempt < SAVE_ATTEMPTS) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 800));
+        }
+      }
+    }
+  } catch (error) {
+    logger.error({ err: error, key: entry.key }, "[cache] SAVE FAILED — unexpected");
   }
 }
 
@@ -967,20 +1031,32 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
     // صورةٌ لم تُقرأ تعود إلى ما كان: لا ذاكرةَ لها، ولا يُمنع الطفلُ
     // من جوابٍ لأن القراءة تعذّرت.
     const keyText = image ? imageText : question;
-    const key = keyText ? cacheKey(lesson.id, keyText) : "";
+    // ‏وصورةٌ لم تُقرأ تُحفظ ببصمتها: كانت تُجاب ولا تُحفظ. ولا تُقاس
+    // ‏بالكلمات ولا بالمعنى — لا نصَّ لها — فتُصاب إن أُرسلت هي نفسها.
+    const key = keyText
+      ? cacheKey(lesson.id, keyText)
+      : image
+        ? cacheKey(
+            lesson.id,
+            imageKeyText(
+              createHash("sha256").update(image.data).digest("hex").slice(0, 24),
+              question === PHOTO_DEFAULT_PROMPT ? "" : question,
+            ),
+          )
+        : "";
     // ── سلّمُ الذاكرة: الأرخصُ أوّلاً ──
     //
     // حرفياً، ثم بالكلمات، ثم بالمعنى. وأوّلُ من يُصيب يُوقف السلّم،
     // فلا يُحسب متّجهٌ لسؤالٍ وُجد جوابُه بلا شبكة.
     let cached = key ? await readCachedAnswer(key) : null;
-    if (!cached && key) {
-      cached = await findSimilarCachedAnswer(lesson.id, keyText!);
+    if (!cached && key && keyText) {
+      cached = await findSimilarCachedAnswer(lesson.id, keyText);
     }
     // ومتّجهُ السؤال يُحتفظ به إن حُسب: يُخزَّن مع الصفّ الجديد عند
     // الإخفاق، فلا يُنادى النموذجُ ثانيةً لحسابه.
     let vector: number[] | null = null;
-    if (!cached && key) {
-      const byMeaning = await findByMeaning(lesson.id, keyText!);
+    if (!cached && key && keyText) {
+      const byMeaning = await findByMeaning(lesson.id, keyText);
       cached = byMeaning.answer;
       vector = byMeaning.vector;
     }
@@ -1064,11 +1140,11 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
 
 اقرأ ما في الصورة أوّلاً، ثم أجب عن طلب الطالب: ${question}
 
-اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. ${tone} ${brevity} وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
+اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. ${tone} ${brevity} ${SOLVER_SCOPE_INSTRUCTION} وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
 
 وللاستئناس، هذا نصّ درسه:
 ${lesson.text}`
-      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. ${tone} ${brevity} لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. إذا لم تجد الإجابة في نص الدرس، قل بوضوح: "هذا السؤال ليس من ضمن الدرس ولا أستطيع الإجابة عليه" ولا تستخدم معرفتك العامة.`;
+      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. ${tone} ${brevity} لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. ${SOLVER_SCOPE_INSTRUCTION}`;
     // وما بقي من الميزانية بعد القراءة، لا ميزانيةٌ كاملةٌ ثانية: الخادم
     // ينتظر ما ينتظره التطبيق وينتهي قبله.
     const data = await callGemini(prompt, {
@@ -1092,24 +1168,22 @@ ${lesson.text}`
     // الخصم بعد أن تصل الإجابة لا قبلها: طفلٌ خُصمت جواهرُه ثم تعطّل
     // النموذج يكون قد دفع ثمن لا شيء.
     const nextQuota = spend(quota.state, verdict);
+    // ‏الحفظُ في الذاكرة يبدأ ولا يُنتظر: الطفلُ لا ينتظر كتابةً لا تخصّه،
+    // ‏و`persistAnswer` لا يُسقط شيئاً — يعيد المحاولة ويكمل المتّجه وحده.
+    if (key) {
+      void persistAnswer({
+        key,
+        lessonId: lesson.id,
+        question: keyText ?? (image ? `[صورة] ${question}` : question),
+        answer,
+        vector,
+        searchable: Boolean(keyText),
+      });
+    }
     await Promise.all([
       writeStudentQuota(rowId, studentRow, nextQuota, gems - verdict.gemsCharged).catch((error) =>
         logger.error({ err: error }, "[gemini] quota not saved"),
       ),
-      // الحفظ في الذاكرة لا يُنتظر ولا يُسقط الردّ: فشلُه يعني استدعاءً
-      // ثانياً في المرّة القادمة لا إجابةً ضائعة.
-      //
-      // ويُحفظ ما صُوّر كما يُحفظ ما كُتب، ما دام للصورة نصٌّ قُرئ منها
-      // — فمن صوّر المسألة بعده يجدها محفوظة.
-      key
-        ? writeCachedAnswer(
-            key,
-            lesson.id,
-            keyText ?? question,
-            answer,
-            vector,
-          ).catch((error) => logger.error({ err: error, key }, "[cache] SAVE FAILED"))
-        : Promise.resolve(),
       recordProblemSolverActivity(student, lesson.id, question, answer).catch((error) =>
         logger.warn({ err: error }, "[gemini] problem solver activity was not recorded"),
       ),
