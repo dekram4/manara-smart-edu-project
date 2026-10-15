@@ -36,7 +36,7 @@ import {
 } from "../lib/interactiveStudy";
 import { VECTOR_THRESHOLD, bestByMeaning, embedQuestion } from "../lib/embeddings";
 import { createHash } from "node:crypto";
-import { SOLVER_SCOPE_INSTRUCTION, imageKeyText, isRefusalAnswer } from "../lib/solverPolicy";
+import { SOLVER_SCOPE_INSTRUCTION, cacheReadableColumns, imageKeyText, isRefusalAnswer } from "../lib/solverPolicy";
 import {
   BANK_SIZE,
   BANK_VERSION,
@@ -777,6 +777,8 @@ async function persistAnswer(entry: {
   vector: number[] | null;
   /** للسؤال نصٌّ يُقاس بالمعنى (لا صورةٌ لم تُقرأ). */
   searchable: boolean;
+  /** مادّةُ الدرس — تُكتب في عمود `domain`. */
+  domain?: string;
 }): Promise<void> {
   try {
     if (isRefusalAnswer(entry.answer)) {
@@ -792,10 +794,20 @@ async function persistAnswer(entry: {
     }
     for (let attempt = 1; attempt <= SAVE_ATTEMPTS; attempt += 1) {
       try {
-        await writeCachedAnswer(entry.key, entry.lessonId, entry.question, entry.answer, vector);
+        await writeCachedAnswer(entry.key, entry.lessonId, entry.question, entry.answer, vector, entry.domain);
         return;
       } catch (error) {
-        logger.error({ err: error, key: entry.key, attempt }, "[cache] SAVE FAILED");
+        // ‏السببُ مكتوبٌ نصّاً في السطر نفسه — رمزُ القاعدة ورسالتُها — لا
+        // ‏مدفوناً في كائن: من يقرأ سجلّ Railway يرى لماذا فشل الحفظ.
+        logger.error(
+          {
+            key: entry.key,
+            attempt,
+            of: SAVE_ATTEMPTS,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          "[cache] SAVE FAILED",
+        );
         if (attempt < SAVE_ATTEMPTS) {
           await new Promise((resolve) => setTimeout(resolve, attempt * 800));
         }
@@ -820,36 +832,65 @@ async function writeCachedAnswer(
    * حرفياً وبالكلمات، ولا يُصاب بالمعنى حتى يُعاد السؤال فيُحسب له.
    */
   embedding?: number[] | null,
+  domain?: string,
 ): Promise<void> {
   const config = apiSupabaseConfig();
-  if (!config) return;
+  if (!config) {
+    // ‏كان يعود صامتاً: إجابةٌ تُعرض ولا تُحفظ ولا سطرَ في السجلّ يقول لماذا.
+    throw new Error("Supabase is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)");
+  }
   const now = new Date().toISOString();
-  const response = await fetch(`${config.url}/rest/v1/ai_qa_cache?on_conflict=id`, {
-    method: "POST",
-    headers: {
-      apikey: config.key,
-      Authorization: `Bearer ${config.key}`,
-      "Content-Type": "application/json",
-      Prefer: "resolution=merge-duplicates,return=minimal",
-    },
-    body: JSON.stringify({
-      id: key,
-      // السؤال يُحفظ كما كتبه الطفل لا مطبَّعاً: المفتاح للمطابقة،
-      // وهذا لمن يقرأ الجدول ليعرف عمّ سُئل.
-      data: { lessonId, question, answer, createdAt: now },
-      // والعمودُ لا يُذكر إن لم يكن ثَمّ متّجه: ذكرُه فارغاً يمحو
-      // متّجهاً محفوظاً لو كُتب الصفُّ نفسه ثانيةً.
-      ...(embedding ? { embedding } : {}),
-      updated_at: now,
-    }),
-  });
+  const body: Record<string, unknown> = {
+    id: key,
+    // السؤال يُحفظ كما كتبه الطفل لا مطبَّعاً: المفتاح للمطابقة،
+    // وهذا لمن يقرأ الجدول ليعرف عمّ سُئل.
+    data: { lessonId, question, answer, createdAt: now },
+    // والعمودُ لا يُذكر إن لم يكن ثَمّ متّجه: ذكرُه فارغاً يمحو
+    // متّجهاً محفوظاً لو كُتب الصفُّ نفسه ثانيةً.
+    ...(embedding ? { embedding } : {}),
+    updated_at: now,
+  };
+  const send = (payload: Record<string, unknown>) =>
+    fetch(`${config.url}/rest/v1/ai_qa_cache?on_conflict=id`, {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(payload),
+    });
+  // ‏والأعمدةُ المقروءة: أُضيفت إلى الجدول في الإنتاج وعليها يقوم عرضُ
+  // ‏`solved_questions_cache`. والخادمُ كان يكتب في `data` وحده فبقيت فارغة،
+  // ‏فبدا كلُّ صفٍّ محفوظٍ في العرض كأنه لم يُحفظ. فتُكتب هنا مع `data`.
+  const readable = readableCacheColumns ? cacheReadableColumns(key, lessonId, question, answer, domain) : {};
+  let response = await send({ ...body, ...readable });
+  if (!response.ok && readableCacheColumns) {
+    const detail = await response.text();
+    // ‏قاعدةٌ بلا هذه الأعمدة (بيئةٌ أخرى): تُترك ويُكتب الصفُّ كما كان، لا
+    // ‏أن يضيع الحفظ كلُّه بسبب عمودٍ للعرض.
+    if (/PGRST204|column/i.test(detail)) {
+      readableCacheColumns = false;
+      logger.warn({ detail: detail.slice(0, 200) }, "[cache] readable columns missing — saving data only");
+      response = await send(body);
+    } else {
+      throw new Error(`cache write failed (${response.status} ${detail.slice(0, 300)})`);
+    }
+  }
   if (!response.ok) {
     throw new Error(
-      `cache write failed (${response.status} ${(await response.text()).slice(0, 200)})`,
+      `cache write failed (${response.status} ${(await response.text()).slice(0, 300)})`,
     );
   }
-  logger.info({ key, lessonId }, "[cache] SAVED");
+  logger.info(
+    { key, lessonId, withVector: Boolean(embedding), readableColumns: readableCacheColumns },
+    "[cache] SAVED",
+  );
 }
+
+/** هل في الجدول الأعمدةُ المقروءة؟ يُفترض نعم حتى تردّ القاعدةُ بغير ذلك. */
+let readableCacheColumns = true;
 
 /** صفُّ الطالب وحصّتُه وجواهرُه. */
 async function readStudentQuota(student: StudentActor): Promise<{
@@ -1209,6 +1250,7 @@ ${lesson.text}`
         answer,
         vector,
         searchable: Boolean(keyText),
+        domain: lesson.subject,
       });
     }
     await Promise.all([

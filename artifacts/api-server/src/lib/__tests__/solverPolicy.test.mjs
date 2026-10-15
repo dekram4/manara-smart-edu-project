@@ -70,3 +70,27 @@ test("المطابقةُ بالمعنى لا تتوقّف على دالّة ال
   assert.match(gemini, /bestByMeaning\(rows, vector\)/);
   assert.match(gemini, /meaningRpcDownUntil = Date\.now\(\) \+ MEANING_RPC_RETRY_MS/);
 });
+
+test("الأعمدةُ المقروءة تُكتب مع كل حفظ — ما يعرضه solved_questions_cache", () => {
+  const { cacheReadableColumns } = mod;
+  const columns = cacheReadableColumns("lesson1::منزله الرقم 5", "lesson1", "ما منزلة الرقم ٥؟", "المئات", "الرياضيات");
+  assert.equal(columns.question_text, "ما منزلة الرقم ٥؟");
+  assert.deepEqual(columns.answer_json, { answer: "المئات", question: "ما منزلة الرقم ٥؟", lessonId: "lesson1" });
+  assert.match(columns.question_hash, /^[0-9a-f]{64}$/);
+  assert.equal(columns.domain, "الرياضيات");
+  // المفتاحُ نفسه بصمةٌ واحدة، والمادّةُ الغائبة لا تُترك فارغة.
+  assert.equal(cacheReadableColumns("lesson1::منزله الرقم 5", "x", "y", "z").question_hash, columns.question_hash);
+  assert.equal(cacheReadableColumns("k", "l", "q", "a", "  ").domain, "problem_solver");
+
+  assert.match(gemini, /cacheReadableColumns\(key, lessonId, question, answer, domain\)/);
+  assert.match(gemini, /domain: lesson\.subject,/);
+});
+
+test("لا حفظَ يفشل صامتاً: كلُّ فشلٍ يُرمى بسببه ويُكتب في السجلّ نصّاً", () => {
+  // كانت `if (!config) return;` تُخفي الفشل كلَّه.
+  assert.doesNotMatch(gemini, /async function writeCachedAnswer[\s\S]{0,700}if \(!config\) return;/);
+  assert.match(gemini, /throw new Error\("Supabase is not configured/);
+  assert.match(gemini, /reason: error instanceof Error \? error\.message : String\(error\),\s*\},\s*"\[cache\] SAVE FAILED"/);
+  // وقاعدةٌ بلا الأعمدة المقروءة يُكتب فيها الصفُّ كما كان، لا يضيع.
+  assert.match(gemini, /readableCacheColumns = false;[\s\S]{0,200}response = await send\(body\);/);
+});
