@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
 import ManaraBrand from '../components/ManaraBrand';
+import { fetchStudentApk } from '../utils/studentApk';
 
 interface RoleCard {
   id: 'teacher' | 'parent' | 'admin';
@@ -254,6 +255,16 @@ const FloatingLearningObject: React.FC<FloatingLearningObjectProps> = ({
 
 const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // رابطُ تطبيق الطالب من إعدادات النظام في الخادم — يغيّره المشرف من لوحته.
+  // وما لم يصل الرابط لا يظهر الزرّ: زرٌّ لا يفتح شيئاً أسوأ من غيابه.
+  const [apkUrl, setApkUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchStudentApk()
+      .then((setting) => { if (alive && setting?.url) setApkUrl(setting.url); })
+      .catch(() => { /* يبقى الزرّ مخفياً */ });
+    return () => { alive = false; };
+  }, []);
 
   const handlers: Record<RoleCard['id'], () => void> = {
     teacher: props.onSelectTeacher,
@@ -468,6 +479,38 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
           );
         })}
       </div>
+
+      {/* ─── تحميل تطبيق الطالب ───
+          رابطٌ يفتح العنوانَ المعتمد في نافذةٍ جديدة، فيعمل مع رابط تنزيلٍ
+          مباشر ومع صفحة متجرٍ أو GitHub على السواء. */}
+      {apkUrl && (
+        <motion.a
+          href={apkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="student-apk-download"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.45, ease: 'easeOut' }}
+          whileHover={{ scale: 1.03, y: -2 }}
+          whileTap={{ scale: 0.97 }}
+          onMouseEnter={() => GameAudioEngine.play('uiHover')}
+          onClick={() => GameAudioEngine.play('uiSelect')}
+          className="group relative z-10 mt-8 inline-flex items-center gap-3 rounded-2xl border border-emerald-400/40 px-6 py-3.5 text-white shadow-lg shadow-emerald-900/30 backdrop-blur-md transition-colors hover:border-emerald-300/70"
+          style={{ background: 'linear-gradient(135deg, rgba(5,150,105,0.85), rgba(16,185,129,0.75))' }}
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 shadow-inner" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
+              <path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z" />
+            </svg>
+          </span>
+          <span className="flex flex-col items-start leading-tight">
+            <span className="text-base font-black sm:text-lg">تحميل تطبيق الطالب</span>
+            <span className="text-xs font-bold text-emerald-50/85" dir="ltr">Android APK</span>
+          </span>
+          <span className="mr-1 flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-lg font-black transition-transform group-hover:translate-y-0.5" aria-hidden="true">↓</span>
+        </motion.a>
+      )}
 
       {/* ─── Bottom tagline ─── */}
       <motion.p

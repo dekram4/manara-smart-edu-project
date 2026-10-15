@@ -12,6 +12,7 @@ import duelQuestionsRouter from "./duelQuestions";
 import didAgentRouter from "./didAgent";
 import cinemaRouter from "./cinema";
 import cardPermissionsRouter from "./cardPermissions";
+import appSettingsRouter from "./appSettings";
 
 const router: IRouter = Router();
 
@@ -25,6 +26,7 @@ router.use(duelQuestionsRouter);
 router.use(didAgentRouter);
 router.use(cinemaRouter);
 router.use(cardPermissionsRouter);
+router.use(appSettingsRouter);
 router.use(mediaRouter);
 router.use(gameEmbedRouter);
 router.use(supabaseBridgeRouter);
