@@ -124,3 +124,35 @@ test("والجوابُ المشوَّه لا يُسقط الخدمة", () => {
     assert.equal(parseEmbedding(payload), null, JSON.stringify(payload ?? null));
   }
 });
+
+// ── بديلُ match_qa_cache في الخادم ──
+
+test("المتّجهُ المخزَّن يُقرأ نصّاً أو مصفوفة، والمعطوبُ يُردّ", () => {
+  const { parseStoredVector } = mod;
+  const values = vectorOf(0.2);
+  assert.deepEqual(parseStoredVector(JSON.stringify(values)), values);
+  assert.deepEqual(parseStoredVector(values), values);
+  assert.equal(parseStoredVector("[0.1,0.2]"), null);
+  assert.equal(parseStoredVector("not a vector"), null);
+  assert.equal(parseStoredVector(null), null);
+});
+
+test("أقربُ صفٍّ معنىً فوق العتبة وحده، والأقربُ بين عدّة", () => {
+  const { bestByMeaning, cosineSimilarity } = mod;
+  const unit = (i) => Array.from({ length: EMBEDDING_DIMENSIONS }, (_, j) => (j === i ? 1 : 0));
+  const blend = (a, b, w) => a.map((x, j) => x * w + b[j] * (1 - w));
+  const query = unit(0);
+  const near = blend(unit(0), unit(1), 0.97); // ~0.999
+  const closer = unit(0); // 1
+  const far = blend(unit(0), unit(1), 0.6); // ~0.83 — تحت العتبة
+  assert.ok(cosineSimilarity(query, far) < VECTOR_THRESHOLD);
+  const rows = [
+    { id: "far", embedding: JSON.stringify(far) },
+    { id: "near", embedding: JSON.stringify(near) },
+    { id: "closer", embedding: closer },
+    { id: "broken", embedding: "[1,2]" },
+  ];
+  assert.equal(bestByMeaning(rows, query).row.id, "closer");
+  assert.equal(bestByMeaning([rows[0]], query), null, "ما تحت العتبة لا يُصاب");
+  assert.equal(bestByMeaning([], query), null);
+});

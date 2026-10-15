@@ -34,7 +34,7 @@ import {
   studyPrompt,
   targetScenarios,
 } from "../lib/interactiveStudy";
-import { VECTOR_THRESHOLD, embedQuestion } from "../lib/embeddings";
+import { VECTOR_THRESHOLD, bestByMeaning, embedQuestion } from "../lib/embeddings";
 import { createHash } from "node:crypto";
 import { SOLVER_SCOPE_INSTRUCTION, imageKeyText, isRefusalAnswer } from "../lib/solverPolicy";
 import {
@@ -591,31 +591,7 @@ async function findByMeaning(
   const vector = await embedQuestion(normalizeQuestion(question));
   if (!config || !vector) return { answer: null, vector };
   try {
-    const response = await fetch(`${config.url}/rest/v1/rpc/match_qa_cache`, {
-      method: "POST",
-      headers: {
-        apikey: config.key,
-        Authorization: `Bearer ${config.key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query_embedding: vector,
-        p_lesson_id: lessonId,
-        match_threshold: VECTOR_THRESHOLD,
-      }),
-    });
-    if (!response.ok) {
-      // ٤٠٤ تعني أن `ai-qa-cache-vectors.sql` لم يُطبَّق بعد، و٤٠٣ أن
-      // دورَ الخدمة لا يملك تنفيذَ الدالّة. وصامتٌ واحدٌ لكلٍّ منهما
-      // يجعل المتّجهات تبدو كأنها لا تُصيب أبداً بلا سببٍ يُقرأ.
-      logger.warn(
-        { status: response.status, detail: (await response.text()).slice(0, 200) },
-        "[cache] vector search refused — is ai-qa-cache-vectors.sql applied?",
-      );
-      return { answer: null, vector };
-    }
-    const rows = await response.json();
-    const row = Array.isArray(rows) ? rows[0] : null;
+    const row = await nearestByMeaning(config, lessonId, vector);
     const answer = typeof row?.answer === "string" ? row.answer.trim() : "";
     if (!answer) {
       logger.info({ lessonId }, "[cache] MISS — nothing close in meaning");
@@ -649,6 +625,61 @@ async function findByMeaning(
     logger.warn({ err: error }, "[cache] vector search failed");
     return { answer: null, vector };
   }
+}
+
+/** متى عُرف أن `match_qa_cache` في القاعدة لا تعمل — فلا تُسأل قبل أن يمضي. */
+let meaningRpcDownUntil = 0;
+const MEANING_RPC_RETRY_MS = 10 * 60_000;
+
+/**
+ * أقربُ صفٍّ معنىً في الدرس: من دالّة القاعدة إن عملت، وإلا قيس في الخادم.
+ *
+ * الدالّةُ أسرع (فهرسُ hnsw)، فتُسأل أوّلاً. وإن رُدّت — غائبةً (٤٠٤) أو
+ * معطوبة (٤٠٠: وُجدت في الإنتاج تشير إلى عمودٍ غير موجود) — قيس على صفوف
+ * الدرس هنا، وتُترك الدالّةُ عشر دقائق ثم تُجرَّب ثانيةً: فإن طُبّق
+ * `ai-qa-cache-vectors.sql` عاد إليها الخادمُ بنفسه.
+ */
+async function nearestByMeaning(
+  config: { url: string; key: string },
+  lessonId: string,
+  vector: number[],
+): Promise<{ id?: unknown; answer?: unknown; similarity?: unknown } | null> {
+  const headers = {
+    apikey: config.key,
+    Authorization: `Bearer ${config.key}`,
+    "Content-Type": "application/json",
+  };
+  if (Date.now() >= meaningRpcDownUntil) {
+    const response = await fetch(`${config.url}/rest/v1/rpc/match_qa_cache`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        query_embedding: vector,
+        p_lesson_id: lessonId,
+        match_threshold: VECTOR_THRESHOLD,
+      }),
+    });
+    if (response.ok) {
+      const rows = await response.json();
+      return Array.isArray(rows) ? (rows[0] ?? null) : null;
+    }
+    meaningRpcDownUntil = Date.now() + MEANING_RPC_RETRY_MS;
+    logger.warn(
+      { status: response.status, detail: (await response.text()).slice(0, 200) },
+      "[cache] match_qa_cache unavailable — measuring in the server (apply ai-qa-cache-vectors.sql for the fast path)",
+    );
+  }
+  const response = await fetch(
+    `${config.url}/rest/v1/ai_qa_cache?select=id,embedding,answer:data->>answer&data->>lessonId=eq.${encodeURIComponent(lessonId)}&embedding=not.is.null&limit=${SIMILARITY_SCAN_LIMIT}`,
+    { headers },
+  );
+  if (!response.ok) {
+    logger.warn({ status: response.status }, "[cache] meaning scan refused by the database");
+    return null;
+  }
+  const rows = await response.json();
+  const best = Array.isArray(rows) ? bestByMeaning(rows, vector) : null;
+  return best ? { id: best.row.id, answer: best.row.answer, similarity: best.similarity } : null;
 }
 
 /** سقفُ ما يُقاس من مفاتيح الدرس، فلا يثقل درسٌ قديمٌ الاستعلام. */
