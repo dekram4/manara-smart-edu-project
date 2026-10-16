@@ -1,3 +1,11 @@
+// مفتاحُ توقيع الإصدار: يُقرأ من android/key.properties (لا يُرفع إلى المستودع).
+// في GitHub Actions يكتبه سيرُ العمل من الأسرار؛ وعلى جهاز المطوّر يضعه هو.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 plugins {
     id "com.android.application"
     id "kotlin-android"
@@ -6,7 +14,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.manara_student"
+    namespace = "com.manara.student"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,8 +28,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.manara_student"
+        // المعرّفُ النهائيّ في المتاجر — لا يتغيّر بعد أوّل نشر: تغييرُه
+        // يجعل التطبيقَ تطبيقاً آخر لا تحديثاً.
+        applicationId = "com.manara.student"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // مضبوطٌ صراحةً لا متروكاً لفلاتر.
@@ -39,11 +48,23 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = file(keystoreProperties["storeFile"])
+                storePassword = keystoreProperties["storePassword"]
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            // بمفتاح الإصدار حين يوجد. وبدونه (تجربةٌ محليّة) يُوقَّع بمفتاح
+            // التطوير — وسيرُ عمل GitHub يرفض البناء أصلاً إن غاب المفتاح،
+            // فلا يُنشر APK بمفتاح التطوير.
+            signingConfig = keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

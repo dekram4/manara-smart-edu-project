@@ -46,7 +46,7 @@ class SupabaseConfig {
           //
           // وتُتجاوز عند البناء بـ:
           //   --dart-define=API_BASE_URL=<عنوان الخادم>
-          defaultValue: 'https://manara-smart-edu-project.replit.app',
+          defaultValue: 'https://manara-aiedu.com',
         );
 
   final String url;

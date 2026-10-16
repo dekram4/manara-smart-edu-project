@@ -13,6 +13,7 @@ import didAgentRouter from "./didAgent";
 import cinemaRouter from "./cinema";
 import cardPermissionsRouter from "./cardPermissions";
 import appSettingsRouter from "./appSettings";
+import studentProfileRouter from "./studentProfile";
 
 const router: IRouter = Router();
 
@@ -27,6 +28,7 @@ router.use(didAgentRouter);
 router.use(cinemaRouter);
 router.use(cardPermissionsRouter);
 router.use(appSettingsRouter);
+router.use(studentProfileRouter);
 router.use(mediaRouter);
 router.use(gameEmbedRouter);
 router.use(supabaseBridgeRouter);

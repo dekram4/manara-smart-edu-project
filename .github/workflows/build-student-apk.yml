@@ -64,6 +64,31 @@ jobs:
         run: flutter pub get
         working-directory: artifacts/manara-student-flutter
 
+      - name: Restore release signing key
+        # مفتاحُ الإصدار من أسرار المستودع إلى android/key.properties. وغيابُه
+        # يُسقط البناء: APK بمفتاح التطوير لا يُقبل في المتاجر، ونشرُه ثم
+        # التحوّلُ عنه يجبر كلَّ طالبٍ على حذف التطبيق قبل التحديث.
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ] \
+             || [ -z "${ANDROID_KEY_ALIAS:-}" ] || [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo "::error::أسرار التوقيع ANDROID_KEYSTORE_* غير مضبوطة — لا يُبنى APK بمفتاح التطوير."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/manara-release.jks
+          {
+            echo "storeFile=manara-release.jks"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > android/key.properties
+        working-directory: artifacts/manara-student-flutter
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
       - name: Build APK
         # المفاتيح تُحقن عند البناء من أسرار المستودع، ولم تعد مكتوبة في
         # الشيفرة كقيم افتراضية — المستودع عام، فكل قيمة افتراضية فيه منشورة.
@@ -104,6 +129,24 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
+
+      - name: Verify release signature
+        # يتأكّد أن الملفّ موقَّعٌ بمفتاح الإصدار لا بمفتاح التطوير، وأن
+        # معرّفه النهائيّ com.manara.student — قبل أن يُرفع.
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          CERT=$("$SIGNER" verify --print-certs "$APK")
+          echo "$CERT" | grep -E "Signer #1 certificate DN"
+          if echo "$CERT" | grep -q "CN=Android Debug"; then
+            echo "::error::الملفّ موقَّعٌ بمفتاح التطوير."
+            exit 1
+          fi
+          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt
+          "$AAPT" dump badging "$APK" | grep -o "package: name='[^']*'" | grep -q "com.manara.student"
+          rm -f android/key.properties android/app/manara-release.jks
+        working-directory: artifacts/manara-student-flutter
 
       - name: Upload APK Artifact
         # v6 rather than v5: v5 is still a Node 20 action, so it would have

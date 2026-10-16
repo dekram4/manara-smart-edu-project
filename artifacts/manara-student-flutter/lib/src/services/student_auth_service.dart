@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -51,15 +50,9 @@ class StudentAuthService {
         profile: _asMap(profileRow),
         username: user.email ?? '',
       );
-      // ‏جدول `profiles` مرآة للمصادقة: فيه الاسم والدور والصف، وليس فيه
-      // ‏المواد المسندة ولا مسار الطالب. فاستعادة جلسة كانت تُرجِع حساباً
-      // ‏ناقصاً — بلا قيد على المواد — فيرى الطالب عند فتح التطبيق من
-      // ‏جديد ما لا يراه عند تسجيل دخوله. السجلّ نفسه هو المرجع.
-      final row = await _findStudentById(user.id);
-      if (row != null) {
-        final full = StudentProfile.fromStudentRow(row);
-        if (full.isStudent) profile = full;
-      }
+      // ‏مسارُ البريد القديم (مصادقة Supabase): ملفُّه من `profiles` وحده.
+      // ‏كان يُكمَّل من جدول `students` بالمفتاح العام، والجدولُ لم يعد
+      // ‏مقروءاً به — سجلّاتُ الطلاب لا تُقرأ إلا عبر الخادم.
       if (!profile.isStudent) {
         await client.auth.signOut();
         return null;
@@ -84,29 +77,39 @@ class StudentAuthService {
     }
 
     try {
-      final student = await _findStudent(cleanUsername);
-      if (student != null) {
-        final data = _asMap(student['data']);
-        final storedPassword = data['password']?.toString();
-        if (!_passwordsMatch(password, storedPassword)) {
-          throw StudentAuthException(tr('auth.badCredentials'));
+      // ‏التحقّقُ كلُّه في الخادم: يُرسل اسمُ المستخدم وكلمةُ المرور، فيعود
+      // ‏رمزُ الجلسة وملفُّ الطالب بلا كلمة مرورٍ ولا هويةٍ ولا جوال وليّ أمر.
+      //
+      // ‏كان التطبيق يقرأ صفَّ الطالب من `students` بالمفتاح العام ويقارن
+      // ‏بصمةَ كلمة المرور على الهاتف — فكان الجدولُ كلُّه مقروءاً لكل من
+      // ‏يملك المفتاح المضمَّن في أيّ APK.
+      final Map<String, dynamic> session;
+      try {
+        session = await _createApiSession(
+          username: cleanUsername,
+          password: password,
+        );
+      } on StudentAuthException {
+        // ‏حسابٌ قديم بمصادقة Supabase بالبريد: ليس في جدول الطلاب، فيرفضه
+        // ‏الخادم — فيُجرَّب مسارُه الخاص قبل أن يُقال إن البيانات خاطئة.
+        if (cleanUsername.contains('@')) {
+          return _signInWithSupabaseAuth(cleanUsername, password);
         }
-
-        final profile = StudentProfile.fromStudentRow(student);
+        rethrow;
+      }
+      final row = _asMap(session['student']);
+      if (row.isNotEmpty) {
+        final profile = StudentProfile.fromStudentRow(row);
         if (!profile.isStudent) {
+          clearApiSession();
           throw StudentAuthException(studentOnlyMessage);
         }
         _sessionUsername = cleanUsername;
         _sessionPassword = password;
         _sessionStudentId = profile.id;
-        await ensureApiSession();
         return profile;
       }
-
-      if (cleanUsername.contains('@')) {
-        return _signInWithSupabaseAuth(cleanUsername, password);
-      }
-
+      clearApiSession();
       throw StudentAuthException(tr('auth.badCredentials'));
     } on StudentAuthException {
       rethrow;
@@ -154,10 +157,14 @@ class StudentAuthService {
     _sessionStudentId = null;
   }
 
-  Future<void> _createApiSession({
+  /// ينشئ جلسة الخادم ويعيد جسمَ ردّه (الرمز وملفّ الطالب).
+  ///
+  /// ردُّ ٤٠١ — اسمٌ أو كلمةُ مرورٍ خاطئة — يُرمى `auth.badCredentials`
+  /// لا رسالةَ الخادم: الطفل يرى الجملةَ نفسها في كل رفضٍ لبياناته.
+  Future<Map<String, dynamic>> _createApiSession({
     required String username,
     required String password,
-    required String studentId,
+    String? studentId,
   }) async {
     var base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     // Flutter Web is served from the same proxied origin as the API. This
@@ -183,12 +190,15 @@ class StudentAuthService {
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({
             'username': username,
-            'studentId': studentId,
+            if (studentId != null && studentId.isNotEmpty) 'studentId': studentId,
             'password': password,
           }),
         )
         .timeout(const Duration(seconds: 12));
     final payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+    if (response.statusCode == 401) {
+      throw StudentAuthException(tr('auth.badCredentials'));
+    }
     if (response.statusCode < 200 || response.statusCode >= 300 || payload is! Map) {
       final message = payload is Map ? payload['error']?.toString() : null;
       throw StudentAuthException(
@@ -202,43 +212,7 @@ class StudentAuthService {
       throw StudentAuthException(tr('auth.sessionFailed'));
     }
     _apiSessionToken = token;
-  }
-
-  /// سجلّ الطالب بمعرّفه، أو null إن لم يوجد أو تعذّرت القراءة.
-  ///
-  /// المعرّف قد يكون مفتاح الصفّ أو المعرّف المكتوب داخل `data`، فيُسأل
-  /// عنهما معاً: الحسابات المنشأة من اللوحة تحمل الثاني.
-  Future<Map<String, dynamic>?> _findStudentById(String id) async {
-    if (id.isEmpty) return null;
-    try {
-      final byKey = await client
-          .from('students')
-          .select('id,data')
-          .eq('id', id)
-          .limit(1);
-      if (byKey.isNotEmpty) return _asMap(byKey.first);
-
-      final byData = await client
-          .from('students')
-          .select('id,data')
-          .eq('data->>id', id)
-          .limit(1);
-      return byData.isEmpty ? null : _asMap(byData.first);
-    } catch (_) {
-      // تعذّرت القراءة: تبقى الجلسة على ما استُعيد من المصادقة.
-      return null;
-    }
-  }
-
-  Future<Map<String, dynamic>?> _findStudent(String username) async {
-    final rows = await client
-        .from('students')
-        .select('id,data')
-        .eq('data->>username', username)
-        .limit(1);
-
-    if (rows.isEmpty) return null;
-    return _asMap(rows.first);
+    return _asMap(payload);
   }
 
   Future<StudentProfile> _signInWithSupabaseAuth(
@@ -275,17 +249,6 @@ class StudentAuthService {
     _apiSessionToken = null;
     clearApiSession();
     return profile;
-  }
-
-  bool _passwordsMatch(String input, String? stored) {
-    if (stored == null || stored.isEmpty) return false;
-    final normalized = stored.toLowerCase();
-    final isSha256 = RegExp(r'^[a-f0-9]{64}$').hasMatch(normalized);
-    if (isSha256) {
-      final digest = sha256.convert(utf8.encode(input)).toString();
-      return digest == normalized;
-    }
-    return input == stored;
   }
 
   String _authErrorMessage(AuthException error) {

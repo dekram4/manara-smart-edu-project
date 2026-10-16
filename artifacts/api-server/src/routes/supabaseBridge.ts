@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { getContentActor, getReaderActor } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
+import { passwordToStore, withoutSecrets } from "../lib/passwords";
 import {
   BANK_SIZE,
   BANK_VERSION,
@@ -14,6 +15,48 @@ import { refreshDuelDomainQuestions } from "../lib/duelDomainJob";
 const router = Router();
 
 const VIDEO_KEY = "smartEdu_videos";
+
+/**
+ * جداولُ الحسابات: كلمةُ المرور فيها لا تغادر الخادم، ولا يُخزَّن فيها إلا
+ * بصيغة scrypt — انظر `passwords.ts`.
+ *
+ * كانت اللوحاتُ تستلم البصمات مع السجلّات وتقارن بها في المتصفّح، وتكتب
+ * بصمةَ SHA-256 مجرّدة فوق ما في القاعدة. الآن: القراءةُ بلا كلمة مرور،
+ * والكتابةُ تمرّ بـ `passwordToStore` فلا تُنزِّل صيغةً ولا تُخزّن ضعيفة.
+ */
+const ACCOUNT_TABLES = new Set(["students", "teachers", "parents"]);
+
+function withoutPasswords(table: string, rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  if (!ACCOUNT_TABLES.has(table)) return rows;
+  return rows.map((row) => {
+    const data = row.data && typeof row.data === "object" ? (row.data as Record<string, unknown>) : null;
+    return data ? { ...row, data: withoutSecrets(data) } : row;
+  });
+}
+
+async function securePasswords(
+  config: SupabaseConfig,
+  table: string,
+  rows: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  if (!ACCOUNT_TABLES.has(table) || rows.length === 0) return rows;
+  const ids = rows.map((row) => stringValue(row.id)).filter(Boolean);
+  const stored = new Map<string, unknown>();
+  if (ids.length) {
+    const list = ids.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(",");
+    for (const row of asRecords(await rest(config, `${table}?select=id,data&id=in.(${encodeURIComponent(list)})`))) {
+      const data = row.data && typeof row.data === "object" ? (row.data as Record<string, unknown>) : {};
+      stored.set(stringValue(row.id), data.password);
+    }
+  }
+  return rows.map((row) => {
+    const data = row.data && typeof row.data === "object" ? { ...(row.data as Record<string, unknown>) } : {};
+    const password = passwordToStore(data.password, stored.get(stringValue(row.id)));
+    if (password) data.password = password;
+    else delete data.password;
+    return { ...row, data };
+  });
+}
 const DELETED_VIDEO_KEY = "smartEdu_deletedVideos";
 const ROW_TABLES = new Set([
   "students",
@@ -552,7 +595,7 @@ router.get("/supabase/:table", async (req: Request, res: Response) => {
       const rows = table === "students"
         ? []
         : asRecords(await rest(config, `${table}?select=id,data`));
-      res.json(scopeRowsToParent(rows, table, actor.parentId, childIds, childRows));
+      res.json(withoutPasswords(table, scopeRowsToParent(rows, table, actor.parentId, childIds, childRows)));
       return;
     }
 
@@ -560,7 +603,7 @@ router.get("/supabase/:table", async (req: Request, res: Response) => {
     const scopedRows = actor.role === "admin"
       ? rows
       : rows.filter((row) => rowBelongsToActor(row, actor, table));
-    res.json(scopedRows);
+    res.json(withoutPasswords(table, scopedRows));
   } catch (error) {
     logger.error({ err: error, table }, "Failed to load Supabase rows");
     res.status(502).json({ error: "تعذر تحميل البيانات المشتركة" });
@@ -682,13 +725,14 @@ router.post("/supabase/:table/upsert", async (req: Request, res: Response) => {
 
   try {
     if (validRows.length) {
+      const secured = await securePasswords(config, table, validRows);
       await rest(config, `${table}?on_conflict=id`, {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
         // و`updated_at` معهما: العمود له قيمة افتراضية عند الإنشاء وحده،
         // فكان يبقى على تاريخ أوّل كتابة مهما عُدّل السجلّ بعدها — فلا يُعرف من الجدول
         // متى تغيّر شيء، ولا يصلح للمفاضلة بين نسختين.
-        body: JSON.stringify(validRows.map((row) => ({
+        body: JSON.stringify(secured.map((row) => ({
           id: stringValue(row.id),
           data: row.data,
           updated_at: new Date().toISOString(),
