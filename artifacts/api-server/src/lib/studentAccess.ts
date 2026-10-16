@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { verifyPassword } from "./passwords";
 
 export type StudentActor = {
   id: string;
@@ -160,14 +161,71 @@ export async function listStudents(): Promise<StudentActor[]> {
   return rows.map(fromRow).filter((student): student is StudentActor => Boolean(student));
 }
 
+/**
+ * يتحقّق من كلمة مرور الطالب بأيّ صيغةٍ خُزّنت (scrypt، أو بصمة SHA-256
+ * قديمة، أو نصٌّ صريح أقدم) — انظر `passwords.ts`.
+ */
 export function passwordsMatch(input: string, stored: unknown): boolean {
-  if (typeof stored !== "string" || !stored) return false;
-  // Existing student records may use either a SHA-256 digest or the legacy
-  // plaintext format used by the original Supabase student login.
-  if (!/^[a-f0-9]{64}$/i.test(stored)) return input === stored;
-  const expected = stored.toLowerCase();
-  const received = crypto.createHash("sha256").update(input).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(received, "utf8"));
+  return verifyPassword(input, stored).ok;
+}
+
+/** حقولٌ لا تغادر الخادم إلى التطبيق: كلمةُ المرور وبياناتُ الهوية والتواصل. */
+const PRIVATE_STUDENT_FIELDS = new Set([
+  "password",
+  "nationalId",
+  "national_id",
+  "parentPhoneNumber",
+  "parentPhone",
+  "parent_phone",
+  "phone",
+]);
+
+/** سجلُّ الطالب كما يراه تطبيقه: بلا كلمة مرور ولا هويةٍ ولا جوال وليّ أمر. */
+export function safeStudentData(data: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(data).filter(([key]) => !PRIVATE_STUDENT_FIELDS.has(key)),
+  );
+}
+
+/** صفُّ الطالب كاملاً بمعرّف صفّه، للخادم وحده. */
+export async function studentRecord(
+  student: Pick<StudentActor, "rowId">,
+): Promise<{ id: string; data: Record<string, unknown> } | null> {
+  const rows = await readStudents(`id=eq.${encodeURIComponent(student.rowId)}`);
+  const row = rows[0];
+  if (!row || !row.data || typeof row.data !== "object") return null;
+  return { id: text(row.id) || student.rowId, data: row.data as Record<string, unknown> };
+}
+
+/**
+ * يكتب كلمةَ مرورٍ مُرقّاةً (`scrypt1$…`) في سجلّ حساب: الطالب أو المعلم أو
+ * وليّ الأمر. يُعرف الصفّ بمعرّف الصفّ أو بالمعرّف المكتوب داخل `data`.
+ *
+ * يُقرأ السجلّ ثم يُكتب كاملاً: `PATCH` على `data` يستبدلها، فكتابةُ كلمة
+ * المرور وحدها تمحو بقيّة الحساب.
+ */
+export async function upgradeAccountPassword(
+  table: "students" | "teachers" | "parents",
+  id: string,
+  upgraded: string,
+): Promise<void> {
+  const settings = config();
+  if (!settings) throw new Error("Supabase credentials are required");
+  const headers = { apikey: settings.key, Authorization: `Bearer ${settings.key}` };
+  const safeId = encodeURIComponent(id);
+  const response = await fetch(
+    `${settings.url}/rest/v1/${table}?select=id,data&or=(id.eq.${safeId},data->>id.eq.${safeId})&limit=1`,
+    { headers },
+  );
+  if (!response.ok) throw new Error(`${table} lookup for upgrade failed (${response.status})`);
+  const [row] = (await response.json()) as Array<{ id?: unknown; data?: Record<string, unknown> }>;
+  if (!row?.data || !text(row.id)) throw new Error(`${table} row not found for upgrade`);
+  const patch = await fetch(`${settings.url}/rest/v1/${table}?id=eq.${encodeURIComponent(text(row.id))}`, {
+    method: "PATCH",
+    headers: { ...headers, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ data: { ...row.data, password: upgraded }, updated_at: new Date().toISOString() }),
+  });
+  if (!patch.ok) throw new Error(`${table} password upgrade failed (${patch.status})`);
 }
 
 export function matchesStudentScope(

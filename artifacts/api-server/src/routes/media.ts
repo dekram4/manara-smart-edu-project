@@ -625,7 +625,22 @@ router.post("/media/upload", videoUploadRateLimit, requireContentManager, rawVid
           { err: error },
           "[media] durable storage unavailable; using local fallback",
         );
+        if (!localMediaFallbackAllowed()) {
+          logger.error({ err: error }, "[media] upload refused — Supabase Storage failed in production");
+          return res.status(503).json({
+            error: "تعذّر حفظ الفيديو في التخزين الدائم الآن. أعد المحاولة بعد قليل.",
+            detail: error?.message ? String(error.message).slice(0, 200) : undefined,
+          });
+        }
       }
+    }
+
+    // ‏القرصُ المحلّيّ في Railway يُمحى مع كل نشر (لا Volume): فيديو يُحفظ
+    // ‏عليه يعمل اليوم ويختفي غداً بلا أثر. فلا يُكتب عليه في الإنتاج.
+    if (!localMediaFallbackAllowed()) {
+      return res.status(503).json({
+        error: "التخزين الدائم للفيديو غير مُعدّ على الخادم (Supabase Storage).",
+      });
     }
 
     const filePath = safeFilePath(uploadDirectory, fileName, { pattern: VIDEO_FILE_NAME });
@@ -711,3 +726,13 @@ router.post("/media/delete", videoDeleteRateLimit, requireContentManager, async 
 });
 
 export default router;
+
+/**
+ * هل يُسمح بحفظ الفيديو على قرص الخادم إن تعذّر Supabase Storage؟
+ *
+ * في التطوير نعم: لا Supabase أحياناً، والقرصُ باقٍ. وفي الإنتاج لا: قرصُ
+ * الحاوية مؤقّت ويُمحى مع كل نشر، فالرفضُ الصريح خيرٌ من فيديو يضيع لاحقاً.
+ */
+export function localMediaFallbackAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV !== "production";
+}

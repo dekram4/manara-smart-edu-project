@@ -44,7 +44,10 @@ app.use(
  *
  * القرارُ في [isTrustedOrigin] وعليه اختبار: كان سطرين هنا لا يُختبران،
  * فبقي خمسةَ أشهر يردّ أصلَ النشر نفسه بلا أن يُلاحظ — القائمةُ كانت
- * تحمل `REPLIT_DEV_DOMAIN` وحده، وهو متغيّرٌ لا يُضبط في النشر.
+ * تحمل نطاقَ بيئة التطوير وحده، وهو متغيّرٌ لا يُضبط في النشر.
+ *
+ * ونطاقُ الخادم نفسه موثوقٌ دائماً (`host`)؛ و`ALLOWED_ORIGIN_DOMAINS` —
+ * نطاقاتٌ مفصولةٌ بفواصل — لما سواه إن احتيج.
  *
  * وأثرُه أنّ كلَّ طلبٍ من المتصفّح في الإنتاج كان يفشل: دخولُ المعلم،
  * والمشرف، وولي الأمر، وكلُّ مسارٍ سواها. ويُرى «كلمة المرور خاطئة» لأن
@@ -63,8 +66,7 @@ const apiCors = (req: express.Request) =>
         null,
         isTrustedOrigin(origin, {
           host: req.get("host"),
-          devDomain: process.env.REPLIT_DEV_DOMAIN,
-          deployDomains: process.env.REPLIT_DOMAINS,
+          deployDomains: process.env.ALLOWED_ORIGIN_DOMAINS,
         }),
       );
     },

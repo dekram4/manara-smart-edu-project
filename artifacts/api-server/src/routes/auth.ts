@@ -10,9 +10,12 @@ import { logger } from "../lib/logger";
 import {
   findStudentById,
   findStudentByUsername,
-  passwordsMatch as studentPasswordsMatch,
+  safeStudentData,
+  studentRecord,
   studentToken,
+  upgradeAccountPassword,
 } from "../lib/studentAccess";
+import { hashPassword, verifyPassword } from "../lib/passwords";
 
 const router = Router();
 
@@ -42,7 +45,7 @@ function signAdminSession(payload: object): string {
 
 function adminCookieOptions(maxAge = ADMIN_SESSION_TTL_SECONDS): string {
   const secure =
-    process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT
+    process.env.NODE_ENV === "production"
       ? "; Secure"
       : "";
   return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
@@ -50,7 +53,7 @@ function adminCookieOptions(maxAge = ADMIN_SESSION_TTL_SECONDS): string {
 
 function teacherCookieOptions(maxAge = TEACHER_SESSION_TTL_SECONDS): string {
   const secure =
-    process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT
+    process.env.NODE_ENV === "production"
       ? "; Secure"
       : "";
   return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
@@ -66,7 +69,7 @@ function signTeacherSession(teacherId: string): string {
 
 function parentCookieOptions(maxAge = PARENT_SESSION_TTL_SECONDS): string {
   const secure =
-    process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT
+    process.env.NODE_ENV === "production"
       ? "; Secure"
       : "";
   return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
@@ -96,19 +99,22 @@ function signParentSession(parentId: string): string {
  * ونظيرتُها في مسار الطالب تتسامح مع الحالة منذ البداية — فهذا يردّ
  * الطرفين إلى قاعدةٍ واحدة بدل أن يفترقا في حرفٍ كبير.
  */
-function passwordsMatch(input: string, stored: unknown): boolean {
-  if (typeof stored !== "string" || !stored) return false;
-  const hashed = /^[a-f0-9]{64}$/i.test(stored);
-  const expected = hashed
-    ? stored.toLowerCase()
-    : crypto.createHash("sha256").update(stored).digest("hex");
-  const received = crypto.createHash("sha256").update(input).digest("hex");
-  // والطرفان ستّون وأربع خانة دائماً، فلا يرفع `timingSafeEqual` خطأَ
-  // اختلاف الطول.
-  return crypto.timingSafeEqual(
-    Buffer.from(expected, "utf8"),
-    Buffer.from(received, "utf8"),
-  );
+function passwordsMatch(
+  input: string,
+  stored: unknown,
+  account?: { table: "students" | "teachers" | "parents"; id: string },
+): boolean {
+  // ‏scrypt بملحٍ لكل حساب، مع قبول الصيغتين القديمتين (بصمة SHA-256 بلا ملح،
+  // ‏والنصّ الصريح) — انظر `passwords.ts`.
+  const check = verifyPassword(input, stored);
+  // ‏ترقيةٌ عند أوّل دخولٍ ناجح: القيمةُ القديمة تُستبدل بالآمنة في الخلفية.
+  // ‏فشلُها لا يمنع الدخول — يُعاد في الدخول التالي.
+  if (check.ok && check.upgrade && account?.id) {
+    void upgradeAccountPassword(account.table, account.id, check.upgrade)
+      .then(() => logger.info({ table: account.table }, "[auth] password hash upgraded to scrypt"))
+      .catch((error) => logger.error({ err: error, table: account.table }, "[auth] password hash upgrade failed"));
+  }
+  return check.ok;
 }
 
 async function findAccountData(
@@ -158,7 +164,7 @@ async function updateAccountPassword(
       data: {
         ...data,
         id,
-        password: crypto.createHash("sha256").update(password).digest("hex"),
+        password: hashPassword(password),
         mustChangePassword: false,
       },
     }),
@@ -339,12 +345,17 @@ router.post("/auth/student/session", async (req, res) => {
     const student = studentId
       ? await findStudentById(studentId)
       : await findStudentByUsername(username);
-    if (!student || !studentPasswordsMatch(password, student.password)) {
+    if (!student || !passwordsMatch(password, student.password, { table: "students", id: student.rowId })) {
       return res.status(401).json({ error: "بيانات دخول الطالب غير صحيحة" });
     }
+    // ‏ملفُّ الطالب من الخادم مع الرمز: كان التطبيق يقرأ جدول `students` كاملاً
+    // ‏بالمفتاح العام ويتحقّق من كلمة المرور على الهاتف — فكانت سجلّاتُ الطلاب
+    // ‏وبصماتُهم مقروءةً لكل من يملك المفتاح المضمَّن في أيّ APK.
+    const record = await studentRecord(student);
     return res.json({
       token: studentToken(student.id),
       expiresAt: Date.now() + 60 * 60 * 12 * 1000,
+      student: record ? { id: record.id, data: safeStudentData(record.data) } : null,
     });
   } catch (error) {
     logger.error({ err: error }, "Student API session authentication failed");
@@ -363,7 +374,7 @@ router.post("/auth/teacher/session", async (req, res) => {
 
   try {
     const teacher = await findTeacher(username);
-    if (!teacher || !passwordsMatch(password, teacher.password)) {
+    if (!teacher || !passwordsMatch(password, teacher.password, { table: "teachers", id: teacher.id })) {
       return res.status(401).json({ error: "بيانات دخول المعلم غير صحيحة" });
     }
     if (teacher.mustChangePassword) {
@@ -396,7 +407,7 @@ router.post("/auth/teacher/login", async (req, res) => {
   }
   try {
     const teacher = await findTeacher(username);
-    if (!teacher || !passwordsMatch(password, teacher.password)) {
+    if (!teacher || !passwordsMatch(password, teacher.password, { table: "teachers", id: teacher.id })) {
       return res.status(401).json({ error: "بيانات دخول المعلم غير صحيحة" });
     }
     res.setHeader(
@@ -435,7 +446,7 @@ router.post("/auth/parent/login", async (req, res) => {
   }
   try {
     const parent = await findParent(username);
-    if (!parent || !passwordsMatch(password, parent.password)) {
+    if (!parent || !passwordsMatch(password, parent.password, { table: "parents", id: parent.id })) {
       return res.status(401).json({ error: "بيانات دخول ولي الأمر غير صحيحة" });
     }
     // جلسة قراءة فقط لولي الأمر. بدونها كانت لوحته تعتمد كلياً على ما في

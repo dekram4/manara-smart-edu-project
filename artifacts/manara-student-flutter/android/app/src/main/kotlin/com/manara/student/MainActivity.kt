@@ -1,4 +1,4 @@
-package com.example.manara_student
+package com.manara.student
 
 import io.flutter.embedding.android.FlutterActivity
 

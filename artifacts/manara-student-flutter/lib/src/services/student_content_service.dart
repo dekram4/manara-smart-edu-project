@@ -218,13 +218,7 @@ class StudentContentService {
           .eq('key', 'smartEdu_cardPermissions')
           .maybeSingle()
           .timeout(_requestTimeout),
-      client
-          .from('students')
-          .select('id,data')
-          .eq('id', profile.id)
-          .maybeSingle()
-          .timeout(_requestTimeout)
-          .catchError((_) => null),
+      _studentMe().then((me) => me?['student']),
       _teacherIdentities(profile),
     ]);
     final rules = _asList(_asMap(results[0])['value']);
@@ -264,14 +258,34 @@ class StudentContentService {
   }
 
   Future<StudentGamification> fetchGamification(StudentProfile profile) async {
-    final row = await client
-        .from('students')
-        .select('id,data')
-        .eq('id', profile.id)
-        .maybeSingle()
-        .timeout(_requestTimeout);
-    return StudentGamification.fromMap(_asMap(row?['data'])['gamification']);
+    // ‏من الخادم بجلسة الطالب، لا من جدول `students` بالمفتاح العام.
+    final me = await _studentMe(fresh: true);
+    if (me == null) throw StateError(tr('auth.serviceUnreachable'));
+    return StudentGamification.fromMap(
+      _asMap(_asMap(me['student'])['data'])['gamification'],
+    );
   }
+
+  /// سجلُّ الطالب كما يعيده `/api/student/me`: صفُّه بلا كلمة مرورٍ ولا
+  /// هويةٍ ولا جوال وليّ أمر، وأسماءُ معلّمه. أو `null` إن تعذّر.
+  ///
+  /// كان التطبيق يقرأ جدولَي `students` و`teachers` بالمفتاح العام — وهو
+  /// داخل كل APK — فكانا مقروءين لكل من يملكه. الآن يسأل الخادمَ بجلسته.
+  Future<Map<String, dynamic>?> _studentMe({bool fresh = false}) {
+    if (fresh) _me = null;
+    return _me ??= () async {
+      try {
+        final (status, body) = await _apiGet('/api/student/me');
+        if (status >= 200 && status < 300 && body['student'] is Map) return body;
+      } catch (_) {
+        // لا جلسة أو لا شبكة: يعود المستدعي إلى ما يعرفه.
+      }
+      _me = null;
+      return null;
+    }();
+  }
+
+  Future<Map<String, dynamic>?>? _me;
 
   /// يطلب من الخادم تطبيق مكافأة نشاط واحد.
   ///
@@ -731,26 +745,18 @@ class StudentContentService {
   Future<List<Map<String, dynamic>>> fetchQuizResults(
     StudentProfile profile,
   ) async {
-    final response = await client
-        .from('quiz_results')
-        .select('id,data,updated_at')
-        .eq('data->>studentId', profile.id)
-        .order('updated_at', ascending: false)
-        .limit(100)
-        .timeout(_requestTimeout);
-    return response
+    // ‏من الخادم بجلسة الطالب: نتائجُه وحده. كان الجدولُ يُقرأ بالمفتاح العام،
+    // ‏فكانت نتائجُ الطلاب كلِّهم مقروءةً لكل من يملكه.
+    final (status, body) = await _apiGet('/api/student/quiz-results');
+    if (status < 200 || status >= 300) {
+      throw StateError(_text(body['error']).isEmpty
+          ? tr('auth.serviceUnreachable')
+          : _text(body['error']));
+    }
+    final results = body['results'];
+    return (results is List ? results : const [])
         .whereType<Map>()
-        .map((row) {
-          final rowMap = _asMap(row);
-          final data = _asMap(rowMap['data']);
-          return <String, dynamic>{
-            ...data,
-            'id': _text(rowMap['id']).isEmpty
-                ? _text(data['id'])
-                : _text(rowMap['id']),
-          };
-        })
-        .where((result) => _text(result['studentId']) == profile.id)
+        .map(_asMap)
         .toList();
   }
 
@@ -788,17 +794,13 @@ class StudentContentService {
   Future<List<Map<String, dynamic>>> loadTutorHistory(
     StudentProfile profile,
   ) async {
-    final response = await client
-        .from('interactions')
-        .select('id,data')
-        .eq('data->>studentId', profile.id)
-        .order('updated_at', ascending: true)
-        .limit(60)
-        .timeout(_requestTimeout);
-    return response
+    // ‏من الخادم بجلسة الطالب، لا من جدول `interactions` بالمفتاح العام.
+    final (status, body) = await _apiGet('/api/student/tutor-history');
+    if (status < 200 || status >= 300) return const [];
+    final history = body['history'];
+    return (history is List ? history : const [])
         .whereType<Map>()
-        .map((row) => _asMap(row['data']))
-        .where((data) => _text(data['studentId']) == profile.id)
+        .map(_asMap)
         .where((data) => _text(data['type']) == 'virtual_teacher')
         .toList();
   }
@@ -883,27 +885,16 @@ class StudentContentService {
     if (stored.isEmpty) return Future.value(const <String>{});
     return _identities ??= () async {
       final identities = <String>{stored};
-      try {
-        final rows = await client
-            .from('teachers')
-            .select('id,data')
-            .limit(500)
-            .timeout(_requestTimeout);
-        for (final row in rows.whereType<Map>()) {
-          final data = _asMap(row['data']);
-          final names = <String>{
-            _normalize(row['id']),
-            _normalize(data['id']),
-            _normalize(data['username']),
-            _normalize(data['name']),
-            _normalize(data['fullName']),
-          }..removeWhere((name) => name.isEmpty);
-          if (names.contains(stored)) identities.addAll(names);
-        }
-      } catch (_) {
-        // The teachers table is unreadable on this deployment: fall back to
-        // the single value the student's record carries.
+      // ‏يحسبها الخادم من جدول المعلمين ويعيدها مع ملفّ الطالب: الجدولُ نفسه
+      // ‏(وفيه بيانات المعلمين كلّهم) لم يعد مقروءاً بالمفتاح العام.
+      final me = await _studentMe();
+      final names = me?['teacherIdentities'];
+      if (names is List) {
+        identities.addAll(
+          names.map(_normalize).where((name) => name.isNotEmpty),
+        );
       }
+      // ‏وإن تعذّر الخادم: المعرّفُ الذي يحمله سجلّ الطالب وحده — أضيقُ لا أوسع.
       return identities;
     }();
   }
