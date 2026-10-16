@@ -14,7 +14,7 @@
  * ويُعاد تشغيله بأمان: ما رُقّي يُترك.
  */
 
-const { isStrongHash, upgradeStoredValue } = await import(new URL("../dist/lib/passwords.mjs", import.meta.url).href);
+const { isStrongHash, isSha256Hex, sha256Hex, upgradeStoredValue, verifyPrehash } = await import(new URL("../dist/lib/passwords.mjs", import.meta.url).href);
 
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,10 +38,19 @@ for (const table of ["students", "teachers", "parents"]) {
     const password = row.data?.password;
     if (typeof password !== "string" || !password) { stats.noPassword += 1; continue; }
     if (isStrongHash(password)) { stats.alreadyStrong += 1; continue; }
+    const upgraded = upgradeStoredValue(password);
+    // ‏قبل الكتابة: القيمةُ الجديدة تقبل ما كانت تقبله القديمة بالضبط — وإلا
+    // ‏لا تُكتب، فلا يُقفل حسابٌ بخطأٍ هنا.
+    const prehash = isSha256Hex(password) ? password.toLowerCase() : sha256Hex(password);
+    if (!isStrongHash(upgraded) || !verifyPrehash(prehash, upgraded)) {
+      stats.failed += 1;
+      process.exitCode = 1;
+      continue;
+    }
     const patch = await fetch(`${url}/rest/v1/${table}?id=eq.${encodeURIComponent(row.id)}`, {
       method: "PATCH",
       headers: { ...headers, Prefer: "return=minimal" },
-      body: JSON.stringify({ data: { ...row.data, password: upgradeStoredValue(password) }, updated_at: new Date().toISOString() }),
+      body: JSON.stringify({ data: { ...row.data, password: upgraded }, updated_at: new Date().toISOString() }),
     });
     if (patch.ok) stats.upgraded += 1;
     else { stats.failed += 1; process.exitCode = 1; }
