@@ -136,15 +136,23 @@ jobs:
         run: |
           set -euo pipefail
           APK=build/app/outputs/flutter-apk/app-release.apk
-          SIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SIGNER=$(find "$SDK/build-tools" -name apksigner -type f | sort -V | tail -1)
+          AAPT2=$(find "$SDK/build-tools" -name aapt2 -type f | sort -V | tail -1)
+          echo "apksigner: $SIGNER"
+          echo "aapt2: $AAPT2"
           CERT=$("$SIGNER" verify --print-certs "$APK")
-          echo "$CERT" | grep -E "Signer #1 certificate DN"
+          echo "$CERT" | grep -E "certificate DN|SHA-256 digest"
           if echo "$CERT" | grep -q "CN=Android Debug"; then
             echo "::error::الملفّ موقَّعٌ بمفتاح التطوير."
             exit 1
           fi
-          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt
-          "$AAPT" dump badging "$APK" | grep -o "package: name='[^']*'" | grep -q "com.manara.student"
+          PACKAGE=$("$AAPT2" dump packagename "$APK")
+          echo "package: $PACKAGE"
+          if [ "$PACKAGE" != "com.manara.student" ]; then
+            echo "::error::معرّف التطبيق ليس com.manara.student."
+            exit 1
+          fi
           rm -f android/key.properties android/app/manara-release.jks
         working-directory: artifacts/manara-student-flutter
 
