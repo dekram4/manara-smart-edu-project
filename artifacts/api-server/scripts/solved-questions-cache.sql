@@ -49,17 +49,18 @@ create trigger ai_qa_cache_keep_table
   before truncate on public.ai_qa_cache
   for each statement execute function public.ai_qa_cache_refuse_delete();
 
+-- ‏بالأعمدة نفسها التي في الإنتاج: الأعمدةُ المقروءة في ai_qa_cache (يكتبها الخادم
+-- ‏مع كل حفظ — انظر cacheReadableColumns في src/lib/solverPolicy.ts).
 create or replace view public.solved_questions_cache
 with (security_invoker = true)
 as
 select
   c.id,
-  c.data ->> 'lessonId' as lesson_id,
-  c.data ->> 'question' as question,
-  c.data ->> 'answer' as answer,
-  -- ‏يُقرأ هكذا ليعمل العرضُ وإن لم يُطبَّق ai-qa-cache-vectors.sql بعد.
-  (to_jsonb(c) ->> 'embedding') is not null as searchable_by_meaning,
-  coalesce((c.data ->> 'createdAt')::timestamptz, c.updated_at) as created_at,
+  c.question_hash,
+  c.question_text,
+  c.answer_json,
+  c.domain,
+  c.created_at,
   c.updated_at
 from public.ai_qa_cache c;
 
