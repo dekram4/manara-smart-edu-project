@@ -1,5 +1,6 @@
 -- مولَّدٌ بـ scripts/build-apply-sql.mjs — لا يُعدَّل باليد.
 -- يُلصق كاملاً في محرّر SQL في Supabase ويُشغَّل مرّةً واحدة؛ ويُعاد تشغيله بأمان.
+-- ‏قبل اللصق: محرّرٌ فارغ، ولا تحديدَ لجزءٍ من النصّ (المحرّر يشغّل المحدَّد وحده).
 
 -- ┌──────────────────────────────────────────────────────────────
 -- │ security-lockdown.sql
@@ -631,3 +632,26 @@ revoke all on function public.claim_duel_pack(text) from public;
 grant execute on function public.claim_duel_pack(text) to anon, authenticated, service_role;
 
 commit;
+
+-- ┌──────────────────────────────────────────────────────────────
+-- │ التحقّق
+-- └──────────────────────────────────────────────────────────────
+
+notify pgrst, 'reload schema';
+
+select
+  (select count(*) from public.duel_questions
+     where category in ('culture', 'sports', 'geography', 'history', 'science'))
+    as knowledge_questions_expected_146,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'match_qa_cache'
+       and pg_get_function_identity_arguments(p.oid) like 'query_embedding vector%')
+    as match_qa_cache_expected_1,
+  (select count(*) from information_schema.role_table_grants
+     where table_schema = 'public' and grantee in ('anon', 'authenticated')
+       and privilege_type <> 'SELECT')
+    as anon_write_grants_expected_0,
+  (select string_agg(distinct table_name, ', ' order by table_name)
+     from information_schema.role_table_grants
+     where table_schema = 'public' and grantee = 'anon' and privilege_type = 'SELECT')
+    as anon_readable_expected_app_kv_created_quizzes_lesson_configs;
