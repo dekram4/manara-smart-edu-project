@@ -138,6 +138,146 @@ void main() {
     });
   });
 
+  group('التنقّلُ في الفيديو: الشريطُ والقفز', () {
+    Future<void> withProgress(
+      WidgetTester tester, {
+      Duration position = const Duration(seconds: 30),
+      Duration duration = const Duration(minutes: 5),
+      bool fullscreen = false,
+    }) async {
+      await pump(
+        tester,
+        fullscreen: fullscreen,
+        size: fullscreen ? const Size(800, 450) : const Size(400, 225),
+      );
+      playback.emitProgress(position, duration);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('الشريطُ يظهر حين يُعرف طولُ المقطع، بالعدّادين', (tester) async {
+      await pump(tester);
+      expect(find.byType(Slider), findsNothing, reason: 'قبل أن يُحمَّل المقطع');
+      playback.emitProgress(const Duration(seconds: 30), const Duration(minutes: 5));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(Slider), findsOneWidget);
+      expect(find.text('0:30'), findsOneWidget);
+      expect(find.text('5:00'), findsOneWidget);
+    });
+
+    testWidgets('السحبُ ينقل التشغيلَ إلى موضع الإصبع، مرّةً عند الرفع', (tester) async {
+      await withProgress(tester);
+      final slider = tester.getRect(find.byType(Slider));
+      // من موضع المؤشّر الحالي (٣٠ ث من ٥ دقائق) إلى ثلاثة أرباع الشريط.
+      final from = Offset(slider.left + slider.width * 0.1, slider.center.dy);
+      final gesture = await tester.startGesture(from);
+      await gesture.moveTo(Offset(slider.left + slider.width * 0.75, slider.center.dy));
+      await tester.pump();
+      expect(playback.calls, isEmpty, reason: 'لا انتقالَ مع كل بكسل');
+      await gesture.up();
+      await tester.pump();
+      expect(playback.calls, hasLength(1));
+      final seconds = int.parse(playback.calls.single.split(':').last);
+      expect(seconds, inInclusiveRange(200, 250), reason: 'نحو ثلاثة أرباع الخمس دقائق');
+    });
+
+    testWidgets('والضغطُ على موضعٍ في الشريط يقفز إليه', (tester) async {
+      await withProgress(tester);
+      final slider = tester.getRect(find.byType(Slider));
+      await tester.tapAt(Offset(slider.left + slider.width * 0.5, slider.center.dy));
+      await tester.pump();
+      final seconds = int.parse(playback.calls.single.split(':').last);
+      expect(seconds, inInclusiveRange(130, 170));
+    });
+
+    testWidgets('عشرُ ثوانٍ للأمام وللخلف', (tester) async {
+      await withProgress(tester);
+      await tester.tap(find.byIcon(Icons.forward_10_rounded));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.replay_10_rounded));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.replay_10_rounded));
+      await tester.pump();
+      expect(playback.calls, ['seek:40', 'seek:30', 'seek:20']);
+    });
+
+    testWidgets('ولا يتجاوز القفزُ أوّلَ المقطع ولا آخرَه', (tester) async {
+      await withProgress(tester, position: const Duration(seconds: 4));
+      await tester.tap(find.byIcon(Icons.replay_10_rounded));
+      await tester.pump();
+      expect(playback.calls.last, 'seek:0');
+
+      playback.emitProgress(const Duration(seconds: 296), const Duration(minutes: 5));
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.forward_10_rounded));
+      await tester.pump();
+      expect(playback.calls.last, 'seek:300');
+    });
+
+    testWidgets('ويعمل كلُّه في ملء الشاشة', (tester) async {
+      await withProgress(tester, fullscreen: true);
+      await tester.tap(find.byIcon(Icons.forward_10_rounded));
+      await tester.pump();
+      final slider = tester.getRect(find.byType(Slider));
+      await tester.tapAt(Offset(slider.left + slider.width * 0.5, slider.center.dy));
+      await tester.pump();
+      expect(playback.calls.first, 'seek:40');
+      expect(playback.calls, hasLength(2));
+    });
+
+    testWidgets('والشريطُ والقفزُ من اليسار إلى اليمين في العربية أيضاً', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 400,
+                  height: 225,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      YoutubeKioskControls(
+                        playback: playback,
+                        isFullscreen: false,
+                        onExit: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      playback.emitProgress(const Duration(seconds: 30), const Duration(minutes: 5));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        tester.getCenter(find.byIcon(Icons.replay_10_rounded)).dx,
+        lessThan(tester.getCenter(find.byIcon(Icons.forward_10_rounded)).dx),
+      );
+      // يسارُ الشريط أوّلُ المقطع.
+      final slider = tester.getRect(find.byType(Slider));
+      await tester.tapAt(Offset(slider.left + slider.width * 0.1, slider.center.dy));
+      await tester.pump();
+      expect(int.parse(playback.calls.single.split(':').last), lessThan(60));
+    });
+
+    testWidgets('وعند انتهاء المقطع تبقى شاشةُ النهاية وحدها', (tester) async {
+      await withProgress(tester);
+      playback.emit(PlayerState.ended);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(Slider), findsNothing);
+      expect(find.byIcon(Icons.forward_10_rounded), findsNothing);
+      expect(find.byIcon(Icons.replay_rounded), findsOneWidget);
+    });
+  });
+
   group('وما يحرس الأزرارَ من أن تُرى ولا تُلمس', () {
     testWidgets('للأدوات أبعادٌ داخل قيدٍ فضفاض', (tester) async {
       // ── عطبٌ وقع: `Stack` كلُّ أبنائه موضَّعون تحت قيدٍ فضفاض يأخذ
@@ -241,10 +381,23 @@ void main() {
 /// مشغّلٌ بديلٌ يسجّل النداء ولا يمسّ منصّة.
 class _FakePlayback implements KioskPlayback {
   final _controller = StreamController<PlayerState>.broadcast();
+  final _progress = StreamController<KioskProgress>.broadcast();
   final List<String> calls = [];
 
   void emit(PlayerState state) => _controller.add(state);
-  void dispose() => _controller.close();
+  void emitProgress(Duration position, Duration duration) =>
+      _progress.add(KioskProgress(position: position, duration: duration));
+  void dispose() {
+    _controller.close();
+    _progress.close();
+  }
+
+  @override
+  Stream<KioskProgress> get progress => _progress.stream;
+
+  @override
+  Future<void> seekTo(Duration position) async =>
+      calls.add('seek:${position.inSeconds}');
 
   @override
   Stream<PlayerState> get states => _controller.stream;
