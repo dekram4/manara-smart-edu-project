@@ -250,9 +250,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const handleLogin = async (username: string, pass: string): Promise<string | null> => {
     const parents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
-    let found = parents.find(
-      (p: ParentInfo) => p.username === username && passwordsMatch(pass, p.password),
-    );
+    // ‏الدخولُ من الخادم وحده، والدورُ من ردّه — لا من نسخة المتصفّح.
+    let found: ParentInfo | undefined;
     if (!found) {
       try {
         const response = await fetch('/api/auth/parent/login', {
@@ -262,7 +261,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           body: JSON.stringify({ username, password: pass }),
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.parent) {
+        if (!response.ok || !result.parent || (result.role && result.role !== 'parent')) {
           return result.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
         }
         found = {

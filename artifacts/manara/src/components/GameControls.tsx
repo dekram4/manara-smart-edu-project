@@ -62,9 +62,11 @@ export const GameControls: React.FC<GameControlsProps> = ({ className = '' }) =>
 
   return (
     <div className={className}>
-      {/* Mobile: keep the controls away from the right-side drawers and bottom navigation. */}
+      {/* ‏زرٌّ واحدٌ يُطوى، أسفلَ اليسار، في كل المقاسات: بعيداً عن القائمة الجانبية
+          ‏والأدراج اليمنى وشريط المزامنة. كان على الشاشات الكبيرة زرّان مثبَّتان في
+          ‏الزاوية العليا اليمنى — فوق رأس القائمة الجانبية وزرّ القائمة مباشرةً. */}
       <div
-        className="fixed left-3 z-[70] flex flex-col-reverse items-start gap-2 md:hidden"
+        className="fixed left-3 z-[70] flex flex-col-reverse items-start gap-2"
         style={{ bottom: 'calc(1rem + 4.5rem + env(safe-area-inset-bottom))' }}
       >
         {mobileOpen && (
@@ -99,26 +101,6 @@ export const GameControls: React.FC<GameControlsProps> = ({ className = '' }) =>
         </button>
       </div>
 
-      {/* Desktop: preserve the existing top-right controls. */}
-      <div
-        className="fixed right-3 z-[70] hidden gap-2 sm:right-4 md:flex"
-        style={{ top: 'calc(0.75rem + env(safe-area-inset-top))' }}
-      >
-        <button
-          onClick={toggleSound}
-          className={`rounded-full border px-3 py-2 text-sm font-black shadow-lg backdrop-blur ${soundEnabled ? 'border-amber-300 bg-white/90 text-slate-900' : 'border-slate-600 bg-slate-900/90 text-slate-100'}`}
-          aria-label={soundEnabled ? 'إيقاف الصوت' : 'تشغيل الصوت'}
-        >
-          {soundEnabled ? '🔊' : '🔈'}
-        </button>
-        <button
-          onClick={toggleHaptics}
-          className={`rounded-full border px-3 py-2 text-sm font-black shadow-lg backdrop-blur ${hapticsEnabled ? 'border-cyan-300 bg-white/90 text-slate-900' : 'border-slate-600 bg-slate-900/90 text-slate-100'}`}
-          aria-label={hapticsEnabled ? 'إيقاف الاهتزاز' : 'تشغيل الاهتزاز'}
-        >
-          {hapticsEnabled ? '📳' : '📴'}
-        </button>
-      </div>
     </div>
   );
 };

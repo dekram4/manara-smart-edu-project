@@ -257,21 +257,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 <span className="text-xs font-bold text-purple-700">النظام نشط</span>
              </div>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4 min-w-0">
+          {/* ‏صفٌّ واحد على الهاتف أيضاً: كان زرُّ كلمة المرور `w-full` فيأخذ سطراً
+              ‏كاملاً، والصورةُ سطراً ثالثاً — نحو ٢٢٠ بكسلاً من الشاشة للرأس وحده. */}
+          <div className="flex items-center justify-end gap-2 sm:gap-4 min-w-0">
             {/* 🔔 Video Notifications Bell */}
             <VideoNotificationBadge onClick={() => setActiveMenu('VIDEO_NOTIFICATIONS' as AdminMenuType)} />
-            <div className="text-left">
-              <p className="text-sm font-bold text-purple-800">مشرف النظام</p>
-              <p className="text-[10px] text-purple-400">آخر دخول: منذ دقائق</p>
+            <div className="hidden text-left sm:block">
+              <p className="text-sm font-bold text-purple-800 whitespace-nowrap">مشرف النظام</p>
+              <p className="text-[10px] text-purple-400 whitespace-nowrap">آخر دخول: منذ دقائق</p>
             </div>
             <button
               type="button"
-              onClick={() => alert('تتم إدارة كلمة مرور المشرف من Replit Secrets عبر ADMIN_PASSWORD.')}
-              className="w-full px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200 whitespace-normal text-xs sm:w-auto sm:text-sm"
+              onClick={() => alert('تتم إدارة كلمة مرور المشرف من متغيّرات الخادم (ADMIN_PASSWORD) في Railway.')}
+              className="shrink-0 px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200 whitespace-nowrap text-xs sm:text-sm"
+              aria-label="إدارة كلمة المرور"
+              title="إدارة كلمة المرور"
             >
-              🔐 إدارة كلمة المرور
+              🔐<span className="hidden sm:inline"> إدارة كلمة المرور</span>
             </button>
-            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-xl">👤</div>
+            <div className="w-10 h-10 shrink-0 bg-purple-100 rounded-full flex items-center justify-center text-xl">👤</div>
           </div>
         </header>
 

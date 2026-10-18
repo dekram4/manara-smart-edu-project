@@ -2,7 +2,7 @@ import { openTeacherSession } from '../../utils/serverSession';
 import React, { useState } from 'react';
 import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
-import { hashPassword, passwordsMatch } from '../../utils/password';
+import { hashPassword } from '../../utils/password';
 import ManaraBrand from '../../components/ManaraBrand';
 import { readStorageArray, writeActiveSession } from '../../utils/storage';
 
@@ -26,9 +26,9 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
 
     const normalizedUsername = username.trim();
     const teachers = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS);
-    let teacher = teachers.find(
-      t => t.username === normalizedUsername && passwordsMatch(password, t.password),
-    );
+    // ‏الدخولُ من الخادم وحده: كان يُجرَّب أوّلاً على نسخة المتصفّح، فيدخل المعلمُ
+    // ‏بلا جلسةٍ في الخادم — أو بجلسة دورٍ آخر بقيت في المتصفّح — ويُكتب بها.
+    let teacher: TeacherInfo | undefined;
 
     if (!teacher) {
       try {
@@ -39,7 +39,8 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
           body: JSON.stringify({ username: normalizedUsername, password }),
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.teacher) {
+        // ‏والدورُ من ردّ الخادم نفسه: لا تُفتح لوحةُ المعلم إلا بجلسة معلّم.
+        if (!response.ok || !result.teacher || (result.role && result.role !== 'teacher')) {
           setError(result.error || '❌ اسم المستخدم أو كلمة المرور غير صحيحة');
           return;
         }

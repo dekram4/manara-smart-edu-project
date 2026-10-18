@@ -20,8 +20,12 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
         body: JSON.stringify({ username: username.trim(), password }),
       });
       if (response.ok) {
-      onLoginSuccess();
-        return;
+        // ‏تُفتح لوحةُ المشرف بدورٍ يؤكّده ردُّ الخادم لا بنجاح الطلب وحده.
+        const result = await response.json().catch(() => ({}));
+        if (!result.role || result.role === 'admin') {
+          onLoginSuccess();
+          return;
+        }
       }
       if (response.status === 503) {
         alert('⚠️ لم يتم إعداد بيانات دخول المشرف في Secrets بعد');
