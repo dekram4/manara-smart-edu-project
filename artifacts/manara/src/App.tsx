@@ -7,7 +7,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import ParentDashboard from './pages/parent/ParentDashboard';
 import { STORAGE_KEYS } from './constants';
-import { initSupabaseSync, resetSyncState } from './db/sync';
+import { clearSyncedCache, initSupabaseSync, resetSyncState } from './db/sync';
 import { migratePasswordsToHash } from './db/migratePasswords';
 import { GameControls } from './components/GameControls';
 import { SyncStatusBanner } from './components/SyncStatusBanner';
@@ -189,6 +189,47 @@ const ScrollDownButton: React.FC = () => {
   );
 };
 
+/** علاماتُ الجلسة في المتصفّح، بكل أسمائها القديمة والجديدة. */
+const ROLE_SESSION_KEYS = [
+  'smartEdu_activeRole',
+  'smartEdu_adminSession',
+  'smartEdu_authSession',
+  STORAGE_KEYS.ACTIVE_STUDENT,
+  STORAGE_KEYS.ACTIVE_PARENT,
+  STORAGE_KEYS.CURRENT_TEACHER,
+];
+
+/**
+ * يمحو علاماتِ الجلسة من التخزينين معاً — `removeSessionValue` يمحو من
+ * التخزين الذي كتب فيه، وعلامةٌ بقيت في الآخر كانت تُعيد فتحَ لوحة الدور
+ * السابق عند التحميل التالي.
+ */
+const purgeRoleStorage = () => {
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    for (const key of ROLE_SESSION_KEYS) {
+      try {
+        storage.removeItem(key);
+      } catch {
+        // تخزينٌ محجوب: لا شيء فيه يُمحى.
+      }
+    }
+  }
+};
+
+/** الدورُ الذي يحمله المتصفّح كما يراه الخادم، أو `undefined` إن تعذّر السؤال. */
+const fetchServerRole = async (): Promise<'admin' | 'teacher' | 'parent' | null | undefined> => {
+  try {
+    const response = await fetch('/api/auth/whoami', { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) return undefined;
+    const result = await response.json();
+    return result?.role === 'admin' || result?.role === 'teacher' || result?.role === 'parent'
+      ? result.role
+      : null;
+  } catch {
+    return undefined;
+  }
+};
+
 const App: React.FC = () => {
   const [mainView, setMainView] = useState<MainView>('role');
   const [booting, setBooting] = useState(true);
@@ -208,21 +249,35 @@ const App: React.FC = () => {
     setMainView(role);
   };
 
-  const leaveRole = () => {
+  const leaveRole = async () => {
     clearActiveSessions();
     clearAuthSessions();
     // الطابور والدور وحالة الشريط: كلّها تخصّ الحساب الخارج وحده. بدون
     // هذا كانت كتابة معلّقة من جلسة المشرف تُرسَل تحت جلسة المعلم التالي
     // فيردّها الخادم، ويرى المعلم شريطاً أحمر على عمل ليس عمله.
     resetSyncState();
+    // ‏ونسخةُ البيانات بنطاق الحساب الخارج تُمحى، وعلاماتُ الجلسة من التخزينين.
+    clearSyncedCache();
     removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
-    void Promise.all([
-      fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }),
-      fetch('/api/auth/teacher/logout', { method: 'POST', credentials: 'same-origin' }),
-      // كوكي ولي الأمر يُمسح كغيره، وإلا بقيت جلسة القراءة قائمة بعد الخروج.
-      fetch('/api/auth/parent/logout', { method: 'POST', credentials: 'same-origin' }),
-    ]).catch(() => {});
+    purgeRoleStorage();
+    // ‏وكعكاتُ الأدوار الثلاثة تُمحى في طلبٍ واحد **يُنتظر** قبل العودة إلى شاشة
+    // ‏الأدوار: كانت الطلباتُ تُطلق ولا تُنتظر، فيدخل المستخدمُ التالي والكعكةُ
+    // ‏القديمة ما زالت في المتصفّح — فتُفتح لوحةُ المشرف لمن دخل معلماً.
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 4000);
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+    } catch {
+      // ‏شبكةٌ منقطعة: الكعكاتُ يمحوها الخادمُ عند أوّل دخولٍ تالٍ (دخولٌ حصري).
+    } finally {
+      window.clearTimeout(timeout);
+    }
     setMainView('role');
   };
 
@@ -307,6 +362,32 @@ const App: React.FC = () => {
       if (bootTimeoutId !== undefined) window.clearTimeout(bootTimeoutId);
     };
   }, []);
+
+  // ‏التوجيهُ بالدور الذي يؤكّده الخادم، لا بعلامةٍ محفوظة في المتصفّح وحدها.
+  // ‏علامةٌ تقول «مشرف» والخادمُ لا يعرف جلسةً، أو يعرف جلسةَ دورٍ آخر:
+  // ‏تُمحى العلامات ويعود المستخدم إلى شاشة الأدوار ليدخل من جديد.
+  useEffect(() => {
+    if (!sessionReady) return;
+    let cancelled = false;
+    void fetchServerRole().then((serverRole) => {
+      if (cancelled || serverRole === undefined) return; // تعذّر السؤال: لا يُخرَج أحدٌ لانقطاع شبكة
+      if (serverRole === 'admin') {
+        writeSessionValue(SESSION_KEYS.ACTIVE_ROLE, 'admin');
+        setMainView((current) => (current === 'role' ? current : 'admin'));
+        return;
+      }
+      setMainView((current) => {
+        if (current === 'role' || current === serverRole) return current;
+        clearActiveSessions();
+        clearAuthSessions();
+        purgeRoleStorage();
+        return 'role';
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionReady]);
 
   const renderView = () => {
     switch (mainView) {

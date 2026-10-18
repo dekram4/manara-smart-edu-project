@@ -143,10 +143,22 @@ export function verifyParentSession(value: string): ContentActor | null {
  * مسار جديد يُضاف لاحقاً.
  */
 export function getContentActor(req: Request): WriteActor | null {
-  if (verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE))) {
+  // ‏جلستان معاً (متصفّحٌ دخل بدورين قبل أن يصير الدخولُ حصرياً): الأدنى
+  // ‏صلاحيةً لا الأعلى. كانت كعكةُ المشرف تُقدَّم، فيكتب المعلمُ بصلاحية المشرف.
+  const teacher = verifyTeacherSession(readCookie(req, TEACHER_SESSION_COOKIE));
+  if (teacher) return teacher;
+  if (verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE)) && !hasNonAdminSession(req)) {
     return { role: "admin" };
   }
-  return verifyTeacherSession(readCookie(req, TEACHER_SESSION_COOKIE));
+  return null;
+}
+
+/** هل في الطلب جلسةُ معلّمٍ أو وليّ أمر — فلا تُمنح معها صلاحيةُ المشرف. */
+function hasNonAdminSession(req: Request): boolean {
+  return Boolean(
+    verifyTeacherSession(readCookie(req, TEACHER_SESSION_COOKIE)) ||
+      verifyParentSession(readCookie(req, PARENT_SESSION_COOKIE)),
+  );
 }
 
 /**
@@ -167,7 +179,7 @@ export function requireAdmin(
   res: Response,
   next: NextFunction,
 ): void {
-  if (!verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE))) {
+  if (!verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE)) || hasNonAdminSession(req)) {
     res.status(401).json({ error: "يجب تسجيل الدخول كمسؤول" });
     return;
   }

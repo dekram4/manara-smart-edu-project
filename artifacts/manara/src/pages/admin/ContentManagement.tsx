@@ -1,5 +1,6 @@
 ﻿
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import HorizontalScrollRegion from '../../components/HorizontalScrollRegion';
 import { readHierarchicalConfigs } from '../../utils/academic';
 import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { LessonConfig } from '../../types';
@@ -50,6 +51,35 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const [listPublish, setListPublish] = useState<'all' | 'published' | 'empty'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingLesson, setEditingLesson] = useState<LessonConfig | null>(null);
+  /// ‏نموذجُ الإضافة/التعديل، يُصعَد إليه عند «تعديل».
+  const formRef = useRef<HTMLDivElement>(null);
+  /// ‏آخرُ محتوىً فُتح للتعديل: يُعاد إليه في القائمة بعد الحفظ أو الإلغاء.
+  const returnToLessonId = useRef<string | null>(null);
+
+  // ‏«تعديل» يفتح النموذج ويصعد إليه، والقائمةُ تُخفى ما دام التعديل قائماً
+  // ‏(انظر الشرط حول الفلاتر والجدول). كان النموذجُ يُملأ في أعلى الصفحة
+  // ‏والمشرفُ ما زال عند الصفّ الذي ضغطه، فلا يرى أنّ شيئاً حدث.
+  useEffect(() => {
+    if (!editingLesson) return;
+    const frame = window.requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      formRef.current?.querySelector<HTMLElement>('select, input, textarea')?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingLesson]);
+
+  // ‏وبعد الحفظ أو الإلغاء تعود القائمةُ إلى الصفّ نفسه.
+  useEffect(() => {
+    if (editingLesson || !returnToLessonId.current) return;
+    const id = returnToLessonId.current;
+    returnToLessonId.current = null;
+    const frame = window.requestAnimationFrame(() => {
+      const row = Array.from(document.querySelectorAll<HTMLElement>('[data-lesson-row]'))
+        .find((el) => el.dataset.lessonRow === id && el.offsetParent !== null);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingLesson]);
   
   // للمشرف: اختيار المعلم
   const [teachers, setTeachers] = useState<any[]>([]);
@@ -454,7 +484,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   const listFiltersActive = Boolean(listSearch.trim()) || listSubject !== 'all'
     || listGrade !== 'all' || listKind !== 'all' || listPublish !== 'all';
 
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingLesson(null);
+    setFormData({ grade: '', subject: '', term: '', unit: '', lesson: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, explanationVideos: [], avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
+  };
+
   const handleEdit = (lesson: LessonConfig) => {
+    returnToLessonId.current = lesson.id;
     setEditingLesson(lesson);
     setFormData({
       grade: lesson.grade,
@@ -597,21 +634,21 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           <p>اربط الروابط التعليمية بالصفوف والمواد والوحدات من مكان واحد.</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
-          disabled={!teacherId && !selectedTeacherId}
+          onClick={() => (showForm ? closeForm() : setShowForm(true))}
+          disabled={!showForm && !teacherId && !selectedTeacherId}
           className={`dashboard-content-primary-action ${
-            !teacherId && !selectedTeacherId 
+            !showForm && !teacherId && !selectedTeacherId
               ? 'is-disabled'
               : ''
           }`}
-          title={!teacherId && !selectedTeacherId ? 'اختر معلماً أو محتوى عام لإضافة محتوى جديد' : ''}
+          title={!showForm && !teacherId && !selectedTeacherId ? 'اختر معلماً أو محتوى عام لإضافة محتوى جديد' : ''}
         >
-          {showForm ? 'إلغاء' : '➕ إضافة محتوى جديد'}
+          {showForm ? (editingLesson ? '↩ إلغاء التعديل والعودة للقائمة' : 'إلغاء') : '➕ إضافة محتوى جديد'}
         </button>
       </div>
 
       {showForm && (
-         <div className="dashboard-surface dashboard-content-form-surface animate-fadeIn">
+         <div ref={formRef} className="dashboard-surface dashboard-content-form-surface animate-fadeIn" style={{ scrollMarginTop: '1rem' }}>
            <div className="dashboard-content-form-heading">
              <div>
                <span>الخطوة 01</span>
@@ -889,8 +926,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         </div>
       )}
 
-      {/* 🔎 شريط فلاتر المحتوى */}
-      {lessons.length > 0 && (
+      {/* 🔎 شريط فلاتر المحتوى — يُخفى مع القائمة كلِّها أثناء التعديل */}
+      {!editingLesson && lessons.length > 0 && (
         <div className="dashboard-filter-surface" style={{ marginBottom: '1.5rem' }}>
           <div className="dashboard-filter-grid dashboard-filter-grid-wide">
             <input
@@ -938,6 +975,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       )}
 
       {/* ===== العرض الهجين: جدول على الشاشات الكبيرة، بطاقات دونها ===== */}
+      {!editingLesson && (<>
       <div className="dashboard-table-surface dashboard-content-records dashboard-content-table-surface dashboard-hybrid-table">
         <div className="dashboard-content-table-heading">
           <div>
@@ -946,6 +984,10 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </div>
           <strong>{visibleLessons.length}{listFiltersActive ? ` من ${lessons.length}` : ''} محتوى</strong>
         </div>
+        <HorizontalScrollRegion
+          label="جدول المحتوى: استخدم الأسهم أو عجلة الفأرة للتنقّل بين الأعمدة"
+          hint="← → أو عجلة الفأرة للتنقّل بين الأعمدة"
+        >
         <table className="dashboard-content-table text-right">
           <thead className="dashboard-content-table-head">
             <tr>
@@ -967,7 +1009,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </thead>
           <tbody>
             {visibleLessons.map(l => (
-              <tr key={l.id}>
+              <tr key={l.id} data-lesson-row={l.id}>
                 <td className="px-6 py-5 font-black text-purple-800">{l.grade}</td>
                 <td className="px-6 py-5 font-bold text-purple-600">{l.subject}</td>
                 <td className="px-6 py-5 text-purple-500">{l.term || '—'}</td>
@@ -997,6 +1039,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             ))}
           </tbody>
         </table>
+        </HorizontalScrollRegion>
         {lessons.length === 0 && <div className="dashboard-content-empty">لا يوجد محتوى تعليمي مضاف حالياً</div>}
       </div>
 
@@ -1009,7 +1052,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         ) : (
           <div className="dashboard-record-grid">
             {visibleLessons.map(l => (
-              <article key={l.id} className="dashboard-record-card">
+              <article key={l.id} data-lesson-row={l.id} className="dashboard-record-card">
                 <header className="dashboard-record-head">
                   <div className="min-w-0 flex-1">
                     <h3 className="dashboard-record-title">{l.lesson || l.unit}</h3>
@@ -1064,6 +1107,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           </div>
         )}
       </div>
+      </>)}
     </div>
   );
 };

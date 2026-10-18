@@ -5,6 +5,8 @@ import {
   readCookie,
   TEACHER_SESSION_COOKIE,
   verifyAdminSession,
+  verifyParentSession,
+  verifyTeacherSession,
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
 import {
@@ -57,6 +59,42 @@ function teacherCookieOptions(maxAge = TEACHER_SESSION_TTL_SECONDS): string {
       ? "; Secure"
       : "";
   return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+/**
+ * كعكةُ دورٍ واحد، ومحوُ كعكتَي الدورين الآخرين في الردّ نفسه.
+ *
+ * ── لماذا ──
+ * كعكةُ المشرف تعيش أربعة عشر يوماً. فمشرفٌ عاد إلى شاشة الأدوار بلا خروج —
+ * أو ضاع طلبُ خروجه — ثم دخل معلمٌ على المتصفّح نفسه، كان المتصفّح يحمل
+ * الكعكتين معاً، والخادمُ يقدّم كعكة المشرف: فيرى المعلمُ بيانات المشرف
+ * ويكتب بصلاحيته، وتفتح بطاقةُ المشرف لاحقاً بلا كلمة مرور. فكلُّ دخولٍ ناجح
+ * يُبقي في المتصفّح جلسةَ دورٍ واحد.
+ */
+function exclusiveRoleCookies(role: "admin" | "teacher" | "parent", cookie: string): string[] {
+  const clears: string[] = [];
+  if (role !== "admin") clears.push(`${ADMIN_SESSION_COOKIE}=; ${adminCookieOptions(0)}`);
+  if (role !== "teacher") clears.push(`${TEACHER_SESSION_COOKIE}=; ${teacherCookieOptions(0)}`);
+  if (role !== "parent") clears.push(`${PARENT_SESSION_COOKIE}=; ${parentCookieOptions(0)}`);
+  return [cookie, ...clears];
+}
+
+/** محوُ كعكات الأدوار الثلاثة. */
+function clearAllRoleCookies(): string[] {
+  return [
+    `${ADMIN_SESSION_COOKIE}=; ${adminCookieOptions(0)}`,
+    `${TEACHER_SESSION_COOKIE}=; ${teacherCookieOptions(0)}`,
+    `${PARENT_SESSION_COOKIE}=; ${parentCookieOptions(0)}`,
+  ];
+}
+
+/** الأدوارُ التي تحمل لها هذه الطلبةُ كعكةً صالحة. */
+function activeRoles(req: import("express").Request): Array<"admin" | "teacher" | "parent"> {
+  const roles: Array<"admin" | "teacher" | "parent"> = [];
+  if (verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE))) roles.push("admin");
+  if (verifyTeacherSession(readCookie(req, TEACHER_SESSION_COOKIE))) roles.push("teacher");
+  if (verifyParentSession(readCookie(req, PARENT_SESSION_COOKIE))) roles.push("parent");
+  return roles;
 }
 
 function signTeacherSession(teacherId: string): string {
@@ -313,20 +351,25 @@ router.post("/auth/admin", (req, res) => {
   }
   res.setHeader(
     "Set-Cookie",
-    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(
+    exclusiveRoleCookies(
+      "admin",
+      `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(
       signAdminSession({
         role: "admin",
         expiresAt: Date.now() + ADMIN_SESSION_TTL_SECONDS * 1000,
       }),
     )}; ${adminCookieOptions()}`,
+    ),
   );
-  return res.json({ ok: true });
+  return res.json({ ok: true, role: "admin" });
 });
 
 router.get("/auth/admin/session", (req, res) => {
-  return res.json({
-    authenticated: verifyAdminSession(readCookie(req, ADMIN_SESSION_COOKIE)),
-  });
+  res.setHeader("Cache-Control", "no-store");
+  // ‏مشرفٌ وحده: كعكةُ مشرفٍ بجانبها جلسةُ معلّمٍ أو وليّ أمر لا تفتح لوحةَ
+  // ‏المشرف — كانت تفتحها بلا كلمة مرور لمن دخل معلماً على المتصفّح نفسه.
+  const roles = activeRoles(req);
+  return res.json({ authenticated: roles.length === 1 && roles[0] === "admin" });
 });
 
 // Native clients cannot use the web-only cookie flow. They receive a short-lived
@@ -384,11 +427,14 @@ router.post("/auth/teacher/session", async (req, res) => {
     }
     res.setHeader(
       "Set-Cookie",
-      `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
+      exclusiveRoleCookies(
+        "teacher",
+        `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
         signTeacherSession(teacher.id),
       )}; ${teacherCookieOptions()}`,
+      ),
     );
-    return res.json({ ok: true });
+    return res.json({ ok: true, role: "teacher" });
   } catch (error) {
     logger.error({ err: error }, "Teacher media session authentication failed");
     return res.status(503).json({
@@ -412,13 +458,17 @@ router.post("/auth/teacher/login", async (req, res) => {
     }
     res.setHeader(
       "Set-Cookie",
-      `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
+      exclusiveRoleCookies(
+        "teacher",
+        `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
         signTeacherSession(teacher.id),
       )}; ${teacherCookieOptions()}`,
+      ),
     );
     const fullTeacher = await findAccountData("teachers", teacher.id);
     return res.json({
       ok: true,
+      role: "teacher",
       teacher: safeAccountData(
         fullTeacher ?? {
           id: teacher.id,
@@ -453,12 +503,16 @@ router.post("/auth/parent/login", async (req, res) => {
     // `localStorage`، فتظهر فارغة على أي جهاز جديد.
     res.setHeader(
       "Set-Cookie",
-      `${PARENT_SESSION_COOKIE}=${encodeURIComponent(
+      exclusiveRoleCookies(
+        "parent",
+        `${PARENT_SESSION_COOKIE}=${encodeURIComponent(
         signParentSession(parent.id),
       )}; ${parentCookieOptions()}`,
+      ),
     );
     return res.json({
       ok: true,
+      role: "parent",
       parent: safeAccountData(parent.data, parent.id),
     });
   } catch (error) {
@@ -489,9 +543,12 @@ router.post("/auth/teacher/change-password", async (req, res) => {
     await updateAccountPassword("teachers", teacher.id, data, newPassword);
     res.setHeader(
       "Set-Cookie",
-      `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
+      exclusiveRoleCookies(
+        "teacher",
+        `${TEACHER_SESSION_COOKIE}=${encodeURIComponent(
         signTeacherSession(teacher.id),
       )}; ${teacherCookieOptions()}`,
+      ),
     );
     return res.json({
       ok: true,
@@ -533,6 +590,33 @@ router.post("/auth/parent/change-password", async (req, res) => {
     logger.error({ err: error }, "Parent password change failed");
     return res.status(503).json({ error: "تعذر تحديث كلمة المرور الآن" });
   }
+});
+
+/**
+ * خروجٌ واحد يمحو جلسات الأدوار الثلاثة معاً. لوحاتُ الويب تناديه وتنتظره قبل
+ * أن تعود إلى شاشة الأدوار، فلا تبقى كعكةُ دورٍ سابق تُفتح بها لوحتُه لاحقاً.
+ */
+router.post("/auth/logout", (_req, res) => {
+  res.setHeader("Set-Cookie", clearAllRoleCookies());
+  res.setHeader("Cache-Control", "no-store");
+  return res.json({ ok: true, role: null });
+});
+
+/**
+ * الدورُ الذي تحمله كعكاتُ هذا المتصفّح، كما يراه الخادم: تبني عليه الواجهةُ
+ * توجيهَها عند التحميل وبعد الدخول، لا على علاماتٍ محفوظة في المتصفّح.
+ *
+ * وإن وُجدت جلستان معاً (متصفّحٌ من قبل هذا الإصلاح) فلا دورَ لأيٍّ منهما:
+ * تُمحى الكعكاتُ ويُطلب الدخولُ من جديد — خيرٌ من أن يُختار عنه دورٌ أعلى.
+ */
+router.get("/auth/whoami", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const roles = activeRoles(req);
+  if (roles.length > 1) {
+    res.setHeader("Set-Cookie", clearAllRoleCookies());
+    return res.json({ role: null, conflict: true });
+  }
+  return res.json({ role: roles[0] ?? null });
 });
 
 router.post("/auth/admin/logout", (_req, res) => {

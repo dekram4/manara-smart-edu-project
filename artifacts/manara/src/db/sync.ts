@@ -1308,6 +1308,36 @@ export function resetSyncState(): void {
 }
 
 /**
+ * يمحو نسخة الجداول والإعدادات المشتركة من المتصفح عند الخروج.
+ *
+ * ── لماذا ──
+ * النسخةُ محمَّلةٌ بنطاق الحساب الخارج: المشرفُ يحمل كلَّ الطلاب والمعلمين.
+ * والدمجُ مع الخادم اتحادٌ يرفع ما ليس فيه — فمعلمٌ دخل بعده على المتصفح
+ * نفسه كان يرى نسخةَ المشرف حتى تكتمل المزامنة، وتُرفع منها صفوفٌ ليست له
+ * فيردّها الخادم. فتُمحى، ويملؤها `refreshSupabaseSync` بنطاق الحساب الجديد
+ * عند دخوله.
+ *
+ * و`nativeRemoveItem` لا `localStorage.removeItem`: الثانيةُ معترَضةٌ بالكتابة
+ * المزامِنة، ومحوُ مفتاحٍ بها يُرسَل إلى الخادم حذفاً.
+ */
+export function clearSyncedCache(): void {
+  const keys = [
+    ...Object.keys(ROW_TABLES),
+    ...KV_KEYS,
+    PUBLIC_MESSAGES_KEY,
+    LEGACY_PUBLIC_MESSAGES_KEY,
+    PENDING_KEY,
+  ];
+  for (const key of new Set(keys)) {
+    try {
+      nativeRemoveItem(key);
+    } catch {
+      // تخزينٌ محجوب: لا شيء يُمحى.
+    }
+  }
+}
+
+/**
  * Call immediately after the authenticated server session changes. This
  * rehydrates the active browser cache from the new account's server scope
  * without replaying pending work created by a different account.

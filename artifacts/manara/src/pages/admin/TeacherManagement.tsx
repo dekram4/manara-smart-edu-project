@@ -10,6 +10,24 @@ interface TeacherManagementProps {
   onUpdate: () => void;
 }
 
+/**
+ * تاريخٌ يُقرأ أفقياً: «١٨ أكتوبر ٢٠٢٦» بالتقويم الميلادي.
+ *
+ * كان `toLocaleDateString('ar-SA')` يُخرج أرقاماً تفصلها علاماتُ اتجاهٍ خفيّة
+ * («١٨‏/١٠‏/٢٠٢٦»)، فتتقطّع عند أوّل التفافٍ وتُقرأ مقلوبة. والقيمةُ الفارغة
+ * أو التالفة شَرطةٌ لا «Invalid Date».
+ */
+const formatTeacherDate = (value?: string): string => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('ar-SA-u-ca-gregory', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+};
+
 const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   const [teachers, setTeachers] = useState<TeacherInfo[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -298,46 +316,23 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
         ) : (
            <div className="dashboard-card-grid">
             {teachers.map(teacher => (
-               <div key={teacher.id} className="dashboard-account-record bg-white p-6 rounded-[30px] border-2 border-purple-100 shadow-sm hover:shadow-lg transition-all">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-violet-600 rounded-full flex items-center justify-center text-2xl">
-                        👨‍🏫
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-black text-purple-900">{teacher.name}</h3>
-                        <p className="text-purple-500 text-sm">@{teacher.username}</p>
-                      </div>
+               <div key={teacher.id} className="dashboard-account-record teacher-record bg-white p-6 rounded-[30px] border-2 border-purple-100 shadow-sm hover:shadow-lg transition-all">
+                {/* ‏الرأسُ (الاسم والأزرار) صفٌّ يلتفّ، والتفاصيلُ تحته بعرض البطاقة كلِّه.
+                    ‏كانت التفاصيل عموداً بجانب الأزرار وشبكتُها أربعةُ أعمدةٍ بعرض **الشاشة**
+                    ‏(`md:grid-cols-4`) داخل بطاقةٍ نصفِ عرض، فضاقت الخانة إلى نحو ٦٠ بكسلاً
+                    ‏وانكسر النصُّ والتاريخ حرفاً تحت حرف. */}
+                <div className="teacher-record-head">
+                  <div className="teacher-record-identity">
+                    <div className="w-14 h-14 shrink-0 bg-gradient-to-br from-purple-500 to-violet-600 rounded-full flex items-center justify-center text-2xl">
+                      👨‍🏫
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                      <div className="bg-blue-50 p-3 rounded-xl">
-                        <p className="text-xs text-blue-600 font-bold">هوية المعلم</p>
-                        <p className="font-black text-blue-900">{teacher.teacherId}</p>
-                      </div>
-                      <div className="bg-green-50 p-3 rounded-xl">
-                        <p className="text-xs text-green-600 font-bold">تاريخ الإنشاء</p>
-                        <p className="font-black text-green-900">
-                          {new Date(teacher.createdAt).toLocaleDateString('ar-SA')}
-                        </p>
-                      </div>
-                      <div className="bg-purple-50 p-3 rounded-xl">
-                        <p className="text-xs text-purple-600 font-bold">آخر نشاط</p>
-                        <p className="font-black text-purple-900">
-                          {new Date(teacher.lastActivity).toLocaleDateString('ar-SA')}
-                        </p>
-                      </div>
-                      <div className="bg-orange-50 p-3 rounded-xl">
-                        <p className="text-xs text-orange-600 font-bold">الحالة</p>
-                        <p className="font-black text-orange-900">
-                          {teacher.mustChangePassword ? '⚠️ يجب تغيير كلمة المرور' : '✅ نشط'}
-                        </p>
-                      </div>
+                    <div className="min-w-0">
+                      <h3 className="teacher-record-name text-xl font-black text-purple-900">{teacher.name}</h3>
+                      <p className="text-purple-500 text-sm" dir="ltr">@{teacher.username}</p>
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mr-4">
+                  <div className="teacher-record-actions">
                     <button
                       onClick={() => handleEdit(teacher)}
                       className="p-3 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 transition-all"
@@ -361,6 +356,28 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
                     </button>
                   </div>
                 </div>
+
+                {/* ‏خاناتٌ لا تضيق عن ٩٫٥rem: تُرتَّب بحسب عرض البطاقة نفسها. */}
+                <dl className="teacher-record-facts">
+                  <div className="bg-blue-50">
+                    <dt className="text-blue-600">هوية المعلم</dt>
+                    <dd className="text-blue-900" dir="ltr">{teacher.teacherId || '—'}</dd>
+                  </div>
+                  <div className="bg-green-50">
+                    <dt className="text-green-600">تاريخ الإنشاء</dt>
+                    <dd className="text-green-900">{formatTeacherDate(teacher.createdAt)}</dd>
+                  </div>
+                  <div className="bg-purple-50">
+                    <dt className="text-purple-600">آخر نشاط</dt>
+                    <dd className="text-purple-900">{formatTeacherDate(teacher.lastActivity)}</dd>
+                  </div>
+                  <div className="bg-orange-50">
+                    <dt className="text-orange-600">الحالة</dt>
+                    <dd className="text-orange-900">
+                      {teacher.mustChangePassword ? '⚠️ يجب تغيير كلمة المرور' : '✅ نشط'}
+                    </dd>
+                  </div>
+                </dl>
               </div>
             ))}
           </div>
