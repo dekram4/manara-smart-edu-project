@@ -186,3 +186,29 @@ test("السباق: كلُّ شكلٍ بخياراته — صح/خطأ اثنا�
   const pack = parseStudyGames({ games: [bad] }, owner);
   assert.equal(pack.games[0].items.questions.length, 16);
 });
+
+// ── إعادةُ اللعب: نسخةٌ جديدة لا تتكرّر أسئلتها ──
+test("توجيهُ النسخة الجديدة: نوعٌ واحد، والنصُّ الكامل، وما رآه الطالب ليتجنّبه", async () => {
+  const { freshGamePrompt } = mod;
+  const prompt = freshGamePrompt({
+    type: "endless_quiz",
+    lessonTitle: "النبات",
+    lessonText: "نص الدرس الكامل. " + "تفصيل. ".repeat(3000) + "آخر جملة.",
+    exclude: ["أي جزء من النبات يمتص الماء؟ 1"],
+  });
+  assert.ok(prompt.includes('"endless_quiz"'));
+  assert.ok(prompt.includes("آخر جملة."));
+  assert.ok(prompt.includes("أي جزء من النبات يمتص الماء؟ 1"));
+  assert.ok(prompt.includes("لا تُعِد"));
+});
+
+test("النسخةُ الجديدة: سؤالٌ رآه الطالب يسقط ولو أعاده النموذج", () => {
+  const { parseFreshGame, isStudyGameType } = mod;
+  const seen = quiz.items.questions.slice(0, 3).map((q) => q.question);
+  const game = parseFreshGame({ games: [quiz] }, "endless_quiz", seen);
+  assert.equal(game.items.questions.length, quiz.items.questions.length - 3);
+  assert.ok(game.items.questions.every((q) => !seen.includes(q.question)));
+  assert.equal(parseFreshGame({ games: [quiz] }, "matching"), null);
+  assert.equal(isStudyGameType("drag_drop"), true);
+  assert.equal(isStudyGameType("hack"), false);
+});

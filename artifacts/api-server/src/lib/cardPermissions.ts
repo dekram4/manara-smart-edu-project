@@ -105,7 +105,15 @@ export function ruleToTableRow(rule: CardRule): Record<string, unknown> {
 /**
  * الحالةُ النهائية لكل بطاقة عند طالبٍ بعينه.
  *
- * الكلُّ مفتوحٌ أولاً، ثم قاعدةُ صفّه (معلّمُه وصفُّه)، ثم قاعدتُه هو.
+ * الكلُّ مفتوحٌ أولاً، ثم قاعدةُ صفّه (معلّمُه وصفُّه) وقاعدتُه هو — **بترتيب
+ * زمنهما: القرارُ الأحدث يغلب.**
+ *
+ * ── لماذا الزمن لا النطاق ──
+ * كانت قاعدةُ الطالب تغلب قاعدةَ صفّه دائماً. فاستثناءٌ قديمٌ لطالبٍ واحد
+ * (فتحُ البطاقات كلّها له للتجربة) بقي يفتح «اللقاء المباشر» و«المعلم
+ * الافتراضي» بعد أن أغلقهما المعلم لصفّه كلّه — فلا يصل قرارُ المعلم الجديد
+ * إلى ذلك الطالب أبداً. الآن قرارُ الصفّ الأحدث يصل كلَّ طلابه فوراً، والاستثناءُ
+ * الذي يُحفظ بعده يغلبه، كما يتوقّع من يحفظه.
  */
 export function effectiveCards(
   rules: CardRule[],
@@ -127,12 +135,19 @@ export function effectiveCards(
     student.teacherIdentities.has(scopeKey(rule.teacherId)) &&
     scopeKey(rule.gradeId) === grade,
   );
-  for (const rule of classRules) Object.assign(result, rule.cards);
-
   const ids = new Set([student.id, ...(student.ids ?? [])].map(text).filter(Boolean));
   const own = rules.find((rule) =>
     rule.scope === "student" && ids.has(text(rule.studentId)),
   );
-  if (own) Object.assign(result, own.cards);
+  // ‏الأقدمُ أوّلاً فيغلبه الأحدث. وعند تساوي الزمن أو غيابه يبقى الترتيبُ القديم:
+  // ‏الصفُّ ثم الطالب.
+  const stamp = (rule: CardRule) => {
+    const at = Date.parse(rule.updatedAt);
+    return Number.isFinite(at) ? at : 0;
+  };
+  const ordered = [...classRules, ...(own ? [own] : [])]
+    .map((rule, index) => ({ rule, index }))
+    .sort((a, b) => stamp(a.rule) - stamp(b.rule) || a.index - b.index);
+  for (const { rule } of ordered) Object.assign(result, rule.cards);
   return result;
 }

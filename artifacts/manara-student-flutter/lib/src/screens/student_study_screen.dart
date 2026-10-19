@@ -417,6 +417,13 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
         StudyGamesTab(
           load: () => widget.studyService.fetchGames(lessonId: _lessonId),
           onWin: _rewardGame,
+          // ‏إعادةُ اللعب نسخةٌ جديدة من النصّ الكامل للدرس، لا تكرّر ما رآه.
+          fresh: (base, exclude) => widget.studyService.fetchFreshGame(
+            lessonId: _lessonId,
+            type: base.type,
+            exclude: exclude,
+          ),
+          seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
         ),
       ],
     );

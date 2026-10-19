@@ -421,3 +421,78 @@ export function rewardOf(stored: unknown, gameId: StudyGameType): { gems: number
     points: clampInt((game as StudyGame).points_reward, REWARD_LIMITS.points),
   };
 }
+
+// ── نسخةٌ جديدة من لعبة: لا تتكرّر الأسئلة عند إعادة اللعب ─────────────────
+
+/** أقصى ما يُذكر للنموذج ممّا رآه الطالب — يكفي ليتجنّبه ولا ينتفخ الطلب. */
+export const MAX_EXCLUDE = 120;
+
+/**
+ * توجيهُ نسخةٍ جديدة من لعبةٍ واحدة، من النصّ الكامل للدرس.
+ *
+ * ── لماذا ──
+ * الحزمةُ المحفوظة مع الدرس تُولَّد مرّة، فكانت إعادةُ اللعب تُعيد الأسئلةَ
+ * نفسها بترتيبٍ آخر — والطفلُ يحفظ الجوابَ من موضعه لا من فهمه. فكلُّ إعادةٍ
+ * تطلب من النموذج نسخةً جديدة، ويُذكر له ما رآه الطالبُ من قبل ليتجنّبه.
+ */
+export function freshGamePrompt({
+  type,
+  lessonTitle,
+  lessonText,
+  subject,
+  grade,
+  exclude = [],
+}: {
+  type: StudyGameType;
+  lessonTitle: string;
+  lessonText: string;
+  subject?: string;
+  grade?: string;
+  exclude?: string[];
+}): string {
+  const context = [
+    grade ? `- الصف: ${grade}` : "",
+    subject ? `- المادة: ${subject}` : "",
+    lessonTitle ? `- الدرس: ${lessonTitle}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const seen = exclude
+    .map((item) => clean(item, 160))
+    .filter(Boolean)
+    .slice(-MAX_EXCLUDE);
+  const avoid = seen.length
+    ? `\nلعب الطالب هذه اللعبة من قبل ورأى ما يلي — لا تُعِد أيّاً منه ولا تُعِد صياغته؛ اختر مفاهيم وتفاصيل أخرى من الدرس وأمثلة جديدة:\n${seen.map((item) => `- ${item}`).join("\n")}\n`
+    : "";
+  return `ابنِ لعبة واحدة فقط من نوع "${type}" — نسخة جديدة كلياً — من هذا الدرس، وفق ضوابط هذا النوع. أخرجها داخل "games" مصفوفةً من عنصر واحد.
+${context ? `\n${context}\n` : ""}${avoid}
+نص الدرس:
+"""
+${fullLessonText(lessonText)}
+"""`;
+}
+
+/**
+ * النسخةُ الجديدة من ردّ النموذج، بعد فحصها كالحزمة. وأسئلةُ السباق التي رآها
+ * الطالب تسقط ولو أعادها النموذج — فلا يتكرّر سؤالٌ بنصّه.
+ */
+export function parseFreshGame(
+  raw: unknown,
+  type: StudyGameType,
+  exclude: string[] = [],
+): StudyGame | null {
+  const candidate = extract(raw).find(
+    (entry) => entry && typeof entry === "object" && (entry as Record<string, unknown>).game_type === type,
+  );
+  const game = parseGame(candidate, type);
+  if (!game) return null;
+  if (type !== "endless_quiz") return game;
+  const seen = new Set(exclude.map((item) => key(clean(item, 200))));
+  const questions = (game.items.questions ?? []).filter((q) => !seen.has(key(q.question)));
+  if (questions.length < 6) return null;
+  return { ...game, items: { ...game.items, questions } };
+}
+
+export function isStudyGameType(value: unknown): value is StudyGameType {
+  return (GAME_TYPES as readonly string[]).includes(String(value));
+}
