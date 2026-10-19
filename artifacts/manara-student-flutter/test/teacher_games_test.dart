@@ -71,4 +71,46 @@ void main() {
       expect(games, isEmpty, reason: '$status');
     }
   });
+
+  // ── الفهرسُ العامّ لا يملأه التطبيق من عنده ──
+  // أسند المشرفُ الألعابَ الأساسية كلَّها إلى معلّمين: الفهرسُ العامّ فارغ.
+  // كانت الفارغةُ تُستبدل بالألعاب الستّ المدمجة، فيرى طلابُ معلّمٍ ألعابَ غيره.
+  test('فهرسٌ فارغ أو متعذّر: لا ألعاب مدمجة', () async {
+    for (final (status, body) in [
+      (200, {'games': <Object>[]}),
+      (500, {'error': 'x'}),
+    ]) {
+      final games = await http.runWithClient(
+        service.fetchGameCatalog,
+        () => MockClient((_) async => http.Response(jsonEncode(body), status)),
+      );
+      expect(games, isEmpty, reason: '$status');
+    }
+  });
+
+  test('بصمةُ الدروس تتغيّر بتعديل المعلّم، والدرسُ المفتوح يبقى', () {
+    LessonContent lesson(String id, String text) => LessonContent(
+          id: id,
+          lessonId: id,
+          grade: 'الأول',
+          subject: 'العلوم',
+          term: 'الأول',
+          unit: 'الأولى',
+          lessonName: 'درس $id',
+          createdAt: '',
+          lessonText: text,
+          videos: const [],
+          games: const [],
+        );
+    final before = [lesson('a', 'نص'), lesson('b', 'نص')];
+    final edited = [lesson('a', 'نص معدّل'), lesson('b', 'نص')];
+    expect(StudentContentService.lessonsSignature(before),
+        StudentContentService.lessonsSignature([...before]));
+    expect(StudentContentService.lessonsSignature(before),
+        isNot(StudentContentService.lessonsSignature(edited)));
+    expect(StudentContentService.keepSelectedLesson(edited, before[1])!.id, 'b');
+    // حذفه المعلّم: لا يبقى معروضاً.
+    expect(StudentContentService.keepSelectedLesson([edited[0]], before[1])!.id, 'a');
+    expect(StudentContentService.keepSelectedLesson(const [], before[0]), isNull);
+  });
 }

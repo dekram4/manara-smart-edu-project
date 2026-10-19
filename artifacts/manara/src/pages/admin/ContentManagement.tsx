@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import HorizontalScrollRegion from '../../components/HorizontalScrollRegion';
 import { readHierarchicalConfigs } from '../../utils/academic';
 import { useSyncHydrating } from '../../hooks/useSyncHydrating';
+import { DATA_REFRESHED_EVENT, refreshFromServer } from '../../db/sync';
 import { LessonConfig } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
@@ -139,17 +140,53 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     loadAcademicOptions();
   }, [teacherId, selectedTeacherId]); // إعادة التحميل عند تغيير teacherId
 
+  // ‏── نسخةٌ طازجة من الخادم ──
+  // ‏الشاشةُ تقرأ نسخةَ المتصفّح، وكانت تُملأ مرّةً عند الدخول. فما يغيّره
+  // ‏المعلم في «الإعدادات الأكاديمية»، أو يحذفه من جهازٍ آخر، لا يظهر هنا
+  // ‏حتى يُحدّث الصفحة. فتُطلب نسخةُ الخادم عند فتح الشاشة، وعند العودة إلى
+  // ‏التبويب، وكلَّ نصف دقيقةٍ ما دامت ظاهرة — والقائمةُ تُعاد قراءتُها بعد كل
+  // ‏تحميل. والنموذجُ المفتوح لا يُمسّ: ما يكتبه المعلم في حالته لا في النسخة.
+  const showFormRef = useRef(showForm);
+  showFormRef.current = showForm;
+  const reloadRef = useRef<() => void>(() => {});
+  reloadRef.current = () => {
+    loadData();
+    loadAcademicOptions();
+  };
+
+  useEffect(() => {
+    const onRefreshed = () => reloadRef.current();
+    const refreshIfIdle = () => {
+      if (document.visibilityState === 'visible' && !showFormRef.current) void refreshFromServer();
+    };
+    window.addEventListener(DATA_REFRESHED_EVENT, onRefreshed);
+    window.addEventListener('focus', refreshIfIdle);
+    document.addEventListener('visibilitychange', refreshIfIdle);
+    const timer = window.setInterval(refreshIfIdle, 30_000);
+    void refreshFromServer();
+    return () => {
+      window.removeEventListener(DATA_REFRESHED_EVENT, onRefreshed);
+      window.removeEventListener('focus', refreshIfIdle);
+      document.removeEventListener('visibilitychange', refreshIfIdle);
+      window.clearInterval(timer);
+    };
+  }, []);
+
   const loadData = () => {
-    const saved = localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS);
-    if (saved) {
-      const allLessons = JSON.parse(saved);
-      // إذا كان هناك teacherId أو selectedTeacherId، عرض محتوى هذا المعلم فقط
-      const effectiveTeacherId = teacherId || selectedTeacherId;
-      const filteredLessons = effectiveTeacherId 
-        ? allLessons.filter((l: LessonConfig) => getRecordTeacherId(l) === normalizeScopeValue(effectiveTeacherId))
-        : allLessons;
-      setLessons(filteredLessons);
+    let allLessons: LessonConfig[] = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.LESSON_CONFIGS) || '[]');
+      allLessons = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      allLessons = [];
     }
+    // ‏نسخةٌ مُحيت (ختمُ تنظيف، أو خروج) قائمةٌ فارغة — لا ما عُرض قبلها.
+    // إذا كان هناك teacherId أو selectedTeacherId، عرض محتوى هذا المعلم فقط
+    const effectiveTeacherId = teacherId || selectedTeacherId;
+    const filteredLessons = effectiveTeacherId
+      ? allLessons.filter((l: LessonConfig) => getRecordTeacherId(l) === normalizeScopeValue(effectiveTeacherId))
+      : allLessons;
+    setLessons(filteredLessons);
   };
 
   // دالة تغيير المعلم المختار (للمشرف فقط)
@@ -415,6 +452,9 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       liveMeetingUrl: formData.liveMeetingUrl.trim() || preservedLesson?.liveMeetingUrl || '',
       lessonContent: formData.lessonContent.trim() || preservedLesson?.lessonContent || '',
       createdAt: preservedLesson?.createdAt || new Date().toISOString(),
+      // ‏ختمُ التعديل: المزامنةُ تفاضل به بين نسخة الجهاز ونسخة الخادم، فلا
+      // ‏تغلب نسخةٌ أقدم تعديلاً أحدث منها.
+      updatedAt: new Date().toISOString(),
       createdBy: ownerId,
       createdByName: ownerName
     };
@@ -441,6 +481,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     setFormData({ grade: '', subject: '', term: '', unit: '', lesson: '', explanationVideoUrl: '', explanationVideoType: 'embed', explanationVideoFile: null, explanationVideos: [], avatarInteractionUrl: '', liveMeetingUrl: '', lessonContent: '' });
     loadData();
     onUpdate();
+    // ‏بعد وصول الحفظ: ما في الخادم هو ما يُعرض.
+    void refreshFromServer();
   };
 
   /// نوع المحتوى ليس حقلاً مخزّناً بل صفة مشتقّة مما عُبّئ فعلاً في السجل،
@@ -562,6 +604,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       }
       loadData();
       onUpdate();
+      void refreshFromServer();
     }
   };
 

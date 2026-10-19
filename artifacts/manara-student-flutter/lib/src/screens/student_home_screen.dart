@@ -177,6 +177,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _startCardAccessPoll();
     _lifecycle = AppLifecycleListener(onResume: () {
       // عائدٌ من خلفية الجهاز: ما تغيّر وهو خارج التطبيق يُرى فوراً.
+      // وشجرةُ الدروس المحفوظة تسقط: ما عدّله المعلم أو حذفه يُقرأ من جديد.
+      _selectionData = null;
       unawaited(_loadCardAccess());
       _startCardAccessPoll();
     }, onPause: _stopCardAccessPoll);
