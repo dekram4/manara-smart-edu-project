@@ -590,26 +590,25 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// Opens the lesson switcher and, if the student confirms, swaps the
   /// lesson every card works against.
   ///
-  /// The hierarchy is fetched when it is needed and kept until the student
-  /// leaves the hub and comes back — see [didPopNext], which drops it. Held
-  /// that long because re-fetching on every open would put a spinner in
-  /// front of a menu; dropped that often because a teacher editing the
-  /// course mid-session should reach the student on their next move, not on
-  /// their next sign-in.
+  /// The hierarchy is read fresh from Supabase every time the switcher
+  /// opens, so a branch the teacher deleted is gone on the student's very
+  /// next look; the last good copy is used only when the read fails.
   Future<void> _changeLesson() async {
     StudentSoundService.instance.playTap();
     final messenger = ScaffoldMessenger.of(context);
-    if (_selectionData == null) {
-      if (_loadingSelection) return;
-      setState(() => _loadingSelection = true);
-      try {
-        _selectionData =
-            await _contentService.fetchAcademicSelectionData(widget.profile);
-      } catch (_) {
-        _selectionData = null;
-      } finally {
-        if (mounted) setState(() => _loadingSelection = false);
-      }
+    // ── طازجةٌ عند كل فتح ──
+    // كانت الشجرةُ تُحفظ حتى يغادر الطالبُ الواجهة، فما حذفه المعلمُ من
+    // «الإعدادات الأكاديمية» يبقى في القائمة ما دام الطالب فيها. فتُقرأ من
+    // Supabase عند كل فتحٍ للقائمة، والمحفوظةُ لا تُستعمل إلا إن تعذّرت القراءة.
+    if (_loadingSelection) return;
+    setState(() => _loadingSelection = true);
+    try {
+      _selectionData =
+          await _contentService.fetchAcademicSelectionData(widget.profile);
+    } catch (_) {
+      // شبكةٌ متقطّعة: آخرُ نسخةٍ ناجحة خيرٌ من قائمةٍ فارغة.
+    } finally {
+      if (mounted) setState(() => _loadingSelection = false);
     }
     if (!mounted) return;
     final data = _selectionData;

@@ -176,6 +176,27 @@ class AcademicSelectionData {
 
     if (declaredLessons.isEmpty) return published;
 
+    // ── والشجرةُ تحكم الدروس كما تحكم المسارات ──
+    // درسٌ حذفه المعلمُ من «الإعدادات الأكاديمية» يبقى له سجلٌّ في
+    // `lesson_configs` إن كان قد نُشر له محتوى، فكان يعود إلى قائمة الطالب
+    // من ذلك السجلّ. فإن سمّت الشجرةُ دروسَ هذه الوحدة لم يُعرض منها إلا ما
+    // سمّته. ووحدةٌ لم تُسمَّ دروسُها في الشجرة (إعداداتٌ أقدم من مستوى
+    // الدرس) تبقى على ما نُشر فيها.
+    final declaredHere = {
+      for (final declared in declaredLessons)
+        if (_matches(declared.path.grade, grade) &&
+            _matches(declared.path.subject, subject) &&
+            _matches(declared.path.term, term) &&
+            _matches(declared.path.unit, unit))
+          declared.name.trim().toLowerCase(),
+    };
+    if (declaredHere.isNotEmpty) {
+      published.removeWhere((lesson) {
+        final name = lesson.lessonName.trim().toLowerCase();
+        return name.isNotEmpty && !declaredHere.contains(name);
+      });
+    }
+
     // Published content always wins over a bare name from the settings
     // tree: a lesson the teacher has actually filled in must keep its
     // videos, text and games rather than being shadowed by the empty
