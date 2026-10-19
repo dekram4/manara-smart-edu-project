@@ -12,6 +12,7 @@ import StudentManagement from './StudentManagement';
 import TeacherManagement from './TeacherManagement';
 import ContentManagement from './ContentManagement';
 import VideoManagement from '../teacher/VideoManagement';
+import EntertainmentManagement from './EntertainmentManagement';
 import QuizManagement from './QuizManagement';
 import Reports from './Reports';
 import SystemSettings from './SystemSettings';
@@ -167,6 +168,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       case AdminMenuType.TEACHER_MANAGEMENT: return <TeacherManagement onUpdate={refreshStats} />;
       case AdminMenuType.CONTENT_MANAGEMENT: return <ContentManagement onUpdate={refreshStats} />;
       case 'VIDEO_MANAGEMENT' as AdminMenuType: return <VideoManagement isAdmin />;
+      case 'ENTERTAINMENT' as AdminMenuType: return <EntertainmentManagement />;
       case AdminMenuType.QUIZ_MANAGEMENT: return <QuizManagement onUpdate={refreshStats} />;
       case AdminMenuType.REPORTS: return <Reports />;
       case AdminMenuType.SYSTEM_SETTINGS: return <SystemSettings />;
@@ -204,6 +206,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             { id: AdminMenuType.TEACHER_MANAGEMENT, label: 'إدارة المعلمين', icon: '👨‍🏫' },
             { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: '📚' },
             { id: 'VIDEO_MANAGEMENT' as AdminMenuType, label: 'سينما منارة', icon: '🎬' },
+            { id: 'ENTERTAINMENT' as AdminMenuType, label: 'الترفيه والألعاب', icon: '🎮' },
             { id: AdminMenuType.QUIZ_MANAGEMENT, label: 'إدارة الاختبارات', icon: '📝' },
             { id: 'DUEL_QUESTIONS' as AdminMenuType, label: 'أسئلة «تحدَّ زملاءك»', icon: '⚔️' },
             { id: 'CARD_PERMISSIONS' as AdminMenuType, label: 'صلاحيات البطاقات', icon: '🔐' },
