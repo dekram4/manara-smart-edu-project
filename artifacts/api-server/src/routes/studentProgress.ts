@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { apiSupabaseConfig, type StudentActor } from "../lib/studentAccess";
+import { apiSupabaseConfig, matchesStudentScope, type StudentActor } from "../lib/studentAccess";
+import { parseStudyGameActivityId, rewardOf } from "../lib/studyGames";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
@@ -302,6 +303,10 @@ const ACTIVITY_TYPES = new Set([
   // فوزُ مباراةٍ في بطاقة التحدي: جوهرةٌ واحدة، ومفتاحُه معرّفُ المباراة —
   // فلا تُصرف مرّتين ولو أُعيد الطلب.
   "duel",
+  // لعبةٌ من ألعاب بطاقة المذاكرة التفاعلية (سحبٌ وإسقاط، مطابقة، أسئلةٌ
+  // متتالية). جواهرُها ونقاطُها من سجلّ الدرس لا من الطلب — انظر
+  // `lib/studyGames` — ومرّةً لكل لعبةٍ في كل درس.
+  "study_game",
 ]);
 
 /**
@@ -361,6 +366,8 @@ function rewardFor(
   rewardId: string,
   correctAnswers: number | null,
   quizTotal: number | null,
+  /** مكافأةُ لعبة المذاكرة كما في سجلّ الدرس. */
+  studyGame: { gems: number; points: number } | null = null,
 ): { outcome: RewardOutcome; next: Gamification | null } {
   const type = activityType.trim().toLowerCase();
   const key = rewardId.trim() !== "" ? rewardId.trim() : `${type}:${activityId}`;
@@ -441,12 +448,15 @@ function rewardFor(
   } else if (type === "game") {
     gems = GEMS.game;
     games += 1;
+  } else if (type === "study_game") {
+    gems = studyGame?.gems ?? 0;
   }
 
   const beforeLevel = levelOf(current.xp);
   const nextGems = current.gems + gems;
-  // المعادلة الوحيدة في التطبيق، وأي `xp` يُرسله العميل يُهمَل.
-  const xp = xpFromGems(gems);
+  // المعادلة الوحيدة في التطبيق، وأي `xp` يُرسله العميل يُهمَل. ولعبةُ
+  // المذاكرة وحدها تحمل نقاطها في سجلّ الدرس — محصورةً على الخادم.
+  const xp = type === "study_game" ? studyGame?.points ?? 0 : xpFromGems(gems);
   const nextXp = current.xp + xp;
 
   const projected: Gamification = {
@@ -484,6 +494,27 @@ function rewardFor(
   };
 }
 
+/**
+ * مكافأةُ لعبة مذاكرة: تُقرأ من سجلّ الدرس، لدرسٍ في مسار الطالب وحده.
+ */
+async function studyGameReward(
+  activityId: string,
+  student: StudentActor,
+): Promise<{ gems: number; points: number } | null> {
+  const parsed = parseStudyGameActivityId(activityId);
+  if (!parsed) return null;
+  const settings = config();
+  const response = await fetch(
+    `${settings.url}/rest/v1/lesson_configs?select=data&id=eq.${encodeURIComponent(parsed.lessonId)}`,
+    { headers: headers() },
+  );
+  if (!response.ok) throw new Error(`lesson read failed (${response.status})`);
+  const rows = await response.json();
+  const data = Array.isArray(rows) ? asMap(rows[0]?.data) : {};
+  if (!Object.keys(data).length || !matchesStudentScope(data, student)) return null;
+  return rewardOf(data.studyGames, parsed.gameId);
+}
+
 // ── المسارات ─────────────────────────────────────────────────────────────
 
 router.use("/student/progress", requireStudentSession, progressRateLimit);
@@ -511,6 +542,14 @@ router.post("/student/progress/reward", async (req, res) => {
       return;
     }
     const current = readGamification(asMap(row.data).gamification);
+    let studyGame: { gems: number; points: number } | null = null;
+    if (activityType === "study_game") {
+      studyGame = await studyGameReward(activityId, student);
+      if (!studyGame) {
+        res.status(404).json({ error: "اللعبة غير موجودة في هذا الدرس" });
+        return;
+      }
+    }
     const { outcome, next } = rewardFor(
       current,
       activityType,
@@ -518,6 +557,7 @@ router.post("/student/progress/reward", async (req, res) => {
       text(body.rewardId),
       body.correctAnswers == null ? null : num(body.correctAnswers),
       body.quizTotal == null ? null : num(body.quizTotal),
+      studyGame,
     );
     if (next) {
       await writeStudentData(row.rowId, {
