@@ -1,6 +1,6 @@
 import { STORAGE_KEYS } from '../constants';
 import { LessonConfig } from '../types';
-import { normalizeScopeValue } from './scope';
+import { getRecordTeacherId, normalizeScopeValue } from './scope';
 
 /**
  * الدروس تتبع الشجرة الأكاديمية.
@@ -18,10 +18,18 @@ import { normalizeScopeValue } from './scope';
 
 /** المستوى الذي يُطابَق عليه، وما فوقه من المسار. */
 export type LessonScope = {
+  /**
+   * صاحبُ الشجرة التي تغيّرت. المسارُ نصٌّ، وصفُّ «الرابع» عند معلّمَين
+   * مسارٌ واحد — فإعادةُ تسميته في شجرة أحدهما كانت تُعيد تسميةَ دروس
+   * الآخر في نسخة المشرف، وحذفُه يحذفها. فارغٌ = بلا قيدٍ بالمالك.
+   */
+  owner?: string;
   grade: string;
   subject?: string;
   term?: string;
   unit?: string;
+  /** الدرسُ نفسه في حقل الدروس — المستوى الأخير من المسار. */
+  lesson?: string;
 };
 
 const same = (a: unknown, b: unknown) => normalizeScopeValue(a) === normalizeScopeValue(b);
@@ -37,10 +45,13 @@ function writeLessons(lessons: LessonConfig[]): void {
 }
 
 function matchesScope(lesson: LessonConfig, scope: LessonScope): boolean {
+  const owner = normalizeScopeValue(scope.owner);
+  if (owner && getRecordTeacherId(lesson) !== owner) return false;
   if (!same(lesson.grade, scope.grade)) return false;
   if (scope.subject !== undefined && !same(lesson.subject, scope.subject)) return false;
   if (scope.term !== undefined && !same(lesson.term, scope.term)) return false;
   if (scope.unit !== undefined && !same(lesson.unit, scope.unit)) return false;
+  if (scope.lesson !== undefined && !same(lesson.lesson, scope.lesson)) return false;
   return true;
 }
 
@@ -57,7 +68,7 @@ export function countLessonsUnder(scope: LessonScope): number {
  */
 export function renameLessonsPath(
   scope: LessonScope,
-  field: 'grade' | 'subject' | 'term' | 'unit',
+  field: 'grade' | 'subject' | 'term' | 'unit' | 'lesson',
   nextName: string,
 ): number {
   const name = nextName.trim();
@@ -68,7 +79,8 @@ export function renameLessonsPath(
     if (!matchesScope(lesson, scope)) return lesson;
     if (same(lesson[field], name)) return lesson;
     changed += 1;
-    return { ...lesson, [field]: name };
+    // ‏ختمُ التعديل: المزامنةُ تفاضل به، فلا تغلبه نسخةٌ أقدم من الخادم.
+    return { ...lesson, [field]: name, updatedAt: new Date().toISOString() };
   });
   if (changed > 0) writeLessons(updated);
   return changed;
