@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -20,6 +22,13 @@ class StudentWebEmbed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InAppWebView(
+      // ── اللمسةُ الأولى للعبة ──
+      // الصفحةُ داخل شاشاتٍ لها إيماءاتُها (سحبُ الرجوع، والتمرير)، وساحةُ
+      // الإيماءات في Flutter كانت تحسم اللمسةَ الأولى قبل أن تصل الصفحة —
+      // فيضغط الطفلُ «ابدأ» مرّتين. فالصفحةُ تأخذ كلَّ لمسةٍ عليها فوراً.
+      gestureRecognizers: {
+        Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+      },
       initialUrlRequest:
           htmlContent == null ? URLRequest(url: WebUri(url)) : null,
       initialData: htmlContent == null
@@ -36,7 +45,12 @@ class StudentWebEmbed extends StatelessWidget {
         iframeAllow: allow,
         iframeAllowFullscreen: true,
       ),
-      onLoadStop: (_, __) => onLoaded?.call(),
+      onLoadStop: (controller, __) {
+        // ‏وألعابُ Unity وCanvas لا تستقبل أوّلَ لمسةٍ حتى تأخذ الصفحةُ
+        // ‏التركيز — فتُعطاه حين تكتمل.
+        controller.evaluateJavascript(source: _focusScript).ignore();
+        onLoaded?.call();
+      },
       // Unlike the old `onLoadError`, this fires for every resource the page
       // fails to fetch — an image, a tracker. Only the page itself failing is
       // an error for the embed, so everything else is let through.
@@ -46,3 +60,9 @@ class StudentWebEmbed extends StatelessWidget {
     );
   }
 }
+
+/// يعطي الصفحةَ ولوحةَ اللعبة التركيز، فتعمل اللمسةُ الأولى.
+const _focusScript = '''
+(function(){try{window.focus();var c=document.querySelector("canvas");
+if(c){if(!c.hasAttribute("tabindex"))c.setAttribute("tabindex","0");c.focus();}}catch(e){}})();
+''';

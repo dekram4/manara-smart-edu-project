@@ -265,6 +265,9 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     isActive: true
   });
 
+  /// ‏اختارَ المعلمُ النوعَ بنفسه؟ فلا يُغيّره اختيارُ الدرس بعدها.
+  const [typeChosen, setTypeChosen] = useState(false);
+
   useEffect(() => {
     loadQuizzes();
     loadAcademicHierarchy();
@@ -480,9 +483,12 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     // ‏المستوى يحدّد النوع: درسٌ بعينه اختبار دوري تدريبي يُعاد، والوحدة
     // ‏كاملةً اختبار شامل يُؤدّى مرة. وتطبيق الطالب يمنع إعادة اختبار
     // ‏المعلم ويسمح بإعادة الدوري، فالنوع هو ما ينفَّذ فعلاً لا الرايتان.
+    // ‏اقتراحٌ لا فرض: يُقترح النوعُ من المستوى ما لم يختره المعلم من القائمة.
     setQuizFormData({
       ...next,
-      quizType: next.lesson.trim() ? QuizType.PERIODIC : QuizType.TEACHER,
+      quizType: typeChosen
+        ? next.quizType
+        : next.lesson.trim() ? QuizType.PERIODIC : QuizType.TEACHER,
     });
   };
 
@@ -738,8 +744,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       // ‏الرايتان مكتوبتان صراحةً ليقرأهما التقرير والخادم بلا أن يستنتجا
       // ‏النوع. والتنفيذ يبقى على `quizType`: تطبيق الطالب يمنع إعادة
       // ‏اختبار المعلم ويسمح بإعادة الدوري، وهو ما يعمل اليوم.
-      isRepeatable: Boolean(quizFormData.lesson.trim()),
-      allowRetake: Boolean(quizFormData.lesson.trim()),
+      isRepeatable: normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC,
+      allowRetake: normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC,
       questionCount: quizQuestions.length,
       isActive: quizFormData.isActive,
       questions: quizQuestions,
@@ -776,6 +782,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   };
 
   const resetForm = () => {
+    setTypeChosen(false);
     setQuizFormData({
       title: '',
       grade: '',
@@ -826,8 +833,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       // ‏الرايتان مكتوبتان صراحةً ليقرأهما التقرير والخادم بلا أن يستنتجا
       // ‏النوع. والتنفيذ يبقى على `quizType`: تطبيق الطالب يمنع إعادة
       // ‏اختبار المعلم ويسمح بإعادة الدوري، وهو ما يعمل اليوم.
-      isRepeatable: Boolean(quizFormData.lesson.trim()),
-      allowRetake: Boolean(quizFormData.lesson.trim()),
+      isRepeatable: normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC,
+      allowRetake: normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC,
       questionCount: normalizedQuestions.length,
       isActive: quizFormData.isActive,
       questions: normalizedQuestions,
@@ -924,6 +931,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
   const handleEdit = (quiz: CreatedQuiz) => {
     setEditingQuiz(quiz);
+    setTypeChosen(true);
     // ربط المعلم الأصلي بالاختبار
     const tId = normalizeScopeValue(quiz.createdBy || 'admin') || 'admin';
     setSelectedTeacherId(tId);
@@ -1240,16 +1248,26 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
               {/* نوع الاختبار */}
               <div>
                 <label className="block font-black text-purple-900 mb-2">🎯 نوع الاختبار</label>
-                {/* النوع يتبع المسار ولا يُختار: اختيار «دوري» لاختبار
-                    وحدة كان يجعله قابلاً للإعادة، واختيار «اختبار المعلم»
-                    لدرس يمنع إعادته — فيتناقض ما يراه المعلم في الشارة مع
-                    ما يجده الطالب. مصدر واحد أصدق من حقلين يختلفان. */}
-                <div className="w-full p-4 border-2 border-purple-200 rounded-2xl bg-purple-50 font-bold text-purple-800">
-                  {quizFormData.lesson ? '🔁 الاختبار الدوري (للدرس)' : '📋 اختبار الوحدة الشامل'}
-                  <span className="block text-xs font-bold text-purple-500 mt-1">
-                    يُحدَّد تلقائياً: باختيار درس يصير دورياً، وبتركه فارغاً يصير شاملاً للوحدة.
-                  </span>
-                </div>
+                {/* ‏القائمةُ هي المصدرُ الواحد: منها النوعُ ورايتا الإعادة معاً
+                    (isRepeatable وallowRetake)، فلا تختلف الشارةُ عمّا يجده
+                    الطالب. واختيارُ درسٍ يقترح «الدوري» وتركُه يقترح «المعلم»
+                    ما لم يختر المعلمُ بنفسه. */}
+                <select
+                  value={normalizeQuizType(quizFormData.quizType)}
+                  onChange={e => {
+                    setTypeChosen(true);
+                    setQuizFormData({ ...quizFormData, quizType: e.target.value as QuizType });
+                  }}
+                  className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
+                >
+                  <option value={QuizType.PERIODIC}>🔁 الاختبار الدوري (اختبار الدرس)</option>
+                  <option value={QuizType.TEACHER}>📋 اختبار المعلم (اختبار الوحدة)</option>
+                </select>
+                <span className="block text-xs font-bold text-purple-500 mt-2">
+                  {normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC
+                    ? 'يُعاد بلا حدود، والجواهر في المحاولة الأولى فقط.'
+                    : 'مرة واحدة فقط، والدرجة تصل وليَّ الأمر فوراً، والجواهر بعدد الإجابات الصحيحة.'}
+                </span>
               </div>
 
               {/* عدد الأسئلة */}

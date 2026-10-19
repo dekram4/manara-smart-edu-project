@@ -76,11 +76,26 @@ const quiz = {
     drag_items: [],
     drop_targets: [],
     correct_pairs: [],
-    questions: Array.from({ length: 8 }, (_, i) => ({
-      question: `أي جزء من النبات يمتص الماء؟ ${i}`,
-      options: [`الجذر ${i}`, `الزهرة ${i}`, `الثمرة ${i}`],
-      answer: `الجذر ${i}`,
-    })),
+    questions: [
+      ...Array.from({ length: 8 }, (_, i) => ({
+        kind: "mcq",
+        question: `أي جزء من النبات يمتص الماء؟ ${i}`,
+        options: [`الجذر ${i}`, `الزهرة ${i}`, `الثمرة ${i}`, `الورقة ${i}`],
+        answer: `الجذر ${i}`,
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        kind: "true_false",
+        question: `الجذر يمتص الماء من التربة (${i})`,
+        options: ["صح", "خطأ"],
+        answer: "صح",
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        kind: "fill_blank",
+        question: `تصنع ____ الغذاء للنبات (${i})`,
+        options: [`الورقة ${i}`, `الساق ${i}`, `الجذر ${i}`],
+        answer: `الورقة ${i}`,
+      })),
+    ],
   },
   gems_reward: 6,
   points_reward: 25,
@@ -106,7 +121,11 @@ test("الألعابُ الثلاث تُقرأ، والمكافآت تُحصر �
   assert.equal(dd.items.correct_pairs.length, 6);
   assert.equal(mt.gems_reward, REWARD_LIMITS.gems.max);
   assert.equal(mt.points_reward, REWARD_LIMITS.points.min);
-  assert.equal(eq.items.questions.length, 8);
+  assert.equal(eq.items.questions.length, 16);
+  assert.deepEqual(
+    [...new Set(eq.items.questions.map((q) => q.kind))].sort(),
+    ["fill_blank", "mcq", "true_false"],
+  );
   assert.equal(eq.gems_reward, 6);
 });
 
@@ -150,4 +169,20 @@ test("معرّفُ النشاط والمكافأة من السجلّ", () => {
   // سجلٌّ عُدّل يدوياً لا يتجاوز الحدّ.
   const tampered = { games: [{ id: "drag_drop", gems_reward: 10_000, points_reward: 10_000 }] };
   assert.deepEqual(rewardOf(tampered, "drag_drop"), { gems: REWARD_LIMITS.gems.max, points: REWARD_LIMITS.points.max });
+});
+
+test("السباق: كلُّ شكلٍ بخياراته — صح/خطأ اثنان، وأكمل الفراغ فيه فراغ", () => {
+  const bad = {
+    ...quiz,
+    items: {
+      ...quiz.items,
+      questions: [
+        ...quiz.items.questions,
+        { kind: "true_false", question: "عبارة بخيارات ثلاثة", options: ["صح", "خطأ", "ربما"], answer: "صح" },
+        { kind: "fill_blank", question: "جملة بلا فراغ أصلاً", options: ["أ", "ب", "ج"], answer: "أ" },
+      ],
+    },
+  };
+  const pack = parseStudyGames({ games: [bad] }, owner);
+  assert.equal(pack.games[0].items.questions.length, 16);
 });

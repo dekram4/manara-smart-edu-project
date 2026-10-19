@@ -15,8 +15,9 @@ import {
   isSafeGameAssetPath,
   resolveGameId,
   resolveRewrittenGameFile,
+  rewriteRegisteredGame,
 } from "../lib/gameEmbed";
-import { catalogForStudents } from "./entertainment";
+import { catalogForStudents, registeredGameIds } from "./entertainment";
 
 const router = Router();
 
@@ -98,7 +99,15 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     res.status(400).json({ error: "Invalid game asset request" });
     return;
   }
-  const gameId = resolveGameId(rawGameId);
+  // ‏القائمةُ الثابتة أوّلاً، ثم ما أضافه المشرف أو المعلم من GameDistribution —
+  // ‏والمعرّفُ يُؤخذ من المحفوظ لا من الطلب في الحالتين.
+  let gameId = resolveGameId(rawGameId);
+  let registered = false;
+  if (!gameId) {
+    const ids = await registeredGameIds().catch(() => new Set<string>());
+    gameId = [...ids].find((id) => id === rawGameId) ?? null;
+    registered = Boolean(gameId);
+  }
   if (!gameId) {
     res.status(404).json({ error: "Game not found" });
     return;
@@ -149,6 +158,16 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     }
     const contentType = getContentType(requestedPath, upstream.headers.get("content-type") || "");
     res.set("Content-Type", contentType);
+    // ‏لعبةٌ مضافة: صفحاتُها وسكربتاتُها تُنظَّف من الإعلانات قبل أن تصل.
+    const textKind = /^text\/html/.test(contentType) ? "html" : /^application\/javascript/.test(contentType) ? "js" : null;
+    if (registered && textKind) {
+      const body = rewriteRegisteredGame(gameId, textKind, await upstream.text());
+      res
+        .set("Cache-Control", "no-store")
+        .set("Content-Security-Policy", GAME_PAGE_CSP)
+        .send(body);
+      return;
+    }
     if (/^(?:text\/html|application\/javascript)/.test(contentType)) {
       // الصفحاتُ والسكربتاتُ كما كانت: لا تُخزَّن، وسياسةُ أمان المحتوى عليها.
       res.set("Cache-Control", "no-store").set("Content-Security-Policy", GAME_PAGE_CSP);

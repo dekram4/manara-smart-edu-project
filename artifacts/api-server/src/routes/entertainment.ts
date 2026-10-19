@@ -14,6 +14,7 @@ import {
   builtinDefaults,
   builtinGameUrl,
   isBuiltinId,
+  gameDistributionId,
   publicCatalog,
   fromKvRecord,
   fromTableRow,
@@ -133,6 +134,23 @@ export async function catalogForStudents(): Promise<Array<Record<string, unknown
     logger.warn({ err: error }, "[entertainment] catalog overrides unavailable");
     return catalogJson();
   }
+}
+
+/**
+ * معرّفاتُ GameDistribution لكل لعبةٍ محفوظة (مفعّلةً أو لا) — يمرّرها الوكيلُ
+ * بلا إعلانات كالستّ الأولى. والقراءةُ من المحفوظ لدقيقة.
+ */
+export async function registeredGameIds(): Promise<Set<string>> {
+  const config = storeConfig();
+  if (!config) return new Set();
+  if (!storedCache || Date.now() - storedCache.at > STORED_CACHE_MS) {
+    storedCache = { at: Date.now(), games: (await loadGames(config)).games };
+  }
+  return new Set(
+    storedCache.games
+      .map((game) => gameDistributionId(game.embedUrl))
+      .filter((id): id is string => Boolean(id)),
+  );
 }
 
 async function removeFromKv(config: StoreConfig, id: string): Promise<void> {

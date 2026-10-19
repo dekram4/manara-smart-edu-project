@@ -19,7 +19,15 @@
  * بلا شبكة ولا قاعدة بيانات، فيُختبر وحده.
  */
 
-export const STUDY_GAMES_VERSION = 1;
+/// ٢: سباقٌ أغنى — ٢٠ إلى ٤٠ سؤالاً بثلاثة أشكال (اختيار، صح/خطأ، أكمل الفراغ).
+/// والحزمُ الأقدم تُولَّد من جديد بالشكل الجديد.
+export const STUDY_GAMES_VERSION = 2;
+
+/** أشكالُ أسئلة السباق: تتبدّل فلا يملّ الطفل ولا يحفظ نمطاً. */
+export const QUESTION_KINDS = ["mcq", "true_false", "fill_blank"] as const;
+export type QuestionKind = (typeof QUESTION_KINDS)[number];
+export const TRUE_FALSE = ["صح", "خطأ"] as const;
+export const TRUE_FALSE_EN = ["True", "False"] as const;
 
 export const GAME_TYPES = ["drag_drop", "matching", "endless_quiz"] as const;
 export type StudyGameType = (typeof GAME_TYPES)[number];
@@ -34,7 +42,7 @@ export const LIMITS = {
   dragItems: { min: 4, max: 8 },
   dropTargets: { min: 2, max: 3 },
   pairs: { min: 3, max: 6 },
-  questions: { min: 6, max: 15 },
+  questions: { min: 12, max: 40 },
 } as const;
 
 export interface CorrectPair {
@@ -43,6 +51,7 @@ export interface CorrectPair {
 }
 
 export interface QuickQuestion {
+  kind: QuestionKind;
   question: string;
   options: string[];
   answer: string;
@@ -82,7 +91,11 @@ export const STUDY_GAMES_SYSTEM_INSTRUCTION = `أنت مصمّم ألعاب تع
 الألعاب الثلاث بالترتيب:
 1) "drag_drop": تصنيف. "drop_targets" من 2 إلى 3 سلال (فئات من الدرس)، و"drag_items" من 6 إلى 8 بطاقات، و"correct_pairs" يربط كل بطاقة بسلّتها الصحيحة (item = نص البطاقة حرفياً، target = اسم السلة حرفياً). كل بطاقة تنتمي لسلة واحدة فقط بلا لبس.
 2) "matching": مطابقة. "drag_items" من 4 إلى 6 مفاهيم، و"drop_targets" معانيها أو أمثلتها بالعدد نفسه، و"correct_pairs" تربط كل مفهوم بمعناه واحداً لواحد.
-3) "endless_quiz": أسئلة سريعة. "questions" من 10 إلى 15 سؤالاً، لكل سؤال 3 خيارات قصيرة، و"answer" نص الخيار الصحيح حرفياً. الأسئلة تقيس الفهم لا الحفظ الحرفي. واترك "drag_items" و"drop_targets" و"correct_pairs" فارغة.
+3) "endless_quiz": سباق أسئلة غني ومتنوّع. "questions" من 30 إلى 40 سؤالاً تغطي الدرس كله، متدرّجة من السهل إلى الصعب، بثلاثة أشكال تتناوب ("kind"):
+   - "mcq": اختيار من متعدد، 3 أو 4 خيارات قصيرة.
+   - "true_false": عبارة يحكم عليها الطفل، والخياران بالضبط ["صح","خطأ"] (أو ["True","False"] للإنجليزية).
+   - "fill_blank": جملة فيها فراغ يُكتب "____"، و3 خيارات لكلمة الفراغ.
+   نحو نصفها "mcq" وربعها لكلٍّ من الآخرَين. "answer" نص الخيار الصحيح حرفياً. الأسئلة تقيس الفهم والتطبيق لا الحفظ الحرفي، ولا يتكرر سؤال بصياغة أخرى. واترك "drag_items" و"drop_targets" و"correct_pairs" فارغة.
 
 المكافآت: "gems_reward" بين ${REWARD_LIMITS.gems.min} و${REWARD_LIMITS.gems.max} بحسب صعوبة اللعبة، و"points_reward" بين ${REWARD_LIMITS.points.min} و${REWARD_LIMITS.points.max}.
 
@@ -120,11 +133,12 @@ export const STUDY_GAMES_SCHEMA = {
                 items: {
                   type: "OBJECT",
                   properties: {
+                    kind: { type: "STRING", enum: [...QUESTION_KINDS] },
                     question: { type: "STRING" },
                     options: STRING_ARRAY,
                     answer: { type: "STRING" },
                   },
-                  required: ["question", "options", "answer"],
+                  required: ["kind", "question", "options", "answer"],
                 },
               },
             },
@@ -267,12 +281,22 @@ function parseQuestions(items: Record<string, unknown>): StudyGame["items"] | nu
   for (const entry of Array.isArray(items.questions) ? items.questions : []) {
     if (!entry || typeof entry !== "object") continue;
     const record = entry as Record<string, unknown>;
+    const kind: QuestionKind = (QUESTION_KINDS as readonly string[]).includes(String(record.kind))
+      ? (record.kind as QuestionKind)
+      : "mcq";
     const question = clean(record.question, 200);
-    const options = uniqueStrings(record.options, 3);
+    const options = uniqueStrings(record.options, 4);
     const answer = resolve(options, record.answer);
-    if (question.length < 5 || options.length !== 3 || !answer || seen.has(key(question))) continue;
+    if (question.length < 5 || !answer || seen.has(key(question))) continue;
+    // ‏كلُّ شكلٍ بخياراته: صح/خطأ اثنان بالضبط، وأكمل الفراغ فيه فراغ.
+    const isTrueFalse =
+      options.length === 2 &&
+      [TRUE_FALSE, TRUE_FALSE_EN].some((pair) => pair.every((word) => options.some((o) => key(o) === key(word))));
+    if (kind === "true_false" && !isTrueFalse) continue;
+    if (kind === "fill_blank" && !/_{2,}|\.{3,}|…/.test(question)) continue;
+    if (kind !== "true_false" && (options.length < 3 || options.length > 4)) continue;
     seen.add(key(question));
-    questions.push({ question, options, answer });
+    questions.push({ kind, question, options, answer });
     if (questions.length >= LIMITS.questions.max) break;
   }
   if (questions.length < LIMITS.questions.min) return null;
