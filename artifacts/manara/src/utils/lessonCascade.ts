@@ -73,6 +73,7 @@ export function renameLessonsPath(
 ): number {
   const name = nextName.trim();
   if (!name) return 0;
+  renameQuizzesPath(scope, field, name);
   const lessons = readLessons();
   let changed = 0;
   const updated = lessons.map(lesson => {
@@ -110,4 +111,32 @@ export function markLessonsDeletedUnder(scope: LessonScope): number {
   const doomedIds = new Set(doomed.map(lesson => String(lesson.id)));
   writeLessons(lessons.filter(lesson => !doomedIds.has(String(lesson.id))));
   return doomed.length;
+}
+
+/**
+ * والاختباراتُ تحمل مسارها نصّاً كالدروس — حتى اسمَ الدرس — فتتبع التسمية
+ * معها، وإلا انفصل الاختبارُ الدوريّ عن درسه. ولا تُحذف مع الدرس: الاختبارُ
+ * عملٌ مستقلٌّ للمعلم يُحذف من «مركز الاختبارات» إن أراد.
+ */
+function renameQuizzesPath(
+  scope: LessonScope,
+  field: 'grade' | 'subject' | 'term' | 'unit' | 'lesson',
+  name: string,
+): void {
+  let quizzes: any[];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]');
+    quizzes = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return;
+  }
+  let changed = 0;
+  const now = new Date().toISOString();
+  const updated = quizzes.map(quiz => {
+    if (!quiz || quiz.deleted || !matchesScope(quiz as LessonConfig, scope)) return quiz;
+    if (same(quiz[field], name)) return quiz;
+    changed += 1;
+    return { ...quiz, [field]: name, updatedAt: now, lastModified: now };
+  });
+  if (changed > 0) localStorage.setItem(STORAGE_KEYS.CREATED_QUIZZES, JSON.stringify(updated));
 }
