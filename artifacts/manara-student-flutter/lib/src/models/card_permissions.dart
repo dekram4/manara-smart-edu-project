@@ -25,7 +25,9 @@ class CardPermissionRules {
     'study',
   ];
 
-  /// الكلُّ مفتوح، ثم قاعدةُ صفّ الطالب (معلّمُه وصفُّه)، ثم قاعدتُه هو.
+  /// الكلُّ مفتوح، ثم قاعدةُ صفّ الطالب (معلّمُه وصفُّه) وقاعدتُه هو —
+  /// بترتيب زمنهما: القرارُ الأحدث يغلب، فإغلاقُ المعلم بطاقةً لصفّه يصل كلَّ
+  /// طلابه ولو كان لأحدهم استثناءٌ أقدم.
   ///
   /// [studentIds] كلُّ معرّفات الطالب: معرّفُ الصفّ في الجدول ومعرّفُ
   /// السجلّ — القاعدةُ تُطابق أيّاً منهما. و[teacherIdentities] أسماءُ معلّمه
@@ -40,6 +42,7 @@ class CardPermissionRules {
     final studentGrade = normalize(grade);
     final ids = studentIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet();
 
+    final classRules = <Map<String, dynamic>>[];
     Map<String, dynamic>? studentRule;
     for (final raw in rules) {
       if (raw is! Map) continue;
@@ -52,17 +55,30 @@ class CardPermissionRules {
             teacherIdentities.contains(teacher) &&
             ruleGrade.isNotEmpty &&
             ruleGrade == studentGrade) {
-          _apply(result, rule['cards']);
+          classRules.add(rule);
         }
       } else if (scope == 'student') {
         final studentId = _text(rule['student_id'] ?? rule['studentId']);
         if (studentId.isNotEmpty && ids.contains(studentId)) studentRule = rule;
       }
     }
-    // قاعدةُ الطالب آخراً: تغلب قاعدةَ صفّه في كل بطاقةٍ ذكرتها.
-    if (studentRule != null) _apply(result, studentRule['cards']);
+    // ‏الأقدمُ أوّلاً فيغلبه الأحدث؛ وعند تساوي الزمن الصفُّ ثم الطالب.
+    final ordered = [...classRules, if (studentRule != null) studentRule];
+    final indexed = [for (var i = 0; i < ordered.length; i++) (i, ordered[i])];
+    indexed.sort((a, b) {
+      final byTime = _stamp(a.$2).compareTo(_stamp(b.$2));
+      return byTime != 0 ? byTime : a.$1.compareTo(b.$1);
+    });
+    for (final (_, rule) in indexed) {
+      _apply(result, rule['cards']);
+    }
     return result;
   }
+
+  static int _stamp(Map<String, dynamic> rule) =>
+      DateTime.tryParse(_text(rule['updated_at'] ?? rule['updatedAt']))
+          ?.millisecondsSinceEpoch ??
+      0;
 
   static void _apply(Map<String, bool> result, Object? cards) {
     if (cards is! Map) return;

@@ -167,7 +167,11 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
       )
     : undefined;
 
-  /** الحالة النهائية لطالب: الكل مفتوح، ثم صفّه، ثم قاعدته. */
+  /**
+   * الحالة النهائية لطالب: الكل مفتوح، ثم صفّه وقاعدته بترتيب زمنهما — القرارُ
+   * الأحدث يغلب، كما في الخادم (`effectiveCards`) والتطبيق. فإغلاقُ المعلم بطاقةً
+   * لصفّه يظهر هنا مغلقاً عند كل طلابه، ولو كان لأحدهم استثناءٌ أقدم.
+   */
   const effectiveFor = useCallback((student: StudentRow): CardMap => {
     const classRule = rules.find(rule =>
       rule.scope === 'class' &&
@@ -175,7 +179,14 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
       norm(rule.gradeId) === norm(student.grade),
     );
     const own = rules.find(rule => rule.scope === 'student' && rule.studentId === student.id);
-    return { ...allOpen(cards), ...(classRule?.cards ?? {}), ...(own?.cards ?? {}) };
+    const stamp = (rule?: CardRule) => {
+      const at = Date.parse(rule?.updatedAt ?? '');
+      return Number.isFinite(at) ? at : 0;
+    };
+    const [first, second] = own && classRule && stamp(own) < stamp(classRule)
+      ? [own, classRule]
+      : [classRule, own];
+    return { ...allOpen(cards), ...(first?.cards ?? {}), ...(second?.cards ?? {}) };
   }, [rules, cards, ruleTeacherIs]);
 
   // ما يُعرض في المفاتيح يتبع الاختيار: قاعدة الصف، أو حالة الطالب النهائية.

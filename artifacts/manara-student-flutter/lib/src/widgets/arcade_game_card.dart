@@ -60,10 +60,29 @@ const _badges = <String, String>{
 };
 const _fallbackBadges = ['🎮', '🧩', '🚀', '🎯', '🏆', '⭐'];
 
-/// صورةُ لعبةٍ من GameDistribution، إن كان معرّفُها معرّفَها.
-String? gameArtUrl(HtmlGame game) => RegExp(r'^[0-9a-f]{32}$').hasMatch(game.id)
-    ? 'https://img.gamedistribution.com/${game.id}-512x512.jpg'
-    : null;
+/// صورةُ لعبةٍ من GameDistribution — من معرّفها، أو من رابطها.
+///
+/// ── قاعدةٌ دائمة ──
+/// الستُّ الأولى معرّفُها معرّفُ GameDistribution نفسه، فكانت صورتُها تُبنى
+/// منه. واللعبةُ التي يضيفها المشرف أو المعلم معرّفُها `teacher-game-…`،
+/// فبقيت «الفواكه» و«الحبال» بلا صورة. فالمعرّفُ يُستخرج أيضاً من رابطها —
+/// وكيلُ منارة (`/api/game-embed/<id>/`) أو رابطُ GameDistribution نفسه —
+/// فتأخذ كلُّ لعبةٍ منه صورتَها تلقائياً.
+String? gameArtUrl(HtmlGame game) {
+  final id = gameDistributionIdOf(game);
+  return id == null ? null : 'https://img.gamedistribution.com/$id-512x512.jpg';
+}
+
+final _gdId = RegExp(r'^[0-9a-f]{32}$');
+final _gdInUrl = RegExp(
+  r'(?:/api/game-embed/|gamedistribution\.com/(?:rvvasmim/)?)([0-9a-f]{32})(?:[/?#]|$)',
+);
+
+/// معرّفُ GameDistribution للعبة، أو `null` إن لم تكن منه.
+String? gameDistributionIdOf(HtmlGame game) {
+  if (_gdId.hasMatch(game.id)) return game.id;
+  return _gdInUrl.firstMatch(game.url.toLowerCase())?.group(1);
+}
 
 Color _shade(Color color, double amount) =>
     Color.lerp(color, amount < 0 ? Colors.black : Colors.white, amount.abs())!;

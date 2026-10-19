@@ -50,6 +50,10 @@ import {
   parseStudyGames,
   readStudyGames,
   studyGamesPrompt,
+  freshGamePrompt,
+  isStudyGameType,
+  parseFreshGame,
+  MAX_EXCLUDE as MAX_FRESH_EXCLUDE,
 } from "../lib/studyGames";
 import {
   BANK_SIZE,
@@ -1862,6 +1866,69 @@ router.post(
         error: "تعذّر تحضير الألعاب الآن. حاول مرة أخرى.",
         code: "unavailable",
       });
+    }
+  },
+);
+
+
+/**
+ * نسخةٌ جديدة من لعبة مذاكرة عند إعادة اللعب — لا تتكرّر أسئلتها.
+ *
+ * التطبيقُ يرسل نوعَ اللعبة وما رآه الطالب منها من قبل (\`exclude\`)، فتُولَّد
+ * نسخةٌ من النصّ الكامل للدرس تتجنّبه. ولا تُحفظ: هي لهذه الجولة وحدها،
+ * والمكافأةُ تبقى على اللعبة نفسها (\`درس::نوع\`) تُصرف مرّةً كما كانت.
+ */
+router.post(
+  "/ai/study-games/fresh",
+  answerRateLimit,
+  requireStudentSession,
+  async (req, res) => {
+    const lessonId = typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
+    const type = req.body?.gameType;
+    if (!lessonId || !isStudyGameType(type)) {
+      return res.status(400).json({ error: "طلبٌ غير صالح", code: "bad_request" });
+    }
+    const exclude = Array.isArray(req.body?.exclude)
+      ? req.body.exclude
+          .filter((item: unknown): item is string => typeof item === "string")
+          .slice(-MAX_FRESH_EXCLUDE)
+      : [];
+    try {
+      const student = res.locals.student as StudentActor;
+      const lesson = await resolveStudentLesson(lessonId, student);
+      if (lesson.reason) {
+        return res.status(lesson.reason === "not_found" ? 404 : 403).json({ error: "الدرس غير متاح", code: lesson.reason });
+      }
+      const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
+      const data = await callGemini(
+        freshGamePrompt({
+          type,
+          lessonTitle: title || lesson.lesson || lesson.subject,
+          lessonText: lesson.text,
+          subject: lesson.subject,
+          grade: lesson.grade,
+          exclude,
+        }),
+        {
+          systemInstruction: STUDY_GAMES_SYSTEM_INSTRUCTION,
+          responseSchema: STUDY_GAMES_SCHEMA,
+          json: true,
+          // ‏أعلى من التوليد الأول: التنوّعُ هو المطلوب هنا.
+          temperature: 1,
+          maxOutputTokens: STUDY_MAX_TOKENS * 3,
+          budgetMs: STUDY_BUDGET_MS,
+          singleTryMs: 45_000,
+        },
+      );
+      const game = parseFreshGame(getGeminiText(data) ?? "", type, exclude);
+      if (!game) {
+        logger.warn({ lessonId, type }, "[study-games] fresh game not usable");
+        return res.status(502).json({ error: "تعذّر تحضير نسخةٍ جديدة الآن", code: "bad_pack" });
+      }
+      return res.json({ game });
+    } catch (error) {
+      logger.error({ err: error, lessonId, type }, "[study-games] fresh failed");
+      return res.status(503).json({ error: "تعذّر تحضير نسخةٍ جديدة الآن", code: "unavailable" });
     }
   },
 );

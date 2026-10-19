@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/student_gamification.dart';
@@ -23,11 +24,19 @@ class StudyGamesTab extends StatefulWidget {
   const StudyGamesTab({
     required this.load,
     required this.onWin,
+    this.fresh,
+    this.seenKey,
     super.key,
   });
 
   final Future<StudyGamesPack> Function() load;
   final StudyGameWin onWin;
+
+  /// نسخةٌ جديدة من لعبة، متجنّبةً ما رآه الطالب — من الذكاء الاصطناعي.
+  final Future<StudyGame> Function(StudyGame base, List<String> exclude)? fresh;
+
+  /// مفتاحُ ما رآه هذا الطالب في هذا الدرس على الجهاز (`study.seen.<طالب>.<درس>`).
+  final String? seenKey;
 
   @override
   State<StudyGamesTab> createState() => _StudyGamesTabState();
@@ -78,12 +87,91 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     }
   }
 
-  void _open(StudyGame game) {
+  /// تُحضَّر نسخةٌ جديدة من اللعبة الآن.
+  bool _preparing = false;
+
+  // ── لا تتكرّر الأسئلة ──
+  // الحزمةُ المحفوظة مع الدرس تُلعب أوّلَ مرّة. وكلُّ إعادةٍ بعدها — ولو في
+  // جلسةٍ أخرى — تطلب من الذكاء الاصطناعي نسخةً جديدة من النصّ الكامل للدرس،
+  // ويُرسل معها ما رآه الطالب منها فيتجنّبه. وما رآه محفوظٌ على الجهاز لكل
+  // طالبٍ ودرسٍ ونوع لعبة. وتعذُّرُ النسخة الجديدة لا يمنع اللعب: تُلعب المحفوظة.
+  static const _maxSeen = 300;
+
+  String? _seenKeyFor(StudyGameType type) =>
+      widget.seenKey == null ? null : '${widget.seenKey}.${type.wire}';
+
+  Future<List<String>> _loadSeen(StudyGameType type) async {
+    final key = _seenKeyFor(type);
+    if (key == null) return const [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList(key) ?? const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _addSeen(StudyGameType type, Iterable<String> items) async {
+    final key = _seenKeyFor(type);
+    if (key == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final all = [...(prefs.getStringList(key) ?? const <String>[])];
+      for (final item in items) {
+        if (item.isNotEmpty && !all.contains(item)) all.add(item);
+      }
+      await prefs.setStringList(
+        key,
+        all.length > _maxSeen ? all.sublist(all.length - _maxSeen) : all,
+      );
+    } catch (_) {
+      // تخزينٌ محجوب: تُطلب نسخةٌ جديدة بلا قائمة تجنّب.
+    }
+  }
+
+  /// ما يعدّه الطالبُ «رآه» من لعبة: أسئلةُ السباق، وبطاقاتُ السحب والمطابقة.
+  static List<String> seenItemsOf(StudyGame game) =>
+      game.type == StudyGameType.endlessQuiz
+          ? [for (final q in game.questions) q.question]
+          : [...game.dragItems];
+
+  StudyGame _baseOf(StudyGameType type) =>
+      _pack!.games.firstWhere((game) => game.type == type);
+
+  Future<void> _open(StudyGame game) async {
+    if (_preparing) return;
     StudentSoundService.instance.playTap();
+    final base = _baseOf(game.type);
+    var chosen = base;
+    final seen = await _loadSeen(game.type);
+    final fresh = widget.fresh;
+    if (seen.isNotEmpty && fresh != null) {
+      if (!mounted) return;
+      setState(() => _preparing = true);
+      try {
+        chosen = await fresh(base, seen);
+      } catch (_) {
+        chosen = base;
+      }
+    }
+    if (!mounted) return;
     setState(() {
-      _active = game;
+      _preparing = false;
+      _active = chosen;
       _round += 1;
     });
+    unawaited(_addSeen(game.type, seenItemsOf(chosen)));
+  }
+
+  /// أسئلةٌ جديدة للسباق حين يقترب من آخر ما عنده — لا يدور على المكرّر.
+  Future<List<StudyQuickQuestion>> _moreQuestions(List<String> shown) async {
+    final fresh = widget.fresh;
+    if (fresh == null) return const [];
+    final type = StudyGameType.endlessQuiz;
+    final seen = {...await _loadSeen(type), ...shown}.toList();
+    final game = await fresh(_baseOf(type), seen);
+    unawaited(_addSeen(type, seenItemsOf(game)));
+    return game.questions;
   }
 
   Future<void> _won(StudyGame game) async {
@@ -164,6 +252,26 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     final pack = _pack;
     if (pack == null) return const SizedBox.shrink();
     final active = _active;
+    if (_preparing) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _Bouncing(child: Text('✨', style: TextStyle(fontSize: 54))),
+            const SizedBox(height: 14),
+            Text(
+              tr('study.games.fresh'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: StudentSurface.ink(context),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 260),
       switchInCurve: Curves.easeOutBack,
@@ -186,6 +294,7 @@ class _StudyGamesTabState extends State<StudyGamesTab>
               onBack: () => setState(() => _active = null),
               onReplay: () => _open(active),
               onWin: () => _won(active),
+              onNeedMore: widget.fresh == null ? null : _moreQuestions,
             ),
     );
   }
@@ -394,6 +503,7 @@ class _GameStage extends StatelessWidget {
     required this.onBack,
     required this.onReplay,
     required this.onWin,
+    this.onNeedMore,
     super.key,
   });
 
@@ -401,6 +511,7 @@ class _GameStage extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onReplay;
   final Future<void> Function() onWin;
+  final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
 
   @override
   Widget build(BuildContext context) {
@@ -459,7 +570,12 @@ class _GameStage extends StatelessWidget {
             StudyGameType.matching =>
               MatchingGame(game: game, onWin: onWin, onReplay: onReplay),
             StudyGameType.endlessQuiz =>
-              EndlessQuizGame(game: game, onWin: onWin, onReplay: onReplay),
+              EndlessQuizGame(
+                game: game,
+                onWin: onWin,
+                onReplay: onReplay,
+                onNeedMore: onNeedMore,
+              ),
           },
         ),
       ],
@@ -1021,12 +1137,17 @@ class EndlessQuizGame extends StatefulWidget {
     required this.game,
     required this.onWin,
     required this.onReplay,
+    this.onNeedMore,
     super.key,
   });
 
   final StudyGame game;
   final Future<void> Function() onWin;
   final VoidCallback onReplay;
+
+  /// أسئلةٌ جديدة من الذكاء الاصطناعي حين يقترب السباقُ من آخر ما عنده —
+  /// [shown] ما ظهر في هذا السباق، فلا يعود.
+  final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
 
   @override
   State<EndlessQuizGame> createState() => _EndlessQuizGameState();
@@ -1092,8 +1213,30 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
 
   StudyQuickQuestion get _current => _deck[_at];
 
+  // ── سباقٌ بلا نهاية وبلا تكرار ──
+  // حين يبقى في الدفعة خمسةُ أسئلة، تُطلب دفعةٌ جديدة من الذكاء الاصطناعي في
+  // الخلفية — متجنّبةً كلَّ ما ظهر — وتُلحق بالدفعة. فلا يدور الطفلُ على ما رآه.
+  bool _fetchingMore = false;
+  final _shown = <String>{};
+
+  void _prefetchIfLow() {
+    final more = widget.onNeedMore;
+    if (more == null || _fetchingMore || _deck.length - _at > 5) return;
+    _fetchingMore = true;
+    more([..._shown, for (final q in _deck) q.question]).then((fresh) {
+      if (!mounted) return;
+      final known = {for (final q in _deck) q.question};
+      final added = [for (final q in fresh) if (!known.contains(q.question)) q]
+        ..shuffle(_random);
+      if (added.isNotEmpty) setState(() => _deck = [..._deck, ...added]);
+    }).catchError((_) {
+      // ‏تعذّرت الدفعة: تدور المحفوظة، ويُحاول عند الاقتراب التالي.
+    }).whenComplete(() => _fetchingMore = false);
+  }
+
   void _pick(String option) {
     if (_picked != null || _lives == 0) return;
+    _shown.add(_current.question);
     final right = option == _current.answer;
     setState(() {
       _picked = option;
@@ -1113,9 +1256,11 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
     }
     Future.delayed(const Duration(milliseconds: 750), () {
       if (!mounted || _lives == 0) return;
+      _prefetchIfLow();
       setState(() {
         _at += 1;
         if (_at >= _deck.length) {
+          // ‏لم تصل أسئلةٌ جديدة بعد: تدور المحفوظةُ بترتيبٍ آخر حتى تصل.
           _deck = _shuffled();
           _at = 0;
         }

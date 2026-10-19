@@ -165,3 +165,29 @@ test("قاعدة الطالب تُطابق أيّ معرّفٍ له (معرّف 
   assert.equal(result.meeting, false);
   assert.equal(cards.effectiveCards(rules, { ...student, id: "data-7" }).meeting, true);
 });
+
+// حالةُ سادن: استثناءٌ قديمٌ فتح كلَّ البطاقات، ثم أغلق المعلمُ اثنتين لصفّه كلّه.
+test("القرارُ الأحدث يغلب: إغلاقُ المعلم لصفّه يصل طالباً له استثناءٌ أقدم", () => {
+  const open = Object.fromEntries(cards.STUDENT_CARDS.map((card) => [card.id, true]));
+  const oldException = cards.ruleFromRecord({
+    id: cards.studentRuleId("s1"), scope: "student", student_id: "s1", teacher_id: "test",
+    cards: open, updated_at: "2026-10-19T21:24:12.701Z",
+  });
+  const classClose = cards.ruleFromRecord({
+    id: cards.classRuleId("test", "الصف الرابع"), scope: "class", teacher_id: "test", grade_id: "الصف الرابع",
+    cards: { tutor: false, meeting: false }, updated_at: "2026-10-19T23:18:45.429Z",
+  });
+  const result = cards.effectiveCards([oldException, classClose], student);
+  assert.equal(result.tutor, false);
+  assert.equal(result.meeting, false);
+  assert.equal(result.quiz, true);
+
+  // واستثناءٌ يُحفظ بعد قرار الصفّ يغلبه، كما يتوقّع من حفظه.
+  const newException = cards.ruleFromRecord({
+    id: cards.studentRuleId("s1"), scope: "student", student_id: "s1", teacher_id: "test",
+    cards: { tutor: true }, updated_at: "2026-10-20T08:00:00.000Z",
+  });
+  const later = cards.effectiveCards([classClose, newException], student);
+  assert.equal(later.tutor, true);
+  assert.equal(later.meeting, false);
+});

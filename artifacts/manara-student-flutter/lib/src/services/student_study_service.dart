@@ -49,6 +49,9 @@ class StudentStudyService {
   /// ألعابُ المذاكرة التفاعلية: مسارُها بجانب مسار الحزمة.
   Uri? get gamesEndpoint => _endpointFor('/api/ai/study-games');
 
+  /// نسخةٌ جديدة من لعبةٍ واحدة عند إعادة اللعب.
+  Uri? get freshGameEndpoint => _endpointFor('/api/ai/study-games/fresh');
+
   Uri? _endpointFor(String path) {
     var base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty && kIsWeb) {
@@ -78,7 +81,27 @@ class StudentStudyService {
     return pack;
   }
 
-  Future<Map> _post(Uri? target, String lessonId) async {
+  /// نسخةٌ جديدة من لعبةٍ واحدة — يولّدها الخادم من النصّ الكامل للدرس،
+  /// متجنّباً ما رآه الطالب ([exclude]). لا تُحفظ: هي لهذه الجولة وحدها.
+  Future<StudyGame> fetchFreshGame({
+    required String lessonId,
+    required StudyGameType type,
+    required List<String> exclude,
+  }) async {
+    final map = await _post(freshGameEndpoint, lessonId, extra: {
+      'gameType': type.wire,
+      'exclude': exclude,
+    });
+    final game = StudyGame.fromMap(map['game']);
+    if (game == null) throw const StudyFailure('badPack');
+    return game;
+  }
+
+  Future<Map> _post(
+    Uri? target,
+    String lessonId, {
+    Map<String, Object?> extra = const {},
+  }) async {
     if (target == null) throw const StudyFailure('noService');
     final token = await authService.ensureApiSession();
     if (token == null || token.isEmpty) {
@@ -98,7 +121,7 @@ class StudentStudyService {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $token',
             },
-            body: jsonEncode({'lessonId': lessonId}),
+            body: jsonEncode({'lessonId': lessonId, ...extra}),
           )
           .timeout(_timeout);
     } catch (_) {
