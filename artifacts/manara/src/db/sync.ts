@@ -813,9 +813,27 @@ async function hydrateRowTable(
   // إلا بعد تنظيف: الختم يقول إن ما في الخادم هو الحال، فتُترك نسخة
   // الجهاز كلّها. ولا يضيع بذلك عملٌ لم يُرفع — الجدول الذي له عمليات
   // معلّقة يخرج من هذه الدالة في أوّل سطر منها.
+  //
+  // ── وما ليس في الخادم لا يبقى على الجهاز ──
+  // كان الدمج اتحاداً: سجلٌّ حُذف من جهازٍ آخر — أو من الخادم مباشرةً —
+  // يبقى في نسخة هذا المتصفّح ويُعرض في «المحتوى التعليمي» كأنه لم يُحذف،
+  // ويعود مع كل تحميل. والسجلُّ الجديد الذي لم يصل ليس هنا: الكتابةُ تُرسل
+  // لحظتها، وما فشل منها يجعل الجدول معلّقاً فيخرج من هذه الدالة في أوّلها،
+  // و`refreshFromServer` ينتظر ما في الطابور قبل أن يقرأ. فالجدولُ العامر
+  // مرجعٌ تامّ: نسخةُ الجهاز تُقبل فيه للسجلّ الموجود هناك إن كانت أحدث.
+  // والجدولُ الخالي وحده يبقى اتحاداً — هجرتُه الأولى من المتصفّح.
+  const remoteIds = new Set(
+    filteredRemote.filter((item: any) => item?.id != null).map((item: any) => String(item.id)),
+  );
   const merged = takeServerCopy
     ? filteredRemote
-    : mergeArrayRecords(filteredRemote, filteredLocal, true);
+    : filteredRemote.length === 0
+      ? mergeArrayRecords(filteredRemote, filteredLocal, true)
+      : mergeArrayRecords(
+          filteredRemote,
+          filteredLocal.filter((item: any) => item?.id != null && remoteIds.has(String(item.id))),
+          true,
+        );
   const remoteById = new Map(
     filteredRemote
       .filter((item: any) => item?.id != null)
@@ -1272,9 +1290,50 @@ export function initSupabaseSync(): Promise<void> {
 export async function rehydrateFromServer(): Promise<void> {
   if (!activeSyncContext) {
     await initSupabaseSync();
-    return;
+  } else {
+    await hydrateFromSupabase(new Set(), new Set(), activeSyncContext);
   }
-  await hydrateFromSupabase(new Set(), new Set(), activeSyncContext);
+  announceRefreshed();
+}
+
+/** يُطلق بعد كل تحميلٍ من الخادم: الشاشاتُ المفتوحة تعيد قراءة نسختها. */
+export const DATA_REFRESHED_EVENT = 'smartEdu:data-refreshed';
+
+function announceRefreshed(): void {
+  try {
+    window.dispatchEvent(new Event(DATA_REFRESHED_EVENT));
+  } catch {
+    // بيئةٌ بلا نافذة (اختبار): لا مستمعين.
+  }
+}
+
+/** ينتهي حين تصل كلُّ كتابةٍ في الطابور إلى الخادم أو تفشل. */
+export function whenWritesSettled(): Promise<void> {
+  return Promise.all(Array.from(queues.values())).then(() => undefined);
+}
+
+/**
+ * نسخةٌ طازجة من الخادم بعد كل تعديلٍ أو حذف، وعلى فتراتٍ ما دامت الشاشة ظاهرة.
+ *
+ * ينتظر الكتابات المرسلة أولاً: لو قرأ قبل وصولها لعاد بالنسخة القديمة
+ * وكتبها فوق التعديل في المتصفّح. وتحميلٌ واحدٌ في كل مرة — من يطلبه وهو
+ * جارٍ ينتظر نفسه. ثم يُطلق [DATA_REFRESHED_EVENT].
+ */
+let refreshInFlight: Promise<void> | null = null;
+
+export function refreshFromServer(): Promise<void> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      await whenWritesSettled();
+      await rehydrateFromServer();
+    } catch (error) {
+      console.error('[sync] تعذّر التحديث من الخادم:', error);
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 /**

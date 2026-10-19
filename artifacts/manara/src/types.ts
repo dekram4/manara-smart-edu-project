@@ -207,6 +207,8 @@ export interface LessonConfig {
   liveMeetingUrl?: string;
   lessonContent: string;
   createdAt: string;
+  /** آخر تعديل — تفاضل به المزامنةُ بين نسخة الجهاز ونسخة الخادم. */
+  updatedAt?: string;
   createdBy: string;
   createdByName?: string; // اسم المعلم
   hierarchicalConfigId?: string; // معرف الإعداد الأكاديمي المرتبط

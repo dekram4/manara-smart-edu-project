@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import '../widgets/lively.dart';
@@ -70,10 +72,51 @@ class _StudentContentScreenState extends State<StudentContentScreen>
       duration: const Duration(seconds: 2),
     );
     _loadContent();
+    // ── المحتوى كما في Supabase الآن ──
+    // كان يُقرأ مرّةً عند فتح البطاقة، فتعديلٌ أو حذفٌ من المعلّم لا يصل
+    // الطالبَ حتى يخرج ويعود. فيُعاد سؤالُ Supabase عند العودة إلى التطبيق،
+    // وكلَّ [_refreshEvery] ما دامت البطاقة مفتوحة.
+    _lifecycle = AppLifecycleListener(onResume: _refreshLessons);
+    _refreshTimer = Timer.periodic(_refreshEvery, (_) => _refreshLessons());
+  }
+
+  static const _refreshEvery = Duration(seconds: 30);
+  AppLifecycleListener? _lifecycle;
+  Timer? _refreshTimer;
+  bool _refreshing = false;
+
+  /// يجلب الدروس من جديد، ويستبدلها إن تغيّرت وحدها — بلا مؤشّر تحميل،
+  /// والدرسُ المفتوح يبقى مفتوحاً إن لم يُحذف.
+  Future<void> _refreshLessons() async {
+    if (_loading || _refreshing || !mounted) return;
+    _refreshing = true;
+    try {
+      final lessons = await _contentService.fetchLessons(
+        widget.profile,
+        academicContext: widget.academicContext,
+      );
+      if (!mounted) return;
+      if (StudentContentService.lessonsSignature(lessons) ==
+          StudentContentService.lessonsSignature(_lessons)) {
+        return;
+      }
+      setState(() {
+        _lessons = lessons;
+        _selectedLesson =
+            StudentContentService.keepSelectedLesson(lessons, _selectedLesson);
+        _error = null;
+      });
+    } catch (_) {
+      // شبكةٌ متقطّعة: تبقى آخرُ نسخةٍ ناجحة، والمحاولةُ التالية بعد قليل.
+    } finally {
+      _refreshing = false;
+    }
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
+    _lifecycle?.dispose();
     // The celebration belongs to this card. Leaving it should end it,
     // not carry clapping out to the hub behind.
     StudentSoundService.instance.stopEffects();

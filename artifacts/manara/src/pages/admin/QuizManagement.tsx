@@ -561,37 +561,25 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     try {
       console.log('🤖 بدء توليد اختبار من Gemini AI...');
       
-      // تقصير المحتوى إذا كان طويلاً جداً (حد أقصى 2000 حرف)
-      const contentSummary = lessonContent.length > 2000 
-        ? lessonContent.substring(0, 2000) + '...' 
-        : lessonContent;
-      
-      // 🎯 Prompt مختصر وفعّال
+      // ‏الدرسُ وسياقُه والعدد — لا توجيه. الضوابطُ التربوية ومخطّطُ JSON على
+      // ‏الخادم (`lib/quizGenerator`): أسئلةٌ تقيس الفهم والتحليل لا النقل
+      // ‏الحرفي، وخياراتٌ مضلّلةٌ من أخطاء الطلاب الشائعة. وكان يُرسل أوّلَ
+      // ‏ألفي حرفٍ من الدرس وحدها، فتأتي الأسئلةُ كلُّها من مقدّمته.
       const requestedQuestionCount = Math.max(1, Math.min(quizFormData.questionCount, 30));
       // The selected number is the number shown to each student. Generate a
       // larger bank so student-specific selection can produce different sets.
       const bankSize = Math.min(Math.max(requestedQuestionCount * 3, requestedQuestionCount + 10), 60);
-      const prompt = `ولّد بالضبط ${bankSize} سؤال اختيار من متعدد من هذا المحتوى التعليمي.
-هذا بنك أسئلة مشترك سيختار منه النظام ${requestedQuestionCount} أسئلة مختلفة وثابتة لكل طالب. لا تنشئ أقل من العدد المطلوب ولا تضف أي نص خارج JSON:
-
-${contentSummary}
-
-متطلبات:
-- أسئلة متنوعة تغطي المحتوى
-- 4 خيارات لكل سؤال
-- إجابة واحدة صحيحة (A أو B أو C أو D)
-- خيارات معقولة ومتشابهة
-
-أجب بصيغة JSON فقط:
-[{"question":"السؤال","options":["خيار1","خيار2","خيار3","خيار4"],"correctAnswer":"A"}]`;
 
       const response = await fetch('/api/gemini/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt,
-          temperature: 0.7,
-          maxOutputTokens: 9000,
+          lessonContent,
+          count: bankSize,
+          grade: quizFormData.grade,
+          subject: quizFormData.subject,
+          unit: quizFormData.unit,
+          lesson: quizFormData.lesson,
         })
       });
 
@@ -628,6 +616,20 @@ ${contentSummary}
       }
 
       const data = await response.json();
+
+      // ‏الخادمُ فحص الأسئلة وأعادها بصيغة التطبيق.
+      if (Array.isArray(data?.questions)) {
+        const generatedQuestions = data.questions.slice(0, bankSize);
+        if (generatedQuestions.length === 0) {
+          alert('❌ لم يتم توليد أسئلة صالحة. حاول مرة أخرى.');
+          return;
+        }
+        if (saveQuiz(generatedQuestions)) {
+          alert(`✅ تم إنشاء بنك احترافي بـ ${generatedQuestions.length} سؤالًا، وسيظهر لكل طالب ${requestedQuestionCount} أسئلة مختلفة.`);
+        }
+        return;
+      }
+
       const aiResponse = data.text || data.candidates?.[0]?.content?.parts
         ?.map((part: { text?: string }) => part?.text || '')
         .join('')

@@ -491,6 +491,40 @@ class StudentContentService {
     );
   }
 
+  /// بصمةُ ما يراه الطالب من الدروس: تتغيّر إن عدّل المعلّم أو حذف أو أضاف.
+  ///
+  /// التحديثُ الدوري يقارن بها فلا يعيد بناء الشاشة — ولا يقطع فيديو يُشاهَد
+  /// — إلا حين يتغيّر شيءٌ فعلاً.
+  static String lessonsSignature(List<LessonContent> lessons) => [
+        for (final lesson in lessons)
+          [
+            lesson.id,
+            lesson.lessonName,
+            lesson.grade,
+            lesson.subject,
+            lesson.term,
+            lesson.unit,
+            lesson.lessonText ?? '',
+            lesson.avatarInteractionUrl ?? '',
+            lesson.liveMeetingUrl ?? '',
+            for (final video in lesson.videos) '${video.url}|${video.title}',
+            for (final game in lesson.games) game.url,
+          ].join('\u0001'),
+      ].join('\u0002');
+
+  /// الدرسُ المفتوح بعد تحديث القائمة: هو نفسُه بمعرّفه إن بقي، وإلا الأول.
+  ///
+  /// درسٌ حذفه المعلّم لا يبقى معروضاً من نسخةٍ قديمة.
+  static LessonContent? keepSelectedLesson(
+    List<LessonContent> lessons,
+    LessonContent? previous,
+  ) {
+    if (lessons.isEmpty) return null;
+    if (previous == null) return lessons.first;
+    return lessons.where((lesson) => lesson.id == previous.id).firstOrNull ??
+        lessons.first;
+  }
+
   /// Pure selection logic kept public for regression tests and for callers
   /// that already hold the scoped lesson records.
   static TutorExperienceSelection resolveTutorExperience({
@@ -551,21 +585,28 @@ class StudentContentService {
     );
   }
 
+  /// ألعابُ الفهرس الأساسية المتاحة لجميع الطلاب — كما يقرّرها المشرف.
+  ///
+  /// ── ولا رجوعَ إلى النسخة المدمجة ──
+  /// كانت قائمةٌ فارغة من الخادم تُستبدل بالألعاب الستّ المدمجة في التطبيق.
+  /// والقائمةُ تفرغ حين يُسند المشرفُ الألعابَ الأساسية إلى معلّمين — فكان
+  /// طلابُ كل معلّمٍ يرون ألعابَ معلّمٍ آخر. فالفارغةُ فارغة، والخطأُ لا ألعاب:
+  /// ألعابُ معلّم الطالب تصل من [fetchTeacherGames] وحدها. والنسخةُ المدمجة
+  /// تبقى لتطبيقٍ بلا خادمٍ مُعدّ (التطوير والاختبار) فقط.
   Future<List<HtmlGame>> fetchGameCatalog() async {
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return _embeddedGameCatalog('');
 
     final response = await http.get(Uri.parse('$base/api/game-catalog'));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      return _embeddedGameCatalog(base);
+      return const [];
     }
 
     final decoded = jsonDecode(response.body);
     final rawGames = decoded is Map ? decoded['games'] : decoded;
     if (rawGames is! List) return const [];
 
-    final games = _catalogGames(rawGames, base);
-    return games.isEmpty ? _embeddedGameCatalog(base) : games;
+    return _catalogGames(rawGames, base);
   }
 
   /// ألعابُ «الترفيه والألعاب» التي أسندها المشرف إلى معلّم الطالب.

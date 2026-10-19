@@ -38,6 +38,13 @@ import { VECTOR_THRESHOLD, bestByMeaning, embedQuestion } from "../lib/embedding
 import { createHash } from "node:crypto";
 import { SOLVER_SCOPE_INSTRUCTION, cacheReadableColumns, imageKeyText, isRefusalAnswer } from "../lib/solverPolicy";
 import {
+  QUIZ_RESPONSE_SCHEMA,
+  QUIZ_SYSTEM_INSTRUCTION,
+  clampCount as clampQuizCount,
+  parseQuizQuestions,
+  quizPrompt,
+} from "../lib/quizGenerator";
+import {
   BANK_SIZE,
   BANK_VERSION,
   ROUNDS_PER_PLAY,
@@ -172,6 +179,10 @@ async function callGemini(
     json = false,
     image,
     budgetMs = GEMINI_BUDGET_MS,
+    systemInstruction,
+    responseSchema,
+    singleTryMs = GEMINI_SINGLE_TRY_MS,
+    preferQuality = false,
   }: {
     temperature?: number;
     maxOutputTokens?: number;
@@ -186,6 +197,17 @@ async function callGemini(
      * ينتظر ستّين. فتُقسَّم الميزانيةُ الواحدة بينهما.
      */
     budgetMs?: number;
+    /** توجيهُ النظام: ضوابطُ ثابتة لا يغيّرها نصُّ الطلب. */
+    systemInstruction?: string;
+    /** مخطّطُ JSON يفرضه النموذج على ردّه (يقتضي [json]). */
+    responseSchema?: unknown;
+    /** سقفُ نموذجٍ واحد — للأعمال الطويلة كبنك أسئلة كامل. */
+    singleTryMs?: number;
+    /**
+     * يُقدَّم النموذجُ الأقوى على الأخفّ: الأسرعُ يكفي لإجابة طفل، وبنكُ
+     * اختبارٍ يُبنى مرّةً ويُعاد لكل الطلاب يستحقّ الأدقّ.
+     */
+    preferQuality?: boolean;
   } = {},
 ): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -197,7 +219,14 @@ async function callGemini(
   // A short ordered fallback list is more reliable than trying every model
   // returned by discovery. In particular, the general flash model can spend
   // a long time reporting high demand while the lite model is ready.
-  const models = (await getGeminiModels(apiKey)).slice(0, 6);
+  const discovered = await getGeminiModels(apiKey);
+  const models = (preferQuality
+    ? [
+        ...discovered.filter((model) => /flash/i.test(model) && !/lite/i.test(model)),
+        ...discovered.filter((model) => !(/flash/i.test(model) && !/lite/i.test(model))),
+      ]
+    : discovered
+  ).slice(0, 6);
   let lastUnavailableMessage = "";
 
   // ميزانية واحدة للطلب كلّه، لا مهلة لكل نموذج على حدة.
@@ -226,6 +255,9 @@ async function callGemini(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            ...(systemInstruction
+              ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
+              : {}),
             contents: [
               {
                 parts: image
@@ -240,12 +272,13 @@ async function callGemini(
               temperature,
               maxOutputTokens,
               ...(json ? { responseMimeType: "application/json" } : {}),
+              ...(json && responseSchema ? { responseSchema } : {}),
             },
           }),
           // ما بقي من الميزانية، وبسقف لنموذج واحد حتى لا يبتلعها أوّلُ
           // نموذج بطيء ويحرم البقية من محاولة.
           signal: AbortSignal.timeout(
-            Math.min(remaining, GEMINI_SINGLE_TRY_MS),
+            Math.min(remaining, singleTryMs),
           ),
         },
       );
@@ -1410,7 +1443,72 @@ router.post(
   },
 );
 
+/**
+ * بنكُ أسئلة الاختبار من نصّ الدرس — بتوجيهٍ تربويٍّ ومخطّطٍ صارم على الخادم.
+ *
+ * الطلبُ يحمل الدرسَ وسياقَه والعدد، لا توجيهاً: الضوابطُ في
+ * `lib/quizGenerator` لا يغيّرها المتصفّح. والردُّ `{ questions }` بصيغة
+ * التطبيق، بعد أن يُفحص كلُّ سؤال ويُردّ ما لا يصلح.
+ *
+ * وطلبٌ بحقل `prompt` وحده (نسخةُ لوحةٍ أقدم ما زالت مفتوحة) يُخدم كما كان.
+ */
+const QUIZ_BUDGET_MS = 110_000;
+const QUIZ_SINGLE_TRY_MS = 75_000;
+
 router.post("/gemini/generate-quiz", requireContentManager, async (req, res) => {
+  const lessonContent =
+    typeof req.body?.lessonContent === "string" ? req.body.lessonContent.trim() : "";
+  if (lessonContent) {
+    if (lessonContent.length > 60_000) {
+      return res.status(400).json({ error: "نصّ الدرس أطول من المسموح" });
+    }
+    const count = clampQuizCount(req.body?.count);
+    const field = (key: string) =>
+      typeof req.body?.[key] === "string" ? req.body[key].trim().slice(0, 200) : "";
+    try {
+      const data = await callGemini(
+        quizPrompt({
+          lessonContent,
+          count,
+          grade: field("grade"),
+          subject: field("subject"),
+          unit: field("unit"),
+          lesson: field("lesson"),
+        }),
+        {
+          systemInstruction: QUIZ_SYSTEM_INSTRUCTION,
+          responseSchema: QUIZ_RESPONSE_SCHEMA,
+          json: true,
+          temperature: 0.55,
+          maxOutputTokens: 32_000,
+          budgetMs: QUIZ_BUDGET_MS,
+          singleTryMs: QUIZ_SINGLE_TRY_MS,
+          preferQuality: true,
+        },
+      );
+      const { questions, rejected } = parseQuizQuestions(getGeminiText(data) ?? "", count);
+      if (Object.keys(rejected).length) {
+        logger.info({ count, kept: questions.length, rejected }, "[gemini] quiz bank filtered");
+      }
+      if (questions.length === 0) {
+        logger.warn(
+          { finishReason: data?.candidates?.[0]?.finishReason, rejected },
+          "[gemini] quiz bank empty",
+        );
+        return res.status(502).json({
+          error: "لم يُولَّد سؤالٌ صالح، حاول مرة أخرى",
+          finishReason: data?.candidates?.[0]?.finishReason,
+        });
+      }
+      return res.json({ questions, requested: count });
+    } catch (error: any) {
+      logger.error({ err: error }, "[gemini] quiz generation failed");
+      return res
+        .status(error?.statusCode || 500)
+        .json({ error: "تعذر توليد الاختبار بالذكاء الاصطناعي" });
+    }
+  }
+
   const prompt =
     typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
   const temperature = Number.isFinite(req.body?.temperature)
