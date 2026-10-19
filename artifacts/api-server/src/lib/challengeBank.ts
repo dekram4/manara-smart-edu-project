@@ -1,3 +1,4 @@
+import { fullLessonText } from "./lessonText";
 /**
  * بنك جولات التحدي: جولاتٌ حركية تُولَّد من نصّ الدرس وتُخزَّن معه.
  *
@@ -55,7 +56,9 @@ export interface ChallengeBank {
 }
 
 /** صيغة البنك. رقمٌ يتغيّر حين تتغيّر القواعد، فيُعاد التوليد. */
-export const BANK_VERSION = 1;
+///
+/// ٢: نصُّ الدرس كاملاً (كان يُقطع عند ٧٠٠٠ حرف) — البنوكُ الأقدم تُولَّد من جديد.
+export const BANK_VERSION = 2;
 
 /** حجم البنك المطلوب من النموذج. */
 export const BANK_SIZE = 20;
@@ -354,7 +357,7 @@ export function bankPrompt(input: {
 ${input.unit ? `الوحدة: ${input.unit}\n` : ""}${input.lesson ? `الدرس: ${input.lesson}\n` : ""}
 نصّ الدرس المعتمد — لا تخرج عنه:
 """
-${input.lessonText.slice(0, 7000)}
+${fullLessonText(input.lessonText)}
 """
 
 ${english ? `${COMMON}\n${ENGLISH}` : rules}

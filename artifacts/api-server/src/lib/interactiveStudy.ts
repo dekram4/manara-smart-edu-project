@@ -1,3 +1,4 @@
+import { fullLessonText } from "./lessonText";
 /**
  * المذاكرةُ الذكية: خريطةٌ ذهنية للدرس، ومغامراتٌ قصصية فيه.
  *
@@ -14,7 +15,9 @@
 ///
 /// ٤: الحزمةُ تحمل درسَها (`lessonId`) وبصمةَ نصّه (`lessonStamp`). وكلُّ
 /// حزمةٍ من نسخةٍ أقدم تُولَّد من جديد من نصّ درسها الفعليّ.
-export const STUDY_VERSION = 4;
+///
+/// ٥: نصُّ الدرس كاملاً (كان يُقطع عند ٦٠٠٠ حرف) — الحزمُ الأقدم تُولَّد من جديد.
+export const STUDY_VERSION = 5;
 
 /** فروعُ الخريطة الذهنية: ثلاثةٌ أو أربعة، لا أكثر. */
 export const MIN_BRANCHES = 3;
@@ -204,7 +207,7 @@ export function studyPrompt(input: {
     "",
     `عنوان الدرس: ${clean(input.lessonTitle, 120)}`,
     "نص الدرس:",
-    input.lessonText.slice(0, 6000),
+    fullLessonText(input.lessonText),
     "",
     "اخرج كائن JSON واحدا فقط، بلا اي شرح قبله او بعده، وبلا علامات تنسيق، بهذا الشكل:",
     "{",
@@ -509,7 +512,7 @@ export function expansionPrompt(input: {
     "",
     `عنوان الدرس: ${clean(input.lessonTitle, 120)}`,
     "نص الدرس:",
-    input.lessonText.slice(0, 6000),
+    fullLessonText(input.lessonText),
     "",
     "فروع الدرس:",
     ...input.pack.mindMap.branches.map((branch) => `- ${branch.title}: ${branch.summary}`),

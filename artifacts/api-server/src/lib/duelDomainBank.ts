@@ -16,6 +16,7 @@
  */
 
 import { packSeed } from "./duelQuestions";
+import { fullLessonText } from "./lessonText";
 
 /** ما يُطلب من النموذج لكل درس. */
 export const DOMAIN_BATCH = 15;
@@ -102,7 +103,7 @@ export function duelDomainPrompt(input: DomainRequest): string {
 ${input.unit ? `الوحدة: ${input.unit}\n` : ""}${input.lesson ? `الدرس: ${input.lesson}\n` : ""}
 هذا نصُّ الدرس لتعرف **موضوعه** فقط:
 """
-${input.lessonText.slice(0, 5000)}
+${fullLessonText(input.lessonText)}
 """
 
 المطلوب: أسئلةُ معلوماتٍ عامّةٍ ممتعةٍ وخفيفةٍ في **مجال** هذا الدرس وموضوعه — ما يعرفه طفلٌ مهتمٌّ بالموضوع، وما يثير فضوله.
