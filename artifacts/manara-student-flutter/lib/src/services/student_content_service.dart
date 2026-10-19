@@ -564,6 +564,25 @@ class StudentContentService {
     final rawGames = decoded is Map ? decoded['games'] : decoded;
     if (rawGames is! List) return const [];
 
+    final games = _catalogGames(rawGames, base);
+    return games.isEmpty ? _embeddedGameCatalog(base) : games;
+  }
+
+  /// ألعابُ «الترفيه والألعاب» التي أسندها المشرف إلى معلّم الطالب.
+  ///
+  /// الخادم يحسمها من سجلّ الطالب (`/api/student/entertainment`): المفعّلةُ
+  /// من ألعاب معلّمه وحده. وتصل بصيغة الفهرس نفسها، فتُقرأ بمحلّله وتُعرض
+  /// بعد ألعابه في الرفّ نفسه. وأيُّ تعذّرٍ — خادمٌ أقدم، بطاقةٌ مغلقة، شبكة —
+  /// قائمةٌ فارغة: ألعابُ الفهرس تبقى كما هي.
+  Future<List<HtmlGame>> fetchTeacherGames() async {
+    final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isEmpty) return const [];
+    final (status, body) = await _apiGet('/api/student/entertainment');
+    if (status < 200 || status >= 300) return const [];
+    return _catalogGames(_asList(body['games']), base);
+  }
+
+  List<HtmlGame> _catalogGames(List<Object?> rawGames, String base) {
     final games = <HtmlGame>[];
     for (var index = 0; index < rawGames.length; index++) {
       final map = _asMap(rawGames[index]);
@@ -586,7 +605,7 @@ class StudentContentService {
         ),
       );
     }
-    return games.isEmpty ? _embeddedGameCatalog(base) : games;
+    return games;
   }
 
   /// فيديوهات السينما: كلُّ ما نُشر لصفّ الطالب من معلّمه أو المشرف، أيّاً

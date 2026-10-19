@@ -52,6 +52,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/lib/challengeQuestions.ts"),
       path.resolve(artifactDir, "src/lib/leaderboard.ts"),
       path.resolve(artifactDir, "src/lib/cinema.ts"),
+      path.resolve(artifactDir, "src/lib/entertainment.ts"),
       path.resolve(artifactDir, "src/lib/cardPermissions.ts"),
       path.resolve(artifactDir, "src/lib/mathBank.ts"),
       path.resolve(artifactDir, "src/lib/knowledgeBank.ts"),

@@ -149,6 +149,13 @@ class _StudentContentScreenState extends State<StudentContentScreen>
       // Supabase lesson games remain available if the optional API catalog
       // is unavailable.
     }
+    try {
+      // ألعابُ معلّم الطالب من «الترفيه والألعاب»: بعد ألعاب الفهرس، فلا
+      // تُزيح لعبةً فتحها الطالب بمستواه.
+      apiGames = [...apiGames, ...await _contentService.fetchTeacherGames()];
+    } catch (_) {
+      // تعذّرت: ألعابُ الفهرس والدروس كما هي.
+    }
 
     var gamification = _gamification;
     try {
