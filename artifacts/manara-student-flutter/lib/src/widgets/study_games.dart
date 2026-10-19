@@ -634,8 +634,13 @@ class _DraggableCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = _CardFace(label: label, color: color, lifted: selected);
-    return Draggable<String>(
+    // ‏ضغطةٌ قصيرة ثم سحب: السحبُ الفوريّ كان ينازع التمريرَ في القائمة،
+    // ‏فتتحرّك الصفحةُ حين يريد الطفلُ أن يحمل البطاقة. وما دون ذلك لمسةٌ
+    // ‏تختار البطاقة (البديلُ بالضغط).
+    return LongPressDraggable<String>(
       data: label,
+      delay: const Duration(milliseconds: 150),
+      hapticFeedbackOnStart: true,
       feedback: Material(
         color: Colors.transparent,
         child: Transform.rotate(

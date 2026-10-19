@@ -191,4 +191,32 @@ void main() {
     await _settle(tester);
     expect(won, ['endless_quiz']);
   });
+
+  testWidgets('السحب الحقيقي: ضغطةٌ مطوّلة ثم إسقاطٌ في السلّة', (tester) async {
+    final won = <String>[];
+    await _pump(tester, (game) async {
+      won.add(game.id);
+      return _reward(8, 30);
+    });
+    await _tap(tester, 'صنّف الكائنات');
+    await tester.pumpAndSettle();
+
+    Future<void> drag(String item, String bin) async {
+      final from = tester.getCenter(find.text(item).first);
+      final to = tester.getCenter(find.text(bin).first);
+      final gesture = await tester.startGesture(from);
+      await tester.pump(const Duration(milliseconds: 400));
+      await gesture.moveTo(Offset.lerp(from, to, 0.5)!);
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.moveTo(to);
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    await drag('القط', 'حيوان');
+    await drag('النخلة', 'نبات');
+    await _settle(tester);
+    expect(won, ['drag_drop']);
+  });
 }

@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# ‏نشرُ الإصدار يحتاج الكتابة على المستودع (gh release).
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -163,3 +167,27 @@ jobs:
         with:
           name: student-apk
           path: artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-release.apk
+
+      # ‏── رابطُ التحميل يتبع آخرَ بناء ──
+      # ‏لوحةُ المشرف تشير إلى releases/latest/download/manara-student.apk.
+      # ‏وكان البناءُ يرفع ملفّاً مؤقتاً (artifact) وحده، والإصدارُ يُنشأ يدوياً —
+      # ‏فبقي الرابطُ على v1.1.1 بعد ثلاثة إصدارات، والطلابُ على تطبيقٍ قديم.
+      # ‏فكلُّ دفعٍ إلى main يُنشئ إصدار v<نسخة pubspec> بملفّه، أو يستبدل
+      # ‏ملفَّ الإصدار إن كانت النسخةُ لم تتغيّر.
+      - name: Publish release for the download link
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -E '^version:' artifacts/manara-student-flutter/pubspec.yaml | sed -E 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/')
+          TAG="v$VERSION"
+          cp artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-release.apk manara-student.apk
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" manara-student.apk --clobber
+          else
+            gh release create "$TAG" manara-student.apk \
+              --title "تطبيق الطالب $TAG" \
+              --notes "بناءٌ تلقائي من ${GITHUB_SHA::7}." \
+              --latest
+          fi

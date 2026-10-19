@@ -66,15 +66,39 @@ void main() {
     expect(found.single.id, 'row-الخلية');
   });
 
-  test('published and declared lessons appear side by side', () {
+  test('a lesson deleted from the settings tree is gone, even if published', () {
+    // The teacher removed «الخلية» from the academic settings; its
+    // lesson_configs row still exists. The tree names this unit's lessons,
+    // so only what it names is offered.
     final data = AcademicSelectionData(
       paths: const [path],
-      lessons: [published('الخلية')],
+      lessons: [published('الخلية'), published('الذرة')],
       declaredLessons: const [DeclaredLesson(path: path, name: 'الذرة')],
     );
 
-    final names = lessonsIn(data).map((lesson) => lesson.lessonName).toSet();
-    expect(names, {'الخلية', 'الذرة'});
+    final names = lessonsIn(data).map((lesson) => lesson.lessonName).toList();
+    expect(names, ['الذرة']);
+    expect(lessonsIn(data).single.lessonText, 'نص الدرس');
+  });
+
+  test('a unit the tree does not name lessons for keeps its published ones', () {
+    final data = AcademicSelectionData(
+      paths: const [path],
+      lessons: [published('الخلية')],
+      declaredLessons: const [
+        DeclaredLesson(
+          path: AcademicPath(
+            grade: 'الصف الرابع',
+            subject: 'العلوم',
+            term: 'الفصل الثاني',
+            unit: 'وحدة أخرى',
+          ),
+          name: 'الذرة',
+        ),
+      ],
+    );
+
+    expect(lessonsIn(data).map((lesson) => lesson.lessonName), ['الخلية']);
   });
 
   test('a declared lesson on another unit is not offered here', () {
