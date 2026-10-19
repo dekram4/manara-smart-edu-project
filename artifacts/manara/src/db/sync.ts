@@ -910,22 +910,22 @@ async function hydrateKv(pendingKv: Set<string>): Promise<void> {
   }
   const byKey = new Map((data || []).map((row: any) => [row.key, row.value]));
   const toUpload: { key: string; value: any }[] = [];
-  const deletedVideoIds = new Set([
-    ...stringIdArray(byKey.get('smartEdu_deletedVideos')),
-    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedVideos'))),
-  ]);
-  const deletedLessonIds = new Set([
-    ...stringIdArray(byKey.get('smartEdu_deletedLessons')),
-    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedLessons'))),
-  ]);
-  const deletedQuizIds = new Set([
-    ...stringIdArray(byKey.get('smartEdu_deletedQuizzes')),
-    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedQuizzes'))),
-  ]);
-  const deletedStudentIds = new Set([
-    ...stringIdArray(byKey.get('smartEdu_deletedStudents')),
-    ...stringIdArray(safeParse(nativeGetItem('smartEdu_deletedStudents'))),
-  ]);
+  // ‏── قوائمُ الحذف: ما في الخادم هو الحال ──
+  // ‏كانت اتحاداً بين الخادم ونسخة المتصفّح، فلا يخرج منها معرّفٌ أبداً: من
+  // ‏استعاد درساً محذوفاً (أو رفع علامتَه من الخادم) كان أوّلُ متصفّحٍ يحمل
+  // ‏العلامةَ القديمة يُعيدها ثم يحذف الدرسَ المستعاد من `lesson_configs`.
+  // ‏فنسخةُ الخادم تحكم ما دامت موجودة. ونسخةُ المتصفّح تُضمّ إليها في حالةٍ
+  // ‏واحدة: علامةٌ كُتبت هنا ولم تصل بعد (المفتاحُ في `pendingKv`).
+  const tombstones = (key: string): Set<string> => {
+    const local = stringIdArray(safeParse(nativeGetItem(key)));
+    if (!byKey.has(key)) return new Set(local);
+    const remote = stringIdArray(byKey.get(key));
+    return new Set(pendingKv.has(key) ? [...remote, ...local] : remote);
+  };
+  const deletedVideoIds = tombstones('smartEdu_deletedVideos');
+  const deletedLessonIds = tombstones('smartEdu_deletedLessons');
+  const deletedQuizIds = tombstones('smartEdu_deletedQuizzes');
+  const deletedStudentIds = tombstones('smartEdu_deletedStudents');
 
   for (const key of KV_KEYS) {
     if (pendingKv.has(key)) continue; // تغييرات محلية معلّقة، لا تطمسها
