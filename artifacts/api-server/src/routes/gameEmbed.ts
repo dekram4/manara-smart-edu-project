@@ -12,11 +12,11 @@ import {
   GAME_HOST,
   LEGACY_AD_SDK,
   LEGACY_GAME_IDS,
-  catalogJson,
   isSafeGameAssetPath,
   resolveGameId,
   resolveRewrittenGameFile,
 } from "../lib/gameEmbed";
+import { catalogForStudents } from "./entertainment";
 
 const router = Router();
 
@@ -29,8 +29,12 @@ const STATIC_GAMES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url
 /** أكبرُ ردٍّ يُعلَن حجمُه — دون حدّ منصّة النشر (٣٢ ميغابايت) بهامش. */
 const MAX_DECLARED_LENGTH = 30 * 1024 * 1024;
 
-router.get("/game-catalog", (_req, res) => {
-  res.json({ games: catalogJson() });
+/**
+ * الفهرسُ بعد تعديلات المشرف على الألعاب الأساسية — انظر `routes/entertainment`.
+ * لا يُخزَّن في الطريق: إخفاءُ لعبةٍ أو إسنادُها يصل عند فتح البطاقة التالي.
+ */
+router.get("/game-catalog", async (_req, res) => {
+  res.set("Cache-Control", "no-store").json({ games: await catalogForStudents() });
 });
 
 /**

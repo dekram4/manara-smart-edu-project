@@ -179,22 +179,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     let hierarchicalConfigs: any[] = [];
     
     if (effectiveTeacherId && effectiveTeacherId !== 'admin') {
-      // للمعلم: إظهار إعداداته + الإعدادات العامة (ولكن تفضيل نسخته على النسخة العامة)
+      // للمعلم: شجرتُه وحدها — عزلٌ صارم بمعرّفه.
+      //
+      // كانت تُضاف إليها إعداداتُ المشرف وكلُّ إعدادٍ بلا `createdBy`. والمالكُ
+      // يُقرأ من `teacher_id ?? teacherId ?? createdBy`، فإعدادُ معلّمٍ آخر
+      // مالكُه في `teacherId` بلا `createdBy` كان يمرّ من تلك الفتحة ويظهر
+      // هنا. وقوالبُ المشرف تُنسخ إلى شجرته من «الإعدادات العامة».
       if (teacherId) {
-        const teacherConfigs = allHierarchicalConfigs.filter((c: any) => getRecordTeacherId(c) === normalizeScopeValue(effectiveTeacherId));
-        const adminConfigs = allHierarchicalConfigs.filter((c: any) =>
-          getRecordTeacherId(c) === 'admin' || !c.createdBy
-        );
-        
-        // دمج: إذا كان للمعلم نسخة من إعداد عام، نستخدم نسخة المعلم
-        const mergedConfigs = [...teacherConfigs];
-        adminConfigs.forEach((adminConfig: any) => {
-          const hasTeacherVersion = teacherConfigs.some((tc: any) => tc.grade === adminConfig.grade);
-          if (!hasTeacherVersion) {
-            mergedConfigs.push(adminConfig);
-          }
-        });
-        hierarchicalConfigs = mergedConfigs;
+        hierarchicalConfigs = allHierarchicalConfigs.filter((c: any) => getRecordTeacherId(c) === normalizeScopeValue(effectiveTeacherId));
       } else {
         // للمشرف عند اختيار معلم معين: إظهار إعدادات هذا المعلم فقط
         hierarchicalConfigs = allHierarchicalConfigs.filter((c: any) =>

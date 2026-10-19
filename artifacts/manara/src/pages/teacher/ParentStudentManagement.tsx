@@ -102,25 +102,21 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   };
 
   const loadAcademicSettings = () => {
-    // صفوف هذا المعلم من شجرته، ومعها صفوف المشرف. القائمة المسطّحة
-    // احتياط: لا يكتبها إلا المشرف حين يفتح شاشة الإعدادات.
-    const fromTree = gradesForOwner(teacherId);
-    setGrades(
-      fromTree.length > 0
-        ? fromTree
-        : JSON.parse(localStorage.getItem(STORAGE_KEYS.GRADES) || '[]'),
-    );
-    setSubjects(JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]'));
-    setTerms(JSON.parse(localStorage.getItem(STORAGE_KEYS.TERMS) || '[]'));
-    setUnits(JSON.parse(localStorage.getItem(STORAGE_KEYS.UNITS) || '[]'));
+    // ── من شجرة المعلم وحدها ──
+    // القوائم المسطّحة (`smartEdu_grades`…) مشتركةٌ بين المعلمين كلّهم،
+    // فالارتدادُ إليها كان يُظهر صفوفَ غيره ومواده. معلّمٌ بلا شجرة يرى
+    // قائمةً فارغة تدلّه على «إعداداتي الأكاديمية»، لا صفوفَ معلّمٍ آخر.
+    setGrades(gradesForOwner(teacherId));
+    setSubjects(subjectsForOwner(teacherId));
+    setTerms([]);
+    setUnits([]);
     setHierarchicalConfigs(readHierarchicalConfigs());
   };
 
   const getSubjectsForGrade = (grade: string) => {
     if (!grade) return subjects;
-    // مواد هذا المعلم في هذا الصف، ومعها مواد المشرف.
-    const fromTree = subjectsForOwner(teacherId, grade);
-    return fromTree.length > 0 ? fromTree : subjects;
+    // مواد هذا المعلم في هذا الصف، من شجرته وحدها.
+    return subjectsForOwner(teacherId, grade);
   };
 
   const handleSaveParent = () => {

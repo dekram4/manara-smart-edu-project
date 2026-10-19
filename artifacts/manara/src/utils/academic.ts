@@ -162,15 +162,17 @@ export const readHierarchicalConfigs = (
  * نموذج الحساب. القراءة من الشجرة تزيل ذلك الوسيط.
  *
  * [teacherId] فارغ يعني مشرفاً: يرى كل الإعدادات.
+ *
+ * ── وللمعلم شجرتُه وحدها ──
+ * كانت تُضاف إليها إعداداتُ المشرف وكلُّ إعدادٍ بلا مالك، فيظهر في قوائم
+ * المعلم صفٌّ أو مادةٌ لم يُخصَّصا له. العزلُ صارم: ما يملكه المعلم لا غير.
+ * وقوالبُ المشرف تبقى في تبويب «الإعدادات العامة» يُنسخ منها إلى شجرته.
  */
 export const configsForOwner = (teacherId?: string): HierarchicalConfig[] => {
   const all = readHierarchicalConfigs();
   const owner = normalizeScopeValue(teacherId);
   if (!owner || owner === 'admin') return all;
-  return all.filter(config => {
-    const configOwner = getRecordTeacherId(config);
-    return !configOwner || configOwner === 'admin' || configOwner === owner;
-  });
+  return all.filter(config => getRecordTeacherId(config) === owner);
 };
 
 /** الصفوف التي يملكها هذا المستخدم، بلا تكرار. */
