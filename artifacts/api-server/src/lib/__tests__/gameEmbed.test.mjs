@@ -196,3 +196,32 @@ test("كلُّ ملفٍّ في REWRITTEN_GAME_FILES له نسخةٌ مثبّتة
     assert.ok(fs.statSync(full).size > 1000, `${gameId}/${file} not empty`);
   }
 });
+
+// ── قاعدةٌ دائمة: كلُّ لعبة GameDistribution يضيفها مشرفٌ أو معلّمٌ بلا إعلانات ──
+test("رابطُ GameDistribution العامّ يُحوَّل إلى وكيل منارة، وغيرُه يبقى", async () => {
+  const { gameDistributionId, playableGameUrl } = await import("../../../dist/lib/entertainment.mjs");
+  const id = "c3268ff701f74898b0ee4880fb9193ac";
+  for (const url of [
+    `https://html5.gamedistribution.com/${id}/?gd_sdk_referrer_url=https://x.example/`,
+    `https://html5.gamedistribution.com/rvvASMiM/${id}/index.html`,
+    `/api/game-embed/${id}/index.html`,
+  ]) {
+    assert.equal(gameDistributionId(url), id, url);
+    assert.equal(playableGameUrl(url), `/api/game-embed/${id}/index.html`, url);
+  }
+  assert.equal(gameDistributionId("https://html5.gamedistribution.com/not-a-game/"), null);
+  assert.equal(playableGameUrl("https://games.example.com/play/"), "https://games.example.com/play/");
+});
+
+test("لعبةٌ مضافة: البديلُ الصامت أوّلَ الصفحة، ولا رابطَ لمكتبة الإعلانات", async () => {
+  const { rewriteRegisteredGame } = await import("../../../dist/lib/gameEmbed.mjs");
+  const id = "5eb82cb55cb14d38b4f52399d6e76d74";
+  const page = `<html><head><title>x</title><script>s.src="https://html5.api.gamedistribution.com/main.min.js"</script></head><body></body></html>`;
+  const out = rewriteRegisteredGame(id, "html", page);
+  assert.ok(/^<html><head><script>[\s\S]*window\.gdsdk/.test(out));
+  assert.ok(out.includes("window.open=function"));
+  assert.ok(!out.includes("html5.api.gamedistribution.com"));
+  assert.ok(out.includes(`/api/game-embed/${id}/ad-sdk.js`));
+  const js = rewriteRegisteredGame(id, "js", `load("//html5.api.gamedistribution.com/main.min.js")`);
+  assert.equal(js, `load("/api/game-embed/${id}/ad-sdk.js")`);
+});

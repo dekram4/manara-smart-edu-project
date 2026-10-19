@@ -131,6 +131,40 @@ export function isSafeGameUrl(value: unknown): boolean {
   }
 }
 
+/**
+ * معرّفُ لعبة GameDistribution من رابطها، أو `null`.
+ *
+ * يقبل رابطَ الصفحة العامّ (`html5.gamedistribution.com/<id>/…`) ورابطَ ملفّاتها
+ * (`…/rvvASMiM/<id>/…`) ورابطَ وكيلنا (`/api/game-embed/<id>/…`).
+ */
+export function gameDistributionId(value: unknown): string | null {
+  const url = text(value);
+  const proxied = /^\/api\/game-embed\/([a-f0-9]{32})\//.exec(url);
+  if (proxied) return proxied[1];
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname !== "html5.gamedistribution.com") return null;
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const id = segments[0] === "rvvASMiM" ? segments[1] : segments[0];
+    return id && /^[a-f0-9]{32}$/.test(id.toLowerCase()) ? id.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ── قاعدةٌ دائمة: كلُّ لعبةٍ بلا إعلانات ──
+ * الألعابُ الستّ الأولى تمرّ بوكيل منارة (`/api/game-embed`) الذي يستبدل مكتبةَ
+ * إعلانات GameDistribution ببديلٍ صامت. ولعبةٌ يضيفها مشرفٌ أو معلّمٌ برابط
+ * GameDistribution العامّ كانت تُفتح كما هي — بإعلاناتها. فيُحوَّل رابطُها هنا
+ * إلى الوكيل نفسه، تلقائياً، بلا ضبطٍ يدويّ لأيّ لعبةٍ مستقبلاً. ورابطٌ من مصدرٍ
+ * آخر يبقى كما هو.
+ */
+export function playableGameUrl(embedUrl: string): string {
+  const id = gameDistributionId(embedUrl);
+  return id ? `/api/game-embed/${id}/index.html` : embedUrl;
+}
+
 /** قيمةٌ منطقية من الجسم أو الصفّ: `false` و`"false"` و`0` تعطيل، وغيابُها تفعيل. */
 function activeFlag(value: unknown, fallback: boolean): boolean {
   if (value === undefined || value === null || value === "") return fallback;
@@ -308,7 +342,7 @@ export function studentGame(
     id: `teacher-game-${game.id}`,
     title: game.title,
     subtitle: game.description,
-    url: game.embedUrl,
+    url: playableGameUrl(game.embedUrl),
     // الأساسيةُ المسندة تحمل اتجاهَها وأبعادَها من الفهرس.
     orientation: shape.orientation ?? "any",
     width: shape.width ?? null,

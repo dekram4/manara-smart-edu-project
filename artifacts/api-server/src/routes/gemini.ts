@@ -1830,7 +1830,7 @@ router.post(
               responseSchema: STUDY_GAMES_SCHEMA,
               json: true,
               temperature: 0.8,
-              maxOutputTokens: STUDY_MAX_TOKENS * 2,
+              maxOutputTokens: STUDY_MAX_TOKENS * 3,
               budgetMs: STUDY_BUDGET_MS,
               singleTryMs: 45_000,
             },

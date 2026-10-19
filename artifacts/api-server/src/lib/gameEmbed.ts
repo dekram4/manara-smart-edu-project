@@ -313,3 +313,24 @@ export function catalogJson() {
     url: `/api/game-embed/${game.id}/index.html`,
   }));
 }
+
+/**
+ * لعبةٌ أضافها مشرفٌ أو معلّمٌ من GameDistribution: تُنظَّف عند الطلب.
+ *
+ * الستُّ الأولى نسخُها المُعادةُ كتابتُها مثبّتةٌ ومراجَعة. والمضافةُ لاحقاً تأخذ
+ * القاعدةَ نفسها آلياً: صفحتُها تبدأ ببديل الإعلانات الصامت (فيجده محرّكُ Unity
+ * أو Construct قبل أن يطلب الإعلان) وبتعطيل النوافذ، ورابطُ المكتبة في صفحاتها
+ * وسكربتاتها يشير إلى البديل. والمكتبةُ الحقيقية لا تُحمَّل أصلاً: سياسةُ أمان
+ * الصفحة لا تسمح بمضيفها.
+ */
+export function rewriteRegisteredGame(gameId: string, kind: "html" | "js", source: string): string {
+  if (kind === "js") return rewriteGameScript(gameId, source);
+  const html = rewriteGameHtml(gameId, source);
+  const stub = `<script>${DISABLED_AD_SDK}</script>`;
+  const head = html.match(/<head[^>]*>/i);
+  if (head && head.index !== undefined) {
+    const at = head.index + head[0].length;
+    return html.slice(0, at) + stub + html.slice(at);
+  }
+  return stub + html;
+}

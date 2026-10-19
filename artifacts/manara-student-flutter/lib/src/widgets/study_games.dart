@@ -1044,13 +1044,51 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
   String? _picked;
   bool _won = false;
 
-  int get goal => math.min(10, math.max(5, widget.game.questions.length));
+  /// ‏مهلةُ كل سؤال: السباقُ سباق. وتسكن لمن طلب تقليل الحركة — لا يُستعجَل
+  /// ‏طفلٌ اختار الهدوء.
+  static const _secondsPerQuestion = 20;
+  Timer? _clock;
+  int _timeLeft = _secondsPerQuestion;
+  bool _timed = false;
+
+  int get goal => math.min(15, math.max(5, widget.game.questions.length));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _timed = !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+    if (_timed && _clock == null) _startClock();
+  }
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
+
+  void _startClock() {
+    _clock?.cancel();
+    if (!_timed) return;
+    _timeLeft = _secondsPerQuestion;
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _picked != null || _lives == 0) return;
+      if (_timeLeft <= 1) {
+        // ‏انتهى الوقت: كإجابةٍ خاطئة.
+        _pick('');
+      } else {
+        setState(() => _timeLeft -= 1);
+      }
+    });
+  }
 
   List<StudyQuickQuestion> _shuffled() =>
       [...widget.game.questions]..shuffle(_random);
 
+  /// ‏صح/خطأ بترتيبهما الثابت — «صح» أوّلاً دائماً — وما سواهما يُخلط.
   List<String> _optionsFor(StudyQuickQuestion question) =>
-      [...question.options]..shuffle(_random);
+      question.kind == StudyQuestionKind.trueFalse
+          ? [...question.options]
+          : ([...question.options]..shuffle(_random));
 
   StudyQuickQuestion get _current => _deck[_at];
 
@@ -1084,6 +1122,7 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
         _options = _optionsFor(_current);
         _picked = null;
       });
+      _startClock();
     });
   }
 
@@ -1182,6 +1221,36 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
               key: ValueKey('q-$_score-$_lives-$_at'),
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Row(
+                  children: [
+                    _KindChip(kind: _current.kind),
+                    const Spacer(),
+                    if (_timed)
+                      Text(
+                        '⏱️ $_timeLeft',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: _timeLeft <= 5
+                              ? _Palette.red
+                              : StudentSurface.ink(context),
+                        ),
+                      ),
+                  ],
+                ),
+                if (_timed) ...[
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: _timeLeft / _secondsPerQuestion,
+                      minHeight: 6,
+                      color: _timeLeft <= 5 ? _Palette.red : _Palette.gold,
+                      backgroundColor: _Palette.gold.withValues(alpha: 0.15),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -1191,18 +1260,37 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
                       BoxShadow(color: Color(0xFF4C1D95), offset: Offset(0, 5)),
                     ],
                   ),
-                  child: Text(
-                    _current.question,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      height: 1.5,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
+                  child: _QuestionText(
+                    question: _current,
+                    // ‏بعد الإجابة يمتلئ الفراغ بالصحيح.
+                    filled: _picked == null ? null : _current.answer,
                   ),
                 ),
                 const SizedBox(height: 14),
+                if (_current.kind == StudyQuestionKind.trueFalse)
+                  Row(
+                    children: [
+                      for (var i = 0; i < _options.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 12),
+                        Expanded(
+                          child: _OptionButton(
+                            label: _options[i],
+                            icon: i == 0 ? '✔️' : '✖️',
+                            tall: true,
+                            state: _picked == null
+                                ? _OptionState.idle
+                                : _options[i] == _current.answer
+                                    ? _OptionState.right
+                                    : _options[i] == _picked
+                                        ? _OptionState.wrong
+                                        : _OptionState.faded,
+                            onTap: () => _pick(_options[i]),
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                else
                 for (final option in _options)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -1228,13 +1316,94 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
 
 enum _OptionState { idle, right, wrong, faded }
 
+/// ‏شكلُ السؤال: يقول للطفل ماذا يُطلب منه قبل أن يقرأ.
+class _KindChip extends StatelessWidget {
+  const _KindChip({required this.kind});
+
+  final StudyQuestionKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (kind) {
+      StudyQuestionKind.trueFalse => (tr('study.games.kindTf'), _Palette.green),
+      StudyQuestionKind.fillBlank => (tr('study.games.kindFill'), _Palette.pink),
+      StudyQuestionKind.mcq => (tr('study.games.kindMcq'), _Palette.sky),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color, width: 1.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: color),
+      ),
+    );
+  }
+}
+
+/// ‏نصُّ السؤال، وفراغُ «أكمل» مرسومٌ خانةً يملؤها الجوابُ بعد الاختيار.
+class _QuestionText extends StatelessWidget {
+  const _QuestionText({required this.question, this.filled});
+
+  final StudyQuickQuestion question;
+  final String? filled;
+
+  static final _blank = RegExp(r'_{2,}|\.{3,}|…');
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(
+      fontSize: 18,
+      height: 1.5,
+      fontWeight: FontWeight.w900,
+      color: Colors.white,
+    );
+    final match = question.kind == StudyQuestionKind.fillBlank
+        ? _blank.firstMatch(question.question)
+        : null;
+    if (match == null) {
+      return Text(question.question, textAlign: TextAlign.center, style: style);
+    }
+    return Text.rich(
+      TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: question.question.substring(0, match.start)),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              decoration: BoxDecoration(
+                color: filled == null ? Colors.white24 : _Palette.green,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(filled ?? '  ?  ', style: style),
+            ),
+          ),
+          TextSpan(text: question.question.substring(match.end)),
+        ],
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+}
+
 class _OptionButton extends StatelessWidget {
   const _OptionButton({
     required this.label,
     required this.state,
     required this.onTap,
+    this.tall = false,
+    this.icon,
   });
 
+  final bool tall;
+  final String? icon;
   final String label;
   final _OptionState state;
   final VoidCallback onTap;
@@ -1259,7 +1428,7 @@ class _OptionButton extends StatelessWidget {
             onTap: onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: tall ? 22 : 14),
               decoration: BoxDecoration(
                 color: filled ? color : StudentSurface.card(context),
                 borderRadius: BorderRadius.circular(18),
@@ -1273,6 +1442,10 @@ class _OptionButton extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  if (icon != null) ...[
+                    Text(icon!, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 6),
+                  ],
                   Expanded(
                     child: Text(
                       label,

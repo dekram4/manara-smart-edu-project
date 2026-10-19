@@ -52,11 +52,19 @@ Map<String, Object?> _packJson() => {
             'drop_targets': [],
             'correct_pairs': [],
             'questions': [
-              for (var i = 0; i < 5; i++)
+              for (var i = 0; i < 3; i++)
                 {
+                  'kind': 'mcq',
                   'question': 'سؤال $i',
                   'options': ['صح $i', 'خطأ $i', 'ربما $i'],
                   'answer': 'صح $i',
+                },
+              for (var i = 3; i < 5; i++)
+                {
+                  'kind': 'true_false',
+                  'question': 'عبارة $i',
+                  'options': ['صح', 'خطأ'],
+                  'answer': 'صح',
                 },
             ],
           },
@@ -123,6 +131,7 @@ void main() {
     expect(pack.games.first.targetOf('القط'), 'حيوان');
     expect(pack.games.first.gemsReward, 8);
     expect(pack.games.last.questions, hasLength(5));
+    expect(pack.games.last.questions.last.kind, StudyQuestionKind.trueFalse);
     expect(StudyGamesPack.fromMap({'games': []}), isNull);
   });
 

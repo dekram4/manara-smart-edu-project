@@ -31,13 +31,28 @@ class StudyGamePair {
   final String target;
 }
 
+/// أشكالُ أسئلة السباق: تتبدّل فلا يملّ الطفل.
+enum StudyQuestionKind {
+  mcq,
+  trueFalse,
+  fillBlank;
+
+  static StudyQuestionKind parse(Object? value) => switch (value) {
+        'true_false' => trueFalse,
+        'fill_blank' => fillBlank,
+        _ => mcq,
+      };
+}
+
 class StudyQuickQuestion {
   const StudyQuickQuestion({
+    this.kind = StudyQuestionKind.mcq,
     required this.question,
     required this.options,
     required this.answer,
   });
 
+  final StudyQuestionKind kind;
   final String question;
   final List<String> options;
   final String answer;
@@ -96,6 +111,7 @@ class StudyGame {
       for (final entry in _list(items['questions']))
         if (entry is Map)
           StudyQuickQuestion(
+            kind: StudyQuestionKind.parse(entry['kind']),
             question: _text(entry['question']),
             options: [
               for (final option in _list(entry['options']))
