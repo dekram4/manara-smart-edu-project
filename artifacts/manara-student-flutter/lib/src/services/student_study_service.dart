@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../l10n/student_strings.dart';
 import '../models/interactive_study.dart';
+import '../models/study_games.dart';
 import 'student_auth_service.dart';
 
 /// سببُ تعذُّر تحضير المذاكرة، بمفتاحِ نصٍّ يُعرض للطفل.
@@ -43,7 +44,12 @@ class StudentStudyService {
   /// عنوانُ المسار، أو `null` إن لم يكن لهذا البناء خادم.
   ///
   /// `Uri.base` تصلح للويب وحده: في APK ليست أصلَ موقعٍ بل مسارَ ملف.
-  Uri? get endpoint {
+  Uri? get endpoint => _endpointFor('/api/ai/interactive-study');
+
+  /// ألعابُ المذاكرة التفاعلية: مسارُها بجانب مسار الحزمة.
+  Uri? get gamesEndpoint => _endpointFor('/api/ai/study-games');
+
+  Uri? _endpointFor(String path) {
     var base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty && kIsWeb) {
       final current = Uri.base;
@@ -53,13 +59,26 @@ class StudentStudyService {
             : current.origin;
       }
     }
-    return base.isEmpty
-        ? null
-        : Uri.tryParse('$base/api/ai/interactive-study');
+    return base.isEmpty ? null : Uri.tryParse('$base$path');
   }
 
   Future<StudyPack> fetch({required String lessonId}) async {
-    final target = endpoint;
+    final map = await _post(endpoint, lessonId);
+    final pack = StudyPack.fromMap(map['pack']);
+    if (pack == null) throw const StudyFailure('badPack');
+    return pack;
+  }
+
+  /// ألعابُ الدرس: سحبٌ وإسقاط، ومطابقة، وأسئلةٌ متتالية — يولّدها الخادم
+  /// من نصّ الدرس أوّلَ مرّة ويحفظها معه.
+  Future<StudyGamesPack> fetchGames({required String lessonId}) async {
+    final map = await _post(gamesEndpoint, lessonId);
+    final pack = StudyGamesPack.fromMap(map['pack']);
+    if (pack == null) throw const StudyFailure('badPack');
+    return pack;
+  }
+
+  Future<Map> _post(Uri? target, String lessonId) async {
     if (target == null) throw const StudyFailure('noService');
     final token = await authService.ensureApiSession();
     if (token == null || token.isEmpty) {
@@ -103,10 +122,7 @@ class StudentStudyService {
       }
       throw const StudyFailure('failed');
     }
-
-    final pack = StudyPack.fromMap(map['pack']);
-    if (pack == null) throw const StudyFailure('badPack');
-    return pack;
+    return map;
   }
 }
 

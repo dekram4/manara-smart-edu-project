@@ -45,6 +45,13 @@ import {
   quizPrompt,
 } from "../lib/quizGenerator";
 import {
+  STUDY_GAMES_SCHEMA,
+  STUDY_GAMES_SYSTEM_INSTRUCTION,
+  parseStudyGames,
+  readStudyGames,
+  studyGamesPrompt,
+} from "../lib/studyGames";
+import {
   BANK_SIZE,
   BANK_VERSION,
   ROUNDS_PER_PLAY,
@@ -352,6 +359,9 @@ type LessonLookup =
       challengeBank?: unknown;
       /** وحزمةُ المذاكرة الذكية، إن وُلّدت. */
       interactiveStudy?: unknown;
+      /** وألعابُ المذاكرة التفاعلية، إن وُلّدت. */
+      studyGames?: unknown;
+      grade?: string;
       reason?: undefined;
       detail?: undefined;
     }
@@ -417,6 +427,8 @@ async function resolveStudentLesson(
     lesson: typeof lesson.lesson === "string" ? lesson.lesson : "",
     challengeBank: lesson.challengeBank,
     interactiveStudy: lesson.interactiveStudy,
+    studyGames: lesson.studyGames,
+    grade: typeof lesson.grade === "string" ? lesson.grade : "",
   };
 }
 
@@ -1731,6 +1743,122 @@ router.post(
       logger.error({ err: error, lessonId }, "[study] failed");
       return res.status(503).json({
         error: "تعذّر تحضير المذاكرة الآن. حاول مرة أخرى.",
+        code: "unavailable",
+      });
+    }
+  },
+);
+
+/**
+ * ألعابُ «بطاقة المذاكرة» التفاعلية لدرس: سحبٌ وإسقاط، ومطابقة، وأسئلةٌ متتالية.
+ *
+ * كحزمة المذاكرة: تُولَّد من نصّ الدرس أوّلَ مرّة، وتُحفظ في سجلّه
+ * (`data.studyGames`) ببصمة نصّه، ثم تُقرأ منه. ونصٌّ عدّله المعلم يُولّد
+ * ألعاباً جديدة. والمكافآتُ فيها محصورةٌ على الخادم (`lib/studyGames`)،
+ * ويصرفها `/student/progress/reward` من السجلّ لا من التطبيق.
+ */
+const studyGamesInFlight = new Map<string, Promise<unknown>>();
+
+async function persistStudyGames(lessonId: string, pack: unknown): Promise<void> {
+  const config = apiSupabaseConfig();
+  if (!config) return;
+  const headers = {
+    apikey: config.key,
+    Authorization: `Bearer ${config.key}`,
+    "Content-Type": "application/json",
+  };
+  const read = await fetch(
+    `${config.url}/rest/v1/lesson_configs?select=data&id=eq.${encodeURIComponent(lessonId)}`,
+    { headers },
+  );
+  if (!read.ok) throw new Error(`study games read failed (${read.status})`);
+  const rows = await read.json();
+  const data = Array.isArray(rows) && rows[0]?.data && typeof rows[0].data === "object"
+    ? (rows[0].data as Record<string, unknown>)
+    : null;
+  if (!data) throw new Error("lesson row vanished before the games were saved");
+  const write = await fetch(
+    `${config.url}/rest/v1/lesson_configs?id=eq.${encodeURIComponent(lessonId)}`,
+    {
+      method: "PATCH",
+      headers: { ...headers, Prefer: "return=minimal" },
+      body: JSON.stringify({ data: { ...data, studyGames: pack }, updated_at: new Date().toISOString() }),
+    },
+  );
+  if (!write.ok) throw new Error(`study games write failed (${write.status})`);
+}
+
+router.post(
+  "/ai/study-games",
+  answerRateLimit,
+  requireStudentSession,
+  async (req, res) => {
+    const lessonId = typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
+    if (!lessonId) {
+      return res.status(400).json({ error: "لم يصل معرّف الدرس", code: "bad_request" });
+    }
+    try {
+      const student = res.locals.student as StudentActor;
+      const lesson = await resolveStudentLesson(lessonId, student);
+      if (lesson.reason) {
+        const messages = {
+          not_found: "لم يُعثر على هذا الدرس في قاعدة البيانات.",
+          out_of_scope: "هذا الدرس ليس ضمن مسار حسابك.",
+          no_text: "هذا الدرس لا يحتوي على شرح نصي بعد — اطلب من معلمك إضافته.",
+        } as const;
+        return res.status(403).json({ error: messages[lesson.reason], code: lesson.reason });
+      }
+      const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
+      const stored = readStudyGames(lesson.studyGames, owner);
+      if (stored) return res.json({ pack: stored, generated: false });
+
+      // طفلان فتحا الدرس معاً: توليدٌ واحد يخدمهما.
+      const flightKey = `${owner.lessonId}:${owner.lessonStamp}`;
+      let flight = studyGamesInFlight.get(flightKey);
+      if (!flight) {
+        flight = (async () => {
+          const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
+          const data = await callGemini(
+            studyGamesPrompt({
+              lessonTitle: title || lesson.lesson || lesson.subject,
+              lessonText: lesson.text,
+              subject: lesson.subject,
+              grade: lesson.grade,
+            }),
+            {
+              systemInstruction: STUDY_GAMES_SYSTEM_INSTRUCTION,
+              responseSchema: STUDY_GAMES_SCHEMA,
+              json: true,
+              temperature: 0.8,
+              maxOutputTokens: STUDY_MAX_TOKENS * 2,
+              budgetMs: STUDY_BUDGET_MS,
+              singleTryMs: 45_000,
+            },
+          );
+          const pack = parseStudyGames(getGeminiText(data) ?? "", owner);
+          if (pack) {
+            void persistStudyGames(lesson.id, pack).catch((error) =>
+              logger.error({ err: error, lessonId }, "[study-games] not saved"),
+            );
+          }
+          return pack;
+        })().finally(() => studyGamesInFlight.delete(flightKey));
+        studyGamesInFlight.set(flightKey, flight);
+      }
+      const pack = await flight;
+      if (!pack) {
+        logger.warn({ lessonId }, "[study-games] model output was not usable");
+        return res.status(502).json({
+          error: "تعذّر تحضير ألعاب هذا الدرس الآن. حاول مرة أخرى.",
+          code: "bad_pack",
+        });
+      }
+      logger.info({ lessonId }, "[study-games] generated");
+      return res.json({ pack, generated: true });
+    } catch (error) {
+      logger.error({ err: error, lessonId }, "[study-games] failed");
+      return res.status(503).json({
+        error: "تعذّر تحضير الألعاب الآن. حاول مرة أخرى.",
         code: "unavailable",
       });
     }

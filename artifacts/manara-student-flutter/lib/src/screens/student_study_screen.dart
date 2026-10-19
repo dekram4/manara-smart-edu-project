@@ -9,6 +9,8 @@ import '../theme/motion.dart';
 import '../l10n/student_strings.dart';
 import '../models/academic_context.dart';
 import '../models/interactive_study.dart';
+import '../models/student_gamification.dart';
+import '../models/study_games.dart';
 import '../models/student_profile.dart';
 import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
@@ -18,6 +20,7 @@ import '../services/study_rotation.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/study_challenges.dart';
+import '../widgets/study_games.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 
@@ -54,7 +57,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   String? _error;
   bool _loading = true;
 
-  late final TabController _tabs = TabController(length: 2, vsync: this)
+  late final TabController _tabs = TabController(length: 3, vsync: this)
     // والسحبُ بين التبويبين يحرّك المبدّل في الرأس كما يحرّكه الضغط.
     ..addListener(() {
       if (mounted) setState(() {});
@@ -266,7 +269,22 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     }
   }
 
-  /// التبويبُ الظاهر: ٠ الخريطة، ١ التحدي.
+  /// تبويبُ «ألعاب الدرس»: سحبٌ وإسقاط، ومطابقة، وسباقٌ بلا نهاية.
+  ///
+  /// ── المكافأةُ يقرّرها الخادم ──
+  /// المعرّفُ `درس::لعبة`، والخادمُ يقرأ جواهرَها ونقاطَها من سجلّ الدرس
+  /// ويصرفها مرّةً لكل لعبة — فالإعادةُ للمتعة لا لجمع الجواهر.
+  Future<RewardResult?> _rewardGame(StudyGame game) async {
+    final result = await widget.contentService.rewardActivity(
+      profile: widget.profile,
+      activityType: 'study_game',
+      activityId: '$_lessonId::${game.id}',
+    );
+    if (result.gems > 0 && mounted) _confetti.play();
+    return result;
+  }
+
+  /// التبويبُ الظاهر: ٠ الخريطة، ١ التحدي، ٢ الألعاب.
   int get _tab => _tabs.index;
 
   @override
@@ -396,6 +414,10 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
           onPick: _pick,
           onNext: _next,
         ),
+        StudyGamesTab(
+          load: () => widget.studyService.fetchGames(lessonId: _lessonId),
+          onWin: _rewardGame,
+        ),
       ],
     );
   }
@@ -514,6 +536,16 @@ class _StudyHeader extends StatelessWidget {
                       selected: tab == 1,
                       color: _StudyTokens.fuchsia,
                       onTap: () => onTab(1),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _SwitchPill(
+                      icon: '🎮',
+                      label: tr('study.tabGames'),
+                      selected: tab == 2,
+                      color: _StudyTokens.green,
+                      onTap: () => onTab(2),
                     ),
                   ),
                 ],
