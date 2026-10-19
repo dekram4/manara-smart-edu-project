@@ -1,3 +1,4 @@
+import { LESSON_TEXT_SAFETY_LIMIT, fullLessonText } from "./lessonText";
 /**
  * توليدُ بنك أسئلة الاختبارات من نصّ الدرس — التوجيهُ، والمخطّط، وقراءةُ الردّ.
  *
@@ -9,7 +10,7 @@
  *
  * ── ما صار ──
  *   • توجيهُ نظامٍ بضوابط تربوية ثابتة على الخادم، لا يغيّره طلب.
- *   • نصُّ الدرس كاملاً حتى [MAX_LESSON_CHARS].
+ *   • نصُّ الدرس كاملاً — انظر `lib/lessonText`.
  *   • مخطّطُ JSON صارم يفرضه النموذج نفسه ([QUIZ_RESPONSE_SCHEMA]).
  *   • وما يعود يُفحص هنا ([parseQuizQuestions]): ما لا يصلح يُردّ، والمكرّرُ
  *     يسقط، وموضعُ الجواب الصحيح يُوزَّع على الخيارات الأربعة.
@@ -31,8 +32,8 @@ export interface QuizQuestion {
 
 /** أقصى أسئلةٍ في البنك الواحد. */
 export const MAX_BANK_SIZE = 60;
-/** ما يُرسل من نصّ الدرس. ما زاد يُقطع عند حدّ جملة. */
-export const MAX_LESSON_CHARS = 12_000;
+/** حدُّ الأمان وحده — النصُّ يُرسل كاملاً. انظر `lib/lessonText`. */
+export const MAX_LESSON_CHARS = LESSON_TEXT_SAFETY_LIMIT;
 
 /** مستوياتُ التفكير المقبولة — لا «تذكّر» بينها. */
 export const COGNITIVE_LEVELS = ["فهم", "تطبيق", "تحليل", "استنتاج"] as const;
@@ -102,11 +103,7 @@ export function clampCount(value: unknown): number {
 
 /** نصُّ الدرس بحدّه، مقطوعاً عند آخر نهاية جملة قبل الحدّ لا وسط كلمة. */
 export function trimLesson(content: string, limit = MAX_LESSON_CHARS): string {
-  const clean = content.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (clean.length <= limit) return clean;
-  const cut = clean.slice(0, limit);
-  const end = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("۔"), cut.lastIndexOf("\n"), cut.lastIndexOf("؟"));
-  return (end > limit * 0.8 ? cut.slice(0, end + 1) : cut).trim();
+  return fullLessonText(content, limit);
 }
 
 /** رسالةُ المستخدم: سياقُ الدرس ونصُّه والعدد. الضوابطُ في توجيه النظام. */

@@ -62,6 +62,7 @@ import {
   readBank,
   type ChallengeBank,
 } from "../lib/challengeBank";
+import { LESSON_TEXT_SAFETY_LIMIT } from "../lib/lessonText";
 
 // 20 AI-answer requests per IP per minute — prevents Gemini quota abuse
 // while still allowing normal student lesson use
@@ -1471,7 +1472,7 @@ router.post("/gemini/generate-quiz", requireContentManager, async (req, res) => 
   const lessonContent =
     typeof req.body?.lessonContent === "string" ? req.body.lessonContent.trim() : "";
   if (lessonContent) {
-    if (lessonContent.length > 60_000) {
+    if (lessonContent.length > LESSON_TEXT_SAFETY_LIMIT) {
       return res.status(400).json({ error: "نصّ الدرس أطول من المسموح" });
     }
     const count = clampQuizCount(req.body?.count);

@@ -123,12 +123,14 @@ test("الطلبُ يحمل نصّ الدرس وشروطَ الشكل", () => {
   assert.match(prompt, /تشكيل/);
 });
 
-test("ونصُّ الدرس يُقتطع فلا يتجاوز الطلبُ حدّه", () => {
+test("ونصُّ الدرس يُرسل كاملاً — الحزمةُ تغطي الدرسَ كلَّه لا أوّلَه", () => {
+  const tail = "آخرُ جملةٍ في الدرس.";
   const prompt = studyPrompt({
     lessonTitle: "طويل",
-    lessonText: "ا".repeat(20000),
+    lessonText: "ا".repeat(20000) + " " + tail,
   });
-  assert.ok(prompt.length < 9000, `الطلب ${prompt.length} حرفاً`);
+  assert.ok(prompt.includes(tail), "آخرُ الدرس في الطلب");
+  assert.ok(prompt.length > 20000, `الطلب ${prompt.length} حرفاً`);
 });
 
 test("الحزمةُ الصالحة تُقرأ", () => {

@@ -1,3 +1,4 @@
+import { fullLessonText } from "./lessonText";
 /**
  * ألعابُ «بطاقة المذاكرة» التفاعلية: تُولَّد من نصّ الدرس بالذكاء الاصطناعي.
  *
@@ -21,7 +22,8 @@
 
 /// ٢: سباقٌ أغنى — ٢٠ إلى ٤٠ سؤالاً بثلاثة أشكال (اختيار، صح/خطأ، أكمل الفراغ).
 /// والحزمُ الأقدم تُولَّد من جديد بالشكل الجديد.
-export const STUDY_GAMES_VERSION = 2;
+/// ٣: نصُّ الدرس كاملاً (كان يُقطع عند ١٠٠٠٠ حرف).
+export const STUDY_GAMES_VERSION = 3;
 
 /** أشكالُ أسئلة السباق: تتبدّل فلا يملّ الطفل ولا يحفظ نمطاً. */
 export const QUESTION_KINDS = ["mcq", "true_false", "fill_blank"] as const;
@@ -173,7 +175,8 @@ export function studyGamesPrompt({
   ]
     .filter(Boolean)
     .join("\n");
-  const text = lessonText.length > 10_000 ? lessonText.slice(0, 10_000) : lessonText;
+  // ‏النصُّ كاملاً: الألعابُ تغطي الدرسَ كلَّه لا أوّلَه.
+  const text = fullLessonText(lessonText);
   return `ابنِ الألعاب الثلاث (drag_drop ثم matching ثم endless_quiz) من هذا الدرس.
 ${context ? `\n${context}\n` : ""}
 نص الدرس:

@@ -1,3 +1,4 @@
+import { fullLessonText } from "./lessonText";
 /**
  * محرّك أسئلة «بطاقة التحدي»: بناء التوجيه، وتصفية ما يعود.
  *
@@ -201,14 +202,7 @@ export interface ChallengePromptInput {
   exclude?: string[];
 }
 
-/**
- * أطول ما يُرسل من نصّ الدرس.
- *
- * الدرس كلّه يُرسل عادةً — أطولُ درسٍ في المناهج الثلاثة دون ألفَي حرف.
- * والحدّ لدرسٍ يكتبه معلّمٌ بيده فيطول: قطعُه أهونُ من طلبٍ يُردّ لطوله
- * فلا يجد الطفل تحدياً.
- */
-const MAX_LESSON_CHARS = 6000;
+// ‏نصُّ الدرس يُرسل كاملاً — انظر `lib/lessonText`.
 
 /** أكثر ما يُذكر من أسئلةٍ سابقة، فلا ينتفخ التوجيه بلا فائدة. */
 const MAX_EXCLUDE = 24;
@@ -216,7 +210,7 @@ const MAX_EXCLUDE = 24;
 export function buildPrompt(input: ChallengePromptInput): string {
   const subject = detectSubject(input.subject);
   const english = subject === "english";
-  const body = input.lessonText.slice(0, MAX_LESSON_CHARS);
+  const body = fullLessonText(input.lessonText);
   const head = english
     ? `You are designing one round of a fast, competitive quiz game for a grade-four class. Write ${input.count} multiple-choice questions.`
     : `أنت تصمّم جولةً من لعبة تحدٍّ سريعة وتنافسية لصفٍّ رابع ابتدائي. اكتب ${input.count} سؤال اختيارٍ من متعدّد.`;
