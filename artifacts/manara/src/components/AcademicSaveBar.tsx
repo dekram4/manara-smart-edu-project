@@ -4,7 +4,7 @@ import { ownedTreeArrived, readKv, saveKvConfirmed } from '../db/confirmedSave';
 import { getRecordTeacherId } from '../utils/scope';
 import { reopenTeacherSession } from '../utils/serverSession';
 import { useSyncHydrating } from '../hooks/useSyncHydrating';
-import { rehydrateFromServer } from '../db/sync';
+import { refreshFromServer } from '../db/sync';
 
 /**
  * «حفظ وتثبيت الإعدادات الأكاديمية»، ومعه حالة الحفظ.
@@ -77,13 +77,17 @@ const AcademicSaveBar: React.FC<{
     }
     setState({ kind: 'saved', verified: outcome.verified, at: new Date() });
     onSaved?.();
+    // ‏وبعد الحفظ تُجلب نسخةُ الخادم كلُّها — الشجرةُ ودروسُ `lesson_configs`
+    // ‏التي تبعتها تسميةً أو حذفاً — بعد أن تصل كتاباتُ الطابور. فتعيد
+    // ‏«إدارة المحتوى» قراءةَ قائمتها فوراً (`DATA_REFRESHED_EVENT`).
+    if (!auto) void refreshFromServer();
   };
 
   /** يسحب نسخة قاعدة البيانات إلى هذا الجهاز ثم يعيد قراءة الشاشة. */
   const pull = async () => {
     setState({ kind: 'checking' });
     try {
-      await rehydrateFromServer();
+      await refreshFromServer();
       const arrived = readLocalTree();
       setState({ kind: 'saved', verified: arrived.length > 0, at: new Date() });
       onSaved?.();

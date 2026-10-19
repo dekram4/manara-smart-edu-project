@@ -3,7 +3,7 @@ import AcademicSaveBar from '../../components/AcademicSaveBar';
 import AcademicTreeViewer, { GradeNode, SubjectNode, TermNode, UnitNode, LessonNode }
   from '../../components/AcademicTreeViewer';
 import React, { useState, useEffect } from 'react';
-import { markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
+import { countLessonsUnder, markLessonsDeletedUnder, renameLessonsPath } from '../../utils/lessonCascade';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { HierarchicalConfig } from '../../types';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
@@ -296,7 +296,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const gradeToDelete = hierarchicalConfigs[gradeIndex];
     // ومعه دروسه: درس بلا عقدة في الشجرة لا يراه طالب ولا يظهر في
     // الإعدادات، فيبقى محجوباً إلى الأبد.
-    markLessonsDeletedUnder({ grade: gradeToDelete.grade });
+    markLessonsDeletedUnder({ owner: ownerOf(hierarchicalConfigs[gradeIndex]),  grade: gradeToDelete.grade });
 
     // تحميل جميع الإعدادات للحذف الصحيح
     const allConfigs = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
@@ -406,7 +406,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const performDeleteSubject = (gradeIndex: number, subjectIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
     const removed = updatedConfigs[gradeIndex].subjects[subjectIndex];
-    markLessonsDeletedUnder({
+    markLessonsDeletedUnder({ owner: ownerOf(hierarchicalConfigs[gradeIndex]), 
       grade: updatedConfigs[gradeIndex].grade,
       subject: removed.subject,
     });
@@ -534,7 +534,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
   const performDeleteTerm = (gradeIndex: number, subjectIndex: number, termIndex: number) => {
     const updatedConfigs = [...hierarchicalConfigs];
     const subject = updatedConfigs[gradeIndex].subjects[subjectIndex];
-    markLessonsDeletedUnder({
+    markLessonsDeletedUnder({ owner: ownerOf(hierarchicalConfigs[gradeIndex]), 
       grade: updatedConfigs[gradeIndex].grade,
       subject: subject.subject,
       term: subject.terms[termIndex].term,
@@ -720,7 +720,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const term =
       updatedConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const removedUnit = term.units[unitIndex];
-    markLessonsDeletedUnder({
+    markLessonsDeletedUnder({ owner: ownerOf(hierarchicalConfigs[gradeIndex]), 
       grade: updatedConfigs[gradeIndex].grade,
       subject: updatedConfigs[gradeIndex].subjects[subjectIndex].subject,
       term: term.term,
@@ -779,13 +779,13 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     switch (kind) {
       case 'grade':
         if (grade.grade === newName) return;
-        renameLessonsPath({ grade: grade.grade }, 'grade', newName);
+        renameLessonsPath({ owner: ownerOf(hierarchicalConfigs[gradeIndex]),  grade: grade.grade }, 'grade', newName);
         grade.grade = newName;
         break;
       case 'subject':
         if (!subject || subject.subject === newName) return;
         renameLessonsPath(
-          { grade: grade.grade, subject: subject.subject },
+          { owner: ownerOf(hierarchicalConfigs[gradeIndex]),  grade: grade.grade, subject: subject.subject },
           'subject',
           newName,
         );
@@ -794,7 +794,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       case 'term':
         if (!term || term.term === newName) return;
         renameLessonsPath(
-          { grade: grade.grade, subject: subject!.subject, term: term.term },
+          { owner: ownerOf(hierarchicalConfigs[gradeIndex]),  grade: grade.grade, subject: subject!.subject, term: term.term },
           'term',
           newName,
         );
@@ -805,7 +805,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         const oldName = term.units[unitIndex];
         if (oldName === newName) return;
         renameLessonsPath(
-          {
+          { owner: ownerOf(hierarchicalConfigs[gradeIndex]), 
             grade: grade.grade,
             subject: subject!.subject,
             term: term.term,
@@ -871,6 +871,24 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       alert('هذا الدرس موجود مسبقاً في هذه الوحدة');
       return;
     }
+    // ‏── والمحتوى يتبع الدرس ──
+    // ‏محتوى «إدارة المحتوى» يحمل اسمَ درسه نصّاً في `lesson_configs`. فكانت
+    // ‏إعادةُ تسمية الدرس هنا تتركه على الاسم القديم: يختفي من قائمة الطالب
+    // ‏ويبقى في إدارة المحتوى باسمٍ لم يعد في الإعدادات. فتنتقل التسميةُ إلى
+    // ‏سجلّاته (والكتابةُ تصل Supabase فوراً عبر المزامنة).
+    const config = hierarchicalConfigs[gradeIndex];
+    renameLessonsPath(
+      {
+        owner: ownerOf(config),
+        grade: config.grade,
+        subject: config.subjects[subjectIndex].subject,
+        term: term.term,
+        unit,
+        lesson: current[lessonIndex],
+      },
+      'lesson',
+      newName,
+    );
     const next = [...current];
     next[lessonIndex] = newName;
     writeLessons(gradeIndex, subjectIndex, termIndex, unit, next);
@@ -886,17 +904,32 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const term =
       hierarchicalConfigs[gradeIndex].subjects[subjectIndex].terms[termIndex];
     const current = lessonsOf(term, unit);
+    // ‏ومحتواه يُحذف معه: محتوىً بلا درسٍ في الإعدادات لا يراه طالب، ويبقى
+    // ‏في إدارة المحتوى باسمٍ محذوف.
+    const config = hierarchicalConfigs[gradeIndex];
+    const scope = {
+      owner: ownerOf(config),
+      grade: config.grade,
+      subject: config.subjects[subjectIndex].subject,
+      term: term.term,
+      unit,
+      lesson: current[lessonIndex],
+    };
+    const linked = countLessonsUnder(scope);
     setConfirmRequest({
       title: 'حذف الدرس',
-      message: `سيُحذف الدرس «${current[lessonIndex]}» من وحدة «${unit}».`,
-      onConfirm: () =>
+      message: `سيُحذف الدرس «${current[lessonIndex]}» من وحدة «${unit}».` +
+        (linked ? ` وسيُحذف معه محتواه المنشور في «إدارة المحتوى» (${linked}).` : ''),
+      onConfirm: () => {
+        markLessonsDeletedUnder(scope);
         writeLessons(
           gradeIndex,
           subjectIndex,
           termIndex,
           unit,
           current.filter((_, index) => index !== lessonIndex),
-        ),
+        );
+      },
     });
   };
 
