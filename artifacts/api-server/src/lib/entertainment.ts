@@ -5,6 +5,7 @@
  * ── اللعبةُ لمعلّمٍ واحد ──
  * كلُّ لعبةٍ مُسندةٌ إلى معلّمٍ إلزاماً، ولا يراها إلا طلابُه، وما دامت مفعّلة.
  * لا «لعبةَ للجميع»: لعبةٌ بلا معلّمٍ تُرفض عند الحفظ، ولا تظهر لأحدٍ إن وُجدت.
+ * إلا ألعابَ الفهرس الأساسية — انظر «ألعاب الفهرس الأساسية» أدناه.
  *
  * ── وتُشغَّل كما تُشغَّل ألعابُ «عالم الترفيه» ──
  * التطبيقُ يضيفها بعد ألعاب الفهرس الثابت (`/api/game-catalog`) في الرفّ نفسه،
@@ -23,6 +24,73 @@ export type EntertainmentGame = {
   createdAt: string;
   updatedAt: string;
 };
+
+// ── ألعابُ الفهرس الأساسية ─────────────────────────────────────────────
+//
+// الألعابُ الستّ في `GAME_CATALOG` تُعرض لكل الطلاب من `/api/game-catalog`.
+// وتظهر في شاشة المشرف بمعرّفٍ ثابت (`builtin-<id>`)، فيعدّل اسمها ووصفها،
+// أو يخفيها، أو يُسندها إلى معلّمٍ فلا يراها إلا طلابه. وما يغيّره يُحفظ
+// صفّاً بالمعرّف نفسه في الجدول — تعديلاً فوق الأصل لا نسخةً منه — وحذفُه
+// يُعيد اللعبة إلى أصلها. ورابطُها ثابتٌ على وكيل الخادم: هو ما ينظّفها من
+// الإعلانات، فلا يُستبدل.
+
+export const BUILTIN_PREFIX = "builtin-";
+
+/** «كل الطلاب»: لعبةٌ أساسية غيرُ مسندةٍ لمعلّم. للأساسية وحدها. */
+export const ALL_STUDENTS = "";
+
+export type CatalogEntry = { id: string; title: string; subtitle: string };
+
+export function isBuiltinId(id: string): boolean {
+  return id.startsWith(BUILTIN_PREFIX);
+}
+
+export function builtinGameUrl(catalogId: string): string {
+  return `/api/game-embed/${catalogId}/index.html`;
+}
+
+/** الأساسيةُ بأصلها: لكل الطلاب، مفعّلة. */
+export function builtinDefaults(catalog: readonly CatalogEntry[]): EntertainmentGame[] {
+  return catalog.map((entry) => ({
+    id: `${BUILTIN_PREFIX}${entry.id}`,
+    title: entry.title,
+    description: entry.subtitle,
+    embedUrl: builtinGameUrl(entry.id),
+    teacherId: ALL_STUDENTS,
+    teacherName: "",
+    isActive: true,
+    createdAt: "",
+    updatedAt: "",
+  }));
+}
+
+/**
+ * الأساسيةُ بعد تعديلات المشرف، بترتيب الفهرس. ورابطُها من الأصل دائماً.
+ */
+export function applyBuiltinOverrides(
+  defaults: EntertainmentGame[],
+  stored: EntertainmentGame[],
+): EntertainmentGame[] {
+  const overrides = new Map(stored.filter((game) => isBuiltinId(game.id)).map((game) => [game.id, game]));
+  return defaults.map((base) => {
+    const override = overrides.get(base.id);
+    return override ? { ...override, embedUrl: base.embedUrl } : base;
+  });
+}
+
+/**
+ * فهرسُ `/api/game-catalog` بعد تعديلات المشرف: لا تبقى فيه إلا الأساسيةُ
+ * المفعّلةُ لكل الطلاب، باسمها ووصفها كما عدّلهما. والمسندةُ إلى معلّم تخرج
+ * منه إلى `/api/student/entertainment` لطلاب ذلك المعلم.
+ */
+export function publicCatalog<T extends CatalogEntry>(catalog: readonly T[], stored: EntertainmentGame[]): T[] {
+  const games = applyBuiltinOverrides(builtinDefaults(catalog), stored);
+  return catalog.flatMap((entry, index) => {
+    const game = games[index];
+    if (!game.isActive || game.teacherId !== ALL_STUDENTS) return [];
+    return [{ ...entry, title: game.title || entry.title, subtitle: game.description || entry.subtitle }];
+  });
+}
 
 export const GAME_TITLE_MAX = 200;
 export const GAME_DESCRIPTION_MAX = 1000;
@@ -173,9 +241,12 @@ export function buildGame(
     existing?: EntertainmentGame | null;
   },
 ): { ok: true; game: EntertainmentGame } | { ok: false; status: number; error: string } {
+  const existing = options.existing ?? null;
+  // الأساسية: رابطُها ثابت، ويجوز أن تبقى لكل الطلاب. وغيرُها لمعلّمٍ إلزاماً.
+  const builtin = Boolean(existing && isBuiltinId(existing.id));
   const title = text(input.title);
   const description = text(input.description);
-  const embedUrl = text(input.embedUrl) || text(input.url);
+  const embedUrl = builtin ? existing!.embedUrl : text(input.embedUrl) || text(input.url);
   const teacherId = text(input.teacherId);
 
   if (!title) return { ok: false, status: 400, error: "عنوان اللعبة مطلوب" };
@@ -185,11 +256,14 @@ export function buildGame(
   if (!isSafeGameUrl(embedUrl)) {
     return { ok: false, status: 400, error: "رابط اللعبة غير صالح: يجب أن يبدأ بـ https://" };
   }
-  if (!teacherId) return { ok: false, status: 400, error: "يرجى اختيار المعلم المسؤول عن اللعبة" };
-  const teacher = options.teachers.find((item) => item.id === teacherId);
-  if (!teacher) return { ok: false, status: 400, error: "المعلم المختار غير مسجّل في النظام" };
+  let teacher: { id: string; name: string } | null = null;
+  if (teacherId) {
+    teacher = options.teachers.find((item) => item.id === teacherId) ?? null;
+    if (!teacher) return { ok: false, status: 400, error: "المعلم المختار غير مسجّل في النظام" };
+  } else if (!builtin) {
+    return { ok: false, status: 400, error: "يرجى اختيار المعلم المسؤول عن اللعبة" };
+  }
 
-  const existing = options.existing ?? null;
   return {
     ok: true,
     game: {
@@ -197,8 +271,8 @@ export function buildGame(
       title,
       description,
       embedUrl,
-      teacherId: teacher.id,
-      teacherName: teacher.name,
+      teacherId: teacher?.id ?? ALL_STUDENTS,
+      teacherName: teacher?.name ?? "",
       isActive: activeFlag(input.isActive, existing?.isActive ?? true),
       createdAt: existing?.createdAt || options.now,
       updatedAt: options.now,
@@ -210,6 +284,7 @@ export function buildGame(
 export function adminGame(game: EntertainmentGame): Record<string, unknown> {
   return {
     id: game.id,
+    builtin: isBuiltinId(game.id),
     title: game.title,
     description: game.description,
     embedUrl: game.embedUrl,
@@ -225,14 +300,18 @@ export function adminGame(game: EntertainmentGame): Record<string, unknown> {
  * ما يُرسل للطالب — بصيغة فهرس `/api/game-catalog` نفسها (`url`، `title`،
  * `subtitle`)، فيقرؤه التطبيقُ بالمحلّل نفسه. لا معلّمَ ولا حالة: لا شأن له بهما.
  */
-export function studentGame(game: EntertainmentGame): Record<string, unknown> {
+export function studentGame(
+  game: EntertainmentGame,
+  shape: { orientation?: string; width?: number | null; height?: number | null } = {},
+): Record<string, unknown> {
   return {
     id: `teacher-game-${game.id}`,
     title: game.title,
     subtitle: game.description,
     url: game.embedUrl,
-    orientation: "any",
-    width: null,
-    height: null,
+    // الأساسيةُ المسندة تحمل اتجاهَها وأبعادَها من الفهرس.
+    orientation: shape.orientation ?? "any",
+    width: shape.width ?? null,
+    height: shape.height ?? null,
   };
 }

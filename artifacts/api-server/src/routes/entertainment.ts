@@ -6,9 +6,15 @@ import { requireStudentSession } from "../middleware/studentAuth";
 import { forwardedClientKey } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
 import type { StudentActor } from "../lib/studentAccess";
+import { GAME_CATALOG, catalogJson } from "../lib/gameEmbed";
 import {
   adminGame,
+  applyBuiltinOverrides,
   buildGame,
+  builtinDefaults,
+  builtinGameUrl,
+  isBuiltinId,
+  publicCatalog,
   fromKvRecord,
   fromTableRow,
   isVisibleToStudent,
@@ -33,6 +39,9 @@ import { isCardOpenForStudent } from "./cardPermissions";
 
 /**
  * «الترفيه والألعاب»: يديرها المشرف من لوحته، ويراها طلابُ المعلم المسند.
+ *
+ * ومعها ألعابُ الفهرس الأساسية الستّ: تظهر في القائمة نفسها بأصلها، ويُحفظ
+ * ما يغيّره المشرف فيها صفّاً بمعرّفها — انظر `lib/entertainment`.
  *
  * المصدرُ جدول `entertainment_games`. وإن لم يُنشأ بعد حُفظت الألعاب في
  * `app_kv/smartEdu_entertainmentGames` وعملت كاملة، ويُقرأ المكانان معاً دائماً —
@@ -83,6 +92,49 @@ async function loadGames(
   return { games: mergeGames(table.value, kv), storage: table.storage };
 }
 
+/**
+ * كلُّ ألعاب الشاشة: الأساسيةُ بترتيب الفهرس وتعديلاتِ المشرف، ثم المضافة.
+ */
+function allGames(stored: EntertainmentGame[]): EntertainmentGame[] {
+  return [
+    ...applyBuiltinOverrides(builtinDefaults(GAME_CATALOG), stored),
+    ...stored.filter((game) => !isBuiltinId(game.id)),
+  ];
+}
+
+/** اتجاهُ اللعبة الأساسية وأبعادُها من الفهرس — لمسار الطالب. */
+function catalogShape(game: EntertainmentGame) {
+  const entry = GAME_CATALOG.find((item) => builtinGameUrl(item.id) === game.embedUrl);
+  return entry ? { orientation: entry.orientation, width: entry.width, height: entry.height } : {};
+}
+
+// ── الفهرس العامّ ──
+// `/api/game-catalog` يُطلب بلا جلسة عند كل فتحٍ للبطاقة، فتُحفظ التعديلاتُ
+// المقروءة دقيقةً، وتُمحى عند كل حفظٍ من اللوحة على هذا الخادم.
+let storedCache: { at: number; games: EntertainmentGame[] } | null = null;
+const STORED_CACHE_MS = 60_000;
+
+/**
+ * الفهرسُ كما يُرسل للتطبيق، بعد تعديلات المشرف على الأساسية. وأيُّ تعذّرٍ
+ * في القراءة يُرسل الفهرسَ بأصله: البطاقةُ لا تتعطّل لأن الجدول لم يُقرأ.
+ */
+export async function catalogForStudents(): Promise<Array<Record<string, unknown>>> {
+  const config = storeConfig();
+  if (!config) return catalogJson();
+  try {
+    if (!storedCache || Date.now() - storedCache.at > STORED_CACHE_MS) {
+      storedCache = { at: Date.now(), games: (await loadGames(config)).games };
+    }
+    return publicCatalog(GAME_CATALOG, storedCache.games).map((game) => ({
+      ...game,
+      url: builtinGameUrl(game.id),
+    }));
+  } catch (error) {
+    logger.warn({ err: error }, "[entertainment] catalog overrides unavailable");
+    return catalogJson();
+  }
+}
+
 async function removeFromKv(config: StoreConfig, id: string): Promise<void> {
   const records = asRecords(await readKv(config, KV_KEY));
   const kept = records.filter((record) => text(record.id) !== id);
@@ -90,6 +142,7 @@ async function removeFromKv(config: StoreConfig, id: string): Promise<void> {
 }
 
 async function saveGame(config: StoreConfig, game: EntertainmentGame): Promise<"table" | "kv"> {
+  storedCache = null;
   const { storage } = await withTableFallback(
     TABLE,
     async () => {
@@ -113,6 +166,7 @@ async function saveGame(config: StoreConfig, game: EntertainmentGame): Promise<"
 }
 
 async function deleteGame(config: StoreConfig, id: string): Promise<void> {
+  storedCache = null;
   await withTableFallback(
     TABLE,
     async () => {
@@ -139,7 +193,7 @@ router.get("/entertainment", readLimit, requireAdmin, async (_req: Request, res:
   if (!config) return;
   try {
     const [{ games, storage }, teachers] = await Promise.all([loadGames(config), listTeachers(config)]);
-    res.set("Cache-Control", "no-store").json({ storage, teachers, games: games.map(adminGame) });
+    res.set("Cache-Control", "no-store").json({ storage, teachers, games: allGames(games).map(adminGame) });
   } catch (error) {
     logger.error({ err: error }, "[entertainment] list failed");
     res.status(502).json({ error: "تعذر تحميل الألعاب", detail: failureDetail(error) });
@@ -152,7 +206,7 @@ async function upsert(req: Request, res: Response, id: string | null): Promise<v
   const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
   try {
     const [{ games }, teachers] = await Promise.all([loadGames(config), listTeachers(config)]);
-    const existing = id ? games.find((game) => game.id === id) ?? null : null;
+    const existing = id ? allGames(games).find((game) => game.id === id) ?? null : null;
     if (id && !existing) {
       res.status(404).json({ error: "اللعبة غير موجودة" });
       return;
@@ -232,7 +286,9 @@ router.get(
       }
       const { games } = await loadGames(config);
       res.set("Cache-Control", "no-store").json({
-        games: games.filter((game) => isVisibleToStudent(game, identities)).map(studentGame),
+        games: allGames(games)
+          .filter((game) => isVisibleToStudent(game, identities))
+          .map((game) => studentGame(game, catalogShape(game))),
       });
     } catch (error) {
       logger.error({ err: error }, "[entertainment] student list failed");

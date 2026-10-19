@@ -14,6 +14,8 @@ import { managementRequest } from '../../utils/managementApi';
 
 interface EntertainmentGame {
   id: string;
+  /** من ألعاب الفهرس الأساسية: رابطُها ثابت، ويجوز أن تبقى لكل الطلاب. */
+  builtin?: boolean;
   title: string;
   description: string;
   embedUrl: string;
@@ -97,7 +99,7 @@ const EntertainmentManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.teacherId) {
+    if (!formData.teacherId && !editing?.builtin) {
       alert('يرجى اختيار المعلم المسؤول عن اللعبة');
       return;
     }
@@ -138,8 +140,12 @@ const EntertainmentManagement: React.FC = () => {
     }
   };
 
+  // الأساسيةُ لا تُحذف: «الحذف» يمحو تعديلات المشرف عليها فتعود بأصلها.
   const handleDelete = async (game: EntertainmentGame) => {
-    if (!confirm(`هل أنت متأكد من حذف لعبة «${game.title}»؟`)) return;
+    const question = game.builtin
+      ? `إعادة لعبة «${game.title}» إلى أصلها (لكل الطلاب، مفعّلة، باسمها الأصلي)؟`
+      : `هل أنت متأكد من حذف لعبة «${game.title}»؟`;
+    if (!confirm(question)) return;
     try {
       await managementRequest<null>(`/api/entertainment/${encodeURIComponent(game.id)}`, { method: 'DELETE' });
       await loadGames();
@@ -192,10 +198,12 @@ const EntertainmentManagement: React.FC = () => {
         >
           <div className="border-b border-violet-100 pb-4">
             <h3 className="text-2xl font-black text-violet-900">
-              {editing ? '✏️ تعديل لعبة' : '🎮 إضافة لعبة إلى «عالم الترفيه»'}
+              {editing ? (editing.builtin ? '⭐ تعديل لعبة أساسية' : '✏️ تعديل لعبة') : '🎮 إضافة لعبة إلى «عالم الترفيه»'}
             </h3>
             <p className="mt-1 text-sm font-bold text-violet-500">
-              تُفتح اللعبة في مشغّل الألعاب داخل التطبيق كبقية الألعاب، ولا يراها إلا طلاب المعلم المختار.
+              {editing?.builtin
+                ? 'لعبةٌ من فهرس «عالم الترفيه» الأساسي: اتركها «لجميع الطلاب» أو أسندها إلى معلّمٍ فلا يراها إلا طلابه.'
+                : 'تُفتح اللعبة في مشغّل الألعاب داخل التطبيق كبقية الألعاب، ولا يراها إلا طلاب المعلم المختار.'}
             </p>
           </div>
 
@@ -217,11 +225,11 @@ const EntertainmentManagement: React.FC = () => {
             </div>
             <div>
               <label htmlFor="game-teacher" className="mb-2 block text-sm font-black text-violet-900">
-                👨‍🏫 المعلم المسؤول <span className="text-red-600">*</span>
+                👨‍🏫 المعلم المسؤول {!editing?.builtin && <span className="text-red-600">*</span>}
               </label>
               <select
                 id="game-teacher"
-                required
+                required={!editing?.builtin}
                 value={formData.teacherId}
                 onChange={e => {
                   e.currentTarget.setCustomValidity('');
@@ -230,7 +238,7 @@ const EntertainmentManagement: React.FC = () => {
                 onInvalid={e => e.currentTarget.setCustomValidity('يرجى اختيار المعلم المسؤول عن اللعبة')}
                 className={inputClass}
               >
-                <option value="">اختر المعلم</option>
+                <option value="">{editing?.builtin ? '🌐 جميع الطلاب (الفهرس الأساسي)' : 'اختر المعلم'}</option>
                 {teachers.map(teacher => (
                   <option key={teacher.id} value={teacher.id}>👨‍🏫 {teacher.name}</option>
                 ))}
@@ -245,6 +253,14 @@ const EntertainmentManagement: React.FC = () => {
             <label htmlFor="game-url" className="mb-2 block text-sm font-black text-violet-900">
               🔗 رابط اللعبة المباشر أو المضمن <span className="text-red-600">*</span>
             </label>
+            {editing?.builtin ? (
+              <p id="game-url" dir="ltr" className={`${inputClass} text-left text-slate-500`}>
+                {formData.embedUrl}
+                <span dir="rtl" className="mt-1 block text-right text-xs text-violet-500">
+                  رابطٌ ثابت عبر خادم منارة (تُزال منه الإعلانات) — لا يُعدَّل.
+                </span>
+              </p>
+            ) : (
             <input
               id="game-url"
               type="url"
@@ -255,6 +271,7 @@ const EntertainmentManagement: React.FC = () => {
               onChange={e => setFormData({ ...formData, embedUrl: e.target.value })}
               className={`${inputClass} text-left`}
             />
+            )}
           </div>
 
           <div>
@@ -329,6 +346,9 @@ const EntertainmentManagement: React.FC = () => {
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-2xl shadow-md" aria-hidden="true">🎮</div>
                   <div className="min-w-0 flex-1">
                     <h3 className="break-words text-xl font-black text-violet-950">{game.title}</h3>
+                    {game.builtin && (
+                      <span className="mt-1 inline-block rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-700">⭐ لعبة أساسية</span>
+                    )}
                     {game.description && <p className="mt-1 line-clamp-2 text-sm font-medium text-violet-600">{game.description}</p>}
                   </div>
                 </div>
@@ -336,7 +356,7 @@ const EntertainmentManagement: React.FC = () => {
                   {game.embedUrl}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-bold text-orange-700">👨‍🏫 {game.teacherName || game.teacherId}</span>
+                  <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-bold text-orange-700">{game.teacherId ? `👨‍🏫 ${game.teacherName || game.teacherId}` : '🌐 جميع الطلاب'}</span>
                   <span className={`rounded-lg px-2 py-1 text-xs font-bold ${game.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                     {game.isActive ? '✅ مفعّلة' : '⏸️ معطّلة'}
                   </span>
@@ -346,7 +366,7 @@ const EntertainmentManagement: React.FC = () => {
                   <button onClick={() => void toggleActive(game)} className="flex-1 rounded-xl bg-sky-100 py-2 text-sm font-bold text-sky-700 transition-all hover:bg-sky-200">
                     {game.isActive ? '⏸️ إخفاء' : '▶️ إظهار'}
                   </button>
-                  <button onClick={() => void handleDelete(game)} className="flex-1 rounded-xl bg-red-100 py-2 text-sm font-bold text-red-600 transition-all hover:bg-red-200">❌ حذف</button>
+                  <button onClick={() => void handleDelete(game)} className="flex-1 rounded-xl bg-red-100 py-2 text-sm font-bold text-red-600 transition-all hover:bg-red-200">{game.builtin ? '↺ الأصل' : '❌ حذف'}</button>
                 </div>
               </article>
             ))}

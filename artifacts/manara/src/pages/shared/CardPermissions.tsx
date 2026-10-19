@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { managementRequest } from '../../utils/managementApi';
 import { STORAGE_KEYS } from '../../constants';
 import { playLamsaSound } from '../../utils/sounds';
+import { gradesForOwner } from '../../utils/academic';
 
 /**
  * صلاحيات بطاقات الطالب: يفتح المعلمُ أو المشرف كلَّ بطاقةٍ في تطبيق الطالب
@@ -140,8 +141,11 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
     const fromRules = rules
       .filter(rule => rule.scope === 'class' && norm(rule.teacherId) === norm(classTeacher))
       .map(rule => rule.gradeId || '');
-    return Array.from(new Set([...grades, ...fromRules, ...readGrades()].filter(Boolean)));
-  }, [classTeacher, students, rules, belongsTo]);
+    // صفوفُ شجرة المعلم المختار. والقائمةُ المسطّحة مشتركةٌ بين المعلمين
+    // كلّهم، فلا يراها المعلم: صفوفُ غيره ليست له.
+    const fromTree = role === 'teacher' ? gradesForOwner(classTeacher) : readGrades();
+    return Array.from(new Set([...grades, ...fromRules, ...fromTree].filter(Boolean)));
+  }, [classTeacher, students, rules, belongsTo, role]);
 
   const findClassRule = useCallback((teacher: string, grade: string) =>
     rules.find(rule =>

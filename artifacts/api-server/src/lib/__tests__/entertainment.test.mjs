@@ -99,6 +99,90 @@ test("الجدولُ و app_kv: ذهابٌ وإياب، بلا تكرار، وا
   assert.equal(games.fromTableRow({ id: "x", embed_url: "https://a.com", is_active: "false" }).isActive, false);
 });
 
+// ── ألعابُ الفهرس الأساسية ──────────────────────────────────────────────
+
+const catalog = [
+  { id: "a".repeat(32), title: "صراع الأذكياء", subtitle: "أ", orientation: "any", width: null, height: null },
+  { id: "b".repeat(32), title: "عاصفة المعرفة", subtitle: "ب", orientation: "landscape", width: 1280, height: 720 },
+];
+const builtinA = `builtin-${"a".repeat(32)}`;
+
+test("الأساسيةُ تظهر في الشاشة بأصلها: لكل الطلاب، مفعّلة، برابط وكيل الخادم", () => {
+  const defaults = games.builtinDefaults(catalog);
+  assert.deepEqual(defaults.map((g) => g.id), [builtinA, `builtin-${"b".repeat(32)}`]);
+  assert.equal(defaults[0].teacherId, "");
+  assert.equal(defaults[0].isActive, true);
+  assert.equal(defaults[0].embedUrl, `/api/game-embed/${"a".repeat(32)}/index.html`);
+  assert.equal(games.adminGame(defaults[0]).builtin, true);
+  // وبلا تعديلات: الفهرسُ العامّ كما هو.
+  assert.deepEqual(games.publicCatalog(catalog, []).map((g) => g.id), catalog.map((g) => g.id));
+});
+
+test("تعديلُ الأساسية: يبقى رابطُها، ويجوز أن تبقى لكل الطلاب", () => {
+  const [base] = games.builtinDefaults(catalog);
+  const edited = games.buildGame(
+    { title: "اسمٌ جديد", description: "وصف", embedUrl: "https://evil.example/", teacherId: "" },
+    options({ existing: base }),
+  );
+  assert.equal(edited.ok, true);
+  assert.equal(edited.game.id, builtinA);
+  assert.equal(edited.game.embedUrl, base.embedUrl, "الرابطُ لا يُستبدل");
+  assert.equal(edited.game.teacherId, "");
+  const catalogNow = games.publicCatalog(catalog, [edited.game]);
+  assert.equal(catalogNow[0].title, "اسمٌ جديد");
+  assert.equal(catalogNow[0].subtitle, "وصف");
+  assert.equal(catalogNow[1].orientation, "landscape", "بقيّةُ صفاتها من الفهرس");
+});
+
+test("إخفاءُ الأساسية أو إسنادُها لمعلّم يُخرجها من الفهرس العامّ إلى طلاب معلّمها", () => {
+  const [base] = games.builtinDefaults(catalog);
+  const hidden = games.buildGame({ title: base.title, isActive: false }, options({ existing: base })).game;
+  assert.deepEqual(games.publicCatalog(catalog, [hidden]).map((g) => g.id), ["b".repeat(32)]);
+
+  const assigned = games.buildGame({ title: base.title, teacherId: "t2" }, options({ existing: base })).game;
+  assert.equal(assigned.teacherName, "أ. نورة");
+  assert.deepEqual(games.publicCatalog(catalog, [assigned]).map((g) => g.id), ["b".repeat(32)]);
+  const [applied] = games.applyBuiltinOverrides(games.builtinDefaults(catalog), [assigned]);
+  assert.equal(games.isVisibleToStudent(applied, new Set(["t2"])), true);
+  assert.equal(games.isVisibleToStudent(applied, new Set(["t1"])), false);
+});
+
+test("والمضافةُ تبقى لمعلّمٍ إلزاماً — «لكل الطلاب» للأساسية وحدها", () => {
+  assert.equal(games.buildGame({ ...valid, teacherId: "" }, options()).ok, false);
+});
+
+// ── عزل المعلم في مفاتيح app_kv ─────────────────────────────────────────
+
+const scope = await import(process.env.TEACHER_SCOPE_MODULE ?? "../../../dist/lib/teacherScope.mjs");
+
+test("الشجرة: إعداداتُ المعلم وقوالبُ المشرف — لا إعدادَ معلّمٍ آخر ولا بلا مالك", () => {
+  const tree = [
+    { grade: "الصف الرابع", createdBy: "t1", subjects: [{ subject: "الرياضيات", terms: [{ term: "الأول", units: ["الأعداد"] }] }] },
+    { grade: "الصف الخامس", teacherId: "t2", subjects: [{ subject: "العلوم", terms: [{ term: "الثاني", units: ["المادة"] }] }] },
+    { grade: "قالب", createdBy: "admin", subjects: [{ subject: "لغتي", terms: [] }] },
+    { grade: "بلا مالك", subjects: [] },
+  ];
+  const mine = new Set(["t1"]);
+  const scoped = scope.scopeKvForTeacher("smartEdu_hierarchicalConfigs", tree, mine, tree);
+  assert.deepEqual(scoped.map((c) => c.grade), ["الصف الرابع", "قالب"]);
+  // والقوائمُ المسطّحة من شجرته وحدها — لا من القالب ولا من غيره.
+  assert.deepEqual(scope.scopeKvForTeacher("smartEdu_grades", ["الصف الخامس", "قالب"], mine, tree), ["الصف الرابع"]);
+  assert.deepEqual(scope.scopeKvForTeacher("smartEdu_subjects", ["العلوم"], mine, tree), ["الرياضيات"]);
+  assert.deepEqual(scope.scopeKvForTeacher("smartEdu_terms", [], mine, tree), ["الأول"]);
+  assert.deepEqual(scope.scopeKvForTeacher("smartEdu_units", [], mine, tree), ["الأعداد"]);
+});
+
+test("السجلّاتُ بمالك: ما يملكه المعلم وحده، وبقيّةُ المفاتيح كما هي", () => {
+  const notifications = [{ id: 1, teacherId: "t1" }, { id: 2, teacherId: "t2" }, { id: 3 }];
+  assert.deepEqual(
+    scope.scopeKvForTeacher("smartEdu_videoNotifications", notifications, new Set(["t1"]), []).map((n) => n.id),
+    [1],
+  );
+  assert.deepEqual(scope.scopeKvForTeacher("smartEdu_deletedLessons", ["x"], new Set(["t1"]), []), ["x"]);
+  // والتسويةُ العربية نفسُها التي في الجسر: «سارة» و«ساره» مالكٌ واحد.
+  assert.equal(scope.normalizeOwner("  سارة "), scope.normalizeOwner("ساره"));
+});
+
 // ── الحماية عبر HTTP ─────────────────────────────────────────────────────
 
 const PORT = 43000 + Math.floor(Math.random() * 2000);
@@ -145,4 +229,13 @@ test("مساراتُ الإدارة للمشرف وحده، ومسارُ الط�
     const r = await fetch(`${BASE}${path}`, { method, headers: json, body: method === "GET" || method === "DELETE" ? undefined : JSON.stringify(valid) });
     assert.equal(r.status, 401, `${method} ${path}`);
   }
+});
+
+test("الفهرسُ العامّ بلا قاعدة بيانات: الألعابُ الأساسية بأصلها", async () => {
+  await ready();
+  const r = await fetch(`${BASE}/api/game-catalog`);
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.games.length, 6);
+  for (const game of body.games) assert.match(game.url, /^\/api\/game-embed\/[a-f0-9]{32}\/index\.html$/);
 });

@@ -11,6 +11,7 @@ import {
 } from "../lib/challengeBank";
 import { generateChallengeBank } from "../lib/geminiBank";
 import { refreshDuelDomainQuestions } from "../lib/duelDomainJob";
+import { scopeKvForTeacher } from "../lib/teacherScope";
 
 const router = Router();
 
@@ -459,6 +460,14 @@ router.get("/supabase/app_kv", async (req: Request, res: Response) => {
     // الختم لكل دور: من لا يقرؤه لا يعرف أن نسخته بطلت.
     keys.push(CONTENT_EPOCH_KEY);
     const values = await Promise.all(keys.map(async (key) => ({ key, value: await readValue(config, key) })));
+    // المعلم: ما يملكه وحده من المفاتيح المشتركة — انظر `lib/teacherScope`.
+    if (actor.role === "teacher") {
+      const identities = await teacherIdentities(config, actor.teacherId);
+      const hierarchy = values.find(({ key }) => key === HIERARCHY_KEY)?.value;
+      for (const entry of values) {
+        entry.value = scopeKvForTeacher(entry.key, entry.value, identities, hierarchy);
+      }
+    }
     res.json(values
       .filter(({ key }) => actor.role === "admin" || ![
         "smartEdu_adminSettings",

@@ -116,16 +116,18 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
     ? teachers.find(teacher => teacher.id === selectedTeacherId)?.name || editingVideo?.teacherName || ''
     : teacherName || '';
 
-  /// صفوف المعلم المسؤول من شجرته الأكاديمية، ومعها قائمة الصفوف العامة —
+  /// صفوف المعلم المسؤول من شجرته الأكاديمية، وللمشرف معها قائمة الصفوف العامة —
   /// فلا يبقى الحقل فارغاً لمعلمٍ لم يبنِ شجرته بعد.
   const availableGrades = useMemo(() => {
     const configs: HierarchicalConfig[] = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     const owned = ownerId
       ? configs.filter(config => getRecordTeacherId(config) === normalizeScopeValue(ownerId))
       : [];
+    // القائمةُ المسطّحة مشتركةٌ بين المعلمين كلّهم: للمشرف وحده. والمعلمُ
+    // يرى صفوفَ شجرته لا غير.
     const grades = [
       ...owned.map(config => config.grade),
-      ...readStringArray(STORAGE_KEYS.GRADES),
+      ...(isAdmin ? readStringArray(STORAGE_KEYS.GRADES) : []),
     ].filter(Boolean);
     if (formData.gradeId) grades.unshift(formData.gradeId);
     return Array.from(new Set(grades));
