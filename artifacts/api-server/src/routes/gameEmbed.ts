@@ -10,6 +10,7 @@ import {
   GAME_ID_PATTERN,
   GAME_PAGE_CSP,
   GAME_HOST,
+  GAME_ASSET_CACHE_SW,
   LEGACY_AD_SDK,
   LEGACY_GAME_IDS,
   isSafeGameAssetPath,
@@ -83,6 +84,16 @@ function getContentType(pathname: string, upstreamType: string): string {
   if (upstreamType) return upstreamType;
   return "application/octet-stream";
 }
+
+// ‏عاملُ خدمة ذاكرة الألعاب — انظر GAME_ASSET_CACHE_SW. يُسأل عنه دائماً (no-cache)
+// ‏فيصل تحديثُه، ونطاقُه مجلّدُه: صفحاتُ الألعاب وحدها.
+router.get("/game-embed/sw.js", (_req, res) => {
+  res
+    .set("Content-Type", "application/javascript; charset=utf-8")
+    .set("Cache-Control", "no-cache")
+    .set("X-Content-Type-Options", "nosniff")
+    .send(GAME_ASSET_CACHE_SW);
+});
 
 // Express 5 requires named wildcards — use *gameAssetPath
 router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {

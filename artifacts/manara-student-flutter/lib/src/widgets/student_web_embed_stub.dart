@@ -44,6 +44,15 @@ class StudentWebEmbed extends StatelessWidget {
         supportMultipleWindows: false,
         iframeAllow: allow,
         iframeAllowFullscreen: true,
+        // ‏صريحةٌ لا مفترضة — كلُّ لعبةٍ حاليةٍ أو قادمة: الرسمُ بالعتاد،
+        // ‏وتخزينُ الصفحة (localStorage وIndexedDB: تقدّمُ اللعبة وذاكرةُ Unity)،
+        // ‏وذاكرةُ HTTP. وملفّاتُ الألعاب الثقيلة يحفظها عاملُ خدمةٍ في الخادم
+        // ‏(GAME_ASSET_CACHE_SW) فتُحمَّل مرّةً واحدة.
+        hardwareAcceleration: true,
+        domStorageEnabled: true,
+        databaseEnabled: true,
+        cacheEnabled: true,
+        cacheMode: CacheMode.LOAD_DEFAULT,
       ),
       onLoadStop: (controller, __) {
         // ‏وألعابُ Unity وCanvas لا تستقبل أوّلَ لمسةٍ حتى تأخذ الصفحةُ

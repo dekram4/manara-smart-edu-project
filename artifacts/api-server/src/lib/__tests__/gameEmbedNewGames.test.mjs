@@ -103,3 +103,28 @@ test("سياسةُ الصفحة: eval لصفحة Defold وحدها، وما سو
   }
   assert.ok(!GAME_PAGE_CSP.includes("'unsafe-eval'"));
 });
+
+test("ذاكرةُ الألعاب: الملفّاتُ الثقيلة وحدها، لا الصفحاتُ ولا السكربتات ولا JSON", async () => {
+  const { isCacheableGameAsset } = await import("../../../dist/lib/gameEmbed.mjs");
+  const g = "/api/game-embed/53e2a2012a3547aab35066d2d913eaef/";
+  for (const ok of [
+    "Build/html5.data", "Build/html5.wasm", "Build/HookABrainrot_V2.data.unityweb", "Build/x.wasm.gz",
+    "archive/game0.arcd", "StreamingAssets/aa/WebGL/ee05f3c652cdc0564b6dbca56a97d8f2.bundle",
+    "icon.png", "music/st_finish.ogg", "COOKIERUN-BLACK.TTF",
+  ]) assert.equal(isCacheableGameAsset(g + ok), true, ok);
+  for (const no of [
+    "index.html", "Build/html5.framework.js", "Build/html5.loader.js", "bundle.js", "ad-sdk.js",
+    "archive/archive_files.json", "gs-config.json", "language.json",
+  ]) assert.equal(isCacheableGameAsset(g + no), false, no);
+  assert.equal(isCacheableGameAsset("/api/game-embed/sw.js"), false);
+  assert.equal(isCacheableGameAsset("/api/supabase/students"), false);
+});
+
+test("عاملُ خدمة الألعاب سليمُ الصياغة، وصفحةُ اللعبة المضافة تسجّله", async () => {
+  const { GAME_ASSET_CACHE_SW, GAME_ASSET_CACHE_REGISTER_SCRIPT, rewriteRegisteredGame } = await import("../../../dist/lib/gameEmbed.mjs");
+  assert.doesNotThrow(() => new vm.Script(GAME_ASSET_CACHE_SW));
+  assert.ok(GAME_ASSET_CACHE_SW.includes('request.headers.has("range")'), "لا طلباتِ مقاطع");
+  const out = rewriteRegisteredGame("a9afce108d824d6f838218dd87aa2ef4", "html", "<html><head></head><body></body></html>");
+  assert.ok(out.includes(GAME_ASSET_CACHE_REGISTER_SCRIPT));
+  assert.ok(GAME_ASSET_CACHE_REGISTER_SCRIPT.includes('scope:"/api/game-embed/"'));
+});
