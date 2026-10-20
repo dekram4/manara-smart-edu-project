@@ -16,6 +16,7 @@ import '../widgets/video_thumbnail_card.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
+import '../widgets/video_rows.dart';
 
 class StudentCinemaScreen extends StatefulWidget {
   const StudentCinemaScreen({
@@ -253,9 +254,14 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       );
     }
 
+    // ‏تمريرٌ واحد: الرأسُ ثم صفوفُ الفيديو كسولةً بلا حدٍّ لعددها
+    // ‏([SliverVideoRows]) — لا شبكةٌ بنسبة ارتفاعٍ ثابتة تقصّ البطاقة.
     return StudentEntrance(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+      child: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+            sliver: SliverList.list(
         children: [
           StudentScreenHero(
             title: tr('cinema.subtitle'),
@@ -301,20 +307,15 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          // A grid of covers, the way a video library reads — one column on
-          // a phone, more as the screen widens, so it adapts to tablets and
-          // to either orientation without a breakpoint list.
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _videos.length,
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 330,
-              mainAxisSpacing: 18,
-              crossAxisSpacing: 14,
-              // Cover (16:9) plus the two lines of text under it.
-              childAspectRatio: 1.30,
+        ],
             ),
+          ),
+          // Covers the way a video library reads — one column on a phone,
+          // more as the screen widens — each row as tall as its content.
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+            sliver: SliverVideoRows(
+            itemCount: _videos.length,
             itemBuilder: (context, index) {
               final video = _videos[index];
               return LivelyStagger(
@@ -329,6 +330,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
               ),
               );
             },
+            ),
           ),
         ],
       ),

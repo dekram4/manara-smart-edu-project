@@ -857,37 +857,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                     // label plus the four controls after it overflowed a
                     // portrait phone's bar by 81px — an error the student
                     // saw as a yellow-and-black bar across the top.
-                    child: narrowBar
-                        ? IconButton(
-                            onPressed: _changeLesson,
-                            icon: const Icon(Icons.alt_route_rounded),
-                            style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xFF0E5F6B),
-                              foregroundColor: Colors.white,
-                            ),
-                          )
-                        : FilledButton.icon(
-                            onPressed: _changeLesson,
-                            icon: const Icon(Icons.alt_route_rounded, size: 20),
-                            label: Text(
-                              tr('hub.changeLesson'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                              ),
-                            ),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF0E5F6B),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(22),
-                              ),
-                            ),
-                          ),
+                    // ‏كبسولةٌ متحرّكة تدعو إليها (انظر [ChangeLessonButton])، وفي الشريط
+                    // ‏الضيّق أيقونتُها وحدها كما كانت.
+                    child: ChangeLessonButton(
+                      narrow: narrowBar,
+                      label: tr('hub.changeLesson'),
+                      onPressed: _changeLesson,
+                    ),
                   ),
           ),
           // Theme and language, side by side, on the one bar a student

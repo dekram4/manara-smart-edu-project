@@ -4,6 +4,7 @@ import HorizontalScrollRegion from '../../components/HorizontalScrollRegion';
 import { readHierarchicalConfigs } from '../../utils/academic';
 import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { DATA_REFRESHED_EVENT, refreshFromServer } from '../../db/sync';
+import { brokenVideosOf, useYoutubeStatuses } from '../../utils/youtubeStatus';
 import { LessonConfig } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
@@ -41,6 +42,8 @@ function newManaraRoomUrl(): string {
 
 const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacherId, teacherName, permissionPackageId }) => {
   const [lessons, setLessons] = useState<LessonConfig[]>([]);
+  // ‏فيديوهاتُ يوتيوب التي لم تعد تعمل (محذوفةٌ أو ممنوعةُ التضمين) — تنبيهٌ للمعلم.
+  const youtubeStatuses = useYoutubeStatuses(lessons);
   /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
   const hydrating = useSyncHydrating();
 
@@ -1049,7 +1052,12 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 <td className="px-6 py-5 font-bold text-purple-600">{l.subject}</td>
                 <td className="px-6 py-5 text-purple-500">{l.term || '—'}</td>
                 <td className="px-6 py-5 text-purple-500">{l.unit || '—'}</td>
-                <td className="px-6 py-5 font-bold text-indigo-700">{l.lesson || '—'}</td>
+                <td className="px-6 py-5 font-bold text-indigo-700">
+                  {l.lesson || '—'}
+                  {brokenVideosOf(l, youtubeStatuses) > 0 && (
+                  <span className="block mt-1 text-xs font-black text-amber-700" title="فيديو حذفه صاحبه من يوتيوب أو منع تضمينه — يظهر للطالب غير متاح. استبدل رابطه.">⚠️ {brokenVideosOf(l, youtubeStatuses)} فيديو غير متاح على يوتيوب</span>
+                )}
+                </td>
                 {!teacherId && (
                   <td className="px-6 py-5">
                     <span className="bg-gradient-to-r from-purple-500 to-purple-500 text-white px-4 py-2 rounded-xl text-sm font-black inline-flex items-center gap-2">
@@ -1092,6 +1100,9 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   <div className="min-w-0 flex-1">
                     <h3 className="dashboard-record-title">{l.lesson || l.unit}</h3>
                     <span className="dashboard-badge">👨‍🏫 {l.createdByName || 'المشرف'}</span>
+                    {brokenVideosOf(l, youtubeStatuses) > 0 && (
+                  <span className="dashboard-badge text-amber-700" title="فيديو حذفه صاحبه من يوتيوب أو منع تضمينه — يظهر للطالب غير متاح. استبدل رابطه.">⚠️ {brokenVideosOf(l, youtubeStatuses)} فيديو غير متاح على يوتيوب</span>
+                )}
                   </div>
                   <div className="dashboard-record-actions">
                     <button
