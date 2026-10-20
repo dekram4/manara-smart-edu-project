@@ -452,6 +452,20 @@ export const GAME_ASSET_CACHE_REGISTER_SCRIPT =
   `if(r.scope.indexOf(location.origin+"/api/game-embed/")===0&&r.scope!==location.origin+"/api/game-embed/"&&!(w&&/\\/api\\/game-embed\\/sw\\.js$/.test(w.scriptURL)))r.unregister();});}).catch(function(){});` +
   `}catch(e){}})();</script>`;
 
+/**
+ * صفحةُ لعبةٍ أساسية (الستّ وما قبلها) كما هي حرفاً، وفي رأسها تسجيلُ عامل الذاكرة
+ * وحده — لا بديلَ إعلاناتٍ ولا غيرَه — فتُحفظ ملفّاتُها الثقيلة في الجهاز كالمضافة
+ * («الروبوت الخارق» ٧٥ ميغابايتاً كانت تُحمَّل في كل مرّة).
+ */
+export function withGameAssetCache(html: string): string {
+  const head = html.match(/<head[^>]*>/i);
+  if (head && head.index !== undefined) {
+    const at = head.index + head[0].length;
+    return html.slice(0, at) + GAME_ASSET_CACHE_REGISTER_SCRIPT + html.slice(at);
+  }
+  return GAME_ASSET_CACHE_REGISTER_SCRIPT + html;
+}
+
 export const GAME_ASSET_CACHE_SW = `
 const PREFIX = "manara-game-";
 const MAX_GAMES = 8;

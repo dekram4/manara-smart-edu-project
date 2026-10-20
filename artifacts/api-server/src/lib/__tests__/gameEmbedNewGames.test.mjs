@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import {
   DISABLED_AD_SDK,
+  GAME_ASSET_CACHE_REGISTER_SCRIPT,
+  withGameAssetCache,
   GAMEPUSH_PLATFORM_SCRIPT,
   isSafeGameAssetPath,
   rewriteRegisteredGame,
@@ -127,4 +129,13 @@ test("عاملُ خدمة الألعاب سليمُ الصياغة، وصفحة�
   const out = rewriteRegisteredGame("a9afce108d824d6f838218dd87aa2ef4", "html", "<html><head></head><body></body></html>");
   assert.ok(out.includes(GAME_ASSET_CACHE_REGISTER_SCRIPT));
   assert.ok(GAME_ASSET_CACHE_REGISTER_SCRIPT.includes('scope:"/api/game-embed/"'));
+});
+
+test("الألعابُ الأساسية: صفحتُها كما هي وفي رأسها تسجيلُ عامل الذاكرة وحده", () => {
+  const page = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>x</title></head><body><script src="main.min.js"></script></body></html>';
+  const out = withGameAssetCache(page);
+  assert.equal(out.replace(GAME_ASSET_CACHE_REGISTER_SCRIPT, ""), page);
+  assert.ok(out.indexOf(GAME_ASSET_CACHE_REGISTER_SCRIPT) === page.indexOf("<meta"));
+  assert.ok(!out.includes("SDK_READY"));
+  assert.ok(withGameAssetCache("<p>x</p>").startsWith(GAME_ASSET_CACHE_REGISTER_SCRIPT));
 });
