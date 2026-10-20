@@ -396,7 +396,7 @@ export function rewriteRegisteredGame(gameId: string, kind: "html" | "js", sourc
   if (kind === "js") return rewriteGameScript(gameId, source);
   const html = rewriteGameHtml(gameId, source);
   const platform = GAMEPUSH_GD_BUNDLE.test(source) ? GAMEPUSH_PLATFORM_SCRIPT : "";
-  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>`;
+  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>${GAME_ASSET_CACHE_REGISTER_SCRIPT}`;
   const head = html.match(/<head[^>]*>/i);
   if (head && head.index !== undefined) {
     const at = head.index + head[0].length;
@@ -404,3 +404,119 @@ export function rewriteRegisteredGame(gameId: string, kind: "html" | "js", sourc
   }
   return stub + html;
 }
+
+/**
+ * ذاكرةُ ملفّات الألعاب في الجهاز — تُحمَّل اللعبةُ مرّةً، وتُفتح بعدها فوراً.
+ *
+ * ── لماذا ──
+ * قيسَ التحميلُ على الإنتاج: «Tung Tung Racing» ٩٠ ميغابايت، و«SWAT» ٦٠ في ٨٣٩
+ * ملفّاً، و«الحبال» ٥١. على شبكة هاتف هذه دقائق. ولم يكن في الطريق انتظارٌ لخادم
+ * إعلانات: البديلُ يُطلق SDK_READY فوراً، وسياسةُ الأمان تحجب مكتبات الإعلانات
+ * لحظتها. والعلّة أنها تُحمَّل **كلَّ مرّة**: ذاكرةُ HTTP في WebView أصغر من
+ * هذه الملفّات، و«Tung Tung» لا تفعّل ذاكرةَ Unity أصلاً.
+ *
+ * فعاملُ خدمةٍ نطاقُه صفحاتُ الألعاب وحدها (`/api/game-embed/`) يحفظ ملفّاتِها
+ * الثقيلة — البيانات وwasm والصور والأصوات والخطوط — في ذاكرة الجهاز عند أوّل
+ * طلب، ويردّ منها بعد ذلك. ولا يمسّ الصفحاتِ ولا السكربتات (تُعاد كتابتُها عند
+ * كل طلب)، ولا JSON، ولا طلباتِ المقاطع (Range). فما تشغّله اللعبةُ هو نفسُ ما
+ * كان يصلها من الشبكة، بايتاً ببايت.
+ *
+ * لكل لعبةٍ ذاكرتُها، وتُطرد الأقدمُ استعمالاً فوق ثماني ألعاب، وتُجدَّد ذاكرةُ اللعبة
+ * كلُّها بعد أربعة عشر يوماً.
+ */
+export const GAME_ASSET_CACHE_SW_PATH = "/api/game-embed/sw.js";
+
+/** امتداداتُ الملفّات الثقيلة التي لا تتغيّر بعد نشرها. */
+export const GAME_ASSET_CACHEABLE = /\.(?:data|wasm|unityweb|bundle|arcd|arci|dmanifest|projectc|bin|mem|symbols|png|jpe?g|gif|webp|svg|ogg|mp3|m4a|wav|webm|mp4|woff2?|ttf|otf|atlas|fnt|glb|gltf|ktx2?|basis)(?:\.(?:gz|br|unityweb))?$/i;
+
+/** مسارُ ملفٍّ داخل لعبةٍ يُحفظ في الجهاز — للاختبار ولعامل الخدمة معاً. */
+const GAME_ASSET_PATH = /^\/api\/game-embed\/([a-f0-9]{32})\/(.+)$/;
+
+export function isCacheableGameAsset(pathname: string): boolean {
+  const match = GAME_ASSET_PATH.exec(pathname);
+  return Boolean(match && GAME_ASSET_CACHEABLE.test(match[2]));
+}
+
+/**
+ * يسجّل عاملَ الذاكرة، ويقف أمام عامل اللعبة نفسها: قوالبُ Unity 6 تسجّل
+ * `ServiceWorker.js` بنطاق مجلّدها، والنطاقُ الأضيق يغلب — فكان يُقصي عاملَنا ولا
+ * يحفظ شيئاً، فتُحمَّل «Tung Tung» ثمانين ميغابايتاً في كل مرّة. عاملُ اللعبة
+ * للعمل بلا شبكة وحده، فلا تفقد اللعبةُ بغيابه شيئاً. ويُزال ما سُجّل منه قبلُ
+ * داخل مجلّدات الألعاب — لا عاملُ الموقع نفسه.
+ */
+export const GAME_ASSET_CACHE_REGISTER_SCRIPT =
+  `<script>(function(){try{var sw=navigator.serviceWorker;if(!sw)return;` +
+  `var ours=sw.register("${GAME_ASSET_CACHE_SW_PATH}",{scope:"/api/game-embed/"});ours.catch(function(){});` +
+  `sw.register=function(){return ours;};` +
+  `sw.getRegistrations().then(function(rs){rs.forEach(function(r){var w=r.active||r.waiting||r.installing;` +
+  `if(r.scope.indexOf(location.origin+"/api/game-embed/")===0&&r.scope!==location.origin+"/api/game-embed/"&&!(w&&/\\/api\\/game-embed\\/sw\\.js$/.test(w.scriptURL)))r.unregister();});}).catch(function(){});` +
+  `}catch(e){}})();</script>`;
+
+export const GAME_ASSET_CACHE_SW = `
+const PREFIX = "manara-game-";
+const MAX_GAMES = 8;
+const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const CACHEABLE = ${GAME_ASSET_CACHEABLE.toString()};
+const ASSET = ${GAME_ASSET_PATH.toString()};
+
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+
+async function touch(gameId) {
+  try {
+    const meta = await caches.open(PREFIX + "meta");
+    await meta.put("/__used/" + gameId, new Response(String(Date.now())));
+    const names = (await caches.keys()).filter((n) => n.startsWith(PREFIX) && n !== PREFIX + "meta");
+    if (names.length <= MAX_GAMES) return;
+    const used = await Promise.all(names.map(async (n) => {
+      const hit = await meta.match("/__used/" + n.slice(PREFIX.length));
+      return [n, hit ? Number(await hit.text()) : 0];
+    }));
+    used.sort((a, b) => a[1] - b[1]);
+    for (const [n] of used.slice(0, used.length - MAX_GAMES)) {
+      await caches.delete(n);
+      await meta.delete("/__used/" + n.slice(PREFIX.length));
+    }
+  } catch (e) {}
+}
+
+const checked = new Set();
+
+/** لعبةٌ حُفظت منذ أكثر من أربعة عشر يوماً: تُطرد ذاكرتُها مرّةً فتُجدَّد. */
+async function expireIfOld(gameId) {
+  if (checked.has(gameId)) return;
+  checked.add(gameId);
+  try {
+    const meta = await caches.open(PREFIX + "meta");
+    const born = await meta.match("/__born/" + gameId);
+    if (!born) return meta.put("/__born/" + gameId, new Response(String(Date.now())));
+    if (Date.now() - Number(await born.text()) > MAX_AGE_MS) {
+      await caches.delete(PREFIX + gameId);
+      await meta.put("/__born/" + gameId, new Response(String(Date.now())));
+    }
+  } catch (e) {}
+}
+
+async function fromCacheOrNetwork(request, gameId) {
+  await expireIfOld(gameId);
+  const cache = await caches.open(PREFIX + gameId);
+  const hit = await cache.match(request.url);
+  if (hit) return hit;
+  const response = await fetch(request);
+  if (response.status === 200 && response.type === "basic") {
+    // ‏نسخةٌ تتدفّق إلى الذاكرة بينما تقرأ اللعبةُ الأصل — بلا تحميلٍ للملفّ كلّه في الذاكرة.
+    cache.put(request.url, response.clone()).then(() => touch(gameId)).catch(() => {});
+  }
+  return response;
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET" || request.headers.has("range")) return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  const match = ASSET.exec(url.pathname);
+  if (!match || !CACHEABLE.test(match[2])) return;
+  event.respondWith(fromCacheOrNetwork(request, match[1]).catch(() => fetch(request)));
+});
+`;
