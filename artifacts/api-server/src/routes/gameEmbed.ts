@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,7 @@ import {
   resolveRewrittenGameFile,
   upstreamAssetPath,
   rewriteRegisteredGame,
+  withGameAssetCache,
 } from "../lib/gameEmbed";
 import { catalogForStudents, registeredGameIds } from "./entertainment";
 
@@ -141,7 +143,23 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     // في المجلّد. انظر scripts/vendor-game-files.mjs.
     const rewrittenFile = resolveRewrittenGameFile(gameId, requestedPath);
     if (rewrittenFile) {
-      const isPage = rewrittenFile.endsWith(".html");
+      if (rewrittenFile.endsWith(".html")) {
+        // ‏الصفحةُ المثبّتة كما هي، وفي رأسها تسجيلُ عامل الذاكرة — انظر withGameAssetCache.
+        const page = await readFile(path.join(STATIC_GAMES_DIR, gameId, rewrittenFile), "utf8").catch((error) => {
+          logger.error({ err: error, gameId, file: rewrittenFile }, "Vendored game file missing");
+          return null;
+        });
+        if (page === null) {
+          res.status(500).json({ error: "Game asset unavailable" });
+          return;
+        }
+        res
+          .set("Content-Type", "text/html; charset=utf-8")
+          .set("Cache-Control", "no-store")
+          .set("Content-Security-Policy", GAME_PAGE_CSP)
+          .send(withGameAssetCache(page));
+        return;
+      }
       res.sendFile(`${gameId}/${rewrittenFile}`, {
         root: STATIC_GAMES_DIR,
         dotfiles: "deny",
@@ -149,7 +167,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
         etag: false,
         lastModified: false,
         headers: {
-          "Content-Type": isPage ? "text/html; charset=utf-8" : "application/javascript; charset=utf-8",
+          "Content-Type": "application/javascript; charset=utf-8",
           "Cache-Control": "no-store",
           "Content-Security-Policy": GAME_PAGE_CSP,
         },
@@ -180,6 +198,14 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
         .set("Cache-Control", "no-store")
         .set("Content-Security-Policy", textKind === "html" ? registeredGamePageCsp(source) : GAME_PAGE_CSP)
         .send(body);
+      return;
+    }
+    if (textKind === "html") {
+      // ‏صفحةُ لعبةٍ أساسية: كما هي، وفي رأسها تسجيلُ عامل الذاكرة وحده.
+      res
+        .set("Cache-Control", "no-store")
+        .set("Content-Security-Policy", GAME_PAGE_CSP)
+        .send(withGameAssetCache(await upstream.text()));
       return;
     }
     if (/^(?:text\/html|application\/javascript)/.test(contentType)) {
