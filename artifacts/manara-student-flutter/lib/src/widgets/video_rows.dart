@@ -49,18 +49,26 @@ class SliverVideoRows extends StatelessWidget {
             final start = row * columns;
             return Padding(
               padding: EdgeInsets.only(top: row == 0 ? 0 : mainAxisSpacing),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var column = 0; column < columns; column++) ...[
-                    if (column > 0) SizedBox(width: crossAxisSpacing),
-                    Expanded(
-                      child: start + column < itemCount
-                          ? itemBuilder(context, start + column)
-                          : const SizedBox.shrink(),
-                    ),
+              // ‏IntrinsicHeight: الصفُّ بارتفاع أطولِ بطاقةٍ فيه — محدودٌ لا
+              // لانهائي. البطاقةُ ملفوفةٌ في [StudentVideoHoverPreview] وفيه
+              // `Stack(fit: StackFit.expand)` يتمدّد إلى أقصى الارتفاع المتاح؛
+              // فإن كان لانهائياً (صفٌّ في قائمة) فشل التخطيط وظهرت الخانةُ
+              // فارغةً في نسخة الإصدار. الشبكةُ كانت تعطيه ارتفاعاً محدوداً،
+              // وهذا كذلك.
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var column = 0; column < columns; column++) ...[
+                      if (column > 0) SizedBox(width: crossAxisSpacing),
+                      Expanded(
+                        child: start + column < itemCount
+                            ? itemBuilder(context, start + column)
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             );
           },

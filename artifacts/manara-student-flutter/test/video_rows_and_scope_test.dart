@@ -5,7 +5,10 @@ import 'package:manara_student/src/models/academic_context.dart';
 import 'package:manara_student/src/models/student_content.dart';
 import 'package:manara_student/src/services/youtube_availability.dart';
 import 'package:manara_student/src/widgets/lesson_scope_sheet.dart';
+import 'package:manara_student/src/widgets/student_experience.dart';
+import 'package:manara_student/src/widgets/student_video_player.dart';
 import 'package:manara_student/src/widgets/video_rows.dart';
+import 'package:manara_student/src/widgets/video_thumbnail_card.dart';
 
 /// قائمةُ الفيديو بلا حدّ، وحالُ فيديو يوتيوب المحذوف، ورحلةُ تغيير الدرس.
 void main() {
@@ -47,6 +50,53 @@ void main() {
     await tester.scrollUntilVisible(find.byKey(const ValueKey('v39')), 600);
     expect(find.byKey(const ValueKey('v39')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('البطاقةُ الحقيقية (معاينة + ضغط + غلاف) تظهر في الصفوف ولا تبقى فارغة',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverVideoRows(
+                itemCount: 9,
+                itemBuilder: (context, index) {
+                  final video = LessonVideo(
+                    id: 'v$index',
+                    url: 'https://www.youtube.com/watch?v=abcdefghij$index',
+                    sourceType: VideoSourceType.embed,
+                    title: index.isEven ? 'فيديو $index' : 'عنوانٌ طويل ' * 8,
+                  );
+                  return StudentVideoHoverPreview(
+                    apiBaseUrl: '',
+                    video: video,
+                    borderRadius: const BorderRadius.all(Radius.circular(16)),
+                    child: StudentPressScale(
+                      child: VideoThumbnailCard(video: video, onTap: () {}),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.takeException(), isNull);
+    final cards = find.byType(VideoThumbnailCard);
+    expect(cards, findsWidgets);
+    // كلُّ بطاقةٍ مبنيّة لها ارتفاعٌ حقيقيٌّ محدود، وعنوانها ظاهر.
+    for (final element in cards.evaluate()) {
+      final size = element.size!;
+      expect(size.height, greaterThan(100));
+      expect(size.height.isFinite, isTrue);
+    }
+    expect(find.text('فيديو 0'), findsOneWidget);
   });
 
   test('عددُ الأعمدة من العرض كما كانت الشبكة', () {
