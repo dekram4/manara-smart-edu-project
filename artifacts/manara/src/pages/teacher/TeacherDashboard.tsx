@@ -24,6 +24,7 @@ import PermissionPackageManagement from '../shared/PermissionPackageManagement';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 import { writeAuthSession } from '../../utils/authSession';
 import { refreshSupabaseSync } from '../../db/sync';
+import { clearLoggedOut, isLoggedOut } from '../../utils/logoutGuard';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -46,6 +47,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   const hydrating = useSyncHydrating();
 
   useEffect(() => {
+    // ‏بعد خروجٍ صريح لا يُستعاد معلّمٌ محفوظ: شاشةُ الدخول — انظر utils/logoutGuard.
+    if (isLoggedOut()) {
+      removeActiveSession(STORAGE_KEYS.CURRENT_TEACHER);
+      return;
+    }
     const savedTeacher = readActiveSession<TeacherInfo>(STORAGE_KEYS.CURRENT_TEACHER);
     if (savedTeacher) {
       setCurrentTeacher(savedTeacher);
@@ -118,6 +124,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
   if (!isAuthenticated || !currentTeacher) {
     return <TeacherLogin onLoginSuccess={async (teacher) => {
+      clearLoggedOut();
       writeAuthSession('teacher', teacher.id);
       await refreshSupabaseSync();
       setCurrentTeacher(teacher);

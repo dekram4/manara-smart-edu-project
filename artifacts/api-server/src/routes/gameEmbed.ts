@@ -13,8 +13,10 @@ import {
   LEGACY_AD_SDK,
   LEGACY_GAME_IDS,
   isSafeGameAssetPath,
+  registeredGamePageCsp,
   resolveGameId,
   resolveRewrittenGameFile,
+  upstreamAssetPath,
   rewriteRegisteredGame,
 } from "../lib/gameEmbed";
 import { catalogForStudents, registeredGameIds } from "./entertainment";
@@ -151,7 +153,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     // ── وكلُّ ما سواها يُمرَّر كما هو، تدفّقاً ──
     // صفحاتُ الألعاب القديمة وسكربتاتُ لا تحتاج تعديلاً، وبياناتُ لعبة Unity
     // (عشراتُ الميغابايتات: كانت تُحمَّل كلُّها في الذاكرة قبل أن يصل بايتٌ للطالب).
-    const upstream = await fetch(`${GAME_HOST}/${gameId}/${requestedPath}`);
+    const upstream = await fetch(`${GAME_HOST}/${gameId}/${upstreamAssetPath(requestedPath)}`);
     if (!upstream.ok) {
       res.status(upstream.status).json({ error: "Game asset request failed" });
       return;
@@ -161,10 +163,11 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
     // ‏لعبةٌ مضافة: صفحاتُها وسكربتاتُها تُنظَّف من الإعلانات قبل أن تصل.
     const textKind = /^text\/html/.test(contentType) ? "html" : /^application\/javascript/.test(contentType) ? "js" : null;
     if (registered && textKind) {
-      const body = rewriteRegisteredGame(gameId, textKind, await upstream.text());
+      const source = await upstream.text();
+      const body = rewriteRegisteredGame(gameId, textKind, source);
       res
         .set("Cache-Control", "no-store")
-        .set("Content-Security-Policy", GAME_PAGE_CSP)
+        .set("Content-Security-Policy", textKind === "html" ? registeredGamePageCsp(source) : GAME_PAGE_CSP)
         .send(body);
       return;
     }

@@ -73,6 +73,9 @@ String? gameArtUrl(HtmlGame game) {
   return id == null ? null : 'https://img.gamedistribution.com/$id-512x512.jpg';
 }
 
+/// الصورةُ نفسها بامتداد jpeg — ما يجرّبه الغلافُ إن لم توجد بـ jpg.
+String gameArtJpegUrl(String url) => url.replaceFirst(RegExp(r'\.jpg$'), '.jpeg');
+
 final _gdId = RegExp(r'^[0-9a-f]{32}$');
 final _gdInUrl = RegExp(
   r'(?:/api/game-embed/|gamedistribution\.com/(?:rvvasmim/)?)([0-9a-f]{32})(?:[/?#]|$)',
@@ -231,7 +234,14 @@ class _ArcadeGameCardState extends State<ArcadeGameCard>
             // وحتى تصل الصورةُ: تدرّجُ اللعبة بشارتها، لا بطاقةٌ فارغة.
             loadingBuilder: (context, child, progress) =>
                 progress == null ? child : fallback(),
-            errorBuilder: (context, _, __) => fallback(),
+            // ‏بعضُ الصور محفوظةٌ بامتداد jpeg لا jpg («Mine&Build»): تُجرَّب
+            // قبل التدرّج. وما وُجد بـ jpg — كلُّ الألعاب السابقة — لا يمرّ هنا.
+            errorBuilder: (context, _, __) => Image.network(
+              gameArtJpegUrl(url),
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (context, _, __) => fallback(),
+            ),
           );
     if (widget.locked) {
       // مقفلة: الصورةُ رماديةٌ باهتة، فيُعرف قبل القراءة أنها لم تُفتح.

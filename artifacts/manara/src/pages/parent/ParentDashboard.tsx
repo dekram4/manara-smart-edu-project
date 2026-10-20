@@ -10,6 +10,7 @@ import { getEffectiveParentPermissions, getStudentPermissions, isLimitReached } 
 import PrivateChat from '../shared/PrivateChat';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { refreshSupabaseSync, rehydrateFromServer } from '../../db/sync';
+import { clearLoggedOut, isLoggedOut } from '../../utils/logoutGuard';
 import { formatAcademicPath, pathCell, quizResultPath } from '../../utils/academicPath';
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
@@ -231,6 +232,11 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   const loadData = () => {
+    // ‏بعد خروجٍ صريح لا يُستعاد وليُّ أمرٍ محفوظ — انظر utils/logoutGuard.
+    if (isLoggedOut()) {
+      removeActiveSession(STORAGE_KEYS.ACTIVE_PARENT);
+      return;
+    }
       const activeUser = readActiveSession<ParentInfo>(STORAGE_KEYS.ACTIVE_PARENT);
     if (activeUser) {
       setParent(activeUser);
@@ -282,6 +288,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       }
     }
     if (found) {
+      clearLoggedOut();
       if (found.mustChangePassword === true) {
         setParent(found);
         setNeedsPasswordChange(true);

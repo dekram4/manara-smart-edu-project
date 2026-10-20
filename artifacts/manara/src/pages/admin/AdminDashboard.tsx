@@ -5,6 +5,7 @@ import { AdminMenuType, SystemStats } from '../../types';
 import { COLORS, STORAGE_KEYS } from '../../constants';
 import AdminLogin from './AdminLogin';
 import { refreshSupabaseSync } from '../../db/sync';
+import { clearLoggedOut, endServerSession, isLoggedOut } from '../../utils/logoutGuard';
 import { playWelcomeAdult } from '../../utils/sounds';
 import DashboardHome from './DashboardHome';
 import AcademicSettings from './AcademicSettings';
@@ -56,7 +57,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   useEffect(() => {
     let mounted = true;
-    fetch('/api/auth/admin/session', { credentials: 'same-origin' })
+    // ‏بعد خروجٍ صريح: لا جلسةَ قديمة تُستعاد — كعكةٌ بقيت لأن طلبَ الخروج لم
+    // ‏يصل كانت تفتح اللوحةَ بلا كلمة مرور. يُعاد طلبُ الخروج، ثم شاشةُ الدخول.
+    if (isLoggedOut()) {
+      removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
+      void endServerSession().finally(() => {
+        if (!mounted) return;
+        setIsAuthenticated(false);
+        setAuthLoading(false);
+      });
+      return () => {
+        mounted = false;
+      };
+    }
+    fetch('/api/auth/admin/session', { credentials: 'same-origin', cache: 'no-store' })
       .then((response) => {
         if (!response.ok) throw new Error(`Admin session check failed (${response.status})`);
         return response.json();
@@ -152,6 +166,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   if (!isAuthenticated) {
     return <AdminLogin onLoginSuccess={async () => {
+      clearLoggedOut();
       writeSessionValue(SESSION_KEYS.ADMIN_SESSION, '1');
       writeAuthSession('admin', 'admin');
       await refreshSupabaseSync();

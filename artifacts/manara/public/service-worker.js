@@ -1,5 +1,10 @@
 // 🚀 Service Worker لتطبيق MANARA PWA (استخدام بدون إنترنت)
-const CACHE_NAME = 'manara-v2';
+//
+// ‏v3: طلباتُ /api/ لا تمرّ بالذاكرة أبداً. كانت v2 تحفظ كلَّ GET وتردّ منها
+// ‏أوّلاً — ومنها `/api/auth/admin/session` وجداولُ الطلاب والمعلمين والرسائل.
+// ‏فبعد الخروج تفتح لوحةُ المشرف من ردٍّ محفوظ بلا كلمة مرور، ويرى المعلمُ
+// ‏الداخلُ بعده جداولَ المشرف. وتغييرُ الاسم يطرد ذاكرةَ v2 كلَّها عند التفعيل.
+const CACHE_NAME = 'manara-v3';
 const IS_DEV_HOST = /^(localhost|127\.0\.0\.1)$/.test(self.location.hostname);
 const ASSETS_TO_CACHE = [
   '/',
@@ -42,6 +47,8 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const requestUrl = new URL(event.request.url);
+  // ‏بياناتُ الحساب وجلستُه، وما ليس من هذا الموقع: إلى الشبكة كما هي، بلا ذاكرة.
+  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/api/')) return;
   const isViteRequest = requestUrl.pathname.startsWith('/@vite/');
   const isHtmlRequest = event.request.mode === 'navigate' ||
     event.request.headers.get('accept')?.includes('text/html');
