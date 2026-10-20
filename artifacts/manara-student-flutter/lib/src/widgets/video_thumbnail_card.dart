@@ -6,6 +6,7 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 import '../models/student_content.dart';
 import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
+import '../services/youtube_availability.dart';
 import 'student_video_player.dart' show isYoutubeHost, youtubeVideoId;
 
 /// Resolves the cover image for a video the way a video app does.
@@ -78,6 +79,36 @@ class VideoThumbnailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ‏فيديو يوتيوب يُسأل عنه أوّلاً — انظر [YoutubeAvailabilityService].
+    final id = youtubeIdOf(video.url);
+    if (id == null) return _card(context, YoutubeAvailability.available);
+    final service = YoutubeAvailabilityService.instance;
+    return FutureBuilder<YoutubeAvailability>(
+      future: service.check(id),
+      initialData: service.known[id],
+      builder: (context, snapshot) =>
+          _card(context, snapshot.data ?? YoutubeAvailability.unknown),
+    );
+  }
+
+  /// يشرح للطفل لماذا لا يُفتح الفيديو، بدل مشغّلٍ فارغ.
+  void _explainUnavailable(BuildContext context, YoutubeAvailability status) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+          tr(status == YoutubeAvailability.embedBlocked
+              ? 'video.embedBlockedBody'
+              : 'video.unavailableBody'),
+        ),
+      ),
+    );
+  }
+
+  Widget _card(BuildContext context, YoutubeAvailability availability) {
+    final missing = availability == YoutubeAvailability.unavailable ||
+        availability == YoutubeAvailability.embedBlocked;
     // `dark` is the cinema's own always-dark room; the theme's brightness
     // is the app-wide setting. Either one makes this card a dark card.
     final night = dark || StudentSurface.isDark(context);
@@ -90,7 +121,7 @@ class VideoThumbnailCard extends StatelessWidget {
       // المقفلُ يُلمس أيضاً: صاحبُ البطاقة هو من يقرّر ما يحدث — يشرح للطالب
       // كم ينقصه من الجواهر وكيف يكسبها. كان اللمسُ هنا يُعطَّل، فلا يحدث
       // شيءٌ ولا تظهر رسالةُ «تحتاج 5 جواهر» أبداً.
-      onTap: onTap,
+      onTap: missing ? () => _explainUnavailable(context, availability) : onTap,
       borderRadius: BorderRadius.circular(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,7 +136,10 @@ class VideoThumbnailCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _Cover(video: video),
+                  if (missing)
+                    _UnavailableCover(status: availability)
+                  else
+                    _Cover(video: video),
                   // A soft scrim so the play button and the badge stay
                   // readable over a bright frame.
                   const DecoratedBox(
@@ -118,6 +152,7 @@ class VideoThumbnailCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (!missing)
                   Center(
                     child: Container(
                       width: 54,
@@ -343,6 +378,62 @@ class _CoverPlaceholder extends StatelessWidget {
           Icons.movie_creation_rounded,
           color: Color(0x66FFFFFF),
           size: 40,
+        ),
+      ),
+    );
+  }
+}
+
+/// معرّفُ يوتيوب من رابط الفيديو، أو `null` إن لم يكن من يوتيوب.
+String? youtubeIdOf(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  final host = uri.host.toLowerCase().replaceFirst('www.', '');
+  if (!isYoutubeHost(host)) return null;
+  final id = youtubeVideoId(uri, host);
+  return id.isEmpty ? null : id;
+}
+
+/// غلافُ فيديو لم يعد يُعرض: يقول ذلك بدل مربّعٍ رماديّ.
+class _UnavailableCover extends StatelessWidget {
+  const _UnavailableCover({required this.status});
+
+  final YoutubeAvailability status;
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = status == YoutubeAvailability.embedBlocked;
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF3B4252), Color(0xFF1F2933)],
+        ),
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                blocked ? Icons.block_rounded : Icons.videocam_off_rounded,
+                color: const Color(0xFFFFD166),
+                size: 34,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                tr(blocked ? 'video.cardEmbedBlocked' : 'video.unavailable'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

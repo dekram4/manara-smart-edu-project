@@ -17,6 +17,7 @@ import '../services/student_content_service.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/arcade_game_card.dart';
+import '../widgets/video_rows.dart';
 import '../widgets/video_thumbnail_card.dart';
 import '../widgets/playful_text.dart';
 import '../widgets/portal_watermark.dart';
@@ -438,9 +439,14 @@ class _LessonModule extends StatelessWidget {
     }
 
     final lesson = selectedLesson ?? lessons.first;
-    return ListView(
+    // ‏تمريرٌ واحد للشاشة كلّها: الرأسُ، ثم صفوفُ الفيديو كسولةً بلا حدٍّ لعددها
+    // ‏([SliverVideoRows])، ثم زرُّ الإكمال.
+    return CustomScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          sliver: SliverList.list(
       children: [
         Text(
           tr('content.lessonVideo'),
@@ -489,24 +495,34 @@ class _LessonModule extends StatelessWidget {
             icon: Icons.video_call_outlined,
             title: tr('content.noVideoAdded'),
             message: tr('content.noVideoAddedBody'),
-          )
-        else
-          _VideoCarousel(
-            lesson: lesson,
-            videos: lesson.videos,
-            apiBaseUrl: apiBaseUrl,
-            profile: profile,
-            gamification: gamification,
-            contentService: contentService,
-            onGamificationChanged: onGamificationChanged,
           ),
-        const SizedBox(height: 16),
-        _LessonCompletionButton(
-          lesson: lesson,
-          profile: profile,
-          gamification: gamification,
-          contentService: contentService,
-          onGamificationChanged: onGamificationChanged,
+      ],
+          ),
+        ),
+        if (lesson.videos.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            sliver: _VideoCarousel(
+              lesson: lesson,
+              videos: lesson.videos,
+              apiBaseUrl: apiBaseUrl,
+              profile: profile,
+              gamification: gamification,
+              contentService: contentService,
+              onGamificationChanged: onGamificationChanged,
+            ),
+          ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          sliver: SliverToBoxAdapter(
+            child: _LessonCompletionButton(
+              lesson: lesson,
+              profile: profile,
+              gamification: gamification,
+              contentService: contentService,
+              onGamificationChanged: onGamificationChanged,
+            ),
+          ),
         ),
       ],
     );
@@ -1125,17 +1141,11 @@ class _VideoCarouselState extends State<_VideoCarousel> {
     // spacing and aspect ratio — so a lesson's clips are the size a
     // student already knows from there, instead of one huge page-wide
     // card at a time. The pager and its dots are gone with it.
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+    //
+    // ‏صفوفٌ بارتفاع محتواها لا خاناتٌ بنسبةٍ ثابتة، تُبنى أثناء التمرير —
+    // ‏انظر [SliverVideoRows]. البطاقةُ وما تفتحه كما هما.
+    return SliverVideoRows(
       itemCount: widget.videos.length,
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 330,
-        mainAxisSpacing: 18,
-        crossAxisSpacing: 14,
-        childAspectRatio: 1.30,
-      ),
       itemBuilder: (context, index) {
         final video = widget.videos[index];
         // The reward belongs to the lesson completion button, not to any

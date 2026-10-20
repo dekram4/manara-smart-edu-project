@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/academic_context.dart';
 import '../models/student_content.dart';
@@ -25,6 +26,12 @@ import '../services/student_sound_service.dart';
 /// Grade and class are not offered. Those are who the student is —
 /// registered against their account — not something to pick from a menu;
 /// they are carried through from the current scope unchanged.
+///
+/// ── رحلةٌ لا استمارة ──
+/// كلُّ مستوىً بلونه ورمزه، وشريطُ تقدّمٍ بأربع محطّاتٍ يمتلئ مع كل اختيار،
+/// والمستوى التالي ينزلق إلى مكانه ويُمرَّر إليه تلقائياً، والبطاقةُ تنضغط تحت
+/// الإصبع وتُعلّم اختيارها بعلامةٍ تقفز، ومسارُ الطالب يُقرأ في أسفل الورقة،
+/// وزرُّ التأكيد ينبض حين يكتمل. وكلُّ حركةٍ متكرّرة تسكن لمن طلب تقليل الحركة.
 class LessonScopeSheet extends StatefulWidget {
   const LessonScopeSheet({
     required this.data,
@@ -54,6 +61,12 @@ class LessonScopeSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      // ‏الورقةُ تصعد بمنحنى نابض لا بخطٍّ مستقيم.
+      sheetAnimationStyle: AnimationStyle(
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutBack,
+        reverseDuration: const Duration(milliseconds: 220),
+      ),
       builder: (_) => LessonScopeSheet(
         data: data,
         current: current,
@@ -66,12 +79,33 @@ class LessonScopeSheet extends StatefulWidget {
   State<LessonScopeSheet> createState() => _LessonScopeSheetState();
 }
 
+/// لونُ كل مستوىً ورمزُه: الطفلُ يعرف أين هو من اللون قبل أن يقرأ.
+class _Level {
+  const _Level(this.color, this.emoji, this.icon);
+
+  final Color color;
+  final String emoji;
+  final IconData icon;
+
+  static const subject = _Level(Color(0xFF0E7490), '📚', Icons.menu_book_rounded);
+  static const term = _Level(Color(0xFF7C3AED), '🗂️', Icons.class_rounded);
+  static const unit = _Level(Color(0xFFDB2777), '🧩', Icons.layers_rounded);
+  static const lesson = _Level(Color(0xFFEA8A00), '🎬', Icons.play_lesson_rounded);
+
+  static const all = [subject, term, unit, lesson];
+}
+
 class _LessonScopeSheetState extends State<LessonScopeSheet> {
   String? _grade;
   String? _subject;
   String? _term;
   String? _unit;
   LessonContent? _lesson;
+
+  final _scroll = ScrollController();
+
+  /// مفتاحُ كل مستوى، ليُمرَّر إليه حين يظهر.
+  final _stepKeys = List.generate(4, (_) => GlobalKey());
 
   @override
   void initState() {
@@ -87,6 +121,14 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
     _unit = current?.unit;
     _lesson = current?.selectedLesson;
   }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  bool get _still => MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
   // The four levels, named as the teacher's own Academic Settings screen
   // names them, each filtering the real registered paths so no combination
@@ -121,14 +163,53 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
               unit: _unit!,
             );
 
-  void _pick(VoidCallback change) {
+  /// كم مستوىً اكتمل: ٠ إلى ٤.
+  int get _done => _lesson != null
+      ? 4
+      : _unit != null
+          ? 3
+          : _term != null
+              ? 2
+              : _subject != null
+                  ? 1
+                  : 0;
+
+  /// يختار، ثم يُمرّر إلى المستوى التالي الذي ظهر للتوّ.
+  void _pick(int nextStep, VoidCallback change) {
     StudentSoundService.instance.play(StudentSoundCue.answerSelected);
+    HapticFeedback.selectionClick();
     setState(change);
+    if (nextStep >= _stepKeys.length) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _stepKeys[nextStep].currentContext;
+      if (target == null || !mounted) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: _still ? Duration.zero : const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        alignment: 0.1,
+      );
+    });
+  }
+
+  void _confirm() {
+    HapticFeedback.mediumImpact();
+    StudentSoundService.instance.play(StudentSoundCue.success);
+    Navigator.of(context).pop(
+      AcademicContext(
+        grade: _grade!,
+        subject: _subject!,
+        term: _term!,
+        unit: _unit!,
+        selectedLesson: _lesson!,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final dark = StudentSurface.isDark(context);
     return Directionality(
       textDirection: StudentSettings.direction,
       child: Container(
@@ -139,11 +220,14 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: StudentSurface.isDark(context)
+            colors: dark
                 ? const [Color(0xFF141821), Color(0xFF0E1117)]
                 : const [Color(0xFFFFF6E7), Color(0xFFEFF6FA)],
           ),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x33000000), blurRadius: 24, offset: Offset(0, -4)),
+          ],
         ),
         child: SafeArea(
           top: false,
@@ -152,74 +236,72 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             children: [
               _grabber(),
               _header(),
+              _progress(),
               Flexible(
                 child: SingleChildScrollView(
+                  controller: _scroll,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // All four levels, each shown and each depending on
-                      // the one above it. Nothing is picked silently.
-                      _step<String>(
-                        step: 1,
-                        title: tr('scope.subject'),
-                        icon: Icons.menu_book_rounded,
-                        items: _subjects,
-                        labelOf: (value) => value,
-                        selected: _subject,
-                        isSame: (a, b) => a == b,
-                        onPick: (value) => _pick(() {
-                          _subject = value;
-                          _term = null;
-                          _unit = null;
-                          _lesson = null;
-                        }),
-                      ),
-                      // Each step appears only once the one above it has
-                      // an answer. A student is never looking at a row of
-                      // empty menus wondering which to try first.
-                      if (_subject != null)
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // All four levels, each shown and each depending on
+                        // the one above it. Nothing is picked silently.
                         _step<String>(
-                          step: 2,
-                          title: tr('scope.term'),
-                          icon: Icons.class_rounded,
-                          items: _terms,
+                          index: 0,
+                          title: tr('scope.subject'),
+                          items: _subjects,
                           labelOf: (value) => value,
-                          selected: _term,
+                          selected: _subject,
                           isSame: (a, b) => a == b,
-                          onPick: (value) => _pick(() {
-                            _term = value;
+                          onPick: (value) => _pick(1, () {
+                            _subject = value;
+                            _term = null;
                             _unit = null;
                             _lesson = null;
                           }),
                         ),
-                      if (_term != null)
-                        _step<String>(
-                          step: 4,
-                          title: tr('scope.unit'),
-                          icon: Icons.layers_rounded,
-                          items: _units,
-                          labelOf: (value) => value,
-                          selected: _unit,
-                          isSame: (a, b) => a == b,
-                          onPick: (value) => _pick(() {
-                            _unit = value;
-                            _lesson = null;
-                          }),
-                        ),
-                      if (_unit != null)
-                        _step<LessonContent>(
-                          step: 5,
-                          title: tr('scope.lesson'),
-                          icon: Icons.play_lesson_rounded,
-                          items: _lessons,
-                          labelOf: (value) => value.lessonName,
-                          selected: _lesson,
-                          isSame: (a, b) => a.id == b.id,
-                          onPick: (value) => _pick(() => _lesson = value),
-                        ),
-                    ],
+                        // Each step appears only once the one above it has
+                        // an answer. A student is never looking at a row of
+                        // empty menus wondering which to try first.
+                        if (_subject != null)
+                          _step<String>(
+                            index: 1,
+                            title: tr('scope.term'),
+                            items: _terms,
+                            labelOf: (value) => value,
+                            selected: _term,
+                            isSame: (a, b) => a == b,
+                            onPick: (value) => _pick(2, () {
+                              _term = value;
+                              _unit = null;
+                              _lesson = null;
+                            }),
+                          ),
+                        if (_term != null)
+                          _step<String>(
+                            index: 2,
+                            title: tr('scope.unit'),
+                            items: _units,
+                            labelOf: (value) => value,
+                            selected: _unit,
+                            isSame: (a, b) => a == b,
+                            onPick: (value) => _pick(3, () {
+                              _unit = value;
+                              _lesson = null;
+                            }),
+                          ),
+                        if (_unit != null)
+                          _step<LessonContent>(
+                            index: 3,
+                            title: tr('scope.lesson'),
+                            items: _lessons,
+                            labelOf: (value) => value.lessonName,
+                            selected: _lesson,
+                            isSame: (a, b) => a.id == b.id,
+                            onPick: (value) => _pick(4, () => _lesson = value),
+                          ),
+                      ],
                   ),
                 ),
               ),
@@ -242,18 +324,34 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
       );
 
   Widget _header() => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+        padding: const EdgeInsets.fromLTRB(20, 6, 12, 6),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0E5F6B).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
+            // ‏أيقونةُ المسار تتأرجح بلطفٍ مرّةً عند الفتح.
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: _still ? 1 : 0, end: 1),
+              duration: const Duration(milliseconds: 700),
+              curve: Curves.elasticOut,
+              builder: (context, t, child) => Transform.rotate(
+                angle: (1 - t) * -0.5,
+                child: Transform.scale(scale: 0.6 + 0.4 * t, child: child),
               ),
-              child: const Icon(
-                Icons.alt_route_rounded,
-                color: Color(0xFF0E5F6B),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0E7490), Color(0xFF14B8A6)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0E7490).withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.alt_route_rounded, color: Colors.white),
               ),
             ),
             const SizedBox(width: 12),
@@ -289,130 +387,158 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
         ),
       );
 
+  /// أربعُ محطّاتٍ موصولة: تمتلئ بلون مستواها كلما اكتمل اختيار.
+  Widget _progress() {
+    final done = _done;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
+      child: Row(
+        children: [
+          for (var i = 0; i < 4; i++) ...[
+            if (i > 0)
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Stack(
+                    children: [
+                      Container(height: 5, color: const Color(0x1A00304A)),
+                      AnimatedFractionallySizedBox(
+                        duration: _still ? Duration.zero : const Duration(milliseconds: 380),
+                        curve: Curves.easeOutCubic,
+                        alignment: AlignmentDirectional.centerStart,
+                        widthFactor: done >= i ? 1 : 0,
+                        child: Container(height: 5, color: _Level.all[i].color),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            AnimatedContainer(
+              duration: _still ? Duration.zero : const Duration(milliseconds: 300),
+              curve: Curves.easeOutBack,
+              width: done > i ? 30 : 26,
+              height: done > i ? 30 : 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: done > i ? _Level.all[i].color : StudentSurface.card(context),
+                border: Border.all(
+                  color: done == i ? _Level.all[i].color : const Color(0x2200304A),
+                  width: done == i ? 2.5 : 1.2,
+                ),
+                boxShadow: done > i
+                    ? [
+                        BoxShadow(
+                          color: _Level.all[i].color.withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: done > i
+                  ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                  : Text(_Level.all[i].emoji, style: const TextStyle(fontSize: 12)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _step<T>({
-    required int step,
+    required int index,
     required String title,
-    required IconData icon,
     required List<T> items,
     required String Function(T) labelOf,
     required T? selected,
     required bool Function(T, T) isSame,
     required ValueChanged<T> onPick,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 13,
-                backgroundColor: const Color(0xFF0E5F6B),
-                child: Text(
-                  '$step',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(icon, size: 18, color: StudentSurface.ink(context)),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: StudentSurface.ink(context),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 9),
-          if (items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                tr('scope.noOptions'),
-                style: const TextStyle(
-                  color: Color(0xFF8092A8),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            )
-          else
-            Wrap(
-              spacing: 9,
-              runSpacing: 9,
-              children: [
-                for (final item in items)
-                  _choice(
-                    label: labelOf(item),
-                    chosen: selected != null && isSame(item, selected),
-                    onTap: () => onPick(item),
-                  ),
-              ],
-            ),
-        ],
+    final level = _Level.all[index];
+    // ‏المستوى الجديد ينزلق من تحت ويظهر — مرّةً واحدة حين يُضاف.
+    return TweenAnimationBuilder<double>(
+      key: _stepKeys[index],
+      tween: Tween(begin: _still ? 1 : 0, end: 1),
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, 24 * (1 - t)), child: child),
       ),
-    );
-  }
-
-  Widget _choice({
-    required String label,
-    required bool chosen,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          constraints: const BoxConstraints(maxWidth: 260),
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-          decoration: BoxDecoration(
-            color: chosen ? const Color(0xFF0E5F6B) : StudentSurface.card(context),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: chosen ? const Color(0xFF0E5F6B) : const Color(0x2200304A),
-              width: chosen ? 2 : 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: chosen
-                    ? const Color(0xFF0E5F6B).withValues(alpha: 0.28)
-                    : const Color(0x11000000),
-                blurRadius: chosen ? 14 : 6,
-                offset: Offset(0, chosen ? 6 : 3),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (chosen) ...[
-                const Icon(Icons.check_rounded, size: 17, color: Colors.white),
-                const SizedBox(width: 6),
-              ],
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: chosen ? Colors.white : StudentSurface.ink(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+        decoration: BoxDecoration(
+          color: level.color.withValues(alpha: StudentSurface.isDark(context) ? 0.12 : 0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: level.color.withValues(alpha: 0.22)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: level.color, shape: BoxShape.circle),
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                Text(level.emoji, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: StudentSurface.ink(context),
+                    ),
+                  ),
+                ),
+                Icon(level.icon, size: 18, color: level.color),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  tr('scope.noOptions'),
+                  style: const TextStyle(
+                    color: Color(0xFF8092A8),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 9,
+                runSpacing: 9,
+                children: [
+                  for (var i = 0; i < items.length; i++)
+                    _ScopeChoice(
+                      label: labelOf(items[i]),
+                      color: level.color,
+                      chosen: selected != null && isSame(items[i], selected),
+                      // ‏البطاقاتُ تدخل متتابعةً، كلٌّ بعد أختها بلحظة.
+                      delay: _still ? Duration.zero : Duration(milliseconds: 40 * i.clamp(0, 10)),
+                      still: _still,
+                      onTap: () => onPick(items[i]),
+                    ),
+                ],
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -420,57 +546,382 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
 
   Widget _confirmBar() {
     final ready = _lesson != null;
+    final trail = [_subject, _term, _unit].whereType<String>().toList();
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0x1400304A))),
+      decoration: BoxDecoration(
+        // ‏كانت بيضاءَ ثابتة، فتلمع في الوضع الداكن.
+        color: StudentSurface.card(context),
+        border: const Border(top: BorderSide(color: Color(0x1400304A))),
       ),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              ready
-                  ? _lesson!.lessonName
-                  : tr('scope.incomplete'),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: ready ? StudentSurface.ink(context) : const Color(0xFF8092A8),
+            child: AnimatedSwitcher(
+              duration: _still ? Duration.zero : const Duration(milliseconds: 260),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0, 0.3), end: Offset.zero)
+                      .animate(animation),
+                  child: child,
+                ),
+              ),
+              child: Column(
+                key: ValueKey('${_lesson?.id}|${trail.join('|')}'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (trail.isNotEmpty)
+                    Text(
+                      trail.join('  ›  '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: StudentSurface.mutedInk(context),
+                      ),
+                    ),
+                  Text(
+                    ready ? '🎬 ${_lesson!.lessonName}' : tr('scope.incomplete'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: ready ? StudentSurface.ink(context) : const Color(0xFF8092A8),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(width: 12),
-          FilledButton.icon(
+          _ConfirmButton(
+            ready: ready,
+            still: _still,
             // Stays disabled until a real lesson has been reached, so the
             // app can never be handed a half-built scope.
-            onPressed: !ready
-                ? null
-                : () => Navigator.of(context).pop(
-                      AcademicContext(
-                        grade: _grade!,
-                        subject: _subject!,
-                        term: _term!,
-                        unit: _unit!,
-                        selectedLesson: _lesson!,
+            onPressed: ready ? _confirm : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// بطاقةُ اختيار: تنضغط تحت الإصبع، وتمتلئ بلون مستواها، وعلامتُها تقفز.
+class _ScopeChoice extends StatefulWidget {
+  const _ScopeChoice({
+    required this.label,
+    required this.color,
+    required this.chosen,
+    required this.delay,
+    required this.still,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool chosen;
+  final Duration delay;
+  final bool still;
+  final VoidCallback onTap;
+
+  @override
+  State<_ScopeChoice> createState() => _ScopeChoiceState();
+}
+
+class _ScopeChoiceState extends State<_ScopeChoice> {
+  bool _down = false;
+  bool _shown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.still || widget.delay == Duration.zero) {
+      _shown = true;
+    } else {
+      Future.delayed(widget.delay, () {
+        if (mounted) setState(() => _shown = true);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chosen = widget.chosen;
+    final color = widget.color;
+    return AnimatedOpacity(
+      opacity: _shown ? 1 : 0,
+      duration: const Duration(milliseconds: 220),
+      child: AnimatedScale(
+        scale: _down ? 0.94 : (_shown ? 1 : 0.9),
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        child: Semantics(
+          button: true,
+          selected: chosen,
+          label: widget.label,
+          child: GestureDetector(
+            onTapDown: (_) => setState(() => _down = true),
+            onTapCancel: () => setState(() => _down = false),
+            onTapUp: (_) => setState(() => _down = false),
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              constraints: const BoxConstraints(maxWidth: 260),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+              decoration: BoxDecoration(
+                gradient: chosen
+                    ? LinearGradient(
+                        colors: [color, Color.lerp(color, Colors.white, 0.18)!],
+                      )
+                    : null,
+                color: chosen ? null : StudentSurface.card(context),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: chosen ? color : color.withValues(alpha: 0.28),
+                  width: chosen ? 2 : 1.3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: chosen ? color.withValues(alpha: 0.32) : const Color(0x11000000),
+                    blurRadius: chosen ? 14 : 6,
+                    offset: Offset(0, chosen ? 6 : 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    transitionBuilder: (child, animation) => ScaleTransition(
+                      scale: CurvedAnimation(parent: animation, curve: Curves.elasticOut),
+                      child: child,
+                    ),
+                    child: chosen
+                        ? const Padding(
+                            key: ValueKey('on'),
+                            padding: EdgeInsetsDirectional.only(end: 6),
+                            child: Icon(Icons.check_circle_rounded, size: 18, color: Colors.white),
+                          )
+                        : const SizedBox(key: ValueKey('off')),
+                  ),
+                  Flexible(
+                    child: Text(
+                      widget.label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: chosen ? Colors.white : StudentSurface.ink(context),
                       ),
                     ),
-            icon: const Icon(Icons.check_circle_rounded),
-            label: Text(
-              tr('action.confirm'),
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0E5F6B),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(26),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+/// زرُّ «تأكيد»: معطّلٌ حتى يُختار درس، ثم ينبض نبضاً هادئاً يدعو إليه.
+class _ConfirmButton extends StatefulWidget {
+  const _ConfirmButton({
+    required this.ready,
+    required this.still,
+    required this.onPressed,
+  });
+
+  final bool ready;
+  final bool still;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_ConfirmButton> createState() => _ConfirmButtonState();
+}
+
+class _ConfirmButtonState extends State<_ConfirmButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_ConfirmButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    if (widget.ready && !widget.still) {
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, child) => Transform.scale(
+        scale: 1 + 0.05 * Curves.easeInOut.transform(_pulse.value),
+        child: child,
+      ),
+      child: FilledButton.icon(
+        onPressed: widget.onPressed,
+        icon: const Icon(Icons.rocket_launch_rounded),
+        label: Text(
+          tr('action.confirm'),
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF0E7490),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          elevation: widget.ready ? 4 : 0,
+          shadowColor: const Color(0xFF0E7490),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        ),
+      ),
+    );
+  }
+}
+
+/// زرُّ «تغيير الدرس» في رأس الواجهة: كبسولةٌ بتدرّج، وتوهّجٌ يتنفّس بهدوء يدلّ
+/// عليه، وتنضغط تحت الإصبع، وتدور أيقونةُ المسار مع الضغطة.
+///
+/// [narrow] للشريط الضيّق: الأيقونةُ وحدها في دائرة، كما كان — كي لا يفيض الشريط.
+class ChangeLessonButton extends StatefulWidget {
+  const ChangeLessonButton({
+    required this.label,
+    required this.onPressed,
+    this.narrow = false,
+    super.key,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool narrow;
+
+  @override
+  State<ChangeLessonButton> createState() => _ChangeLessonButtonState();
+}
+
+class _ChangeLessonButtonState extends State<ChangeLessonButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2200),
+  );
+  bool _down = false;
+  int _turns = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (still) {
+      _breath.stop();
+    } else if (!_breath.isAnimating) {
+      _breath.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const from = Color(0xFF0E5F6B);
+    const to = Color(0xFF14B8A6);
+    final icon = AnimatedRotation(
+      turns: _turns * 0.5,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutBack,
+      child: Icon(Icons.alt_route_rounded, color: Colors.white, size: widget.narrow ? 22 : 20),
+    );
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) => setState(() => _down = false),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          setState(() => _turns += 1);
+          widget.onPressed();
+        },
+        child: AnimatedScale(
+          scale: _down ? 0.92 : 1,
+          duration: const Duration(milliseconds: 130),
+          child: AnimatedBuilder(
+            animation: _breath,
+            builder: (context, child) {
+              final glow = Curves.easeInOut.transform(_breath.value);
+              return Container(
+                padding: widget.narrow
+                    ? const EdgeInsets.all(10)
+                    : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [from, to]),
+                  borderRadius: BorderRadius.circular(widget.narrow ? 999 : 22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: to.withValues(alpha: 0.25 + 0.25 * glow),
+                      blurRadius: 8 + 10 * glow,
+                      spreadRadius: glow * 1.5,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: child,
+              );
+            },
+            child: widget.narrow
+                ? icon
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      icon,
+                      const SizedBox(width: 6),
+                      Text(
+                        widget.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
       ),
     );
   }
