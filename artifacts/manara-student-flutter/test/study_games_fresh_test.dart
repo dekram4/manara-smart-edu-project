@@ -98,6 +98,11 @@ void main() {
       'https://img.gamedistribution.com/$gd-512x512.jpg',
     );
     expect(gameArtUrl(game('teacher-game-3', 'https://games.example.com/play/')), isNull);
+    // ‏صورةٌ محفوظةٌ بامتداد jpeg («Mine&Build»): هي ما يجرّبه الغلافُ ثانياً.
+    expect(
+      gameArtJpegUrl('https://img.gamedistribution.com/$gd-512x512.jpg'),
+      'https://img.gamedistribution.com/$gd-512x512.jpeg',
+    );
   });
 
   test('القرارُ الأحدث يغلب: إغلاقُ المعلم لصفّه يصل طالباً له استثناءٌ أقدم', () {

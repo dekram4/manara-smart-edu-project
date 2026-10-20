@@ -26,6 +26,7 @@ import type { AuthRole } from './utils/authSession';
 
 // ✅ الاستدعاء المباشر والمحلي للمكتبات (Game Engine Infrastructure)
 import { playLamsaSound } from './utils/sounds';
+import { endServerSession, isLoggedOut, markLoggedOut, purgeApiCache } from './utils/logoutGuard';
 import { GameAudioEngine } from './utils/gameAudioEngine';
 
 // أصوات تفاعلية سريعة
@@ -261,23 +262,15 @@ const App: React.FC = () => {
     removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
     purgeRoleStorage();
+    // ‏خروجٌ صريح: لا لوحةَ تفتح بعده إلا بكلمة مرور، ولو بقيت كعكةٌ في
+    // ‏المتصفّح لأن طلبَ الخروج لم يصل. انظر utils/logoutGuard.
+    markLoggedOut();
+    // ‏وما حفظه عاملُ الخدمة القديم من ردود الحساب (جلستُه وجداولُه).
+    await purgeApiCache();
     // ‏وكعكاتُ الأدوار الثلاثة تُمحى في طلبٍ واحد **يُنتظر** قبل العودة إلى شاشة
     // ‏الأدوار: كانت الطلباتُ تُطلق ولا تُنتظر، فيدخل المستخدمُ التالي والكعكةُ
     // ‏القديمة ما زالت في المتصفّح — فتُفتح لوحةُ المشرف لمن دخل معلماً.
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 4000);
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-    } catch {
-      // ‏شبكةٌ منقطعة: الكعكاتُ يمحوها الخادمُ عند أوّل دخولٍ تالٍ (دخولٌ حصري).
-    } finally {
-      window.clearTimeout(timeout);
-    }
+    await endServerSession();
     setMainView('role');
   };
 
@@ -295,7 +288,12 @@ const App: React.FC = () => {
       ? savedRole as MainView
       : legacyRole;
     const isDashboardRole = (role: MainView): role is Exclude<MainView, 'role'> => role !== 'role';
-    const restoredRole = candidateRole && isDashboardRole(candidateRole) && hasValidRoleSession(candidateRole)
+    // ‏بعد خروجٍ صريح لا تُستعاد لوحةٌ، ويُعاد طلبُ الخروج إن لم يصل الخادمَ.
+    const loggedOut = isLoggedOut();
+    if (loggedOut) void endServerSession();
+    // ‏ردودُ /api/ التي حفظها عاملُ الخدمة القديم تُطهَّر عند كل إقلاع.
+    void purgeApiCache();
+    const restoredRole = !loggedOut && candidateRole && isDashboardRole(candidateRole) && hasValidRoleSession(candidateRole)
       ? candidateRole
       : null;
     if (restoredRole) {

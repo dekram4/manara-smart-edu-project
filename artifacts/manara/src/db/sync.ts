@@ -302,6 +302,18 @@ function isReadOnlyActor(): boolean {
 let activeSyncContext: SyncContext | null = null;
 
 /**
+ * جيلُ الجلسة: يزيد مع كل خروج ([resetSyncState]).
+ *
+ * ── لماذا ──
+ * «إدارة المحتوى» تسحب من الخادم كل ثلاثين ثانية وبعد كل حفظ. سحبٌ بدأ في
+ * جلسة المشرف وانتهى بعد خروجه كان يكتب نسخةَ المشرف في المتصفّح بعد أن
+ * مُحيت — فيدخل المعلمُ ويرى بياناتِ المشرف. فكلُّ تحميلٍ يحفظ جيلَه عند بدئه،
+ * ولا يكتب شيئاً — في المتصفّح ولا إلى الخادم — إن تغيّر الجيلُ قبل أن يكتب.
+ */
+let sessionGeneration = 0;
+const isStaleGeneration = (generation: number): boolean => generation !== sessionGeneration;
+
+/**
  * الطابور بعد تنقيته ممّا لا يملكه الحساب الحالي.
  *
  * عملية على جدول لا يكتبه هذا الدور لا تُعاد المحاولة فيها أبداً: الخادم
@@ -741,10 +753,12 @@ async function hydrateRowTable(
   table: string,
   pendingTables: Set<string>,
   context: SyncContext,
+  generation: number = sessionGeneration,
 ): Promise<void> {
   if (pendingTables.has(table)) return; // المحلي هو المرجع، لا تطمسه
 
   const { data, error } = await supabase.from(table).select('id,data');
+  if (isStaleGeneration(generation)) return; // خرج صاحبُ هذا التحميل
   if (error) {
     if (!(error as Error & { silent?: boolean }).silent) {
       console.error(`[sync] فشل تحميل ${table}:`, error.message);
@@ -864,6 +878,7 @@ async function hydrateRowTable(
     );
   }
 
+  if (isStaleGeneration(generation)) return;
   if (localOnly.length && remoteIsEmpty && canCurrentActorWriteTable(table)) {
     const res = await withRetry(`دمج ${table}`, () =>
       supabase.from(table).upsert(localOnly, { onConflict: 'id' }),
@@ -873,6 +888,7 @@ async function hydrateRowTable(
     }
   }
 
+  if (isStaleGeneration(generation)) return;
   if (
     (storageKey === 'smartEdu_lessonConfigs' && deletedLessonIds.size) ||
     (storageKey === 'smartEdu_createdQuizzes' && deletedQuizIds.size) ||
@@ -897,11 +913,13 @@ async function hydrateRowTable(
     }
   }
 
+  if (isStaleGeneration(generation)) return;
   nativeSetItem(storageKey, JSON.stringify(merged));
 }
 
-async function hydrateKv(pendingKv: Set<string>): Promise<void> {
+async function hydrateKv(pendingKv: Set<string>, generation: number = sessionGeneration): Promise<void> {
   const { data, error } = await supabase.from('app_kv').select('key,value');
+  if (isStaleGeneration(generation)) return; // خرج صاحبُ هذا التحميل
   if (error) {
     if (!(error as Error & { silent?: boolean }).silent) {
       console.error('[sync] فشل تحميل app_kv:', error.message);
@@ -1010,17 +1028,21 @@ export async function hydrateFromSupabase(
   pendingKv: Set<string> = new Set(),
   context: SyncContext = activeSyncContext ?? { role: 'admin', scope: 'admin' },
 ): Promise<void> {
+  // ‏جيلُ الجلسة عند البدء: إن خرج صاحبُها في أثناء التحميل لا يُكتب شيء.
+  const generation = sessionGeneration;
   // قبل كل شيء: هل نُظّفت قاعدة البيانات منذ آخر مرة فُتح فيها هذا
   // الجهاز؟ الجواب يحكم على التحميل كلّه، فيُسأل مرة قبل أن يبدأ.
   await resolveContentEpoch().catch((e) =>
     console.error('[sync] تعذّرت قراءة ختم المحتوى:', e?.message || e)
   );
-  await hydrateKv(pendingKv).catch((e) =>
+  if (isStaleGeneration(generation)) return;
+  await hydrateKv(pendingKv, generation).catch((e) =>
     console.error('[sync] خطأ أثناء تحميل app_kv:', e?.message || e)
   );
+  if (isStaleGeneration(generation)) return;
   await Promise.all([
     ...Object.entries(ROW_TABLES).map(([storageKey, table]) =>
-      hydrateRowTable(storageKey, table, pendingTables, context).catch((e) =>
+      hydrateRowTable(storageKey, table, pendingTables, context, generation).catch((e) =>
         console.error(`[sync] خطأ أثناء تحميل ${table}:`, e?.message || e)
       )
     ),
@@ -1239,20 +1261,26 @@ export function initSupabaseSync(): Promise<void> {
   // Share one initialization promise so hydration/write-through cannot race.
   if (syncInitializationPromise) return syncInitializationPromise;
 
+  const generation = sessionGeneration;
   syncInitializationPromise = (async () => {
     emitStatus({ hydrating: true });
     try {
       const contextResult = await supabase.context();
+      // ‏خرج صاحبُ هذه التهيئة قبل أن تُحدِّد حسابَه: لا يُعتمد حسابُه بعده.
+      if (isStaleGeneration(generation)) return;
       if (contextResult.error) {
         console.error('[sync] تعذر تحديد حساب المزامنة:', contextResult.error.message);
         return;
       }
-      activeSyncContext = contextResult.data;
-      const { pendingTables, pendingKv } = await flushPending(activeSyncContext);
+      const context = contextResult.data;
+      activeSyncContext = context;
+      const { pendingTables, pendingKv } = await flushPending(context);
+      if (isStaleGeneration(generation)) return;
       // Convert older deleted quiz records into shared tombstones before hydration.
       // This prevents stale rows from being merged back from Supabase.
       prepareDeletedQuizTombstones();
-      await hydrateFromSupabase(pendingTables, pendingKv, activeSyncContext);
+      await hydrateFromSupabase(pendingTables, pendingKv, context);
+      if (isStaleGeneration(generation)) return;
 
       // دمج الرسائل القديمة بعد hydrate حتى لا تطمس الرسائل المحلية القديمة
       // نسخة Supabase الحالية، ثم مرّر الدمج عبر write-through لمزامنته.
@@ -1262,7 +1290,7 @@ export function initSupabaseSync(): Promise<void> {
         nativeRemoveItem(LEGACY_PUBLIC_MESSAGES_KEY);
       }
 
-      backfillParentLinks(activeSyncContext);
+      backfillParentLinks(context);
     } catch (error) {
       // Local data remains usable when the connector is unavailable.
       console.error('[sync] initialization failed; continuing with local data:', error);
@@ -1349,6 +1377,8 @@ export function refreshFromServer(): Promise<void> {
  * `initSupabaseSync` ملأها من الخادم بنطاق الحساب الجديد عند دخوله.
  */
 export function resetSyncState(): void {
+  // ‏كلُّ تحميلٍ بدأ قبل هذا السطر لا يكتب بعده شيئاً — انظر [sessionGeneration].
+  sessionGeneration += 1;
   try {
     nativeRemoveItem(PENDING_KEY);
   } catch {

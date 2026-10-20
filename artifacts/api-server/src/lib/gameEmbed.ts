@@ -142,13 +142,35 @@ export function resolveRewrittenGameFile(gameId: string, path: string): string |
  * مسارُ ملفٍّ داخل لعبة: مقاطعُ من حروفٍ وأرقامٍ و`_ . ~ -` يفصلها `/` — وكلُّ ما
  * تطلبه الألعابُ الستّ (٦٩ ملفاً) على هذا الشكل. ولا مقطعَ `.` أو `..`.
  */
-const GAME_ASSET_PATH_PATTERN = /^[A-Za-z0-9_.~-]+(?:\/[A-Za-z0-9_.~-]+)*$/;
+const GAME_ASSET_PATH_PATTERN = /^[A-Za-z0-9_.~()[\]-]+(?:\/[A-Za-z0-9_.~()[\]-]+)*$/;
 
+/**
+ * والأقواسُ `[] ()` أيضاً: «SWAT: Squad Tactics» (Unity) ملفّاتُه
+ * `Build/SWATSquadTactics[2]-prime.*` فكانت تُرفض (400) وتتوقّف اللعبة عند شعارها.
+ */
 export function isSafeGameAssetPath(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 300) return false;
   if (!GAME_ASSET_PATH_PATTERN.test(value)) return false;
   return value.split("/").every((segment) => segment !== "." && segment !== "..");
 }
+
+/**
+ * المسارُ كما يُطلب من مضيف اللعبة: كلُّ مقطعٍ مُرمَّز. ومسارٌ بلا أقواس — كلُّ ما
+ * طلبته الألعابُ السابقة — يخرج كما دخل حرفاً بحرف.
+ */
+export function upstreamAssetPath(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+/**
+ * لعبةٌ بُنيت بـ GamePush لنسخة GameDistribution (`gamepush.gd.js`): المكتبةُ تعرف
+ * منصّتها من اسم الموقع، وعلى غير موقع GameDistribution ترمي «wrong platform type»
+ * فتبقى الصفحةُ زرقاءَ فارغة («Mine&Build»). والمكتبةُ نفسها تقبل إعلانَ المنصّة
+ * مسبقاً في `__GS_BOOT_CONFIG__` — فيُعلَن قبلها، وما سواها لا يتغيّر.
+ */
+const GAMEPUSH_GD_BUNDLE = /gamepush\.gd\.js/i;
+export const GAMEPUSH_PLATFORM_SCRIPT =
+  "<script>window.__GS_BOOT_CONFIG__=Object.assign({platformType:\"GAME_DISTRIBUTION\"},window.__GS_BOOT_CONFIG__||{});</script>";
 
 /**
  * الألعابُ التي كانت تعمل قبل إضافة الأربع: تُقدَّم كما كانت حرفياً — صفحتُها بلا
@@ -201,6 +223,23 @@ export const GAME_PAGE_CSP = [
   "form-action 'none'",
 ].join("; ");
 
+/**
+ * صفحةُ لعبةٍ مضافة بمحرّك Defold (`dmloader.js`): المحرّكُ يصل بين Lua وJavaScript
+ * بـ `eval`، فبدونه تبقى اللعبةُ شاشةً زرقاء بلا خطأٍ ظاهر («Mine&Build»). فلها
+ * وحدها `'unsafe-eval'`، وكلُّ ما سواه في السياسة كما هو. وما سواها من الألعاب
+ * يبقى على [GAME_PAGE_CSP] بلا eval.
+ */
+const DEFOLD_LOADER = /dmloader\.js/i;
+export const GAME_PAGE_CSP_WITH_EVAL = GAME_PAGE_CSP.replace(
+  "script-src 'self'",
+  "script-src 'self' 'unsafe-eval'",
+);
+
+/** سياسةُ صفحة لعبةٍ مضافة من مصدرها. */
+export function registeredGamePageCsp(source: string): string {
+  return DEFOLD_LOADER.test(source) ? GAME_PAGE_CSP_WITH_EVAL : GAME_PAGE_CSP;
+}
+
 /** مضيفُ ملفّات اللعبة نفسها، لا صفحةِ الإعلانات المغلِّفة لها. */
 export const GAME_HOST = "https://html5.gamedistribution.com/rvvASMiM";
 
@@ -213,17 +252,46 @@ export const AD_SDK_PATH = "/ad-sdk.js";
  * اللعبةُ تطلب إعلاناً ثم تنتظر حدثَين: `SDK_GAME_PAUSE` ثم `SDK_GAME_START`، ولا
  * تكمل قبلهما. بديلٌ يعود بلا أحداث يُجمّدها عند أوّل استراحة. فهذا يُطلق الحدثين
  * فوراً كأنّ الإعلانَ انتهى، ويَمنح مكافأةَ «شاهد إعلاناً» بلا إعلان.
+ *
+ * ── و`SDK_READY` لا يضيع ──
+ * البديلُ يُحقن أوّلَ الصفحة، وبعضُ المحرّكات («Burger Catch») تضع `GD_OPTIONS`
+ * بعده ثم تحمّل المكتبةَ بنفسها وتنتظر `SDK_READY`. كان يُطلق مرّةً قبل أن يوجد من
+ * يسمعه، والتحميلُ الثاني يعود فوراً — فتبقى اللعبةُ سوداءَ إلى الأبد. وGamePush
+ * («Mine&Build») يضع `GD_OPTIONS` ثم لا يحمّل المكتبةَ أصلاً لأنه يجد `gdsdk`.
+ * الآن يُعدّ مُسلَّماً حين يجد مستمعاً فقط، ويُطلَق حين تُوضع `GD_OPTIONS` أو تُحمَّل
+ * المكتبةُ ثانيةً إن لم يُسلَّم. واللعبةُ التي سمعته أوّلَ مرّة لا يصلها شيءٌ جديد.
  */
 export const DISABLED_AD_SDK = `
 (() => {
-  if (window.gdsdk && window.gdsdk.__manara) return;
+  if (window.gdsdk && window.gdsdk.__manara) {
+    if (typeof window.gdsdk.__lateReady === "function") window.gdsdk.__lateReady();
+    return;
+  }
   const options = () => window.GD_OPTIONS || {};
   const emit = (name) => {
+    const handler = options().onEvent;
+    if (typeof handler !== "function") return false;
     try {
-      const handler = options().onEvent;
-      if (typeof handler === "function") handler({ name, message: name, status: "success" });
+      handler({ name, message: name, status: "success" });
     } catch (error) {}
+    return true;
   };
+  let ready = false;
+  const sendReady = () => setTimeout(() => {
+    if (!ready) ready = emit("SDK_READY");
+  }, 0);
+  let gdOptions = window.GD_OPTIONS;
+  try {
+    Object.defineProperty(window, "GD_OPTIONS", {
+      configurable: true,
+      enumerable: true,
+      get: () => gdOptions,
+      set: (value) => {
+        gdOptions = value;
+        sendReady();
+      },
+    });
+  } catch (error) {}
   const AdType = { Interstitial: "interstitial", Rewarded: "rewarded", Display: "display", Midroll: "midroll" };
   const showAd = (type) => new Promise((resolve) => {
     emit("SDK_GAME_PAUSE");
@@ -242,8 +310,9 @@ export const DISABLED_AD_SDK = `
     showBanner: () => {},
     sendEvent: () => Promise.resolve(),
     openConsole: () => {},
+    __lateReady: sendReady,
   };
-  setTimeout(() => emit("SDK_READY"), 0);
+  sendReady();
 })();
 `;
 
@@ -326,7 +395,8 @@ export function catalogJson() {
 export function rewriteRegisteredGame(gameId: string, kind: "html" | "js", source: string): string {
   if (kind === "js") return rewriteGameScript(gameId, source);
   const html = rewriteGameHtml(gameId, source);
-  const stub = `<script>${DISABLED_AD_SDK}</script>`;
+  const platform = GAMEPUSH_GD_BUNDLE.test(source) ? GAMEPUSH_PLATFORM_SCRIPT : "";
+  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>`;
   const head = html.match(/<head[^>]*>/i);
   if (head && head.index !== undefined) {
     const at = head.index + head[0].length;
