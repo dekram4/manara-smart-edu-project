@@ -139,3 +139,17 @@ test("الألعابُ الأساسية: صفحتُها كما هي وفي رأ�
   assert.ok(!out.includes("SDK_READY"));
   assert.ok(withGameAssetCache("<p>x</p>").startsWith(GAME_ASSET_CACHE_REGISTER_SCRIPT));
 });
+
+test("أزرارُ اللمس: لـ«Descent» وحدها، وسكربتُها سليم، وتُحقن في صفحتها", async () => {
+  const { touchControlsScript, TOUCH_CONTROLS } = await import("../../../dist/lib/gameEmbed.mjs");
+  const descent = "0df4c3adb032460791d0ca844d09313d";
+  const script = touchControlsScript(descent);
+  assert.ok(script.startsWith("<script>") && script.endsWith("</script>"));
+  new vm.Script(script.slice("<script>".length, -"</script>".length));
+  for (const k of TOUCH_CONTROLS.get(descent).keys) assert.ok(script.includes(`"code":"${k.code}"`), k.code);
+  assert.ok(script.includes("pointer:coarse"));
+  assert.equal(touchControlsScript("0123456789abcdef0123456789abcdef"), "");
+  const page = "<html><head></head><body></body></html>";
+  assert.ok(rewriteRegisteredGame(descent, "html", page).includes(script));
+  assert.ok(!rewriteRegisteredGame("0123456789abcdef0123456789abcdef", "html", page).includes("mtc-left"));
+});

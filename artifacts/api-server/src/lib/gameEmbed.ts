@@ -173,6 +173,94 @@ export const GAMEPUSH_PLATFORM_SCRIPT =
   "<script>window.__GS_BOOT_CONFIG__=Object.assign({platformType:\"GAME_DISTRIBUTION\"},window.__GS_BOOT_CONFIG__||{});</script>";
 
 /**
+ * زرٌّ على الشاشة يضغط مفتاحاً ما دام الإصبعُ عليه.
+ *
+ * `side`: يسارُ أسفل الشاشة (التوجيه) أو يمينُها (الأفعال) أو أعلاها (أفعالٌ نادرة).
+ */
+export type TouchKey = {
+  label: string;
+  code: string;
+  key: string;
+  side: "left" | "right" | "top";
+};
+
+/**
+ * ألعابٌ مضافة لا تُلعب إلا بلوحة المفاتيح: يُضاف لها على الهاتف واللوح أزرارٌ
+ * تضغط مفاتيحَها. لكل لعبةٍ أزرارُها من جدول تحكّمها هي.
+ *
+ * «Descent» (دراجةُ منحدرات — «مغامرات الروضة» عند المعلم): لا تستمع لللمس إلا
+ * لتشغيل الصوت، وتقرأ المفاتيحَ بـ`e.code` من `window` دون أن تسأل أهي حقيقية —
+ * فالزرُّ يرسل المفتاحَ نفسه ولا تتغيّر اللعبة.
+ */
+export type TouchControls = {
+  keys: readonly TouchKey[];
+  /** تظهر الأزرارُ ما دام هذا في الصفحة (واجهةُ اللعب) … */
+  activeWhen: string;
+  /** … وليس هذا (قوائمُ اللعبة: لا تغطّي الأزرارُ أزرارَها). */
+  hiddenWhen: string;
+};
+
+export const TOUCH_CONTROLS: ReadonlyMap<string, TouchControls> = new Map([
+  ["0df4c3adb032460791d0ca844d09313d", {
+    activeWhen: ".compact:not(.is-hidden):not(.is-dimmed)",
+    hiddenWhen: ".dm-view.dm-open",
+    keys: [
+      { label: "◀", code: "KeyA", key: "a", side: "left" },
+      { label: "▶", code: "KeyD", key: "d", side: "left" },
+      { label: "▲", code: "KeyW", key: "w", side: "left" },
+      { label: "▼", code: "KeyS", key: "s", side: "left" },
+      { label: "دوّس", code: "ShiftLeft", key: "Shift", side: "right" },
+      { label: "قفز", code: "Space", key: " ", side: "right" },
+      { label: "فرامل", code: "KeyK", key: "k", side: "right" },
+      { label: "↺", code: "KeyR", key: "r", side: "top" },
+      { label: "⏸", code: "Escape", key: "Escape", side: "top" },
+    ],
+  }],
+]);
+
+/**
+ * طبقةُ الأزرار للعبةٍ في TOUCH_CONTROLS — أو "" لغيرها. تظهر على الأجهزة
+ * اللمسية وحدها وأثناء اللعب وحده؛ وما بين الأزرار يمرّ لمسُه إلى اللعبة.
+ * وكلُّ إصبعٍ مستقلّ: التوجيهُ والدوّاسةُ معاً. وحين تُفتح قائمةٌ يُرفع كلُّ مفتاحٍ
+ * مضغوط، فلا تبقى الدرّاجةُ مندفعةً بعد الإيقاف.
+ */
+export function touchControlsScript(gameId: string): string {
+  const controls = TOUCH_CONTROLS.get(gameId);
+  if (!controls) return "";
+  return `<script>(function(){try{
+var KEYS=${JSON.stringify(controls.keys)},ON=${JSON.stringify(controls.activeWhen)},OFF=${JSON.stringify(controls.hiddenWhen)};
+if(!(window.matchMedia&&matchMedia("(pointer:coarse)").matches)&&!(navigator.maxTouchPoints>0))return;
+function send(type,k){window.dispatchEvent(new KeyboardEvent(type,{key:k.key,code:k.code,bubbles:true,cancelable:true}));}
+function build(){
+var css=document.createElement("style");
+css.textContent=".mtc{position:fixed;z-index:2147483647;display:flex;gap:10px;pointer-events:none;-webkit-user-select:none;user-select:none}"+
+".mtc-left{left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(2,58px)}"+
+".mtc-right{right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));flex-direction:column;align-items:flex-end}"+
+".mtc-top{right:calc(12px + env(safe-area-inset-right,0px));top:calc(12px + env(safe-area-inset-top,0px))}"+
+".mtc button{pointer-events:auto;touch-action:none;min-width:58px;height:58px;padding:0 14px;border-radius:29px;border:2px solid rgba(255,255,255,.75);background:rgba(0,0,0,.38);color:#fff;font:700 20px system-ui,sans-serif;-webkit-tap-highlight-color:transparent}"+
+".mtc-top button{min-width:44px;height:44px;border-radius:22px;font-size:18px}"+
+".mtc button.on{background:rgba(255,255,255,.45)}.mtc[hidden]{display:none!important}";
+document.head.appendChild(css);
+var boxes={},releases=[];["left","right","top"].forEach(function(s){var d=document.createElement("div");d.className="mtc mtc-"+s;d.hidden=true;boxes[s]=d;document.body.appendChild(d);});
+var place={KeyA:"2/1",KeyD:"2/3",KeyW:"1/2",KeyS:"2/2"};
+KEYS.forEach(function(k){var b=document.createElement("button");b.type="button";b.textContent=k.label;b.setAttribute("aria-label",k.code);
+if(k.side==="left"&&place[k.code]){var p=place[k.code].split("/");b.style.gridRow=p[0];b.style.gridColumn=p[1];}
+var held=0;
+function down(e){e.preventDefault();e.stopPropagation();try{b.setPointerCapture(e.pointerId);}catch(x){}if(held++===0){b.classList.add("on");send("keydown",k);}}
+function up(e){e.preventDefault();e.stopPropagation();if(held>0&&--held===0){b.classList.remove("on");send("keyup",k);}}
+b.addEventListener("pointerdown",down);b.addEventListener("pointerup",up);b.addEventListener("pointercancel",up);b.addEventListener("lostpointercapture",function(e){if(held>0){held=1;up(e);}});
+b.addEventListener("contextmenu",function(e){e.preventDefault();});
+releases.push(function(){if(held>0){held=0;b.classList.remove("on");send("keyup",k);}});
+boxes[k.side].appendChild(b);});
+function sync(){var show=!!document.querySelector(ON)&&!document.querySelector(OFF);
+for(var s in boxes)boxes[s].hidden=!show;if(!show)releases.forEach(function(r){r();});}
+sync();setInterval(sync,250);
+}
+if(document.body)build();else document.addEventListener("DOMContentLoaded",build);
+}catch(e){}})();</script>`;
+}
+
+/**
  * الألعابُ التي كانت تعمل قبل إضافة الأربع: تُقدَّم كما كانت حرفياً — صفحتُها بلا
  * تعديل، وبديلُ الإعلانات الأصلي، واستبدالُ رابط المكتبة بصيغة https وحدها.
  * والمعالجةُ الجديدة للألعاب الأربع وحدها.
@@ -396,7 +484,7 @@ export function rewriteRegisteredGame(gameId: string, kind: "html" | "js", sourc
   if (kind === "js") return rewriteGameScript(gameId, source);
   const html = rewriteGameHtml(gameId, source);
   const platform = GAMEPUSH_GD_BUNDLE.test(source) ? GAMEPUSH_PLATFORM_SCRIPT : "";
-  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>${GAME_ASSET_CACHE_REGISTER_SCRIPT}`;
+  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>${GAME_ASSET_CACHE_REGISTER_SCRIPT}${touchControlsScript(gameId)}`;
   const head = html.match(/<head[^>]*>/i);
   if (head && head.index !== undefined) {
     const at = head.index + head[0].length;
