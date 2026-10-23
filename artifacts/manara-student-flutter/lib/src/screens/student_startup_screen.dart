@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
@@ -16,8 +17,14 @@ import '../widgets/student_experience.dart';
 import 'login_screen.dart';
 import 'student_home_screen.dart';
 
-/// The app's opening screen: the hero flies in, rolls once and settles into a
-/// hover while the recorded welcome plays over it.
+/// The app's opening screen: the welcome film, with the Manara logo on its
+/// corner.
+///
+/// ── والافتتاحيةُ المرسومة احتياطٌ لا بديل ──
+/// الفيلمُ يُفكّ قبل أن يُعرض، والفكُّ قد يفشل: جهازٌ بلا مفكّك، أو ملفٌّ لم
+/// يدخل الحزمة، أو منصّةٌ بلا إضافة (الاختبارات منها). فإن فشل أو أبطأ عن
+/// [_videoGrace] عُرضت الافتتاحيةُ السابقة بصوتها كما كانت — البطلُ يطير
+/// ويدور ويحوم والترحيبُ المسجَّل فوقه — فلا يفتح الطفلُ على شاشةٍ فارغة.
 ///
 /// It still owns the session restore it always did — the animation runs while
 /// `restoreActiveStudentSession` is in flight, so the greeting costs no extra
@@ -34,6 +41,14 @@ class StudentStartupScreen extends StatefulWidget {
   final StudentAuthService? authService;
   final String? initializationError;
   final String apiBaseUrl;
+
+  /// فيلمُ الترحيب، وصوتُه فيه — فلا يُشغَّل فوقه الترحيبُ المسجَّل ولا
+  /// الموسيقى.
+  static const welcomeVideoAsset = 'assets/video/welcome.mp4';
+
+  /// الشعارُ الكامل — المنارةُ والاسمُ و«تعلّم بذكاء» — على أرضٍ بيضاء،
+  /// فيُعرض شارةً بيضاء على زاوية الفيلم.
+  static const welcomeLogoAsset = 'assets/images/manara_logo_full.png';
 
   @override
   State<StudentStartupScreen> createState() => _StudentStartupScreenState();
@@ -126,35 +141,101 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// begins. A tap skips straight past it.
   bool _spinningOut = false;
 
+  /// فيلمُ الترحيب، ما دام يُحاوَل أو يُعرض.
+  VideoPlayerController? _video;
+
+  /// الفيلمُ فُكّ ويُعرض: الشاشةُ له، والافتتاحيةُ لا تبدأ.
+  bool _videoShown = false;
+
+  /// كم يُنتظر فكُّ الفيلم قبل العدول إلى الافتتاحية. ملفٌّ في الحزمة يُفكّ
+  /// في جزءٍ من الثانية؛ وما أبطأ من هذا فجهازٌ يتعثّر، والطفلُ لا ينتظر
+  /// أمام أرضيةٍ فارغة.
+  static const _videoGrace = Duration(seconds: 3);
+  Timer? _videoGiveUp;
+
+  /// سقفُ البقاء مع الفيلم فوق طوله: إن لم يُبلَّغ انتهاؤه — مشغّلٌ لا يُرسل
+  /// حدثَ الانتهاء — غادرت الشاشةُ عند هذا ولم يبقَ الطفلُ أمام آخر لقطة.
+  static const _videoOverrun = Duration(seconds: 2);
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _clock.start();
     _resolveDestination();
+    unawaited(_startWelcomeVideo());
+  }
+
+  /// يفكّ فيلمَ الترحيب ويشغّله، أو يعدل إلى الافتتاحية إن تعذّر.
+  Future<void> _startWelcomeVideo() async {
+    final video = VideoPlayerController.asset(StudentStartupScreen.welcomeVideoAsset);
+    _video = video;
+    _videoGiveUp = Timer(_videoGrace, _startIntro);
+    try {
+      await video.initialize();
+      // أبطأ من المهلة فبدأت الافتتاحية، أو غادر الطفلُ بنقرة: يبقى المشغّلُ
+      // لـ`dispose` يتخلّص منه.
+      if (!mounted || _leaving || _introStarted) return;
+      final length = video.value.duration;
+      if (length <= Duration.zero) throw StateError('welcome video is empty');
+      _videoGiveUp?.cancel();
+      // الكتمُ يجري على الفيلم كما يجري على كل صوتٍ في التطبيق.
+      await video.setVolume(StudentSoundService.instance.muted.value ? 0 : 1);
+      if (!mounted || _leaving) return;
+      video.addListener(_onVideoChanged);
+      setState(() => _videoShown = true);
+      await video.play();
+      _dwellTimer = Timer(length + _videoOverrun, _leave);
+    } catch (_) {
+      if (!_videoShown) {
+        _startIntro();
+      } else {
+        unawaited(_leave());
+      }
+    }
+  }
+
+  /// انتهى الفيلم أو تعطّل في منتصفه: إلى ما بعده.
+  void _onVideoChanged() {
+    final value = _video?.value;
+    if (value == null || _leaving) return;
+    if (value.isCompleted || value.hasError) unawaited(_leave());
+  }
+
+  /// الافتتاحيةُ المرسومة بترحيبها وموسيقاها — حين لا فيلم. مرةً واحدة.
+  void _startIntro() {
+    if (_introStarted || _videoShown || _leaving || !mounted) return;
+    _introStarted = true;
+    _videoGiveUp?.cancel();
+    _clock
+      ..reset()
+      ..start();
     _voiceTimer = Timer(_entrance, _playWelcomeVoice);
     _spinTimer = Timer(_spinAt, () {
       if (mounted) setState(() => _spinningOut = true);
     });
     _dwellTimer = Timer(_dwell, _leave);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_introStarted) return;
-    _introStarted = true;
     // حركةٌ أقلّ: الافتتاحيةُ تُتخطّى إلى نهايتها، وتبقى الشاشةُ كما كانت.
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _intro.value = 1;
     } else {
       _intro.forward();
     }
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _intro.dispose();
+    _videoGiveUp?.cancel();
+    final video = _video;
+    _video = null;
+    if (video != null) {
+      video.removeListener(_onVideoChanged);
+      // لا يُنتظر: مشغّلٌ فشل إنشاؤه لا يُجيب على التخلّص أبداً.
+      unawaited(video.dispose().catchError((Object _) {}));
+    }
+    // ساعةُ الافتتاحية تُنشأ عند أوّل لمسٍ لها؛ ومع الفيلم لا تُنشأ أصلاً، ولمسُها
+    // هنا كان سيُنشئها في `dispose` نفسه.
+    if (_introStarted) _intro.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _clock.stop();
     _voiceTimer?.cancel();
@@ -183,6 +264,11 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
       case StudentQuietAction.cancel:
         _quietTimer?.cancel();
         _quietTimer = null;
+        // عاد الطفلُ إلى التطبيق: يُكمل الفيلمُ من حيث وقف.
+        final video = _video;
+        if (_videoShown && !_leaving && video != null && !video.value.isPlaying) {
+          unawaited(video.play().catchError((Object _) {}));
+        }
         return;
       case StudentQuietAction.afterGrace:
         _quietTimer?.cancel();
@@ -211,6 +297,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     _quietTimer = null;
     _voiceTimer?.cancel();
     unawaited(_music?.stop().catchError((_) {}) ?? Future<void>.value());
+    if (_videoShown) unawaited(_video?.pause().catchError((Object _) {}));
   }
 
   /// يُشغّل ترحيبَ فتح التطبيق، والموسيقى تحته.
@@ -343,6 +430,8 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     // والموسيقى لهذا المشهد وحده: صوتُ الشخصية وهي تطير، ولا معنى له بعده.
     final stopping = _music?.stop();
     if (stopping != null) unawaited(stopping.catchError((_) {}));
+    // والفيلمُ يسكت بالمغادرة: صوتُه فيه، ولا يمضي إلى شاشة الدخول.
+    if (_videoShown) unawaited(_video?.pause().catchError((Object _) {}));
     final destination = await _destination.future;
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
@@ -374,6 +463,10 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
                 ),
               ),
             ),
+            // وقبل أن يُفكّ الفيلم — جزءٌ من الثانية — الأرضيةُ وحدها.
+            if (_videoShown && _video != null)
+              SafeArea(child: _WelcomeFilm(video: _video!))
+            else if (_introStarted) ...[
             // الافتتاحية خلف العناصر: أيقوناتُ البطاقات وضربةُ الفرشاة.
             SafeArea(child: SplashIconStorm(animation: _intro)),
             SafeArea(
@@ -446,7 +539,116 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
             ),
             // والقصاصاتُ فوقها، حول البطل حين يهبط.
             SafeArea(child: SplashConfettiBurst(animation: _intro)),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// فيلمُ الترحيب كاملاً في وسط الشاشة، وشارةُ الشعار على زاويته.
+///
+/// ── لماذا «يحتوي» لا «يملأ» ──
+/// الفيلمُ طوليّ (٩:١٦) والتطبيقُ يدور بالجهاز. والملءُ في الوضع العرضي يقصّ
+/// ثلثي الصورة — ومنها اسمُ المنصّة على السبّورة. فيُعرض كاملاً، والأرضيةُ
+/// الدافئة حوله من ألوانه.
+///
+/// والشارةُ على زاوية الفيلم نفسه لا الشاشة: تبقى فوق الصورة في كل اتجاه،
+/// وعلى يمينها الأعلى — وهو سقفُ الفصل والنافذة، بعيداً عن السبّورة والطفل.
+class _WelcomeFilm extends StatelessWidget {
+  const _WelcomeFilm({required this.video});
+
+  final VideoPlayerController video;
+
+  @override
+  Widget build(BuildContext context) {
+    final aspect = video.value.aspectRatio;
+    return Center(
+      child: AspectRatio(
+        aspectRatio: aspect > 0 ? aspect : 9 / 16,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final badge = (width * 0.24).clamp(52.0, 150.0).toDouble();
+            final inset = (width * 0.035).clamp(8.0, 24.0).toDouble();
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                VideoPlayer(video),
+                Positioned(
+                  top: inset,
+                  right: inset,
+                  child: _LogoBadge(size: badge)
+                      .animate(delay: 250.ms)
+                      .fadeIn(duration: 450.ms)
+                      .scale(
+                        begin: const Offset(0.7, 0.7),
+                        end: const Offset(1, 1),
+                        duration: 650.ms,
+                        curve: Curves.easeOutBack,
+                      ),
+                ),
+                Positioned(
+                  left: inset,
+                  right: inset,
+                  bottom: inset,
+                  child: Text(
+                    tr('app.skipHint'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: (width * 0.034).clamp(11.0, 18.0).toDouble(),
+                      fontWeight: FontWeight.w700,
+                      shadows: const [
+                        Shadow(color: Color(0xAA000000), blurRadius: 6),
+                      ],
+                    ),
+                  ).animate(delay: 1400.ms).fadeIn(duration: 600.ms),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// الشعارُ الكامل في بطاقةٍ بيضاء: أرضُ الصورة بيضاء أصلاً، فالبطاقةُ تجعل
+/// حدَّها حافّةً مقصودةً لا مربّعاً أبيض ملصقاً على الفيلم.
+class _LogoBadge extends StatelessWidget {
+  const _LogoBadge({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: tr('app.name'),
+      image: true,
+      child: Container(
+        width: size,
+        height: size,
+        padding: EdgeInsets.all(size * 0.04),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(size * 0.18),
+          boxShadow: const [
+            BoxShadow(color: Color(0x40000000), blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(size * 0.14),
+          child: Image.asset(
+            StudentStartupScreen.welcomeLogoAsset,
+            fit: BoxFit.contain,
+            // يُفكّ بقدر ما يُعرض، وسقفُه عرضُ الملف (٥١٢): لا تكبيرَ في الذاكرة.
+            cacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
+                .ceil()
+                .clamp(1, 512),
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
         ),
       ),
     );

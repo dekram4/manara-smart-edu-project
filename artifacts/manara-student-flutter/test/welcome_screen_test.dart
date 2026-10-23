@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 import 'package:manara_student/src/screens/student_startup_screen.dart';
+
+import 'support/fake_video_platform.dart';
 
 /// The welcome splash has to survive every shipping aspect ratio in both
 /// orientations without overflowing, and it has to leave for the login
@@ -24,6 +27,9 @@ Widget _app() => const MaterialApp(
     );
 
 void main() {
+  // الافتتاحيةُ المرسومة: ما يُعرض حين لا يُفكّ فيلمُ الترحيب.
+  setUp(() => VideoPlayerPlatform.instance = FakeVideoPlatform(fail: true));
+
   for (final entry in _sizes.entries) {
     testWidgets('welcome splash lays out without overflow on ${entry.key}',
         (tester) async {
@@ -32,6 +38,8 @@ void main() {
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(_app());
+      // إطارٌ يعرف فيه أنّ الفيلمَ لا يُفكّ، فتبدأ الافتتاحية.
+      await tester.pump();
       // Through the pop-in and into the looping bounce.
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 1200));
@@ -58,6 +66,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(_app());
+    // إطارٌ يعرف فيه أنّ الفيلمَ لا يُفكّ، فتبدأ الافتتاحية.
+    await tester.pump();
     // Past every staged delay (the last is the skip hint at 1400ms) so no
     // animation timer is left armed when the screen is replaced.
     await tester.pump(const Duration(milliseconds: 600));
@@ -83,6 +93,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(_app());
+    // إطارٌ يعرف فيه أنّ الفيلمَ لا يُفكّ، فتبدأ الافتتاحية.
+    await tester.pump();
 
     // Through the hover half and well into the spin, with a beat to spare
     // before the seven-second mark: the splash is still the screen.

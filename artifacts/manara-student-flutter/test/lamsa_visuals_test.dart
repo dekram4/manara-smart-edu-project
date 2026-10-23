@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 import 'package:manara_student/src/screens/student_startup_screen.dart';
 import 'package:manara_student/src/widgets/living_tile_art.dart';
 import 'package:manara_student/src/widgets/splash_intro.dart';
 
+import 'support/fake_video_platform.dart';
+
 /// الافتتاحية والرسومُ الحيّة: تعمل في الوضعين بلا فيضان، وتلتزم خطّ الزمن.
 void main() {
+  // الافتتاحيةُ المرسومة: ما يُعرض حين لا يُفكّ فيلمُ الترحيب.
+  setUp(() => VideoPlayerPlatform.instance = FakeVideoPlatform(fail: true));
+
   const shapes = {
     'هاتف رأسي': Size(390, 844),
     'هاتف أفقي': Size(844, 390),
@@ -37,6 +43,8 @@ void main() {
           apiBaseUrl: '',
         ),
       ));
+      // إطارٌ يعرف فيه أنّ الفيلمَ لا يُفكّ، فتبدأ الافتتاحية.
+      await tester.pump();
 
       // 1.0s: الأيقوناتُ تهبط.
       await tester.pump(const Duration(milliseconds: 1000));
