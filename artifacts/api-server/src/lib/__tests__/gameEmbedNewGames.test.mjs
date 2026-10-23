@@ -178,3 +178,25 @@ test("تلميحُ السحب: لـ Mine&Build وSWAT وحدهما، وسكرب�
   }
   assert.equal(touchHintScript("0df4c3adb032460791d0ca844d09313d"), "");
 });
+
+test("«Hose Down!» (Pixi) لها eval بمعرّفها، وغيرُها كما كان", async () => {
+  const { registeredGamePageCsp, GAME_PAGE_CSP, GAME_PAGE_CSP_WITH_EVAL } = await import("../../../dist/lib/gameEmbed.mjs");
+  const page = '<script type="module" src="./assets/index.js"></script>';
+  assert.equal(registeredGamePageCsp(page, "83b71c0760bd48f8861105a5a0bdfda4"), GAME_PAGE_CSP_WITH_EVAL);
+  assert.equal(registeredGamePageCsp(page, "4b88f962af114b0a88322938a647a603"), GAME_PAGE_CSP);
+  assert.equal(registeredGamePageCsp(page), GAME_PAGE_CSP);
+});
+
+test("تخفيفُ الهاتف: لألعاب داود الثقيلة وحدها، وسكربتُه سليم، ولا يمسّ الأساسية", async () => {
+  const { mobileTuningScript, MOBILE_TUNING } = await import("../../../dist/lib/gameEmbed.mjs");
+  for (const id of MOBILE_TUNING.keys()) {
+    const s = mobileTuningScript(id);
+    new vm.Script(s.slice("<script>".length, -"</script>".length));
+    assert.ok(s.includes("pointer:coarse"));
+    assert.ok(rewriteRegisteredGame(id, "html", "<html><head></head><body></body></html>").includes(s));
+  }
+  for (const builtin of ["d4a3629101574bc39bd8f9d1888ca58e", "71b64121c58b4a95b7459e08086dcb00", "4b88f962af114b0a88322938a647a603"]) {
+    assert.equal(mobileTuningScript(builtin), "", builtin);
+  }
+  assert.ok(mobileTuningScript("0df4c3adb032460791d0ca844d09313d").includes("descent.settings.v1"));
+});
