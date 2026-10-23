@@ -9,6 +9,7 @@ import { getTeacherPermissions, getEffectiveParentPermissions, getPermissionPack
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
+import { useRevealForm } from '../../hooks/useRevealForm';
 
 interface ParentStudentManagementProps {
   teacherId: string;
@@ -30,6 +31,9 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
   const [showParentForm, setShowParentForm] = useState(false);
   const [showStudentForm, setShowStudentForm] = useState(false);
+  // ‏«تعديل» يُظهر النموذجَ ويضع المؤشّرَ فيه، ولو ضُغط من آخر القائمة — انظر hooks/useRevealForm.
+  const studentFormView = useRevealForm();
+  const parentFormView = useRevealForm();
   const [editingParent, setEditingParent] = useState<ParentInfo | null>(null);
   const [editingStudent, setEditingStudent] = useState<StudentInfo | null>(null);
   const [permissionsParent, setPermissionsParent] = useState<ParentInfo | null>(null);
@@ -604,7 +608,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         )}
 
          {showParentForm && (
-           <div className="dashboard-surface dashboard-account-form bg-slate-50">
+           <div ref={parentFormView.formRef} className="dashboard-surface dashboard-account-form bg-slate-50">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-4xl">👤</div>
@@ -739,7 +743,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                              <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); studentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -797,7 +801,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                     </div>
                     <div className="flex gap-2">
                       {permissions.canEditParents && (
-                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">✏️ تعديل</button>
+                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); parentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">✏️ تعديل</button>
                       )}
                       {permissions.canManageParentPermissions && (
                         <button
@@ -850,7 +854,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <div className="flex gap-2">
                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
                             {permissions.canEditStudents && (
-                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
+                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); studentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
                             )}
                             {permissions.canDeleteStudents && (
                               <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
@@ -876,7 +880,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
       {/* نموذج إضافة/تعديل طالب */}
       {showStudentForm && (
-          <div className="dashboard-surface dashboard-account-form">
+          <div ref={studentFormView.formRef} className="dashboard-surface dashboard-account-form">
            <div className="dashboard-account-form-inner bg-slate-50 p-8 rounded-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">

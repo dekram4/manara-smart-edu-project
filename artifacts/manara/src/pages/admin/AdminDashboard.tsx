@@ -32,6 +32,18 @@ import {
   SESSION_KEYS,
 } from '../../utils/sessionPersistence';
 import { writeAuthSession } from '../../utils/authSession';
+import { useDashboardPage } from '../../hooks/useDashboardPage';
+
+/** صفحاتُ القائمة كلُّها — وما ليس منها في العنوان يُردّ إلى الرئيسية. */
+const ADMIN_PAGES = [
+  ...Object.values(AdminMenuType),
+  'VIDEO_MANAGEMENT',
+  'ENTERTAINMENT',
+  'PERMISSION_PACKAGES',
+  'VIDEO_NOTIFICATIONS',
+  'DUEL_QUESTIONS',
+  'CARD_PERMISSIONS',
+] as AdminMenuType[];
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -40,7 +52,8 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  const [activeMenu, setActiveMenu] = useState<AdminMenuType>(AdminMenuType.DASHBOARD);
+  // ‏الصفحةُ في العنوان: التحديثُ يُبقي المشرفَ حيث كان — انظر utils/dashboardRoute.
+  const [activeMenu, setActiveMenu] = useDashboardPage('admin', ADMIN_PAGES, AdminMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [stats, setStats] = useState<SystemStats>({

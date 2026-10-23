@@ -10,6 +10,7 @@ import { getParentChildren, getRecordTeacherId, normalizeScopeValue } from '../.
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getPermissionPackages } from '../../permissions';
+import { useRevealForm } from '../../hooks/useRevealForm';
 
 interface StudentManagementProps {
   onUpdate: () => void;
@@ -30,6 +31,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [showParentForm, setShowParentForm] = useState(false);
+  // ‏«تعديل» يُظهر النموذجَ أعلى الصفحة ويضع المؤشّرَ فيه — انظر hooks/useRevealForm.
+  const studentFormView = useRevealForm();
+  const parentFormView = useRevealForm();
   const [editingStudent, setEditingStudent] = useState<StudentInfo | null>(null);
   const [editingParent, setEditingParent] = useState<ParentInfo | null>(null);
   
@@ -421,6 +425,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     setEditingParent(p);
     setShowParentForm(true);
     setActiveTab('parents');
+    parentFormView.reveal();
   };
 
   const handleEditStudent = (s: StudentInfo) => {
@@ -445,6 +450,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     setEditingStudent(s);
     setShowStudentForm(true);
     setActiveTab('students');
+    studentFormView.reveal();
   };
 
   const filteredStudents = students.filter(s => {
@@ -524,7 +530,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       </div>
 
       {showStudentForm && (
-         <div className="dashboard-surface dashboard-account-form" style={styles.formCard}>
+         <div ref={studentFormView.formRef} className="dashboard-surface dashboard-account-form" style={styles.formCard}>
           <h3 style={styles.formTitle}>{editingStudent ? '✏️ تعديل الطالب' : '➕ إضافة طالب جديد'}</h3>
           <form onSubmit={handleAddStudent} style={styles.form}>
             <div style={styles.formGrid}>
@@ -637,7 +643,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       )}
 
       {showParentForm && (
-         <div className="dashboard-surface dashboard-account-form" style={styles.formCard}>
+         <div ref={parentFormView.formRef} className="dashboard-surface dashboard-account-form" style={styles.formCard}>
            <h3 style={styles.formTitle}>{editingParent ? '✏️ تعديل ولي أمر' : '➕ إضافة ولي أمر جديد'}</h3>
            <form onSubmit={handleAddParent} style={styles.form}>
              <div style={styles.formGrid}>
