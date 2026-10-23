@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/student_theme.dart';
-
 class ManaraLogo extends StatelessWidget {
   const ManaraLogo({
     this.size = 96,
@@ -39,19 +37,14 @@ class ManaraLogo extends StatelessWidget {
               ],
             ),
           ),
-          // A flat silhouette in the Manara blue, matching the same mark on
-          // the splash, the path watermark and the login board. The colour
-          // is sampled from this very artwork's own gradient, so the
-          // silhouette reads as the logo rather than as a recolouring of
-          // it. srcIn replaces the colours and keeps the shape, so the
-          // ring, the open book and the arrow all still read.
+          // شعارُ المنصّة المعتمد بألوانه: المنارةُ على الكتاب في قوسها.
+          // كانت هنا العلامةُ القديمة صورةً ظلّيةً بالأزرق؛ والجديدةُ بيضاءُ
+          // من داخل قوسها، فالظلُّ الواحد كان يمحو المنارة كلَّها.
           Image.asset(
-            'assets/images/manara-logo-mark-transparent.png',
+            'assets/images/manara-logo-emblem.png',
             width: size,
             height: size,
             fit: BoxFit.contain,
-            color: StudentPalette.brandBlue,
-            colorBlendMode: BlendMode.srcIn,
             errorBuilder: (_, __, ___) => Container(
               width: size,
               height: size,

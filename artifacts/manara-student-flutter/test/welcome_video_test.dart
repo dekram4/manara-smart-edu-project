@@ -12,6 +12,8 @@ const _sizes = <String, Size>{
   'portrait phone 393x851': Size(393, 851),
   'landscape phone 851x393': Size(851, 393),
   'landscape tablet 1280x800': Size(1280, 800),
+  'iPad portrait 4:3 768x1024': Size(768, 1024),
+  'iPad landscape 4:3 1024x768': Size(1024, 768),
 };
 
 Widget _app() => const MaterialApp(
@@ -64,16 +66,23 @@ void main() {
       // الافتتاحيةُ المرسومة لا تبدأ مع الفيلم — وصوتُه فيه.
       expect(find.text('منارة المعرفة التعليمية'), findsNothing);
 
-      // الفيلمُ كاملٌ داخل الشاشة بنسبته، والشارةُ داخل الفيلم.
+      // الفيلمُ يملأ الشاشةَ كلَّها بنسبته — لا هوامش — ووسطُه وسطُها.
       final film = tester.getRect(find.byType(VideoPlayer));
       expect(film.width / film.height, closeTo(1080 / 1920, 0.01));
       final screen = Offset.zero & entry.value;
-      expect(screen.intersect(film), film);
+      expect(film.intersect(screen), screen);
+      expect(
+        (film.width - screen.width).abs() < 0.5 ||
+            (film.height - screen.height).abs() < 0.5,
+        isTrue,
+        reason: 'يُكبَّر بقدر ما يغطّي، لا أكثر',
+      );
+      expect((film.center - screen.center).distance, lessThan(0.5));
+      // والشارةُ داخل الشاشة، على يمينها الأعلى.
       final badge = tester.getRect(_logo);
-      expect(film.intersect(badge), badge);
-      // على يمين الفيلم الأعلى.
-      expect(badge.center.dx, greaterThan(film.center.dx));
-      expect(badge.center.dy, lessThan(film.center.dy));
+      expect(screen.intersect(badge), badge);
+      expect(badge.center.dx, greaterThan(screen.center.dx));
+      expect(badge.center.dy, lessThan(screen.center.dy));
 
       await tester.tap(find.byType(StudentStartupScreen));
       await tester.pump();

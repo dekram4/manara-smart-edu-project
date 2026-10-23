@@ -465,7 +465,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
             ),
             // وقبل أن يُفكّ الفيلم — جزءٌ من الثانية — الأرضيةُ وحدها.
             if (_videoShown && _video != null)
-              SafeArea(child: _WelcomeFilm(video: _video!))
+              _WelcomeFilm(video: _video!)
             else if (_introStarted) ...[
             // الافتتاحية خلف العناصر: أيقوناتُ البطاقات وضربةُ الفرشاة.
             SafeArea(child: SplashIconStorm(animation: _intro)),
@@ -547,15 +547,16 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   }
 }
 
-/// فيلمُ الترحيب كاملاً في وسط الشاشة، وشارةُ الشعار على زاويته.
+/// فيلمُ الترحيب يملأ الشاشة كلَّها، وشارةُ الشعار على زاويتها.
 ///
-/// ── لماذا «يحتوي» لا «يملأ» ──
-/// الفيلمُ طوليّ (٩:١٦) والتطبيقُ يدور بالجهاز. والملءُ في الوضع العرضي يقصّ
-/// ثلثي الصورة — ومنها اسمُ المنصّة على السبّورة. فيُعرض كاملاً، والأرضيةُ
-/// الدافئة حوله من ألوانه.
+/// ── «يملأ» لا «يحتوي» ──
+/// الفيلمُ طوليّ (٩:١٦) والشاشاتُ كلُّ نسبة: يُكبَّر حتى يغطّي الشاشةَ بلا
+/// هوامش، ويُقصّ ما زاد من جانبيه أو من أعلاه وأسفله، والوسطُ ثابت — وفيه
+/// الطفلُ في كل اتجاه. والفيلمُ تحت حوافّ النظام أيضاً (الشريطُ العلويّ
+/// والنتوء)، وما فوقه — الشارةُ والتلميح — داخلَ المنطقة الآمنة.
 ///
-/// والشارةُ على زاوية الفيلم نفسه لا الشاشة: تبقى فوق الصورة في كل اتجاه،
-/// وعلى يمينها الأعلى — وهو سقفُ الفصل والنافذة، بعيداً عن السبّورة والطفل.
+/// والشارةُ على يمين الشاشة الأعلى: في الوضع الطوليّ هو سقفُ الفصل
+/// والنافذة، بعيداً عن السبّورة والطفل.
 class _WelcomeFilm extends StatelessWidget {
   const _WelcomeFilm({required this.video});
 
@@ -563,54 +564,67 @@ class _WelcomeFilm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final aspect = video.value.aspectRatio;
-    return Center(
-      child: AspectRatio(
-        aspectRatio: aspect > 0 ? aspect : 9 / 16,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final badge = (width * 0.24).clamp(52.0, 150.0).toDouble();
-            final inset = (width * 0.035).clamp(8.0, 24.0).toDouble();
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                VideoPlayer(video),
-                Positioned(
-                  top: inset,
-                  right: inset,
-                  child: _LogoBadge(size: badge)
-                      .animate(delay: 250.ms)
-                      .fadeIn(duration: 450.ms)
-                      .scale(
-                        begin: const Offset(0.7, 0.7),
-                        end: const Offset(1, 1),
-                        duration: 650.ms,
-                        curve: Curves.easeOutBack,
-                      ),
-                ),
-                Positioned(
-                  left: inset,
-                  right: inset,
-                  bottom: inset,
-                  child: Text(
-                    tr('app.skipHint'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: (width * 0.034).clamp(11.0, 18.0).toDouble(),
-                      fontWeight: FontWeight.w700,
-                      shadows: const [
-                        Shadow(color: Color(0xAA000000), blurRadius: 6),
-                      ],
-                    ),
-                  ).animate(delay: 1400.ms).fadeIn(duration: 600.ms),
-                ),
-              ],
-            );
-          },
+    final frame = video.value.size;
+    final width = frame.width > 0 ? frame.width : 1080.0;
+    final height = frame.height > 0 ? frame.height : 1920.0;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ClipRect(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: VideoPlayer(video),
+            ),
+          ),
         ),
-      ),
+        SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final shortest = constraints.biggest.shortestSide;
+              final badge = (shortest * 0.22).clamp(56.0, 150.0).toDouble();
+              final inset = (shortest * 0.04).clamp(10.0, 28.0).toDouble();
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned(
+                    top: inset,
+                    right: inset,
+                    child: _LogoBadge(size: badge)
+                        .animate(delay: 250.ms)
+                        .fadeIn(duration: 450.ms)
+                        .scale(
+                          begin: const Offset(0.7, 0.7),
+                          end: const Offset(1, 1),
+                          duration: 650.ms,
+                          curve: Curves.easeOutBack,
+                        ),
+                  ),
+                  Positioned(
+                    left: inset,
+                    right: inset,
+                    bottom: inset,
+                    child: Text(
+                      tr('app.skipHint'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: (shortest * 0.034).clamp(11.0, 18.0).toDouble(),
+                        fontWeight: FontWeight.w700,
+                        shadows: const [
+                          Shadow(color: Color(0xAA000000), blurRadius: 6),
+                        ],
+                      ),
+                    ).animate(delay: 1400.ms).fadeIn(duration: 600.ms),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -666,20 +680,13 @@ class _WelcomeBrand extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Drawn as a flat black silhouette, matching the name beneath it
-        // and the lockup on the login board. srcIn keeps the mark's own
-        // shape — the ring, the open book, the arrow — and replaces only
-        // its colours, so what is lost is the teal gradient, not the
-        // drawing.
-        ColorFiltered(
-          colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
-          child: Image.asset(
-            'assets/images/manara-logo-mark-transparent.png',
+        // شعارُ المنصّة المعتمد بألوانه، كما على لوحة الدخول وشريط اللوحة.
+        Image.asset(
+            'assets/images/manara-logo-emblem.png',
             height: logoSize,
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-          ),
-        )
+          )
             // الحركةُ الأصلية، تبدأ حين تستقرّ ضربةُ الفرشاة في مكان الشعار.
             .animate(delay: SplashIntroTimeline.logoAt)
             .fadeIn(duration: 400.ms)
