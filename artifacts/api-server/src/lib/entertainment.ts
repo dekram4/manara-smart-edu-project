@@ -309,7 +309,10 @@ export function buildGame(
       id: existing?.id ?? options.newId(),
       title,
       description,
-      embedUrl,
+      // ‏رابطُ لعبة GameDistribution يُحفظ بصيغة الألعاب الأساسية نفسها
+      // ‏(`/api/game-embed/<id>/index.html`) أيّاً كان شكلُ ما لُصق: رابطُها العامّ،
+      // ‏أو رابطُ الوكيل كاملاً بنطاق الموقع. وما سواه يُحفظ كما هو.
+      embedUrl: builtin ? embedUrl : playableGameUrl(embedUrl),
       teacherId: teacher?.id ?? ALL_STUDENTS,
       teacherName: teacher?.name ?? "",
       isActive: activeFlag(input.isActive, existing?.isActive ?? true),
