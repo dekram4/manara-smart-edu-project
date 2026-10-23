@@ -234,6 +234,44 @@ export const TOUCH_DRAG_HINT_GAMES = new Set<string>([
   "6b40e38875b743a4957e2bb712864c33",
 ]);
 
+/**
+ * ألعابٌ ثقيلة على الهاتف: تُخفَّف على الأجهزة اللمسية وحدها، واللعبةُ كما هي.
+ *
+ * - `maxPixelRatio`: محرّكُ Unity يرسم بكثافة شاشة الهاتف كاملةً (٢–٣ أضعاف)،
+ *   أي ٤–٩ أضعاف البكسلات. ويأخذها من `window.devicePixelRatio`، فتُحدّ هنا.
+ * - `defaults`: إعداداتٌ تحفظها اللعبةُ في الجهاز؛ تُكتب أخفَّها أوّلَ مرّة فقط،
+ *   وما يختاره الطالبُ بعدها من إعدادات اللعبة يبقى.
+ */
+export type MobileTuning = {
+  maxPixelRatio?: number;
+  defaults?: ReadonlyArray<readonly [key: string, value: unknown]>;
+};
+
+export const MOBILE_TUNING: ReadonlyMap<string, MobileTuning> = new Map<string, MobileTuning>([
+  // «العاب روضتي» — SWAT Squad Tactics (Unity، ٨٠٠ ملفّ)
+  ["6b40e38875b743a4957e2bb712864c33", { maxPixelRatio: 1 }],
+  // «مغامرات والعاب» — Hook a Brainrot (Unity)
+  ["5eb82cb55cb14d38b4f52399d6e76d74", { maxPixelRatio: 1 }],
+  // «لعبة الحبال» (Unity، ٩٠ ميغابايت)
+  ["53e2a2012a3547aab35066d2d913eaef", { maxPixelRatio: 1 }],
+  // «الترفيه والالعاب» — Descent: جودةٌ منخفضة، ودقّةٌ ٧٥٪، وثلاثون إطاراً ثابتة.
+  ["0df4c3adb032460791d0ca844d09313d", {
+    defaults: [["descent.settings.v1", { quality: "low", renderScale: 0.75, fpsCap: 30 }]],
+  }],
+]);
+
+export function mobileTuningScript(gameId: string): string {
+  const tuning = MOBILE_TUNING.get(gameId);
+  if (!tuning) return "";
+  return `<script>(function(){try{
+if(!(window.matchMedia&&matchMedia("(pointer:coarse)").matches)&&!(navigator.maxTouchPoints>0))return;
+var T=${JSON.stringify(tuning)};
+if(T.maxPixelRatio){var r=Math.min(window.devicePixelRatio||1,T.maxPixelRatio);
+try{Object.defineProperty(window,"devicePixelRatio",{get:function(){return r;},configurable:true});}catch(e){}}
+(T.defaults||[]).forEach(function(d){try{if(localStorage.getItem(d[0])===null)localStorage.setItem(d[0],JSON.stringify(d[1]));}catch(e){}});
+}catch(e){}})();</script>`;
+}
+
 export function touchHintScript(gameId: string): string {
   if (!TOUCH_DRAG_HINT_GAMES.has(gameId)) return "";
   return `<script>(function(){try{
@@ -243,7 +281,8 @@ var css=document.createElement("style");
 css.textContent="@keyframes mth{0%,100%{transform:translateX(-8px)}50%{transform:translateX(8px)}}"+
 ".mth{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2147483647;pointer-events:none;"+
 "display:flex;align-items:center;gap:20px;padding:12px 22px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;font:700 18px system-ui,sans-serif;direction:rtl;white-space:nowrap;transition:opacity .4s}"+
-".mth b{display:inline-block;font-size:28px;animation:mth 1.6s ease-in-out infinite}";
+".mth b{display:inline-block;font-size:28px;animation:mth 1.6s ease-in-out infinite}"+
+".mth span{display:inline!important;visibility:visible!important;opacity:1!important;color:#fff!important;font:700 18px system-ui,sans-serif!important;letter-spacing:0!important;text-transform:none!important}";
 document.head.appendChild(css);
 var d=document.createElement("div");d.className="mth";d.setAttribute("role","note");
 d.innerHTML="<b>\\u{1F446}</b><span>\\u0627\\u0633\\u062D\\u0628 \\u0625\\u0635\\u0628\\u0639\\u0643 \\u0639\\u0644\\u0649 \\u0627\\u0644\\u0634\\u0627\\u0634\\u0629 \\u0644\\u062A\\u062D\\u0631\\u064A\\u0643 \\u0627\\u0644\\u0644\\u0627\\u0639\\u0628</span>";
@@ -355,9 +394,18 @@ export const GAME_PAGE_CSP_WITH_EVAL = GAME_PAGE_CSP.replace(
   "script-src 'self' 'unsafe-eval'",
 );
 
-/** سياسةُ صفحة لعبةٍ مضافة من مصدرها. */
-export function registeredGamePageCsp(source: string): string {
-  return DEFOLD_LOADER.test(source) ? GAME_PAGE_CSP_WITH_EVAL : GAME_PAGE_CSP;
+/**
+ * ألعابٌ تحتاج eval ولا يظهر محرّكُها في صفحتها (حزمةٌ واحدة): «Hose Down!»
+ * («لعبتي» عند المعلم) بـ Pixi، يرمي «Current environment does not allow
+ * unsafe-eval» فتبقى شاشتُها سوداء.
+ */
+export const EVAL_GAME_IDS = new Set<string>([
+  "83b71c0760bd48f8861105a5a0bdfda4",
+]);
+
+/** سياسةُ صفحة لعبةٍ مضافة من مصدرها ومعرّفها. */
+export function registeredGamePageCsp(source: string, gameId = ""): string {
+  return DEFOLD_LOADER.test(source) || EVAL_GAME_IDS.has(gameId) ? GAME_PAGE_CSP_WITH_EVAL : GAME_PAGE_CSP;
 }
 
 /** مضيفُ ملفّات اللعبة نفسها، لا صفحةِ الإعلانات المغلِّفة لها. */
@@ -516,7 +564,7 @@ export function rewriteRegisteredGame(gameId: string, kind: "html" | "js", sourc
   if (kind === "js") return rewriteGameScript(gameId, source);
   const html = rewriteGameHtml(gameId, source);
   const platform = GAMEPUSH_GD_BUNDLE.test(source) ? GAMEPUSH_PLATFORM_SCRIPT : "";
-  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>${GAME_ASSET_CACHE_REGISTER_SCRIPT}${touchControlsScript(gameId)}${touchHintScript(gameId)}`;
+  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>${GAME_ASSET_CACHE_REGISTER_SCRIPT}${touchControlsScript(gameId)}${touchHintScript(gameId)}${mobileTuningScript(gameId)}`;
   const head = html.match(/<head[^>]*>/i);
   if (head && head.index !== undefined) {
     const at = head.index + head[0].length;

@@ -196,7 +196,7 @@ router.get("/game-embed/:gameId/*gameAssetPath", async (req, res) => {
       const body = rewriteRegisteredGame(gameId, textKind, source);
       res
         .set("Cache-Control", "no-store")
-        .set("Content-Security-Policy", textKind === "html" ? registeredGamePageCsp(source) : GAME_PAGE_CSP)
+        .set("Content-Security-Policy", textKind === "html" ? registeredGamePageCsp(source, gameId) : GAME_PAGE_CSP)
         .send(body);
       return;
     }
