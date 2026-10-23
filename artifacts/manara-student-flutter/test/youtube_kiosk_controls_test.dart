@@ -376,6 +376,79 @@ void main() {
       }
     });
   });
+
+  group('الاختفاءُ أثناء العرض', () {
+    double opacityOf(WidgetTester tester, IconData icon) => tester
+        .widget<AnimatedOpacity>(
+          find
+              .ancestor(
+                of: find.byIcon(icon),
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first,
+        )
+        .opacity;
+
+    testWidgets('تختفي بعد ثلاث ثوانٍ بلا لمس، والضغطةُ عليها متلاشيةً لا تُشغّل شيئاً', (tester) async {
+      await pump(tester);
+      playback.emit(PlayerState.playing);
+      await tester.pump();
+      await tester.pump();
+      expect(opacityOf(tester, Icons.pause_rounded), 1);
+      await tester.pump(const Duration(seconds: 2));
+      expect(opacityOf(tester, Icons.pause_rounded), 1, reason: 'قبل المهلة');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(opacityOf(tester, Icons.pause_rounded), 0);
+      expect(opacityOf(tester, Icons.fullscreen_rounded), 0);
+      // ‏اللمسةُ الأولى تُظهرها ولا تضغط الزرَّ المخفيّ.
+      await tester.tap(centerButton(Icons.pause_rounded), warnIfMissed: false);
+      await tester.pump();
+      expect(playback.calls, isEmpty);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(opacityOf(tester, Icons.pause_rounded), 1);
+      // ‏والآن تعمل.
+      await tester.tap(centerButton(Icons.pause_rounded));
+      await tester.pump();
+      expect(playback.calls, ['pause']);
+    });
+
+    testWidgets('وحركةُ الإصبع تُبقيها وتبدأ العدَّ من جديد', (tester) async {
+      await pump(tester);
+      playback.emit(PlayerState.playing);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2500));
+      final area = tester.getRect(find.byType(YoutubeKioskControls));
+      final gesture = await tester.startGesture(
+        area.topRight + const Offset(-20, 20),
+      );
+      await gesture.moveBy(const Offset(-10, 0));
+      await tester.pump(const Duration(milliseconds: 2500));
+      expect(opacityOf(tester, Icons.pause_rounded), 1, reason: 'العدُّ بدأ من الحركة');
+      await gesture.up();
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(opacityOf(tester, Icons.pause_rounded), 0);
+    });
+
+    testWidgets('ومتوقّفاً تبقى ظاهرة، وتعود فوراً حين يتوقّف العرض', (tester) async {
+      await pump(tester);
+      playback.emit(PlayerState.paused);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 10));
+      expect(opacityOf(tester, Icons.play_arrow_rounded), 1);
+      playback.emit(PlayerState.playing);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(opacityOf(tester, Icons.pause_rounded), 0);
+      playback.emit(PlayerState.paused);
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(opacityOf(tester, Icons.play_arrow_rounded), 1);
+    });
+  });
 }
 
 /// مشغّلٌ بديلٌ يسجّل النداء ولا يمسّ منصّة.

@@ -1368,25 +1368,75 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
 
   /// Hides the controls after a few idle seconds of playback.
   ///
-  /// Restarted on every interaction, and never started while the video is
-  /// paused: a student who has just paused is looking at the controls, and
-  /// having them vanish underneath is how the play button became
-  /// impossible to find again.
+  /// Restarted on every touch or finger movement on the video, and never
+  /// started while the video is paused: a student who has just paused is
+  /// looking at the controls, and having them vanish underneath is how the
+  /// play button became impossible to find again.
   Timer? _hideTimer;
 
   static const _idleBeforeHide = Duration(seconds: 3);
+  static const _fadeDuration = Duration(milliseconds: 250);
+
+  /// Last seen playing state — so a lesson that starts on its own (autoplay)
+  /// starts the countdown too. Before, the timer only ran from a tap, and an
+  /// autoplayed video kept its controls over the picture until touched.
+  bool _wasPlaying = false;
 
   @override
   void initState() {
     super.initState();
+    _wasPlaying = widget.controller.value.isPlaying;
+    widget.controller.addListener(_onPlaybackChanged);
     _restartHideTimer();
   }
 
   @override
+  void didUpdateWidget(covariant _NetworkVideoSurface old) {
+    super.didUpdateWidget(old);
+    if (old.controller != widget.controller) {
+      old.controller.removeListener(_onPlaybackChanged);
+      widget.controller.addListener(_onPlaybackChanged);
+      _wasPlaying = widget.controller.value.isPlaying;
+      _reveal();
+    }
+  }
+
+  @override
   void dispose() {
+    widget.controller.removeListener(_onPlaybackChanged);
     _hideTimer?.cancel();
     super.dispose();
   }
+
+  /// Started: count down. Paused or ended: controls back up, and they stay.
+  void _onPlaybackChanged() {
+    final playing = widget.controller.value.isPlaying;
+    if (playing == _wasPlaying) return;
+    _wasPlaying = playing;
+    if (playing) {
+      _restartHideTimer();
+    } else {
+      _reveal();
+    }
+  }
+
+  /// Any touch or finger movement on the video: controls up at once, and
+  /// the countdown starts over.
+  void _reveal() {
+    if (!_showControls && mounted) setState(() => _showControls = true);
+    _restartHideTimer();
+  }
+
+  /// A control that fades with the others, and takes no taps while faded —
+  /// the first touch only brings it back, it never presses a hidden button.
+  Widget _fading(Widget child) => IgnorePointer(
+        ignoring: !_showControls,
+        child: AnimatedOpacity(
+          opacity: _showControls ? 1 : 0,
+          duration: _fadeDuration,
+          child: child,
+        ),
+      );
 
   void _restartHideTimer() {
     _hideTimer?.cancel();
@@ -1394,13 +1444,6 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
     _hideTimer = Timer(_idleBeforeHide, () {
       if (mounted) setState(() => _showControls = false);
     });
-  }
-
-  /// The tap on the video surface itself — reveals the controls, or hides
-  /// them again if they are already up.
-  void _toggleControls() {
-    setState(() => _showControls = !_showControls);
-    if (_showControls) _restartHideTimer();
   }
 
   Future<void> _togglePlayback() async {
@@ -1451,13 +1494,20 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
         // whole picture.
         final fill = widget.fullscreen ? _fill : true;
 
-        return GestureDetector(
+        // Any touch or finger movement on the video reveals the controls —
+        // a translucent [Listener] sees it without competing for it, so the
+        // buttons and the progress bar still get their own gestures.
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => _reveal(),
+          onPointerMove: (_) => _reveal(),
+          child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          // Tapping the video surface only reveals/hides the controls.
-          // Playback changes are intentionally restricted to the dedicated
-          // play button so an incidental touch cannot pause a lesson or
-          // cinema video.
-          onTap: _toggleControls,
+          // Tapping the video surface only reveals the controls. Playback
+          // changes are intentionally restricted to the dedicated play
+          // button so an incidental touch cannot pause a lesson or cinema
+          // video.
+          onTap: _reveal,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -1498,7 +1548,7 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
               // The big centre button, and it is a real button: it drives
               // playback directly and stops the tap, so the surface's own
               // "toggle the controls" handler underneath never sees it.
-              if (_showControls)
+              _fading(
                 Material(
                   color: Colors.transparent,
                   shape: const CircleBorder(),
@@ -1532,14 +1582,14 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
                     ),
                   ),
                 ),
+              ),
               // The control bar is the last child, so nothing in this stack
               // sits above it to take its taps.
-              if (_showControls)
-                Positioned(
+              Positioned(
                   left: 12 + insets.left,
                   right: 12 + insets.right,
                   bottom: 10 + insets.bottom,
-                  child: Column(
+                  child: _fading(Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       VideoProgressIndicator(
@@ -1596,9 +1646,10 @@ class _NetworkVideoSurfaceState extends State<_NetworkVideoSurface> {
                         ],
                       ),
                     ],
-                  ),
+                  )),
                 ),
             ],
+          ),
           ),
         );
       },
