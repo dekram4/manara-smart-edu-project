@@ -4,13 +4,13 @@
 // ‏أوّلاً — ومنها `/api/auth/admin/session` وجداولُ الطلاب والمعلمين والرسائل.
 // ‏فبعد الخروج تفتح لوحةُ المشرف من ردٍّ محفوظ بلا كلمة مرور، ويرى المعلمُ
 // ‏الداخلُ بعده جداولَ المشرف. وتغييرُ الاسم يطرد ذاكرةَ v2 كلَّها عند التفعيل.
-const CACHE_NAME = 'manara-v3';
+const CACHE_NAME = 'manara-v4';
 const IS_DEV_HOST = /^(localhost|127\.0\.0\.1)$/.test(self.location.hostname);
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/index.css',
-  '/logo-badge.png',
+  '/manara-icon-192.png',
   '/audio/welcome-student.mp3',
   '/audio/welcome-adult.mp3',
   '/audio/welcome-all.mp3',

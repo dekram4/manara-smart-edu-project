@@ -39,7 +39,7 @@ const ManaraBrand: React.FC<ManaraBrandProps> = ({ variant = 'compact', classNam
       <div className="relative shrink-0">
         <div className="absolute inset-0 rounded-full bg-cyan-300/20 blur-xl" />
         <img
-          src="/manara-logo-mark-transparent.png"
+          src="/manara-logo-emblem.png"
           alt="شعار منصة منارة المعرفة التعليمية"
           className={`relative object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.25)] ${styles.image}`}
         />
