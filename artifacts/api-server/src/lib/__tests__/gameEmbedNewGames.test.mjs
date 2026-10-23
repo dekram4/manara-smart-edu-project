@@ -200,3 +200,20 @@ test("تخفيفُ الهاتف: لألعاب داود الثقيلة وحدها
   }
   assert.ok(mobileTuningScript("0df4c3adb032460791d0ca844d09313d").includes("descent.settings.v1"));
 });
+
+test("حفظُ لعبةٍ: رابطُ GameDistribution بأيّ شكلٍ يُحفظ بصيغة الأساسية، وغيرُه كما هو", async () => {
+  const { buildGame } = await import("../../../dist/lib/entertainment.mjs");
+  const id = "4b88f962af114b0a88322938a647a603";
+  const opts = { newId: () => "g1", now: "2026-10-23T00:00:00Z", teachers: [{ id: "t1", name: "داود" }] };
+  for (const url of [
+    `https://manara-aiedu.com/api/game-embed/${id}/index.html`,
+    `https://html5.gamedistribution.com/${id}/`,
+    `/api/game-embed/${id}/index.html`,
+  ]) {
+    const r = buildGame({ title: "لعبة", embedUrl: url, teacherId: "t1" }, opts);
+    assert.ok(r.ok, url);
+    assert.equal(r.game.embedUrl, `/api/game-embed/${id}/index.html`, url);
+  }
+  const other = buildGame({ title: "لعبة", embedUrl: "https://example.com/game/", teacherId: "t1" }, opts);
+  assert.equal(other.game.embedUrl, "https://example.com/game/");
+});
