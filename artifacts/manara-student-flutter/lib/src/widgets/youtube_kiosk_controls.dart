@@ -123,11 +123,17 @@ class YoutubeKioskPlayback implements KioskPlayback {
 /// يُرسم أخاً له يقع **تحت** الصورة: لا يُرى ولا تبلغه لمسة. و`controlsBuilder`
 /// هو المسلكُ الوحيد الذي يُركَّب داخل تلك الطبقة، مصغّراً وفي ملء الشاشة.
 ///
-/// ── وظاهرةٌ دائماً ──
-/// كانت تختفي بعد ثلاث ثوانٍ وتظهر بلمسةٍ على الصورة، واللمسةُ تُلتقط
-/// بـ`GestureDetector` مفروشٍ على الفيديو كلِّه — فكان على الصورة حاجبٌ
-/// يبتلع كلَّ لمسة. وطفلٌ في الابتدائية يحتاج أن يرى الزرَّ لا أن يعرف كيف
-/// يُظهره.
+/// ── وتختفي أثناء العرض، وتعود بأيّ لمسة ──
+/// كانت ظاهرةً دائماً فتحجب الشرح. فصارت تتلاشى بعد ثلاث ثوانٍ بلا لمسٍ
+/// **ما دام المقطعُ يعمل**، وتعود فوراً بأيّ لمسةٍ أو حركةِ إصبعٍ على الصورة.
+/// ومتوقّفاً أو منتهياً، أو أثناء سحب الشريط، تبقى ظاهرة: طفلٌ أوقف الشرحَ
+/// ينظر إلى زرّ التشغيل، فلا يختفي من تحت إصبعه.
+///
+/// واللمسةُ تُلتقط بـ`Listener` شفّافٍ لا بـ`GestureDetector`: هذا كان
+/// مفروشاً على الصورة فابتلع كلَّ لمسةٍ تقصد زرّاً. و`Listener` يرى اللمسةَ
+/// ولا يدخل في التنافس عليها، ولا يُحسب هدفاً في موضعٍ خالٍ — فتمرّ إلى ما
+/// تحته. والأزرارُ المتلاشية لا تُلمس (`IgnorePointer`): اللمسةُ الأولى تُظهرها
+/// ولا تضغط زرّاً لا يُرى.
 class YoutubeKioskControls extends StatefulWidget {
   const YoutubeKioskControls({
     required this.playback,
@@ -162,6 +168,16 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
   /// قدرُ القفزة بالزرّين.
   static const _skip = Duration(seconds: 10);
 
+  /// ظاهرةٌ أم متلاشية — انظر توثيقَ الودجت.
+  bool _visible = true;
+  Timer? _hideTimer;
+
+  /// مهلةُ الاختفاء بلا لمس أثناء العرض.
+  static const idleBeforeHide = Duration(seconds: 3);
+
+  /// مدّةُ التلاشي والظهور.
+  static const _fadeDuration = Duration(milliseconds: 250);
+
   @override
   void initState() {
     super.initState();
@@ -181,6 +197,12 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
     _valueSub = widget.playback.states.listen((state) {
       if (!mounted || state == _playerState) return;
       setState(() => _playerState = state);
+      // ‏بدأ العرضُ: يبدأ العدُّ. وتوقّف أو انتهى: تعود الأدواتُ وتبقى.
+      if (state == PlayerState.playing) {
+        _scheduleHide();
+      } else {
+        _reveal();
+      }
     });
     _progressSub?.cancel();
     _progressSub = widget.playback.progress.listen((progress) {
@@ -195,10 +217,38 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
 
   @override
   void dispose() {
+    _hideTimer?.cancel();
     _valueSub?.cancel();
     _progressSub?.cancel();
     super.dispose();
   }
+
+  /// تُظهر الأدواتِ فوراً، وتبدأ عدَّ الاختفاء من جديد.
+  void _reveal() {
+    if (!_visible && mounted) setState(() => _visible = true);
+    _scheduleHide();
+  }
+
+  /// يبدأ عدُّ الاختفاء — أثناء العرض وحده، وليس الإصبعُ على الشريط.
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    if (_playerState != PlayerState.playing || _dragSeconds != null) return;
+    _hideTimer = Timer(idleBeforeHide, () {
+      if (!mounted || _playerState != PlayerState.playing) return;
+      if (_dragSeconds != null) return;
+      setState(() => _visible = false);
+    });
+  }
+
+  /// أداةٌ تتلاشى مع غيرها، ولا تُلمس متلاشية.
+  Widget _fading(Widget child) => IgnorePointer(
+        ignoring: !_visible,
+        child: AnimatedOpacity(
+          opacity: _visible ? 1 : 0,
+          duration: _fadeDuration,
+          child: child,
+        ),
+      );
 
   /// ينقل التشغيل إلى [target] داخل حدود المقطع، ويُظهر الموضعَ الجديد فوراً
   /// قبل أن يبلّغه المشغّل.
@@ -237,7 +287,12 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
     //
     // والاتّساعُ لا يحجب شيئاً: `Stack` يؤجّل فحصَ اللمس إلى أبنائه، فلا
     // يبتلع لمسةً في موضعٍ لا ابنَ فيه.
-    return Stack(
+    // ‏أيُّ لمسةٍ أو حركةِ إصبعٍ على الصورة تُظهر الأدوات — انظر توثيقَ الودجت.
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _reveal(),
+      onPointerMove: (_) => _reveal(),
+      child: Stack(
       fit: StackFit.expand,
       children: [
         if (ended) Positioned.fill(child: _EndedCover(onReplay: _togglePlay)),
@@ -250,7 +305,7 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
         if (!ended)
           Center(
             // ‏وبجانبه القفزُ عشر ثوانٍ: للخلف يساراً وللأمام يميناً، كخطّ الزمن.
-            child: Directionality(
+            child: _fading(Directionality(
               textDirection: TextDirection.ltr,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -275,7 +330,7 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
                   ),
                 ],
               ),
-            ),
+            )),
           ),
 
         // والرجوعُ في أعلى البداية.
@@ -283,11 +338,11 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
           top: 6,
           start: 6,
           child: SafeArea(
-            child: _KioskButton(
+            child: _fading(_KioskButton(
               icon: Icons.arrow_back_rounded,
               tooltip: tr('video.back'),
               onPressed: widget.onExit,
-            ),
+            )),
           ),
         ),
 
@@ -297,7 +352,7 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
           end: 6,
           child: SafeArea(
             top: false,
-            child: _KioskButton(
+            child: _fading(_KioskButton(
               icon: widget.isFullscreen
                   ? Icons.fullscreen_exit_rounded
                   : Icons.fullscreen_rounded,
@@ -305,7 +360,7 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
                 widget.isFullscreen ? 'video.shrink' : 'video.fullscreen',
               ),
               onPressed: widget.playback.toggleFullscreen,
-            ),
+            )),
           ),
         ),
 
@@ -321,20 +376,25 @@ class _YoutubeKioskControlsState extends State<YoutubeKioskControls> {
             end: 6 + 48 + 8,
             child: SafeArea(
               top: false,
-              child: _SeekBar(
+              child: _fading(_SeekBar(
                 position: _dragSeconds != null
                     ? Duration(milliseconds: (_dragSeconds! * 1000).round())
                     : _position,
                 duration: _duration,
-                onChanged: (seconds) => setState(() => _dragSeconds = seconds),
+                onChanged: (seconds) {
+                  setState(() => _dragSeconds = seconds);
+                  _hideTimer?.cancel();
+                },
                 onChangeEnd: (seconds) {
                   setState(() => _dragSeconds = null);
                   _seek(Duration(milliseconds: (seconds * 1000).round()));
+                  _scheduleHide();
                 },
-              ),
+              )),
             ),
           ),
       ],
+      ),
     );
   }
 }
