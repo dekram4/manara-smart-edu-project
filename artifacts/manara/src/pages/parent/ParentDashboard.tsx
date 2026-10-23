@@ -1,6 +1,6 @@
 
 import { readHierarchicalConfigs, subjectsOfConfig } from '../../utils/academic';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ParentInfo, StudentInfo, TeacherInfo, QuizResult, ParentMenuType, CertificateRecord, CreatedQuiz, HierarchicalConfig, QuizType } from '../../types';
 import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, passwordsMatch } from '../../utils/password';
@@ -24,6 +24,8 @@ import { formatSafeDate } from '../../utils/safeDate';
 import CardErrorBoundary from '../../components/CardErrorBoundary';
 import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSession } from '../../utils/storage';
 import { writeAuthSession } from '../../utils/authSession';
+import { readDashboardRoute } from '../../utils/dashboardRoute';
+import { useDashboardPage } from '../../hooks/useDashboardPage';
 import { html, printDocument, type SafeHtml } from '../../utils/printHtml';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
@@ -32,12 +34,29 @@ import {
 
 const CERT_KEY = 'smartEdu_certificates';
 
+/** صفحاتُ القائمة — والدردشةُ نافذةٌ فوقها لا صفحة. */
+const PARENT_PAGES: ParentMenuType[] = Object.values(ParentMenuType).filter(page => page !== ParentMenuType.CHAT);
+
 const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [parent, setParent] = useState<ParentInfo | null>(null);
+  // ‏الصفحةُ والابنُ والمادةُ في العنوان: التحديثُ يُبقي وليَّ الأمر حيث كان —
+  // ‏انظر utils/dashboardRoute. تُقرأ هنا قبل أن يكتب الأثرُ الصفحةَ بلا ابن،
+  // ‏فالأبناءُ لا يُعرفون إلا بعد `loadData`، وهناك يُستعاد الابنُ مرّةً واحدة.
+  const [restoredRoute] = useState(() =>
+    readDashboardRoute('parent', PARENT_PAGES, ParentMenuType.DASHBOARD),
+  );
+  const pendingChildId = useRef<string | null>(restoredRoute.params[0] || null);
   const [activeChild, setActiveChild] = useState<StudentInfo | null>(null);
-  const [activeSubject, setActiveSubject] = useState<string | null>(null);
-  const [menuType, setMenuType] = useState<ParentMenuType>(ParentMenuType.DASHBOARD);
+  const [activeSubject, setActiveSubject] = useState<string | null>(
+    restoredRoute.params[0] ? restoredRoute.params[1] || null : null,
+  );
+  const [storedMenu, setMenuType] = useDashboardPage(
+    'parent',
+    PARENT_PAGES,
+    ParentMenuType.DASHBOARD,
+    [activeChild?.id ?? pendingChildId.current, activeSubject],
+  );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // حالُ السحب من الخادم: مؤشّرٌ خفيفٌ أثناءه، وإشارةٌ إن تعذّر.
   const [syncing, setSyncing] = useState(false);
@@ -56,6 +75,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [passwordSaveError, setPasswordSaveError] = useState('');
 
   const permissions = getEffectiveParentPermissions(parent);
+  // ‏صفحةٌ محفوظةٌ لم تعد له صلاحيتُها تُفتح على الرئيسية، كما تُخفيها القائمة.
+  const menuType =
+    (storedMenu === ParentMenuType.ADD_CHILDREN && !permissions.canCreateStudents) ||
+    (storedMenu === ParentMenuType.PERMISSION_PACKAGES &&
+      !(permissions.canEditStudents && permissions.canCreatePermissionPackages))
+      ? ParentMenuType.DASHBOARD
+      : storedMenu;
 
   /* Dashboard filter */
   const [dashFilter, setDashFilter] = useState('');
@@ -250,7 +276,13 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
        setAllQuizzes(allQuizzes
          .filter((quiz: QuizResult) => childIds.has(quiz.studentId))
          .map((quiz: QuizResult) => ({ ...quiz, percentage: getQuizResultPercentage(quiz) })));
-      setActiveChild(null);
+      // ‏الابنُ الذي كان مفتوحاً قبل التحديث، إن كان من أبنائه — مرّةً واحدة.
+      const restoredChild = pendingChildId.current
+        ? myChildren.find(child => child.id === pendingChildId.current) || null
+        : null;
+      pendingChildId.current = null;
+      setActiveChild(restoredChild);
+      if (!restoredChild) setActiveSubject(null);
     }
   };
 

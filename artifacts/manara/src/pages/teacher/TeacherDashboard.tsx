@@ -25,6 +25,47 @@ import { readActiveSession, readStorageArray, removeActiveSession, writeActiveSe
 import { writeAuthSession } from '../../utils/authSession';
 import { refreshSupabaseSync } from '../../db/sync';
 import { clearLoggedOut, isLoggedOut } from '../../utils/logoutGuard';
+import { useDashboardPage } from '../../hooks/useDashboardPage';
+
+/**
+ * هل تظهر صفحةُ القائمة لهذا المعلم؟ القائمةُ تُخفي ما لا يملكه، والصفحةُ
+ * المحفوظة في العنوان تُردّ إلى الرئيسية إن لم تعد له — بعد تحديثٍ أو تغيّر صلاحياته.
+ */
+const isTeacherMenuAllowed = (
+  menu: TeacherMenuType,
+  permissions: ReturnType<typeof getTeacherPermissions>,
+): boolean => {
+  if (menu === TeacherMenuType.ACADEMIC_SETTINGS && !permissions.canManageAcademicSettings) {
+    return false;
+  }
+  if (menu === TeacherMenuType.CONTENT_MANAGEMENT && !permissions.canManageContent) {
+    return false;
+  }
+  if (menu === TeacherMenuType.VIDEO_MANAGEMENT && !permissions.canManageVideos) {
+    return false;
+  }
+  if (menu === TeacherMenuType.QUIZ_MANAGEMENT && !permissions.canManageQuizzes) {
+    return false;
+  }
+  // أسئلةُ التحدي تُولَّد من دروسه، فتتبع صلاحيةَ المحتوى نفسها.
+  if (menu === TeacherMenuType.DUEL_QUESTIONS && !permissions.canManageContent) {
+    return false;
+  }
+  if (menu === TeacherMenuType.ACCOUNT_MANAGEMENT && 
+      !permissions.canCreateParents && !permissions.canCreateStudents) {
+    return false;
+  }
+  if (menu === TeacherMenuType.PERMISSION_PACKAGES &&
+      !permissions.canCreatePermissionPackages) {
+    return false;
+  }
+  if (menu === TeacherMenuType.REPORTS && !permissions.canViewReports) {
+    return false;
+  }
+  return true;
+};
+
+const TEACHER_PAGES = Object.values(TeacherMenuType);
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -33,7 +74,8 @@ interface TeacherDashboardProps {
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentTeacher, setCurrentTeacher] = useState<TeacherInfo | null>(null);
-  const [activeMenu, setActiveMenu] = useState(TeacherMenuType.DASHBOARD);
+  // ‏الصفحةُ في العنوان: التحديثُ يُبقي المعلمَ حيث كان — انظر utils/dashboardRoute.
+  const [storedMenu, setActiveMenu] = useDashboardPage('teacher', TEACHER_PAGES, TeacherMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dashboardStats, setDashboardStats] = useState({
@@ -144,6 +186,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     }
   })();
   const effectiveTeacher = latestStoredTeacher;
+  const activeMenu = isTeacherMenuAllowed(storedMenu, getTeacherPermissions(effectiveTeacher))
+    ? storedMenu
+    : TeacherMenuType.DASHBOARD;
 
   const handleLogout = () => {
     setIsAuthenticated(false);
@@ -376,35 +421,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             // فحص الصلاحيات
             const permissions = getTeacherPermissions(effectiveTeacher);
             
-            // إخفاء الخيارات بناءً على الصلاحيات
-            if (menu === TeacherMenuType.ACADEMIC_SETTINGS && !permissions.canManageAcademicSettings) {
-              return null;
-            }
-            if (menu === TeacherMenuType.CONTENT_MANAGEMENT && !permissions.canManageContent) {
-              return null;
-            }
-            if (menu === TeacherMenuType.VIDEO_MANAGEMENT && !permissions.canManageVideos) {
-              return null;
-            }
-            if (menu === TeacherMenuType.QUIZ_MANAGEMENT && !permissions.canManageQuizzes) {
-              return null;
-            }
-            // أسئلةُ التحدي تُولَّد من دروسه، فتتبع صلاحيةَ المحتوى نفسها.
-            if (menu === TeacherMenuType.DUEL_QUESTIONS && !permissions.canManageContent) {
-              return null;
-            }
-            if (menu === TeacherMenuType.ACCOUNT_MANAGEMENT && 
-                !permissions.canCreateParents && !permissions.canCreateStudents) {
-              return null;
-            }
-            if (menu === TeacherMenuType.PERMISSION_PACKAGES &&
-                !permissions.canCreatePermissionPackages) {
-              return null;
-            }
-            if (menu === TeacherMenuType.REPORTS && !permissions.canViewReports) {
-              return null;
-            }
-            
+            if (!isTeacherMenuAllowed(menu, permissions)) return null;
+
             const icons: Record<TeacherMenuType, string> = {
               [TeacherMenuType.DASHBOARD]: '🏠',
               [TeacherMenuType.ACADEMIC_SETTINGS]: '⚙️',

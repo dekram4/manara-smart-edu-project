@@ -27,6 +27,7 @@ import type { AuthRole } from './utils/authSession';
 // ✅ الاستدعاء المباشر والمحلي للمكتبات (Game Engine Infrastructure)
 import { playLamsaSound } from './utils/sounds';
 import { endServerSession, isLoggedOut, markLoggedOut, purgeApiCache } from './utils/logoutGuard';
+import { clearDashboardRoute } from './utils/dashboardRoute';
 import { GameAudioEngine } from './utils/gameAudioEngine';
 
 // أصوات تفاعلية سريعة
@@ -271,6 +272,8 @@ const App: React.FC = () => {
     // ‏الأدوار: كانت الطلباتُ تُطلق ولا تُنتظر، فيدخل المستخدمُ التالي والكعكةُ
     // ‏القديمة ما زالت في المتصفّح — فتُفتح لوحةُ المشرف لمن دخل معلماً.
     await endServerSession();
+    // ‏وصفحةُ اللوحة من العنوان، فلا يُفتح بها الحسابُ التالي.
+    clearDashboardRoute();
     setMainView('role');
   };
 
