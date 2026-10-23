@@ -8,6 +8,7 @@ import router from "./routes";
 import { uploadDirectory, videoDownloadRateLimit } from "./routes/media";
 import { logger } from "./lib/logger";
 import { isTrustedOrigin } from "./lib/trustedOrigin";
+import { DEFAULT_STUDENT_APK_URL } from "./lib/appSettings";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -116,6 +117,13 @@ app.use(express.urlencoded({ extended: true }));
 // Serve locally-uploaded videos
 // الملفّاتُ نفسُها التي يخدمها /api/media/videos — وبالحدّ نفسه.
 app.use("/uploads/videos", videoDownloadRateLimit, express.static(uploadDirectory, { index: false }));
+
+// ‏رابطُ تحميل تطبيق الطالب على نطاق المنصّة: يحوّل إلى آخر نسخةٍ موقّعة على GitHub.
+// ‏لا يُخزَّن الملفُّ هنا (١١١ ميغابايت، ويُوقَّع في GitHub وحده)، و302 لا 301
+// ‏فلا يحفظ المتصفّحُ التحويلَ لو تغيّر مصدرُه يوماً.
+app.get("/downloads/manara-student.apk", (_req: express.Request, res: express.Response) => {
+  res.set("Cache-Control", "no-store").redirect(302, DEFAULT_STUDENT_APK_URL);
+});
 
 app.use("/api", router);
 
