@@ -14,6 +14,7 @@ import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/splash_intro.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_immersive.dart';
 import 'login_screen.dart';
 import 'student_home_screen.dart';
 
@@ -441,7 +442,11 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // أشرطةُ النظام — الحالةُ وأزرارُ الرجوع والرئيسية — مخفيّةٌ طوال الترحيب:
+    // الفيلمُ يملأ الشاشة، وزرٌّ تحت إصبع طفلٍ يلمسها ليتخطّى يُخرجه من التطبيق.
+    // وتعود حين تُغادَر الشاشة (انظر StudentImmersive).
+    return StudentImmersive(
+      child: Scaffold(
       backgroundColor: StudentSurface.warmGround(context),
       body: GestureDetector(
         // Tap anywhere to skip.
@@ -542,6 +547,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
             ],
           ],
         ),
+      ),
       ),
     );
   }

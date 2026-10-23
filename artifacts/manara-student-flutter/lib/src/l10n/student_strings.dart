@@ -581,6 +581,8 @@ class StudentStrings {
     'content.lessonLoadError': 'تعذر تحميل الدروس: {error}',
     'content.loading': 'جارٍ تحميل محتوى الطالب',
     'content.loadFailed': 'تعذر تحميل المحتوى',
+    'content.gamesUnreachable':
+        'تعذّر الوصول إلى ألعاب معلّمك. تحقّق من الاتصال ثم أعد المحاولة.',
     'content.lessonTab': 'شرح الدرس',
     'content.gamesTab': 'الترفيه والألعاب',
     'content.lessonBlurb': 'استكشف دروسك خطوة بخطوة واحتفل بكل إنجاز.',
@@ -1464,6 +1466,8 @@ class StudentStrings {
     'content.lessonLoadError': 'Could not load the lessons: {error}',
     'content.loading': 'Loading your content',
     'content.loadFailed': 'Could not load the content',
+    'content.gamesUnreachable':
+        "Couldn't reach your teacher's games. Check your connection and try again.",
     'content.lessonTab': 'The lesson',
     'content.gamesTab': 'Games and fun',
     'content.lessonBlurb': 'Explore your lessons step by step and celebrate every win.',

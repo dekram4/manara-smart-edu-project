@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { playLamsaSound } from '../../utils/sounds';
 import { managementRequest } from '../../utils/managementApi';
+import { GAME_URL_HINT, gameUrlProblem } from '../../utils/gameUrl';
 
 /**
  * «الترفيه والألعاب»: ألعابٌ يضيفها المشرف ويُسندها إلى معلّم.
@@ -101,6 +102,11 @@ const EntertainmentManagement: React.FC = () => {
     e.preventDefault();
     if (!formData.teacherId && !editing?.builtin) {
       alert('يرجى اختيار المعلم المسؤول عن اللعبة');
+      return;
+    }
+    const urlProblem = editing?.builtin ? null : gameUrlProblem(formData.embedUrl);
+    if (urlProblem) {
+      alert(`⚠️ ${urlProblem}`);
       return;
     }
     setSaving(true);
@@ -263,14 +269,24 @@ const EntertainmentManagement: React.FC = () => {
             ) : (
             <input
               id="game-url"
-              type="url"
+              // نصٌّ لا `url`: المتصفّحُ يردّ مسارَ الوكيل النسبيّ — انظر utils/gameUrl.
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+              spellCheck={false}
               required
               dir="ltr"
-              placeholder="https://html5.gamedistribution.com/…"
+              placeholder="https://html5.gamedistribution.com/…  أو  /api/game-embed/…/index.html"
+              aria-describedby="game-url-hint"
               value={formData.embedUrl}
               onChange={e => setFormData({ ...formData, embedUrl: e.target.value })}
               className={`${inputClass} text-left`}
             />
+            )}
+            {!editing?.builtin && (
+              <p id="game-url-hint" className="mt-2 text-xs font-bold text-violet-500">
+                يُقبل: {GAME_URL_HINT}
+              </p>
             )}
           </div>
 
