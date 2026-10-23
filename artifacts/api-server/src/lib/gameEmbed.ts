@@ -188,7 +188,7 @@ export type TouchKey = {
  * ألعابٌ مضافة لا تُلعب إلا بلوحة المفاتيح: يُضاف لها على الهاتف واللوح أزرارٌ
  * تضغط مفاتيحَها. لكل لعبةٍ أزرارُها من جدول تحكّمها هي.
  *
- * «Descent» (دراجةُ منحدرات — «مغامرات الروضة» عند المعلم): لا تستمع لللمس إلا
+ * «Descent» (دراجةُ منحدرات — «الترفيه والالعاب» عند المعلم): لا تستمع لللمس إلا
  * لتشغيل الصوت، وتقرأ المفاتيحَ بـ`e.code` من `window` دون أن تسأل أهي حقيقية —
  * فالزرُّ يرسل المفتاحَ نفسه ولا تتغيّر اللعبة.
  */
@@ -224,6 +224,38 @@ export const TOUCH_CONTROLS: ReadonlyMap<string, TouchControls> = new Map([
  * وكلُّ إصبعٍ مستقلّ: التوجيهُ والدوّاسةُ معاً. وحين تُفتح قائمةٌ يُرفع كلُّ مفتاحٍ
  * مضغوط، فلا تبقى الدرّاجةُ مندفعةً بعد الإيقاف.
  */
+/**
+ * ألعابٌ تُلعب على الهاتف بالسحب: عصا تحكّمٍ تظهر تحت الإصبع حيث لمس، ولا شيءَ
+ * على الشاشة قبل اللمس — فيظنّ الطفلُ أن لا أزرار. «مغامرات الروضة» (Mine&Build)
+ * و«العاب روضتي» (SWAT) كذلك. فيظهر تلميحٌ يزول بأوّل لمسة، ولا يحجب شيئاً.
+ */
+export const TOUCH_DRAG_HINT_GAMES = new Set<string>([
+  "4b88f962af114b0a88322938a647a603",
+  "6b40e38875b743a4957e2bb712864c33",
+]);
+
+export function touchHintScript(gameId: string): string {
+  if (!TOUCH_DRAG_HINT_GAMES.has(gameId)) return "";
+  return `<script>(function(){try{
+if(!(window.matchMedia&&matchMedia("(pointer:coarse)").matches)&&!(navigator.maxTouchPoints>0))return;
+function build(){
+var css=document.createElement("style");
+css.textContent="@keyframes mth{0%,100%{transform:translateX(-8px)}50%{transform:translateX(8px)}}"+
+".mth{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2147483647;pointer-events:none;"+
+"display:flex;align-items:center;gap:20px;padding:12px 22px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;font:700 18px system-ui,sans-serif;direction:rtl;white-space:nowrap;transition:opacity .4s}"+
+".mth b{display:inline-block;font-size:28px;animation:mth 1.6s ease-in-out infinite}";
+document.head.appendChild(css);
+var d=document.createElement("div");d.className="mth";d.setAttribute("role","note");
+d.innerHTML="<b>\\u{1F446}</b><span>\\u0627\\u0633\\u062D\\u0628 \\u0625\\u0635\\u0628\\u0639\\u0643 \\u0639\\u0644\\u0649 \\u0627\\u0644\\u0634\\u0627\\u0634\\u0629 \\u0644\\u062A\\u062D\\u0631\\u064A\\u0643 \\u0627\\u0644\\u0644\\u0627\\u0639\\u0628</span>";
+document.body.appendChild(d);
+function gone(){d.style.opacity="0";setTimeout(function(){d.remove();},450);
+window.removeEventListener("pointerdown",gone,true);window.removeEventListener("touchstart",gone,true);}
+window.addEventListener("pointerdown",gone,true);window.addEventListener("touchstart",gone,{capture:true,passive:true});
+}
+if(document.body)build();else document.addEventListener("DOMContentLoaded",build);
+}catch(e){}})();</script>`;
+}
+
 export function touchControlsScript(gameId: string): string {
   const controls = TOUCH_CONTROLS.get(gameId);
   if (!controls) return "";
@@ -484,7 +516,7 @@ export function rewriteRegisteredGame(gameId: string, kind: "html" | "js", sourc
   if (kind === "js") return rewriteGameScript(gameId, source);
   const html = rewriteGameHtml(gameId, source);
   const platform = GAMEPUSH_GD_BUNDLE.test(source) ? GAMEPUSH_PLATFORM_SCRIPT : "";
-  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>${GAME_ASSET_CACHE_REGISTER_SCRIPT}${touchControlsScript(gameId)}`;
+  const stub = `${platform}<script>${DISABLED_AD_SDK}</script>${GAME_ASSET_CACHE_REGISTER_SCRIPT}${touchControlsScript(gameId)}${touchHintScript(gameId)}`;
   const head = html.match(/<head[^>]*>/i);
   if (head && head.index !== undefined) {
     const at = head.index + head[0].length;

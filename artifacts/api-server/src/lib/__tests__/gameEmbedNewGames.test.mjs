@@ -153,3 +153,28 @@ test("أزرارُ اللمس: لـ«Descent» وحدها، وسكربتُها �
   assert.ok(rewriteRegisteredGame(descent, "html", page).includes(script));
   assert.ok(!rewriteRegisteredGame("0123456789abcdef0123456789abcdef", "html", page).includes("mtc-left"));
 });
+
+test("رابطُ الوكيل الكامل بنطاق الموقع يُعرف معرّفُه (ألعابُ المعلم المحفوظةُ هكذا)", async () => {
+  const { gameDistributionId, playableGameUrl } = await import("../../../dist/lib/entertainment.mjs");
+  const id = "4b88f962af114b0a88322938a647a603";
+  for (const url of [
+    `https://manara-aiedu.com/api/game-embed/${id}/index.html`,
+    `https://manara-edu.up.railway.app/api/game-embed/${id}/index.html`,
+  ]) {
+    assert.equal(gameDistributionId(url), id, url);
+    assert.equal(playableGameUrl(url), `/api/game-embed/${id}/index.html`, url);
+  }
+  assert.equal(gameDistributionId(`https://manara-aiedu.com/api/game-embed/not-an-id/index.html`), null);
+  assert.equal(gameDistributionId(`javascript:/api/game-embed/${id}/x`), null);
+  assert.equal(gameDistributionId(`https://example.com/games/${id}/index.html`), null);
+});
+
+test("تلميحُ السحب: لـ Mine&Build وSWAT وحدهما، وسكربتُه سليم", async () => {
+  const { touchHintScript } = await import("../../../dist/lib/gameEmbed.mjs");
+  for (const id of ["4b88f962af114b0a88322938a647a603", "6b40e38875b743a4957e2bb712864c33"]) {
+    const s = touchHintScript(id);
+    new vm.Script(s.slice("<script>".length, -"</script>".length));
+    assert.ok(rewriteRegisteredGame(id, "html", "<html><head></head><body></body></html>").includes(s));
+  }
+  assert.equal(touchHintScript("0df4c3adb032460791d0ca844d09313d"), "");
+});

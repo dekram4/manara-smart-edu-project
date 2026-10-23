@@ -143,6 +143,11 @@ export function gameDistributionId(value: unknown): string | null {
   if (proxied) return proxied[1];
   try {
     const parsed = new URL(url);
+    // ‏رابطُ وكيلنا كاملاً بنطاق الموقع (`https://manara-aiedu.com/api/game-embed/<id>/…`):
+    // ‏نسخه المعلمُ من صفحة اللعبة فحُفظ هكذا، فكانت ألعابُه كلُّها «غير موجودة».
+    // ‏المعرّفُ وحده يؤخذ؛ والوكيلُ يجلب اللعبةَ من GameDistribution لا من هذا النطاق.
+    const ownProxy = /^\/api\/game-embed\/([a-f0-9]{32})\//.exec(parsed.pathname);
+    if (ownProxy && (parsed.protocol === "https:" || parsed.protocol === "http:")) return ownProxy[1];
     if (parsed.hostname !== "html5.gamedistribution.com") return null;
     const segments = parsed.pathname.split("/").filter(Boolean);
     const id = segments[0] === "rvvASMiM" ? segments[1] : segments[0];
