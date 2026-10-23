@@ -48,6 +48,35 @@ test("العنوانُ والرابطُ إلزاميّان، والرابطُ ht
   }
 });
 
+test("مسارُ وكيل الألعاب يُقبل بأيّ شكلٍ يُلصق، ويُحفظ بصيغةٍ واحدة", () => {
+  // كان النموذجُ يطلب رابطاً خارجياً، والخادمُ يقبل شكلاً واحداً بعينه.
+  const id = "a9afce108d824d6f838218dd87aa2ef4";
+  for (const pasted of [
+    `/api/game-embed/${id}/index.html`,
+    `/api/game-embed/${id}/`,
+    `/api/game-embed/${id}`,
+    `api/game-embed/${id}/index.html`,
+    `  /api/game-embed/${id.toUpperCase()}/index.html  `,
+    `https://manara-aiedu.com/api/game-embed/${id}/index.html`,
+  ]) {
+    assert.equal(games.isSafeGameUrl(pasted), true, pasted);
+    const built = games.buildGame({ ...valid, embedUrl: pasted }, options());
+    assert.equal(built.ok, true, pasted);
+    assert.equal(built.game.embedUrl, `/api/game-embed/${id}/index.html`, pasted);
+  }
+  // وما ليس معرّفاً صحيحاً، أو مسارٌ آخر تحته، يبقى مرفوضاً.
+  for (const bad of [
+    "/api/game-embed/xyz/index.html",
+    `/api/game-embed/${id}/../../media/x`,
+    `/api/game-embed/${id}/game.js`,
+    `/api/game-embed/${id}0/index.html`,
+    "api/other/x",
+  ]) {
+    assert.equal(games.isSafeGameUrl(bad), false, bad);
+    assert.equal(games.buildGame({ ...valid, embedUrl: bad }, options()).ok, false, bad);
+  }
+});
+
 test("التعديلُ يُبقي المعرّفَ وتاريخَ الإنشاء، ويقبل التعطيل", () => {
   const first = games.buildGame(valid, options()).game;
   const edited = games.buildGame(

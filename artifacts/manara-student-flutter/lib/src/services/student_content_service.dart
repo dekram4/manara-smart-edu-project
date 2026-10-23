@@ -100,7 +100,8 @@ class StudentContentService {
 
     var response = await send(token);
     if (response.statusCode == 401) {
-      auth.clearApiSession();
+      // الرمزُ وحده: بياناتُ الدخول تبقى ليُجدَّد بها.
+      auth.expireApiSession();
       final refreshed = (await auth.ensureApiSession())?.trim();
       if (refreshed == null || refreshed.isEmpty) {
         throw StateError(tr('svc.noSession'));
@@ -159,7 +160,8 @@ class StudentContentService {
 
     var response = await send(token);
     if (response.statusCode == 401) {
-      auth.clearApiSession();
+      // الرمزُ وحده: بياناتُ الدخول تبقى ليُجدَّد بها.
+      auth.expireApiSession();
       final refreshed = (await auth.ensureApiSession())?.trim();
       if (refreshed == null || refreshed.isEmpty) {
         throw StateError(tr('svc.noSession'));

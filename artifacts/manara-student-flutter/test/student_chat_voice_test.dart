@@ -24,6 +24,8 @@ class FakeAuth implements StudentAuthService {
   @override
   Future<String?> ensureApiSession() async => 'token';
   @override
+  void expireApiSession() {}
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

@@ -92,6 +92,38 @@ void main() {
     });
   }
 
+  testWidgets('أشرطةُ النظام مخفيّةٌ طوال الترحيب، وتعود بعده', (tester) async {
+    tester.view.physicalSize = const Size(393, 851);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    VideoPlayerPlatform.instance = FakeVideoPlatform();
+    final modes = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+          modes.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.pumpWidget(_app());
+    await tester.pump(const Duration(milliseconds: 100));
+    // أوّلُ ما يُطلب: لا شريطَ حالةٍ ولا أزرارَ رجوعٍ ورئيسية فوق الفيلم.
+    expect(modes, ['SystemUiMode.immersiveSticky']);
+
+    await tester.tap(find.byType(StudentStartupScreen));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(StudentStartupScreen, skipOffstage: false), findsNothing);
+    // وشاشةُ الدخول بأشرطتها: الطفلُ لا يبقى بلا زرّ رجوع.
+    expect(modes.last, 'SystemUiMode.edgeToEdge');
+  });
+
   testWidgets('تُغادر الشاشةُ حين ينتهي الفيلم، لا قبله', (tester) async {
     tester.view.physicalSize = const Size(393, 851);
     tester.view.devicePixelRatio = 1;

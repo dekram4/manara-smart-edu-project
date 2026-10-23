@@ -664,6 +664,8 @@ class _StudentChatScreenState extends State<StudentChatScreen>
     String missingKey = 'chat.notDeployed',
   }) {
     final status = response.statusCode;
+    // رمزٌ منتهٍ: يُترك ليُجدَّد في المحاولة التالية، لا يُعاد إرسالُه أبداً.
+    if (status == 401) widget.authService.expireApiSession();
     final data = _decode(response);
     final said = _responseError(data)?.trim();
     final code = data['code']?.toString();

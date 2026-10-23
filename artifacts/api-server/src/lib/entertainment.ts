@@ -115,14 +115,31 @@ export function scopeKey(value: unknown): string {
 }
 
 /**
+ * مسارُ وكيل الألعاب نسبياً بأيّ شكلٍ يُلصق: بـ`index.html` أو بلا، وبحروف
+ * المعرّف كبيرةً أو صغيرة. ويلتقط المعرّف.
+ *
+ * ── لماذا يُقبل كلُّ هذا ──
+ * المشرفُ ينسخ الرابطَ من لعبةٍ في القائمة أو من صفحتها، فيصل
+ * `/api/game-embed/<id>/` أو `api/game-embed/<id>/index.html`. وكان يُقبل شكلٌ
+ * واحدٌ فقط، والنموذجُ نفسُه يطلب رابطاً خارجياً كاملاً — فلم تُضف اللعبة.
+ */
+const PROXY_PATH = /^\/api\/game-embed\/([a-f0-9]{32})(?:\/(?:index\.html)?)?$/i;
+
+/** الرابطُ كما لُصق بلا مسافاتٍ حوله، ومسارُ الوكيل النسبيُّ بشرطته الأولى. */
+export function gameUrlInput(value: unknown): string {
+  const url = text(value);
+  return /^api\/game-embed\//i.test(url) ? `/${url}` : url;
+}
+
+/**
  * رابطُ لعبةٍ يُقبل: http(s) مطلقٌ بمضيف، أو صفحةُ لعبةٍ من وكيل الخادم
  * (`/api/game-embed/<id>/index.html`) — وهما ما يفتحه مشغّلُ الألعاب في التطبيق.
  * وما سواهما (`javascript:`، `data:`، مسارٌ آخر) يُرفض.
  */
 export function isSafeGameUrl(value: unknown): boolean {
-  const url = text(value);
+  const url = gameUrlInput(value);
   if (!url || url.length > GAME_URL_MAX || /\s/.test(url)) return false;
-  if (url.startsWith("/")) return /^\/api\/game-embed\/[a-f0-9]{32}\/index\.html$/.test(url);
+  if (url.startsWith("/")) return PROXY_PATH.test(url);
   try {
     const parsed = new URL(url);
     return (parsed.protocol === "https:" || parsed.protocol === "http:") && Boolean(parsed.hostname);
@@ -138,16 +155,19 @@ export function isSafeGameUrl(value: unknown): boolean {
  * (`…/rvvASMiM/<id>/…`) ورابطَ وكيلنا (`/api/game-embed/<id>/…`).
  */
 export function gameDistributionId(value: unknown): string | null {
-  const url = text(value);
-  const proxied = /^\/api\/game-embed\/([a-f0-9]{32})\//.exec(url);
-  if (proxied) return proxied[1];
+  const url = gameUrlInput(value);
+  const proxied = PROXY_PATH.exec(url) ?? /^\/api\/game-embed\/([a-f0-9]{32})\//i.exec(url);
+  if (proxied) return proxied[1].toLowerCase();
   try {
     const parsed = new URL(url);
     // ‏رابطُ وكيلنا كاملاً بنطاق الموقع (`https://manara-aiedu.com/api/game-embed/<id>/…`):
     // ‏نسخه المعلمُ من صفحة اللعبة فحُفظ هكذا، فكانت ألعابُه كلُّها «غير موجودة».
     // ‏المعرّفُ وحده يؤخذ؛ والوكيلُ يجلب اللعبةَ من GameDistribution لا من هذا النطاق.
-    const ownProxy = /^\/api\/game-embed\/([a-f0-9]{32})\//.exec(parsed.pathname);
-    if (ownProxy && (parsed.protocol === "https:" || parsed.protocol === "http:")) return ownProxy[1];
+    const ownProxy = PROXY_PATH.exec(parsed.pathname) ??
+      /^\/api\/game-embed\/([a-f0-9]{32})\//i.exec(parsed.pathname);
+    if (ownProxy && (parsed.protocol === "https:" || parsed.protocol === "http:")) {
+      return ownProxy[1].toLowerCase();
+    }
     if (parsed.hostname !== "html5.gamedistribution.com") return null;
     const segments = parsed.pathname.split("/").filter(Boolean);
     const id = segments[0] === "rvvASMiM" ? segments[1] : segments[0];
@@ -285,7 +305,7 @@ export function buildGame(
   const builtin = Boolean(existing && isBuiltinId(existing.id));
   const title = text(input.title);
   const description = text(input.description);
-  const embedUrl = builtin ? existing!.embedUrl : text(input.embedUrl) || text(input.url);
+  const embedUrl = builtin ? existing!.embedUrl : gameUrlInput(input.embedUrl) || gameUrlInput(input.url);
   const teacherId = text(input.teacherId);
 
   if (!title) return { ok: false, status: 400, error: "عنوان اللعبة مطلوب" };
@@ -293,7 +313,11 @@ export function buildGame(
   if (description.length > GAME_DESCRIPTION_MAX) return { ok: false, status: 400, error: "الوصف طويل جداً" };
   if (!embedUrl) return { ok: false, status: 400, error: "رابط اللعبة مطلوب" };
   if (!isSafeGameUrl(embedUrl)) {
-    return { ok: false, status: 400, error: "رابط اللعبة غير صالح: يجب أن يبدأ بـ https://" };
+    return {
+      ok: false,
+      status: 400,
+      error: "رابط اللعبة غير صالح: رابطٌ يبدأ بـ https:// أو مسارُ لعبة مثل /api/game-embed/<المعرّف>/index.html",
+    };
   }
   let teacher: { id: string; name: string } | null = null;
   if (teacherId) {

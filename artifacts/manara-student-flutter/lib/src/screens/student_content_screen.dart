@@ -53,6 +53,11 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   late StudentContentModule _activeModule;
   List<LessonContent> _lessons = const [];
   List<HtmlGame> _apiGames = const [];
+
+  /// ألعابُ المعلم لم تصل — شبكةٌ أو جلسة — لا «لا ألعاب». الفهرسُ العامّ يفرغ
+  /// حين تُسند الألعابُ كلُّها إلى معلّمين، فكان التعذّرُ يُعرض «لا توجد ألعاب»
+  /// بلا سببٍ ولا إعادة محاولة.
+  String? _gamesError;
   LessonContent? _selectedLesson;
   late StudentGamification _gamification;
   bool _loading = true;
@@ -193,12 +198,16 @@ class _StudentContentScreenState extends State<StudentContentScreen>
       // Supabase lesson games remain available if the optional API catalog
       // is unavailable.
     }
+    String? gamesError;
     try {
       // ألعابُ معلّم الطالب من «الترفيه والألعاب»: بعد ألعاب الفهرس، فلا
       // تُزيح لعبةً فتحها الطالب بمستواه.
       apiGames = [...apiGames, ...await _contentService.fetchTeacherGames()];
-    } catch (_) {
-      // تعذّرت: ألعابُ الفهرس والدروس كما هي.
+    } catch (error) {
+      // تعذّرت: ألعابُ الفهرس والدروس كما هي، والسببُ يُعرض إن لم يبقَ شيء.
+      gamesError = error is StateError
+          ? error.message.toString()
+          : tr('content.gamesUnreachable');
     }
 
     var gamification = _gamification;
@@ -212,6 +221,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     setState(() {
       _lessons = lessons;
       _apiGames = apiGames;
+      _gamesError = gamesError;
       _selectedLesson = lessons.isEmpty ? null : lessons.first;
       _gamification = gamification;
       _loading = false;
@@ -341,6 +351,18 @@ class _StudentContentScreenState extends State<StudentContentScreen>
         icon: Icons.cloud_off_rounded,
         title: tr('content.loadFailed'),
         message: _error!,
+        actionLabel: tr('action.retry'),
+        onAction: _retryContent,
+      );
+    }
+
+    if (_activeModule == StudentContentModule.games &&
+        !_hasGameContent &&
+        _gamesError != null) {
+      return _StateCard(
+        icon: Icons.cloud_off_rounded,
+        title: tr('content.loadFailed'),
+        message: _gamesError!,
         actionLabel: tr('action.retry'),
         onAction: _retryContent,
       );

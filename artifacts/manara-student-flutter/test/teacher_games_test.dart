@@ -19,6 +19,8 @@ class FakeAuth implements StudentAuthService {
   @override
   void clearApiSession() {}
   @override
+  void expireApiSession() {}
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
