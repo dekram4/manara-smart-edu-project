@@ -6,8 +6,8 @@ thing that greets them:
 
   * `assets/images/student_mascot.png` — the pair of reading children from the
     login screen (`StudentInteractiveMascot`).
-  * `assets/images/manara-logo-mark-transparent.png` — the Manara mark from the
-    welcome screen.
+  * `assets/images/manara-logo-emblem.png` — the platform's approved emblem,
+    the lighthouse on the open book (cut by `tool/build_logo_emblem.py`).
 
 The composition puts the mark *in front of* the pair, centred on the line where
 their hands and books already are, and sized to stop short of their outer
@@ -51,7 +51,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 MASCOT = os.path.join(ROOT, "assets", "images", "student_mascot.png")
-LOGO = os.path.join(ROOT, "assets", "images", "manara-logo-mark-transparent.png")
+LOGO = os.path.join(ROOT, "assets", "images", "manara-logo-emblem.png")
 OUT = os.path.join(ROOT, "assets", "icon", "app_icon.png")
 
 SIZE = 1024

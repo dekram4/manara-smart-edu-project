@@ -375,16 +375,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                   BoxShadow(color: Colors.white70, blurRadius: 30, spreadRadius: 6),
                                 ],
                               ),
-                              child: ColorFiltered(
-                                colorFilter: const ColorFilter.mode(StudentPalette.brandBlue, BlendMode.srcIn),
-                                child: Image.asset(
-                                  'assets/images/manara-logo-mark-transparent.png',
+                              child: Image.asset(
+                                  'assets/images/manara-logo-emblem.png',
                                   width: logoSize,
                                   height: logoSize,
                                   fit: BoxFit.contain,
                                   errorBuilder: _emptyImageFallback,
                                 ),
-                              ),
                             ),
                           ),
                           const SizedBox(height: logoNameGap),
@@ -909,19 +906,13 @@ class _LandscapeBrand extends StatelessWidget {
                     BoxShadow(color: Colors.white70, blurRadius: 22, spreadRadius: 4),
                   ],
                 ),
-                child: ColorFiltered(
-                  colorFilter: const ColorFilter.mode(
-                    StudentPalette.brandBlue,
-                    BlendMode.srcIn,
-                  ),
-                  child: Image.asset(
-                    'assets/images/manara-logo-mark-transparent.png',
+                child: Image.asset(
+                    'assets/images/manara-logo-emblem.png',
                     width: markSize,
                     height: markSize,
                     fit: BoxFit.contain,
                     errorBuilder: _emptyImageFallback,
                   ),
-                ),
                 ),
               ),
               const SizedBox(width: 10),
