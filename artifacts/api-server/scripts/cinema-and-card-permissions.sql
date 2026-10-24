@@ -138,5 +138,93 @@ create policy "anon_read_card_permissions" on public.app_kv
   for select to anon, authenticated
   using (key = 'smartEdu_cardPermissions');
 
+-- ═══════════════════════════════════════════════════════════════════════
+-- 4) نقلُ فيديوهات `app_kv/smartEdu_videos` إلى الجدول
+-- ═══════════════════════════════════════════════════════════════════════
+-- ما حُفظ قبل وجود الجدول يُقرأ «قديماً» وتظهر عليه في اللوحة علامةُ
+-- الحفظ المؤقّت. يُنقل هنا بالحقول نفسها التي يقرؤها `fromLegacyRecord`
+-- في `src/lib/cinema.ts`، ثم يُحذف من المفتاح ما صار له صفٌّ في الجدول.
+-- الصفُّ الموجود في الجدول يغلب (كما في `mergeCinemaVideos`)، والمحذوفُ في
+-- `smartEdu_deletedVideos` لا يُنقل.
+with legacy as (
+  select r.value as rec
+  from public.app_kv kv,
+       jsonb_array_elements(
+         case when jsonb_typeof(kv.value::jsonb) = 'array' then kv.value::jsonb else '[]'::jsonb end
+       ) as r(value)
+  where kv.key = 'smartEdu_videos' and jsonb_typeof(r.value) = 'object'
+),
+deleted as (
+  select btrim(d.value) as id
+  from public.app_kv kv,
+       jsonb_array_elements_text(
+         case when jsonb_typeof(kv.value::jsonb) = 'array' then kv.value::jsonb else '[]'::jsonb end
+       ) as d(value)
+  where kv.key = 'smartEdu_deletedVideos'
+),
+shaped as (
+  select
+    btrim(coalesce(rec->>'id', '')) as id,
+    btrim(coalesce(rec->>'title', '')) as title,
+    coalesce(nullif(btrim(rec->>'embedUrl'), ''), btrim(coalesce(rec->>'url', ''))) as embed_url,
+    rec->>'sourceType' as source_type,
+    btrim(coalesce(rec->>'description', '')) as description,
+    coalesce(nullif(btrim(rec->>'gradeId'), ''), nullif(btrim(rec->>'grade_id'), ''),
+             btrim(coalesce(rec->>'grade', ''))) as grade_id,
+    coalesce(nullif(btrim(rec->>'teacher_id'), ''), nullif(btrim(rec->>'teacherId'), ''),
+             btrim(coalesce(rec->>'createdBy', ''))) as teacher_id,
+    btrim(coalesce(rec->>'teacherName', '')) as teacher_name,
+    nullif(btrim(coalesce(rec->>'created_by', rec->>'addedBy', '')), '') as created_by,
+    btrim(coalesce(rec->>'createdAt', '')) as created_at,
+    coalesce(nullif(btrim(rec->>'updatedAt'), ''), btrim(coalesce(rec->>'createdAt', ''))) as updated_at
+  from legacy
+)
+insert into public.cinema_videos
+  (id, title, embed_url, source_type, description, grade_id, teacher_id,
+   teacher_name, created_by, created_at, updated_at)
+select distinct on (s.id)
+  s.id,
+  s.title,
+  s.embed_url,
+  case
+    when s.source_type in ('mp4', 'embed') then s.source_type
+    when s.embed_url ~* '\.mp4($|[?#])' then 'mp4'
+    else 'embed'
+  end,
+  s.description,
+  s.grade_id,
+  s.teacher_id,
+  s.teacher_name,
+  coalesce(s.created_by, s.teacher_id),
+  -- تاريخٌ ISO أو ميلي‌ثوانٍ؛ وما سواهما «الآن» بدل أن يُفشل النقلَ كله.
+  case
+    when s.created_at ~ '^\d{4}-\d{2}-\d{2}([T ][0-9:.]+)?(Z|[+-]\d{2}(:?\d{2})?)?$' then s.created_at::timestamptz
+    when s.created_at ~ '^\d{10,13}$' then to_timestamp(s.created_at::bigint / case when length(s.created_at) > 10 then 1000.0 else 1 end)
+    else now()
+  end,
+  case
+    when s.updated_at ~ '^\d{4}-\d{2}-\d{2}([T ][0-9:.]+)?(Z|[+-]\d{2}(:?\d{2})?)?$' then s.updated_at::timestamptz
+    when s.updated_at ~ '^\d{10,13}$' then to_timestamp(s.updated_at::bigint / case when length(s.updated_at) > 10 then 1000.0 else 1 end)
+    else now()
+  end
+from shaped s
+where s.id <> '' and s.embed_url <> ''
+  and not exists (select 1 from deleted d where d.id = s.id)
+order by s.id
+on conflict (id) do nothing;
+
+-- ما صار في الجدول يُرفع من المفتاح، فلا يُقرأ بعد اليوم نسخةً قديمة.
+update public.app_kv kv
+set value = coalesce((
+  select jsonb_agg(r.value)
+  from jsonb_array_elements(kv.value::jsonb) as r(value)
+  where not exists (
+    select 1 from public.cinema_videos c
+    where c.id = btrim(coalesce(r.value->>'id', ''))
+  )
+), '[]'::jsonb)
+where kv.key = 'smartEdu_videos'
+  and jsonb_typeof(kv.value::jsonb) = 'array';
+
 -- يُعلم PostgREST بالبنية الجديدة فورًا بدل انتظار تحديث ذاكرته.
 notify pgrst, 'reload schema';

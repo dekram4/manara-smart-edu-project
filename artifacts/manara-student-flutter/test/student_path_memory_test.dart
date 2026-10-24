@@ -128,6 +128,87 @@ void main() {
     });
   });
 
+  group('يتبع الطالبَ إلى جهازٍ آخر', () {
+    Map<String, String> remoteOf(AcademicPath path, String lessonId, DateTime at) => {
+          'grade': path.grade,
+          'subject': path.subject,
+          'term': path.term,
+          'unit': path.unit,
+          'lessonId': lessonId,
+          'lessonName': '',
+          'savedAt': at.toUtc().toIso8601String(),
+        };
+
+    test('الحفظُ يرفع المسارَ بتاريخه', () async {
+      Map<String, String>? sent;
+      await StudentPathMemory.save(
+        's1',
+        contextOf(science, data.lessons[2]),
+        upload: (path) async => sent = path,
+      );
+      expect(sent!['subject'], 'العلوم');
+      expect(sent!['lessonId'], 'sc2');
+      expect(DateTime.tryParse(sent!['savedAt']!), isNotNull);
+    });
+
+    test('فشلُ الرفع لا يُسقط الحفظَ على الجهاز', () async {
+      await StudentPathMemory.save(
+        's1',
+        contextOf(science, data.lessons[2]),
+        upload: (_) async => throw StateError('offline'),
+      );
+      expect((await StudentPathMemory.load('s1'))!.lessonId, 'sc2');
+    });
+
+    test('تابلتٌ جديد بلا محفوظ: يُفتح مسارُ السجلّ', () async {
+      final path = await StudentPathMemory.load(
+        's1',
+        remote: remoteOf(science, 'sc2', DateTime(2026, 10, 1)),
+      );
+      expect(path!.subject, 'العلوم');
+      expect(path.lessonId, 'sc2');
+    });
+
+    test('الأحدثُ من النسختين يغلب', () async {
+      await StudentPathMemory.save('s1', contextOf(science, data.lessons[2]));
+      final older = await StudentPathMemory.load(
+        's1',
+        remote: remoteOf(english, 'en1', DateTime(2000)),
+      );
+      expect(older!.subject, 'العلوم', reason: 'المحفوظُ هنا أحدث');
+
+      final newer = await StudentPathMemory.load(
+        's1',
+        remote: remoteOf(english, 'en1', DateTime.now().add(const Duration(minutes: 1))),
+      );
+      expect(newer!.subject, 'اللغة الإنجليزية', reason: 'اختير بعدها على جهازٍ آخر');
+    });
+
+    test('محليٌّ قديم بلا تاريخ يغلبه المرفوع', () async {
+      SharedPreferences.setMockInitialValues({
+        'student.path.s1':
+            '{"grade":"الصف الرابع","subject":"العلوم","term":"الفصل الثاني","unit":"الوحدة الثالثة","lessonId":"sc2","lessonName":""}',
+      });
+      final path = await StudentPathMemory.load(
+        's1',
+        remote: remoteOf(english, 'en1', DateTime(2026, 1, 1)),
+      );
+      expect(path!.subject, 'اللغة الإنجليزية');
+    });
+
+    test('الملفُّ يقرأ المسارَ من سجلّ الطالب', () {
+      final profile = StudentProfile.fromStudentRow({
+        'id': 's1',
+        'data': {
+          'username': 'u',
+          'role': 'student',
+          'lastPath': {'grade': 'الصف الرابع', 'subject': 'العلوم'},
+        },
+      });
+      expect(profile.lastPath!['subject'], 'العلوم');
+    });
+  });
+
   group('شاشةُ اختيار المسار', () {
     late StudentAuthService authService;
 

@@ -738,6 +738,54 @@ router.post("/student/progress/appearance", async (req, res) => {
   }
 });
 
+/** أطولُ قيمةٍ تُقبل في مستوىً من مستويات المسار. */
+const PATH_FIELD_MAX = 300;
+const PATH_FIELDS = ["grade", "subject", "term", "unit", "lessonId", "lessonName"] as const;
+
+/**
+ * آخرُ مسارٍ اختاره الطالب: الصفُّ والمادةُ والفصلُ والوحدةُ والدرس.
+ *
+ * كان يُحفظ على الجهاز وحده، فطالبٌ دخل من تابلت آخر بدأ الاختيارَ من جديد.
+ * والآن يُكتب في سجلّه (`data.lastPath`) ويعود مع الدخول. `savedAt` من الجهاز
+ * يُقارن به التطبيقُ نسختَه المحلية، فيُقبل ما لم يتجاوز الآن وإلا كُتب الآن.
+ */
+router.post("/student/progress/path", async (req, res) => {
+  const student = activeStudent(res);
+  const body = asMap(asMap(req.body).path);
+  const path: Json = {};
+  for (const field of PATH_FIELDS) {
+    const value = text(body[field]);
+    if (value.length > PATH_FIELD_MAX) {
+      res.status(400).json({ error: "قيمةُ المسار أطول من المسموح" });
+      return;
+    }
+    path[field] = value;
+  }
+  if (path.grade === "" || path.subject === "") {
+    res.status(400).json({ error: "الصفُّ والمادة مطلوبان" });
+    return;
+  }
+  const now = Date.now();
+  const claimed = Date.parse(text(body.savedAt));
+  path.savedAt = new Date(Number.isFinite(claimed) && claimed <= now ? claimed : now).toISOString();
+  try {
+    const row = await readStudentRow(student);
+    if (!row) {
+      res.status(404).json({ error: "سجلّ الطالب غير موجود" });
+      return;
+    }
+    await writeStudentData(row.rowId, {
+      ...row.data,
+      lastPath: path,
+      lastActivity: new Date().toISOString(),
+    });
+    res.json({ ok: true, path });
+  } catch (error) {
+    logger.error({ err: error }, "[student-progress] path save failed");
+    res.status(503).json({ error: "تعذر حفظ المسار الآن" });
+  }
+});
+
 /**
  * نتيجة اختبار.
  *

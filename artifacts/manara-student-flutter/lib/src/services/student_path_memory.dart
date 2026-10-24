@@ -14,6 +14,7 @@ class StoredPath {
     required this.unit,
     required this.lessonId,
     required this.lessonName,
+    this.savedAt,
   });
 
   final String grade;
@@ -23,13 +24,18 @@ class StoredPath {
   final String lessonId;
   final String lessonName;
 
-  factory StoredPath.of(AcademicContext context) => StoredPath(
+  /// متى اختير. يُقارن به المحفوظُ هنا بالمحفوظ في السجلّ على الخادم، فيُفتح
+  /// الأحدث منهما. `null` لمسارٍ حُفظ قبل وجود هذا الحقل.
+  final DateTime? savedAt;
+
+  factory StoredPath.of(AcademicContext context, {DateTime? savedAt}) => StoredPath(
         grade: context.grade,
         subject: context.subject,
         term: context.term,
         unit: context.unit,
         lessonId: context.lessonId,
         lessonName: context.lesson,
+        savedAt: savedAt,
       );
 
   Map<String, String> toJson() => {
@@ -39,6 +45,7 @@ class StoredPath {
         'unit': unit,
         'lessonId': lessonId,
         'lessonName': lessonName,
+        if (savedAt != null) 'savedAt': savedAt!.toUtc().toIso8601String(),
       };
 
   static StoredPath? fromJson(Object? raw) {
@@ -51,12 +58,13 @@ class StoredPath {
       unit: text('unit'),
       lessonId: text('lessonId'),
       lessonName: text('lessonName'),
+      savedAt: DateTime.tryParse(text('savedAt')),
     );
     return path.grade.isEmpty || path.subject.isEmpty ? null : path;
   }
 }
 
-/// يحفظ آخرَ مسارٍ للطالب على الجهاز، ويستعيده عند الدخول.
+/// يحفظ آخرَ مسارٍ للطالب على الجهاز وفي سجلّه على الخادم، ويستعيده عند الدخول.
 ///
 /// ── ما كان يحدث ──
 /// كان المسارُ يُختار في كل دخولٍ من جديد ابتداءً من مادة الطالب في ملفّه — التي
@@ -66,31 +74,65 @@ class StoredPath {
 ///
 /// ── ولكل طالبٍ مفتاحُه ──
 /// جهازُ البيت يتشاركه إخوة: مسارُ أحدهم لا يُفتح للآخر.
+///
+/// ── ويتبع الطالبَ لا الجهاز ──
+/// كان على الجهاز وحده، فطالبٌ دخل من تابلت آخر بدأ الاختيارَ من جديد. والآن
+/// يُرفع أيضاً إلى سجلّه (`data.lastPath`) ويعود مع ملفّه عند الدخول، ويُفتح
+/// الأحدثُ من النسختين.
 class StudentPathMemory {
   const StudentPathMemory._();
 
   static String _key(String studentId) => 'student.path.$studentId';
 
-  static Future<void> save(String studentId, AcademicContext context) async {
+  /// [upload]: يرفع المسارَ إلى سجلّ الطالب. فشلُه لا يُسقط الحفظَ المحليّ.
+  static Future<void> save(
+    String studentId,
+    AcademicContext context, {
+    Future<void> Function(Map<String, String> path)? upload,
+  }) async {
     if (studentId.isEmpty) return;
+    final json = StoredPath.of(context, savedAt: DateTime.now()).toJson();
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_key(studentId), jsonEncode(StoredPath.of(context).toJson()));
+      await prefs.setString(_key(studentId), jsonEncode(json));
     } catch (error) {
       // مسارٌ لم يُحفظ يُختار ثانيةً في الدخول القادم، ولا يُسقط شيئاً.
       debugPrint('[path] not saved: $error');
     }
+    if (upload == null) return;
+    try {
+      await upload(json);
+    } catch (error) {
+      // يبقى على هذا الجهاز، ويُرفع مع الاختيار القادم.
+      debugPrint('[path] not uploaded: $error');
+    }
   }
 
-  static Future<StoredPath?> load(String studentId) async {
+  /// [remote]: المسارُ المحفوظ في سجلّ الطالب (`StudentProfile.lastPath`).
+  /// يُفتح الأحدثُ منه ومن المحفوظ هنا؛ والمحليُّ القديم بلا تاريخ يغلبه
+  /// المرفوع.
+  static Future<StoredPath?> load(String studentId, {Object? remote}) async {
     if (studentId.isEmpty) return null;
+    StoredPath? local;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_key(studentId));
-      return raw == null ? null : StoredPath.fromJson(jsonDecode(raw));
+      local = raw == null ? null : StoredPath.fromJson(jsonDecode(raw));
     } catch (_) {
-      return null;
+      local = null;
     }
+    return newer(local, StoredPath.fromJson(remote));
+  }
+
+  /// الأحدثُ من مسارين؛ وعند التعادل أو غياب التاريخين يُقدَّم [local].
+  static StoredPath? newer(StoredPath? local, StoredPath? remote) {
+    if (local == null) return remote;
+    if (remote == null) return local;
+    final localAt = local.savedAt;
+    final remoteAt = remote.savedAt;
+    if (remoteAt == null) return local;
+    if (localAt == null) return remote;
+    return remoteAt.isAfter(localAt) ? remote : local;
   }
 
   /// يُعيد بناءَ المسار المحفوظ من شجرة الدروس اليوم، أو `null` إن لم يعد قائماً.

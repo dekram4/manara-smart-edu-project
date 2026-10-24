@@ -29,6 +29,7 @@ class StudentProfile {
     this.teacherId,
     this.studentIdNumber,
     this.appearance,
+    this.lastPath,
     this.canAccessChat = true,
     this.canAccessLiveMeeting = true,
     this.assignedSubjects = const [],
@@ -52,6 +53,7 @@ class StudentProfile {
       teacherId: _asText(data['teacherId']) ?? _asText(data['teacher_id']),
       studentIdNumber: _asText(data['studentIdNumber']),
       appearance: _asMap(data['appearance']),
+      lastPath: data['lastPath'] is Map ? _asMap(data['lastPath']) : null,
       canAccessChat: _asBool(data['canAccessChat'], fallback: true),
       canAccessLiveMeeting: _asBool(data['canAccessLiveMeeting'], fallback: true),
       assignedSubjects: _asNameList(data['assignedSubjects']),
@@ -102,6 +104,10 @@ class StudentProfile {
   final String? teacherId;
   final String? studentIdNumber;
   final Map<String, dynamic>? appearance;
+
+  /// آخرُ مسارٍ اختاره الطالب كما في سجلّه على الخادم (`data.lastPath`)،
+  /// لتفتحه [StudentPathMemory] على أيّ جهاز. `null` إن لم يُرفع قطّ.
+  final Map<String, dynamic>? lastPath;
   final bool canAccessChat;
   final bool canAccessLiveMeeting;
 

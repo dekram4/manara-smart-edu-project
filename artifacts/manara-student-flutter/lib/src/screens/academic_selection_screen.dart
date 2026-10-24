@@ -65,8 +65,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   String? _loadError;
   StudentGamification _gamification = const StudentGamification();
 
-  /// آخرُ مسارٍ اختاره هذا الطالب على هذا الجهاز. يُقدَّم على مادة ملفّه.
-  late final Future<StoredPath?> _memory = StudentPathMemory.load(widget.profile.id);
+  /// آخرُ مسارٍ اختاره هذا الطالب، على هذا الجهاز أو في سجلّه — الأحدثُ منهما.
+  /// يُقدَّم على مادة ملفّه.
+  late final Future<StoredPath?> _memory = StudentPathMemory.load(
+    widget.profile.id,
+    remote: widget.profile.lastPath,
+  );
   StoredPath? _remembered;
 
   /// The board is shown as soon as the teacher's settings describe a
@@ -394,7 +398,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null || _isEntering) return;
-    unawaited(StudentPathMemory.save(widget.profile.id, selection));
+    unawaited(StudentPathMemory.save(
+      widget.profile.id,
+      selection,
+      upload: _contentService.savePath,
+    ));
     StudentSoundService.instance.playTap();
     // Silenced here, at the tap, rather than in dispose: by the time this
     // route is torn down the hub has begun its own welcome on the same player.
