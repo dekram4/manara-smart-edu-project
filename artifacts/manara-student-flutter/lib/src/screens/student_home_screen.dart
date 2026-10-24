@@ -136,7 +136,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _academicContext = widget.academicContext;
     final given = widget.academicContext;
     if (given != null) {
-      unawaited(StudentPathMemory.save(widget.profile.id, given));
+      // `_contentService` يُنشأ أسفل هذا؛ والرفعُ بعد كتابة الجهاز، فيكون قد نشأ.
+      unawaited(StudentPathMemory.save(
+        widget.profile.id,
+        given,
+        upload: (path) => _contentService.savePath(path),
+      ));
     } else {
       // ── دخولٌ بجلسةٍ محفوظة: الدرسُ الذي توقّف عنده ──
       // كانت الواجهةُ تُفتح هنا بلا درس، فتسأل كلُّ بطاقةٍ أن يُختار من جديد.
@@ -627,7 +632,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
     if (chosen == null || !mounted) return;
     setState(() => _academicContext = chosen);
-    unawaited(StudentPathMemory.save(widget.profile.id, chosen));
+    unawaited(StudentPathMemory.save(
+      widget.profile.id,
+      chosen,
+      upload: _contentService.savePath,
+    ));
     StudentSoundService.instance.play(StudentSoundCue.success);
     messenger.showSnackBar(
       SnackBar(content: Text(trf('home.lessonChosen', {'lesson': chosen.lesson}))),
@@ -653,7 +662,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   /// يستعيد آخرَ مسارٍ اختاره الطالب، إن كان ما زال في شجرة الدروس.
   Future<void> _restorePath() async {
-    final remembered = await StudentPathMemory.load(widget.profile.id);
+    final remembered = await StudentPathMemory.load(
+      widget.profile.id,
+      remote: widget.profile.lastPath,
+    );
     if (remembered == null || !mounted) return;
     AcademicSelectionData? data = _selectionData;
     if (data == null) {

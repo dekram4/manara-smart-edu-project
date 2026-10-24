@@ -853,6 +853,12 @@ class StudentContentService {
     await _postProgress('appearance', {'appearance': appearance});
   }
 
+  /// آخرُ مسارٍ اختاره الطالب، في سجلّه على الخادم (`data.lastPath`)، ليعود
+  /// إليه من أيّ جهاز. الجسمُ ما يكتبه [StoredPath.toJson].
+  Future<void> savePath(Map<String, String> path) async {
+    await _postProgress('path', {'path': path});
+  }
+
   Future<List<Map<String, dynamic>>> loadTutorHistory(
     StudentProfile profile,
   ) async {
