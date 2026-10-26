@@ -58,7 +58,7 @@ import {
   type StudyGame,
   type StudyGamesPack,
 } from "../lib/studyGames";
-import { alphabetGame, buildTracingGame, tracingGame, withTracingGame } from "../lib/tracing";
+import { alphabetGame, tracingGame, withTracingGame } from "../lib/tracing";
 import {
   TRACING_QUIZ_SCHEMA,
   TRACING_QUIZ_SYSTEM_INSTRUCTION,
@@ -1855,8 +1855,11 @@ const tracingQuizInFlight = new Map<string, Promise<StudyGame | null>>();
  * لعبةُ التتبّع لدرسٍ له نصّ.
  *
  * مادّةُ حروفٍ أو أرقام: المجموعةُ كاملة، بلا نموذج. وغيرُها: أسئلةٌ يولّدها
- * النموذج من النصّ، تُحفظ مع الدرس مختومةً بنصّه؛ وإن تعذّرت فما يُستخرج من
- * النصّ بلا نموذج — فلا يغيب التتبّعُ لأن النموذج تعثّر.
+ * النموذج من النصّ وحدها، تُحفظ مع الدرس مختومةً بنصّه.
+ *
+ * ولا بديلَ من كلمات النصّ إن تعذّر النموذج: موادُّ ما بعد الروضة لا تتبّعَ
+ * فيها لحروفٍ وكلماتٍ مجرّدة، بل أسئلةٌ فقط — فتغيب اللعبةُ في تلك المرّة،
+ * وتُولَّد في الطلب التالي.
  */
 async function tracingGameFor(lesson: {
   id: string;
@@ -1872,7 +1875,6 @@ async function tracingGameFor(lesson: {
   if (alphabet) return alphabet;
 
   const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
-  const fallback = () => buildTracingGame({ title, text: lesson.text, subject: lesson.subject });
   const stored = readTracingQuiz(lesson.tracingQuiz, owner);
   if (stored) return tracingGame(stored.items);
 
@@ -1901,7 +1903,7 @@ async function tracingGameFor(lesson: {
         const quiz = parseTracingQuiz(getGeminiText(data) ?? "", owner, { subject: lesson.subject });
         if (!quiz) {
           logger.warn({ lessonId: lesson.id }, "[tracing-quiz] model output was not usable");
-          return fallback();
+          return null;
         }
         void persistLessonField(lesson.id, "tracingQuiz", quiz).catch((error) =>
           logger.error({ err: error, lessonId: lesson.id }, "[tracing-quiz] not saved"),
@@ -1909,7 +1911,7 @@ async function tracingGameFor(lesson: {
         return tracingGame(quiz.items);
       } catch (error) {
         logger.warn({ err: error, lessonId: lesson.id }, "[tracing-quiz] generation failed");
-        return fallback();
+        return null;
       }
     })().finally(() => tracingQuizInFlight.delete(flightKey));
     tracingQuizInFlight.set(flightKey, flight);

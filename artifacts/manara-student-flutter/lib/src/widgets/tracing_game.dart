@@ -1,111 +1,45 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/study_games.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
+import '../services/tracing_glyphs.dart';
 import '../services/tracing_path.dart';
 import '../theme/student_theme.dart';
 
-/// ما رسمه الخطُّ لعنصرٍ واحد: صورتُه، والجزءُ الذي فيه الحبر، ومساراتُه.
-class TracingShape {
-  const TracingShape({required this.image, required this.crop, required this.plan});
-
-  final ui.Image image;
-
-  /// موضعُ الحبر في [image]؛ ومنه تُقاس نقاطُ [plan].
-  final Rect crop;
-  final TracePlan plan;
-}
-
-/// يرسم [item] بالخطّ [style] ويبني مساراتِ تتبّعه.
-///
-/// يُرسم كبيراً ثم يُبنى المسارُ من الصورة نفسها التي تُعرض للطفل، فلا
-/// يختلف ما يراه عمّا يُطلب منه — ولو لم يكن خطُّ التطبيق قد نُزّل بعد
-/// فرُسم بالخطّ البديل.
-Future<TracingShape?> renderTracingShape(TracingItem item, TextStyle style) async {
-  final painter = TextPainter(
-    text: TextSpan(
-      text: item.text,
-      style: style.copyWith(
-        fontSize: item.kind == 'word' ? 110 : 150,
-        fontWeight: FontWeight.w700,
-        color: const Color(0xFF000000),
-        height: 1.3,
-        letterSpacing: 0,
-      ),
-    ),
-    textDirection: item.rtl ? TextDirection.rtl : TextDirection.ltr,
-  )..layout();
-  const pad = 16.0;
-  final width = (painter.width + pad * 2).ceil();
-  final height = (painter.height + pad * 2).ceil();
-  if (width <= 0 || height <= 0) return null;
-
-  final recorder = ui.PictureRecorder();
-  painter.paint(Canvas(recorder), const Offset(pad, pad));
-  final image = await recorder.endRecording().toImage(width, height);
-  final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-  if (bytes == null) return null;
-
-  var minX = width, minY = height, maxX = -1, maxY = -1;
-  final ink = List.generate(height, (_) => List<bool>.filled(width, false));
-  for (var y = 0; y < height; y++) {
-    for (var x = 0; x < width; x++) {
-      if (bytes.getUint8((y * width + x) * 4 + 3) > 110) {
-        ink[y][x] = true;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-  if (maxX < 0) return null;
-  const margin = 3;
-  final left = math.max(0, minX - margin);
-  final top = math.max(0, minY - margin);
-  final right = math.min(width - 1, maxX + margin);
-  final bottom = math.min(height - 1, maxY + margin);
-  final cropped = [
-    for (var y = top; y <= bottom; y++) ink[y].sublist(left, right + 1),
-  ];
-  final plan = TracePlanner.plan(cropped, rtl: item.rtl, topFirst: item.kind != 'word');
-  if (plan.isEmpty) return null;
-  return TracingShape(
-    image: image,
-    crop: Rect.fromLTRB(left.toDouble(), top.toDouble(), right + 1.0, bottom + 1.0),
-    plan: plan,
-  );
-}
-
 /// لعبةُ «تتبّع واكتب» في بطاقة المذاكرة.
 ///
-/// ── كيف تُلعب ──
-/// تظهر الكلمةُ باهتةً وعليها نقاطٌ مرقّمة. يضع الطفلُ إصبعه على النقطة
-/// الخضراء ويمرّ بالنقاط بترتيبها: النقطةُ التالية وحدها تُحتسب، فلا يتقدّم
-/// إلا في اتجاه الكتابة. وإن ابتعد عن الخطّ عادت الجرّةُ من أوّلها بصوت
-/// تنبيهٍ لطيف. ونقطةُ الحرف تُلمس لمساً. وكلُّ عنصرٍ يكتمل بصوت نجاح.
+/// ── حروفُ الروضة وأرقامُها: شبكةٌ ثم لوحة ──
+/// تظهر المجموعةُ في المساحة البيضاء شبكةً من ستّ بطاقاتٍ كبيرة في الصفحة،
+/// تُقلَّب صفحةً صفحة. يلمس الطفلُ حرفاً فيسمع اسمَه في الحال، وتُفتح لوحةُ
+/// تتبّعه. وما أنجزه يعود إلى الشبكة أخضرَ بعلامة. والمكافأةُ بعد
+/// [StudyGame.tracingRewardAfter] منها لا بعد آخرها.
 ///
-/// ── والمجموعاتُ الطويلة ──
-/// حروفُ الروضة ٢٨ حرفاً: شريطٌ في الأعلى يُظهرها كلَّها ويقفز الطفلُ إلى أيّها،
-/// والمكافأةُ تُصرف بعد [StudyGame.tracingRewardAfter] منها لا بعد آخرها.
-/// وكلُّ حرفٍ يُنطق باسمه حين يظهر، وبزرّ السمّاعة متى شاء.
+/// ── أسئلةُ «أجب وتتبّع» لغيرها: واحدٌ بعد واحد ──
+/// يُقرأ السؤالُ ويُختار جوابُه: الخطأُ صوتُ تنبيهٍ ومحاولةٌ أخرى، والصوابُ
+/// يُنطق ثم يُتتبّع.
 ///
-/// ── وأسئلةُ «أجب وتتبّع» ──
-/// عنصرٌ له سؤال ([TracingItem.isQuestion]) يُختار جوابُه أوّلاً: الخطأُ صوتُ
-/// تنبيهٍ ومحاولةٌ أخرى، والصوابُ يُنطق ويُفتح تتبّعاً.
+/// ── واللوحة ──
+/// يضع الطفلُ إصبعه على النقطة الخضراء ويمرّ بالنقاط بترتيبها: التاليةُ
+/// وحدها تُحتسب، فلا يتقدّم إلا في اتجاه الكتابة. وإن ابتعد عن الخطّ عادت
+/// الجرّةُ من أوّلها بتنبيهٍ لطيف. ونقطةُ الحرف تُلمس لمساً.
+///
+/// ── ولا دائرةَ تحميلٍ بلا نهاية ──
+/// أشكالُ الروضة محسوبةٌ مسبقاً ([precomputedTracingShape]) فتُفتح فوراً.
+/// وما يُرسم وقتَ اللعب له مهلة؛ فإن انقضت أكمل الطفلُ بدونه (انظر
+/// [loadTracingShape]).
 class TracingGame extends StatefulWidget {
   const TracingGame({
     required this.game,
     required this.onWin,
     required this.onReplay,
-    this.shapeBuilder = renderTracingShape,
+    this.shapeBuilder = loadTracingShape,
     this.speak,
     super.key,
   });
@@ -115,7 +49,7 @@ class TracingGame extends StatefulWidget {
   final VoidCallback onReplay;
 
   /// يُستبدل في الاختبار وحده.
-  final Future<TracingShape?> Function(TracingItem item, TextStyle style) shapeBuilder;
+  final Future<TracingShape?> Function(TracingItem item) shapeBuilder;
 
   /// النطق؛ وبلا قيمةٍ محرّكُ الجهاز ([StudentVoiceService.speakIn]).
   final Future<void> Function(String text, String lang)? speak;
@@ -124,52 +58,64 @@ class TracingGame extends StatefulWidget {
   State<TracingGame> createState() => TracingGameState();
 }
 
+enum _View { grid, board, question }
+
 @visibleForTesting
 class TracingGameState extends State<TracingGame> with SingleTickerProviderStateMixin {
-  static const _color = Color(0xFF16A34A);
-  static const _next = Color(0xFFF59E0B);
+  static const _green = Color(0xFF16A34A);
+  static const _amber = Color(0xFFF59E0B);
 
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
+  /// بطاقاتُ الصفحة الواحدة في الشبكة: ٣×٢ عرضاً، و٢×٣ طولاً.
+  static const perPage = 6;
 
+  // يُنشآن في [initState] صراحةً لا كسولين: الشبكةُ لا تلمس النبض، فكان أوّلُ
+  // لمسٍ له في [dispose] — وإنشاءُ مؤقّتٍ هناك ممنوع.
+  late final AnimationController _pulse;
+  late final PageController _pages;
+
+  _View _view = _View.grid;
   int _index = 0;
+  int _page = 0;
+
   TracingShape? _shape;
-  bool _loading = true;
+  bool _loading = false;
+  bool _unavailable = false;
+  int _loadToken = 0;
+
   int _stroke = 0;
 
   /// آخرُ نقطةٍ بلغها الإصبع في الجرّة الحالية؛ -1 قبل أن تبدأ.
   int _reached = -1;
   List<Offset> _trail = [];
   final List<List<Offset>> _doneTrails = [];
-  int _mistakes = 0;
   bool _itemDone = false;
-  bool _allDone = false;
   String? _hint;
   Rect _dest = Rect.zero;
 
-  /// ما أنجزه الطفلُ من العناصر، بمواضعها.
   final Set<int> _done = {};
   bool _rewarded = false;
-
-  /// سؤالُ العنصر الحالي أُجيب صواباً — أو لا سؤالَ له.
-  bool _answered = true;
+  bool _allDone = false;
+  int _mistakes = 0;
   String? _wrongOption;
+  bool _correctFlash = false;
 
-  /// كلُّ تحميلٍ برقمه: قفزٌ سريعٌ بين الحروف لا يُظهر شكلاً وصل متأخّراً.
-  int _loadToken = 0;
-  final ScrollController _strip = ScrollController();
+  /// النصُّ مرسوماً للوحة، بلونه — يُبنى مرّةً لكل عنصرٍ ولون، لا مع كل نبضة.
+  final Map<String, TextPainter> _glyphs = {};
 
   List<TracingItem> get _items => widget.game.tracing;
   TracingItem get _item => _items[_index];
+
+  /// الروضة: شبكة. والأسئلة: تسلسل.
+  bool get _gridMode => !_items.any((item) => item.isQuestion);
+
+  int get _pageCount => (_items.length / perPage).ceil();
 
   int get _rewardAfter {
     final after = widget.game.tracingRewardAfter;
     return after <= 0 ? _items.length : math.min(after, _items.length);
   }
 
-  /// مساراتُ العنصر الحالي، للاختبار.
+  /// مساراتُ العنصر المفتوح، للاختبار.
   @visibleForTesting
   TracePlan? get plan => _shape?.plan;
 
@@ -177,141 +123,135 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   @visibleForTesting
   Offset toCanvas(TracePoint p) => _toCanvas(p);
 
-  bool _started = false;
-
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // مرّةً واحدة: الخطُّ يُقرأ من السمة، وما بعد الأول يطلبه [_jumpTo].
-    if (_started) return;
-    _started = true;
+  void initState() {
+    super.initState();
     _index = widget.game.tracingStart.clamp(0, _items.length - 1);
-    _scrollStripTo(_index);
-    unawaited(_load());
+    _page = _index ~/ perPage;
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+    _pages = PageController(initialPage: _page);
+    if (!_gridMode) {
+      // السؤالُ الأوّلُ يُفتح بعد أوّل بناء: النطقُ يحتاج السياق.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _open(_index);
+      });
+    }
   }
 
   @override
   void dispose() {
     _pulse.dispose();
-    _strip.dispose();
+    _pages.dispose();
     super.dispose();
   }
+
+  // ── النطق ────────────────────────────────────────────────────────
 
   void _say(String text, String lang) {
     final speak = widget.speak ?? StudentVoiceService.instance.speakIn;
     unawaited(speak(text, lang == 'en' ? 'en' : 'ar').catchError((Object _) {}));
   }
 
-  /// ينطق العنصرَ الحالي: سؤالَه إن لم يُجب بعد، وإلا اسمَه.
   void _sayCurrent() {
     final item = _item;
-    if (item.isQuestion && !_answered) {
+    if (_view == _View.question) {
       _say(item.prompt!, item.lang);
     } else {
       _say(item.speech, item.lang);
     }
   }
 
-  Future<void> _load() async {
-    final token = ++_loadToken;
-    final item = _item;
+  // ── التنقّل ──────────────────────────────────────────────────────
+
+  /// يفتح عنصراً: سؤالَه إن كان له، وإلا لوحتَه — وينطقه في الحال.
+  void _open(int index) {
+    if (index < 0 || index >= _items.length) return;
+    final item = _items[index];
     setState(() {
-      _shape = null;
-      _loading = true;
-      _answered = !item.isQuestion;
+      _index = index;
+      _view = item.isQuestion ? _View.question : _View.board;
       _wrongOption = null;
+      _correctFlash = false;
       _hint = null;
+      _resetBoard();
     });
-    // يُسمع قبل أن يُرسم: الطفلُ يعرف ما سيكتب وهو ينتظر.
     _sayCurrent();
-    final style = Theme.of(context).textTheme.headlineLarge ?? const TextStyle();
+    unawaited(_loadShape(item));
+  }
+
+  void _resetBoard() {
+    _shape = null;
+    _unavailable = false;
+    _stroke = 0;
+    _reached = -1;
+    _trail = [];
+    _doneTrails.clear();
+    _itemDone = false;
+  }
+
+  /// الشكلُ يُحضَّر مع فتح العنصر — والسؤالُ معروضٌ ما دام يُحضَّر.
+  ///
+  /// المحسوبُ مسبقاً يعود قبل أن يُرسم إطارٌ واحد، فلا تظهر دائرةُ تحميل
+  /// أصلاً؛ وما يُرسم الآن له مهلةٌ في [loadTracingShape].
+  Future<void> _loadShape(TracingItem item) async {
+    final token = ++_loadToken;
+    setState(() => _loading = true);
     TracingShape? shape;
     try {
-      shape = await widget.shapeBuilder(item, style);
+      shape = await widget.shapeBuilder(item);
     } catch (error) {
       debugPrint('[tracing] shape failed for "${item.text}": $error');
     }
     if (!mounted || token != _loadToken) return;
-    if (shape == null) {
-      // ما لا يُرسم لا يُطلب: يُعدّ منجَزاً ويُتخطّى.
-      _finishItem();
-      return;
-    }
     setState(() {
-      _shape = shape;
       _loading = false;
-      _stroke = 0;
-      _reached = -1;
-      _trail = [];
-      _doneTrails.clear();
-      _itemDone = false;
+      _shape = shape;
+      _unavailable = shape == null;
+    });
+    // سؤالٌ أُجيب صواباً وشكلُه لم يُرسم: يكفيه الجواب.
+    if (shape == null && _view == _View.board && item.isQuestion) _completeItem();
+  }
+
+  void _backToGrid() {
+    StudentSoundService.instance.playTap();
+    setState(() {
+      _view = _View.grid;
+      _loadToken++;
+      _resetBoard();
+      _hint = null;
     });
   }
 
-  /// العنصرُ أُنجز: يُحسب، وتُصرف المكافأةُ مرّةً عند بلوغ حدّها، ثم التالي.
+  /// العنصرُ أُنجز: يُحسب، وتُصرف المكافأةُ مرّةً عند بلوغ حدّها، ثم إلى
+  /// الشبكة أو السؤالِ التالي.
   void _finishItem() {
     _done.add(_index);
     if (!_rewarded && _done.length >= _rewardAfter) {
       _rewarded = true;
       unawaited(widget.onWin());
     }
-    _goNext();
-  }
-
-  /// أوّلُ ما لم يُنجز بعد الحالي، دائراً إلى أوّل المجموعة.
-  void _goNext() {
+    if (_done.length >= _items.length) {
+      setState(() => _allDone = true);
+      return;
+    }
+    if (_gridMode) {
+      setState(() {
+        _view = _View.grid;
+        _page = _index ~/ perPage;
+        _resetBoard();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pages.hasClients) _pages.jumpToPage(_page);
+      });
+      return;
+    }
     for (var step = 1; step <= _items.length; step++) {
-      final candidate = (_index + step) % _items.length;
-      if (!_done.contains(candidate)) {
-        _jumpTo(candidate);
+      final next = (_index + step) % _items.length;
+      if (!_done.contains(next)) {
+        _open(next);
         return;
       }
-    }
-    setState(() {
-      _allDone = true;
-      _loading = false;
-    });
-  }
-
-  void _jumpTo(int index) {
-    if (index < 0 || index >= _items.length) return;
-    setState(() {
-      _index = index;
-      _itemDone = false;
-    });
-    _scrollStripTo(index);
-    unawaited(_load());
-  }
-
-  static const _stripCell = 52.0;
-
-  void _scrollStripTo(int index) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_strip.hasClients) return;
-      final target = (index * _stripCell - _strip.position.viewportDimension / 2 + _stripCell / 2)
-          .clamp(0.0, _strip.position.maxScrollExtent);
-      _strip.animateTo(target, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-    });
-  }
-
-  void _choose(String option) {
-    final item = _item;
-    if (_answered) return;
-    if (option == item.text) {
-      StudentSoundService.instance.play(StudentSoundCue.answerSelected);
-      setState(() {
-        _answered = true;
-        _wrongOption = null;
-        _hint = null;
-      });
-      _say(item.speech, item.lang);
-    } else {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-      setState(() {
-        _mistakes += 1;
-        _wrongOption = option;
-        _hint = tr('study.trace.wrongAnswer');
-      });
     }
   }
 
@@ -324,6 +264,41 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _doneTrails.clear();
       _hint = null;
     });
+  }
+
+  // ── السؤال ───────────────────────────────────────────────────────
+
+  void _choose(String option) {
+    final item = _item;
+    if (_view != _View.question || _correctFlash) return;
+    if (option == item.text) {
+      StudentSoundService.instance.play(StudentSoundCue.success);
+      HapticFeedback.lightImpact();
+      setState(() {
+        _correctFlash = true;
+        _wrongOption = null;
+        _hint = tr('study.trace.correct');
+      });
+      _say(item.speech, item.lang);
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (!mounted || _view != _View.question || _items[_index] != item) return;
+        setState(() {
+          _view = _View.board;
+          _correctFlash = false;
+          _hint = null;
+        });
+        // الشكلُ تعذّر وهو يُحضَّر: الجوابُ يكفي.
+        if (_unavailable) _completeItem();
+      });
+    } else {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _mistakes += 1;
+        _wrongOption = option;
+        _hint = tr('study.trace.wrongAnswer');
+      });
+    }
   }
 
   // ── الهندسة ──────────────────────────────────────────────────────
@@ -348,7 +323,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     return (p - (a + ab * t)).distance;
   }
 
-  // ── اللمس ────────────────────────────────────────────────────────
+  // ── اللمس على اللوحة ─────────────────────────────────────────────
 
   TraceStroke? get _current {
     final strokes = _shape?.plan.strokes;
@@ -432,17 +407,22 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _reached = -1;
       _trail = [];
       _hint = null;
-      _itemDone = last;
     });
     if (!last) {
       StudentSoundService.instance.play(StudentSoundCue.answerSelected);
       return;
     }
+    _completeItem();
+  }
+
+  void _completeItem() {
     StudentSoundService.instance.play(StudentSoundCue.success);
+    HapticFeedback.lightImpact();
+    setState(() => _itemDone = true);
     final index = _index;
     Future.delayed(const Duration(milliseconds: 1100), () {
-      // لم يقفز إلى غيره في الانتظار.
-      if (mounted && _itemDone && _index == index) _finishItem();
+      // لم يغادره إلى غيره في الانتظار.
+      if (mounted && _itemDone && _index == index && _view == _View.board) _finishItem();
     });
   }
 
@@ -455,192 +435,340 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
         _ => tr('study.trace.word'),
       };
 
+  TextPainter _glyph(TracingItem item, Color color) => _glyphs.putIfAbsent(
+        '${tracingGlyphKey(item)}|${color.toARGB32()}',
+        () => tracingTextPainter(item, color: color),
+      );
+
   @override
   Widget build(BuildContext context) {
     if (_allDone) return _finished(context);
-    final item = _item;
-    final asking = item.isQuestion && !_answered;
-    final idleHint = asking ? tr('study.trace.pickAnswer') : tr('study.trace.start');
+    return switch (_view) {
+      _View.grid => _gridView(context),
+      _View.question => _questionView(context),
+      _View.board => _boardView(context),
+    };
+  }
+
+  Widget _progressChip() => _Chip(
+        text: trf('study.games.placed', {'done': _done.length, 'total': _items.length}),
+        color: _green,
+      );
+
+  Widget _hintLine(BuildContext context, String idle) => SizedBox(
+        height: 30,
+        child: Center(
+          child: Text(
+            _itemDone || _correctFlash ? (_hint ?? tr('study.trace.great')) : (_hint ?? idle),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              color: _itemDone || _correctFlash ? _green : StudentSurface.mutedInk(context),
+            ),
+          ),
+        ),
+      );
+
+  Widget _surface(BuildContext context, Widget child) => Expanded(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: StudentSurface.card(context),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: StudentSurface.outline(context)),
+            ),
+            child: ClipRRect(borderRadius: BorderRadius.circular(24), child: child),
+          ),
+        ),
+      );
+
+  // ── الشبكة ──
+
+  Widget _gridView(BuildContext context) {
     return Column(
       children: [
-        if (_items.length > 1) _stripView(context),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _Chip(
-                text: trf('study.games.placed', {'done': _done.length, 'total': _items.length}),
-                color: _color,
-              ),
+              _progressChip(),
               const SizedBox(width: 8),
-              _Chip(text: _kindLabel(item), color: _next),
+              _Chip(text: _kindLabel(_items.first), color: _amber),
               const Spacer(),
-              if (_mistakes > 0)
+              if (_pageCount > 1)
                 Text(
-                  trf('study.games.mistakes', {'n': _mistakes}),
+                  trf('study.trace.page', {'n': _page + 1, 'total': _pageCount}),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
                     color: StudentSurface.mutedInk(context),
                   ),
                 ),
-              IconButton(
-                key: const ValueKey('tracing-speak'),
-                tooltip: tr('study.trace.listen'),
-                onPressed: _sayCurrent,
-                icon: const Icon(Icons.volume_up_rounded),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        _surface(
+          context,
+          PageView.builder(
+            key: const ValueKey('tracing-grid'),
+            controller: _pages,
+            itemCount: _pageCount,
+            onPageChanged: (page) => setState(() => _page = page),
+            itemBuilder: (context, page) => _gridPage(context, page),
+          ),
+        ),
+        if (_pageCount > 1) _pageDots(context),
+        _hintLine(context, tr('study.trace.tapTile')),
+      ],
+    );
+  }
+
+  Widget _gridPage(BuildContext context, int page) {
+    final first = page * perPage;
+    final count = math.min(perPage, _items.length - first);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= constraints.maxHeight;
+        final cols = wide ? 3 : 2;
+        final rows = (perPage / cols).ceil();
+        return Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            children: [
+              for (var r = 0; r < rows; r++)
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (var c = 0; c < cols; c++)
+                        Expanded(
+                          child: r * cols + c < count
+                              ? _LetterTile(
+                                  key: ValueKey('tracing-tile-${first + r * cols + c}'),
+                                  item: _items[first + r * cols + c],
+                                  done: _done.contains(first + r * cols + c),
+                                  color: _LetterTile.colors[(first + r * cols + c) % _LetterTile.colors.length],
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    _open(first + r * cols + c);
+                                  },
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _pageDots(BuildContext context) {
+    void go(int page) {
+      if (page < 0 || page >= _pageCount) return;
+      StudentSoundService.instance.playTap();
+      _pages.animateToPage(page, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
+    }
+
+    return SizedBox(
+      height: 40,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            key: const ValueKey('tracing-page-prev'),
+            onPressed: _page > 0 ? () => go(_page - 1) : null,
+            icon: const Icon(Icons.chevron_left_rounded),
+          ),
+          for (var i = 0; i < _pageCount; i++)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: i == _page ? 18 : 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: i == _page ? _amber : StudentSurface.mutedInk(context).withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(99),
               ),
+            ),
+          IconButton(
+            key: const ValueKey('tracing-page-next'),
+            onPressed: _page < _pageCount - 1 ? () => go(_page + 1) : null,
+            icon: const Icon(Icons.chevron_right_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── السؤال ──
+
+  Widget _questionView(BuildContext context) {
+    final item = _item;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              _progressChip(),
+              const SizedBox(width: 8),
+              _Chip(text: _kindLabel(item), color: _amber),
+              const Spacer(),
+              _mistakesText(context),
+              _speakButton(),
+            ],
+          ),
+        ),
+        _surface(
+          context,
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.prompt!,
+                    textAlign: TextAlign.center,
+                    textDirection: item.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
+                    style: TextStyle(
+                      fontSize: 21,
+                      height: 1.5,
+                      fontWeight: FontWeight.w900,
+                      color: StudentSurface.ink(context),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final option in item.options)
+                        FilledButton(
+                          key: ValueKey('tracing-option-$option'),
+                          onPressed: () => _choose(option),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: option == _wrongOption
+                                ? const Color(0xFFDC2626)
+                                : _correctFlash && option == item.text
+                                    ? _green
+                                    : _amber,
+                            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                            textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                          ),
+                          child: Text(option),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        _hintLine(context, tr('study.trace.pickAnswer')),
+      ],
+    );
+  }
+
+  // ── اللوحة ──
+
+  Widget _boardView(BuildContext context) {
+    final item = _item;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              if (_gridMode)
+                TextButton.icon(
+                  key: const ValueKey('tracing-back-to-grid'),
+                  onPressed: _backToGrid,
+                  icon: const Icon(Icons.apps_rounded),
+                  label: Text(tr('study.trace.backToGrid')),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _amber,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                )
+              else ...[
+                const SizedBox(width: 8),
+                _progressChip(),
+              ],
+              const SizedBox(width: 6),
+              _Chip(text: _kindLabel(item), color: _amber),
+              const Spacer(),
+              _mistakesText(context),
+              _speakButton(),
               IconButton(
                 tooltip: tr('study.trace.redo'),
-                onPressed: _shape == null || _itemDone || asking ? null : _restartItem,
+                onPressed: _shape == null || _itemDone ? null : _restartItem,
                 icon: const Icon(Icons.replay_rounded),
               ),
             ],
           ),
         ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: StudentSurface.card(context),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: StudentSurface.outline(context)),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: asking
-                    ? _question(context, item)
-                    : _loading || _shape == null
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const CircularProgressIndicator(),
-                                const SizedBox(height: 10),
-                                Text(tr('study.trace.preparing')),
-                              ],
-                            ),
-                          )
-                        : _board(context),
-              ),
-            ),
-          ),
+        _surface(
+          context,
+          _shape != null
+              ? _board(context)
+              : _unavailable
+                  ? _unavailableNote(context)
+                  : Center(
+                      child: _loading
+                          ? const CircularProgressIndicator()
+                          : const SizedBox.shrink(),
+                    ),
         ),
-        SizedBox(
-          height: 30,
-          child: Center(
-            child: Text(
-              _itemDone ? tr('study.trace.great') : (_hint ?? idleHint),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: _itemDone ? _color : StudentSurface.mutedInk(context),
-              ),
-            ),
-          ),
-        ),
+        _hintLine(context, tr('study.trace.start')),
       ],
     );
   }
 
-  /// كلُّ العناصر في شريطٍ واحد: المنجَزُ أخضر بعلامة، والحاليُّ مؤطَّر،
-  /// وأيُّها يُفتح بلمسة.
-  Widget _stripView(BuildContext context) {
-    final rtl = _items.first.rtl;
-    return SizedBox(
-      height: 48,
-      child: ListView.builder(
-        key: const ValueKey('tracing-strip'),
-        controller: _strip,
-        scrollDirection: Axis.horizontal,
-        reverse: rtl && Directionality.of(context) == TextDirection.ltr,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _items.length,
-        itemExtent: _stripCell,
-        itemBuilder: (context, i) {
-          final current = i == _index;
-          final done = _done.contains(i);
-          final color = done ? _color : current ? _next : StudentSurface.mutedInk(context);
-          final label = _items[i].isQuestion ? '${i + 1}' : _items[i].text;
-          return Padding(
-            padding: const EdgeInsets.all(4),
-            child: Material(
-              color: color.withValues(alpha: current ? 0.22 : 0.10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: color, width: current ? 2.5 : 1),
+  Widget _unavailableNote(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🙈', style: TextStyle(fontSize: 48)),
+              const SizedBox(height: 8),
+              Text(
+                tr('study.trace.unavailable'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
               ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: current
-                    ? null
-                    : () {
-                        StudentSoundService.instance.playTap();
-                        _jumpTo(i);
-                      },
-                child: Center(
-                  child: Text(
-                    done ? '✓' : label,
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: color),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// السؤالُ وخياراته: يُختار الجوابُ، ثم يُتتبّع.
-  Widget _question(BuildContext context, TracingItem item) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              item.prompt!,
-              textAlign: TextAlign.center,
-              textDirection: item.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
-              style: TextStyle(
-                fontSize: 20,
-                height: 1.5,
-                fontWeight: FontWeight.w900,
-                color: StudentSurface.ink(context),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final option in item.options)
-                  FilledButton(
-                    key: ValueKey('tracing-option-$option'),
-                    onPressed: () => _choose(option),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: option == _wrongOption ? const Color(0xFFDC2626) : _next,
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                      textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                    ),
-                    child: Text(option),
-                  ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      );
+
+  Widget _mistakesText(BuildContext context) => _mistakes == 0
+      ? const SizedBox.shrink()
+      : Text(
+          trf('study.games.mistakes', {'n': _mistakes}),
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: StudentSurface.mutedInk(context),
+          ),
+        );
+
+  Widget _speakButton() => IconButton(
+        key: const ValueKey('tracing-speak'),
+        tooltip: tr('study.trace.listen'),
+        onPressed: _sayCurrent,
+        icon: const Icon(Icons.volume_up_rounded),
+      );
 
   Widget _board(BuildContext context) {
     final shape = _shape!;
+    final item = _item;
     return LayoutBuilder(
       builder: (context, constraints) {
         final box = Offset.zero & constraints.biggest;
@@ -653,6 +781,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
           w = h * aspect;
         }
         _dest = Rect.fromCenter(center: area.center, width: w, height: h);
+        final ink = StudentSurface.ink(context);
         return RawGestureDetector(
           key: const ValueKey('tracing-board'),
           behavior: HitTestBehavior.opaque,
@@ -679,13 +808,17 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
               size: Size.infinite,
               painter: _TracingPainter(
                 shape: shape,
+                glyph: _glyph(
+                  item,
+                  _itemDone ? _green.withValues(alpha: 0.55) : ink.withValues(alpha: 0.16),
+                ),
                 dest: _dest,
                 stroke: _stroke,
                 reached: _reached,
                 trail: _trail,
                 doneTrails: _doneTrails,
                 pulse: _pulse.value,
-                ink: StudentSurface.ink(context),
+                ink: ink,
                 inkPx: _inkPx,
                 done: _itemDone,
               ),
@@ -716,11 +849,144 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
               onPressed: widget.onReplay,
               icon: const Icon(Icons.replay_rounded),
               label: Text(tr('study.games.playAgain')),
-              style: FilledButton.styleFrom(backgroundColor: _color),
+              style: FilledButton.styleFrom(backgroundColor: _green),
             ),
           ],
         ),
       );
+}
+
+/// بطاقةُ حرفٍ أو رقمٍ في الشبكة: كبيرةٌ ملوّنة، تصغر قليلاً تحت الإصبع،
+/// والمنجَزُ منها أخضرُ بعلامة.
+class _LetterTile extends StatefulWidget {
+  const _LetterTile({
+    required this.item,
+    required this.done,
+    required this.color,
+    required this.onTap,
+    super.key,
+  });
+
+  static const colors = [
+    Color(0xFF7C3AED),
+    Color(0xFFEC4899),
+    Color(0xFFF59E0B),
+    Color(0xFF0EA5E9),
+    Color(0xFF10B981),
+    Color(0xFFEF4444),
+  ];
+
+  final TracingItem item;
+  final bool done;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  State<_LetterTile> createState() => _LetterTileState();
+}
+
+class _LetterTileState extends State<_LetterTile> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.done ? const Color(0xFF16A34A) : widget.color;
+    final shape = precomputedTracingShape(widget.item);
+    return Padding(
+      padding: const EdgeInsets.all(7),
+      child: Semantics(
+        button: true,
+        label: widget.item.speech,
+        child: GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: (_) {
+            setState(() => _pressed = false);
+            widget.onTap();
+          },
+          child: AnimatedScale(
+            scale: _pressed ? 0.92 : 1,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutBack,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color, Color.lerp(color, Colors.white, 0.28)!],
+                  begin: AlignmentDirectional.topStart,
+                  end: AlignmentDirectional.bottomEnd,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(color: Color.lerp(color, Colors.black, 0.35)!, offset: const Offset(0, 5)),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    // الحرفُ مقصوصاً إلى حبره ([TracingShape.crop]) لا إلى سطره:
+                    // ذيلُ الجيم والعين ينزل تحت سطر الخطّ، فكان [FittedBox]
+                    // يقصّه. وما لا شكلَ محسوباً له يُكتب نصّاً.
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: shape != null
+                          ? CustomPaint(
+                              painter: _GlyphPainter(
+                                glyph: tracingTextPainter(widget.item, color: Colors.white),
+                                crop: shape.crop,
+                              ),
+                            )
+                          : FittedBox(
+                              child: Text(
+                                widget.item.text,
+                                style: const TextStyle(
+                                  fontFamily: tracingFontFamily,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  if (widget.done)
+                    const PositionedDirectional(
+                      top: 6,
+                      end: 8,
+                      child: Icon(Icons.check_circle_rounded, color: Colors.white, size: 26),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// حرفٌ مقصوصٌ إلى حبره، في وسط مساحته وبأكبر ما تتّسع له.
+class _GlyphPainter extends CustomPainter {
+  _GlyphPainter({required this.glyph, required this.crop});
+
+  final TextPainter glyph;
+  final Rect crop;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // أصغرُ قليلاً من البطاقة: الحرفُ يتنفّس ولا يلمس حوافّها.
+    final scale = math.min(size.width / crop.width, size.height / crop.height) * 0.82;
+    final w = crop.width * scale;
+    final h = crop.height * scale;
+    canvas
+      ..save()
+      ..translate((size.width - w) / 2, (size.height - h) / 2)
+      ..scale(scale)
+      ..translate(-crop.left, -crop.top);
+    glyph.paint(canvas, const Offset(tracingPad, tracingPad));
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_GlyphPainter old) => old.crop != crop || old.glyph.text != glyph.text;
 }
 
 /// يكسب ساحةَ اللمس فور النزول: بدونه تأخذ الصفحاتُ الأفقية في بطاقة
@@ -756,6 +1022,7 @@ class _Chip extends StatelessWidget {
 class _TracingPainter extends CustomPainter {
   _TracingPainter({
     required this.shape,
+    required this.glyph,
     required this.dest,
     required this.stroke,
     required this.reached,
@@ -768,6 +1035,9 @@ class _TracingPainter extends CustomPainter {
   });
 
   final TracingShape shape;
+
+  /// النصُّ مرسوماً بخطّ التتبّع ولونِه — لا صورةٌ تُقرأ من معالج الرسوم.
+  final TextPainter glyph;
   final Rect dest;
   final int stroke;
   final int reached;
@@ -793,18 +1063,16 @@ class _TracingPainter extends CustomPainter {
     canvas.drawLine(Offset(0, dest.top), Offset(size.width, dest.top), guide);
     canvas.drawLine(Offset(0, dest.bottom), Offset(size.width, dest.bottom), guide);
 
-    // الشكلُ باهتاً — الصورةُ نفسها التي بُني منها المسار.
-    canvas.drawImageRect(
-      shape.image,
-      shape.crop,
-      dest,
-      Paint()
-        ..filterQuality = FilterQuality.medium
-        ..colorFilter = ColorFilter.mode(
-          (done ? _start : ink).withValues(alpha: done ? 0.55 : 0.16),
-          BlendMode.srcIn,
-        ),
-    );
+    // الحرفُ باهتاً: النصُّ نفسه، مقصوصاً إلى حبره ومحجَّماً إلى اللوحة —
+    // بالأبعاد التي حُسبت منها نقاطه.
+    final scale = dest.width / shape.crop.width;
+    canvas
+      ..save()
+      ..translate(dest.left, dest.top)
+      ..scale(scale)
+      ..translate(-shape.crop.left, -shape.crop.top);
+    glyph.paint(canvas, const Offset(tracingPad, tracingPad));
+    canvas.restore();
 
     final pen = Paint()
       ..color = _drawn
