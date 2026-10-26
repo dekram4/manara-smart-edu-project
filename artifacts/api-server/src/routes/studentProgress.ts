@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { apiSupabaseConfig, matchesStudentScope, type StudentActor } from "../lib/studentAccess";
 import { parseStudyGameActivityId, rewardOf } from "../lib/studyGames";
-import { TRACING_GAME_ID, TRACING_REWARD, lessonTitleOf, tracingItemsFrom } from "../lib/tracing";
+import {
+  TRACING_GAME_ID,
+  TRACING_REWARD,
+  alphabetSetOf,
+  lessonTitleOf,
+  tracingItemsFrom,
+} from "../lib/tracing";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
@@ -514,13 +520,14 @@ async function studyGameReward(
   const data = Array.isArray(rows) ? asMap(rows[0]?.data) : {};
   if (!Object.keys(data).length || !matchesStudentScope(data, student)) return null;
   if (parsed.gameId === TRACING_GAME_ID) {
-    // لا حزمةَ محفوظة للتتبّع: يُصرف لدرسٍ فيه ما يُتتبّع، بمقدارٍ ثابت.
-    const items = tracingItemsFrom({
-      title: lessonTitleOf(data),
-      text: text(data.lessonContent) || text(data.lessonText),
-      subject: text(data.subject),
-    });
-    return items.length > 0 ? { ...TRACING_REWARD } : null;
+    // مقدارٌ ثابت لدرسٍ يُتتبّع فيه شيء: مادّةُ حروفٍ أو أرقام — ولو بلا نصّ —
+    // أو نصٌّ يُستخرج منه، أو أسئلةٌ وُلّدت له.
+    const body = text(data.lessonContent) || text(data.lessonText);
+    const traceable =
+      alphabetSetOf(text(data.subject)) !== null ||
+      Boolean(data.tracingQuiz) ||
+      tracingItemsFrom({ title: lessonTitleOf(data), text: body, subject: text(data.subject) }).length > 0;
+    return traceable ? { ...TRACING_REWARD } : null;
   }
   return rewardOf(data.studyGames, parsed.gameId);
 }

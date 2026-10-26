@@ -55,9 +55,17 @@ import {
   parseFreshGame,
   MAX_EXCLUDE as MAX_FRESH_EXCLUDE,
   STUDY_GAMES_VERSION,
+  type StudyGame,
   type StudyGamesPack,
 } from "../lib/studyGames";
-import { buildTracingGame, withTracingGame } from "../lib/tracing";
+import { alphabetGame, buildTracingGame, tracingGame, withTracingGame } from "../lib/tracing";
+import {
+  TRACING_QUIZ_SCHEMA,
+  TRACING_QUIZ_SYSTEM_INSTRUCTION,
+  parseTracingQuiz,
+  readTracingQuiz,
+  tracingQuizPrompt,
+} from "../lib/tracingQuiz";
 import {
   BANK_SIZE,
   BANK_VERSION,
@@ -369,6 +377,8 @@ type LessonLookup =
       interactiveStudy?: unknown;
       /** وألعابُ المذاكرة التفاعلية، إن وُلّدت. */
       studyGames?: unknown;
+      /** وأسئلةُ «أجب وتتبّع»، إن وُلّدت. */
+      tracingQuiz?: unknown;
       grade?: string;
       reason?: undefined;
       detail?: undefined;
@@ -378,6 +388,11 @@ type LessonLookup =
       detail?: string;
       id?: undefined;
       text?: undefined;
+      /**
+       * مسارُ درسٍ بلا نصّ (`no_text` وحده): درسُ الروضة كثيراً ما يكون بلا
+       * شرحٍ مكتوب، ولعبةُ تتبّع حروفه لا تحتاجه — تعرف مادّتَه من هنا.
+       */
+      path?: { id: string; subject: string; unit: string; lesson: string; grade: string };
     };
 
 async function resolveStudentLesson(
@@ -426,7 +441,18 @@ async function resolveStudentLesson(
     : typeof lesson.lessonText === "string"
       ? lesson.lessonText.trim()
       : "";
-  if (!text) return { reason: "no_text" };
+  if (!text) {
+    return {
+      reason: "no_text",
+      path: {
+        id: String(row.id || lessonId),
+        subject: typeof lesson.subject === "string" ? lesson.subject : "",
+        unit: typeof lesson.unit === "string" ? lesson.unit : "",
+        lesson: typeof lesson.lesson === "string" ? lesson.lesson : "",
+        grade: typeof lesson.grade === "string" ? lesson.grade : "",
+      },
+    };
+  }
   return {
     id: String(row.id || lessonId),
     text,
@@ -436,6 +462,7 @@ async function resolveStudentLesson(
     challengeBank: lesson.challengeBank,
     interactiveStudy: lesson.interactiveStudy,
     studyGames: lesson.studyGames,
+    tracingQuiz: lesson.tracingQuiz,
     grade: typeof lesson.grade === "string" ? lesson.grade : "",
   };
 }
@@ -1767,7 +1794,32 @@ router.post(
  */
 const studyGamesInFlight = new Map<string, Promise<StudyGamesPack | null>>();
 
-async function persistStudyGames(lessonId: string, pack: unknown): Promise<void> {
+/**
+ * كتاباتُ سجلّ الدرس الواحد تمرّ واحدةً بعد واحدة.
+ *
+ * الكتابةُ تقرأ `data` ثم تكتبها كاملةً بحقلها؛ والألعابُ وأسئلةُ التتبّع
+ * تُولَّدان معاً لأوّل طالبٍ يفتح الدرس. فلو تزامنت كتابتاهما لقرأت كلٌّ
+ * السجلَّ قبل الأخرى، ومحت الثانيةُ ما كتبته الأولى.
+ */
+const lessonWrites = new Map<string, Promise<void>>();
+
+function persistLessonField(lessonId: string, field: string, value: unknown): Promise<void> {
+  const previous = lessonWrites.get(lessonId) ?? Promise.resolve();
+  const next = previous
+    .catch(() => undefined)
+    .then(() => writeLessonField(lessonId, field, value));
+  const tracked = next.finally(() => {
+    if (lessonWrites.get(lessonId) === tracked) lessonWrites.delete(lessonId);
+  });
+  lessonWrites.set(lessonId, tracked);
+  return next;
+}
+
+function persistStudyGames(lessonId: string, pack: unknown): Promise<void> {
+  return persistLessonField(lessonId, "studyGames", pack);
+}
+
+async function writeLessonField(lessonId: string, field: string, value: unknown): Promise<void> {
   const config = apiSupabaseConfig();
   if (!config) return;
   const headers = {
@@ -1779,21 +1831,90 @@ async function persistStudyGames(lessonId: string, pack: unknown): Promise<void>
     `${config.url}/rest/v1/lesson_configs?select=data&id=eq.${encodeURIComponent(lessonId)}`,
     { headers },
   );
-  if (!read.ok) throw new Error(`study games read failed (${read.status})`);
+  if (!read.ok) throw new Error(`${field} read failed (${read.status})`);
   const rows = await read.json();
   const data = Array.isArray(rows) && rows[0]?.data && typeof rows[0].data === "object"
     ? (rows[0].data as Record<string, unknown>)
     : null;
-  if (!data) throw new Error("lesson row vanished before the games were saved");
+  if (!data) throw new Error(`lesson row vanished before ${field} was saved`);
   const write = await fetch(
     `${config.url}/rest/v1/lesson_configs?id=eq.${encodeURIComponent(lessonId)}`,
     {
       method: "PATCH",
       headers: { ...headers, Prefer: "return=minimal" },
-      body: JSON.stringify({ data: { ...data, studyGames: pack }, updated_at: new Date().toISOString() }),
+      body: JSON.stringify({ data: { ...data, [field]: value }, updated_at: new Date().toISOString() }),
     },
   );
-  if (!write.ok) throw new Error(`study games write failed (${write.status})`);
+  if (!write.ok) throw new Error(`${field} write failed (${write.status})`);
+}
+
+/** أسئلةُ «أجب وتتبّع» قيد التوليد: طفلان فتحا الدرس معاً يخدمهما توليدٌ واحد. */
+const tracingQuizInFlight = new Map<string, Promise<StudyGame | null>>();
+
+/**
+ * لعبةُ التتبّع لدرسٍ له نصّ.
+ *
+ * مادّةُ حروفٍ أو أرقام: المجموعةُ كاملة، بلا نموذج. وغيرُها: أسئلةٌ يولّدها
+ * النموذج من النصّ، تُحفظ مع الدرس مختومةً بنصّه؛ وإن تعذّرت فما يُستخرج من
+ * النصّ بلا نموذج — فلا يغيب التتبّعُ لأن النموذج تعثّر.
+ */
+async function tracingGameFor(lesson: {
+  id: string;
+  text: string;
+  subject: string;
+  unit: string;
+  lesson: string;
+  grade?: string;
+  tracingQuiz?: unknown;
+}): Promise<StudyGame | null> {
+  const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
+  const alphabet = alphabetGame({ title, subject: lesson.subject });
+  if (alphabet) return alphabet;
+
+  const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
+  const fallback = () => buildTracingGame({ title, text: lesson.text, subject: lesson.subject });
+  const stored = readTracingQuiz(lesson.tracingQuiz, owner);
+  if (stored) return tracingGame(stored.items);
+
+  const flightKey = `${owner.lessonId}:${owner.lessonStamp}`;
+  let flight = tracingQuizInFlight.get(flightKey);
+  if (!flight) {
+    flight = (async () => {
+      try {
+        const data = await callGemini(
+          tracingQuizPrompt({
+            lessonTitle: title || lesson.lesson || lesson.subject,
+            lessonText: lesson.text,
+            subject: lesson.subject,
+            grade: lesson.grade,
+          }),
+          {
+            systemInstruction: TRACING_QUIZ_SYSTEM_INSTRUCTION,
+            responseSchema: TRACING_QUIZ_SCHEMA,
+            json: true,
+            temperature: 0.7,
+            maxOutputTokens: STUDY_MAX_TOKENS,
+            budgetMs: STUDY_BUDGET_MS,
+            singleTryMs: 45_000,
+          },
+        );
+        const quiz = parseTracingQuiz(getGeminiText(data) ?? "", owner, { subject: lesson.subject });
+        if (!quiz) {
+          logger.warn({ lessonId: lesson.id }, "[tracing-quiz] model output was not usable");
+          return fallback();
+        }
+        void persistLessonField(lesson.id, "tracingQuiz", quiz).catch((error) =>
+          logger.error({ err: error, lessonId: lesson.id }, "[tracing-quiz] not saved"),
+        );
+        return tracingGame(quiz.items);
+      } catch (error) {
+        logger.warn({ err: error, lessonId: lesson.id }, "[tracing-quiz] generation failed");
+        return fallback();
+      }
+    })().finally(() => tracingQuizInFlight.delete(flightKey));
+    tracingQuizInFlight.set(flightKey, flight);
+  }
+  return flight;
 }
 
 router.post(
@@ -1809,6 +1930,27 @@ router.post(
       const student = res.locals.student as StudentActor;
       const lesson = await resolveStudentLesson(lessonId, student);
       if (lesson.reason) {
+        // درسُ حروفٍ أو أرقام بلا شرحٍ مكتوب — حالُ أكثر دروس الروضة: لا
+        // ألعابَ نصٍّ له، لكنّ تتبّعَ حروفه كاملةً لا يحتاج نصّاً.
+        const path = lesson.reason === "no_text" ? lesson.path : undefined;
+        const alphabet = path
+          ? alphabetGame({
+              title: [path.unit, path.lesson].filter(Boolean).join(" — "),
+              subject: path.subject,
+            })
+          : null;
+        if (path && alphabet) {
+          return res.json({
+            pack: {
+              version: STUDY_GAMES_VERSION,
+              lessonId: path.id,
+              lessonStamp: "",
+              generatedAt: new Date().toISOString(),
+              games: [alphabet],
+            },
+            generated: false,
+          });
+        }
         const messages = {
           not_found: "لم يُعثر على هذا الدرس في قاعدة البيانات.",
           out_of_scope: "هذا الدرس ليس ضمن مسار حسابك.",
@@ -1817,16 +1959,12 @@ router.post(
         return res.status(403).json({ error: messages[lesson.reason], code: lesson.reason });
       }
       const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
-      // التتبّعُ يُبنى من النصّ في كل طلب ولا يُحفظ مع الحزمة: لا يكلّف شيئاً،
-      // وحزمُ الدروس المحفوظة تبقى صالحةً كما هي.
-      const tracingSource = {
-        title: [lesson.unit, lesson.lesson].filter(Boolean).join(" — "),
-        text: lesson.text,
-        subject: lesson.subject,
-      };
+      // التتبّعُ بجانب الحزمة لا داخلها: حزمُ الدروس المحفوظة تبقى صالحةً،
+      // وأسئلتُه تُولَّد وتُحفظ وحدها — مع توليد الألعاب لا بعده.
+      const tracing = tracingGameFor(lesson);
       const stored = readStudyGames(lesson.studyGames, owner);
       if (stored) {
-        return res.json({ pack: withTracingGame(stored, tracingSource), generated: false });
+        return res.json({ pack: withTracingGame(stored, await tracing), generated: false });
       }
 
       // طفلان فتحا الدرس معاً: توليدٌ واحد يخدمهما.
@@ -1862,11 +2000,10 @@ router.post(
         })().finally(() => studyGamesInFlight.delete(flightKey));
         studyGamesInFlight.set(flightKey, flight);
       }
-      const generated = await flight;
-      // النموذجُ تعثّر: يبقى التتبّعُ وحده إن كان في الدرس ما يُتتبّع.
-      const tracingOnly = buildTracingGame(tracingSource);
+      const [generated, tracingOnly] = await Promise.all([flight, tracing]);
+      // نموذجُ الألعاب تعثّر: يبقى التتبّعُ وحده إن كان.
       const pack = generated
-        ? withTracingGame(generated, tracingSource)
+        ? withTracingGame(generated, tracingOnly)
         : tracingOnly
           ? { version: STUDY_GAMES_VERSION, ...owner, generatedAt: new Date().toISOString(), games: [tracingOnly] }
           : null;

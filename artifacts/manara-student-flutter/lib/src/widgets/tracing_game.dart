@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../l10n/student_strings.dart';
 import '../models/study_games.dart';
 import '../services/student_sound_service.dart';
+import '../services/student_voice_service.dart';
 import '../services/tracing_path.dart';
 import '../theme/student_theme.dart';
 
@@ -89,14 +90,23 @@ Future<TracingShape?> renderTracingShape(TracingItem item, TextStyle style) asyn
 /// تظهر الكلمةُ باهتةً وعليها نقاطٌ مرقّمة. يضع الطفلُ إصبعه على النقطة
 /// الخضراء ويمرّ بالنقاط بترتيبها: النقطةُ التالية وحدها تُحتسب، فلا يتقدّم
 /// إلا في اتجاه الكتابة. وإن ابتعد عن الخطّ عادت الجرّةُ من أوّلها بصوت
-/// تنبيهٍ لطيف. ونقطةُ الحرف تُلمس لمساً. وكلُّ عنصرٍ يكتمل بصوت نجاح، وآخرُها
-/// يصرف المكافأة من الخادم.
+/// تنبيهٍ لطيف. ونقطةُ الحرف تُلمس لمساً. وكلُّ عنصرٍ يكتمل بصوت نجاح.
+///
+/// ── والمجموعاتُ الطويلة ──
+/// حروفُ الروضة ٢٨ حرفاً: شريطٌ في الأعلى يُظهرها كلَّها ويقفز الطفلُ إلى أيّها،
+/// والمكافأةُ تُصرف بعد [StudyGame.tracingRewardAfter] منها لا بعد آخرها.
+/// وكلُّ حرفٍ يُنطق باسمه حين يظهر، وبزرّ السمّاعة متى شاء.
+///
+/// ── وأسئلةُ «أجب وتتبّع» ──
+/// عنصرٌ له سؤال ([TracingItem.isQuestion]) يُختار جوابُه أوّلاً: الخطأُ صوتُ
+/// تنبيهٍ ومحاولةٌ أخرى، والصوابُ يُنطق ويُفتح تتبّعاً.
 class TracingGame extends StatefulWidget {
   const TracingGame({
     required this.game,
     required this.onWin,
     required this.onReplay,
     this.shapeBuilder = renderTracingShape,
+    this.speak,
     super.key,
   });
 
@@ -106,6 +116,9 @@ class TracingGame extends StatefulWidget {
 
   /// يُستبدل في الاختبار وحده.
   final Future<TracingShape?> Function(TracingItem item, TextStyle style) shapeBuilder;
+
+  /// النطق؛ وبلا قيمةٍ محرّكُ الجهاز ([StudentVoiceService.speakIn]).
+  final Future<void> Function(String text, String lang)? speak;
 
   @override
   State<TracingGame> createState() => TracingGameState();
@@ -136,8 +149,25 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   String? _hint;
   Rect _dest = Rect.zero;
 
+  /// ما أنجزه الطفلُ من العناصر، بمواضعها.
+  final Set<int> _done = {};
+  bool _rewarded = false;
+
+  /// سؤالُ العنصر الحالي أُجيب صواباً — أو لا سؤالَ له.
+  bool _answered = true;
+  String? _wrongOption;
+
+  /// كلُّ تحميلٍ برقمه: قفزٌ سريعٌ بين الحروف لا يُظهر شكلاً وصل متأخّراً.
+  int _loadToken = 0;
+  final ScrollController _strip = ScrollController();
+
   List<TracingItem> get _items => widget.game.tracing;
   TracingItem get _item => _items[_index];
+
+  int get _rewardAfter {
+    final after = widget.game.tracingRewardAfter;
+    return after <= 0 ? _items.length : math.min(after, _items.length);
+  }
 
   /// مساراتُ العنصر الحالي، للاختبار.
   @visibleForTesting
@@ -152,30 +182,59 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // مرّةً واحدة: الخطُّ يُقرأ من السمة، وما بعد الأول يطلبه [_advance].
+    // مرّةً واحدة: الخطُّ يُقرأ من السمة، وما بعد الأول يطلبه [_jumpTo].
     if (_started) return;
     _started = true;
+    _index = widget.game.tracingStart.clamp(0, _items.length - 1);
+    _scrollStripTo(_index);
     unawaited(_load());
   }
 
   @override
   void dispose() {
     _pulse.dispose();
+    _strip.dispose();
     super.dispose();
   }
 
+  void _say(String text, String lang) {
+    final speak = widget.speak ?? StudentVoiceService.instance.speakIn;
+    unawaited(speak(text, lang == 'en' ? 'en' : 'ar').catchError((Object _) {}));
+  }
+
+  /// ينطق العنصرَ الحالي: سؤالَه إن لم يُجب بعد، وإلا اسمَه.
+  void _sayCurrent() {
+    final item = _item;
+    if (item.isQuestion && !_answered) {
+      _say(item.prompt!, item.lang);
+    } else {
+      _say(item.speech, item.lang);
+    }
+  }
+
   Future<void> _load() async {
+    final token = ++_loadToken;
+    final item = _item;
+    setState(() {
+      _shape = null;
+      _loading = true;
+      _answered = !item.isQuestion;
+      _wrongOption = null;
+      _hint = null;
+    });
+    // يُسمع قبل أن يُرسم: الطفلُ يعرف ما سيكتب وهو ينتظر.
+    _sayCurrent();
     final style = Theme.of(context).textTheme.headlineLarge ?? const TextStyle();
     TracingShape? shape;
     try {
-      shape = await widget.shapeBuilder(_item, style);
+      shape = await widget.shapeBuilder(item, style);
     } catch (error) {
-      debugPrint('[tracing] shape failed for "${_item.text}": $error');
+      debugPrint('[tracing] shape failed for "${item.text}": $error');
     }
-    if (!mounted) return;
+    if (!mounted || token != _loadToken) return;
     if (shape == null) {
-      // ما لا يُرسم لا يُطلب: يُتخطّى إلى ما بعده.
-      _advance();
+      // ما لا يُرسم لا يُطلب: يُعدّ منجَزاً ويُتخطّى.
+      _finishItem();
       return;
     }
     setState(() {
@@ -186,25 +245,74 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _trail = [];
       _doneTrails.clear();
       _itemDone = false;
-      _hint = null;
     });
   }
 
-  void _advance() {
-    if (_index + 1 >= _items.length) {
-      setState(() {
-        _allDone = true;
-        _loading = false;
-      });
+  /// العنصرُ أُنجز: يُحسب، وتُصرف المكافأةُ مرّةً عند بلوغ حدّها، ثم التالي.
+  void _finishItem() {
+    _done.add(_index);
+    if (!_rewarded && _done.length >= _rewardAfter) {
+      _rewarded = true;
       unawaited(widget.onWin());
-      return;
+    }
+    _goNext();
+  }
+
+  /// أوّلُ ما لم يُنجز بعد الحالي، دائراً إلى أوّل المجموعة.
+  void _goNext() {
+    for (var step = 1; step <= _items.length; step++) {
+      final candidate = (_index + step) % _items.length;
+      if (!_done.contains(candidate)) {
+        _jumpTo(candidate);
+        return;
+      }
     }
     setState(() {
-      _index += 1;
-      _shape = null;
-      _loading = true;
+      _allDone = true;
+      _loading = false;
     });
+  }
+
+  void _jumpTo(int index) {
+    if (index < 0 || index >= _items.length) return;
+    setState(() {
+      _index = index;
+      _itemDone = false;
+    });
+    _scrollStripTo(index);
     unawaited(_load());
+  }
+
+  static const _stripCell = 52.0;
+
+  void _scrollStripTo(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_strip.hasClients) return;
+      final target = (index * _stripCell - _strip.position.viewportDimension / 2 + _stripCell / 2)
+          .clamp(0.0, _strip.position.maxScrollExtent);
+      _strip.animateTo(target, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    });
+  }
+
+  void _choose(String option) {
+    final item = _item;
+    if (_answered) return;
+    if (option == item.text) {
+      StudentSoundService.instance.play(StudentSoundCue.answerSelected);
+      setState(() {
+        _answered = true;
+        _wrongOption = null;
+        _hint = null;
+      });
+      _say(item.speech, item.lang);
+    } else {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      setState(() {
+        _mistakes += 1;
+        _wrongOption = option;
+        _hint = tr('study.trace.wrongAnswer');
+      });
+    }
   }
 
   void _restartItem() {
@@ -331,8 +439,10 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       return;
     }
     StudentSoundService.instance.play(StudentSoundCue.success);
+    final index = _index;
     Future.delayed(const Duration(milliseconds: 1100), () {
-      if (mounted && _itemDone) _advance();
+      // لم يقفز إلى غيره في الانتظار.
+      if (mounted && _itemDone && _index == index) _finishItem();
     });
   }
 
@@ -341,6 +451,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   String _kindLabel(TracingItem item) => switch (item.kind) {
         'letter' => tr('study.trace.letter'),
         'number' => tr('study.trace.number'),
+        'answer' => tr('study.trace.answer'),
         _ => tr('study.trace.word'),
       };
 
@@ -348,14 +459,17 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   Widget build(BuildContext context) {
     if (_allDone) return _finished(context);
     final item = _item;
+    final asking = item.isQuestion && !_answered;
+    final idleHint = asking ? tr('study.trace.pickAnswer') : tr('study.trace.start');
     return Column(
       children: [
+        if (_items.length > 1) _stripView(context),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
               _Chip(
-                text: trf('study.games.placed', {'done': _index + 1, 'total': _items.length}),
+                text: trf('study.games.placed', {'done': _done.length, 'total': _items.length}),
                 color: _color,
               ),
               const SizedBox(width: 8),
@@ -371,8 +485,14 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
                   ),
                 ),
               IconButton(
+                key: const ValueKey('tracing-speak'),
+                tooltip: tr('study.trace.listen'),
+                onPressed: _sayCurrent,
+                icon: const Icon(Icons.volume_up_rounded),
+              ),
+              IconButton(
                 tooltip: tr('study.trace.redo'),
-                onPressed: _shape == null || _itemDone ? null : _restartItem,
+                onPressed: _shape == null || _itemDone || asking ? null : _restartItem,
                 icon: const Icon(Icons.replay_rounded),
               ),
             ],
@@ -389,18 +509,20 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: _loading || _shape == null
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(),
-                            const SizedBox(height: 10),
-                            Text(tr('study.trace.preparing')),
-                          ],
-                        ),
-                      )
-                    : _board(context),
+                child: asking
+                    ? _question(context, item)
+                    : _loading || _shape == null
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(),
+                                const SizedBox(height: 10),
+                                Text(tr('study.trace.preparing')),
+                              ],
+                            ),
+                          )
+                        : _board(context),
               ),
             ),
           ),
@@ -409,7 +531,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
           height: 30,
           child: Center(
             child: Text(
-              _itemDone ? tr('study.trace.great') : (_hint ?? tr('study.trace.start')),
+              _itemDone ? tr('study.trace.great') : (_hint ?? idleHint),
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
@@ -419,6 +541,101 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
           ),
         ),
       ],
+    );
+  }
+
+  /// كلُّ العناصر في شريطٍ واحد: المنجَزُ أخضر بعلامة، والحاليُّ مؤطَّر،
+  /// وأيُّها يُفتح بلمسة.
+  Widget _stripView(BuildContext context) {
+    final rtl = _items.first.rtl;
+    return SizedBox(
+      height: 48,
+      child: ListView.builder(
+        key: const ValueKey('tracing-strip'),
+        controller: _strip,
+        scrollDirection: Axis.horizontal,
+        reverse: rtl && Directionality.of(context) == TextDirection.ltr,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _items.length,
+        itemExtent: _stripCell,
+        itemBuilder: (context, i) {
+          final current = i == _index;
+          final done = _done.contains(i);
+          final color = done ? _color : current ? _next : StudentSurface.mutedInk(context);
+          final label = _items[i].isQuestion ? '${i + 1}' : _items[i].text;
+          return Padding(
+            padding: const EdgeInsets.all(4),
+            child: Material(
+              color: color.withValues(alpha: current ? 0.22 : 0.10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: color, width: current ? 2.5 : 1),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: current
+                    ? null
+                    : () {
+                        StudentSoundService.instance.playTap();
+                        _jumpTo(i);
+                      },
+                child: Center(
+                  child: Text(
+                    done ? '✓' : label,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: color),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// السؤالُ وخياراته: يُختار الجوابُ، ثم يُتتبّع.
+  Widget _question(BuildContext context, TracingItem item) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              item.prompt!,
+              textAlign: TextAlign.center,
+              textDirection: item.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
+              style: TextStyle(
+                fontSize: 20,
+                height: 1.5,
+                fontWeight: FontWeight.w900,
+                color: StudentSurface.ink(context),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final option in item.options)
+                  FilledButton(
+                    key: ValueKey('tracing-option-$option'),
+                    onPressed: () => _choose(option),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: option == _wrongOption ? const Color(0xFFDC2626) : _next,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                      textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                    child: Text(option),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

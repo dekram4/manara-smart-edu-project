@@ -150,6 +150,40 @@ class StudentVoiceService {
     }
   }
 
+  /// ينطق [text] بلغته: `en` بصوتٍ إنجليزي، وغيرُها بالعربية كـ[speak].
+  ///
+  /// [speak] تضبط العربية دائماً؛ وحرفُ «B» بصوتٍ عربيّ يُنطق «بي» مرّةً
+  /// وحرفاً مبهماً مرّة. فالإنجليزيةُ هنا بلهجةٍ أمريكية، ثم أيِّ إنجليزية.
+  Future<void> speakIn(String text, {required String lang}) async {
+    if (lang != 'en') return speak(text);
+    final line = text.trim();
+    if (line.isEmpty) return;
+    await stopListening();
+    try {
+      await _tts.stop();
+      for (final candidate in const ['en-US', 'en-GB', 'en']) {
+        try {
+          if (await _tts.isLanguageAvailable(candidate) == true) {
+            await _tts.setLanguage(candidate);
+            break;
+          }
+        } catch (_) {
+          // منصّةٌ لا تجيب عن السؤال: تُجرَّب التالية.
+        }
+      }
+      await _tts.setSpeechRate(speechRate);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+      _speaking = true;
+      _tts.setCompletionHandler(() => _speaking = false);
+      _tts.setCancelHandler(() => _speaking = false);
+      _tts.setErrorHandler((_) => _speaking = false);
+      await _tts.speak(line);
+    } catch (_) {
+      _speaking = false;
+    }
+  }
+
   /// يضبط أقرب لغةٍ عربية يملكها الجهاز.
   Future<void> _setBestArabic(String preferred) async {
     for (final candidate in [preferred, 'ar-SA', 'ar']) {

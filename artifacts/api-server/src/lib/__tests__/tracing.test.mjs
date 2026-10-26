@@ -10,8 +10,21 @@ import assert from "node:assert/strict";
 
 const tracing = await import(process.env.TRACING_MODULE ?? "../../../dist/lib/tracing.mjs");
 const studyGames = await import(process.env.STUDY_GAMES_MODULE ?? "../../../dist/lib/studyGames.mjs");
+const tracingQuiz = await import(process.env.TRACING_QUIZ_MODULE ?? "../../../dist/lib/tracingQuiz.mjs");
 
-const { tracingItemsFrom, buildTracingGame, withTracingGame, TRACING_REWARD, TRACING_MAX_ITEMS } = tracing;
+const {
+  tracingItemsFrom,
+  buildTracingGame,
+  withTracingGame,
+  alphabetGame,
+  alphabetSetOf,
+  alphabetItems,
+  TRACING_REWARD,
+  TRACING_MAX_ITEMS,
+  ALPHABET_REWARD_AFTER,
+} = tracing;
+const { parseTracingQuiz, readTracingQuiz, isTraceableAnswer, TRACING_QUIZ_LIMITS, TRACING_QUIZ_SCHEMA } =
+  tracingQuiz;
 const { REWARD_LIMITS, parseStudyGameActivityId, GAME_TYPES, STUDY_GAMES_SCHEMA } = studyGames;
 
 const texts = (items) => items.map((item) => item.text);
@@ -78,11 +91,128 @@ test("اللعبةُ بصيغة ألعاب البطاقة، ومكافأتُها
   );
 });
 
-test("تُضاف إلى الحزمة مرّةً واحدة", () => {
-  const lesson = { title: "حرف التاء", text: "تفاحة وتمر" };
-  const once = withTracingGame({ games: [] }, lesson);
-  const twice = withTracingGame(once, lesson);
-  assert.equal(twice.games.filter((game) => game.id === "tracing").length, 1);
+test("تُضاف إلى الحزمة مرّةً واحدة، ولا شيءَ إن لم تكن لعبة", () => {
+  const game = buildTracingGame({ title: "حرف التاء", text: "تفاحة وتمر" });
+  const once = withTracingGame({ games: [] }, game);
+  const twice = withTracingGame(once, game);
+  assert.equal(twice.games.filter((entry) => entry.id === "tracing").length, 1);
+  assert.equal(withTracingGame({ games: [] }, null).games.length, 0);
+});
+
+// ── الروضة: المجموعاتُ كاملة ───────────────────────────────────────────
+
+test("موادُّ الروضة الأربع تُعرف بأيّ همزةٍ وتاءٍ كُتبت، وغيرُها لا", () => {
+  assert.equal(alphabetSetOf("الحروف العربية"), "arabic_letters");
+  assert.equal(alphabetSetOf("الحروف العربيه"), "arabic_letters");
+  assert.equal(alphabetSetOf("الحروف الإنجليزية"), "english_letters");
+  assert.equal(alphabetSetOf("الحروف الانجليزية"), "english_letters");
+  assert.equal(alphabetSetOf("الأرقام العربية"), "arabic_digits");
+  assert.equal(alphabetSetOf("الارقام الإنجليزية"), "english_digits");
+  assert.equal(alphabetSetOf("English Letters"), "english_letters");
+  assert.equal(alphabetSetOf("العلوم"), null);
+  assert.equal(alphabetSetOf("اللغة العربية"), null, "مادّةُ لغةٍ لا مجموعةُ حروف");
+  assert.equal(alphabetSetOf("الرياضيات"), null);
+});
+
+test("المجموعاتُ كاملة لا أوّلُ ستّة، ومع كلٍّ اسمُه للنطق", () => {
+  const arabic = alphabetItems("arabic_letters");
+  assert.equal(arabic.length, 28);
+  assert.equal(arabic[1].text, "ب");
+  assert.equal(arabic[1].speech, "باء");
+  assert.equal(arabic.at(-1).text, "ي");
+  assert.ok(arabic.every((item) => item.kind === "letter" && item.lang === "ar" && item.speech));
+
+  const english = alphabetItems("english_letters");
+  assert.equal(english.length, 26);
+  assert.deepEqual([english[0].text, english[0].speech], ["Aa", "A"]);
+  assert.equal(english.at(-1).text, "Zz");
+
+  const arabicDigits = alphabetItems("arabic_digits");
+  assert.deepEqual(texts(arabicDigits), ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"]);
+  assert.equal(arabicDigits[5].speech, "خمسة");
+  assert.deepEqual(texts(alphabetItems("english_digits")), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+});
+
+test("لعبةُ الروضة: المجموعةُ كلُّها، تبدأ من حرف الدرس، والمكافأةُ بعد خمسة", () => {
+  const game = alphabetGame({ title: "الوحدة الأولى — حرف الباء", subject: "الحروف العربية" });
+  assert.equal(game.items.tracing.length, 28);
+  assert.equal(game.items.start, 1, "يفتح على الباء");
+  assert.equal(game.items.reward_after, ALPHABET_REWARD_AFTER);
+  assert.equal(alphabetGame({ title: "", subject: "الأرقام العربية" }).items.start, 0);
+  assert.equal(alphabetGame({ title: "العدد ٥", subject: "الأرقام العربية" }).items.start, 5);
+  assert.equal(alphabetGame({ title: "Letter C", subject: "الحروف الإنجليزية" }).items.start, 2);
+  assert.equal(alphabetGame({ title: "", subject: "العلوم" }), null);
+});
+
+// ── أجب وتتبّع: أسئلةُ الذكاء الاصطناعي ────────────────────────────────
+
+const owner = { lessonId: "L1", lessonStamp: "s1" };
+const question = (n, answer = "الشمس", options = ["الشمس", "القمر", "النجوم"]) => ({
+  question: `ما مصدر الضوء في النهار رقم ${n}؟`,
+  options,
+  answer,
+});
+
+test("إجابةٌ تُكتب بإصبع: كلمةٌ أو كلمتان قصيرتان بلا رموز", () => {
+  assert.ok(isTraceableAnswer("الشمس"));
+  assert.ok(isTraceableAnswer("ضوء الشمس"));
+  assert.ok(isTraceableAnswer("Sun"));
+  assert.ok(isTraceableAnswer("12"));
+  assert.ok(!isTraceableAnswer("ضوء الشمس الساطع"), "ثلاثُ كلمات");
+  assert.ok(!isTraceableAnswer("البروتوبلازمات"), "أطولُ من ١٢ حرفاً");
+  assert.ok(!isTraceableAnswer("H2O"), "حروفٌ وأرقامٌ في كلمة");
+  assert.ok(!isTraceableAnswer("3.5"));
+  assert.ok(!isTraceableAnswer(""));
+});
+
+test("من ٥ إلى ١٠ أسئلة صالحة، والإجابةُ بين ثلاثة خيارات", () => {
+  const raw = JSON.stringify({ questions: Array.from({ length: 14 }, (_, i) => question(i)) });
+  const quiz = parseTracingQuiz(raw, owner, { subject: "العلوم" });
+  assert.equal(quiz.items.length, TRACING_QUIZ_LIMITS.max);
+  for (const item of quiz.items) {
+    assert.equal(item.kind, "answer");
+    assert.equal(item.lang, "ar");
+    assert.equal(item.options.length, 3);
+    assert.ok(item.options.includes(item.text));
+    assert.ok(item.prompt.length > 5);
+  }
+});
+
+test("ما لا يُتتبّع يسقط، وأقلُّ من خمسةٍ صالحةٍ لا يُحفظ", () => {
+  const raw = {
+    questions: [
+      question(1),
+      question(2),
+      question(3),
+      question(4),
+      question(5, "ضوء الشمس الساطع جداً", ["ضوء الشمس الساطع جداً", "القمر", "النجوم"]),
+      question(6, "الشمس", ["الشمس", "الشمس"]),
+      { question: "قصير", options: ["أ", "ب", "ج"], answer: "أ" },
+    ],
+  };
+  assert.equal(parseTracingQuiz(raw, owner), null);
+  raw.questions.push(question(7));
+  assert.equal(parseTracingQuiz(raw, owner).items.length, 5);
+});
+
+test("المحفوظُ يُقرأ لدرسه ونصّه وحدهما", () => {
+  const quiz = parseTracingQuiz({ questions: Array.from({ length: 6 }, (_, i) => question(i)) }, owner);
+  assert.ok(readTracingQuiz(quiz, owner));
+  assert.equal(readTracingQuiz(quiz, { ...owner, lessonStamp: "edited" }), null);
+  assert.equal(readTracingQuiz(quiz, { ...owner, lessonId: "L2" }), null);
+  assert.equal(readTracingQuiz({ ...quiz, version: 0 }, owner), null);
+});
+
+test("مخطّطُ النموذج يطلب السؤال وخياراته وإجابته", () => {
+  const props = TRACING_QUIZ_SCHEMA.properties.questions.items;
+  assert.deepEqual(props.required, ["question", "options", "answer"]);
+});
+
+test("لعبةُ الأسئلة: عنوانُها «أجب وتتبّع» ومكافأتُها بعد آخر سؤال", () => {
+  const quiz = parseTracingQuiz({ questions: Array.from({ length: 7 }, (_, i) => question(i)) }, owner);
+  const game = tracing.tracingGame(quiz.items);
+  assert.equal(game.title, "أجب وتتبّع!");
+  assert.equal(game.items.reward_after, 7);
 });
 
 test("مكافأتُها تُطلب بمعرّفها، والنموذجُ لا يعرفها", () => {
