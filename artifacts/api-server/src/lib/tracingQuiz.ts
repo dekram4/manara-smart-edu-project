@@ -19,11 +19,33 @@ import { tracingLangOf } from "./tracing";
 
 export const TRACING_QUIZ_VERSION = 1;
 
-/** من ٥ إلى ١٠ أسئلة: أقلُّ من خمسةٍ لا يُعدّ تمريناً، وأكثرُ من عشرةٍ يُملّ الصغير. */
-export const TRACING_QUIZ_LIMITS = { min: 5, max: 10 } as const;
+/** من ٦ إلى ١٠ أسئلة: أقلُّ من ستّةٍ لا يُعدّ جولة، وأكثرُ من عشرةٍ يُملّ الصغير. */
+export const TRACING_QUIZ_LIMITS = { min: 6, max: 10 } as const;
 
-/** أطولُ إجابةٍ تُتتبّع: حروفاً بلا مسافات، وكلماتٍ. */
-export const ANSWER_LIMITS = { letters: 12, words: 2 } as const;
+/**
+ * أطولُ خيارٍ: يُمرَّر عليه بإصبعٍ في بطاقته — خطٌّ تحت الكلمة من أوّلها إلى
+ * آخرها — فيتّسع لثلاث كلماتٍ قصيرة.
+ */
+export const ANSWER_LIMITS = { letters: 18, words: 3 } as const;
+
+/** جوهرةٌ وعشرُ نقاطٍ عن كل إجابةٍ صحيحة في الجولة الأولى. */
+export const TRACING_QUIZ_REWARD_PER_CORRECT = { gems: 1, points: 10 } as const;
+
+/**
+ * مكافأةُ جولة: الإجاباتُ الصحيحة محصورةً بعدد الأسئلة، والعددُ بحدّ الجولة.
+ * التطبيقُ يدّعي النتيجة، والحصرُ هو الحماية — كما في الاختبار والتحدي.
+ */
+export function tracingQuizReward(
+  correct: number | null,
+  total: number | null,
+): { gems: number; points: number } {
+  const cap = Math.min(Math.max(0, Math.trunc(total ?? 0)), TRACING_QUIZ_LIMITS.max);
+  const score = Math.min(Math.max(0, Math.trunc(correct ?? 0)), cap);
+  return {
+    gems: score * TRACING_QUIZ_REWARD_PER_CORRECT.gems,
+    points: score * TRACING_QUIZ_REWARD_PER_CORRECT.points,
+  };
+}
 
 export interface TracingQuizPack {
   version: number;
@@ -33,12 +55,12 @@ export interface TracingQuizPack {
   items: TracingItem[];
 }
 
-export const TRACING_QUIZ_SYSTEM_INSTRUCTION = `أنت معلّمٌ خبير تكتب أسئلةً قصيرةً للأطفال في منصّة عربية. يُجيب الطفل باختيار الإجابة ثم يكتبها بإصبعه على الشاشة، فالإجابةُ قصيرةٌ جداً.
+export const TRACING_QUIZ_SYSTEM_INSTRUCTION = `أنت معلّمٌ خبير تكتب أسئلةً قصيرةً للأطفال في منصّة عربية. يُجيب الطفل بأن يمرّر إصبعه على بطاقة الخيار الذي يراه صحيحاً، فالخياراتُ قصيرة.
 
 ضوابط:
 - كلُّ سؤالٍ من الدرس المرفق وحده، صحيحٌ علمياً، يقيس الفهم لا الحفظ الحرفي، ولا يتكرّر بصياغةٍ أخرى.
 - "question": جملةٌ واحدة واضحة بلغةٍ بسيطةٍ تناسب عمر الطالب، لا تتجاوز ١٥ كلمة.
-- "answer": كلمةٌ واحدة أو كلمتان على الأكثر، لا تتجاوز ${ANSWER_LIMITS.letters} حرفاً، بلا تشكيلٍ ولا أرقامٍ عشرية ولا رموز ولا علامات ترقيم. يجوز أن تكون عدداً صحيحاً قصيراً.
+- "answer": من كلمةٍ إلى ${ANSWER_LIMITS.words} كلمات، لا تتجاوز ${ANSWER_LIMITS.letters} حرفاً، بلا تشكيلٍ ولا أرقامٍ عشرية ولا رموز ولا علامات ترقيم. يجوز أن تكون عدداً صحيحاً قصيراً.
 - "options": ثلاثةُ خياراتٍ بالضبط بالشروط نفسها، أحدها "answer" حرفياً، والآخران خاطئان معقولان من موضوع الدرس.
 - إن كانت مادة الدرس اللغة الإنجليزية فاكتب الأسئلة والخيارات بالإنجليزية.
 - اكتب بين ${TRACING_QUIZ_LIMITS.min} و${TRACING_QUIZ_LIMITS.max} أسئلة (يفضَّل ٨)، متدرّجةً من السهل إلى الأصعب، تغطّي الدرس كلّه.
@@ -66,16 +88,25 @@ export const TRACING_QUIZ_SCHEMA = {
   required: ["questions"],
 } as const;
 
+/** أقصى ما يُذكر للنموذج ممّا رآه الطالب — يكفي ليتجنّبه ولا ينتفخ الطلب. */
+export const TRACING_QUIZ_MAX_EXCLUDE = 80;
+
+/**
+ * [exclude]: أسئلةٌ رآها الطالب في جولاتٍ سابقة — كلُّ إعادةٍ أسئلةٌ جديدة
+ * من النصّ نفسه، لا الأولى بترتيبٍ آخر.
+ */
 export function tracingQuizPrompt({
   lessonTitle,
   lessonText,
   subject,
   grade,
+  exclude = [],
 }: {
   lessonTitle: string;
   lessonText: string;
   subject?: string;
   grade?: string;
+  exclude?: string[];
 }): string {
   const context = [
     grade ? `- الصف: ${grade}` : "",
@@ -84,8 +115,15 @@ export function tracingQuizPrompt({
   ]
     .filter(Boolean)
     .join("\n");
+  const seen = exclude
+    .map((item) => clean(item, 200))
+    .filter(Boolean)
+    .slice(-TRACING_QUIZ_MAX_EXCLUDE);
+  const avoid = seen.length
+    ? `\nأجاب الطالب عن هذه الأسئلة من قبل — لا تُعِد أيّاً منها ولا تُعِد صياغته؛ اختر تفاصيل ومفاهيم أخرى من الدرس:\n${seen.map((item) => `- ${item}`).join("\n")}\n`
+    : "";
   return `اكتب أسئلة «أجب وتتبّع» من هذا الدرس.
-${context ? `\n${context}\n` : ""}
+${context ? `\n${context}\n` : ""}${avoid}
 نص الدرس:
 """
 ${fullLessonText(lessonText).trim()}
@@ -151,10 +189,15 @@ function extract(raw: unknown): unknown[] {
 export function parseTracingQuiz(
   raw: unknown,
   owner: { lessonId: string; lessonStamp: string },
-  { subject = "", now = new Date().toISOString() }: { subject?: string; now?: string } = {},
+  {
+    subject = "",
+    now = new Date().toISOString(),
+    exclude = [],
+  }: { subject?: string; now?: string; exclude?: string[] } = {},
 ): TracingQuizPack | null {
   const items: TracingItem[] = [];
-  const seen = new Set<string>();
+  // وما رآه الطالب يسقط ولو أعاده النموذج: لا يتكرّر سؤالٌ بنصّه.
+  const seen = new Set<string>(exclude.map((item) => key(clean(item, 200))));
   for (const entry of extract(raw)) {
     if (!entry || typeof entry !== "object") continue;
     const record = entry as Record<string, unknown>;

@@ -115,7 +115,7 @@ function lettersIn(source: string, lang: TracingLang): string[] {
 
 function numbersIn(source: string): string[] {
   const out: string[] = [];
-  for (const match of source.matchAll(/(?:رقم|الرقم|العدد|number)\s+([0-9٠-٩]{1,2})(?![0-9٠-٩])/gi)) {
+  for (const match of source.matchAll(/(?:رقم|الرقم|العدد|number)\s+([0-9٠-٩]{1,3})(?![0-9٠-٩])/gi)) {
     out.push(match[1]);
   }
   return out;
@@ -191,15 +191,18 @@ export const ARABIC_LETTERS: readonly (readonly [string, string])[] = [
   ["ن", "نون"], ["ه", "هاء"], ["و", "واو"], ["ي", "ياء"],
 ];
 
-const ARABIC_DIGITS: readonly (readonly [string, string])[] = [
-  ["٠", "صفر"], ["١", "واحد"], ["٢", "اثنان"], ["٣", "ثلاثة"], ["٤", "أربعة"],
-  ["٥", "خمسة"], ["٦", "ستة"], ["٧", "سبعة"], ["٨", "ثمانية"], ["٩", "تسعة"],
-];
+/** أعلى عددٍ في مجموعة الأرقام: من الصفر إلى المئة. */
+export const NUMBERS_MAX = 100;
 
-const ENGLISH_DIGITS: readonly (readonly [string, string])[] = [
-  ["0", "zero"], ["1", "one"], ["2", "two"], ["3", "three"], ["4", "four"],
-  ["5", "five"], ["6", "six"], ["7", "seven"], ["8", "eight"], ["9", "nine"],
-];
+/** «25» بالأرقام الهندية: «٢٥». */
+export function toArabicIndic(value: string): string {
+  return value.replace(/[0-9]/g, (d) => String.fromCharCode(0x0660 + Number(d)));
+}
+
+/** «٢٥» بالأرقام الغربية: «25» — للمقارنة والنطق. */
+export function toWesternDigits(value: string): string {
+  return value.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+}
 
 export type AlphabetSet = "arabic_letters" | "english_letters" | "arabic_digits" | "english_digits";
 
@@ -244,10 +247,23 @@ export function alphabetItems(set: AlphabetSet): TracingItem[] {
         const upper = String.fromCharCode(65 + i);
         return { text: `${upper}${upper.toLowerCase()}`, kind: "letter" as const, lang: "en" as const, speech: upper };
       });
+    // من الصفر إلى المئة. ويُنطق العددُ بأرقامه الغربية: محرّكُ النطق يقرأ
+    // «25» بالعربية «خمسة وعشرون» وبالإنجليزية «twenty five» — أصحُّ من
+    // جدولِ أسماءٍ مكتوبٍ باليد لمئة عدد.
     case "arabic_digits":
-      return ARABIC_DIGITS.map(([text, speech]) => ({ text, kind: "number", lang: "ar", speech }));
+      return Array.from({ length: NUMBERS_MAX + 1 }, (_, n) => ({
+        text: toArabicIndic(String(n)),
+        kind: "number" as const,
+        lang: "ar" as const,
+        speech: String(n),
+      }));
     case "english_digits":
-      return ENGLISH_DIGITS.map(([text, speech]) => ({ text, kind: "number", lang: "en", speech }));
+      return Array.from({ length: NUMBERS_MAX + 1 }, (_, n) => ({
+        text: String(n),
+        kind: "number" as const,
+        lang: "en" as const,
+        speech: String(n),
+      }));
   }
 }
 
@@ -260,7 +276,14 @@ export function alphabetStart(items: TracingItem[], title: string): number {
   const lang = items[0]?.lang ?? "ar";
   const wanted = [...lettersIn(title, lang), ...numbersIn(title)];
   for (const value of wanted) {
-    const at = items.findIndex((item) => item.text === value || item.text.startsWith(value.toUpperCase()));
+    // «العدد ٢٥» يفتح على ٢٥ أيّاً كانت أرقامُ المادّة.
+    const number = toWesternDigits(value);
+    const at = items.findIndex(
+      (item) =>
+        item.text === value ||
+        (item.kind === "number" && toWesternDigits(item.text) === number) ||
+        (item.kind === "letter" && item.text.startsWith(value.toUpperCase())),
+    );
     if (at >= 0) return at;
   }
   return 0;

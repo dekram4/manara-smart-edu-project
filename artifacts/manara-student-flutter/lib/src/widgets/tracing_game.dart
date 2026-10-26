@@ -12,6 +12,7 @@ import '../services/student_voice_service.dart';
 import '../services/tracing_glyphs.dart';
 import '../services/tracing_path.dart';
 import '../theme/student_theme.dart';
+import 'tracing_quiz_round.dart';
 
 /// لعبةُ «تتبّع واكتب» في بطاقة المذاكرة.
 ///
@@ -21,9 +22,9 @@ import '../theme/student_theme.dart';
 /// تتبّعه. وما أنجزه يعود إلى الشبكة أخضرَ بعلامة. والمكافأةُ بعد
 /// [StudyGame.tracingRewardAfter] منها لا بعد آخرها.
 ///
-/// ── أسئلةُ «أجب وتتبّع» لغيرها: واحدٌ بعد واحد ──
-/// يُقرأ السؤالُ ويُختار جوابُه: الخطأُ صوتُ تنبيهٍ ومحاولةٌ أخرى، والصوابُ
-/// يُنطق ثم يُتتبّع.
+/// ── أسئلةُ «أجب ومرِّر» لغيرها ──
+/// جولةٌ من [TracingQuizRound]: كلُّ خيارٍ بطاقةٌ يُمرَّر عليها، والنتيجةُ
+/// تُرسل في آخرها.
 ///
 /// ── واللوحة ──
 /// يضع الطفلُ إصبعه على النقطة الخضراء ويمرّ بالنقاط بترتيبها: التاليةُ
@@ -41,11 +42,15 @@ class TracingGame extends StatefulWidget {
     required this.onReplay,
     this.shapeBuilder = loadTracingShape,
     this.speak,
+    this.alreadyRewarded = false,
     super.key,
   });
 
   final StudyGame game;
-  final Future<void> Function() onWin;
+
+  /// المكافأة: للحروف بعد [StudyGame.tracingRewardAfter] منها، وللأسئلة في
+  /// آخر الجولة بعدد الصحيح منها.
+  final Future<void> Function({int? correct, int? total}) onWin;
   final VoidCallback onReplay;
 
   /// يُستبدل في الاختبار وحده.
@@ -54,19 +59,25 @@ class TracingGame extends StatefulWidget {
   /// النطق؛ وبلا قيمةٍ محرّكُ الجهاز ([StudentVoiceService.speakIn]).
   final Future<void> Function(String text, String lang)? speak;
 
+  /// صُرفت جواهرُ هذا الدرس من قبل: جولةُ الأسئلة تدريبٌ بلا جواهر.
+  final bool alreadyRewarded;
+
   @override
   State<TracingGame> createState() => TracingGameState();
 }
 
-enum _View { grid, board, question }
+enum _View { grid, board }
 
 @visibleForTesting
 class TracingGameState extends State<TracingGame> with SingleTickerProviderStateMixin {
   static const _green = Color(0xFF16A34A);
   static const _amber = Color(0xFFF59E0B);
 
-  /// بطاقاتُ الصفحة الواحدة في الشبكة: ٣×٢ عرضاً، و٢×٣ طولاً.
-  static const perPage = 6;
+  /// بطاقاتُ الصفحة: ستّةُ حروف (٣×٢)، أو اثنا عشر رقماً (٤×٣) — الأرقامُ
+  /// مئةٌ وواحد، وستّةٌ في الصفحة سبعَ عشرةَ صفحة.
+  int get perPage => _numbers ? 12 : 6;
+
+  bool get _numbers => _items.isNotEmpty && _items.first.kind == 'number';
 
   // يُنشآن في [initState] صراحةً لا كسولين: الشبكةُ لا تلمس النبض، فكان أوّلُ
   // لمسٍ له في [dispose] — وإنشاءُ مؤقّتٍ هناك ممنوع.
@@ -96,8 +107,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   bool _rewarded = false;
   bool _allDone = false;
   int _mistakes = 0;
-  String? _wrongOption;
-  bool _correctFlash = false;
 
   /// النصُّ مرسوماً للوحة، بلونه — يُبنى مرّةً لكل عنصرٍ ولون، لا مع كل نبضة.
   final Map<String, TextPainter> _glyphs = {};
@@ -105,8 +114,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   List<TracingItem> get _items => widget.game.tracing;
   TracingItem get _item => _items[_index];
 
-  /// الروضة: شبكة. والأسئلة: تسلسل.
-  bool get _gridMode => !_items.any((item) => item.isQuestion);
+  /// أسئلة: جولةُ [TracingQuizRound]. وغيرُها: شبكةٌ ثم لوحة.
+  bool get _quiz => _items.any((item) => item.isQuestion);
 
   int get _pageCount => (_items.length / perPage).ceil();
 
@@ -131,12 +140,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
       ..repeat(reverse: true);
     _pages = PageController(initialPage: _page);
-    if (!_gridMode) {
-      // السؤالُ الأوّلُ يُفتح بعد أوّل بناء: النطقُ يحتاج السياق.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _open(_index);
-      });
-    }
   }
 
   @override
@@ -148,31 +151,36 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
 
   // ── النطق ────────────────────────────────────────────────────────
 
+  /// ينطق ولا يُسقط شيئاً: أيُّ عطلٍ في النطق يبقى في النطق.
+  ///
+  /// ── ما كان يُعلّق اللعبة ──
+  /// كان هنا `widget.speak ?? StudentVoiceService.instance.speakIn` — و`speakIn`
+  /// تأخذ اللغةَ باسمها (`lang:`) لا بموضعها. فقَدَ `??` نوعَ الدالّة فلم ينبّه
+  /// المحلّل، وكانت كلُّ لمسةٍ لحرفٍ ترمي `NoSuchMethodError` قبل أن يُحضَّر
+  /// شكلُه: دائرةُ تحميلٍ لا تنتهي في 1.1.19، ولوحةٌ بيضاء فارغة في 1.1.20.
+  /// والاختباراتُ كانت تمرّر نطقاً مزيّفاً فلم تمرّ بهذا السطر. فالنوعُ هنا
+  /// مكتوبٌ صراحةً، ويُكتشف أيُّ خلافٍ عند البناء لا على جهاز الطفل.
   void _say(String text, String lang) {
-    final speak = widget.speak ?? StudentVoiceService.instance.speakIn;
-    unawaited(speak(text, lang == 'en' ? 'en' : 'ar').catchError((Object _) {}));
-  }
-
-  void _sayCurrent() {
-    final item = _item;
-    if (_view == _View.question) {
-      _say(item.prompt!, item.lang);
-    } else {
-      _say(item.speech, item.lang);
+    final Future<void> Function(String text, String lang) speak = widget.speak ??
+        (text, lang) => StudentVoiceService.instance.speakIn(text, lang: lang);
+    try {
+      unawaited(speak(text, lang == 'en' ? 'en' : 'ar').catchError((Object _) {}));
+    } catch (error) {
+      debugPrint('[tracing] speech failed: $error');
     }
   }
 
+  void _sayCurrent() => _say(_item.speech, _item.lang);
+
   // ── التنقّل ──────────────────────────────────────────────────────
 
-  /// يفتح عنصراً: سؤالَه إن كان له، وإلا لوحتَه — وينطقه في الحال.
+  /// يفتح لوحةَ عنصرٍ وينطقه في الحال.
   void _open(int index) {
     if (index < 0 || index >= _items.length) return;
     final item = _items[index];
     setState(() {
       _index = index;
-      _view = item.isQuestion ? _View.question : _View.board;
-      _wrongOption = null;
-      _correctFlash = false;
+      _view = _View.board;
       _hint = null;
       _resetBoard();
     });
@@ -190,7 +198,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     _itemDone = false;
   }
 
-  /// الشكلُ يُحضَّر مع فتح العنصر — والسؤالُ معروضٌ ما دام يُحضَّر.
+  /// الشكلُ يُحضَّر مع فتح العنصر.
   ///
   /// المحسوبُ مسبقاً يعود قبل أن يُرسم إطارٌ واحد، فلا تظهر دائرةُ تحميل
   /// أصلاً؛ وما يُرسم الآن له مهلةٌ في [loadTracingShape].
@@ -209,8 +217,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _shape = shape;
       _unavailable = shape == null;
     });
-    // سؤالٌ أُجيب صواباً وشكلُه لم يُرسم: يكفيه الجواب.
-    if (shape == null && _view == _View.board && item.isQuestion) _completeItem();
   }
 
   void _backToGrid() {
@@ -223,8 +229,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     });
   }
 
-  /// العنصرُ أُنجز: يُحسب، وتُصرف المكافأةُ مرّةً عند بلوغ حدّها، ثم إلى
-  /// الشبكة أو السؤالِ التالي.
+  /// العنصرُ أُنجز: يُحسب، وتُصرف المكافأةُ مرّةً عند بلوغ حدّها، ثم إلى الشبكة.
   void _finishItem() {
     _done.add(_index);
     if (!_rewarded && _done.length >= _rewardAfter) {
@@ -235,24 +240,14 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       setState(() => _allDone = true);
       return;
     }
-    if (_gridMode) {
-      setState(() {
-        _view = _View.grid;
-        _page = _index ~/ perPage;
-        _resetBoard();
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pages.hasClients) _pages.jumpToPage(_page);
-      });
-      return;
-    }
-    for (var step = 1; step <= _items.length; step++) {
-      final next = (_index + step) % _items.length;
-      if (!_done.contains(next)) {
-        _open(next);
-        return;
-      }
-    }
+    setState(() {
+      _view = _View.grid;
+      _page = _index ~/ perPage;
+      _resetBoard();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pages.hasClients) _pages.jumpToPage(_page);
+    });
   }
 
   void _restartItem() {
@@ -264,41 +259,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _doneTrails.clear();
       _hint = null;
     });
-  }
-
-  // ── السؤال ───────────────────────────────────────────────────────
-
-  void _choose(String option) {
-    final item = _item;
-    if (_view != _View.question || _correctFlash) return;
-    if (option == item.text) {
-      StudentSoundService.instance.play(StudentSoundCue.success);
-      HapticFeedback.lightImpact();
-      setState(() {
-        _correctFlash = true;
-        _wrongOption = null;
-        _hint = tr('study.trace.correct');
-      });
-      _say(item.speech, item.lang);
-      Future.delayed(const Duration(milliseconds: 900), () {
-        if (!mounted || _view != _View.question || _items[_index] != item) return;
-        setState(() {
-          _view = _View.board;
-          _correctFlash = false;
-          _hint = null;
-        });
-        // الشكلُ تعذّر وهو يُحضَّر: الجوابُ يكفي.
-        if (_unavailable) _completeItem();
-      });
-    } else {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-      HapticFeedback.mediumImpact();
-      setState(() {
-        _mistakes += 1;
-        _wrongOption = option;
-        _hint = tr('study.trace.wrongAnswer');
-      });
-    }
   }
 
   // ── الهندسة ──────────────────────────────────────────────────────
@@ -442,10 +402,18 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
+    if (_quiz) {
+      return TracingQuizRound(
+        items: _items,
+        alreadyRewarded: widget.alreadyRewarded,
+        speak: _say,
+        onReplay: widget.onReplay,
+        onFinish: (correct, total) => widget.onWin(correct: correct, total: total),
+      );
+    }
     if (_allDone) return _finished(context);
     return switch (_view) {
       _View.grid => _gridView(context),
-      _View.question => _questionView(context),
       _View.board => _boardView(context),
     };
   }
@@ -459,11 +427,11 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
         height: 30,
         child: Center(
           child: Text(
-            _itemDone || _correctFlash ? (_hint ?? tr('study.trace.great')) : (_hint ?? idle),
+            _itemDone ? (_hint ?? tr('study.trace.great')) : (_hint ?? idle),
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w900,
-              color: _itemDone || _correctFlash ? _green : StudentSurface.mutedInk(context),
+              color: _itemDone ? _green : StudentSurface.mutedInk(context),
             ),
           ),
         ),
@@ -531,7 +499,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= constraints.maxHeight;
-        final cols = wide ? 3 : 2;
+        final cols = _numbers ? (wide ? 4 : 3) : (wide ? 3 : 2);
         final rows = (perPage / cols).ceil();
         return Padding(
           padding: const EdgeInsets.all(10),
@@ -604,77 +572,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     );
   }
 
-  // ── السؤال ──
-
-  Widget _questionView(BuildContext context) {
-    final item = _item;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              _progressChip(),
-              const SizedBox(width: 8),
-              _Chip(text: _kindLabel(item), color: _amber),
-              const Spacer(),
-              _mistakesText(context),
-              _speakButton(),
-            ],
-          ),
-        ),
-        _surface(
-          context,
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.prompt!,
-                    textAlign: TextAlign.center,
-                    textDirection: item.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
-                    style: TextStyle(
-                      fontSize: 21,
-                      height: 1.5,
-                      fontWeight: FontWeight.w900,
-                      color: StudentSurface.ink(context),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      for (final option in item.options)
-                        FilledButton(
-                          key: ValueKey('tracing-option-$option'),
-                          onPressed: () => _choose(option),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: option == _wrongOption
-                                ? const Color(0xFFDC2626)
-                                : _correctFlash && option == item.text
-                                    ? _green
-                                    : _amber,
-                            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                            textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                          ),
-                          child: Text(option),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        _hintLine(context, tr('study.trace.pickAnswer')),
-      ],
-    );
-  }
-
   // ── اللوحة ──
 
   Widget _boardView(BuildContext context) {
@@ -685,21 +582,16 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              if (_gridMode)
-                TextButton.icon(
-                  key: const ValueKey('tracing-back-to-grid'),
-                  onPressed: _backToGrid,
-                  icon: const Icon(Icons.apps_rounded),
-                  label: Text(tr('study.trace.backToGrid')),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _amber,
-                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                )
-              else ...[
-                const SizedBox(width: 8),
-                _progressChip(),
-              ],
+              TextButton.icon(
+                key: const ValueKey('tracing-back-to-grid'),
+                onPressed: _backToGrid,
+                icon: const Icon(Icons.apps_rounded),
+                label: Text(_numbers ? tr('study.trace.backToNumbers') : tr('study.trace.backToGrid')),
+                style: TextButton.styleFrom(
+                  foregroundColor: _amber,
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
               const SizedBox(width: 6),
               _Chip(text: _kindLabel(item), color: _amber),
               const Spacer(),

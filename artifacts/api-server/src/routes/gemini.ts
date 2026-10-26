@@ -58,7 +58,7 @@ import {
   type StudyGame,
   type StudyGamesPack,
 } from "../lib/studyGames";
-import { alphabetGame, tracingGame, withTracingGame } from "../lib/tracing";
+import { TRACING_GAME_ID, alphabetGame, tracingGame, withTracingGame } from "../lib/tracing";
 import {
   TRACING_QUIZ_SCHEMA,
   TRACING_QUIZ_SYSTEM_INSTRUCTION,
@@ -2043,10 +2043,11 @@ router.post(
   async (req, res) => {
     const lessonId = typeof req.body?.lessonId === "string" ? req.body.lessonId.trim() : "";
     const type = req.body?.gameType;
-    if (!lessonId || !isStudyGameType(type)) {
+    const tracing = type === TRACING_GAME_ID;
+    if (!lessonId || (!tracing && !isStudyGameType(type))) {
       return res.status(400).json({ error: "طلبٌ غير صالح", code: "bad_request" });
     }
-    const exclude = Array.isArray(req.body?.exclude)
+    const exclude: string[] = Array.isArray(req.body?.exclude)
       ? req.body.exclude
           .filter((item: unknown): item is string => typeof item === "string")
           .slice(-MAX_FRESH_EXCLUDE)
@@ -2058,6 +2059,42 @@ router.post(
         return res.status(lesson.reason === "not_found" ? 404 : 403).json({ error: "الدرس غير متاح", code: lesson.reason });
       }
       const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
+
+      // «أجب وتتبّع»: كلُّ إعادةٍ أسئلةٌ جديدة من النصّ نفسه، تتجنّب ما رآه
+      // الطالب. لا تُحفظ، والمكافأةُ تبقى على الجولة الأولى وحدها. وحروفُ
+      // الروضة لا نسخةَ جديدة لها: المجموعةُ هي هي.
+      if (tracing) {
+        if (alphabetGame({ title, subject: lesson.subject })) {
+          return res.status(400).json({ error: "لا نسخةَ جديدة لحروف الروضة", code: "bad_request" });
+        }
+        const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
+        const data = await callGemini(
+          tracingQuizPrompt({
+            lessonTitle: title || lesson.lesson || lesson.subject,
+            lessonText: lesson.text,
+            subject: lesson.subject,
+            grade: lesson.grade,
+            exclude,
+          }),
+          {
+            systemInstruction: TRACING_QUIZ_SYSTEM_INSTRUCTION,
+            responseSchema: TRACING_QUIZ_SCHEMA,
+            json: true,
+            temperature: 1,
+            maxOutputTokens: STUDY_MAX_TOKENS,
+            budgetMs: STUDY_BUDGET_MS,
+            singleTryMs: 45_000,
+          },
+        );
+        const quiz = parseTracingQuiz(getGeminiText(data) ?? "", owner, { subject: lesson.subject, exclude });
+        const game = quiz ? tracingGame(quiz.items) : null;
+        if (!game) {
+          logger.warn({ lessonId }, "[tracing-quiz] fresh round not usable");
+          return res.status(502).json({ error: "تعذّر تحضير أسئلةٍ جديدة الآن", code: "bad_pack" });
+        }
+        return res.json({ game });
+      }
+
       const data = await callGemini(
         freshGamePrompt({
           type,

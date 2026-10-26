@@ -274,11 +274,14 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   /// ── المكافأةُ يقرّرها الخادم ──
   /// المعرّفُ `درس::لعبة`، والخادمُ يقرأ جواهرَها ونقاطَها من سجلّ الدرس
   /// ويصرفها مرّةً لكل لعبة — فالإعادةُ للمتعة لا لجمع الجواهر.
-  Future<RewardResult?> _rewardGame(StudyGame game) async {
+  Future<RewardResult?> _rewardGame(StudyGame game, {int? correct, int? total}) async {
     final result = await widget.contentService.rewardActivity(
       profile: widget.profile,
       activityType: 'study_game',
       activityId: '$_lessonId::${game.id}',
+      // نتيجةُ جولة «أجب ومرِّر»: جوهرةٌ عن كل صحيحة، يحصرها الخادم.
+      correctAnswers: correct,
+      quizTotal: total,
     );
     if (result.gems > 0 && mounted) _confetti.play();
     return result;
