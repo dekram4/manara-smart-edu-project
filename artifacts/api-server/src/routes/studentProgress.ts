@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { apiSupabaseConfig, matchesStudentScope, type StudentActor } from "../lib/studentAccess";
 import { parseStudyGameActivityId, rewardOf } from "../lib/studyGames";
-import { tracingQuizReward } from "../lib/tracingQuiz";
 import {
   TRACING_GAME_ID,
   TRACING_REWARD,
-  alphabetSetOf,
+  tracingSetFor,
 } from "../lib/tracing";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
@@ -506,7 +505,6 @@ function rewardFor(
 async function studyGameReward(
   activityId: string,
   student: StudentActor,
-  answers: { correct: number | null; total: number | null } = { correct: null, total: null },
 ): Promise<{ gems: number; points: number } | null> {
   const parsed = parseStudyGameActivityId(activityId);
   if (!parsed) return null;
@@ -520,13 +518,11 @@ async function studyGameReward(
   const data = Array.isArray(rows) ? asMap(rows[0]?.data) : {};
   if (!Object.keys(data).length || !matchesStudentScope(data, student)) return null;
   if (parsed.gameId === TRACING_GAME_ID) {
-    // حروفُ الروضة وأرقامُها — ولو بلا نصّ: مقدارٌ ثابت.
-    if (alphabetSetOf(text(data.subject)) !== null) return { ...TRACING_REWARD };
-    // أسئلةُ «أجب وتتبّع»: جوهرةٌ عن كل إجابةٍ صحيحة في أوّل جولة، محصورةً
-    // بعدد الأسئلة (انظر `tracingQuizReward`). والجولةُ الأولى وحدها: المفتاحُ
-    // `درس::tracing` يُسجَّل ولو بلا جوهرة، فالإعادةُ لا تكسب شيئاً.
-    if (!data.tracingQuiz) return null;
-    return tracingQuizReward(answers.correct, answers.total);
+    // حروفُ «روضة منارة المعرفة» وأرقامُها وحدها — ولو بلا نصّ: مقدارٌ ثابت،
+    // مرّةً لكل درس. ولا تتبّعَ في غيرها، فلا مكافأةَ له.
+    return tracingSetFor({ subject: text(data.subject), grade: text(data.grade) })
+      ? { ...TRACING_REWARD }
+      : null;
   }
   return rewardOf(data.studyGames, parsed.gameId);
 }
@@ -560,10 +556,7 @@ router.post("/student/progress/reward", async (req, res) => {
     const current = readGamification(asMap(row.data).gamification);
     let studyGame: { gems: number; points: number } | null = null;
     if (activityType === "study_game") {
-      studyGame = await studyGameReward(activityId, student, {
-        correct: body.correctAnswers == null ? null : num(body.correctAnswers),
-        total: body.quizTotal == null ? null : num(body.quizTotal),
-      });
+      studyGame = await studyGameReward(activityId, student);
       if (!studyGame) {
         res.status(404).json({ error: "اللعبة غير موجودة في هذا الدرس" });
         return;

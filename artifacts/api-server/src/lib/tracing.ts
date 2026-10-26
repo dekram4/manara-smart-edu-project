@@ -1,24 +1,20 @@
 /**
- * لعبةُ «تتبّع الحروف والأرقام والكلمات» في بطاقة المذاكرة.
+ * لعبةُ «تتبّع واكتب» في بطاقة المذاكرة — حصراً لصفّ «روضة منارة المعرفة».
  *
- * ── ثلاثةُ مصادر ──
- * - مادّةُ حروفٍ أو أرقام في الروضة ([alphabetSetOf]): المجموعةُ كاملة —
- *   ٢٨ حرفاً عربياً، و٢٦ إنجليزياً، وعشرةُ أرقام — ومع كلٍّ اسمُه للنطق.
- *   ولا تحتاج نصّاً: درسُ الروضة كثيراً ما يكون بلا شرحٍ مكتوب.
- * - غيرُها: أسئلةٌ يولّدها الذكاء الاصطناعي من نصّ الدرس (`tracingQuiz.ts`)،
- *   يختار الطفلُ الإجابة ثم يتتبّعها.
- * - وإن تعذّر النموذج: ما يُستخرج من النصّ هنا بلا نموذج ([tracingItemsFrom]).
+ * ── متى تظهر ──
+ * الصفُّ «روضة منارة المعرفة» **و**المادّةُ إحدى الأربع معاً: «الحروف العربية»،
+ * «الحروف الإنجليزية»، «الأرقام العربية»، «الأرقام الإنجليزية» ([tracingSetFor]).
+ * وأيُّ صفٍّ آخر أو مادّةٍ أخرى: لا تتبّعَ أصلاً، وتبقى للدرس ألعابُه العادية.
  *
- * ── من نصّ المعلم، بلا نموذج ──
- * ما يُتتبّع يُستخرج هنا من عنوان الدرس ونصّه: «حرف الباء» حرفٌ، و«العدد ٥»
- * رقم، وأكثرُ الكلمات القصيرة تكراراً كلمات. لا يُسأل النموذج: الاستخراجُ
- * فوريّ ومجّاني، ولا يُبطل حزمَ الألعاب المحفوظة مع الدروس كما يفعل تغييرُ
- * مخطّطها. ومساراتُ التتبّع نفسها لا تُرسل من هنا: يبنيها التطبيقُ من شكل
- * الحرف في خطّه، فتطابق ما يراه الطفل حرفاً حرفاً.
+ * ── ما فيها ──
+ * المجموعةُ كاملة: ٢٨ حرفاً عربياً، و٢٦ إنجليزياً، والأعدادُ من ٠ إلى ١٠٠
+ * بالنظامين — ومع كلٍّ ما يُنطق به: اسمُ الحرف («باء») والعددُ كلماتٍ («خمسة
+ * وعشرون»). ولا تحتاج نصّاً: درسُ الروضة كثيراً ما يكون بلا شرحٍ مكتوب.
+ * ومساراتُ التتبّع لا تُرسل من هنا: يحملها التطبيقُ محسوبةً مسبقاً من خطّه.
  *
  * ── والمكافأةُ ثابتة ──
- * لا حزمةَ محفوظة تُقرأ منها، فتُصرف [TRACING_REWARD] لدرسٍ في مسار الطالب
- * فيه ما يُتتبّع — مرّةً واحدة كبقيّة الألعاب (`درس::tracing`).
+ * [TRACING_REWARD] بعد [ALPHABET_REWARD_AFTER] عناصر — مرّةً لكل درس
+ * (`درس::tracing`).
  *
  * بلا شبكة ولا قاعدة بيانات، فيُختبر وحده.
  */
@@ -34,15 +30,9 @@ export type TracingLang = TracingItem["lang"];
 /** داخل حدود [REWARD_LIMITS] في `studyGames.ts`. */
 export const TRACING_REWARD = { gems: 6, points: 30 } as const;
 
-/** ما يتّسع له تمرينٌ واحد قبل أن يملّ الطفل. */
-export const TRACING_MAX_ITEMS = 6;
-const MAX_WORD_LETTERS = { ar: 5, en: 6 } as const;
-
 // بالرموز لا بالحروف: نطاقُ «ً-ٰ» المكتوب بحروفه يشمل الأرقامَ الهندية ٠-٩
 // (U+0660–0669) فيمحوها.
 const TASHKEEL = /[ً-ٰٟـ]/g;
-const AR_WORD = /^[ء-ي]+$/;
-const EN_WORD = /^[A-Za-z]+$/;
 
 /** أسماءُ الحروف كما يكتبها المعلم: «حرف الباء» → ب. */
 const ARABIC_LETTER_NAMES: Record<string, string> = {
@@ -54,22 +44,6 @@ const ARABIC_LETTER_NAMES: Record<string, string> = {
   النون: "ن", الهاء: "ه", الواو: "و", الياء: "ي",
 };
 
-const AR_STOPWORDS = new Set([
-  "في", "من", "على", "الى", "إلى", "عن", "مع", "هذا", "هذه", "ذلك", "تلك", "التي", "الذي",
-  "هو", "هي", "هم", "نحن", "انت", "أنت", "كان", "كانت", "يكون", "او", "أو", "ثم", "لا", "لم",
-  "لن", "ما", "ماذا", "متى", "اين", "أين", "كيف", "كل", "بعض", "قد", "لقد", "عند", "بين", "حتى",
-  "إن", "ان", "أن", "إذا", "اذا", "لكن", "بل", "يا", "ها", "هنا", "هناك", "نعم", "حرف", "الحرف",
-  "رقم", "الرقم", "العدد", "عدد", "درس", "الدرس", "وحدة", "الوحدة", "نشاط", "تمرين", "اكتب",
-  "اقرأ", "لون", "ارسم", "صل", "مع", "الطفل", "الطالب", "الاطفال", "الأطفال",
-]);
-
-const EN_STOPWORDS = new Set([
-  "the", "and", "for", "with", "this", "that", "are", "was", "you", "your", "his", "her", "its",
-  "our", "they", "them", "have", "has", "had", "not", "but", "can", "will", "from", "into", "what",
-  "who", "how", "when", "where", "why", "lesson", "unit", "letter", "number", "write", "read",
-  "trace", "color", "colour", "draw", "match", "page",
-]);
-
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -78,19 +52,7 @@ function stripMarks(value: string): string {
   return value.replace(TASHKEEL, "");
 }
 
-/** الأرقامُ كما كُتبت: ١٢ تبقى ١٢، و12 تبقى 12 — الطفلُ يتتبّع ما في كتابه. */
-function isDigits(value: string): boolean {
-  return /^(?:[0-9]{1,2}|[٠-٩]{1,2})$/.test(value);
-}
-
-/** لغةُ الدرس: مادّةُ الإنجليزية، أو نصٌّ حروفُه اللاتينية أكثر. */
-export function tracingLangOf(subject: string, sample: string): TracingLang {
-  if (/english|انجليز|إنجليز/i.test(subject)) return "en";
-  const latin = (sample.match(/[A-Za-z]/g) ?? []).length;
-  const arabic = (sample.match(/[ء-ي]/g) ?? []).length;
-  return latin > arabic ? "en" : "ar";
-}
-
+/** حرفُ الدرس من عنوانه («حرف الباء» → ب) — منه تبدأ اللعبة. */
 function lettersIn(source: string, lang: TracingLang): string[] {
   const out: string[] = [];
   if (lang === "ar") {
@@ -121,65 +83,6 @@ function numbersIn(source: string): string[] {
   return out;
 }
 
-/** الكلماتُ القصيرة الأكثر ذكراً؛ وما في العنوان يُقدَّم، وما فيه حرفُ الدرس كذلك. */
-function wordsIn(title: string, body: string, lang: TracingLang, letters: string[]): string[] {
-  const score = new Map<string, number>();
-  const firstSeen = new Map<string, number>();
-  let order = 0;
-  const visit = (source: string, weight: number) => {
-    for (const raw of stripMarks(source).split(/[^ء-يA-Za-z]+/)) {
-      const word = lang === "en" ? raw.toLowerCase() : raw;
-      if (word.length < 2 || word.length > MAX_WORD_LETTERS[lang]) continue;
-      if (lang === "ar" ? !AR_WORD.test(word) || AR_STOPWORDS.has(word) : !EN_WORD.test(word) || EN_STOPWORDS.has(word)) {
-        continue;
-      }
-      if (ARABIC_LETTER_NAMES[word]) continue;
-      score.set(word, (score.get(word) ?? 0) + weight);
-      if (!firstSeen.has(word)) firstSeen.set(word, order++);
-    }
-  };
-  visit(title, 3);
-  visit(body, 1);
-  const letterBonus = (word: string) =>
-    letters.some((letter) => word.includes(letter.toLowerCase()) || word.includes(letter)) ? 2 : 0;
-  return [...score.keys()].sort(
-    (a, b) =>
-      score.get(b)! + letterBonus(b) - (score.get(a)! + letterBonus(a)) ||
-      firstSeen.get(a)! - firstSeen.get(b)!,
-  );
-}
-
-/**
- * ما يتتبّعه الطفل من هذا الدرس: الحروفُ ثم الأرقامُ ثم الكلمات، بلا تكرار.
- * قائمةٌ فارغة إن لم يُوجد ما يُتتبّع.
- */
-export function tracingItemsFrom({
-  title,
-  text: body,
-  subject = "",
-}: {
-  title: string;
-  text: string;
-  subject?: string;
-}): TracingItem[] {
-  const source = `${title}\n${body}`;
-  const lang = tracingLangOf(subject, source);
-  const items: TracingItem[] = [];
-  const seen = new Set<string>();
-  const add = (value: string, kind: TracingKind) => {
-    const clean = stripMarks(value).trim();
-    if (!clean || seen.has(clean) || items.length >= TRACING_MAX_ITEMS) return;
-    seen.add(clean);
-    items.push({ text: clean, kind, lang });
-  };
-
-  const letters = lettersIn(source, lang);
-  for (const letter of letters) add(letter, "letter");
-  for (const number of numbersIn(source)) if (isDigits(number)) add(number, "number");
-  for (const word of wordsIn(title, body, lang, letters)) add(word, "word");
-  return items;
-}
-
 // ── مجموعاتُ الروضة الكاملة ─────────────────────────────────────────
 
 /** الحروفُ العربية بترتيبها، واسمُ كلٍّ منها كما يُنطق للطفل. */
@@ -199,10 +102,49 @@ export function toArabicIndic(value: string): string {
   return value.replace(/[0-9]/g, (d) => String.fromCharCode(0x0660 + Number(d)));
 }
 
-/** «٢٥» بالأرقام الغربية: «25» — للمقارنة والنطق. */
+/** «٢٥» بالأرقام الغربية: «25» — للمقارنة. */
 export function toWesternDigits(value: string): string {
   return value.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
 }
+
+const AR_UNITS = [
+  "صفر", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة",
+  "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر",
+  "سبعة عشر", "ثمانية عشر", "تسعة عشر",
+];
+const AR_TENS = ["", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"];
+
+/**
+ * العددُ كلماتٍ عربية، من الصفر إلى المئة: «خمسة وعشرون».
+ *
+ * يُنطق بالكلمات لا بالأرقام: محرّكُ نطقٍ لا صوتَ عربياً عنده يقرأ «25»
+ * بالإنجليزية، والطفلُ يسمع «twenty five» في درس الأرقام العربية.
+ */
+export function arabicNumberWords(n: number): string {
+  if (n === 100) return "مئة";
+  if (n < 20) return AR_UNITS[n];
+  const unit = n % 10;
+  const tens = AR_TENS[Math.floor(n / 10)];
+  return unit === 0 ? tens : `${AR_UNITS[unit]} و${tens}`;
+}
+
+const EN_UNITS = [
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+];
+const EN_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+/** العددُ كلماتٍ إنجليزية، من zero إلى one hundred. */
+export function englishNumberWords(n: number): string {
+  if (n === 100) return "one hundred";
+  if (n < 20) return EN_UNITS[n];
+  const unit = n % 10;
+  const tens = EN_TENS[Math.floor(n / 10)];
+  return unit === 0 ? tens : `${tens} ${EN_UNITS[unit]}`;
+}
+
+/** الصفُّ الوحيد الذي تظهر فيه لعبةُ التتبّع. */
+export const KINDERGARTEN_GRADE = "روضة منارة المعرفة";
 
 export type AlphabetSet = "arabic_letters" | "english_letters" | "arabic_digits" | "english_digits";
 
@@ -236,6 +178,21 @@ export function alphabetSetOf(subject: string): AlphabetSet | null {
   return null;
 }
 
+/** صفُّ «روضة منارة المعرفة» بأيّ همزةٍ أو تاءٍ مربوطةٍ أو مسافةٍ كُتب. */
+export function isKindergartenGrade(grade: string): boolean {
+  return subjectKey(grade) === subjectKey(KINDERGARTEN_GRADE);
+}
+
+/**
+ * مجموعةُ التتبّع لدرسٍ، أو `null`: الصفُّ «روضة منارة المعرفة» **و**المادّةُ
+ * إحدى الأربع معاً. أيُّ صفٍّ آخر أو مادّةٍ أخرى: لا لعبةَ تتبّع أصلاً، وتبقى
+ * للدرس ألعابُه العادية.
+ */
+export function tracingSetFor(lesson: { subject?: string; grade?: string }): AlphabetSet | null {
+  if (!isKindergartenGrade(lesson.grade ?? "")) return null;
+  return alphabetSetOf(lesson.subject ?? "");
+}
+
 /** المجموعةُ كاملةً بترتيبها، لا أوّلُ ستّةٍ منها. */
 export function alphabetItems(set: AlphabetSet): TracingItem[] {
   switch (set) {
@@ -255,14 +212,14 @@ export function alphabetItems(set: AlphabetSet): TracingItem[] {
         text: toArabicIndic(String(n)),
         kind: "number" as const,
         lang: "ar" as const,
-        speech: String(n),
+        speech: arabicNumberWords(n),
       }));
     case "english_digits":
       return Array.from({ length: NUMBERS_MAX + 1 }, (_, n) => ({
         text: String(n),
         kind: "number" as const,
         lang: "en" as const,
-        speech: String(n),
+        speech: englishNumberWords(n),
       }));
   }
 }
@@ -301,19 +258,14 @@ export function tracingGame(
 ): StudyGame | null {
   if (items.length === 0) return null;
   const en = items[0].lang === "en";
-  const quiz = items.some((item) => item.prompt);
   return {
     id: TRACING_GAME_ID,
     // ليس في GAME_TYPES: نموذجُ الحزمة لا يولّدها ومخطّطُه لا يعرفها.
     game_type: TRACING_GAME_ID,
-    title: quiz ? (en ? "Answer and trace!" : "أجب وتتبّع!") : en ? "Trace and write!" : "تتبّع واكتب!",
-    instructions: quiz
-      ? en
-        ? "Pick the right answer, then trace it with your finger."
-        : "اختر الإجابة الصحيحة، ثم تتبّعها بإصبعك."
-      : en
-        ? "Follow the dots in order with your finger."
-        : "مرّر إصبعك على النقاط بالترتيب من البداية.",
+    title: en ? "Trace and write!" : "تتبّع واكتب!",
+    instructions: en
+      ? "Tap a letter or number to hear it, then trace it."
+      : "المس حرفاً أو رقماً لتسمعه، ثم تتبّعه بإصبعك.",
     items: {
       drag_items: [],
       drop_targets: [],
@@ -327,14 +279,9 @@ export function tracingGame(
   };
 }
 
-/** من نصّ الدرس بلا نموذج — بديلُ أسئلة الذكاء الاصطناعي إن تعذّرت. */
-export function buildTracingGame(lesson: { title: string; text: string; subject?: string }): StudyGame | null {
-  return tracingGame(tracingItemsFrom(lesson));
-}
-
-/** مجموعةُ الروضة الكاملة لمادّتها، أو `null` إن لم تكن مادّةَ حروفٍ أو أرقام. */
-export function alphabetGame(lesson: { title: string; subject?: string }): StudyGame | null {
-  const set = alphabetSetOf(lesson.subject ?? "");
+/** مجموعةُ الروضة الكاملة لدرسها، أو `null` خارج الروضة وموادّها الأربع. */
+export function alphabetGame(lesson: { title: string; subject?: string; grade?: string }): StudyGame | null {
+  const set = tracingSetFor(lesson);
   if (!set) return null;
   const items = alphabetItems(set);
   return tracingGame(items, {

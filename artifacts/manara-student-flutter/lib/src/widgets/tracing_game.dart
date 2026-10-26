@@ -12,7 +12,6 @@ import '../services/student_voice_service.dart';
 import '../services/tracing_glyphs.dart';
 import '../services/tracing_path.dart';
 import '../theme/student_theme.dart';
-import 'tracing_quiz_round.dart';
 
 /// لعبةُ «تتبّع واكتب» في بطاقة المذاكرة.
 ///
@@ -22,9 +21,9 @@ import 'tracing_quiz_round.dart';
 /// تتبّعه. وما أنجزه يعود إلى الشبكة أخضرَ بعلامة. والمكافأةُ بعد
 /// [StudyGame.tracingRewardAfter] منها لا بعد آخرها.
 ///
-/// ── أسئلةُ «أجب ومرِّر» لغيرها ──
-/// جولةٌ من [TracingQuizRound]: كلُّ خيارٍ بطاقةٌ يُمرَّر عليها، والنتيجةُ
-/// تُرسل في آخرها.
+/// ── وحصراً لروضة منارة المعرفة ──
+/// الخادمُ لا يرسلها إلا للروضة في موادّها الأربع، والتطبيقُ يتحقّق كذلك
+/// ([tracingAllowedFor]) — فلا تظهر في صفٍّ آخر ولو أرسلها خادمٌ قديم.
 ///
 /// ── واللوحة ──
 /// يضع الطفلُ إصبعه على النقطة الخضراء ويمرّ بالنقاط بترتيبها: التاليةُ
@@ -42,15 +41,13 @@ class TracingGame extends StatefulWidget {
     required this.onReplay,
     this.shapeBuilder = loadTracingShape,
     this.speak,
-    this.alreadyRewarded = false,
     super.key,
   });
 
   final StudyGame game;
 
-  /// المكافأة: للحروف بعد [StudyGame.tracingRewardAfter] منها، وللأسئلة في
-  /// آخر الجولة بعدد الصحيح منها.
-  final Future<void> Function({int? correct, int? total}) onWin;
+  /// المكافأة، بعد [StudyGame.tracingRewardAfter] عنصراً.
+  final Future<void> Function() onWin;
   final VoidCallback onReplay;
 
   /// يُستبدل في الاختبار وحده.
@@ -58,9 +55,6 @@ class TracingGame extends StatefulWidget {
 
   /// النطق؛ وبلا قيمةٍ محرّكُ الجهاز ([StudentVoiceService.speakIn]).
   final Future<void> Function(String text, String lang)? speak;
-
-  /// صُرفت جواهرُ هذا الدرس من قبل: جولةُ الأسئلة تدريبٌ بلا جواهر.
-  final bool alreadyRewarded;
 
   @override
   State<TracingGame> createState() => TracingGameState();
@@ -108,14 +102,9 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   bool _allDone = false;
   int _mistakes = 0;
 
-  /// النصُّ مرسوماً للوحة، بلونه — يُبنى مرّةً لكل عنصرٍ ولون، لا مع كل نبضة.
-  final Map<String, TextPainter> _glyphs = {};
-
   List<TracingItem> get _items => widget.game.tracing;
   TracingItem get _item => _items[_index];
 
-  /// أسئلة: جولةُ [TracingQuizRound]. وغيرُها: شبكةٌ ثم لوحة.
-  bool get _quiz => _items.any((item) => item.isQuestion);
 
   int get _pageCount => (_items.length / perPage).ceil();
 
@@ -162,7 +151,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   /// مكتوبٌ صراحةً، ويُكتشف أيُّ خلافٍ عند البناء لا على جهاز الطفل.
   void _say(String text, String lang) {
     final Future<void> Function(String text, String lang) speak = widget.speak ??
-        (text, lang) => StudentVoiceService.instance.speakIn(text, lang: lang);
+        (text, lang) => StudentVoiceService.instance
+            .speakIn(text, lang: lang, pitch: StudentVoiceService.childPitch);
     try {
       unawaited(speak(text, lang == 'en' ? 'en' : 'ar').catchError((Object _) {}));
     } catch (error) {
@@ -195,6 +185,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     _reached = -1;
     _trail = [];
     _doneTrails.clear();
+    _strokeTrailBase = 0;
     _itemDone = false;
   }
 
@@ -257,6 +248,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _reached = -1;
       _trail = [];
       _doneTrails.clear();
+      _strokeTrailBase = 0;
       _hint = null;
     });
   }
@@ -269,11 +261,20 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   /// سُمكُ الخطّ على الشاشة.
   double get _inkPx => (_shape?.plan.inkWidth ?? 0.1) * _dest.height;
 
-  /// كم يقترب الإصبعُ من نقطةٍ لتُحتسب.
-  double get _hitRadius => math.max(22, _inkPx * 0.95);
+  /// كم يقترب الإصبعُ من نقطةٍ لتُحتسب — واسعٌ لإصبعٍ صغيرٍ غير دقيق.
+  double get _hitRadius => math.max(30, _inkPx * 1.3);
 
   /// كم يبتعد عن الخطّ قبل أن تُعاد الجرّة.
-  double get _offRadius => math.max(38, _inkPx * 1.8);
+  double get _offRadius => math.max(60, _inkPx * 2.6);
+
+  /// أقصى ما يتقدّمه الإصبعُ من نقاطٍ في حركةٍ واحدة. يكفي لتمريرٍ سريع لا
+  /// يمرّ بكل نقطةٍ في إطار، ولا يكفي لقفزةٍ إلى آخر الجرّة حين يمرّ الخطُّ
+  /// قرب أوّله (حلقةُ الهاء والخمسة) — فلا تُغلَق الجرّةُ قبل أوانها.
+  static const _maxStepsPerMove = 3;
+
+  /// أوّلُ ما يخصّ الجرّةَ الحالية في [_doneTrails]: قطعُها التي رُسمت قبل
+  /// أن يرفع الطفلُ إصبعه، تُمحى إن أُعيدت الجرّة.
+  int _strokeTrailBase = 0;
 
   static double _distanceToSegment(Offset p, Offset a, Offset b) {
     final ab = b - a;
@@ -294,6 +295,27 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   void _down(Offset position) {
     final stroke = _current;
     if (stroke == null || _itemDone) return;
+    // ── رفع إصبعه في منتصف الجرّة: يكمل من حيث توقّف ──
+    // كانت الجرّةُ تُعاد من أوّلها مع كل رفعٍ خفيف، فيُجبَر الطفلُ على رسم
+    // الحرف كلِّه بلمسةٍ واحدة لا تنقطع.
+    if (_reached >= 0 && !stroke.isDot) {
+      final points = stroke.points;
+      final near = [
+        points[_reached],
+        if (_reached + 1 < points.length) points[_reached + 1],
+      ].any((p) => (position - _toCanvas(p)).distance <= _hitRadius * 1.5);
+      if (near) {
+        setState(() {
+          _trail = [position];
+          _hint = null;
+        });
+      } else {
+        // بعيداً عن موضعه: تذكيرٌ لطيف، والتقدّمُ باقٍ.
+        StudentSoundService.instance.playTap();
+        setState(() => _hint = tr('study.trace.continueHere'));
+      }
+      return;
+    }
     final start = _toCanvas(stroke.points.first);
     final reach = stroke.isDot ? _hitRadius * 1.4 : _hitRadius;
     if ((position - start).distance <= reach) {
@@ -316,14 +338,23 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     if (stroke == null || _reached < 0) return;
     final points = stroke.points;
     var reached = _reached;
-    // النقطةُ التالية وحدها: لا قفزَ إلى ما بعدها، ولا رجوعَ يُحتسب.
-    while (reached + 1 < points.length &&
-        (position - _toCanvas(points[reached + 1])).distance <= _hitRadius) {
-      reached += 1;
+    // إلى الأمام وحده، وبحدٍّ: أبعدُ نقطةٍ في النافذة يبلغها الإصبع. لا رجوعَ
+    // يُحتسب، ولا قفزَ إلى ما وراء النافذة.
+    final window = math.min(points.length - 1, reached + _maxStepsPerMove);
+    for (var i = window; i > reached; i--) {
+      if ((position - _toCanvas(points[i])).distance <= _hitRadius) {
+        reached = i;
+        break;
+      }
     }
-    final from = _toCanvas(points[reached]);
-    final to = _toCanvas(points[math.min(reached + 1, points.length - 1)]);
-    if (_distanceToSegment(position, from, to) > _offRadius) {
+    // بعيدٌ عن الخطّ: عن كل قطعةٍ في النافذة، لا عن القطعة التالية وحدها —
+    // تمريرٌ سريعٌ يسبق النقطة التالية ليس خروجاً.
+    var off = double.infinity;
+    for (var i = math.max(0, _reached); i < window; i++) {
+      off = math.min(off, _distanceToSegment(position, _toCanvas(points[i]), _toCanvas(points[i + 1])));
+    }
+    if (window == _reached) off = (position - _toCanvas(points[reached])).distance;
+    if (off > _offRadius) {
       _miss(tr('study.trace.offPath'));
       return;
     }
@@ -340,11 +371,11 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   void _up() {
     final stroke = _current;
     if (stroke == null || _reached < 0) return;
-    // رفع إصبعه قبل نهاية الجرّة: تُعاد بلا عقوبة، بإشارةٍ إلى أين يكمل.
+    // رفع إصبعه قبل نهاية الجرّة: يبقى ما رسمه وما بلغه، ويكمل منه.
     setState(() {
-      _reached = -1;
+      if (_trail.length > 1) _doneTrails.add(_trail);
       _trail = [];
-      _hint = tr('study.trace.keepGoing');
+      _hint = tr('study.trace.continueHere');
     });
   }
 
@@ -354,6 +385,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _mistakes += 1;
       _reached = -1;
       _trail = [];
+      // ما رُسم من هذه الجرّة قبل رفع الإصبع يُمحى معها.
+      _doneTrails.removeRange(_strokeTrailBase, _doneTrails.length);
       _hint = hint;
     });
   }
@@ -363,6 +396,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     final last = _stroke + 1 >= strokes.length;
     setState(() {
       _doneTrails.add(trail);
+      _strokeTrailBase = _doneTrails.length;
       _stroke += 1;
       _reached = -1;
       _trail = [];
@@ -380,7 +414,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     HapticFeedback.lightImpact();
     setState(() => _itemDone = true);
     final index = _index;
-    Future.delayed(const Duration(milliseconds: 1100), () {
+    // لحظةٌ يرى فيها الحرفَ مكتملاً أخضرَ قبل العودة إلى الشبكة.
+    Future.delayed(const Duration(milliseconds: 1600), () {
       // لم يغادره إلى غيره في الانتظار.
       if (mounted && _itemDone && _index == index && _view == _View.board) _finishItem();
     });
@@ -391,26 +426,11 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   String _kindLabel(TracingItem item) => switch (item.kind) {
         'letter' => tr('study.trace.letter'),
         'number' => tr('study.trace.number'),
-        'answer' => tr('study.trace.answer'),
         _ => tr('study.trace.word'),
       };
 
-  TextPainter _glyph(TracingItem item, Color color) => _glyphs.putIfAbsent(
-        '${tracingGlyphKey(item)}|${color.toARGB32()}',
-        () => tracingTextPainter(item, color: color),
-      );
-
   @override
   Widget build(BuildContext context) {
-    if (_quiz) {
-      return TracingQuizRound(
-        items: _items,
-        alreadyRewarded: widget.alreadyRewarded,
-        speak: _say,
-        onReplay: widget.onReplay,
-        onFinish: (correct, total) => widget.onWin(correct: correct, total: total),
-      );
-    }
     if (_allDone) return _finished(context);
     return switch (_view) {
       _View.grid => _gridView(context),
@@ -660,7 +680,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
 
   Widget _board(BuildContext context) {
     final shape = _shape!;
-    final item = _item;
     return LayoutBuilder(
       builder: (context, constraints) {
         final box = Offset.zero & constraints.biggest;
@@ -700,10 +719,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
               size: Size.infinite,
               painter: _TracingPainter(
                 shape: shape,
-                glyph: _glyph(
-                  item,
-                  _itemDone ? _green.withValues(alpha: 0.55) : ink.withValues(alpha: 0.16),
-                ),
                 dest: _dest,
                 stroke: _stroke,
                 reached: _reached,
@@ -746,6 +761,25 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
           ],
         ),
       );
+}
+
+/// منحنى Catmull–Rom يمرّ بكل نقطةٍ من [points] بالترتيب — ناعمٌ بينها،
+/// ومارٌّ بها عينها: مسلكُ الحرف على اللوحة هو نقاطُ تتبّعه، لا رسمٌ آخر.
+Path tracingLanePath(List<Offset> points) {
+  final path = Path();
+  if (points.isEmpty) return path;
+  path.moveTo(points.first.dx, points.first.dy);
+  if (points.length == 1) return path..lineTo(points.first.dx, points.first.dy);
+  for (var i = 0; i < points.length - 1; i++) {
+    final p0 = points[math.max(0, i - 1)];
+    final p1 = points[i];
+    final p2 = points[i + 1];
+    final p3 = points[math.min(points.length - 1, i + 2)];
+    final c1 = p1 + (p2 - p0) / 6;
+    final c2 = p2 - (p3 - p1) / 6;
+    path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
+  }
+  return path;
 }
 
 /// بطاقةُ حرفٍ أو رقمٍ في الشبكة: كبيرةٌ ملوّنة، تصغر قليلاً تحت الإصبع،
@@ -914,7 +948,6 @@ class _Chip extends StatelessWidget {
 class _TracingPainter extends CustomPainter {
   _TracingPainter({
     required this.shape,
-    required this.glyph,
     required this.dest,
     required this.stroke,
     required this.reached,
@@ -927,9 +960,6 @@ class _TracingPainter extends CustomPainter {
   });
 
   final TracingShape shape;
-
-  /// النصُّ مرسوماً بخطّ التتبّع ولونِه — لا صورةٌ تُقرأ من معالج الرسوم.
-  final TextPainter glyph;
   final Rect dest;
   final int stroke;
   final int reached;
@@ -955,16 +985,24 @@ class _TracingPainter extends CustomPainter {
     canvas.drawLine(Offset(0, dest.top), Offset(size.width, dest.top), guide);
     canvas.drawLine(Offset(0, dest.bottom), Offset(size.width, dest.bottom), guide);
 
-    // الحرفُ باهتاً: النصُّ نفسه، مقصوصاً إلى حبره ومحجَّماً إلى اللوحة —
-    // بالأبعاد التي حُسبت منها نقاطه.
-    final scale = dest.width / shape.crop.width;
-    canvas
-      ..save()
-      ..translate(dest.left, dest.top)
-      ..scale(scale)
-      ..translate(-shape.crop.left, -shape.crop.top);
-    glyph.paint(canvas, const Offset(tracingPad, tracingPad));
-    canvas.restore();
+    // ── الحرفُ من نقاطه نفسها، لا من الخطّ ──
+    // كان الحرفُ يُرسم بالخطّ تحت النقاط، والنقاطُ محسوبةٌ منه في موضعٍ آخر:
+    // أيُّ فرقٍ بين الرسمين (خطٌّ بديل، تقريبٌ في الحجم) يُزيح النقاطَ عن
+    // الحرف. فالمسلكُ الآن منحنىً ناعمٌ يمرّ بالنقاط ذاتها بسُمك خطّ الحرف:
+    // ما يتّبعه الإصبعُ هو ما يراه، في إحداثيّاتٍ واحدة.
+    final lane = Paint()
+      ..color = (done ? _start : ink).withValues(alpha: done ? 0.45 : 0.13)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = math.max(12, inkPx);
+    for (final part in shape.plan.strokes) {
+      if (part.isDot) {
+        canvas.drawCircle(_at(part.points.single), math.max(7, inkPx * 0.6), Paint()..color = lane.color);
+      } else {
+        canvas.drawPath(tracingLanePath([for (final p in part.points) _at(p)]), lane);
+      }
+    }
 
     final pen = Paint()
       ..color = _drawn

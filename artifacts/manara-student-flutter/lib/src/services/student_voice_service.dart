@@ -126,7 +126,10 @@ class StudentVoiceService {
   }
 
   /// ينطق [text] بالعربية، ويوقف ما قبله.
-  Future<void> speak(String text, {String locale = preferredLocale}) async {
+  ///
+  /// [pitch]: حدّةُ الصوت؛ ١٫٠ صوتُ المحرّك كما هو، وأعلى قليلاً أقربُ إلى
+  /// نبرة الطفل (انظر [childPitch]).
+  Future<void> speak(String text, {String locale = preferredLocale, double pitch = 1.0}) async {
     final line = speakableText(text);
     if (line.isEmpty) return;
     await stopListening();
@@ -139,7 +142,7 @@ class StudentVoiceService {
       await _setBestArabic(locale);
       await _tts.setSpeechRate(speechRate);
       await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
+      await _tts.setPitch(pitch);
       _speaking = true;
       _tts.setCompletionHandler(() => _speaking = false);
       _tts.setCancelHandler(() => _speaking = false);
@@ -150,12 +153,17 @@ class StudentVoiceService {
     }
   }
 
-  /// ينطق [text] بلغته: `en` بصوتٍ إنجليزي، وغيرُها بالعربية كـ[speak].
+  /// حدّةُ صوتِ أسماء الحروف والأعداد في «تتبّع واكتب»: أعلى قليلاً من صوت
+  /// المحرّك فتقترب من نبرة طفل، ولا تبلغ حدّاً يشوّه الحرف.
+  static const childPitch = 1.15;
+
+  /// ينطق [text] بلغته: `en` بصوتٍ إنجليزيّ (`en-US`)، وغيرُها بالعربية
+  /// (`ar-SA`) كـ[speak].
   ///
   /// [speak] تضبط العربية دائماً؛ وحرفُ «B» بصوتٍ عربيّ يُنطق «بي» مرّةً
   /// وحرفاً مبهماً مرّة. فالإنجليزيةُ هنا بلهجةٍ أمريكية، ثم أيِّ إنجليزية.
-  Future<void> speakIn(String text, {required String lang}) async {
-    if (lang != 'en') return speak(text);
+  Future<void> speakIn(String text, {required String lang, double pitch = 1.0}) async {
+    if (lang != 'en') return speak(text, locale: 'ar-SA', pitch: pitch);
     final line = text.trim();
     if (line.isEmpty) return;
     await stopListening();
@@ -173,7 +181,7 @@ class StudentVoiceService {
       }
       await _tts.setSpeechRate(speechRate);
       await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
+      await _tts.setPitch(pitch);
       _speaking = true;
       _tts.setCompletionHandler(() => _speaking = false);
       _tts.setCancelHandler(() => _speaking = false);
@@ -185,12 +193,19 @@ class StudentVoiceService {
   }
 
   /// يضبط أقرب لغةٍ عربية يملكها الجهاز.
+  ///
+  /// ── ما كان يُفسد النطق ──
+  /// كانت `setLanguage('ar')` تُنادى بعد الحلقة في كل حال — فتمحو `ar-SA`
+  /// التي اختارتها الحلقة، ويقرأ المحرّكُ بأيّ عربيّةٍ عامّة عنده، أو بلغةٍ
+  /// غيرها إن لم يفهم «ar» وحدها. فلا تُنادى الآن إلا إن لم يُوجد شيء.
   Future<void> _setBestArabic(String preferred) async {
+    var chosen = false;
     for (final candidate in [preferred, 'ar-SA', 'ar']) {
       try {
         final available = await _tts.isLanguageAvailable(candidate);
         if (available == true) {
           await _tts.setLanguage(candidate);
+          chosen = true;
           break;
         }
       } catch (_) {
@@ -199,10 +214,12 @@ class StudentVoiceService {
     }
     // ولا شيء منها: تُضبط العربية على كل حال، فمحرّكٌ يفهمها ضمناً
     // خيرٌ من ألّا يُطلب منه شيء.
-    try {
-      await _tts.setLanguage('ar');
-    } catch (_) {
-      // لا محرّك: `speak` أدناه ستفشل بهدوء.
+    if (!chosen) {
+      try {
+        await _tts.setLanguage(preferred);
+      } catch (_) {
+        // لا محرّك: `speak` أدناه ستفشل بهدوء.
+      }
     }
     await _setSaudiVoice();
   }

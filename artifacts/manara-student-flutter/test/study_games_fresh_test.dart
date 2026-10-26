@@ -43,7 +43,7 @@ void main() {
         home: Scaffold(
           body: StudyGamesTab(
             load: () async => StudyGamesPack(lessonId: 'L1', games: [base]),
-            onWin: (_, {correct, total}) async => null,
+            onWin: (_) async => null,
             seenKey: 'study.seen.s1.L1',
             fresh: (b, exclude) async {
               calls.add(exclude);

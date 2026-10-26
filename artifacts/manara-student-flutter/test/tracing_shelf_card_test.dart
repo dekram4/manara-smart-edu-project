@@ -116,7 +116,7 @@ void main() {
         home: Scaffold(
           body: StudyGamesTab(
             load: () async => StudyGamesPack(lessonId: 'L1', games: [_matching(), _tracing()]),
-            onWin: (_, {correct, total}) async => null,
+            onWin: (_) async => null,
           ),
         ),
       ),

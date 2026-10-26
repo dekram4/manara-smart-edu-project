@@ -58,14 +58,7 @@ import {
   type StudyGame,
   type StudyGamesPack,
 } from "../lib/studyGames";
-import { TRACING_GAME_ID, alphabetGame, tracingGame, withTracingGame } from "../lib/tracing";
-import {
-  TRACING_QUIZ_SCHEMA,
-  TRACING_QUIZ_SYSTEM_INSTRUCTION,
-  parseTracingQuiz,
-  readTracingQuiz,
-  tracingQuizPrompt,
-} from "../lib/tracingQuiz";
+import { TRACING_GAME_ID, alphabetGame, withTracingGame } from "../lib/tracing";
 import {
   BANK_SIZE,
   BANK_VERSION,
@@ -377,8 +370,6 @@ type LessonLookup =
       interactiveStudy?: unknown;
       /** وألعابُ المذاكرة التفاعلية، إن وُلّدت. */
       studyGames?: unknown;
-      /** وأسئلةُ «أجب وتتبّع»، إن وُلّدت. */
-      tracingQuiz?: unknown;
       grade?: string;
       reason?: undefined;
       detail?: undefined;
@@ -462,7 +453,6 @@ async function resolveStudentLesson(
     challengeBank: lesson.challengeBank,
     interactiveStudy: lesson.interactiveStudy,
     studyGames: lesson.studyGames,
-    tracingQuiz: lesson.tracingQuiz,
     grade: typeof lesson.grade === "string" ? lesson.grade : "",
   };
 }
@@ -1848,75 +1838,14 @@ async function writeLessonField(lessonId: string, field: string, value: unknown)
   if (!write.ok) throw new Error(`${field} write failed (${write.status})`);
 }
 
-/** أسئلةُ «أجب وتتبّع» قيد التوليد: طفلان فتحا الدرس معاً يخدمهما توليدٌ واحد. */
-const tracingQuizInFlight = new Map<string, Promise<StudyGame | null>>();
-
 /**
- * لعبةُ التتبّع لدرسٍ له نصّ.
- *
- * مادّةُ حروفٍ أو أرقام: المجموعةُ كاملة، بلا نموذج. وغيرُها: أسئلةٌ يولّدها
- * النموذج من النصّ وحدها، تُحفظ مع الدرس مختومةً بنصّه.
- *
- * ولا بديلَ من كلمات النصّ إن تعذّر النموذج: موادُّ ما بعد الروضة لا تتبّعَ
- * فيها لحروفٍ وكلماتٍ مجرّدة، بل أسئلةٌ فقط — فتغيب اللعبةُ في تلك المرّة،
- * وتُولَّد في الطلب التالي.
+ * لعبةُ التتبّع لدرسٍ: حصراً لصفّ «روضة منارة المعرفة» في إحدى موادّه الأربع
+ * (الحروف العربية والإنجليزية، والأرقام العربية والإنجليزية) — المجموعةُ
+ * كاملة. وأيُّ صفٍّ آخر أو مادّةٍ أخرى: لا تتبّع، وتبقى للدرس ألعابُه العادية.
  */
-async function tracingGameFor(lesson: {
-  id: string;
-  text: string;
-  subject: string;
-  unit: string;
-  lesson: string;
-  grade?: string;
-  tracingQuiz?: unknown;
-}): Promise<StudyGame | null> {
+function tracingGameFor(lesson: { subject: string; unit: string; lesson: string; grade?: string }): StudyGame | null {
   const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
-  const alphabet = alphabetGame({ title, subject: lesson.subject });
-  if (alphabet) return alphabet;
-
-  const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
-  const stored = readTracingQuiz(lesson.tracingQuiz, owner);
-  if (stored) return tracingGame(stored.items);
-
-  const flightKey = `${owner.lessonId}:${owner.lessonStamp}`;
-  let flight = tracingQuizInFlight.get(flightKey);
-  if (!flight) {
-    flight = (async () => {
-      try {
-        const data = await callGemini(
-          tracingQuizPrompt({
-            lessonTitle: title || lesson.lesson || lesson.subject,
-            lessonText: lesson.text,
-            subject: lesson.subject,
-            grade: lesson.grade,
-          }),
-          {
-            systemInstruction: TRACING_QUIZ_SYSTEM_INSTRUCTION,
-            responseSchema: TRACING_QUIZ_SCHEMA,
-            json: true,
-            temperature: 0.7,
-            maxOutputTokens: STUDY_MAX_TOKENS,
-            budgetMs: STUDY_BUDGET_MS,
-            singleTryMs: 45_000,
-          },
-        );
-        const quiz = parseTracingQuiz(getGeminiText(data) ?? "", owner, { subject: lesson.subject });
-        if (!quiz) {
-          logger.warn({ lessonId: lesson.id }, "[tracing-quiz] model output was not usable");
-          return null;
-        }
-        void persistLessonField(lesson.id, "tracingQuiz", quiz).catch((error) =>
-          logger.error({ err: error, lessonId: lesson.id }, "[tracing-quiz] not saved"),
-        );
-        return tracingGame(quiz.items);
-      } catch (error) {
-        logger.warn({ err: error, lessonId: lesson.id }, "[tracing-quiz] generation failed");
-        return null;
-      }
-    })().finally(() => tracingQuizInFlight.delete(flightKey));
-    tracingQuizInFlight.set(flightKey, flight);
-  }
-  return flight;
+  return alphabetGame({ title, subject: lesson.subject, grade: lesson.grade });
 }
 
 router.post(
@@ -1939,6 +1868,7 @@ router.post(
           ? alphabetGame({
               title: [path.unit, path.lesson].filter(Boolean).join(" — "),
               subject: path.subject,
+              grade: path.grade,
             })
           : null;
         if (path && alphabet) {
@@ -1961,12 +1891,11 @@ router.post(
         return res.status(403).json({ error: messages[lesson.reason], code: lesson.reason });
       }
       const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
-      // التتبّعُ بجانب الحزمة لا داخلها: حزمُ الدروس المحفوظة تبقى صالحةً،
-      // وأسئلتُه تُولَّد وتُحفظ وحدها — مع توليد الألعاب لا بعده.
+      // التتبّعُ بجانب الحزمة لا داخلها: حزمُ الدروس المحفوظة تبقى صالحة.
       const tracing = tracingGameFor(lesson);
       const stored = readStudyGames(lesson.studyGames, owner);
       if (stored) {
-        return res.json({ pack: withTracingGame(stored, await tracing), generated: false });
+        return res.json({ pack: withTracingGame(stored, tracing), generated: false });
       }
 
       // طفلان فتحا الدرس معاً: توليدٌ واحد يخدمهما.
@@ -2002,7 +1931,8 @@ router.post(
         })().finally(() => studyGamesInFlight.delete(flightKey));
         studyGamesInFlight.set(flightKey, flight);
       }
-      const [generated, tracingOnly] = await Promise.all([flight, tracing]);
+      const generated = await flight;
+      const tracingOnly = tracing;
       // نموذجُ الألعاب تعثّر: يبقى التتبّعُ وحده إن كان.
       const pack = generated
         ? withTracingGame(generated, tracingOnly)
@@ -2060,39 +1990,9 @@ router.post(
       }
       const title = [lesson.unit, lesson.lesson].filter(Boolean).join(" — ");
 
-      // «أجب وتتبّع»: كلُّ إعادةٍ أسئلةٌ جديدة من النصّ نفسه، تتجنّب ما رآه
-      // الطالب. لا تُحفظ، والمكافأةُ تبقى على الجولة الأولى وحدها. وحروفُ
-      // الروضة لا نسخةَ جديدة لها: المجموعةُ هي هي.
+      // التتبّعُ حروفُ الروضة وأرقامُها: المجموعةُ هي هي، لا نسخةَ جديدة لها.
       if (tracing) {
-        if (alphabetGame({ title, subject: lesson.subject })) {
-          return res.status(400).json({ error: "لا نسخةَ جديدة لحروف الروضة", code: "bad_request" });
-        }
-        const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
-        const data = await callGemini(
-          tracingQuizPrompt({
-            lessonTitle: title || lesson.lesson || lesson.subject,
-            lessonText: lesson.text,
-            subject: lesson.subject,
-            grade: lesson.grade,
-            exclude,
-          }),
-          {
-            systemInstruction: TRACING_QUIZ_SYSTEM_INSTRUCTION,
-            responseSchema: TRACING_QUIZ_SCHEMA,
-            json: true,
-            temperature: 1,
-            maxOutputTokens: STUDY_MAX_TOKENS,
-            budgetMs: STUDY_BUDGET_MS,
-            singleTryMs: 45_000,
-          },
-        );
-        const quiz = parseTracingQuiz(getGeminiText(data) ?? "", owner, { subject: lesson.subject, exclude });
-        const game = quiz ? tracingGame(quiz.items) : null;
-        if (!game) {
-          logger.warn({ lessonId }, "[tracing-quiz] fresh round not usable");
-          return res.status(502).json({ error: "تعذّر تحضير أسئلةٍ جديدة الآن", code: "bad_pack" });
-        }
-        return res.json({ game });
+        return res.status(400).json({ error: "لا نسخةَ جديدة للتتبّع", code: "bad_request" });
       }
 
       const data = await callGemini(

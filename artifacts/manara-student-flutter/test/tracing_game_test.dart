@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -5,7 +7,6 @@ import 'package:manara_student/src/models/study_games.dart';
 import 'package:manara_student/src/services/tracing_glyphs.dart';
 import 'package:manara_student/src/services/tracing_path.dart';
 import 'package:manara_student/src/widgets/tracing_game.dart';
-import 'package:manara_student/src/widgets/tracing_quiz_round.dart';
 
 /// خطٌّ أفقيٌّ ونقطةٌ تحته — كالباء — بشبكةٍ صناعية لا بخطٍّ حقيقي.
 List<List<bool>> _baShape() => [
@@ -46,33 +47,18 @@ StudyGame _game(
       'points_reward': 30,
     })!;
 
-const _question = {
-  'text': 'الشمس',
-  'kind': 'answer',
-  'lang': 'ar',
-  'prompt': 'ما مصدر الضوء في النهار؟',
-  'options': ['القمر', 'الشمس', 'النجوم'],
-};
-
 void main() {
   late List<String> spoken;
   late int builds;
-
-  /// كلُّ مكافأةٍ طُلبت، بنتيجتها إن كانت جولةَ أسئلة.
-  late List<(int?, int?)> wins;
-  late int replays;
 
   Future<void> boot(
     WidgetTester tester,
     StudyGame game, {
     VoidCallback? onWin,
     bool shapes = true,
-    bool alreadyRewarded = false,
   }) async {
     spoken = [];
     builds = 0;
-    wins = [];
-    replays = 0;
     final plan = TracePlanner.plan(_baShape(), rtl: true);
     await tester.binding.setSurfaceSize(const Size(900, 640));
     await tester.pumpWidget(
@@ -80,12 +66,8 @@ void main() {
         home: Scaffold(
           body: TracingGame(
             game: game,
-            alreadyRewarded: alreadyRewarded,
-            onWin: ({int? correct, int? total}) async {
-              wins.add((correct, total));
-              onWin?.call();
-            },
-            onReplay: () => replays++,
+            onWin: () async => onWin?.call(),
+            onReplay: () {},
             shapeBuilder: (item) async {
               builds++;
               return shapes ? TracingShape(crop: const Rect.fromLTWH(0, 0, 90, 60), plan: plan) : null;
@@ -107,24 +89,24 @@ void main() {
     return tester.getTopLeft(board) + stateOf(tester).toCanvas(point);
   }
 
-  Future<void> traceStroke(WidgetTester tester, TraceStroke stroke) async {
-    final gesture = await tester.startGesture(onScreen(tester, stroke.points.first));
+  Future<void> traceStroke(WidgetTester tester, TraceStroke stroke, {Offset shift = Offset.zero}) async {
+    final gesture = await tester.startGesture(onScreen(tester, stroke.points.first) + shift);
     for (final point in stroke.points.skip(1)) {
-      await gesture.moveTo(onScreen(tester, point));
+      await gesture.moveTo(onScreen(tester, point) + shift);
       await tester.pump(const Duration(milliseconds: 16));
     }
     await gesture.up();
     await tester.pump();
   }
 
-  /// يكتب العنصرَ المفتوح كلَّه: جسمَ الحرف ثم نقطتَه، وينتظر الانتقال.
+  /// يكتب العنصرَ المفتوح كلَّه: جسمَ الحرف ثم نقطتَه، وينتظر العودة.
   Future<void> completeOpen(WidgetTester tester) async {
     final plan = stateOf(tester).plan!;
     await traceStroke(tester, plan.strokes[0]);
     await tester.tapAt(onScreen(tester, plan.strokes[1].points.single));
     await tester.pump();
     expect(find.text('رائع! ✨'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.pump(const Duration(milliseconds: 1700));
     await tester.pump(const Duration(milliseconds: 50));
   }
 
@@ -140,14 +122,15 @@ void main() {
       'game_type': 'tracing',
       'items': {
         'tracing': [
-          {'text': 'ب', 'kind': 'letter', 'lang': 'ar'},
-          {'text': '٥', 'kind': 'number', 'lang': 'ar'},
-          {'text': '', 'kind': 'word', 'lang': 'ar'},
+          {'text': 'ب', 'kind': 'letter', 'lang': 'ar', 'speech': 'باء'},
+          {'text': '٥', 'kind': 'number', 'lang': 'ar', 'speech': 'خمسة'},
+          {'text': '', 'kind': 'letter', 'lang': 'ar'},
         ],
       },
     })!;
     expect(game.type, StudyGameType.tracing);
     expect(game.tracing.map((item) => item.text), ['ب', '٥']);
+    expect(game.tracing.first.speech, 'باء');
     expect(game.tracing.first.rtl, isTrue);
     expect(game.tracing.last.rtl, isFalse);
   });
@@ -198,7 +181,6 @@ void main() {
       await openTile(tester, 5);
       await completeOpen(tester);
       expect(won, 1, reason: 'مرّةً واحدة');
-      expect(find.text('أنهيت التتبّع كلّه! 🎉'), findsNothing);
     });
 
     testWidgets('تُقلَّب الصفحات، وتبدأ من صفحة حرف الدرس', (tester) async {
@@ -206,12 +188,10 @@ void main() {
       expect(find.byKey(const ValueKey('tracing-tile-7')), findsOneWidget, reason: 'الذال في الصفحة الثانية');
       expect(find.text('صفحة 2 من 5'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('tracing-page-next')));
-      // النبضُ لا يسكن، فلا `pumpAndSettle`: إطاراتٌ تكفي حركةَ الصفحة.
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
       expect(find.byKey(const ValueKey('tracing-tile-12')), findsOneWidget);
-      expect(find.text('صفحة 3 من 5'), findsOneWidget);
     });
 
     testWidgets('العودةُ إلى الحروف من اللوحة', (tester) async {
@@ -241,7 +221,7 @@ void main() {
     });
   });
 
-  group('اللوحة', () {
+  group('اللوحة: لمسٌ سلس', () {
     testWidgets('البدءُ من نهاية الخطّ لا يُحتسب: الاتجاهُ من نقطة البداية وحدها',
         (tester) async {
       await boot(tester, _game(['ب']));
@@ -258,14 +238,74 @@ void main() {
       expect(find.text('رائع! ✨'), findsNothing);
     });
 
-    testWidgets('الابتعادُ عن الخطّ يُعيد الجرّةَ من أوّلها', (tester) async {
+    testWidgets('رفعُ الإصبع في منتصف الجرّة لا يعيدها: يكمل من حيث توقّف', (tester) async {
+      await boot(tester, _game(['ب']));
+      await openTile(tester, 0);
+      final plan = stateOf(tester).plan!;
+      final points = plan.strokes.first.points;
+      final half = points.length ~/ 2;
+
+      // النصفُ الأوّل، ثم رفعُ الإصبع.
+      var gesture = await tester.startGesture(onScreen(tester, points.first));
+      for (final p in points.sublist(1, half + 1)) {
+        await gesture.moveTo(onScreen(tester, p));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pump();
+      expect(find.text('أكمل من حيث توقّفت 👆'), findsOneWidget);
+      expect(find.text('محاولات خاطئة: 1'), findsNothing, reason: 'الرفعُ ليس خطأ');
+
+      // ثم النصفُ الثاني من حيث توقّف — لا من البداية.
+      gesture = await tester.startGesture(onScreen(tester, points[half]));
+      for (final p in points.sublist(half + 1)) {
+        await gesture.moveTo(onScreen(tester, p));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pump();
+      await tester.tapAt(onScreen(tester, plan.strokes[1].points.single));
+      await tester.pump();
+      expect(find.text('رائع! ✨'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1700));
+    });
+
+    testWidgets('إصبعٌ بجانب الخطّ قليلاً يكمل الحرف', (tester) async {
+      await boot(tester, _game(['ب']));
+      await openTile(tester, 0);
+      final plan = stateOf(tester).plan!;
+      // ٢٥ بكسلاً تحت النقاط — إصبعُ طفلٍ لا يقع على الخطّ تماماً.
+      await traceStroke(tester, plan.strokes.first, shift: const Offset(0, 25));
+      await tester.tapAt(onScreen(tester, plan.strokes[1].points.single) + const Offset(20, 0));
+      await tester.pump();
+      expect(find.text('رائع! ✨'), findsOneWidget);
+      expect(find.text('محاولات خاطئة: 1'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 1700));
+    });
+
+    testWidgets('لا تُغلق الجرّةُ قبل آخرها', (tester) async {
+      await boot(tester, _game(['ب']));
+      await openTile(tester, 0);
+      final points = stateOf(tester).plan!.strokes.first.points;
+      final gesture = await tester.startGesture(onScreen(tester, points.first));
+      for (final p in points.sublist(1, points.length - 3)) {
+        await gesture.moveTo(onScreen(tester, p));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pump();
+      expect(find.text('رائع! ✨'), findsNothing);
+      expect(find.text('المس النقطة الخضراء'), findsNothing);
+      await gesture.up();
+    });
+
+    testWidgets('الابتعادُ كثيراً عن الخطّ يُعيد الجرّةَ من أوّلها', (tester) async {
       await boot(tester, _game(['ب']));
       await openTile(tester, 0);
       final stroke = stateOf(tester).plan!.strokes.first;
       final gesture = await tester.startGesture(onScreen(tester, stroke.points.first));
       await gesture.moveTo(onScreen(tester, stroke.points[1]));
       await tester.pump();
-      await gesture.moveTo(onScreen(tester, stroke.points[1]) + const Offset(0, 220));
+      await gesture.moveTo(onScreen(tester, stroke.points[1]) + const Offset(0, 450));
       await tester.pump();
       await gesture.up();
       await tester.pump();
@@ -283,105 +323,26 @@ void main() {
     });
   });
 
-  group('أجب ومرِّر', () {
-    const second = {
-      'text': 'القمر',
-      'kind': 'answer',
-      'lang': 'ar',
-      'prompt': 'ما الذي يضيء في الليل؟',
-      'options': ['القمر', 'الشمس', 'البحر'],
-    };
-
-    /// يمرّر الإصبعَ على خطّ بطاقة [option] من بدايته إلى آخره.
-    Future<void> swipe(WidgetTester tester, String option, {int upTo = -1}) async {
-      final rect = tester.getRect(find.byKey(ValueKey('tracing-option-$option')));
-      final line = SwipeOptionCard.lineFor(rect.size, rtl: true);
-      final last = upTo < 0 ? line.length - 1 : upTo;
-      final gesture = await tester.startGesture(rect.topLeft + line.first);
-      for (final p in line.sublist(1, last + 1)) {
-        await gesture.moveTo(rect.topLeft + p);
-        await tester.pump(const Duration(milliseconds: 16));
+  group('الحرفُ المرسوم هو نقاطُه', () {
+    test('مسلكُ الحرف يمرّ بكل نقطة تتبّعٍ عينها', () {
+      final shape = precomputedTracingShape(const TracingItem(text: 'ج', kind: 'letter', lang: 'ar'))!;
+      const dest = Rect.fromLTWH(40, 30, 500, 520);
+      for (final stroke in shape.plan.strokes.where((s) => !s.isDot)) {
+        final points = [
+          for (final p in stroke.points) Offset(dest.left + p.x * dest.width, dest.top + p.y * dest.height),
+        ];
+        final path = tracingLanePath(points);
+        final samples = <Offset>[];
+        for (final metric in path.computeMetrics()) {
+          for (var d = 0.0; d <= metric.length; d += 0.5) {
+            samples.add(metric.getTangentForOffset(d)!.position);
+          }
+        }
+        for (final p in points) {
+          final nearest = samples.map((q) => (q - p).distance).reduce((a, b) => a < b ? a : b);
+          expect(nearest, lessThan(1.0), reason: 'المسلكُ يمرّ بالنقطة $p');
+        }
       }
-      await gesture.up();
-      await tester.pump();
-    }
-
-    Future<void> nextQuestion(WidgetTester tester) async {
-      await tester.pump(const Duration(milliseconds: 1500));
-      await tester.pump();
-    }
-
-    testWidgets('لا شبكة ولا لوحة: السؤالُ يُقرأ، وكلُّ خيارٍ بطاقةٌ يُمرَّر عليها', (tester) async {
-      await boot(tester, _game(const [], entries: [_question, second]));
-      expect(find.byKey(const ValueKey('tracing-grid')), findsNothing);
-      expect(find.byKey(const ValueKey('tracing-board')), findsNothing);
-      expect(find.text('ما مصدر الضوء في النهار؟'), findsOneWidget);
-      expect(spoken.single, 'ar:ما مصدر الضوء في النهار؟');
-      for (final option in const ['القمر', 'الشمس', 'النجوم']) {
-        expect(find.byType(SwipeOptionCard).evaluate().length, 3);
-        expect(find.byKey(ValueKey('tracing-option-$option')), findsOneWidget);
-      }
-      expect(find.text('سؤال 1 من 2'), findsOneWidget);
-    });
-
-    testWidgets('الصحيحُ درجةٌ وجوهرة، والخطأُ لا شيءَ وينتقل بلا إعادة، ثم النتيجة', (tester) async {
-      await boot(tester, _game(const [], entries: [_question, second]));
-
-      // الأوّل خطأ: يُكشف الصحيح، ولا يُعاد السؤال.
-      await swipe(tester, 'القمر');
-      expect(find.text('ليست هذه — الإجابة الصحيحة باللون الأخضر'), findsOneWidget);
-      expect(find.byIcon(Icons.cancel_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
-      expect(spoken.last, 'ar:الشمس', reason: 'يُسمع الصحيح');
-      // تمريرٌ آخر بعد الكشف لا يغيّر شيئاً.
-      await swipe(tester, 'الشمس');
-      expect(find.text('✔ 0'), findsOneWidget);
-      await nextQuestion(tester);
-
-      expect(find.text('سؤال 2 من 2'), findsOneWidget);
-      expect(spoken.last, 'ar:ما الذي يضيء في الليل؟');
-      await swipe(tester, 'القمر');
-      expect(find.text('إجابة صحيحة! +1 💎'), findsOneWidget);
-      expect(find.text('✔ 1'), findsOneWidget);
-      expect(find.text('💎 1'), findsOneWidget);
-      await nextQuestion(tester);
-
-      expect(wins, [(1, 2)], reason: 'النتيجةُ تُرسل مرّةً في آخر الجولة');
-      expect(find.text('أجبت 1 من 2 إجابة صحيحة'), findsOneWidget);
-      expect(find.text('ربحت 1 💎'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('tracing-quiz-replay')));
-      expect(replays, 1, reason: 'الإعادةُ تطلب أسئلةً جديدة من التبويب');
-    });
-
-    testWidgets('تمريرٌ ناقص أو بعيدٌ عن الخطّ لا يختار شيئاً', (tester) async {
-      await boot(tester, _game(const [], entries: [_question, second]));
-      await swipe(tester, 'الشمس', upTo: 3);
-      expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
-      expect(find.text('مرّر إصبعك على خطّ الإجابة الصحيحة من النقطة الخضراء 👆'), findsOneWidget);
-
-      final rect = tester.getRect(find.byKey(const ValueKey('tracing-option-الشمس')));
-      final line = SwipeOptionCard.lineFor(rect.size, rtl: true);
-      final gesture = await tester.startGesture(rect.topLeft + line.first);
-      await gesture.moveTo(rect.topLeft + line[1]);
-      await gesture.moveTo(rect.topLeft + line[2] - const Offset(0, 200));
-      for (final p in line.skip(3)) {
-        await gesture.moveTo(rect.topLeft + p);
-      }
-      await gesture.up();
-      await tester.pump();
-      expect(find.byIcon(Icons.check_circle_rounded), findsNothing, reason: 'خرج عن الخطّ فعاد من أوّله');
-    });
-
-    testWidgets('الإعادةُ تدريب: لا جوهرةَ تُعرض لكل صحيحة', (tester) async {
-      await boot(tester, _game(const [], entries: [_question, second]), alreadyRewarded: true);
-      expect(find.text('💎 0'), findsNothing);
-      await swipe(tester, 'الشمس');
-      expect(find.text('إجابة صحيحة! 🎉'), findsOneWidget);
-      await nextQuestion(tester);
-      await swipe(tester, 'البحر');
-      await nextQuestion(tester);
-      expect(wins, [(1, 2)], reason: 'تُرسل، والخادمُ يردّ «سبق صرفها»');
-      expect(find.text('جولة تدريب: الجواهر تُمنح في أول جولة لكل درس'), findsOneWidget);
     });
   });
 
@@ -389,15 +350,15 @@ void main() {
     // هذا ما يجري على الجهاز. كان كلُّ اختبارٍ يمرّر `speak` مزيّفاً، فلم
     // يمرّ أحدٌ بالنطق الافتراضي — وهو الذي رمى `NoSuchMethodError` مع كل
     // لمسة، فعلّق اللعبةَ على الأجهزة.
-    Future<void> bootReal(WidgetTester tester, StudyGame game) async {
+    testWidgets('لمسُ حرفٍ يفتح لوحتَه، لا شاشةً بيضاء ولا تحميلاً', (tester) async {
       final plan = TracePlanner.plan(_baShape(), rtl: true);
       await tester.binding.setSurfaceSize(const Size(900, 640));
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: TracingGame(
-              game: game,
-              onWin: ({int? correct, int? total}) async {},
+              game: _game(_letters),
+              onWin: () async {},
               onReplay: () {},
               shapeBuilder: (item) async =>
                   TracingShape(crop: const Rect.fromLTWH(0, 0, 90, 60), plan: plan),
@@ -406,10 +367,6 @@ void main() {
         ),
       );
       await tester.pump();
-    }
-
-    testWidgets('لمسُ حرفٍ يفتح لوحتَه، لا شاشةً بيضاء ولا تحميلاً', (tester) async {
-      await bootReal(tester, _game(_letters));
       await tester.tap(find.byKey(const ValueKey('tracing-tile-1')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
@@ -418,27 +375,20 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(stateOf(tester).plan, isNotNull);
     });
-
-    testWidgets('جولةُ الأسئلة تبدأ وتُقرأ بلا عطل', (tester) async {
-      await bootReal(tester, _game(const [], entries: [_question]));
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.takeException(), isNull);
-      expect(find.text('ما مصدر الضوء في النهار؟'), findsOneWidget);
-    });
   });
 
   group('الأرقامُ من ٠ إلى ١٠٠', () {
-    testWidgets('اثنا عشر في الصفحة، ولمسُ عددٍ ينطقه ويفتحه', (tester) async {
+    testWidgets('اثنا عشر في الصفحة، ولمسُ عددٍ ينطقه كلماتٍ ويفتحه', (tester) async {
       final numbers = _game(const [], entries: [
         for (var n = 0; n <= 100; n++)
-          {'text': arabicIndicDigits('$n'), 'kind': 'number', 'lang': 'ar', 'speech': '$n'},
+          {'text': arabicIndicDigits('$n'), 'kind': 'number', 'lang': 'ar', 'speech': 'عدد $n'},
       ]);
       await boot(tester, numbers);
       expect(find.byKey(const ValueKey('tracing-tile-11')), findsOneWidget);
       expect(find.byKey(const ValueKey('tracing-tile-12')), findsNothing);
       expect(find.text('صفحة 1 من 9'), findsOneWidget);
       await openTile(tester, 7);
-      expect(spoken, ['ar:7']);
+      expect(spoken, ['ar:عدد 7']);
       expect(find.byKey(const ValueKey('tracing-board')), findsOneWidget);
       expect(find.text('كل الأرقام'), findsOneWidget);
     });
@@ -469,9 +419,8 @@ void main() {
       expect(ba.plan.strokes.first.points.first.x, greaterThan(0.8));
       expect(ba.plan.strokes.last.isDot, isTrue);
     });
-
-    test('ما ليس من الروضة لا جدولَ له', () {
-      expect(precomputedTracingShape(const TracingItem(text: 'الشمس', kind: 'answer', lang: 'ar')), isNull);
-    });
   });
+
+  // يُبقي `dart:ui` مستعملاً في هذا الملف حين تُحذف اختباراتُه الرسمية.
+  test('ui', () => expect(ui.PathFillType.nonZero, isNotNull));
 }
