@@ -12,6 +12,7 @@ import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
 import 'tracing_game.dart';
+import 'tracing_shelf_card.dart';
 
 /// يصرف مكافأة لعبةٍ فاز بها الطفل — الخادمُ يقرّر المقدار من سجلّ الدرس.
 typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
@@ -363,7 +364,11 @@ class _GameShelf extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         for (var i = 0; i < games.length; i++)
-          _ShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i])),
+          if (games[i].type == StudyGameType.tracing)
+            // التتبّعُ للصغار أوّلاً: بطاقتُه أبهجُ ما في الرفّ.
+            TracingShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i]))
+          else
+            _ShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i])),
       ],
     );
   }
