@@ -44,14 +44,10 @@ export const REWARDABLE_GAME_IDS: readonly StudyGameKind[] = [...GAME_TYPES, "tr
 /** حرفٌ أو رقمٌ أو كلمةٌ يتتبّعها الطفل؛ والمسارُ يبنيه التطبيقُ من خطّه. */
 export interface TracingItem {
   text: string;
-  /** `answer`: إجابةُ سؤالٍ يختارها الطفل ثم يتتبّعها. */
-  kind: "letter" | "number" | "word" | "answer";
+  kind: "letter" | "number";
   lang: "ar" | "en";
-  /** ما يُنطق: اسمُ الحرف («باء») لا رسمُه. */
+  /** ما يُنطق: اسمُ الحرف («باء») أو العددُ كلماتٍ («خمسة وعشرون») لا رسمُه. */
   speech?: string;
-  /** سؤالٌ يسبق التتبّع، وخياراتُه — وإحداها [text]. */
-  prompt?: string;
-  options?: string[];
 }
 
 export const REWARD_LIMITS = {

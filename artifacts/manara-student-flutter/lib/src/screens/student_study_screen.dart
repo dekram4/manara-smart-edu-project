@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/lively.dart';
 import '../theme/motion.dart';
 
@@ -16,6 +17,7 @@ import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
+import '../services/tracing_scope.dart';
 import '../services/study_rotation.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
@@ -274,14 +276,11 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   /// ── المكافأةُ يقرّرها الخادم ──
   /// المعرّفُ `درس::لعبة`، والخادمُ يقرأ جواهرَها ونقاطَها من سجلّ الدرس
   /// ويصرفها مرّةً لكل لعبة — فالإعادةُ للمتعة لا لجمع الجواهر.
-  Future<RewardResult?> _rewardGame(StudyGame game, {int? correct, int? total}) async {
+  Future<RewardResult?> _rewardGame(StudyGame game) async {
     final result = await widget.contentService.rewardActivity(
       profile: widget.profile,
       activityType: 'study_game',
       activityId: '$_lessonId::${game.id}',
-      // نتيجةُ جولة «أجب ومرِّر»: جوهرةٌ عن كل صحيحة، يحصرها الخادم.
-      correctAnswers: correct,
-      quizTotal: total,
     );
     if (result.gems > 0 && mounted) _confetti.play();
     return result;
@@ -427,6 +426,11 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
             exclude: exclude,
           ),
           seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
+          // ‏«تتبّع واكتب» لروضة منارة المعرفة في موادّها الأربع وحدها.
+          allowTracing: tracingAllowedFor(
+            grade: widget.academicContext?.grade,
+            subject: widget.academicContext?.subject,
+          ),
         ),
       ],
     );
@@ -550,11 +554,9 @@ class _StudyHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _SwitchPill(
-                      icon: '🎮',
+                    child: _GamesPill(
                       label: tr('study.tabGames'),
                       selected: tab == 2,
-                      color: _StudyTokens.green,
                       onTap: () => onTab(2),
                     ),
                   ),
@@ -634,6 +636,151 @@ class _SwitchPill extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// زرُّ «ألعاب الدرس»: أبهجُ ما في البطاقة، يدعو الطفلَ إلى اللعب.
+///
+/// تدرّجٌ بنفسجيٌّ ورديٌّ ذهبيّ، وتوهّجٌ ينبض حوله، ونبضٌ خفيفٌ في حجمه،
+/// و🎮 تتمايل. واختيارُه يُثبّت التوهّجَ ويُبرز حافّته البيضاء. ومن طلب في
+/// جهازه تقليلَ الحركة يراه بألوانه كاملةً ساكناً.
+class _GamesPill extends StatefulWidget {
+  const _GamesPill({required this.label, required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_GamesPill> createState() => _GamesPillState();
+}
+
+class _GamesPillState extends State<_GamesPill> with SingleTickerProviderStateMixin {
+  static const _violet = Color(0xFF7C3AED);
+  static const _pink = Color(0xFFEC4899);
+  static const _gold = Color(0xFFF59E0B);
+
+  late final AnimationController _pulse =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+  bool _pressed = false;
+  bool _still = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_still) {
+      _pulse
+        ..stop()
+        ..value = 0.5;
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: widget.selected,
+      child: GestureDetector(
+        key: const ValueKey('study-games-pill'),
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          HapticFeedback.selectionClick();
+          widget.onTap();
+        },
+        child: AnimatedScale(
+          scale: _pressed ? 0.93 : 1,
+          duration: const Duration(milliseconds: 120),
+          child: AnimatedBuilder(
+            animation: _pulse,
+            builder: (context, child) {
+              final t = Curves.easeInOut.transform(_pulse.value);
+              final glow = widget.selected ? 1.0 : t;
+              return Transform.scale(
+                scale: 1 + 0.035 * t,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: LinearGradient(
+                      colors: [Colors.white, _gold.withValues(alpha: 0.9), Colors.white],
+                      stops: [0, t, 1],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _pink.withValues(alpha: 0.35 + 0.35 * glow),
+                        blurRadius: 8 + 12 * glow,
+                        spreadRadius: 0.5 + 1.5 * glow,
+                      ),
+                      BoxShadow(
+                        color: _violet.withValues(alpha: 0.25),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: const LinearGradient(
+                        colors: [_violet, _pink, _gold],
+                        begin: AlignmentDirectional.centerStart,
+                        end: AlignmentDirectional.centerEnd,
+                      ),
+                      border: widget.selected ? Border.all(color: Colors.white, width: 2) : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Transform.rotate(
+                          angle: (t - 0.5) * 0.5,
+                          child: Transform.scale(
+                            scale: 1 + 0.15 * t,
+                            child: const Text('🎮', style: TextStyle(fontSize: 17)),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              widget.label,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                shadows: [Shadow(color: Color(0x55000000), offset: Offset(0, 1), blurRadius: 2)],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Opacity(
+                          opacity: 0.4 + 0.6 * t,
+                          child: const Text(' ✨', style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),

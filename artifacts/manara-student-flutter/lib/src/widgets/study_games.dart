@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/student_strings.dart';
@@ -15,10 +16,7 @@ import 'tracing_game.dart';
 import 'tracing_shelf_card.dart';
 
 /// يصرف مكافأة لعبةٍ فاز بها الطفل — الخادمُ يقرّر المقدار من سجلّ الدرس.
-///
-/// [correct] و[total]: نتيجةُ جولة أسئلة «أجب ومرِّر» — جوهرةٌ عن كل صحيحة في
-/// أوّل جولة، يحصرها الخادمُ بعدد الأسئلة.
-typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game, {int? correct, int? total});
+typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
 
 /// تبويبُ «ألعاب الدرس» في بطاقة المذاكرة: ثلاثُ ألعابٍ يولّدها الذكاءُ
 /// الاصطناعي من نصّ الدرس — سحبٌ وإسقاط، ومطابقة، وسباقُ أسئلةٍ بلا نهاية.
@@ -31,11 +29,16 @@ class StudyGamesTab extends StatefulWidget {
     required this.onWin,
     this.fresh,
     this.seenKey,
+    this.allowTracing = true,
     super.key,
   });
 
   final Future<StudyGamesPack> Function() load;
   final StudyGameWin onWin;
+
+  /// لعبةُ التتبّع لهذا الدرس: لروضة منارة المعرفة في موادّها الأربع وحدها
+  /// ([tracingAllowedFor]). وإلا تُحذف من الرفّ ولو أرسلها الخادم.
+  final bool allowTracing;
 
   /// نسخةٌ جديدة من لعبة، متجنّبةً ما رآه الطالب — من الذكاء الاصطناعي.
   final Future<StudyGame> Function(StudyGame base, List<String> exclude)? fresh;
@@ -72,7 +75,13 @@ class _StudyGamesTabState extends State<StudyGamesTab>
       _error = null;
     });
     try {
-      final pack = await widget.load();
+      var pack = await widget.load();
+      if (!widget.allowTracing) {
+        pack = StudyGamesPack(
+          lessonId: pack.lessonId,
+          games: [for (final game in pack.games) if (game.type != StudyGameType.tracing) game],
+        );
+      }
       if (!mounted) return;
       setState(() {
         _pack = pack;
@@ -138,10 +147,7 @@ class _StudyGamesTabState extends State<StudyGamesTab>
   static List<String> seenItemsOf(StudyGame game) =>
       switch (game.type) {
         StudyGameType.endlessQuiz => [for (final q in game.questions) q.question],
-        // أسئلةُ «أجب ومرِّر» بنصّ السؤال: الإعادةُ تطلب غيرها.
-        StudyGameType.tracing => [
-            for (final item in game.tracing) item.isQuestion ? item.prompt! : item.text,
-          ],
+        StudyGameType.tracing => [for (final item in game.tracing) item.text],
         _ => [...game.dragItems],
       };
 
@@ -154,11 +160,8 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     final base = _baseOf(game.type);
     var chosen = base;
     final seen = await _loadSeen(game.type);
-    // حروفُ الروضة هي هي: لا نسخةَ جديدة لها. وأسئلةُ «أجب ومرِّر» كغيرها من
-    // الألعاب: كلُّ إعادةٍ أسئلةٌ جديدة من نصّ الدرس تتجنّب ما رآه الطالب.
-    final alphabet = game.type == StudyGameType.tracing && !game.tracing.any((item) => item.isQuestion);
-    final fresh = alphabet ? null : widget.fresh;
-    final rewarded = await _loadRewarded(game.type);
+    // التتبّعُ حروفُ الروضة وأرقامُها: المجموعةُ هي هي، لا نسخةَ جديدة لها.
+    final fresh = game.type == StudyGameType.tracing ? null : widget.fresh;
     if (seen.isNotEmpty && fresh != null) {
       if (!mounted) return;
       setState(() => _preparing = true);
@@ -172,39 +175,9 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     setState(() {
       _preparing = false;
       _active = chosen;
-      _activeRewarded = rewarded;
       _round += 1;
     });
     unawaited(_addSeen(game.type, seenItemsOf(chosen)));
-  }
-
-  /// صُرفت مكافأةُ هذه اللعبة لهذا الدرس من قبل — على هذا الجهاز.
-  ///
-  /// للعرض وحده: جولةُ الأسئلة تُظهر «💎» لكل صحيحة في أوّل جولة، و«تدريب»
-  /// فيما بعدها. والحكمُ للخادم: يصرف مرّةً لكل درس أيّاً كان ما يظهر هنا.
-  bool _activeRewarded = false;
-
-  String? _rewardedKeyFor(StudyGameType type) =>
-      widget.seenKey == null ? null : '${widget.seenKey}.rewarded.${type.wire}';
-
-  Future<bool> _loadRewarded(StudyGameType type) async {
-    final key = _rewardedKeyFor(type);
-    if (key == null) return false;
-    try {
-      return (await SharedPreferences.getInstance()).getBool(key) ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _markRewarded(StudyGameType type) async {
-    final key = _rewardedKeyFor(type);
-    if (key == null) return;
-    try {
-      await (await SharedPreferences.getInstance()).setBool(key, true);
-    } catch (_) {
-      // تخزينٌ محجوب: تُعرض الجواهرُ في الإعادة، والخادمُ لا يصرفها.
-    }
   }
 
   /// أسئلةٌ جديدة للسباق حين يقترب من آخر ما عنده — لا يدور على المكرّر.
@@ -218,17 +191,15 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     return game.questions;
   }
 
-  Future<void> _won(StudyGame game, {int? correct, int? total}) async {
+  Future<void> _won(StudyGame game) async {
     StudentSoundService.instance.playApplause();
     RewardResult? result;
     var failed = false;
     try {
-      result = await widget.onWin(game, correct: correct, total: total);
+      result = await widget.onWin(game);
     } catch (_) {
       failed = true;
     }
-    // الخادمُ سجّل الجولة — بجوهرةٍ أو بلا: ما بعدها تدريب.
-    if (result != null) unawaited(_markRewarded(game.type));
     if (!mounted) return;
     if (result != null && result.gems > 0) {
       StudentSoundService.instance.playReward();
@@ -339,8 +310,7 @@ class _StudyGamesTabState extends State<StudyGamesTab>
               game: active,
               onBack: () => setState(() => _active = null),
               onReplay: () => _open(active),
-              alreadyRewarded: _activeRewarded,
-              onWin: ({int? correct, int? total}) => _won(active, correct: correct, total: total),
+              onWin: () => _won(active),
               onNeedMore: widget.fresh == null ? null : _moreQuestions,
             ),
     );
@@ -443,22 +413,29 @@ class _ShelfCard extends StatelessWidget {
         child: Semantics(
           button: true,
           label: game.title,
-          child: GestureDetector(
+          child: _PressScale(
             onTap: onTap,
             child: Container(
               padding: const EdgeInsets.all(16),
+              // ‏تدرّجٌ زاهٍ بثلاثة ألوان، وحافّةٌ بيضاء مضيئة، وتوهّجٌ بلون اللعبة.
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [color, Color.lerp(color, Colors.white, 0.25)!],
+                  colors: [
+                    color,
+                    Color.lerp(color, _Palette.pink, 0.35)!,
+                    Color.lerp(color, _Palette.gold, 0.35)!,
+                  ],
                   begin: AlignmentDirectional.topStart,
                   end: AlignmentDirectional.bottomEnd,
                 ),
                 borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 2),
                 boxShadow: [
                   BoxShadow(
                     color: Color.lerp(color, Colors.black, 0.4)!,
                     offset: const Offset(0, 5),
                   ),
+                  BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 16, spreadRadius: 1),
                 ],
               ),
               child: Row(
@@ -509,8 +486,16 @@ class _ShelfCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.play_circle_fill_rounded,
-                      color: Colors.white, size: 40),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _Bouncing(
+                        delay: Duration(milliseconds: 150 + index * 300),
+                        child: const Text('✨', style: TextStyle(fontSize: 16)),
+                      ),
+                      const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 40),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -558,18 +543,14 @@ class _GameStage extends StatelessWidget {
     required this.onReplay,
     required this.onWin,
     this.onNeedMore,
-    this.alreadyRewarded = false,
     super.key,
   });
 
   final StudyGame game;
   final VoidCallback onBack;
   final VoidCallback onReplay;
-
-  /// [correct]/[total] لجولة الأسئلة وحدها؛ وبقيّةُ الألعاب تناديها بلا شيء.
-  final Future<void> Function({int? correct, int? total}) onWin;
+  final Future<void> Function() onWin;
   final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
-  final bool alreadyRewarded;
 
   @override
   Widget build(BuildContext context) {
@@ -639,7 +620,6 @@ class _GameStage extends StatelessWidget {
                 game: game,
                 onWin: onWin,
                 onReplay: onReplay,
-                alreadyRewarded: alreadyRewarded,
               ),
           },
         ),
@@ -1983,6 +1963,38 @@ class _GameButton extends StatelessWidget {
 
 /// يقفز بلطفٍ بلا توقّف — للرموز التي تدعو الطفل إلى اللعب. ويسكن لمن
 /// طلب تقليل الحركة.
+/// يصغر تحت الإصبع ويهتزّ بلمسةٍ خفيفة، ثم يرتدّ — لكل بطاقةٍ في الرفّ.
+class _PressScale extends StatefulWidget {
+  const _PressScale({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          HapticFeedback.selectionClick();
+          widget.onTap();
+        },
+        child: AnimatedScale(
+          scale: _pressed ? 0.95 : 1,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutBack,
+          child: widget.child,
+        ),
+      );
+}
+
 class _Bouncing extends StatefulWidget {
   const _Bouncing({required this.child, this.delay = Duration.zero});
 
