@@ -54,7 +54,10 @@ import {
   isStudyGameType,
   parseFreshGame,
   MAX_EXCLUDE as MAX_FRESH_EXCLUDE,
+  STUDY_GAMES_VERSION,
+  type StudyGamesPack,
 } from "../lib/studyGames";
+import { buildTracingGame, withTracingGame } from "../lib/tracing";
 import {
   BANK_SIZE,
   BANK_VERSION,
@@ -1762,7 +1765,7 @@ router.post(
  * ألعاباً جديدة. والمكافآتُ فيها محصورةٌ على الخادم (`lib/studyGames`)،
  * ويصرفها `/student/progress/reward` من السجلّ لا من التطبيق.
  */
-const studyGamesInFlight = new Map<string, Promise<unknown>>();
+const studyGamesInFlight = new Map<string, Promise<StudyGamesPack | null>>();
 
 async function persistStudyGames(lessonId: string, pack: unknown): Promise<void> {
   const config = apiSupabaseConfig();
@@ -1814,8 +1817,17 @@ router.post(
         return res.status(403).json({ error: messages[lesson.reason], code: lesson.reason });
       }
       const owner = { lessonId: lesson.id, lessonStamp: lessonStampOf(lesson.text) };
+      // التتبّعُ يُبنى من النصّ في كل طلب ولا يُحفظ مع الحزمة: لا يكلّف شيئاً،
+      // وحزمُ الدروس المحفوظة تبقى صالحةً كما هي.
+      const tracingSource = {
+        title: [lesson.unit, lesson.lesson].filter(Boolean).join(" — "),
+        text: lesson.text,
+        subject: lesson.subject,
+      };
       const stored = readStudyGames(lesson.studyGames, owner);
-      if (stored) return res.json({ pack: stored, generated: false });
+      if (stored) {
+        return res.json({ pack: withTracingGame(stored, tracingSource), generated: false });
+      }
 
       // طفلان فتحا الدرس معاً: توليدٌ واحد يخدمهما.
       const flightKey = `${owner.lessonId}:${owner.lessonStamp}`;
@@ -1850,7 +1862,14 @@ router.post(
         })().finally(() => studyGamesInFlight.delete(flightKey));
         studyGamesInFlight.set(flightKey, flight);
       }
-      const pack = await flight;
+      const generated = await flight;
+      // النموذجُ تعثّر: يبقى التتبّعُ وحده إن كان في الدرس ما يُتتبّع.
+      const tracingOnly = buildTracingGame(tracingSource);
+      const pack = generated
+        ? withTracingGame(generated, tracingSource)
+        : tracingOnly
+          ? { version: STUDY_GAMES_VERSION, ...owner, generatedAt: new Date().toISOString(), games: [tracingOnly] }
+          : null;
       if (!pack) {
         logger.warn({ lessonId }, "[study-games] model output was not usable");
         return res.status(502).json({
