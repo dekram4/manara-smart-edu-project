@@ -10,7 +10,11 @@
 enum StudyGameType {
   dragDrop('drag_drop'),
   matching('matching'),
-  endlessQuiz('endless_quiz');
+  endlessQuiz('endless_quiz'),
+
+  /// تتبّعُ الحروف والأرقام والكلمات: لا يولّدها النموذج، بل يستخرجها
+  /// الخادمُ من نصّ الدرس (`lib/tracing.ts`)، ويبني التطبيقُ مساراتها.
+  tracing('tracing');
 
   const StudyGameType(this.wire);
 
@@ -58,6 +62,22 @@ class StudyQuickQuestion {
   final String answer;
 }
 
+/// حرفٌ أو رقمٌ أو كلمةٌ يتتبّعها الطفل بإصبعه.
+class TracingItem {
+  const TracingItem({required this.text, required this.kind, required this.lang});
+
+  final String text;
+
+  /// `letter` أو `number` أو `word`.
+  final String kind;
+
+  /// `ar` أو `en`.
+  final String lang;
+
+  /// الأرقامُ تُكتب من اليسار ولو في العربية.
+  bool get rtl => lang == 'ar' && kind != 'number';
+}
+
 class StudyGame {
   const StudyGame({
     required this.id,
@@ -70,6 +90,7 @@ class StudyGame {
     required this.questions,
     required this.gemsReward,
     required this.pointsReward,
+    this.tracing = const [],
   });
 
   final String id;
@@ -82,6 +103,7 @@ class StudyGame {
   final List<StudyQuickQuestion> questions;
   final int gemsReward;
   final int pointsReward;
+  final List<TracingItem> tracing;
 
   /// السلّةُ أو المعنى الصحيح لهذه البطاقة.
   String? targetOf(String item) {
@@ -138,9 +160,19 @@ class StudyGame {
       questions: questions,
       gemsReward: _int(raw['gems_reward']),
       pointsReward: _int(raw['points_reward']),
+      tracing: [
+        for (final entry in _list(items['tracing']))
+          if (entry is Map && _text(entry['text']).isNotEmpty)
+            TracingItem(
+              text: _text(entry['text']),
+              kind: _text(entry['kind']).isEmpty ? 'word' : _text(entry['kind']),
+              lang: _text(entry['lang']) == 'en' ? 'en' : 'ar',
+            ),
+      ],
     );
     final playable = switch (type) {
       StudyGameType.endlessQuiz => questions.isNotEmpty,
+      StudyGameType.tracing => game.tracing.isNotEmpty,
       _ => pairs.isNotEmpty && game.dropTargets.isNotEmpty,
     };
     return playable ? game : null;

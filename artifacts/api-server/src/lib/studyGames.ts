@@ -34,6 +34,20 @@ export const TRUE_FALSE_EN = ["True", "False"] as const;
 export const GAME_TYPES = ["drag_drop", "matching", "endless_quiz"] as const;
 export type StudyGameType = (typeof GAME_TYPES)[number];
 
+/**
+ * كلُّ ألعاب البطاقة، ومنها «التتبّع» التي لا يولّدها النموذج بل تُبنى من نصّ
+ * الدرس (`tracing.ts`) — فلا تدخل [GAME_TYPES] ولا مخطّطَه.
+ */
+export type StudyGameKind = StudyGameType | "tracing";
+export const REWARDABLE_GAME_IDS: readonly StudyGameKind[] = [...GAME_TYPES, "tracing"];
+
+/** حرفٌ أو رقمٌ أو كلمةٌ يتتبّعها الطفل؛ والمسارُ يبنيه التطبيقُ من خطّه. */
+export interface TracingItem {
+  text: string;
+  kind: "letter" | "number" | "word";
+  lang: "ar" | "en";
+}
+
 export const REWARD_LIMITS = {
   gems: { min: 3, max: 12 },
   points: { min: 10, max: 60 },
@@ -61,7 +75,7 @@ export interface QuickQuestion {
 
 export interface StudyGame {
   id: string;
-  game_type: StudyGameType;
+  game_type: StudyGameKind;
   title: string;
   instructions: string;
   items: {
@@ -69,6 +83,7 @@ export interface StudyGame {
     drop_targets: string[];
     correct_pairs: CorrectPair[];
     questions?: QuickQuestion[];
+    tracing?: TracingItem[];
   };
   gems_reward: number;
   points_reward: number;
@@ -400,16 +415,18 @@ export function studyGameActivityId(lessonId: string, gameId: string): string {
   return `${lessonId}::${gameId}`;
 }
 
-export function parseStudyGameActivityId(activityId: string): { lessonId: string; gameId: StudyGameType } | null {
+export function parseStudyGameActivityId(activityId: string): { lessonId: string; gameId: StudyGameKind } | null {
   const at = activityId.lastIndexOf("::");
   if (at <= 0) return null;
   const lessonId = activityId.slice(0, at);
   const gameId = activityId.slice(at + 2);
-  return (GAME_TYPES as readonly string[]).includes(gameId) ? { lessonId, gameId: gameId as StudyGameType } : null;
+  return (REWARDABLE_GAME_IDS as readonly string[]).includes(gameId)
+    ? { lessonId, gameId: gameId as StudyGameKind }
+    : null;
 }
 
 /** مكافأةُ لعبةٍ محفوظة، محصورةً مرّةً أخرى — سجلٌّ عُدّل يدوياً لا يتجاوز الحدّ. */
-export function rewardOf(stored: unknown, gameId: StudyGameType): { gems: number; points: number } | null {
+export function rewardOf(stored: unknown, gameId: StudyGameKind): { gems: number; points: number } | null {
   if (!stored || typeof stored !== "object") return null;
   const games = (stored as { games?: unknown }).games;
   const game = Array.isArray(games)

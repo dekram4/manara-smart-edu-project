@@ -11,6 +11,7 @@ import '../models/study_games.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
+import 'tracing_game.dart';
 
 /// يصرف مكافأة لعبةٍ فاز بها الطفل — الخادمُ يقرّر المقدار من سجلّ الدرس.
 typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
@@ -131,9 +132,11 @@ class _StudyGamesTabState extends State<StudyGamesTab>
 
   /// ما يعدّه الطالبُ «رآه» من لعبة: أسئلةُ السباق، وبطاقاتُ السحب والمطابقة.
   static List<String> seenItemsOf(StudyGame game) =>
-      game.type == StudyGameType.endlessQuiz
-          ? [for (final q in game.questions) q.question]
-          : [...game.dragItems];
+      switch (game.type) {
+        StudyGameType.endlessQuiz => [for (final q in game.questions) q.question],
+        StudyGameType.tracing => [for (final item in game.tracing) item.text],
+        _ => [...game.dragItems],
+      };
 
   StudyGame _baseOf(StudyGameType type) =>
       _pack!.games.firstWhere((game) => game.type == type);
@@ -144,7 +147,8 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     final base = _baseOf(game.type);
     var chosen = base;
     final seen = await _loadSeen(game.type);
-    final fresh = widget.fresh;
+    // التتبّعُ يُستخرج من نصّ الدرس لا من النموذج: لا نسخةَ جديدة تُطلب له.
+    final fresh = game.type == StudyGameType.tracing ? null : widget.fresh;
     if (seen.isNotEmpty && fresh != null) {
       if (!mounted) return;
       setState(() => _preparing = true);
@@ -319,18 +323,21 @@ class _Palette {
         StudyGameType.dragDrop => sky,
         StudyGameType.matching => pink,
         StudyGameType.endlessQuiz => violet,
+        StudyGameType.tracing => green,
       };
 
   static String emoji(StudyGameType type) => switch (type) {
         StudyGameType.dragDrop => '🧺',
         StudyGameType.matching => '🔗',
         StudyGameType.endlessQuiz => '🚀',
+        StudyGameType.tracing => '✍️',
       };
 
   static String kind(StudyGameType type) => switch (type) {
         StudyGameType.dragDrop => tr('study.games.dragDrop'),
         StudyGameType.matching => tr('study.games.matching'),
         StudyGameType.endlessQuiz => tr('study.games.endless'),
+        StudyGameType.tracing => tr('study.games.tracing'),
       };
 }
 
@@ -576,6 +583,8 @@ class _GameStage extends StatelessWidget {
                 onReplay: onReplay,
                 onNeedMore: onNeedMore,
               ),
+            StudyGameType.tracing =>
+              TracingGame(game: game, onWin: onWin, onReplay: onReplay),
           },
         ),
       ],
