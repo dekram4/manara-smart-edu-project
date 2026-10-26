@@ -64,15 +64,34 @@ class StudyQuickQuestion {
 
 /// حرفٌ أو رقمٌ أو كلمةٌ يتتبّعها الطفل بإصبعه.
 class TracingItem {
-  const TracingItem({required this.text, required this.kind, required this.lang});
+  const TracingItem({
+    required this.text,
+    required this.kind,
+    required this.lang,
+    String? speech,
+    this.prompt,
+    this.options = const [],
+  }) : _speech = speech;
 
   final String text;
 
-  /// `letter` أو `number` أو `word`.
+  /// `letter` أو `number` أو `word`، أو `answer`: إجابةُ سؤالٍ يُختار ثم يُتتبّع.
   final String kind;
 
   /// `ar` أو `en`.
   final String lang;
+
+  final String? _speech;
+
+  /// ما يُنطق: اسمُ الحرف («باء») لا رسمُه — المحرّكُ لا يعرف أن «ب» وحدها
+  /// حرفٌ يُسمّى. وما لا اسمَ له يُنطق كما يُكتب.
+  String get speech => _speech ?? text;
+
+  /// سؤالٌ يُجاب قبل التتبّع، وخياراتُه — وإحداها [text].
+  final String? prompt;
+  final List<String> options;
+
+  bool get isQuestion => prompt != null && options.length >= 2 && options.contains(text);
 
   /// الأرقامُ تُكتب من اليسار ولو في العربية.
   bool get rtl => lang == 'ar' && kind != 'number';
@@ -91,6 +110,8 @@ class StudyGame {
     required this.gemsReward,
     required this.pointsReward,
     this.tracing = const [],
+    this.tracingRewardAfter = 0,
+    this.tracingStart = 0,
   });
 
   final String id;
@@ -104,6 +125,11 @@ class StudyGame {
   final int gemsReward;
   final int pointsReward;
   final List<TracingItem> tracing;
+
+  /// بعد كم عنصراً منجَزاً تُصرف المكافأة (مجموعاتُ الروضة طويلة: ٢٨ حرفاً)،
+  /// ومن أيّ عنصرٍ تبدأ اللعبة (حرفُ الدرس). ‎0 لـ[tracingRewardAfter] = كلُّها.
+  final int tracingRewardAfter;
+  final int tracingStart;
 
   /// السلّةُ أو المعنى الصحيح لهذه البطاقة.
   String? targetOf(String item) {
@@ -167,8 +193,16 @@ class StudyGame {
               text: _text(entry['text']),
               kind: _text(entry['kind']).isEmpty ? 'word' : _text(entry['kind']),
               lang: _text(entry['lang']) == 'en' ? 'en' : 'ar',
+              speech: _text(entry['speech']).isEmpty ? null : _text(entry['speech']),
+              prompt: _text(entry['prompt']).isEmpty ? null : _text(entry['prompt']),
+              options: [
+                for (final option in _list(entry['options']))
+                  if (_text(option).isNotEmpty) _text(option),
+              ],
             ),
       ],
+      tracingRewardAfter: _int(items['reward_after']),
+      tracingStart: _int(items['start']),
     );
     final playable = switch (type) {
       StudyGameType.endlessQuiz => questions.isNotEmpty,

@@ -1,6 +1,14 @@
 /**
  * لعبةُ «تتبّع الحروف والأرقام والكلمات» في بطاقة المذاكرة.
  *
+ * ── ثلاثةُ مصادر ──
+ * - مادّةُ حروفٍ أو أرقام في الروضة ([alphabetSetOf]): المجموعةُ كاملة —
+ *   ٢٨ حرفاً عربياً، و٢٦ إنجليزياً، وعشرةُ أرقام — ومع كلٍّ اسمُه للنطق.
+ *   ولا تحتاج نصّاً: درسُ الروضة كثيراً ما يكون بلا شرحٍ مكتوب.
+ * - غيرُها: أسئلةٌ يولّدها الذكاء الاصطناعي من نصّ الدرس (`tracingQuiz.ts`)،
+ *   يختار الطفلُ الإجابة ثم يتتبّعها.
+ * - وإن تعذّر النموذج: ما يُستخرج من النصّ هنا بلا نموذج ([tracingItemsFrom]).
+ *
  * ── من نصّ المعلم، بلا نموذج ──
  * ما يُتتبّع يُستخرج هنا من عنوان الدرس ونصّه: «حرف الباء» حرفٌ، و«العدد ٥»
  * رقم، وأكثرُ الكلمات القصيرة تكراراً كلمات. لا يُسأل النموذج: الاستخراجُ
@@ -172,37 +180,150 @@ export function tracingItemsFrom({
   return items;
 }
 
-/** اللعبةُ بصيغة بقيّة ألعاب البطاقة، أو `null` إن لم يكن في الدرس ما يُتتبّع. */
-export function buildTracingGame(lesson: {
-  title: string;
-  text: string;
-  subject?: string;
-}): StudyGame | null {
-  const items = tracingItemsFrom(lesson);
+// ── مجموعاتُ الروضة الكاملة ─────────────────────────────────────────
+
+/** الحروفُ العربية بترتيبها، واسمُ كلٍّ منها كما يُنطق للطفل. */
+export const ARABIC_LETTERS: readonly (readonly [string, string])[] = [
+  ["ا", "ألف"], ["ب", "باء"], ["ت", "تاء"], ["ث", "ثاء"], ["ج", "جيم"], ["ح", "حاء"],
+  ["خ", "خاء"], ["د", "دال"], ["ذ", "ذال"], ["ر", "راء"], ["ز", "زاي"], ["س", "سين"],
+  ["ش", "شين"], ["ص", "صاد"], ["ض", "ضاد"], ["ط", "طاء"], ["ظ", "ظاء"], ["ع", "عين"],
+  ["غ", "غين"], ["ف", "فاء"], ["ق", "قاف"], ["ك", "كاف"], ["ل", "لام"], ["م", "ميم"],
+  ["ن", "نون"], ["ه", "هاء"], ["و", "واو"], ["ي", "ياء"],
+];
+
+const ARABIC_DIGITS: readonly (readonly [string, string])[] = [
+  ["٠", "صفر"], ["١", "واحد"], ["٢", "اثنان"], ["٣", "ثلاثة"], ["٤", "أربعة"],
+  ["٥", "خمسة"], ["٦", "ستة"], ["٧", "سبعة"], ["٨", "ثمانية"], ["٩", "تسعة"],
+];
+
+const ENGLISH_DIGITS: readonly (readonly [string, string])[] = [
+  ["0", "zero"], ["1", "one"], ["2", "two"], ["3", "three"], ["4", "four"],
+  ["5", "five"], ["6", "six"], ["7", "seven"], ["8", "eight"], ["9", "nine"],
+];
+
+export type AlphabetSet = "arabic_letters" | "english_letters" | "arabic_digits" | "english_digits";
+
+function subjectKey(value: string): string {
+  return stripMarks(value)
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * مادّةُ روضةٍ تُتتبّع فيها المجموعةُ كاملة: «الحروف العربية»، «الحروف
+ * الإنجليزية»، «الأرقام العربية»، «الأرقام الإنجليزية» — بأيّ همزةٍ أو تاءٍ
+ * مربوطةٍ كُتبت، وبالإنجليزية كذلك. `null` لأيّ مادّةٍ أخرى.
+ */
+export function alphabetSetOf(subject: string): AlphabetSet | null {
+  const key = subjectKey(subject);
+  const english = /انجليز|انكليز|english/.test(key);
+  const arabic = /عربي|arabic/.test(key);
+  if (/حروف|الحرف|letters|alphabet/.test(key)) {
+    if (english) return "english_letters";
+    if (arabic) return "arabic_letters";
+  }
+  if (/ارقام|اعداد|numbers|digits/.test(key)) {
+    if (english) return "english_digits";
+    if (arabic) return "arabic_digits";
+  }
+  return null;
+}
+
+/** المجموعةُ كاملةً بترتيبها، لا أوّلُ ستّةٍ منها. */
+export function alphabetItems(set: AlphabetSet): TracingItem[] {
+  switch (set) {
+    case "arabic_letters":
+      return ARABIC_LETTERS.map(([text, speech]) => ({ text, kind: "letter", lang: "ar", speech }));
+    case "english_letters":
+      // الكبيرُ والصغيرُ معاً: «Aa» يُتتبّع جرّاتٍ ويُنطق «A».
+      return Array.from({ length: 26 }, (_, i) => {
+        const upper = String.fromCharCode(65 + i);
+        return { text: `${upper}${upper.toLowerCase()}`, kind: "letter" as const, lang: "en" as const, speech: upper };
+      });
+    case "arabic_digits":
+      return ARABIC_DIGITS.map(([text, speech]) => ({ text, kind: "number", lang: "ar", speech }));
+    case "english_digits":
+      return ENGLISH_DIGITS.map(([text, speech]) => ({ text, kind: "number", lang: "en", speech }));
+  }
+}
+
+/**
+ * من أيّ عنصرٍ تبدأ اللعبة: حرفُ الدرس إن ذكره عنوانه («حرف الباء» يفتح
+ * على الباء، و«العدد ٥» على الخمسة)، وإلا أوّلُ المجموعة. والمجموعةُ كلُّها
+ * متاحةٌ في الحالين.
+ */
+export function alphabetStart(items: TracingItem[], title: string): number {
+  const lang = items[0]?.lang ?? "ar";
+  const wanted = [...lettersIn(title, lang), ...numbersIn(title)];
+  for (const value of wanted) {
+    const at = items.findIndex((item) => item.text === value || item.text.startsWith(value.toUpperCase()));
+    if (at >= 0) return at;
+  }
+  return 0;
+}
+
+/** بعد كم عنصراً تُصرف المكافأة: المجموعاتُ طويلة، فلا ينتظر الطفلُ ٢٨ حرفاً. */
+export const ALPHABET_REWARD_AFTER = 5;
+
+// ── اللعبة ───────────────────────────────────────────────────────────
+
+/** لعبةُ التتبّع بصيغة بقيّة ألعاب البطاقة، من عناصرَ جاهزة. */
+export function tracingGame(
+  items: TracingItem[],
+  { rewardAfter = items.length, start = 0 }: { rewardAfter?: number; start?: number } = {},
+): StudyGame | null {
   if (items.length === 0) return null;
   const en = items[0].lang === "en";
+  const quiz = items.some((item) => item.prompt);
   return {
     id: TRACING_GAME_ID,
-    // ليس في GAME_TYPES: النموذجُ لا يولّدها ومخطّطُه لا يعرفها.
+    // ليس في GAME_TYPES: نموذجُ الحزمة لا يولّدها ومخطّطُه لا يعرفها.
     game_type: TRACING_GAME_ID,
-    title: en ? "Trace and write!" : "تتبّع واكتب!",
-    instructions: en
-      ? "Follow the dots in order with your finger."
-      : "مرّر إصبعك على النقاط بالترتيب من البداية.",
-    items: { drag_items: [], drop_targets: [], correct_pairs: [], tracing: items },
+    title: quiz ? (en ? "Answer and trace!" : "أجب وتتبّع!") : en ? "Trace and write!" : "تتبّع واكتب!",
+    instructions: quiz
+      ? en
+        ? "Pick the right answer, then trace it with your finger."
+        : "اختر الإجابة الصحيحة، ثم تتبّعها بإصبعك."
+      : en
+        ? "Follow the dots in order with your finger."
+        : "مرّر إصبعك على النقاط بالترتيب من البداية.",
+    items: {
+      drag_items: [],
+      drop_targets: [],
+      correct_pairs: [],
+      tracing: items,
+      reward_after: Math.min(Math.max(1, rewardAfter), items.length),
+      start: Math.min(Math.max(0, start), items.length - 1),
+    },
     gems_reward: TRACING_REWARD.gems,
     points_reward: TRACING_REWARD.points,
   };
 }
 
+/** من نصّ الدرس بلا نموذج — بديلُ أسئلة الذكاء الاصطناعي إن تعذّرت. */
+export function buildTracingGame(lesson: { title: string; text: string; subject?: string }): StudyGame | null {
+  return tracingGame(tracingItemsFrom(lesson));
+}
+
+/** مجموعةُ الروضة الكاملة لمادّتها، أو `null` إن لم تكن مادّةَ حروفٍ أو أرقام. */
+export function alphabetGame(lesson: { title: string; subject?: string }): StudyGame | null {
+  const set = alphabetSetOf(lesson.subject ?? "");
+  if (!set) return null;
+  const items = alphabetItems(set);
+  return tracingGame(items, {
+    rewardAfter: ALPHABET_REWARD_AFTER,
+    start: alphabetStart(items, lesson.title),
+  });
+}
+
 /** يضيف لعبةَ التتبّع إلى ألعاب الدرس، ولا يكرّرها إن وُجدت. */
-export function withTracingGame<T extends { games: StudyGame[] }>(
-  pack: T,
-  lesson: { title: string; text: string; subject?: string },
-): T {
-  if (pack.games.some((game) => game.id === TRACING_GAME_ID)) return pack;
-  const tracing = buildTracingGame(lesson);
-  return tracing ? { ...pack, games: [...pack.games, tracing] } : pack;
+export function withTracingGame<T extends { games: StudyGame[] }>(pack: T, tracing: StudyGame | null): T {
+  if (!tracing || pack.games.some((game) => game.id === TRACING_GAME_ID)) return pack;
+  return { ...pack, games: [...pack.games, tracing] };
 }
 
 export function lessonTitleOf(lesson: Record<string, unknown>): string {
