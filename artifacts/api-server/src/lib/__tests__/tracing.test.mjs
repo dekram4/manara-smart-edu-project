@@ -127,10 +127,18 @@ test("المجموعاتُ كاملة لا أوّلُ ستّة، ومع كلٍّ
   assert.deepEqual([english[0].text, english[0].speech], ["Aa", "A"]);
   assert.equal(english.at(-1).text, "Zz");
 
+  // الأرقامُ من الصفر إلى المئة، وتُنطق بأرقامها الغربية فيقرؤها المحرّكُ عدداً.
   const arabicDigits = alphabetItems("arabic_digits");
-  assert.deepEqual(texts(arabicDigits), ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"]);
-  assert.equal(arabicDigits[5].speech, "خمسة");
-  assert.deepEqual(texts(alphabetItems("english_digits")), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+  assert.equal(arabicDigits.length, 101);
+  assert.deepEqual(texts(arabicDigits).slice(0, 3), ["٠", "١", "٢"]);
+  assert.equal(arabicDigits[25].text, "٢٥");
+  assert.equal(arabicDigits[25].speech, "25");
+  assert.equal(arabicDigits.at(-1).text, "١٠٠");
+  const englishDigits = alphabetItems("english_digits");
+  assert.equal(englishDigits.length, 101);
+  assert.equal(englishDigits[42].text, "42");
+  assert.equal(englishDigits.at(-1).text, "100");
+  assert.ok([...arabicDigits, ...englishDigits].every((item) => item.kind === "number"));
 });
 
 test("لعبةُ الروضة: المجموعةُ كلُّها، تبدأ من حرف الدرس، والمكافأةُ بعد خمسة", () => {
@@ -140,6 +148,8 @@ test("لعبةُ الروضة: المجموعةُ كلُّها، تبدأ من �
   assert.equal(game.items.reward_after, ALPHABET_REWARD_AFTER);
   assert.equal(alphabetGame({ title: "", subject: "الأرقام العربية" }).items.start, 0);
   assert.equal(alphabetGame({ title: "العدد ٥", subject: "الأرقام العربية" }).items.start, 5);
+  assert.equal(alphabetGame({ title: "العدد ٢٥", subject: "الأرقام العربية" }).items.start, 25);
+  assert.equal(alphabetGame({ title: "العدد 100", subject: "الأرقام العربية" }).items.start, 100, "أيّاً كانت أرقامُ العنوان");
   assert.equal(alphabetGame({ title: "Letter C", subject: "الحروف الإنجليزية" }).items.start, 2);
   assert.equal(alphabetGame({ title: "", subject: "العلوم" }), null);
 });
@@ -153,19 +163,20 @@ const question = (n, answer = "الشمس", options = ["الشمس", "القمر
   answer,
 });
 
-test("إجابةٌ تُكتب بإصبع: كلمةٌ أو كلمتان قصيرتان بلا رموز", () => {
+test("خيارٌ يُمرَّر عليه: إلى ثلاث كلماتٍ قصيرة بلا رموز", () => {
   assert.ok(isTraceableAnswer("الشمس"));
   assert.ok(isTraceableAnswer("ضوء الشمس"));
+  assert.ok(isTraceableAnswer("ضوء الشمس الساطع"));
   assert.ok(isTraceableAnswer("Sun"));
   assert.ok(isTraceableAnswer("12"));
-  assert.ok(!isTraceableAnswer("ضوء الشمس الساطع"), "ثلاثُ كلمات");
-  assert.ok(!isTraceableAnswer("البروتوبلازمات"), "أطولُ من ١٢ حرفاً");
+  assert.ok(!isTraceableAnswer("ضوء الشمس الساطع جدا"), "أربعُ كلمات");
+  assert.ok(!isTraceableAnswer("البروتوبلازماتالخلوية"), "أطولُ من ١٨ حرفاً");
   assert.ok(!isTraceableAnswer("H2O"), "حروفٌ وأرقامٌ في كلمة");
   assert.ok(!isTraceableAnswer("3.5"));
   assert.ok(!isTraceableAnswer(""));
 });
 
-test("من ٥ إلى ١٠ أسئلة صالحة، والإجابةُ بين ثلاثة خيارات", () => {
+test("من ٦ إلى ١٠ أسئلة صالحة، والإجابةُ بين ثلاثة خيارات", () => {
   const raw = JSON.stringify({ questions: Array.from({ length: 14 }, (_, i) => question(i)) });
   const quiz = parseTracingQuiz(raw, owner, { subject: "العلوم" });
   assert.equal(quiz.items.length, TRACING_QUIZ_LIMITS.max);
@@ -178,21 +189,43 @@ test("من ٥ إلى ١٠ أسئلة صالحة، والإجابةُ بين ثل
   }
 });
 
-test("ما لا يُتتبّع يسقط، وأقلُّ من خمسةٍ صالحةٍ لا يُحفظ", () => {
+test("ما لا يُمرَّر عليه يسقط، وأقلُّ من ستّةٍ صالحةٍ لا يُحفظ", () => {
   const raw = {
     questions: [
       question(1),
       question(2),
       question(3),
       question(4),
-      question(5, "ضوء الشمس الساطع جداً", ["ضوء الشمس الساطع جداً", "القمر", "النجوم"]),
-      question(6, "الشمس", ["الشمس", "الشمس"]),
+      question(5),
+      question(6, "ضوء الشمس الساطع جداً اليوم", ["ضوء الشمس الساطع جداً اليوم", "القمر", "النجوم"]),
+      question(7, "الشمس", ["الشمس", "الشمس"]),
       { question: "قصير", options: ["أ", "ب", "ج"], answer: "أ" },
     ],
   };
   assert.equal(parseTracingQuiz(raw, owner), null);
-  raw.questions.push(question(7));
-  assert.equal(parseTracingQuiz(raw, owner).items.length, 5);
+  raw.questions.push(question(8));
+  assert.equal(parseTracingQuiz(raw, owner).items.length, 6);
+});
+
+test("الإعادةُ أسئلةٌ جديدة: ما رآه الطالب يسقط ولو أعاده النموذج، ويُذكر له ليتجنّبه", () => {
+  const raw = { questions: Array.from({ length: 9 }, (_, i) => question(i)) };
+  const seen = [question(0).question, question(1).question, question(2).question];
+  const fresh = parseTracingQuiz(raw, owner, { exclude: seen });
+  assert.equal(fresh.items.length, 6);
+  assert.ok(fresh.items.every((item) => !seen.includes(item.prompt)));
+  const prompt = tracingQuiz.tracingQuizPrompt({ lessonTitle: "الضوء", lessonText: "نص", exclude: seen });
+  assert.ok(seen.every((q) => prompt.includes(q)));
+  assert.ok(!tracingQuiz.tracingQuizPrompt({ lessonTitle: "الضوء", lessonText: "نص" }).includes("من قبل"));
+});
+
+test("مكافأةُ الجولة: جوهرةٌ وعشرُ نقاطٍ عن كل صحيحة، محصورةً بعدد الأسئلة", () => {
+  const { tracingQuizReward } = tracingQuiz;
+  assert.deepEqual(tracingQuizReward(7, 10), { gems: 7, points: 70 });
+  assert.deepEqual(tracingQuizReward(0, 8), { gems: 0, points: 0 });
+  assert.deepEqual(tracingQuizReward(12, 8), { gems: 8, points: 80 }, "لا أكثرَ من الأسئلة");
+  assert.deepEqual(tracingQuizReward(50, 50), { gems: 10, points: 100 }, "ولا أكثرَ من حدّ الجولة");
+  assert.deepEqual(tracingQuizReward(-3, 5), { gems: 0, points: 0 });
+  assert.deepEqual(tracingQuizReward(null, null), { gems: 0, points: 0 });
 });
 
 test("المحفوظُ يُقرأ لدرسه ونصّه وحدهما", () => {

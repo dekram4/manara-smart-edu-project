@@ -15,7 +15,10 @@ import 'tracing_game.dart';
 import 'tracing_shelf_card.dart';
 
 /// يصرف مكافأة لعبةٍ فاز بها الطفل — الخادمُ يقرّر المقدار من سجلّ الدرس.
-typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
+///
+/// [correct] و[total]: نتيجةُ جولة أسئلة «أجب ومرِّر» — جوهرةٌ عن كل صحيحة في
+/// أوّل جولة، يحصرها الخادمُ بعدد الأسئلة.
+typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game, {int? correct, int? total});
 
 /// تبويبُ «ألعاب الدرس» في بطاقة المذاكرة: ثلاثُ ألعابٍ يولّدها الذكاءُ
 /// الاصطناعي من نصّ الدرس — سحبٌ وإسقاط، ومطابقة، وسباقُ أسئلةٍ بلا نهاية.
@@ -135,7 +138,10 @@ class _StudyGamesTabState extends State<StudyGamesTab>
   static List<String> seenItemsOf(StudyGame game) =>
       switch (game.type) {
         StudyGameType.endlessQuiz => [for (final q in game.questions) q.question],
-        StudyGameType.tracing => [for (final item in game.tracing) item.text],
+        // أسئلةُ «أجب ومرِّر» بنصّ السؤال: الإعادةُ تطلب غيرها.
+        StudyGameType.tracing => [
+            for (final item in game.tracing) item.isQuestion ? item.prompt! : item.text,
+          ],
         _ => [...game.dragItems],
       };
 
@@ -148,8 +154,11 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     final base = _baseOf(game.type);
     var chosen = base;
     final seen = await _loadSeen(game.type);
-    // التتبّعُ يُستخرج من نصّ الدرس لا من النموذج: لا نسخةَ جديدة تُطلب له.
-    final fresh = game.type == StudyGameType.tracing ? null : widget.fresh;
+    // حروفُ الروضة هي هي: لا نسخةَ جديدة لها. وأسئلةُ «أجب ومرِّر» كغيرها من
+    // الألعاب: كلُّ إعادةٍ أسئلةٌ جديدة من نصّ الدرس تتجنّب ما رآه الطالب.
+    final alphabet = game.type == StudyGameType.tracing && !game.tracing.any((item) => item.isQuestion);
+    final fresh = alphabet ? null : widget.fresh;
+    final rewarded = await _loadRewarded(game.type);
     if (seen.isNotEmpty && fresh != null) {
       if (!mounted) return;
       setState(() => _preparing = true);
@@ -163,9 +172,39 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     setState(() {
       _preparing = false;
       _active = chosen;
+      _activeRewarded = rewarded;
       _round += 1;
     });
     unawaited(_addSeen(game.type, seenItemsOf(chosen)));
+  }
+
+  /// صُرفت مكافأةُ هذه اللعبة لهذا الدرس من قبل — على هذا الجهاز.
+  ///
+  /// للعرض وحده: جولةُ الأسئلة تُظهر «💎» لكل صحيحة في أوّل جولة، و«تدريب»
+  /// فيما بعدها. والحكمُ للخادم: يصرف مرّةً لكل درس أيّاً كان ما يظهر هنا.
+  bool _activeRewarded = false;
+
+  String? _rewardedKeyFor(StudyGameType type) =>
+      widget.seenKey == null ? null : '${widget.seenKey}.rewarded.${type.wire}';
+
+  Future<bool> _loadRewarded(StudyGameType type) async {
+    final key = _rewardedKeyFor(type);
+    if (key == null) return false;
+    try {
+      return (await SharedPreferences.getInstance()).getBool(key) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _markRewarded(StudyGameType type) async {
+    final key = _rewardedKeyFor(type);
+    if (key == null) return;
+    try {
+      await (await SharedPreferences.getInstance()).setBool(key, true);
+    } catch (_) {
+      // تخزينٌ محجوب: تُعرض الجواهرُ في الإعادة، والخادمُ لا يصرفها.
+    }
   }
 
   /// أسئلةٌ جديدة للسباق حين يقترب من آخر ما عنده — لا يدور على المكرّر.
@@ -179,15 +218,17 @@ class _StudyGamesTabState extends State<StudyGamesTab>
     return game.questions;
   }
 
-  Future<void> _won(StudyGame game) async {
+  Future<void> _won(StudyGame game, {int? correct, int? total}) async {
     StudentSoundService.instance.playApplause();
     RewardResult? result;
     var failed = false;
     try {
-      result = await widget.onWin(game);
+      result = await widget.onWin(game, correct: correct, total: total);
     } catch (_) {
       failed = true;
     }
+    // الخادمُ سجّل الجولة — بجوهرةٍ أو بلا: ما بعدها تدريب.
+    if (result != null) unawaited(_markRewarded(game.type));
     if (!mounted) return;
     if (result != null && result.gems > 0) {
       StudentSoundService.instance.playReward();
@@ -298,7 +339,8 @@ class _StudyGamesTabState extends State<StudyGamesTab>
               game: active,
               onBack: () => setState(() => _active = null),
               onReplay: () => _open(active),
-              onWin: () => _won(active),
+              alreadyRewarded: _activeRewarded,
+              onWin: ({int? correct, int? total}) => _won(active, correct: correct, total: total),
               onNeedMore: widget.fresh == null ? null : _moreQuestions,
             ),
     );
@@ -516,14 +558,18 @@ class _GameStage extends StatelessWidget {
     required this.onReplay,
     required this.onWin,
     this.onNeedMore,
+    this.alreadyRewarded = false,
     super.key,
   });
 
   final StudyGame game;
   final VoidCallback onBack;
   final VoidCallback onReplay;
-  final Future<void> Function() onWin;
+
+  /// [correct]/[total] لجولة الأسئلة وحدها؛ وبقيّةُ الألعاب تناديها بلا شيء.
+  final Future<void> Function({int? correct, int? total}) onWin;
   final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
+  final bool alreadyRewarded;
 
   @override
   Widget build(BuildContext context) {
@@ -589,7 +635,12 @@ class _GameStage extends StatelessWidget {
                 onNeedMore: onNeedMore,
               ),
             StudyGameType.tracing =>
-              TracingGame(game: game, onWin: onWin, onReplay: onReplay),
+              TracingGame(
+                game: game,
+                onWin: onWin,
+                onReplay: onReplay,
+                alreadyRewarded: alreadyRewarded,
+              ),
           },
         ),
       ],

@@ -138,7 +138,7 @@ void main() {
   testWidgets('السحب والإسقاط بالضغط: خطأٌ لا يُحسب، والصحيحُ يُكمل ويطلب المكافأة',
       (tester) async {
     final won = <String>[];
-    await _pump(tester, (game) async {
+    await _pump(tester, (game, {correct, total}) async {
       won.add(game.id);
       return _reward(8, 30);
     });
@@ -166,7 +166,7 @@ void main() {
 
   testWidgets('المطابقة بالضغط تُكمل الأزواج وتطلب المكافأة', (tester) async {
     final won = <String>[];
-    await _pump(tester, (game) async {
+    await _pump(tester, (game, {correct, total}) async {
       won.add(game.id);
       return _reward(6, 20);
     });
@@ -182,7 +182,7 @@ void main() {
 
   testWidgets('السباق: بلوغُ الهدف فوزٌ مرّةً واحدة', (tester) async {
     final won = <String>[];
-    final games = await _pump(tester, (game) async {
+    final games = await _pump(tester, (game, {correct, total}) async {
       won.add(game.id);
       return _reward(5, 15);
     });
@@ -203,7 +203,7 @@ void main() {
 
   testWidgets('السحب الحقيقي: ضغطةٌ مطوّلة ثم إسقاطٌ في السلّة', (tester) async {
     final won = <String>[];
-    await _pump(tester, (game) async {
+    await _pump(tester, (game, {correct, total}) async {
       won.add(game.id);
       return _reward(8, 30);
     });

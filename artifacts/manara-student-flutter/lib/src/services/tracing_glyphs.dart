@@ -75,7 +75,7 @@ final Map<String, TracingShape> _decoded = {};
 /// بناءُ المسار وقتَ اللعب يرسم الحرفَ صورةً ثم يقرأ بكسلاتها من معالج
 /// الرسوم (`toImage` ثم `toByteData`). وعلى بعض أجهزة Android بمحرّك Impeller
 /// لا تعود هذه القراءةُ أبداً — فيبقى الطفلُ أمام دائرة تحميلٍ لا تنتهي، وهو
-/// ما ظهر في صفّ الروضة. فحروفُها وأرقامُها الأربعةُ والسبعون تُحسب عند
+/// ما ظهر في صفّ الروضة. فحروفُها وأرقامُها (٥٤ حرفاً و٢٠٢ عدد) تُحسب عند
 /// التطوير (`tool/generate_tracing_glyphs_test.dart`) وتُشحن مع التطبيق:
 /// لا رسمَ ولا قراءةَ ولا انتظار.
 TracingShape? precomputedTracingShape(TracingItem item) {
@@ -208,8 +208,15 @@ final kindergartenTracingItems = <TracingItem>[
     'Nn', 'Oo', 'Pp', 'Qq', 'Rr', 'Ss', 'Tt', 'Uu', 'Vv', 'Ww', 'Xx', 'Yy', 'Zz',
   ])
     TracingItem(text: pair, kind: 'letter', lang: 'en'),
-  for (final digit in ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'])
-    TracingItem(text: digit, kind: 'number', lang: 'ar'),
-  for (final digit in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
-    TracingItem(text: digit, kind: 'number', lang: 'en'),
+  // من الصفر إلى المئة بالنظامين، كما في `alphabetItems` على الخادم.
+  for (var n = 0; n <= 100; n++)
+    TracingItem(text: arabicIndicDigits('$n'), kind: 'number', lang: 'ar'),
+  for (var n = 0; n <= 100; n++)
+    TracingItem(text: '$n', kind: 'number', lang: 'en'),
 ];
+
+/// «25» بالأرقام الهندية: «٢٥».
+String arabicIndicDigits(String value) => value.replaceAllMapped(
+      RegExp('[0-9]'),
+      (m) => String.fromCharCode(0x0660 + int.parse(m[0]!)),
+    );
