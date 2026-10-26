@@ -43,6 +43,39 @@ class TracePlan {
   final double inkWidth;
 
   bool get isEmpty => strokes.isEmpty;
+
+  /// صيغةٌ مضغوطة: كلُّ جرّةٍ قائمةُ أعدادٍ متتالية (x، y، x، y …) بأربع
+  /// خاناتٍ عشرية — تكفي لشاشةٍ بآلاف النقاط، وتُبقي الملفَّ المولَّد صغيراً.
+  Map<String, Object> toJson() => {
+        'w': width,
+        'h': height,
+        'ink': double.parse(inkWidth.toStringAsFixed(4)),
+        's': [
+          for (final stroke in strokes)
+            [
+              for (final p in stroke.points) ...[
+                double.parse(p.x.toStringAsFixed(4)),
+                double.parse(p.y.toStringAsFixed(4)),
+              ],
+            ],
+        ],
+      };
+
+  static TracePlan fromJson(Map<String, Object?> json) {
+    final strokes = <TraceStroke>[];
+    for (final raw in (json['s'] as List? ?? const [])) {
+      final flat = [for (final v in raw as List) (v as num).toDouble()];
+      strokes.add(TraceStroke([
+        for (var i = 0; i + 1 < flat.length; i += 2) TracePoint(flat[i], flat[i + 1]),
+      ]));
+    }
+    return TracePlan(
+      strokes: strokes,
+      width: (json['w'] as num? ?? 0).toInt(),
+      height: (json['h'] as num? ?? 0).toInt(),
+      inkWidth: (json['ink'] as num? ?? 0).toDouble(),
+    );
+  }
 }
 
 /// يبني [TracePlan] من صورةٍ ثنائية للشكل كما يرسمه الخطّ.
@@ -128,17 +161,26 @@ class TracePlanner {
       final minLength = math.max(3, (shapeHeight * 0.2).round());
       final strokes = <TraceStroke>[
         for (final path in _walk(skeleton, bones, width, rtl, minLength))
-          if (_resample(path, step) case final points when points.isNotEmpty)
+          if (_resample(
+                _downward(rtl ? _notUpward(path, shapeHeight) : _fromWritingStart(path, shapeHeight)),
+                step,
+              )
+              case final points when points.isNotEmpty)
             TraceStroke([
               for (final p in points) TracePoint(p.x / width, p.y / height),
             ]),
       ];
       if (strokes.isEmpty) continue;
       if (topFirst) {
+        // الأعلى أوّلاً؛ وما تقاربت بداياتُه ارتفاعاً (أسنانُ السين) فباتجاه
+        // الكتابة — وإلا قُدّم سنٌّ أوسطُ على الأيمن لفرق بكسلٍ أو اثنين.
         final indexed = strokes.indexed.toList()
           ..sort((a, b) {
-            final byTop = a.$2.points.first.y.compareTo(b.$2.points.first.y);
-            return byTop != 0 ? byTop : a.$1.compareTo(b.$1);
+            final pa = a.$2.points.first;
+            final pb = b.$2.points.first;
+            if ((pa.y - pb.y).abs() > 0.12) return pa.y.compareTo(pb.y);
+            final byDirection = rtl ? pb.x.compareTo(pa.x) : pa.x.compareTo(pb.x);
+            return byDirection != 0 ? byDirection : a.$1.compareTo(b.$1);
           });
         strokes
           ..clear()
@@ -324,6 +366,18 @@ class TracePlanner {
     // الأقربُ إلى بداية الكتابة: الأيمنُ أو الأيسر، ثم الأعلى.
     double startScore(_P p) => (rtl ? p.x : -p.x) * 4 - p.y.toDouble();
 
+    // ارتفاعُ الشكل: به يُعرف أيُّ الطرفين أعلى «بوضوح».
+    final shapeTop = bones.map((p) => p.y).reduce(math.min);
+    final shapeSpan = math.max(1, bones.map((p) => p.y).reduce(math.max) - shapeTop);
+
+    /// أيُّ الطرفين تبدأ منه اليد. في العربية: الأعلى بوضوح أوّلاً — الجيمُ
+    /// من رأسها لا من ذيلها الأيمن الأسفل — وما تقارب ارتفاعُه فالأيمن (الباء،
+    /// النون). ومن اليسار: [startScore] كما هو، تُصحّحه [_fromWritingStart].
+    _P better(_P a, _P b) {
+      if (rtl && (a.y - b.y).abs() > shapeSpan * 0.25) return a.y < b.y ? a : b;
+      return startScore(a) >= startScore(b) ? a : b;
+    }
+
     _P? nextStart() {
       final open = bones.where((p) => !visited.contains(p.key(width))).toList();
       if (open.isEmpty) return null;
@@ -333,7 +387,7 @@ class TracePlanner {
       if (ends.isEmpty && paths.isEmpty) {
         return pool.reduce((a, b) => a.y < b.y || (a.y == b.y && startScore(a) > startScore(b)) ? a : b);
       }
-      return pool.reduce((a, b) => startScore(a) >= startScore(b) ? a : b);
+      return pool.reduce(better);
     }
 
     while (true) {
@@ -381,6 +435,44 @@ class TracePlanner {
       paths.first,
       ...paths.skip(1).where((path) => path.length >= minLength),
     ];
+  }
+
+  /// في الكتابة من اليسار (الإنجليزية والأرقام): جرّةٌ طرفاها على ارتفاعٍ
+  /// واحدٍ تقريباً تُكتب من اليسار — هكذا يبدأ «٨» من قاعدته اليسرى لا
+  /// اليمنى، والخطُّ الأفقيُّ من أوّله.
+  ///
+  /// والمنحنياتُ لا تُمسّ: «6» و«9» و«C» تبدأ من يمينها الأعلى، وقلبُها
+  /// لأن نهايتها أيسرُ يُخطئها. والعربيةُ لا يُطبَّق عليها أصلاً.
+  ///
+  /// وجرّةٌ صاعدةٌ في جملتها — نهايتُها أعلى من بدايتها بوضوح — تُكتب نازلة:
+  /// المشيُ يبدأ من الطرف المفتوح الأيسر، وهو في «S» ذيلُها الأسفل وفي «9»
+  /// ذيلُها؛ واليدُ تبدأهما من الأعلى.
+  static List<_P> _fromWritingStart(List<_P> path, int shapeHeight) {
+    if (path.length < 2) return path;
+    final rise = path.first.y - path.last.y;
+    if (rise > shapeHeight * 0.3) return path.reversed.toList();
+    final level = rise.abs() < shapeHeight * 0.2;
+    return level && path.last.x < path.first.x ? path.reversed.toList() : path;
+  }
+
+  /// في العربية: جرّةٌ صاعدةٌ في جملتها تُكتب نازلة. الراءُ والزاي رأسُهما
+  /// منعطفٌ لا طرفٌ مفتوح، فيبدأ المشيُ من ذيلهما الأسفل صاعداً؛ واليدُ
+  /// تبدأهما من الأعلى.
+  static List<_P> _notUpward(List<_P> path, int shapeHeight) {
+    if (path.length < 2) return path;
+    return path.first.y - path.last.y > shapeHeight * 0.3 ? path.reversed.toList() : path;
+  }
+
+  /// الخطُّ الرأسيُّ يُكتب من أعلاه: الألفُ وساقُ اللام والكاف، و1 وl.
+  ///
+  /// المشيُ يبدأ من طرفٍ مفتوح؛ وفي الألف قد يكون الأعلى منعطفاً صغيراً لا
+  /// طرفاً، فيبدأ من الأسفل صاعداً — بعكس ما يُعلَّم الطفل. فجرّةٌ رأسيّةٌ
+  /// في معظمها تُقلب إن بدأت من أسفلها.
+  static List<_P> _downward(List<_P> path) {
+    if (path.length < 2) return path;
+    final dx = (path.last.x - path.first.x).abs();
+    final dy = path.last.y - path.first.y;
+    return dy < 0 && -dy > dx * 2 ? path.reversed.toList() : path;
   }
 
   /// نقاطٌ على مسافاتٍ متساوية بطول المسار، أوّلُها بدايتُه وآخرُها نهايتُه.
