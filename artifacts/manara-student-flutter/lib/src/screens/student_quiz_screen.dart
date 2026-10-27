@@ -312,6 +312,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
           // not fired alongside it — they share one effects player and the
           // second would cut the first off.
           StudentSoundService.instance.playApplause();
+          if (reward.gems > 0) StudentSoundService.instance.playReward();
           StudentSoundService.instance.playEncouragementArabic();
           if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
             _celebrationController.play();
@@ -321,6 +322,7 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
           // that is what the clapping marks. The encouragement still
           // carries the result, and there is no confetti here.
           StudentSoundService.instance.playApplause();
+          if (reward.gems > 0) StudentSoundService.instance.playReward();
           StudentSoundService.instance.playEncouragementArabic();
         }
         final message = reward.alreadyRewarded

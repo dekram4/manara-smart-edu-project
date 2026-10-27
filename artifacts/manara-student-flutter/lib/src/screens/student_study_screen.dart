@@ -278,6 +278,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
       if (result.gems > 0) {
         _confetti.play();
         StudentSoundService.instance.playApplause();
+        StudentSoundService.instance.playReward();
       }
     } catch (_) {
       if (!mounted) return;
