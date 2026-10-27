@@ -36,10 +36,11 @@ const _surahLooks = <String, (List<Color>, String)>{
 };
 
 /// لعبةُ «تسميع القرآن الكريم»: يختار الطفلُ سورةً فيسمع اسمها، ويضغط المايك
-/// ويقرأ — الاستعاذةَ ثم البسملةَ ثم السورة — فيثبت تحت كل كلمةٍ خطٌّ أخضرُ
-/// إن قرأها صحيحة وأحمرُ إن أخطأها أو تخطّاها ([RecitationTracker]). وبعد آخر
-/// السورة يعيد الآياتِ الحمراء وحدها، حتى تصحّ كلُّها: عبارةُ تشجيعٍ وخلفها
-/// التصفيق، والمكافأةُ لأول مرّةٍ تُسمَّع فيها.
+/// ويقرأ — الاستعاذةَ ثم البسملةَ ثم السورة — فيظهر تحت كل كلمةٍ في الحال
+/// خطٌّ أخضرُ إن قرأها صحيحة وأحمرُ إن أخطأها أو تخطّاها ([RecitationTracker]).
+/// ولا ينتقل إلى الآية التالية حتى تخضرّ الجارية كلُّها، وبجانبها زرٌّ يُسمعه
+/// تلاوتها الصحيحة ليردّدها. والمايكُ يبقى مفتوحاً حتى يُغلقه. وحين تصحّ
+/// السورةُ كلُّها: عبارةُ تشجيعٍ وخلفها التصفيق، والمكافأةُ لأول مرّة.
 class QuranRecitationGame extends StatefulWidget {
   const QuranRecitationGame({
     required this.onRecited,
@@ -47,6 +48,7 @@ class QuranRecitationGame extends StatefulWidget {
     this.listen,
     this.stopListening,
     this.playName,
+    this.playRecitation,
     this.surahs = quranSurahs,
     super.key,
   });
@@ -62,6 +64,9 @@ class QuranRecitationGame extends StatefulWidget {
 
   /// للاختبار: تشغيلُ اسم السورة. وإلا [StudentSoundService.playClip].
   final void Function(String asset)? playName;
+
+  /// للاختبار: تلاوةُ آيةٍ حتى آخرها. وإلا [StudentSoundService.playClipToEnd].
+  final Future<void> Function(String asset)? playRecitation;
 
   final List<QuranSurah> surahs;
 
@@ -87,7 +92,19 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
 
   /// آخرُ ما سُمع في الاستماع الجاري — يُعاد تقديمه عند انتهائه.
   String _heard = '';
+
+  /// فتح الطفلُ المايكَ ولم يُغلقه: ما يُنهيه النظامُ (صمتٌ أو مهلة) يُفتح من
+  /// جديد، فيبقى مفتوحاً ما دام يقرأ.
+  bool _wantListening = false;
   bool _listening = false;
+
+  /// تُسمَع التلاوةُ الصحيحة الآن، والمايكُ مغلقٌ لها.
+  bool _helping = false;
+
+  /// رقمُ الاستماع الجاري: ما يصل من استماعٍ سابقٍ لا يُحسب.
+  int _session = 0;
+  int _endedSession = -1;
+
   bool _done = false;
   String? _message;
   int? _gems;
@@ -103,6 +120,9 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
 
   @visibleForTesting
   bool get done => _done;
+
+  @visibleForTesting
+  bool get listening => _listening;
 
   @override
   void initState() {
@@ -126,11 +146,14 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
 
   @override
   void dispose() {
+    _wantListening = false;
     if (_listening) unawaited(_stop());
     _pulse.dispose();
     _shine.dispose();
     super.dispose();
   }
+
+  bool get _still => MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
   Future<void> _stop() => (widget.stopListening ?? StudentVoiceService.instance.stopListening)();
 
@@ -157,75 +180,112 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     _alreadyRewarded = false;
   }
 
-  Future<void> _close() async {
+  Future<void> _quiet() async {
+    _wantListening = false;
     if (_listening) await _stop();
+    _onEnd(_session);
+  }
+
+  Future<void> _close() async {
+    await _quiet();
     if (!mounted) return;
     setState(() {
-      _listening = false;
-      _pulse.stop();
       _surah = null;
       _tracker = null;
     });
-    if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) _shine.repeat();
+    if (!_still) _shine.repeat();
   }
 
   Future<void> _restart() async {
-    if (_listening) await _stop();
+    await _quiet();
     if (!mounted) return;
-    setState(() {
-      _listening = false;
-      _pulse.stop();
-      _reset();
-    });
+    setState(_reset);
   }
 
   Future<void> _toggleMic() async {
-    final tracker = _tracker;
-    if (_done || tracker == null) return;
-    if (_listening) {
-      await _stop();
-      _onEnd();
+    if (_done || _tracker == null || _helping) return;
+    if (_wantListening) {
+      await _quiet();
       return;
     }
-    tracker.startSession();
-    _heard = '';
+    _wantListening = true;
     setState(() => _message = null);
-    final listen = widget.listen ?? StudentVoiceService.instance.listenLive;
-    final started = await listen(onWords: _onWords, onEnd: _onEnd);
-    if (!mounted) return;
-    if (!started) {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-      setState(() => _message = tr('quran.micUnavailable'));
-      return;
-    }
     HapticFeedback.mediumImpact();
-    setState(() => _listening = true);
-    if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) _pulse.repeat(reverse: true);
+    await _startListening();
   }
 
-  void _onWords(String heard) {
+  Future<void> _startListening() async {
     final tracker = _tracker;
-    if (!mounted || _done || tracker == null || !_listening) return;
+    if (tracker == null || !_wantListening || _done || _helping) return;
+    final session = ++_session;
+    tracker.startSession();
+    _heard = '';
+    final listen = widget.listen ?? StudentVoiceService.instance.listenLive;
+    final started = await listen(onWords: (words) => _onWords(session, words), onEnd: () => _onEnd(session));
+    if (!mounted || session != _session) return;
+    if (!started) {
+      _wantListening = false;
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      _pulse.stop();
+      setState(() {
+        _listening = false;
+        _message = tr('quran.micUnavailable');
+      });
+      return;
+    }
+    setState(() => _listening = true);
+    if (!_still && !_pulse.isAnimating) _pulse.repeat(reverse: true);
+  }
+
+  void _onWords(int session, String heard) {
+    final tracker = _tracker;
+    if (!mounted || session != _session || _done || _helping || tracker == null) return;
     _heard = heard;
     setState(() => tracker.hear(heard));
     if (tracker.complete) unawaited(_complete());
   }
 
-  /// سكت الطفلُ أو أوقف المايك: ما قاله خطأً في آخر تلاوته يثبت أحمر.
-  void _onEnd() {
+  void _onEnd(int session) {
+    if (!mounted || session == _endedSession) return;
+    _endedSession = session;
     final tracker = _tracker;
-    if (!mounted || !_listening) return;
-    setState(() {
-      _listening = false;
+    if (session == _session) tracker?.hear(_heard, ended: true);
+    setState(() => _listening = false);
+    if (tracker != null && tracker.complete) {
+      unawaited(_complete());
+      return;
+    }
+    if (_wantListening && !_helping && !_done) {
+      // أغلقه النظامُ والطفلُ لم يُغلقه: يُفتح من جديد بعد لحظة.
+      Future<void>.delayed(const Duration(milliseconds: 250), () {
+        if (mounted) unawaited(_startListening());
+      });
+    } else {
       _pulse.stop();
-      tracker?.hear(_heard, ended: true);
-    });
-    if (tracker != null && tracker.complete) unawaited(_complete());
+    }
+  }
+
+  /// التلاوةُ الصحيحة للخطوة الجارية، والمايكُ مغلقٌ لها — ثم يُفتح ليردّد.
+  Future<void> _help(RecitationUnit unit) async {
+    if (_helping) return;
+    final resume = _wantListening;
+    setState(() => _helping = true);
+    if (_listening) {
+      await _stop();
+      _onEnd(_session);
+    }
+    final play = widget.playRecitation ??
+        (asset) => StudentSoundService.instance.playClipToEnd(asset, volume: 1.0);
+    await play(unit.clip);
+    if (!mounted) return;
+    setState(() => _helping = false);
+    if (resume && _wantListening && !_done) await _startListening();
   }
 
   Future<void> _complete() async {
     final surah = _surah;
     if (surah == null || _done) return;
+    _wantListening = false;
     setState(() {
       _done = true;
       _listening = false;
@@ -426,16 +486,16 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
   String? _hintText(RecitationTracker tracker) {
     if (_message != null) return _message;
     if (_done) return null;
-    if (tracker.reviewing) return tr('quran.reviewRed');
+    if (_helping) return tr('quran.helping');
+    if (tracker.blocked) return tr('quran.blocked');
     if (_listening) return tr('quran.listening');
-    if (tracker.position == 0) return tr('quran.tapMic');
+    if (tracker.currentUnit == 0 && !tracker.status.contains(RecitedWord.correct)) return tr('quran.tapMic');
     return tr('quran.continue');
   }
 
   Widget _reciting(BuildContext context, QuranSurah surah) {
     final tracker = _tracker!;
     final hint = _hintText(tracker);
-    final review = tracker.reviewing;
     return Column(
       children: [
         _topBar(context, trf('quran.surah', {'name': surah.name}), _close),
@@ -443,12 +503,15 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             children: [
-              if (hint != null) ...[
-                _hint(context, hint, strong: review),
+              if (_done) ...[
+                _doneBanner(),
+                const SizedBox(height: 12),
+              ] else if (hint != null) ...[
+                _hint(context, hint, strong: tracker.blocked && !_helping),
                 const SizedBox(height: 12),
               ],
               Container(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
                 decoration: BoxDecoration(
                   color: StudentSurface.card(context),
                   borderRadius: BorderRadius.circular(24),
@@ -457,8 +520,6 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
                 ),
                 child: _units(context, tracker),
               ),
-              const SizedBox(height: 14),
-              if (_done) _doneBanner(),
             ],
           ),
         ),
@@ -483,106 +544,121 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     );
   }
 
-  /// الاستعاذةُ والبسملةُ كلٌّ في سطره بشارته، ثم الآياتُ متتابعةً بأرقامها.
+  /// الخطواتُ بترتيبها: ما قُرئ أخضر، والجاريةُ مظلّلة وبجانبها زرُّ
+  /// «استمع» إن كان فيها أحمر، وما بعدها باهتٌ حتى يُبلغ.
   Widget _units(BuildContext context, RecitationTracker tracker) {
     final unitOf = tracker.unitOf;
-    final reviewUnit = tracker.reviewUnit;
-    Widget wordsOf(int unit) => Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            for (var k = 0; k < unitOf.length; k++)
-              if (unitOf[k] == unit) _word(context, tracker, k, inReview: unit == reviewUnit),
-          ],
-        );
-    final steps = <Widget>[];
-    final verses = <Widget>[];
+    final current = tracker.currentUnit;
+    final children = <Widget>[];
     for (var u = 0; u < tracker.units.length; u++) {
       final unit = tracker.units[u];
-      if (unit.kind == RecitationUnitKind.verse) {
-        verses.add(Container(
-          key: ValueKey('quran-unit-$u'),
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+      final isCurrent = u == current && !_done;
+      final words = [
+        for (var k = 0; k < unitOf.length; k++)
+          if (unitOf[k] == u) _word(context, tracker, k, isCurrent: isCurrent),
+      ];
+      children.add(AnimatedOpacity(
+        key: ValueKey('quran-unit-$u'),
+        duration: const Duration(milliseconds: 220),
+        opacity: u > current && !_done ? 0.42 : 1.0,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
           decoration: BoxDecoration(
-            color: u == reviewUnit ? gold.withValues(alpha: 0.16) : null,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              for (var k = 0; k < unitOf.length; k++)
-                if (unitOf[k] == u) _word(context, tracker, k, inReview: u == reviewUnit),
-              Text(
-                '﴿${_arabicDigits(unit.number!)}﴾',
-                style: const TextStyle(fontSize: 20, height: 2.1, fontWeight: FontWeight.w800, color: gold),
-              ),
-            ],
-          ),
-        ));
-      } else {
-        steps.add(Container(
-          key: ValueKey('quran-unit-$u'),
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-          decoration: BoxDecoration(
-            color: u == reviewUnit ? gold.withValues(alpha: 0.16) : emerald.withValues(alpha: 0.06),
+            color: isCurrent
+                ? gold.withValues(alpha: tracker.blocked ? 0.2 : 0.12)
+                : (unit.kind == RecitationUnitKind.verse ? null : emerald.withValues(alpha: 0.06)),
             borderRadius: BorderRadius.circular(16),
+            border: isCurrent ? Border.all(color: gold.withValues(alpha: 0.6), width: 2) : null,
           ),
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                decoration: BoxDecoration(color: emerald, borderRadius: BorderRadius.circular(999)),
-                child: Text(
-                  tr(unit.kind == RecitationUnitKind.istiadha ? 'quran.istiadha' : 'quran.basmala'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
+              if (unit.kind != RecitationUnitKind.verse)
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(color: emerald, borderRadius: BorderRadius.circular(999)),
+                  child: Text(
+                    tr(unit.kind == RecitationUnitKind.istiadha ? 'quran.istiadha' : 'quran.basmala'),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
+                  ),
                 ),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ...words,
+                  if (unit.number != null)
+                    Text(
+                      '﴿${_arabicDigits(unit.number!)}﴾',
+                      style: const TextStyle(fontSize: 20, height: 2.1, fontWeight: FontWeight.w800, color: gold),
+                    ),
+                  if (isCurrent && tracker.blocked) _helpButton(unit),
+                ],
               ),
-              wordsOf(u),
             ],
           ),
-        ));
-      }
+        ),
+      ));
     }
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ...steps,
-          Wrap(alignment: WrapAlignment.center, runSpacing: 2, children: verses),
-        ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+    );
+  }
+
+  /// «استمع»: التلاوةُ الصحيحة للآية الخاطئة، يسمعها الطفلُ ثم يردّدها.
+  Widget _helpButton(RecitationUnit unit) {
+    return Semantics(
+      button: true,
+      label: tr('quran.listen'),
+      child: Material(
+        color: _helping ? teal : const Color(0xFF2563EB),
+        shape: const StadiumBorder(),
+        elevation: 3,
+        child: InkWell(
+          key: const ValueKey('quran-help'),
+          customBorder: const StadiumBorder(),
+          onTap: _helping ? null : () => _help(unit),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_helping ? Icons.hearing_rounded : Icons.volume_up_rounded, color: Colors.white, size: 24),
+                const SizedBox(width: 4),
+                Text(
+                  tr('quran.listen'),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _word(BuildContext context, RecitationTracker tracker, int k, {required bool inReview}) {
+  Widget _word(BuildContext context, RecitationTracker tracker, int k, {required bool isCurrent}) {
     final state = tracker.status[k];
-    // الكلمةُ التي ينتظرها المؤشّر الآن، في القراءة الأولى.
-    final next = !tracker.firstPassDone && k == tracker.position && !_done;
     final line = switch (state) {
       RecitedWord.correct => green,
       RecitedWord.wrong => red,
-      RecitedWord.pending => next ? gold : Colors.transparent,
+      RecitedWord.pending => Colors.transparent,
     };
     final ink = switch (state) {
       RecitedWord.correct => green,
       RecitedWord.wrong => red,
       RecitedWord.pending => StudentSurface.ink(context),
     };
-    return AnimatedContainer(
+    return Container(
       key: ValueKey('quran-word-$k'),
-      duration: const Duration(milliseconds: 160),
       padding: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: line, width: 3.5)),
-        color: state == RecitedWord.wrong
-            ? red.withValues(alpha: inReview ? 0.16 : 0.08)
-            : (next ? gold.withValues(alpha: 0.12) : null),
+        color: state == RecitedWord.wrong ? red.withValues(alpha: 0.12) : null,
       ),
       child: Text(
         tracker.words[k],
@@ -648,11 +724,12 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     return AnimatedBuilder(
       animation: _pulse,
       builder: (context, _) {
-        final t = _listening ? _pulse.value : 0.0;
-        final color = _done ? green : (_listening ? red : emerald);
+        final on = _wantListening && !_helping;
+        final t = on ? _pulse.value : 0.0;
+        final color = _done ? green : (on ? red : emerald);
         return Semantics(
           button: true,
-          label: _listening ? tr('quran.listening') : tr('quran.tapMic'),
+          label: on ? tr('quran.listening') : tr('quran.tapMic'),
           child: GestureDetector(
             key: const ValueKey('quran-mic'),
             onTap: _toggleMic,
@@ -671,7 +748,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
                 ],
               ),
               child: Icon(
-                _done ? Icons.check_rounded : (_listening ? Icons.stop_rounded : Icons.mic_rounded),
+                _done ? Icons.check_rounded : (on ? Icons.stop_rounded : Icons.mic_rounded),
                 color: Colors.white,
                 size: 44,
               ),

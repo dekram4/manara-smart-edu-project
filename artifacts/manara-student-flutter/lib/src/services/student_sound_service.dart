@@ -398,14 +398,14 @@ class StudentSoundService with WidgetsBindingObserver {
   /// جهاز طفل، وتظهر في `flutter logs` عند الفحص.
   ///
   /// [volume]: علوٌّ صريح لمقطعٍ لم يُقَس في [voiceRms] — وإلا [voiceVolume].
-  Future<void> playClip(String asset, {double? volume}) async {
+  Future<bool> playClip(String asset, {double? volume}) async {
     if (muted.value) {
       debugPrint('[sound] $asset لم يُشغّل: الصوت مكتوم');
-      return;
+      return false;
     }
     if (_backgrounded) {
       debugPrint('[sound] $asset لم يُشغّل: التطبيق في الخلفية');
-      return;
+      return false;
     }
     try {
       // والوجودُ يُفحص من بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ
@@ -415,7 +415,7 @@ class StudentSoundService with WidgetsBindingObserver {
       final key = asset.startsWith('assets/') ? asset : 'assets/$asset';
       if (!bundled.contains(key)) {
         debugPrint('[sound] $asset ليس في حزمة الأصول — راجع pubspec.yaml');
-        return;
+        return false;
       }
       // و`AssetSource` تتوقّع المسارَ بلا بادئة `assets/`: الحزمةُ تضيفها.
       // فمسارٌ كاملٌ يصل هنا يُقصّ، وإلا طُلب `assets/assets/...`.
@@ -426,8 +426,25 @@ class StudentSoundService with WidgetsBindingObserver {
       _voiceClip = source;
       await _voicePlayer.play(AssetSource(source), volume: volume ?? voiceVolume(source));
       debugPrint('[sound] $source يُشغّل');
+      return true;
     } catch (error) {
       debugPrint('[sound] $asset تعذّر تشغيله: $error');
+      return false;
+    }
+  }
+
+  /// [playClip] وينتظر انتهاءه — أو [limit]، أو صمتَه إن لم يُشغَّل أصلاً.
+  ///
+  /// لتلاوةٍ يسمعها الطفلُ والمايكُ مغلق: يُفتح بعدها لا أثناءها، وإلا كتب
+  /// محرّكُ التعرّف التلاوةَ نفسها وحسبها قراءةَ الطفل.
+  Future<void> playClipToEnd(String asset, {double? volume, Duration limit = const Duration(seconds: 30)}) async {
+    if (muted.value || _backgrounded) return;
+    final done = _voicePlayer.onPlayerComplete.first;
+    if (!await playClip(asset, volume: volume)) return;
+    try {
+      await done.timeout(limit);
+    } catch (_) {
+      // انقطع أو طال: المايكُ يُفتح على كل حال.
     }
   }
 

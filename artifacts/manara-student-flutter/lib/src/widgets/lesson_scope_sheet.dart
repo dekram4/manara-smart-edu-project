@@ -480,33 +480,33 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
             Row(
               children: [
                 Container(
-                  width: 30,
-                  height: 30,
+                  width: 36,
+                  height: 36,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: level.color, shape: BoxShape.circle),
                   child: Text(
                     '${index + 1}',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(level.emoji, style: const TextStyle(fontSize: 18)),
+                Text(level.emoji, style: const TextStyle(fontSize: 26)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 19,
                       fontWeight: FontWeight.w900,
                       color: StudentSurface.ink(context),
                     ),
                   ),
                 ),
-                Icon(level.icon, size: 18, color: level.color),
+                Icon(level.icon, size: 24, color: level.color),
               ],
             ),
             const SizedBox(height: 10),
@@ -523,13 +523,15 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
               )
             else
               Wrap(
-                spacing: 9,
-                runSpacing: 9,
+                spacing: 12,
+                runSpacing: 12,
                 children: [
                   for (var i = 0; i < items.length; i++)
                     _ScopeChoice(
                       label: labelOf(items[i]),
-                      color: level.color,
+                      // ‏كلُّ بطاقةٍ بلونها ورمزها: الطفلُ يعرفها قبل أن يقرأ.
+                      color: _tileColors[(index + i) % _tileColors.length],
+                      emoji: _emojiFor(labelOf(items[i]), level.emoji),
                       chosen: selected != null && isSame(items[i], selected),
                       // ‏البطاقاتُ تدخل متتابعةً، كلٌّ بعد أختها بلحظة.
                       delay: _still ? Duration.zero : Duration(milliseconds: 40 * i.clamp(0, 10)),
@@ -610,11 +612,69 @@ class _LessonScopeSheetState extends State<LessonScopeSheet> {
   }
 }
 
-/// بطاقةُ اختيار: تنضغط تحت الإصبع، وتمتلئ بلون مستواها، وعلامتُها تقفز.
+/// ألوانُ بطاقات الاختيار، بالتناوب: زاهيةٌ لا باهتة.
+const _tileColors = [
+  Color(0xFF0EA5E9),
+  Color(0xFF8B5CF6),
+  Color(0xFFF97316),
+  Color(0xFF10B981),
+  Color(0xFFEC4899),
+  Color(0xFFEAB308),
+  Color(0xFF6366F1),
+  Color(0xFF14B8A6),
+];
+
+/// رمزٌ كبيرٌ يدلّ على المادة أو الدرس من اسمه، وإلا رمزُ المستوى.
+String _emojiFor(String label, String fallback) {
+  final key = label
+      .replaceAll(RegExp('[\u064B-\u065F\u0670]'), '')
+      .replaceAll(RegExp('[أإآ]'), 'ا')
+      .toLowerCase();
+  const table = [
+    ('قران', '📖'),
+    ('سور', '📖'),
+    ('اسلام', '🕌'),
+    ('توحيد', '🕌'),
+    ('حديث', '🕌'),
+    ('انجليز', '🔠'),
+    ('english', '🔠'),
+    ('حروف', '🔤'),
+    ('عربي', '🔤'),
+    ('لغت', '🔤'),
+    ('ارقام', '🔢'),
+    ('رياضيات', '🔢'),
+    ('حساب', '🔢'),
+    ('math', '🔢'),
+    ('علوم', '🔬'),
+    ('science', '🔬'),
+    ('فن', '🎨'),
+    ('رسم', '🎨'),
+    ('موسيق', '🎵'),
+    ('رياض', '⚽'),
+    ('بدني', '⚽'),
+    ('اجتماع', '🌍'),
+    ('وطن', '🌍'),
+    ('حاسب', '💻'),
+    ('رقمي', '💻'),
+    ('مهارات', '🧠'),
+    ('حيوان', '🦁'),
+    ('نبات', '🌱'),
+    ('الوان', '🌈'),
+    ('اشكال', '🔷'),
+  ];
+  for (final (needle, emoji) in table) {
+    if (key.contains(needle)) return emoji;
+  }
+  return fallback;
+}
+
+/// بطاقةُ اختيارٍ كبيرة: رمزٌ كبير، واسمٌ واضح، ولونٌ زاهٍ — تنضغط تحت
+/// الإصبع، وتمتلئ بلونها حين تُختار، وعلامتُها تقفز.
 class _ScopeChoice extends StatefulWidget {
   const _ScopeChoice({
     required this.label,
     required this.color,
+    required this.emoji,
     required this.chosen,
     required this.delay,
     required this.still,
@@ -623,6 +683,7 @@ class _ScopeChoice extends StatefulWidget {
 
   final String label;
   final Color color;
+  final String emoji;
   final bool chosen;
   final Duration delay;
   final bool still;
@@ -671,54 +732,81 @@ class _ScopeChoiceState extends State<_ScopeChoice> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOut,
-              constraints: const BoxConstraints(maxWidth: 260),
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+              width: 132,
+              constraints: const BoxConstraints(minHeight: 118),
+              padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
               decoration: BoxDecoration(
-                gradient: chosen
-                    ? LinearGradient(
-                        colors: [color, Color.lerp(color, Colors.white, 0.18)!],
-                      )
-                    : null,
-                color: chosen ? null : StudentSurface.card(context),
-                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: chosen
+                      ? [color, Color.lerp(color, Colors.black, 0.18)!]
+                      : [
+                          Color.lerp(color, Colors.white, 0.80)!,
+                          Color.lerp(color, Colors.white, 0.62)!,
+                        ],
+                ),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: chosen ? color : color.withValues(alpha: 0.28),
-                  width: chosen ? 2 : 1.3,
+                  color: chosen ? Colors.white : color.withValues(alpha: 0.55),
+                  width: chosen ? 3 : 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: chosen ? color.withValues(alpha: 0.32) : const Color(0x11000000),
-                    blurRadius: chosen ? 14 : 6,
-                    offset: Offset(0, chosen ? 6 : 3),
+                    color: color.withValues(alpha: chosen ? 0.45 : 0.22),
+                    blurRadius: chosen ? 16 : 8,
+                    offset: Offset(0, chosen ? 7 : 4),
                   ),
                 ],
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    transitionBuilder: (child, animation) => ScaleTransition(
-                      scale: CurvedAnimation(parent: animation, curve: Curves.elasticOut),
-                      child: child,
-                    ),
-                    child: chosen
-                        ? const Padding(
-                            key: ValueKey('on'),
-                            padding: EdgeInsetsDirectional.only(end: 6),
-                            child: Icon(Icons.check_circle_rounded, size: 18, color: Colors.white),
-                          )
-                        : const SizedBox(key: ValueKey('off')),
-                  ),
-                  Flexible(
-                    child: Text(
-                      widget.label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: chosen ? Colors.white : StudentSurface.ink(context),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: chosen ? Colors.white.withValues(alpha: 0.25) : Colors.white,
+                          boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 2))],
+                        ),
+                        child: Text(widget.emoji, style: const TextStyle(fontSize: 32)),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.2,
+                          fontWeight: FontWeight.w900,
+                          color: chosen ? Colors.white : Color.lerp(color, Colors.black, 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
+                  PositionedDirectional(
+                    top: -6,
+                    end: -4,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 240),
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: CurvedAnimation(parent: animation, curve: Curves.elasticOut),
+                        child: child,
+                      ),
+                      child: chosen
+                          ? Container(
+                              key: const ValueKey('on'),
+                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                              child: Icon(Icons.check_circle_rounded, size: 26, color: color),
+                            )
+                          : const SizedBox(key: ValueKey('off')),
                     ),
                   ),
                 ],
@@ -863,7 +951,7 @@ class _ChangeLessonButtonState extends State<ChangeLessonButton>
       turns: _turns * 0.5,
       duration: const Duration(milliseconds: 420),
       curve: Curves.easeOutBack,
-      child: Icon(Icons.alt_route_rounded, color: Colors.white, size: widget.narrow ? 22 : 20),
+      child: Text('🎒', style: TextStyle(fontSize: widget.narrow ? 22 : 20)),
     );
     return Semantics(
       button: true,
@@ -915,7 +1003,7 @@ class _ChangeLessonButtonState extends State<ChangeLessonButton>
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
-                          fontSize: 13,
+                          fontSize: 14,
                         ),
                       ),
                     ],

@@ -11,9 +11,9 @@
 /// البسملة (وهي في الفاتحة آيتُها الأولى) — [QuranSurah.units].
 ///
 /// ما يسمعه محرّكُ التعرّف كلماتٌ بلا تشكيل، فتُطابَق بالنصّ بعد توحيد
-/// الحروف ([normalizeQuranWord]) بالترتيب ([RecitationTracker]): ما قرأه
-/// صحيحاً أخضر، وما أخطأه أو تخطّاه أحمر — ويثبت كلٌّ منهما لحظةَ يُقرَّر
-/// ولا يتغيّر بعدها. وبعد آخر السورة تُعاد الآياتُ الحمراء وحدها.
+/// الحروف ([normalizeQuranWord]) لحظةَ تُسمع ([RecitationTracker]): ما قرأه
+/// صحيحاً أخضر، وما أخطأه أو تخطّاه أحمر. ولا ينتقل إلى الآية التالية حتى
+/// تخضرّ الجارية كلُّها.
 library;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -37,9 +37,11 @@ class QuranSurah {
 
   /// ما يُقرأ بترتيبه: الاستعاذة، ثم البسملة، ثم الآيات — وكلُّها تُقيَّم.
   List<RecitationUnit> get units => [
-        const RecitationUnit(RecitationUnitKind.istiadha, istiadha),
-        if (!basmalaIsVerse) const RecitationUnit(RecitationUnitKind.basmala, basmala),
-        for (var v = 0; v < verses.length; v++) RecitationUnit(RecitationUnitKind.verse, verses[v], number: v + 1),
+        const RecitationUnit(RecitationUnitKind.istiadha, istiadha, clip: 'audio/quran/istiadha.mp3'),
+        if (!basmalaIsVerse)
+          const RecitationUnit(RecitationUnitKind.basmala, basmala, clip: 'audio/quran/basmala.mp3'),
+        for (var v = 0; v < verses.length; v++)
+          RecitationUnit(RecitationUnitKind.verse, verses[v], number: v + 1, clip: 'audio/quran/${id}_${v + 1}.mp3'),
       ];
 }
 
@@ -47,10 +49,13 @@ enum RecitationUnitKind { istiadha, basmala, verse }
 
 /// خطوةٌ من التلاوة: الاستعاذة، أو البسملة، أو آيةٌ برقمها.
 class RecitationUnit {
-  const RecitationUnit(this.kind, this.text, {this.number});
+  const RecitationUnit(this.kind, this.text, {required this.clip, this.number});
 
   final RecitationUnitKind kind;
   final String text;
+
+  /// تلاوتُها الصحيحة (الحصري، مرتّل) — يسمعها الطفلُ ثم يردّدها.
+  final String clip;
 
   /// رقمُ الآية؛ `null` للاستعاذة وللبسملة قبل السورة.
   final int? number;
@@ -205,25 +210,30 @@ List<String> _heardWords(String heard) {
   return out;
 }
 
-/// مطابقةُ [said] بـ[expected] من أوّله (مسافةُ تحرير بالكلمات)، ونهايتُها
+/// مطابقةُ [said] بكلمات خطوةٍ ([expected]) — مسافةُ تحريرٍ بالكلمات تنتهي
 /// حيث انتهى ما قيل. لكل كلمةٍ متوقَّعة: حالُها، وأيُّ كلمةٍ مسموعةٍ قابلتها
 /// (-1 لمتخطّاةٍ أو لم تُبلغ).
+///
+/// [from]: إن وُجد فللطفل أن يبدأ من أيّ كلمةٍ في الخطوة (يعيدها من أوّلها،
+/// أو يكمل من حيث توقّف)، ويُرجَّح [from] عند التساوي — وما قبل ما بدأ منه
+/// لا يُلوَّن. وإلا فالبدءُ من أوّلها، وما تخطّاه منه خطأ.
 @visibleForTesting
-({List<RecitedWord> status, List<int> heardAt}) alignFromStart(List<String> expected, List<String> said) {
+({List<RecitedWord> status, List<int> heardAt}) alignWords(List<String> expected, List<String> said, {int? from}) {
   final m = expected.length;
   final n = said.length;
   final status = List<RecitedWord>.filled(m, RecitedWord.pending);
   final heardAt = List<int>.filled(m, -1);
   if (m == 0 || n == 0) return (status: status, heardAt: heardAt);
-  // كلمةٌ قالها مكانَ كلمةٍ أرخصُ قليلاً من «زائدةٍ ثم متخطّاة».
+  // كلمةٌ قالها مكانَ كلمةٍ أرخصُ قليلاً من «زائدةٍ ثم متخطّاة»: فتُرى حمراءَ
+  // لحظةَ يقولها.
   const extra = 1.0;
   const missed = 1.0;
   const substitute = 0.95;
   final cost = List.generate(n + 1, (_) => List<double>.filled(m + 1, 0));
   final move = List.generate(n + 1, (_) => List<int>.filled(m + 1, 0));
   for (var j = 1; j <= m; j++) {
-    cost[0][j] = cost[0][j - 1] + missed;
-    move[0][j] = 2;
+    cost[0][j] = from == null ? cost[0][j - 1] + missed : 0.001 * (j - from).abs();
+    move[0][j] = from == null ? 2 : -1;
   }
   for (var i = 1; i <= n; i++) {
     cost[i][0] = cost[i - 1][0] + extra;
@@ -250,7 +260,8 @@ List<String> _heardWords(String heard) {
   var i = n;
   var j = end;
   while (i > 0 || j > 0) {
-    final how = i == 0 ? 2 : (j == 0 ? 1 : move[i][j]);
+    final how = i == 0 ? move[0][j] : (j == 0 ? 1 : move[i][j]);
+    if (how == -1) break; // بدايةٌ حرّة: ما قبلها لا يُلوَّن.
     switch (how) {
       case 0:
         status[j - 1] = quranWordMatches(said[i - 1], expected[j - 1]) ? RecitedWord.correct : RecitedWord.wrong;
@@ -267,19 +278,17 @@ List<String> _heardWords(String heard) {
   return (status: status, heardAt: heardAt);
 }
 
-/// يتابع تلاوةَ سورةٍ كلمةً كلمة، ويُثبّت ما قُرّر منها.
+/// يتابع تلاوةَ سورةٍ خطوةً خطوة: الاستعاذة، ثم البسملة، ثم الآيات.
 ///
-/// ── الخطُّ لا يتغيّر بعد أن يظهر ──
-/// كانت التلاوةُ كلُّها تُطابَق من جديد مع كل كلمةٍ يسمعها المحرّك، فيتبدّل
-/// لونُ ما سبق: يتأخّر الأخضر، أو ينقلب أحمرَ عند الانتقال إلى الآية التالية.
-/// والآن يتقدّم مؤشّرٌ ([position]): ما قبله ثابتٌ لا يُطابَق ثانيةً، وما
-/// بعده وحده يُطابَق بما سُمع بعد آخر ما ثُبِّت. فتثبت الكلمةُ خضراءَ لحظةَ
-/// تُقرأ صحيحة، وتثبت حمراءَ حين تُقرأ كلمةٌ بعدها صحيحة (فقد أخطأها أو
-/// تخطّاها) أو حين يسكت الطفلُ بعد أن قالها خطأً.
+/// ── فوراً ──
+/// كلُّ كلمةٍ يسمعها المحرّك تُطابَق لحظتَها بكلمات الخطوة الجارية: الصحيحةُ
+/// تخضرّ، والخاطئةُ أو المتخطّاة تحمرّ — في الحال، لا حين تُقرأ التي بعدها.
+/// والأخضرُ لا ينقلب أحمر أبداً؛ والأحمرُ يخضرّ حين يعيد الطفلُ الكلمةَ صحيحة.
 ///
-/// ── ثم الآياتُ الحمراء وحدها ──
-/// بعد آخر كلمة: كلُّ خطوةٍ فيها أحمرُ تُعاد ([reviewing]) — الأولى فالتي
-/// بعدها — وتخضرّ كلماتُها حين تُقرأ صحيحة، حتى تصحّ السورةُ كلُّها.
+/// ── لا انتقالَ قبل التصحيح ──
+/// لا تبدأ الخطوةُ التالية حتى تخضرّ الجارية كلُّها ([blocked]): ما يقرؤه
+/// الطفلُ من الآية التالية قبل ذلك لا يُحسب لها. يعيد الآيةَ — من أوّلها أو
+/// من الكلمة الحمراء — حتى تصحّ، فينتقل.
 class RecitationTracker {
   RecitationTracker(QuranSurah surah) : units = surah.units {
     for (var u = 0; u < units.length; u++) {
@@ -303,74 +312,73 @@ class RecitationTracker {
 
   List<RecitedWord> get status => List.unmodifiable(_status);
 
-  int _position = 0;
+  int _unit = 0;
   int _consumed = 0;
 
-  /// أوّلُ كلمةٍ لم تُقرَّر بعد في القراءة الأولى.
-  int get position => _position;
+  /// الخطوةُ التي يقرؤها الآن؛ تساوي عددَ الخطوات بعد آخرها.
+  int get currentUnit => _unit;
 
-  bool get firstPassDone => _position >= _words.length;
-  bool get reviewing => firstPassDone && _status.contains(RecitedWord.wrong);
-  bool get complete => firstPassDone && _status.every((s) => s == RecitedWord.correct);
+  bool get complete => _unit >= units.length;
 
-  /// الخطوةُ التي تُعاد الآن، أثناء المراجعة.
-  int? get reviewUnit => reviewing ? _unitOf[_status.indexOf(RecitedWord.wrong)] : null;
+  /// في الخطوة الجارية كلمةٌ حمراء: لا انتقالَ حتى تخضرّ.
+  bool get blocked => !complete && _indicesOf(_unit).any((k) => _status[k] == RecitedWord.wrong);
+
+  /// هل تخضرّ الخطوةُ كلُّها بما بقي أخضرَ منها وبهذه المطابقة؟
+  bool _greenWith(List<int> indices, List<RecitedWord> now) {
+    for (var k = 0; k < indices.length; k++) {
+      if (_status[indices[k]] != RecitedWord.correct && now[k] != RecitedWord.correct) return false;
+    }
+    return true;
+  }
+
+  List<int> _indicesOf(int unit) => [for (var k = 0; k < _words.length; k++) if (_unitOf[k] == unit) k];
 
   /// استماعٌ جديد: نصُّه يبدأ من الصفر.
   void startSession() => _consumed = 0;
 
-  /// كلُّ ما سُمع في الاستماع الجاري حتى الآن. [ended]: سكت الطفل أو أوقف
-  /// المايك — فما قاله خطأً في آخر تلاوته يثبت أحمر.
+  /// كلُّ ما سُمع في الاستماع الجاري حتى الآن. [ended]: انتهى هذا الاستماع —
+  /// فما قيل فيه لا يُعاد في الاستماع التالي.
   void hear(String transcript, {bool ended = false}) {
     final said = _heardWords(transcript);
-    for (var guard = 0; guard < 256; guard++) {
+    for (var guard = 0; guard < 256 && !complete; guard++) {
       if (_consumed > said.length) _consumed = said.length;
       final tail = said.sublist(_consumed);
       if (tail.isEmpty) return;
-      final moved = !firstPassDone ? _advance(tail, ended) : (reviewing && _review(tail, ended));
-      if (!moved) return;
-    }
-  }
-
-  bool _advance(List<String> tail, bool ended) {
-    final end = (_position + tail.length + 6).clamp(0, _words.length);
-    final result = alignFromStart(_words.sublist(_position, end), tail);
-    var lock = -1;
-    for (var k = result.status.length - 1; k >= 0; k--) {
-      final settled = ended ? result.heardAt[k] >= 0 : result.status[k] == RecitedWord.correct;
-      if (settled) {
-        lock = k;
-        break;
+      final indices = _indicesOf(_unit);
+      final from = indices.indexWhere((k) => _status[k] != RecitedWord.correct);
+      final expected = [for (final k in indices) _words[k]];
+      // أقصرُ ما يُتمّ الخطوةَ ممّا قيل: فما بعده للخطوة التالية — لا تأخذ
+      // «الرجيم» من الاستعاذة «الرحيم» من البسملة بعدها.
+      ({List<RecitedWord> status, List<int> heardAt})? result;
+      for (var p = 1; p <= tail.length; p++) {
+        result = alignWords(expected, tail.sublist(0, p), from: from < 0 ? 0 : from);
+        if (_greenWith(indices, result.status)) break;
       }
+      final r = result!;
+      for (var k = 0; k < indices.length; k++) {
+        final now = r.status[k];
+        if (now == RecitedWord.correct) {
+          _status[indices[k]] = RecitedWord.correct;
+        } else if (now == RecitedWord.wrong && _status[indices[k]] != RecitedWord.correct) {
+          _status[indices[k]] = RecitedWord.wrong;
+        }
+      }
+      final last = r.heardAt.lastIndexWhere((h) => h >= 0);
+      if (indices.every((k) => _status[k] == RecitedWord.correct)) {
+        // خضراءُ كلُّها: الخطوةُ التالية، وما بعدها في النصّ لها.
+        _consumed += last >= 0 ? r.heardAt[last] + 1 : 0;
+        _unit++;
+        continue;
+      }
+      // قرأها إلى آخرها وفيها أحمر: ما يقوله بعدها محاولةٌ جديدةٌ لها. لكن
+      // لا قبل أن يقول شيئاً بعدها — آخرُ كلمةٍ قد يصحّحها المحرّكُ نفسُه
+      // في النصّ الجزئي التالي.
+      if (last >= 0 && r.status.last != RecitedWord.pending && (r.heardAt[last] < tail.length - 1 || ended)) {
+        _consumed += r.heardAt[last] + 1;
+        continue;
+      }
+      if (ended) _consumed = said.length;
+      return;
     }
-    if (lock < 0) {
-      // سكت ولم يُطابِق شيئاً: ما قاله لا يُحسب، والمؤشّرُ مكانه.
-      if (ended) _consumed += tail.length;
-      return false;
-    }
-    for (var k = 0; k <= lock; k++) {
-      _status[_position + k] = result.status[k] == RecitedWord.correct ? RecitedWord.correct : RecitedWord.wrong;
-    }
-    _consumed += result.heardAt[lock] + 1;
-    _position += lock + 1;
-    return true;
-  }
-
-  bool _review(List<String> tail, bool ended) {
-    final unit = reviewUnit!;
-    final indices = [for (var k = 0; k < _words.length; k++) if (_unitOf[k] == unit) k];
-    final result = alignFromStart([for (final k in indices) _words[k]], tail);
-    for (var k = 0; k < indices.length; k++) {
-      if (result.status[k] == RecitedWord.correct) _status[indices[k]] = RecitedWord.correct;
-    }
-    final last = result.heardAt.lastIndexWhere((h) => h >= 0);
-    final fixed = indices.every((k) => _status[k] == RecitedWord.correct);
-    if (last >= 0 && (fixed || result.status.last != RecitedWord.pending)) {
-      // صحّت الخطوة، أو قرأها إلى آخرها: ما بعدها في النصّ قراءةٌ جديدة.
-      _consumed += last + 1;
-      return true;
-    }
-    if (ended) _consumed += tail.length;
-    return false;
   }
 }

@@ -104,6 +104,24 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     // صامتاً بلا خطأٍ يظهر. وهو سببُ صمت هذه الشاشة، والملفُّ في مكانه.
     unawaited(StudentSoundService.instance.playClip('audio/booksound.mp3'));
     unawaited(_load());
+    // ألعابُ الدرس تُطلب من الآن، والطفلُ على الخريطة: حين يفتح تبويبَها
+    // تكون قد وصلت أو قاربت.
+    try {
+      final games = widget.studyService.fetchGames(lessonId: _lessonId);
+      unawaited(games.then((_) {}, onError: (_) {}));
+      _gamesAhead = games;
+    } catch (_) {
+      // لا طلبَ مبكراً: يُطلب حين يُفتح التبويب كما كان.
+    }
+  }
+
+  /// الطلبُ المبكر لألعاب الدرس — يُؤخذ مرّةً، وإعادةُ المحاولة طلبٌ جديد.
+  Future<StudyGamesPack>? _gamesAhead;
+
+  Future<StudyGamesPack> _takeGames() {
+    final ahead = _gamesAhead;
+    _gamesAhead = null;
+    return ahead ?? widget.studyService.fetchGames(lessonId: _lessonId);
   }
 
   @override
@@ -439,7 +457,8 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
           onNext: _next,
         ),
         StudyGamesTab(
-          load: () => widget.studyService.fetchGames(lessonId: _lessonId),
+          load: _takeGames,
+          cached: () => StudentStudyService.cachedGames(lessonId: _lessonId),
           onWin: _rewardGame,
           onTraced: _rewardTraced,
           // ‏إعادةُ اللعب نسخةٌ جديدة من النصّ الكامل للدرس، لا تكرّر ما رآه.
