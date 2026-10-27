@@ -276,6 +276,15 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   /// ── المكافأةُ يقرّرها الخادم ──
   /// المعرّفُ `درس::لعبة`، والخادمُ يقرأ جواهرَها ونقاطَها من سجلّ الدرس
   /// ويصرفها مرّةً لكل لعبة — فالإعادةُ للمتعة لا لجمع الجواهر.
+  /// جوهرةُ حرفٍ في «تتبّع واكتب»: الخادمُ يصرفها مرّةً لكل حرفٍ في الدرس.
+  Future<RewardResult?> _rewardTraced(StudyGame game, TracingItem item) =>
+      widget.contentService.rewardActivity(
+        profile: widget.profile,
+        activityType: 'study_game',
+        activityId: '$_lessonId::${game.id}',
+        tracingItem: item.text,
+      );
+
   Future<RewardResult?> _rewardGame(StudyGame game) async {
     final result = await widget.contentService.rewardActivity(
       profile: widget.profile,
@@ -419,6 +428,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
         StudyGamesTab(
           load: () => widget.studyService.fetchGames(lessonId: _lessonId),
           onWin: _rewardGame,
+          onTraced: _rewardTraced,
           // ‏إعادةُ اللعب نسخةٌ جديدة من النصّ الكامل للدرس، لا تكرّر ما رآه.
           fresh: (base, exclude) => widget.studyService.fetchFreshGame(
             lessonId: _lessonId,

@@ -102,7 +102,6 @@ class StudyGame {
     required this.gemsReward,
     required this.pointsReward,
     this.tracing = const [],
-    this.tracingRewardAfter = 0,
     this.tracingStart = 0,
   });
 
@@ -118,9 +117,7 @@ class StudyGame {
   final int pointsReward;
   final List<TracingItem> tracing;
 
-  /// بعد كم عنصراً منجَزاً تُصرف المكافأة (مجموعاتُ الروضة طويلة: ٢٨ حرفاً)،
-  /// ومن أيّ عنصرٍ تبدأ اللعبة (حرفُ الدرس). ‎0 لـ[tracingRewardAfter] = كلُّها.
-  final int tracingRewardAfter;
+  /// من أيّ عنصرٍ تبدأ اللعبة: حرفُ الدرس.
   final int tracingStart;
 
   /// السلّةُ أو المعنى الصحيح لهذه البطاقة.
@@ -188,7 +185,6 @@ class StudyGame {
               speech: _text(entry['speech']).isEmpty ? null : _text(entry['speech']),
             ),
       ],
-      tracingRewardAfter: _int(items['reward_after']),
       tracingStart: _int(items['start']),
     );
     final playable = switch (type) {

@@ -86,8 +86,7 @@ export interface StudyGame {
     correct_pairs: CorrectPair[];
     questions?: QuickQuestion[];
     tracing?: TracingItem[];
-    /** بعد كم عنصراً منجَزاً تُصرف المكافأة، ومن أيّها تبدأ اللعبة. */
-    reward_after?: number;
+    /** من أيّ عنصرٍ تبدأ اللعبة. */
     start?: number;
   };
   gems_reward: number;

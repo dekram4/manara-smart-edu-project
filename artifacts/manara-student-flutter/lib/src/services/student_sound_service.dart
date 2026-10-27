@@ -388,7 +388,9 @@ class StudentSoundService with WidgetsBindingObserver {
   ///
   /// و`debugPrint` لا `print`: تُحذف في بناء الإصدار فلا تُبطئ شيئاً على
   /// جهاز طفل، وتظهر في `flutter logs` عند الفحص.
-  Future<void> playClip(String asset) async {
+  ///
+  /// [volume]: علوٌّ صريح لمقطعٍ لم يُقَس في [voiceRms] — وإلا [voiceVolume].
+  Future<void> playClip(String asset, {double? volume}) async {
     if (muted.value) {
       debugPrint('[sound] $asset لم يُشغّل: الصوت مكتوم');
       return;
@@ -414,7 +416,7 @@ class StudentSoundService with WidgetsBindingObserver {
           : asset;
       await _voicePlayer.stop();
       _voiceClip = source;
-      await _voicePlayer.play(AssetSource(source), volume: voiceVolume(source));
+      await _voicePlayer.play(AssetSource(source), volume: volume ?? voiceVolume(source));
       debugPrint('[sound] $source يُشغّل');
     } catch (error) {
       debugPrint('[sound] $asset تعذّر تشغيله: $error');

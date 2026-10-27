@@ -301,6 +301,7 @@ class StudentContentService {
     String? rewardId,
     int? correctAnswers,
     int? quizTotal,
+    String? tracingItem,
   }) async {
     if (activityId.trim().isEmpty) {
       throw ArgumentError(tr('svc.noActivityId'));
@@ -312,6 +313,8 @@ class StudentContentService {
         'rewardId': rewardId.trim(),
       if (correctAnswers != null) 'correctAnswers': correctAnswers,
       if (quizTotal != null) 'quizTotal': quizTotal,
+      // حرفُ «تتبّع واكتب»: الخادمُ يتحقّق أنه من مجموعة الدرس ويبني مفتاحه.
+      if (tracingItem != null) 'tracingItem': tracingItem,
     });
     return _rewardFromResponse(payload);
   }

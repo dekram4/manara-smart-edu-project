@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
+import '../models/student_gamification.dart';
 import '../models/study_games.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
@@ -18,8 +19,16 @@ import '../theme/student_theme.dart';
 /// ── حروفُ الروضة وأرقامُها: شبكةٌ ثم لوحة ──
 /// تظهر المجموعةُ في المساحة البيضاء شبكةً من ستّ بطاقاتٍ كبيرة في الصفحة،
 /// تُقلَّب صفحةً صفحة. يلمس الطفلُ حرفاً فيسمع اسمَه في الحال، وتُفتح لوحةُ
-/// تتبّعه. وما أنجزه يعود إلى الشبكة أخضرَ بعلامة. والمكافأةُ بعد
-/// [StudyGame.tracingRewardAfter] منها لا بعد آخرها.
+/// تتبّعه. وما أنجزه يعود إلى الشبكة أخضرَ بعلامة.
+///
+/// ── جلسةٌ مفتوحة، وجوهرةٌ لكل حرف ──
+/// لا حدَّ ولا نافذةَ احتفالٍ تقطع اللعب: كلُّ حرفٍ يُكتب صحيحاً تتبعه عبارةُ
+/// تشجيع، وجوهرةٌ ونقطة ([onTraced]) — يصرفها الخادمُ مرّةً لكل حرفٍ في الدرس،
+/// فمن أعاد كتابةَ حرفٍ كتبه يلعب بحرّيةٍ ولا يكسب شيئاً.
+///
+/// ── والحروفُ العربية بأصواتها المسجّلة ──
+/// اسمُ الحرف العربي من تسجيلٍ ([arabicLetterClips]) لا من محرّك النطق؛
+/// وما لا تسجيلَ له (الإنجليزية والأعداد) يُنطق بالمحرّك.
 ///
 /// ── وحصراً لروضة منارة المعرفة ──
 /// الخادمُ لا يرسلها إلا للروضة في موادّها الأربع، والتطبيقُ يتحقّق كذلك
@@ -37,24 +46,28 @@ import '../theme/student_theme.dart';
 class TracingGame extends StatefulWidget {
   const TracingGame({
     required this.game,
-    required this.onWin,
-    required this.onReplay,
+    required this.onTraced,
     this.shapeBuilder = loadTracingShape,
     this.speak,
+    this.playClip,
     super.key,
   });
 
   final StudyGame game;
 
-  /// المكافأة، بعد [StudyGame.tracingRewardAfter] عنصراً.
-  final Future<void> Function() onWin;
-  final VoidCallback onReplay;
+  /// حرفٌ كُتب صحيحاً: يُطلب له من الخادم جوهرةٌ ونقطة. `gems` في الردّ صفرٌ
+  /// إن كان قد كُتب في هذا الدرس من قبل.
+  final Future<RewardResult?> Function(TracingItem item) onTraced;
 
   /// يُستبدل في الاختبار وحده.
   final Future<TracingShape?> Function(TracingItem item) shapeBuilder;
 
   /// النطق؛ وبلا قيمةٍ محرّكُ الجهاز ([StudentVoiceService.speakIn]).
   final Future<void> Function(String text, String lang)? speak;
+
+  /// تشغيلُ مقطعٍ مسجّل؛ وبلا قيمةٍ مشغّلُ أصوات التطبيق
+  /// ([StudentSoundService.playClip]).
+  final Future<void> Function(String asset)? playClip;
 
   @override
   State<TracingGame> createState() => TracingGameState();
@@ -98,20 +111,20 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   Rect _dest = Rect.zero;
 
   final Set<int> _done = {};
-  bool _rewarded = false;
-  bool _allDone = false;
   int _mistakes = 0;
+
+  /// عبارةُ التشجيع على الحرف المكتمل، وهل كسب به جوهرة.
+  String? _cheer;
+  bool _gemEarned = false;
+
+  /// آخرُ موضعٍ للإصبع، يُملأ منه ما بينه وبين الموضع الجديد.
+  Offset? _lastPos;
 
   List<TracingItem> get _items => widget.game.tracing;
   TracingItem get _item => _items[_index];
 
 
   int get _pageCount => (_items.length / perPage).ceil();
-
-  int get _rewardAfter {
-    final after = widget.game.tracingRewardAfter;
-    return after <= 0 ? _items.length : math.min(after, _items.length);
-  }
 
   /// مساراتُ العنصر المفتوح، للاختبار.
   @visibleForTesting
@@ -160,7 +173,25 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     }
   }
 
-  void _sayCurrent() => _say(_item.speech, _item.lang);
+  /// علوُّ أسماء الحروف المسجّلة: كاملٌ تقريباً — تسجيلٌ نظيفٌ لصوتٍ واحد.
+  static const letterClipVolume = 0.95;
+
+  /// اسمُ العنصر: تسجيلُه إن كان حرفاً عربياً له تسجيل، وإلا محرّكُ النطق.
+  void _sayCurrent() {
+    final item = _item;
+    final clip = recordedClipFor(item);
+    if (clip == null) {
+      _say(item.speech, item.lang);
+      return;
+    }
+    final Future<void> Function(String asset) play = widget.playClip ??
+        (asset) => StudentSoundService.instance.playClip(asset, volume: letterClipVolume);
+    try {
+      unawaited(play(clip).catchError((Object _) {}));
+    } catch (error) {
+      debugPrint('[tracing] clip failed: $error');
+    }
+  }
 
   // ── التنقّل ──────────────────────────────────────────────────────
 
@@ -187,6 +218,9 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     _doneTrails.clear();
     _strokeTrailBase = 0;
     _itemDone = false;
+    _cheer = null;
+    _gemEarned = false;
+    _lastPos = null;
   }
 
   /// الشكلُ يُحضَّر مع فتح العنصر.
@@ -220,17 +254,9 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     });
   }
 
-  /// العنصرُ أُنجز: يُحسب، وتُصرف المكافأةُ مرّةً عند بلوغ حدّها، ثم إلى الشبكة.
+  /// العنصرُ أُنجز: يُعلَّم في الشبكة ويُعاد إليها — والجلسةُ مفتوحة بلا نهاية.
   void _finishItem() {
     _done.add(_index);
-    if (!_rewarded && _done.length >= _rewardAfter) {
-      _rewarded = true;
-      unawaited(widget.onWin());
-    }
-    if (_done.length >= _items.length) {
-      setState(() => _allDone = true);
-      return;
-    }
     setState(() {
       _view = _View.grid;
       _page = _index ~/ perPage;
@@ -262,15 +288,14 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   double get _inkPx => (_shape?.plan.inkWidth ?? 0.1) * _dest.height;
 
   /// كم يقترب الإصبعُ من نقطةٍ لتُحتسب — واسعٌ لإصبعٍ صغيرٍ غير دقيق.
-  double get _hitRadius => math.max(30, _inkPx * 1.3);
+  double get _hitRadius => math.max(34, _inkPx * 1.45);
 
   /// كم يبتعد عن الخطّ قبل أن تُعاد الجرّة.
-  double get _offRadius => math.max(60, _inkPx * 2.6);
+  double get _offRadius => math.max(70, _inkPx * 2.8);
 
-  /// أقصى ما يتقدّمه الإصبعُ من نقاطٍ في حركةٍ واحدة. يكفي لتمريرٍ سريع لا
-  /// يمرّ بكل نقطةٍ في إطار، ولا يكفي لقفزةٍ إلى آخر الجرّة حين يمرّ الخطُّ
-  /// قرب أوّله (حلقةُ الهاء والخمسة) — فلا تُغلَق الجرّةُ قبل أوانها.
-  static const _maxStepsPerMove = 3;
+  /// أقصى ما يتقدّمه الإصبعُ من نقاطٍ في خطوةٍ واحدة. والحركةُ السريعة لا
+  /// تحتاج أكثر: ما بين موضعين للإصبع يُملأ خطوةً خطوة ([_move]).
+  static const _maxStepsPerMove = 2;
 
   /// أوّلُ ما يخصّ الجرّةَ الحالية في [_doneTrails]: قطعُها التي رُسمت قبل
   /// أن يرفع الطفلُ إصبعه، تُمحى إن أُعيدت الجرّة.
@@ -305,6 +330,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
         if (_reached + 1 < points.length) points[_reached + 1],
       ].any((p) => (position - _toCanvas(p)).distance <= _hitRadius * 1.5);
       if (near) {
+        _lastPos = position;
         setState(() {
           _trail = [position];
           _hint = null;
@@ -323,6 +349,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
         _completeStroke([position]);
         return;
       }
+      _lastPos = position;
       setState(() {
         _reached = 0;
         _trail = [position];
@@ -333,14 +360,37 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     }
   }
 
+  /// ── الحركةُ السريعة ──
+  /// الجهازُ يرسل موضعَ الإصبع كلَّ إطار؛ وإصبعٌ سريعٌ يقطع بين إطارين أكثرَ من
+  /// نقطة، فكان يُحسب خارجاً عن الخطّ وتُعاد الجرّة. فما بين الموضعين يُملأ
+  /// بخطواتٍ أقصرَ من نصف مسافة الاحتساب، وكلُّ خطوةٍ تُحسب وحدها.
   void _move(Offset position) {
+    if (_current == null || _reached < 0) return;
+    final from = _lastPos ?? position;
+    final steps = math.max(1, ((position - from).distance / (_hitRadius * 0.5)).ceil());
+    for (var i = 1; i <= steps; i++) {
+      if (!_step(Offset.lerp(from, position, i / steps)!)) {
+        _lastPos = null;
+        return;
+      }
+    }
+    _lastPos = position;
+  }
+
+  /// خطوةٌ واحدة للإصبع؛ `false` إن انتهت بها الجرّة — اكتملت أو أُعيدت.
+  bool _step(Offset position) {
     final stroke = _current;
-    if (stroke == null || _reached < 0) return;
+    if (stroke == null || _reached < 0) return false;
     final points = stroke.points;
+    final last = points.length - 1;
     var reached = _reached;
     // إلى الأمام وحده، وبحدٍّ: أبعدُ نقطةٍ في النافذة يبلغها الإصبع. لا رجوعَ
     // يُحتسب، ولا قفزَ إلى ما وراء النافذة.
-    final window = math.min(points.length - 1, reached + _maxStepsPerMove);
+    var window = math.min(last, reached + _maxStepsPerMove);
+    // ── ولا اكتمالَ قبل آخر نقطة، وبالترتيب ──
+    // النقطةُ الأخيرة لا تُبلغ إلا من التي قبلها: حرفٌ يلتقي آخرُه بأوّله
+    // (الهاء، الصاد، الخمسة) لا يُغلَق بلمسةٍ قرب بدايته.
+    if (window == last && reached < last - 1) window = last - 1;
     for (var i = window; i > reached; i--) {
       if ((position - _toCanvas(points[i])).distance <= _hitRadius) {
         reached = i;
@@ -356,22 +406,24 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     if (window == _reached) off = (position - _toCanvas(points[reached])).distance;
     if (off > _offRadius) {
       _miss(tr('study.trace.offPath'));
-      return;
+      return false;
     }
-    if (reached == points.length - 1) {
+    if (reached == last) {
       _completeStroke([..._trail, position]);
-      return;
+      return false;
     }
     setState(() {
       _reached = reached;
       _trail = [..._trail, position];
     });
+    return true;
   }
 
   void _up() {
     final stroke = _current;
     if (stroke == null || _reached < 0) return;
     // رفع إصبعه قبل نهاية الجرّة: يبقى ما رسمه وما بلغه، ويكمل منه.
+    _lastPos = null;
     setState(() {
       if (_trail.length > 1) _doneTrails.add(_trail);
       _trail = [];
@@ -409,13 +461,40 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     _completeItem();
   }
 
+  static const _cheers = [
+    'study.trace.cheer1',
+    'study.trace.cheer2',
+    'study.trace.cheer3',
+    'study.trace.cheer4',
+    'study.trace.cheer5',
+  ];
+  final _random = math.Random();
+
   void _completeItem() {
     StudentSoundService.instance.play(StudentSoundCue.success);
     HapticFeedback.lightImpact();
-    setState(() => _itemDone = true);
+    final item = _item;
     final index = _index;
-    // لحظةٌ يرى فيها الحرفَ مكتملاً أخضرَ قبل العودة إلى الشبكة.
-    Future.delayed(const Duration(milliseconds: 1600), () {
+    setState(() {
+      _itemDone = true;
+      _cheer = tr(_cheers[_random.nextInt(_cheers.length)]);
+      _gemEarned = false;
+    });
+    // جوهرةٌ ونقطةٌ من الخادم — تظهر حين تصل، ولا تؤخّر العبارة.
+    unawaited(() async {
+      try {
+        final result = await widget.onTraced(item);
+        if (!mounted || _index != index || !_itemDone) return;
+        if ((result?.gems ?? 0) > 0) {
+          StudentSoundService.instance.playReward();
+          setState(() => _gemEarned = true);
+        }
+      } catch (error) {
+        debugPrint('[tracing] reward failed for "${item.text}": $error');
+      }
+    }());
+    // لحظةٌ يرى فيها الحرفَ مكتملاً ويقرأ تشجيعه قبل العودة إلى الشبكة.
+    Future.delayed(const Duration(milliseconds: 1800), () {
       // لم يغادره إلى غيره في الانتظار.
       if (mounted && _itemDone && _index == index && _view == _View.board) _finishItem();
     });
@@ -431,7 +510,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
-    if (_allDone) return _finished(context);
     return switch (_view) {
       _View.grid => _gridView(context),
       _View.board => _boardView(context),
@@ -447,7 +525,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
         height: 30,
         child: Center(
           child: Text(
-            _itemDone ? (_hint ?? tr('study.trace.great')) : (_hint ?? idle),
+            _itemDone ? (_cheer ?? tr('study.trace.great')) : (_hint ?? idle),
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w900,
@@ -628,7 +706,12 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
         _surface(
           context,
           _shape != null
-              ? _board(context)
+              ? Stack(
+                  children: [
+                    Positioned.fill(child: _board(context)),
+                    if (_itemDone && _cheer != null) _cheerBadge(),
+                  ],
+                )
               : _unavailable
                   ? _unavailableNote(context)
                   : Center(
@@ -641,6 +724,52 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       ],
     );
   }
+
+  /// عبارةُ التشجيع فوق الحرف المكتمل، وجوهرتُه إن كسبها — تكبر وتثبت.
+  Widget _cheerBadge() => Align(
+        alignment: const Alignment(0, -0.82),
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey(_cheer),
+          tween: Tween(begin: 0.4, end: 1),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.elasticOut,
+          builder: (context, t, child) => Transform.scale(scale: t, child: child),
+          child: Container(
+            key: const ValueKey('tracing-cheer'),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFEC4899), Color(0xFFF59E0B)]),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: const [BoxShadow(color: Color(0x557C3AED), blurRadius: 14, offset: Offset(0, 4))],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _cheer!,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+                if (_gemEarned) ...[
+                  const SizedBox(width: 10),
+                  Container(
+                    key: const ValueKey('tracing-gem'),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Text(
+                      '+1 💎',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0EA5E9)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
 
   Widget _unavailableNote(BuildContext context) => Center(
         child: Padding(
@@ -735,32 +864,6 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       },
     );
   }
-
-  Widget _finished(BuildContext context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🏆', style: TextStyle(fontSize: 64)),
-            const SizedBox(height: 8),
-            Text(
-              tr('study.trace.done'),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: StudentSurface.ink(context),
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: widget.onReplay,
-              icon: const Icon(Icons.replay_rounded),
-              label: Text(tr('study.games.playAgain')),
-              style: FilledButton.styleFrom(backgroundColor: _green),
-            ),
-          ],
-        ),
-      );
 }
 
 /// منحنى Catmull–Rom يمرّ بكل نقطةٍ من [points] بالترتيب — ناعمٌ بينها،

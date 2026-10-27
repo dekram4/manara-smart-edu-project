@@ -260,8 +260,6 @@ class _TracingShelfCardState extends State<TracingShelfCard>
   }
 
   Widget _text(BuildContext context) {
-    final gems = widget.game.gemsReward;
-    final points = widget.game.pointsReward;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -294,8 +292,8 @@ class _TracingShelfCardState extends State<TracingShelfCard>
           runSpacing: 6,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _rewardChip('💎', '+$gems', const Color(0xFF22D3EE), 0.0),
-            _rewardChip('⭐', '+$points XP', const Color(0xFFFDE047), 0.5),
+            // جوهرةٌ ونقطةٌ عن كل حرفٍ يُكتب صحيحاً — مرّةً لكل حرفٍ في الدرس.
+            _rewardChip('💎', tr('study.trace.perLetter'), const Color(0xFF22D3EE), 0.0),
             _playButton(),
           ],
         ),
