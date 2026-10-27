@@ -17,6 +17,7 @@ import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
+import '../services/quran_recitation.dart';
 import '../services/tracing_scope.dart';
 import '../services/study_rotation.dart';
 import '../theme/student_theme.dart';
@@ -285,6 +286,18 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
         tracingItem: item.text,
       );
 
+  /// سورةٌ سُمِّعت كاملةً صحيحة: الخادمُ يصرف مكافأتها مرّةً لكل سورةٍ في الدرس.
+  Future<RewardResult?> _rewardRecited(QuranSurah surah) async {
+    final result = await widget.contentService.rewardActivity(
+      profile: widget.profile,
+      activityType: 'study_game',
+      activityId: '$_lessonId::quran',
+      quranSurah: surah.id,
+    );
+    if (result.gems > 0 && mounted) _confetti.play();
+    return result;
+  }
+
   Future<RewardResult?> _rewardGame(StudyGame game) async {
     final result = await widget.contentService.rewardActivity(
       profile: widget.profile,
@@ -441,6 +454,14 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
             grade: widget.academicContext?.grade,
             subject: widget.academicContext?.subject,
           ),
+          // ‏«تسميع القرآن الكريم» لدرس «حفظ وشرح السور القصيرة» في الروضة وحده.
+          onRecited: quranRecitationAllowedFor(
+            grade: widget.academicContext?.grade,
+            subject: widget.academicContext?.subject,
+            lesson: widget.academicContext?.lesson,
+          )
+              ? _rewardRecited
+              : null,
         ),
       ],
     );

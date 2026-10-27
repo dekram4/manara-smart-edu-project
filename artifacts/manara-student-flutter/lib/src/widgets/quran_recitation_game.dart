@@ -1,0 +1,775 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../l10n/student_strings.dart';
+import '../models/student_gamification.dart';
+import '../services/quran_recitation.dart';
+import '../services/student_sound_service.dart';
+import '../services/student_voice_service.dart';
+import '../theme/student_theme.dart';
+
+/// سورةٌ سُمِّعت كاملةً صحيحة: مكافأتُها من الخادم، مرّةً لكل سورة.
+typedef QuranRecitationWin = Future<RewardResult?> Function(QuranSurah surah);
+
+/// استماعٌ حيّ: كلُّ ما سُمع حتى الآن مع كل كلمة، ثم انتهاء.
+typedef QuranListen = Future<bool> Function({
+  required ValueChanged<String> onWords,
+  required VoidCallback onEnd,
+});
+
+/// ما تعرضه البطاقةُ من مكافأة السورة — والخادمُ هو من يصرفها (`QURAN_REWARD`).
+const quranGemsPerSurah = 3;
+
+/// لعبةُ «تسميع القرآن الكريم»: يختار الطفلُ سورة، ويضغط المايك ويقرأ،
+/// فتتلوّن الكلماتُ تحتها وهو يقرأ — أخضرُ لما قرأه صحيحاً وأحمرُ لما أخطأه
+/// أو تخطّاه ([alignRecitation]). وحين تصحّ السورةُ كلُّها: عبارةُ تشجيعٍ
+/// ثم تصفيق، والمكافأةُ لأول مرّةٍ تُسمَّع فيها.
+class QuranRecitationGame extends StatefulWidget {
+  const QuranRecitationGame({
+    required this.onRecited,
+    required this.onBack,
+    this.listen,
+    this.stopListening,
+    this.surahs = quranSurahs,
+    super.key,
+  });
+
+  final QuranRecitationWin onRecited;
+
+  /// العودةُ إلى رفّ الألعاب.
+  final VoidCallback onBack;
+
+  /// للاختبار: محرّكُ تعرّفٍ مزيّف. وإلا [StudentVoiceService.listenLive].
+  final QuranListen? listen;
+  final Future<void> Function()? stopListening;
+
+  final List<QuranSurah> surahs;
+
+  @override
+  State<QuranRecitationGame> createState() => QuranRecitationGameState();
+}
+
+@visibleForTesting
+class QuranRecitationGameState extends State<QuranRecitationGame> with SingleTickerProviderStateMixin {
+  static const green = Color(0xFF16A34A);
+  static const red = Color(0xFFDC2626);
+  static const emerald = Color(0xFF059669);
+  static const teal = Color(0xFF0D9488);
+  static const gold = Color(0xFFF59E0B);
+
+  late final AnimationController _pulse;
+
+  QuranSurah? _surah;
+  List<String> _words = const [];
+  List<int> _verseOf = const [];
+
+  /// ما استقرّ من التلاوات السابقة، وحالُ الكلمات الآن مع التلاوة الجارية.
+  List<RecitedWord> _settled = const [];
+  List<RecitedWord> _status = const [];
+
+  /// من أين يُرجَّح أن تبدأ التلاوةُ الجارية.
+  int _from = 0;
+  bool _listening = false;
+  bool _done = false;
+  String? _message;
+  int? _gems;
+  bool _alreadyRewarded = false;
+  final Set<String> _recited = {};
+
+  /// للاختبار: حالُ كل كلمةٍ في السورة المفتوحة.
+  @visibleForTesting
+  List<RecitedWord> get status => _status;
+
+  @visibleForTesting
+  bool get done => _done;
+
+  @override
+  void initState() {
+    super.initState();
+    // هنا لا كسولاً: أوّلُ من يلمسه قد يكون dispose، والتكّةُ لا تُنشأ بعد
+    // أن تخرج الشجرة.
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+  }
+
+  @override
+  void dispose() {
+    if (_listening) unawaited(_stop());
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  Future<void> _stop() => (widget.stopListening ?? StudentVoiceService.instance.stopListening)();
+
+  void _open(QuranSurah surah) {
+    HapticFeedback.lightImpact();
+    StudentSoundService.instance.playTap();
+    final words = surah.words;
+    setState(() {
+      _surah = surah;
+      _words = [for (final w in words) w.word];
+      _verseOf = [for (final w in words) w.verse];
+      _reset();
+    });
+  }
+
+  void _reset() {
+    _settled = List.filled(_words.length, RecitedWord.pending);
+    _status = _settled;
+    _from = 0;
+    _done = false;
+    _message = null;
+    _gems = null;
+    _alreadyRewarded = false;
+  }
+
+  Future<void> _close() async {
+    if (_listening) await _stop();
+    if (!mounted) return;
+    setState(() {
+      _listening = false;
+      _pulse.stop();
+      _surah = null;
+    });
+  }
+
+  Future<void> _restart() async {
+    if (_listening) await _stop();
+    if (!mounted) return;
+    setState(() {
+      _listening = false;
+      _pulse.stop();
+      _reset();
+    });
+  }
+
+  /// تلاوةٌ جديدة: ما سبقها يستقرّ، وتُرجَّح بدايتُها من أوّل كلمةٍ لم تصحّ.
+  void _settle() {
+    _settled = _status;
+    final next = _status.indexWhere((s) => s != RecitedWord.correct);
+    _from = next < 0 ? 0 : next;
+  }
+
+  Future<void> _toggleMic() async {
+    if (_done) return;
+    if (_listening) {
+      await _stop();
+      if (!mounted) return;
+      setState(() {
+        _listening = false;
+        _pulse.stop();
+        _settle();
+      });
+      return;
+    }
+    setState(() {
+      _settle();
+      _message = null;
+    });
+    final listen = widget.listen ?? StudentVoiceService.instance.listenLive;
+    final started = await listen(onWords: _onWords, onEnd: _onEnd);
+    if (!mounted) return;
+    if (!started) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      setState(() => _message = tr('quran.micUnavailable'));
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    setState(() => _listening = true);
+    if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) _pulse.repeat(reverse: true);
+  }
+
+  void _onWords(String heard) {
+    if (!mounted || _done || _surah == null) return;
+    final current = alignRecitation(_words, heard, from: _from);
+    setState(() => _status = mergeRecitation(_settled, current));
+    if (_status.every((s) => s == RecitedWord.correct)) unawaited(_complete());
+  }
+
+  void _onEnd() {
+    if (!mounted || !_listening) return;
+    setState(() {
+      _listening = false;
+      _pulse.stop();
+      _settle();
+    });
+  }
+
+  Future<void> _complete() async {
+    final surah = _surah;
+    if (surah == null || _done) return;
+    setState(() {
+      _done = true;
+      _listening = false;
+      _pulse.stop();
+      _recited.add(surah.id);
+    });
+    unawaited(_stop());
+    // عبارةُ تشجيعٍ ثم التصفيق — ولا لحنَ معهما.
+    StudentSoundService.instance.playApplause();
+    try {
+      final result = await widget.onRecited(surah);
+      if (!mounted || _surah != surah) return;
+      setState(() {
+        _gems = result?.gems ?? 0;
+        _alreadyRewarded = result?.alreadyRewarded ?? false;
+      });
+      if ((result?.gems ?? 0) > 0) StudentSoundService.instance.playReward();
+    } catch (error) {
+      debugPrint('[quran] reward failed for ${surah.id}: $error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surah = _surah;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 240),
+      child: surah == null
+          ? _picker(context)
+          : KeyedSubtree(key: ValueKey('quran-${surah.id}'), child: _reciting(context, surah)),
+    );
+  }
+
+  // ── اختيارُ السورة ─────────────────────────────────────────────────
+
+  Widget _picker(BuildContext context) {
+    return Column(
+      key: const ValueKey('quran-picker'),
+      children: [
+        _topBar(context, tr('quran.title'), widget.onBack),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          child: Text(
+            tr('quran.pick'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
+          ),
+        ),
+        Expanded(
+          child: LayoutBuilder(builder: (context, box) {
+            final columns = box.maxWidth >= 720 ? 4 : (box.maxWidth >= 420 ? 3 : 2);
+            return GridView.count(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              crossAxisCount: columns,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.35,
+              children: [
+                for (var i = 0; i < widget.surahs.length; i++) _surahTile(widget.surahs[i], i),
+              ],
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _surahTile(QuranSurah surah, int index) {
+    final recited = _recited.contains(surah.id);
+    final colors = [
+      [emerald, teal],
+      [teal, const Color(0xFF0284C7)],
+      [const Color(0xFF7C3AED), emerald],
+      [gold, emerald],
+    ][index % 4];
+    return Semantics(
+      button: true,
+      label: trf('quran.surah', {'name': surah.name}),
+      child: InkWell(
+        key: ValueKey('quran-surah-${surah.id}'),
+        borderRadius: BorderRadius.circular(22),
+        onTap: () => _open(surah),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: LinearGradient(colors: colors, begin: Alignment.topRight, end: Alignment.bottomLeft),
+            boxShadow: [BoxShadow(color: colors.first.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('📖', style: TextStyle(fontSize: 26)),
+                    const SizedBox(height: 4),
+                    Text(
+                      surah.name,
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              if (recited)
+                PositionedDirectional(
+                  top: 8,
+                  end: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999)),
+                    child: Text(
+                      tr('quran.recited'),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: green),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar(BuildContext context, String title, VoidCallback onBack) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+      child: Row(
+        children: [
+          IconButton(
+            key: const ValueKey('quran-back'),
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back_rounded),
+            color: StudentSurface.ink(context),
+          ),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
+            ),
+          ),
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+
+  // ── التلاوة ────────────────────────────────────────────────────────
+
+  Widget _reciting(BuildContext context, QuranSurah surah) {
+    final hint = _message ??
+        (_done
+            ? null
+            : _listening
+                ? tr('quran.listening')
+                : _status.contains(RecitedWord.wrong)
+                    ? tr('quran.fixRed')
+                    : tr('quran.tapMic'));
+    return Column(
+      children: [
+        _topBar(context, trf('quran.surah', {'name': surah.name}), _close),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                decoration: BoxDecoration(
+                  color: StudentSurface.card(context),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: emerald.withValues(alpha: 0.35), width: 2),
+                  boxShadow: [BoxShadow(color: emerald.withValues(alpha: 0.12), blurRadius: 14, offset: const Offset(0, 5))],
+                ),
+                child: Column(
+                  children: [
+                    if (!surah.basmalaIsVerse) ...[
+                      Text(
+                        basmala,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 22, height: 1.8, fontWeight: FontWeight.w700, color: StudentSurface.mutedInk(context)),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    _verses(context),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (_done) _doneBanner() else if (hint != null) _hint(context, hint),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                key: const ValueKey('quran-restart'),
+                onPressed: _restart,
+                icon: const Icon(Icons.replay_rounded),
+                label: Text(tr('quran.again'), style: const TextStyle(fontWeight: FontWeight.w900)),
+              ),
+              const SizedBox(width: 18),
+              _micButton(),
+              const SizedBox(width: 18 + 48),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// الآياتُ كلماتٍ متتابعة، تحت كلٍّ خطٌّ بلونها، وفي آخر كل آيةٍ رقمُها.
+  Widget _verses(BuildContext context) {
+    final spans = <Widget>[];
+    for (var k = 0; k < _words.length; k++) {
+      spans.add(_word(context, k));
+      final verseEnds = k == _words.length - 1 || _verseOf[k + 1] != _verseOf[k];
+      if (verseEnds) {
+        spans.add(Text(
+          '﴿${_arabicDigits(_verseOf[k] + 1)}﴾',
+          style: const TextStyle(fontSize: 20, height: 2.1, fontWeight: FontWeight.w800, color: gold),
+        ));
+      }
+    }
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: spans,
+      ),
+    );
+  }
+
+  Widget _word(BuildContext context, int k) {
+    final state = _status.isEmpty ? RecitedWord.pending : _status[k];
+    final line = switch (state) {
+      RecitedWord.correct => green,
+      RecitedWord.wrong => red,
+      RecitedWord.pending => Colors.transparent,
+    };
+    final ink = switch (state) {
+      RecitedWord.correct => green,
+      RecitedWord.wrong => red,
+      RecitedWord.pending => StudentSurface.ink(context),
+    };
+    return AnimatedContainer(
+      key: ValueKey('quran-word-$k'),
+      duration: const Duration(milliseconds: 220),
+      padding: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: line, width: 3.5)),
+        color: state == RecitedWord.wrong ? red.withValues(alpha: 0.08) : null,
+      ),
+      child: Text(
+        _words[k],
+        style: TextStyle(fontSize: 27, height: 1.9, fontWeight: FontWeight.w800, color: ink),
+      ),
+    );
+  }
+
+  static String _arabicDigits(int n) =>
+      n.toString().split('').map((d) => '٠١٢٣٤٥٦٧٨٩'[int.parse(d)]).join();
+
+  Widget _hint(BuildContext context, String text) => Text(
+        text,
+        key: const ValueKey('quran-hint'),
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
+      );
+
+  Widget _doneBanner() {
+    final gems = _gems;
+    return Container(
+      key: const ValueKey('quran-done'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [emerald, teal]),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Text(
+            tr('quran.done'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
+          ),
+          if (gems != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              gems > 0 ? trf('quran.gems', {'gems': gems}) : (_alreadyRewarded ? tr('quran.alreadyRewarded') : ''),
+              key: const ValueKey('quran-gems'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFFFDE68A)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _micButton() {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, _) {
+        final t = _listening ? _pulse.value : 0.0;
+        final color = _done ? green : (_listening ? red : emerald);
+        return Semantics(
+          button: true,
+          label: _listening ? tr('quran.listening') : tr('quran.tapMic'),
+          child: GestureDetector(
+            key: const ValueKey('quran-mic'),
+            onTap: _toggleMic,
+            child: Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35 + 0.3 * t),
+                    blurRadius: 14 + 16 * t,
+                    spreadRadius: 2 + 8 * t,
+                  ),
+                ],
+              ),
+              child: Icon(
+                _done ? Icons.check_rounded : (_listening ? Icons.stop_rounded : Icons.mic_rounded),
+                color: Colors.white,
+                size: 44,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// بطاقةُ «تسميع القرآن الكريم» على رفّ ألعاب الدرس: تدرّجٌ زمرّديٌّ ذهبيّ،
+/// وتوهّجٌ ينبض، ومصحفٌ يطفو، وشارةٌ تتمايل — وتسكن لمن طلب تقليل الحركة.
+class QuranShelfCard extends StatefulWidget {
+  const QuranShelfCard({required this.onTap, super.key});
+
+  final VoidCallback onTap;
+
+  @override
+  State<QuranShelfCard> createState() => _QuranShelfCardState();
+}
+
+class _QuranShelfCardState extends State<QuranShelfCard> with SingleTickerProviderStateMixin {
+  static const emerald = QuranRecitationGameState.emerald;
+  static const teal = QuranRecitationGameState.teal;
+  static const gold = QuranRecitationGameState.gold;
+
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  );
+  bool _still = false;
+  bool _pressed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_still) {
+      _clock
+        ..stop()
+        ..value = 0.3;
+    } else if (!_clock.isAnimating) {
+      _clock.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  double _wave(double phase) => 0.5 - 0.5 * math.cos(2 * math.pi * ((_clock.value + phase) % 1.0));
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 16),
+      child: Semantics(
+        button: true,
+        label: '${tr('quran.title')} — ${tr('quran.badge')}',
+        child: GestureDetector(
+          key: const ValueKey('quran-shelf-card'),
+          onTapDown: (_) {
+            HapticFeedback.selectionClick();
+            setState(() => _pressed = true);
+          },
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: (_) {
+            HapticFeedback.lightImpact();
+            setState(() => _pressed = false);
+            widget.onTap();
+          },
+          child: AnimatedScale(
+            scale: _pressed ? 0.94 : 1.0,
+            duration: const Duration(milliseconds: 140),
+            child: AnimatedBuilder(animation: _clock, builder: (context, _) => _card()),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _card() {
+    final pulse = _still ? 0.0 : _wave(0);
+    final float = _still ? 0.0 : _wave(0.25);
+    final swing = _still ? 0.5 : _wave(0.1);
+    return Transform.scale(
+      scale: 1 + 0.025 * pulse,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: SweepGradient(
+                colors: const [gold, Colors.white, emerald, gold],
+                transform: GradientRotation(2 * math.pi * _clock.value),
+              ),
+              boxShadow: [
+                BoxShadow(color: emerald.withValues(alpha: 0.35 + 0.25 * pulse), blurRadius: 14 + 14 * pulse, spreadRadius: 1 + 2 * pulse),
+                BoxShadow(color: gold.withValues(alpha: 0.25), blurRadius: 24, offset: const Offset(0, 6)),
+              ],
+            ),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 22, 16, 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(25),
+                gradient: const LinearGradient(
+                  colors: [emerald, teal, gold],
+                  stops: [0.0, 0.6, 1.0],
+                  begin: AlignmentDirectional.topStart,
+                  end: AlignmentDirectional.bottomEnd,
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 96,
+                    height: 100,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 2),
+                          ),
+                        ),
+                        Transform.translate(
+                          offset: Offset(0, -6 * float),
+                          child: const Text('📖', style: TextStyle(fontSize: 48)),
+                        ),
+                        PositionedDirectional(
+                          bottom: -6,
+                          end: -8,
+                          child: Transform.scale(
+                            scale: 0.9 + 0.2 * pulse,
+                            child: const Text('🎙️', style: TextStyle(fontSize: 26)),
+                          ),
+                        ),
+                        PositionedDirectional(
+                          top: -8,
+                          start: -6,
+                          child: Opacity(
+                            opacity: 0.4 + 0.6 * swing,
+                            child: const Text('✨', style: TextStyle(fontSize: 18)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          tr('quran.title'),
+                          style: const TextStyle(
+                            fontSize: 22,
+                            height: 1.15,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            shadows: [Shadow(color: Color(0x66000000), offset: Offset(0, 2), blurRadius: 4)],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          tr('quran.subtitle'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, height: 1.35, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.24),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+                              ),
+                              child: Text(
+                                '💎 ${trf('quran.perSurah', {'gems': quranGemsPerSurah})}',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.white),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999)),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(tr('quran.play'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: emerald)),
+                                  const Icon(Icons.mic_rounded, color: emerald, size: 18),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          PositionedDirectional(
+            top: -14,
+            end: 14,
+            child: Transform.rotate(
+              angle: 0.14 * (swing - 0.5),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFFFDE047), gold]),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [BoxShadow(color: gold.withValues(alpha: 0.6), blurRadius: 8 + 6 * swing, offset: const Offset(0, 3))],
+                ),
+                child: Text(
+                  tr('quran.badge'),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF7C2D12)),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

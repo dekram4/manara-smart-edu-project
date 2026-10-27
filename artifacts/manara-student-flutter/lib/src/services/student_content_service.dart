@@ -302,6 +302,7 @@ class StudentContentService {
     int? correctAnswers,
     int? quizTotal,
     String? tracingItem,
+    String? quranSurah,
   }) async {
     if (activityId.trim().isEmpty) {
       throw ArgumentError(tr('svc.noActivityId'));
@@ -315,6 +316,8 @@ class StudentContentService {
       if (quizTotal != null) 'quizTotal': quizTotal,
       // حرفُ «تتبّع واكتب»: الخادمُ يتحقّق أنه من مجموعة الدرس ويبني مفتاحه.
       if (tracingItem != null) 'tracingItem': tracingItem,
+      // سورةُ «تسميع القرآن»: كذلك يتحقّق منها الخادمُ ويبني مفتاحها.
+      if (quranSurah != null) 'quranSurah': quranSurah,
     });
     return _rewardFromResponse(payload);
   }

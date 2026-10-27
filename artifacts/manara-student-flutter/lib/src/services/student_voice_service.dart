@@ -77,8 +77,12 @@ class StudentVoiceService {
     _speechReady = true;
     try {
       _speechAvailable = await _speech.initialize(
-        onError: (_) {},
-        onStatus: (_) {},
+        onError: (_) => _onLiveEnd?.call(),
+        onStatus: (status) {
+          if (status == SpeechToText.doneStatus || status == SpeechToText.notListeningStatus) {
+            _onLiveEnd?.call();
+          }
+        },
       );
     } catch (_) {
       _speechAvailable = false;
@@ -113,6 +117,53 @@ class StudentVoiceService {
       );
       return true;
     } catch (_) {
+      return false;
+    }
+  }
+
+  /// انتهاءُ استماعٍ حيّ ([listenLive]): صمتٌ أو خطأٌ أو إيقاف.
+  VoidCallback? _onLiveEnd;
+
+  /// استماعٌ حيّ للتسميع: كلُّ ما سُمع حتى الآن يصل مع كل كلمةٍ جديدة
+  /// ([onWords]) — فيتلوّن النصّ والطفلُ يقرأ — و[onEnd] مرّةً حين يتوقّف.
+  ///
+  /// خلافاً لـ[listen]: هنا الكلماتُ الجزئية هي المقصود، والصمتُ المُنهي
+  /// أطول — الطفلُ يتذكّر الآيةَ التالية قبل أن يقرأها.
+  Future<bool> listenLive({
+    required ValueChanged<String> onWords,
+    required VoidCallback onEnd,
+    String locale = 'ar_SA',
+    Duration limit = const Duration(minutes: 2),
+    Duration pause = const Duration(seconds: 6),
+  }) async {
+    if (!await prepare()) return false;
+    await stopSpeaking();
+    var ended = false;
+    void end() {
+      if (ended) return;
+      ended = true;
+      _onLiveEnd = null;
+      onEnd();
+    }
+
+    _onLiveEnd = end;
+    try {
+      await _speech.listen(
+        listenOptions: SpeechListenOptions(
+          localeId: locale,
+          listenFor: limit,
+          pauseFor: pause,
+          partialResults: true,
+          listenMode: ListenMode.dictation,
+        ),
+        onResult: (result) {
+          onWords(result.recognizedWords.trim());
+          if (result.finalResult) end();
+        },
+      );
+      return true;
+    } catch (_) {
+      _onLiveEnd = null;
       return false;
     }
   }

@@ -30,16 +30,13 @@ void main() {
         expect(clip, startsWith('audio/encouragement/'));
         expect(File('assets/$clip').existsSync(), isTrue, reason: clip);
       }
-      expect(File('assets/audio/clap2.mp3').existsSync(), isTrue);
-      expect(File('assets/audio/clap.mp3').existsSync(), isTrue);
+      expect(File('assets/${StudentSoundService.clapping}').existsSync(), isTrue);
     });
 
     test('التسلسلُ عبارةٌ ثم ملفُّ تصفيقٍ نقيّ واحد — بلا نغمةٍ ولا لحن', () {
       const phrase = 'audio/encouragement/encouragement_rai.mp3';
-      for (final long in [false, true]) {
-        final clips = StudentSoundService.cheerSequence(phrase, long: long).map((c) => c.$1).toList();
-        expect(clips, [phrase, long ? 'audio/clap.mp3' : 'audio/clap2.mp3']);
-      }
+      final clips = StudentSoundService.cheerSequence(phrase).map((c) => c.$1).toList();
+      expect(clips, [phrase, 'audio/encouragement/clapping.mp3']);
     });
 
     test('العبارةُ لا تتكرّر مرّتين متتاليتين، وكلُّها تُسمع', () {

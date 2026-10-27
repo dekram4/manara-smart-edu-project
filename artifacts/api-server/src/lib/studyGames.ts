@@ -38,8 +38,8 @@ export type StudyGameType = (typeof GAME_TYPES)[number];
  * كلُّ ألعاب البطاقة، ومنها «التتبّع» التي لا يولّدها النموذج بل تُبنى من نصّ
  * الدرس (`tracing.ts`) — فلا تدخل [GAME_TYPES] ولا مخطّطَه.
  */
-export type StudyGameKind = StudyGameType | "tracing";
-export const REWARDABLE_GAME_IDS: readonly StudyGameKind[] = [...GAME_TYPES, "tracing"];
+export type StudyGameKind = StudyGameType | "tracing" | "quran";
+export const REWARDABLE_GAME_IDS: readonly StudyGameKind[] = [...GAME_TYPES, "tracing", "quran"];
 
 /** حرفٌ أو رقمٌ أو كلمةٌ يتتبّعها الطفل؛ والمسارُ يبنيه التطبيقُ من خطّه. */
 export interface TracingItem {
