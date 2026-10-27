@@ -675,7 +675,7 @@ class _DragDropGameState extends State<DragDropGame> {
     if (_done || !_pool.contains(item)) return;
     final right = widget.game.targetOf(item) == target;
     if (right) {
-      StudentSoundService.instance.play(StudentSoundCue.success);
+      StudentSoundService.instance.playCheer();
       setState(() {
         _pool.remove(item);
         _placed.putIfAbsent(target, () => []).add(item);
@@ -1005,7 +1005,7 @@ class _MatchingGameState extends State<MatchingGame> {
   void _match(String item, String target) {
     if (_done || _matched.contains(item)) return;
     if (widget.game.targetOf(item) == target) {
-      StudentSoundService.instance.play(StudentSoundCue.success);
+      StudentSoundService.instance.playCheer();
       setState(() {
         _matched.add(item);
         _selected = null;
@@ -1302,8 +1302,11 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
         _streak = 0;
       }
     });
-    StudentSoundService.instance
-        .play(right ? StudentSoundCue.success : StudentSoundCue.warning);
+    if (right) {
+      StudentSoundService.instance.playCheer();
+    } else {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+    }
     if (right && !_won && _score >= goal) {
       _won = true;
       unawaited(widget.onWin());

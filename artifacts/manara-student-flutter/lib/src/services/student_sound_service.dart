@@ -1136,6 +1136,9 @@ class StudentSoundService with WidgetsBindingObserver {
 
   bool _applauseCancelled = false;
 
+  /// رقمُ آخر تسلسلٍ بدأ في [_playSequence].
+  int _sequence = 0;
+
   /// Applause: `clap2.mp3` then `clap.mp3`, back to back.
   /// طلقةُ البدء: لحظةَ «انطلق!» في ألعاب «تحدَّ زملاءك».
   ///
@@ -1146,11 +1149,54 @@ class StudentSoundService with WidgetsBindingObserver {
     unawaited(_playSequence(const [('audio/start_gun.wav', 0.85)]));
   }
 
+  /// ── التشجيع: صوتٌ مسجّلٌ ثم تصفيق ──
+  ///
+  /// عباراتُ تشجيعٍ بصوتٍ مسجّل (لا TTS)، منسوخةٌ إلى المشروع بأسماءٍ
+  /// لاتينية: «أحسنت يا بطل»، «رائع»، «صحيح، استمرّ يا بطل»، «مبدع جدّاً».
+  /// والتصفيقُ يدخل لحظةَ انتهاء العبارة — بحدث الانتهاء في [_playSequence]
+  /// لا بمؤقّت، فلا تراكبَ ولا فجوة.
+  static const encouragementClips = [
+    'audio/encouragement/encouragement_ahsant_ya_batal.mp3',
+    'audio/encouragement/encouragement_rai.mp3',
+    'audio/encouragement/encouragement_sahih_istamir.mp3',
+    'audio/encouragement/encouragement_mubdi_jiddan.mp3',
+  ];
+
+  /// العباراتُ مسجّلةٌ أخفتَ من التصفيق، فتُشغَّل بكامل العلوّ.
+  static const _encouragementVolume = 1.0;
+
+  String? _lastEncouragement;
+
+  /// عبارةٌ عشوائية غيرُ [last]: لا تتكرّر العبارةُ مرّتين متتاليتين.
+  @visibleForTesting
+  static String pickEncouragementClip(String? last, math.Random random) {
+    final options = encouragementClips.where((c) => c != last).toList();
+    return options[random.nextInt(options.length)];
+  }
+
+  String nextEncouragementClip() =>
+      _lastEncouragement = pickEncouragementClip(_lastEncouragement, _random);
+
+  /// تشجيعٌ قصير لإجابةٍ صحيحة أو حرفٍ كُتب: عبارةٌ ثم تصفيقةٌ قصيرة.
+  ///
+  /// لا يفتح نافذةَ [_justApplauded]: يتكرّر في الجولة الواحدة، ونغمةُ
+  /// المكافأة أو الاحتفالُ الكبير بعده يجب أن يُسمعا.
+  void playCheer() {
+    _applauseCancelled = false;
+    HapticFeedback.mediumImpact();
+    unawaited(_playSequence([
+      (nextEncouragementClip(), _encouragementVolume),
+      ('audio/clap2.mp3', 0.7),
+    ]));
+  }
+
+  /// الاحتفالُ بإنهاء اختبارٍ أو لعبةٍ أو مرحلة: عبارةُ تشجيعٍ ثم التصفيقُ كاملاً.
   void playApplause() {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence(const [
+    unawaited(_playSequence([
+      (nextEncouragementClip(), _encouragementVolume),
       ('audio/clap2.mp3', 0.7),
       ('audio/clap.mp3', 0.7),
     ]));
@@ -1168,8 +1214,9 @@ class StudentSoundService with WidgetsBindingObserver {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence(const [
+    unawaited(_playSequence([
       ('audio/success-reward.wav', 0.85),
+      (nextEncouragementClip(), _encouragementVolume),
       ('audio/clap2.mp3', 0.7),
       ('audio/clap.mp3', 0.7),
     ]));
@@ -1182,14 +1229,19 @@ class StudentSoundService with WidgetsBindingObserver {
   ///
   /// والاشتراك يُلغى عند كل خطوة، فلا يتراكم مستمعان على المشغّل نفسه لو
   /// بدأ تسلسل جديد قبل انتهاء السابق.
+  ///
+  /// وتسلسلٌ جديدٌ يُبطل السابق ([_sequence]): التشجيعُ يتكرّر مع كل إجابة،
+  /// ومستمعُ التسلسل القديم لو بقي لأطلق مقطعه التالي فوق الجديد.
   Future<void> _playSequence(List<(String, double)> clips) async {
     if (muted.value || _backgrounded || clips.isEmpty) return;
+    final generation = ++_sequence;
     var index = 0;
     try {
       late StreamSubscription<void> sub;
       sub = _effectsPlayer.onPlayerComplete.listen((_) async {
         index++;
-        if (index >= clips.length ||
+        if (generation != _sequence ||
+            index >= clips.length ||
             muted.value ||
             _backgrounded ||
             _applauseCancelled) {

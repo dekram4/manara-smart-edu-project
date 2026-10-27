@@ -214,7 +214,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
       // مؤثّرُ الفوز في اللحظة نفسها: الطفل يرى الورقَ يتناثر و«+٢»
       // تظهر، فيعرف أنه أصاب قبل أن يقرأ سطر الشرح.
       _confetti.play();
-      StudentSoundService.instance.play(StudentSoundCue.success);
+      StudentSoundService.instance.playCheer();
     } else {
       StudentSoundService.instance.play(StudentSoundCue.warning);
     }

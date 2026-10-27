@@ -492,7 +492,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   final _random = math.Random();
 
   void _completeItem() {
-    StudentSoundService.instance.play(StudentSoundCue.success);
+    StudentSoundService.instance.playCheer();
     HapticFeedback.lightImpact();
     final item = _item;
     final index = _index;
