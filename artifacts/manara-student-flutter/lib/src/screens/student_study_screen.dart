@@ -104,25 +104,11 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     // صامتاً بلا خطأٍ يظهر. وهو سببُ صمت هذه الشاشة، والملفُّ في مكانه.
     unawaited(StudentSoundService.instance.playClip('audio/booksound.mp3'));
     unawaited(_load());
-    // ألعابُ الدرس تُطلب من الآن، والطفلُ على الخريطة: حين يفتح تبويبَها
-    // تكون قد وصلت أو قاربت.
-    try {
-      final games = widget.studyService.fetchGames(lessonId: _lessonId);
-      unawaited(games.then((_) {}, onError: (_) {}));
-      _gamesAhead = games;
-    } catch (_) {
-      // لا طلبَ مبكراً: يُطلب حين يُفتح التبويب كما كان.
-    }
   }
 
-  /// الطلبُ المبكر لألعاب الدرس — يُؤخذ مرّةً، وإعادةُ المحاولة طلبٌ جديد.
-  Future<StudyGamesPack>? _gamesAhead;
-
-  Future<StudyGamesPack> _takeGames() {
-    final ahead = _gamesAhead;
-    _gamesAhead = null;
-    return ahead ?? widget.studyService.fetchGames(lessonId: _lessonId);
-  }
+  /// ألعابُ الدرس تُطلب حين يُفتح تبويبُها وحده، لا مع فتح البطاقة: الخريطةُ
+  /// والتحدّي لا ينتظران توليدَ الألعاب على الخادم.
+  Future<StudyGamesPack> _takeGames() => widget.studyService.fetchGames(lessonId: _lessonId);
 
   @override
   void dispose() {
@@ -155,31 +141,46 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
       });
       return;
     }
+    // ‏المحفوظُ على الجهاز أوّلاً: البطاقةُ تُفتح في لحظتها، والجديدُ يحلّ محلّه
+    // حين يصل من الخادم.
+    final rotation = StudyRotation.load(studentId: widget.profile.id, lessonId: lessonId);
+    final saved = await StudentStudyService.cachedPack(lessonId: lessonId);
+    if (saved != null && mounted) {
+      final turn = await rotation;
+      if (!mounted) return;
+      setState(() {
+        _pack = saved;
+        _rotation = turn;
+        _loading = false;
+      });
+    }
     try {
       final results = await Future.wait<Object>([
         widget.studyService.fetch(lessonId: lessonId),
-        StudyRotation.load(studentId: widget.profile.id, lessonId: lessonId),
+        rotation,
       ]);
       if (!mounted) return;
       setState(() {
         _pack = results[0] as StudyPack;
         _rotation = results[1] as StudyRotation;
         _loading = false;
+        _error = null;
       });
     } on StudyServerFailure catch (failure) {
-      if (!mounted) return;
+      if (!mounted || _pack != null) return;
       setState(() {
         _loading = false;
         _error = failure.message;
       });
     } on StudyFailure catch (failure) {
-      if (!mounted) return;
+      if (!mounted || _pack != null) return;
       setState(() {
         _loading = false;
         _error = failure.message;
       });
     } catch (_) {
-      if (!mounted) return;
+      // الخادمُ تعذّر والمحفوظُ معروض: يبقى، بلا رسالة خطأ.
+      if (!mounted || _pack != null) return;
       setState(() {
         _loading = false;
         _error = tr('study.error.failed');

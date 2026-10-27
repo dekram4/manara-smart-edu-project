@@ -296,6 +296,39 @@ void main() {
       expect(recited, ['kawthar']);
     });
 
+    testWidgets('السابقةُ والتالية من شاشة التسميع نفسها', (tester) async {
+      final played = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: QuranRecitationGame(onRecited: (_) async => null, onBack: () {}, playName: played.add),
+        ),
+      ));
+      await tester.tap(find.byKey(const ValueKey('quran-surah-nas')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('quran-next')));
+      await tester.pumpAndSettle();
+      expect(played.last, quranSurahs[2].nameClip);
+      await tester.tap(find.byKey(const ValueKey('quran-prev')));
+      await tester.pumpAndSettle();
+      expect(played.last, quranSurahs[1].nameClip);
+      // الأولى: لا سابقةَ لها.
+      await tester.tap(find.byKey(const ValueKey('quran-prev')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('quran-prev')));
+      await tester.pumpAndSettle();
+      expect(played.last, quranSurahs.first.nameClip);
+      expect(played.where((c) => c == quranSurahs.first.nameClip), hasLength(1));
+    });
+
+    test('المطابقةُ والتلوينُ على الجهاز وحده: لا شبكةَ في ملفّيهما', () {
+      for (final path in ['lib/src/services/quran_recitation.dart', 'lib/src/widgets/quran_recitation_game.dart']) {
+        final source = File(path).readAsStringSync();
+        expect(source, isNot(contains('package:http')), reason: path);
+        expect(source, isNot(contains('dart:io')), reason: path);
+        expect(source, isNot(contains('content_service')), reason: path);
+      }
+    });
+
     testWidgets('بطاقتُها الرابعةُ على الرفّ بعد ألعاب الدرس، ولدرسها وحده', (tester) async {
       final games = [matchingGame()];
       Future<StudyGamesPack> load() async => StudyGamesPack(lessonId: 'L1', games: games);
