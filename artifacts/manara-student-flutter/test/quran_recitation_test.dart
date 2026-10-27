@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manara_student/src/models/student_gamification.dart';
@@ -7,15 +9,41 @@ import 'package:manara_student/src/widgets/quran_recitation_game.dart';
 import 'package:manara_student/src/widgets/study_games.dart';
 
 /// ما يكتبه محرّكُ التعرّف: الكلماتُ بلا تشكيل.
-String spoken(Iterable<String> words) => words.map(normalizeQuranWord).join(' ');
+List<String> spokenWords(Iterable<String> words) => words.map(normalizeQuranWord).toList();
 
 QuranSurah surahOf(String id) => quranSurahs.firstWhere((s) => s.id == id);
 
-List<String> wordsOf(String id) => [for (final w in surahOf(id).words) w.word];
+/// كلُّ ما يُقرأ من السورة بترتيبه: الاستعاذة والبسملة والآيات.
+List<String> fullReading(String id) => spokenWords(RecitationTracker(surahOf(id)).words);
+
+/// يُسمع النصُّ كما يصل من المحرّك: يكبر كلمةً كلمة.
+void sayGrowing(RecitationTracker tracker, List<String> words, {List<List<RecitedWord>>? snapshots}) {
+  for (var n = 1; n <= words.length; n++) {
+    tracker.hear(words.take(n).join(' '));
+    snapshots?.add(tracker.status);
+  }
+}
 
 const correct = RecitedWord.correct;
 const wrong = RecitedWord.wrong;
 const pending = RecitedWord.pending;
+
+StudyGame matchingGame() => StudyGame.fromMap({
+      'id': 'matching',
+      'game_type': 'matching',
+      'title': 'صِل',
+      'instructions': 'صل',
+      'items': {
+        'drag_items': ['أ', 'ب'],
+        'drop_targets': ['١', '٢'],
+        'correct_pairs': [
+          {'item': 'أ', 'target': '١'},
+          {'item': 'ب', 'target': '٢'},
+        ],
+      },
+      'gems_reward': 5,
+      'points_reward': 20,
+    })!;
 
 void main() {
   group('متى تظهر: الروضةُ والقرآنُ ودرسُ السور القصيرة معاً، وحصراً', () {
@@ -51,69 +79,158 @@ void main() {
         'kafirun': 6,
         'kawthar': 3,
       });
-      expect(surahOf('fatiha').basmalaIsVerse, isTrue);
-      expect(surahOf('ikhlas').basmalaIsVerse, isFalse);
+    });
+
+    test('تبدأ كلُّ سورةٍ بالاستعاذة ثم البسملة — وفي الفاتحة البسملةُ آيتُها الأولى', () {
+      final ikhlas = surahOf('ikhlas').units;
+      expect(ikhlas.map((u) => u.kind).take(3), [
+        RecitationUnitKind.istiadha,
+        RecitationUnitKind.basmala,
+        RecitationUnitKind.verse,
+      ]);
+      expect(ikhlas[2].number, 1);
+      final fatiha = surahOf('fatiha').units;
+      expect(fatiha[0].kind, RecitationUnitKind.istiadha);
+      expect(fatiha[1].kind, RecitationUnitKind.verse);
+      expect(fatiha[1].text, basmala);
+      expect(fatiha.where((u) => u.kind == RecitationUnitKind.basmala), isEmpty);
+    });
+
+    test('اسمُ كل سورةٍ بصوتٍ مسجّل داخل assets/audio/surah_names/', () {
+      for (final surah in quranSurahs) {
+        expect(surah.nameClip, startsWith('audio/surah_names/'));
+        expect(File('assets/${surah.nameClip}').existsSync(), isTrue, reason: surah.nameClip);
+      }
     });
   });
 
-  group('التقييم كلمةً كلمة', () {
-    test('كلُّ سورةٍ تُقرأ كاملةً كما يكتبها محرّكُ التعرّف: كلُّها خضراء', () {
+  group('التقييم: الخطُّ يثبت لحظةَ يُقرَّر', () {
+    test('كلُّ سورةٍ تُقرأ كاملةً كلمةً كلمة: تكتمل، ولا يتغيّر لونٌ بعد ظهوره', () {
       for (final surah in quranSurahs) {
-        final words = wordsOf(surah.id);
-        expect(alignRecitation(words, spoken(words)), everyElement(correct), reason: surah.id);
+        final tracker = RecitationTracker(surah)..startSession();
+        final snapshots = <List<RecitedWord>>[];
+        sayGrowing(tracker, fullReading(surah.id), snapshots: snapshots);
+        expect(tracker.complete, isTrue, reason: surah.id);
+        for (var s = 1; s < snapshots.length; s++) {
+          for (var k = 0; k < snapshots[s].length; k++) {
+            if (snapshots[s - 1][k] != pending) {
+              expect(snapshots[s][k], snapshots[s - 1][k], reason: '${surah.id} كلمة $k');
+            }
+          }
+        }
       }
     });
 
-    test('الاستعاذةُ والبسملةُ قبل السورة لا تُحسبان على الطفل', () {
-      final words = wordsOf('ikhlas');
-      final heard = 'اعوذ بالله من الشيطان الرجيم بسم الله الرحمن الرحيم ${spoken(words)}';
-      expect(alignRecitation(words, heard), everyElement(correct));
+    test('الكلمةُ الصحيحة تخضرّ لحظةَ تُقال', () {
+      final tracker = RecitationTracker(surahOf('ikhlas'))..startSession();
+      tracker.hear('اعوذ');
+      expect(tracker.status.first, correct);
+      expect(tracker.position, 1);
     });
 
-    test('كلمةٌ خاطئة حمراء، وما قبلها أخضر، وما بعد ما بلغه بلا لون', () {
-      final words = wordsOf('ikhlas'); // قل هو الله أحد | الله الصمد | ...
-      final status = alignRecitation(words, 'قل هو الله واحد الله الصمد');
-      expect(status.sublist(0, 6), [correct, correct, correct, wrong, correct, correct]);
-      expect(status.sublist(6), everyElement(pending));
+    test('الكلمةُ الخاطئة تحمرّ حين تُقرأ التي بعدها، وتبقى حمراء', () {
+      final tracker = RecitationTracker(surahOf('ikhlas'))..startSession();
+      final opening = spokenWords([...istiadha.split(' '), ...basmala.split(' ')]);
+      final said = [...opening, 'قل', 'هو', 'الله', 'واحد'];
+      sayGrowing(tracker, said);
+      final ahad = opening.length + 3;
+      expect(tracker.status[ahad], pending, reason: 'قد تكون كلمةً لم يُتمّها المحرّك بعد');
+      sayGrowing(tracker, [...said, 'الله', 'الصمد']);
+      expect(tracker.status[ahad], wrong);
+      expect(tracker.status[ahad + 1], correct);
+      sayGrowing(tracker, [...said, 'الله', 'الصمد', 'لم', 'يلد']);
+      expect(tracker.status[ahad], wrong);
     });
 
-    test('كلمةٌ تخطّاها حمراء', () {
-      final words = wordsOf('kawthar'); // انا اعطيناك الكوثر ...
-      final status = alignRecitation(words, 'انا الكوثر فصل لربك');
-      expect(status.sublist(0, 5), [correct, wrong, correct, correct, correct]);
+    test('سكت بعد كلمةٍ خاطئة: تثبت حمراء', () {
+      final tracker = RecitationTracker(surahOf('kawthar'))..startSession();
+      final words = fullReading('kawthar');
+      final said = [...words.take(words.length - 1), 'الابيض'];
+      tracker.hear(said.join(' '));
+      expect(tracker.status.last, pending);
+      tracker.hear(said.join(' '), ended: true);
+      expect(tracker.status.last, wrong);
+      expect(tracker.reviewing, isTrue);
     });
 
-    test('خطأُ حرفٍ من محرّك التعرّف في كلمةٍ طويلة يُقبل، وفي كلمةٍ من حرفين لا', () {
+    test('الاستعاذةُ والبسملةُ إجباريتان: من بدأ بالسورة مباشرةً تحمرّان', () {
+      final tracker = RecitationTracker(surahOf('ikhlas'))..startSession();
+      final verses = spokenWords(surahOf('ikhlas').verses.expand((v) => v.split(' ')));
+      sayGrowing(tracker, verses);
+      tracker.hear(verses.join(' '), ended: true);
+      final opening = istiadha.split(' ').length + basmala.split(' ').length;
+      expect(tracker.status.take(opening), everyElement(wrong));
+      expect(tracker.status.skip(opening), everyElement(correct));
+      expect(tracker.reviewing, isTrue);
+      expect(tracker.reviewUnit, 0);
+    });
+
+    test('بعد آخر السورة تُعاد الخطواتُ الحمراء وحدها، الأولى فالتي بعدها، حتى تكتمل', () {
+      final tracker = RecitationTracker(surahOf('ikhlas'))..startSession();
+      final verses = spokenWords(surahOf('ikhlas').verses.expand((v) => v.split(' ')));
+      tracker.hear(verses.join(' '), ended: true);
+      expect(tracker.reviewUnit, 0);
+
+      tracker.startSession();
+      sayGrowing(tracker, spokenWords(istiadha.split(' ')));
+      expect(tracker.reviewUnit, 1, reason: 'صحّت الاستعاذة، والبسملةُ بعدها');
+      expect(tracker.complete, isFalse);
+
+      tracker.startSession();
+      sayGrowing(tracker, spokenWords(basmala.split(' ')));
+      expect(tracker.complete, isTrue);
+    });
+
+    test('في الكافرون تتكرّر آية: تُتابَع بالترتيب', () {
+      final tracker = RecitationTracker(surahOf('kafirun'))..startSession();
+      final words = fullReading('kafirun');
+      sayGrowing(tracker, words.take(20).toList());
+      tracker.hear(words.take(20).join(' '), ended: true);
+      tracker.startSession();
+      sayGrowing(tracker, words.skip(20).toList());
+      expect(tracker.complete, isTrue);
+    });
+
+    test('حرفُ العطف مفصولاً («و لم») يُلصق بما بعده، وبدونه كلمةٌ أخرى', () {
+      final tracker = RecitationTracker(surahOf('ikhlas'))..startSession();
+      final words = fullReading('ikhlas');
+      final split = words.map((w) => w == 'ولم' ? 'و لم' : w).join(' ');
+      tracker.hear(split);
+      expect(tracker.complete, isTrue);
+      expect(quranWordMatches('الله', 'بِاللَّهِ'), isFalse);
+      expect(quranWordMatches('لم', 'وَلَمْ'), isFalse);
+    });
+
+    test('خطأُ حرفٍ من محرّك التعرّف في كلمةٍ طويلة يُقبل، وفي القصيرة لا', () {
       expect(quranWordMatches('المستقيم', 'الْمُسْتَقِيمَ'), isTrue);
       expect(quranWordMatches('المستقين', 'الْمُسْتَقِيمَ'), isTrue);
       expect(quranWordMatches('لن', 'لَمْ'), isFalse);
+      expect(quranWordMatches('واحد', 'أَحَدٌ'), isFalse);
       expect(quranWordMatches('إياك', 'إِيَّاكَ'), isTrue);
-    });
-
-    test('يعيد الآيةَ التي أخطأها وحدها: تصحّ وتبقى ما قبلها خضراء', () {
-      final words = wordsOf('ikhlas');
-      var settled = alignRecitation(words, 'قل هو الله احد الله الصمد لم يلد ولن يولد');
-      expect(settled[8], wrong); // «ولم» قرأها «ولن»
-      final from = settled.indexWhere((s) => s != correct);
-      final again = alignRecitation(words, 'لم يلد ولم يولد ولم يكن له كفوا احد', from: from);
-      settled = mergeRecitation(settled, again);
-      expect(settled, everyElement(correct));
-    });
-
-    test('في الكافرون تتكرّر آية: المتابعةُ من حيث توقّف لا من أوّل موضعها', () {
-      final words = wordsOf('kafirun');
-      final surah = surahOf('kafirun');
-      final first = alignRecitation(words, spoken(surah.verses.take(4).expand((v) => v.split(' '))));
-      final from = first.indexWhere((s) => s != correct);
-      final rest = alignRecitation(words, spoken(surah.verses.skip(4).expand((v) => v.split(' '))), from: from);
-      expect(mergeRecitation(first, rest), everyElement(correct));
     });
   });
 
   group('واجهةُ التسميع', () {
-    Future<({List<String> recited, void Function(String) say})> openIkhlas(WidgetTester tester) async {
+    testWidgets('السورُ الثماني في القائمة، واسمُ السورة يُسمع لحظةَ اختيارها', (tester) async {
+      final played = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: QuranRecitationGame(onRecited: (_) async => null, onBack: () {}, playName: played.add),
+        ),
+      ));
+      for (final surah in quranSurahs) {
+        expect(find.byKey(ValueKey('quran-surah-${surah.id}')), findsOneWidget);
+      }
+      await tester.tap(find.byKey(const ValueKey('quran-surah-nas')));
+      await tester.pump();
+      expect(played, ['audio/surah_names/surah_nas.mp3']);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('الخطوطُ تثبت وهو يقرأ، والحمراءُ تُعاد، والسورةُ كاملةً تُكافأ مرّةً واحدة', (tester) async {
       final recited = <String>[];
       ValueChanged<String>? heard;
+      VoidCallback? ended;
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: QuranRecitationGame(
@@ -129,8 +246,10 @@ void main() {
               );
             },
             onBack: () {},
+            playName: (_) {},
             listen: ({required onWords, required onEnd}) async {
               heard = onWords;
+              ended = onEnd;
               return true;
             },
             stopListening: () async {},
@@ -139,49 +258,45 @@ void main() {
       ));
       await tester.tap(find.byKey(const ValueKey('quran-surah-ikhlas')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('quran-mic')));
-      await tester.pump();
-      return (recited: recited, say: (String text) => heard!(text));
-    }
-
-    testWidgets('السورُ الثماني في القائمة', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: QuranRecitationGame(onRecited: (_) async => null, onBack: () {})),
-      ));
-      for (final surah in quranSurahs) {
-        expect(find.byKey(ValueKey('quran-surah-${surah.id}')), findsOneWidget);
-      }
-    });
-
-    testWidgets('الكلماتُ تتلوّن وهو يقرأ، والسورةُ كاملةً تُكافأ مرّةً واحدة', (tester) async {
-      final session = await openIkhlas(tester);
       final state = tester.state<QuranRecitationGameState>(find.byType(QuranRecitationGame));
 
-      session.say('قل هو الله');
+      // يبدأ بالسورة ناسياً الاستعاذةَ والبسملة.
+      await tester.tap(find.byKey(const ValueKey('quran-mic')));
       await tester.pump();
-      expect(state.status.take(3), everyElement(correct));
-      expect(state.status.skip(3), everyElement(pending));
-      expect(state.done, isFalse);
-
-      session.say('قل هو الله واحد');
+      final verses = spokenWords(surahOf('ikhlas').verses.expand((v) => v.split(' ')));
+      for (var n = 1; n <= verses.length; n++) {
+        heard!(verses.take(n).join(' '));
+        await tester.pump();
+      }
+      ended!();
       await tester.pump();
-      expect(state.status[3], wrong);
+      expect(state.tracker!.reviewing, isTrue);
+      expect(find.text('أحسنت، الآن أعد قراءة الآيات التي فيها خط أحمر 🔴'), findsOneWidget);
+      expect(recited, isEmpty);
 
-      session.say('قل هو الله واحد احد الله الصمد لم يلد ولم يولد ولم يكن له كفوا احد');
+      // يعيد الاستعاذة ثم البسملة.
+      await tester.tap(find.byKey(const ValueKey('quran-mic')));
+      await tester.pump();
+      final opening = spokenWords([...istiadha.split(' '), ...basmala.split(' ')]);
+      for (var n = 1; n <= opening.length; n++) {
+        heard!(opening.take(n).join(' '));
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
       expect(state.done, isTrue);
-      expect(session.recited, ['ikhlas']);
-      expect(find.byKey(const ValueKey('quran-done')), findsOneWidget);
+      expect(state.status, everyElement(correct));
+      expect(recited, ['ikhlas']);
       expect(find.byKey(const ValueKey('quran-gems')), findsOneWidget);
 
       // كلماتٌ تصل بعد الاكتمال لا تُكافئ مرّةً ثانية.
-      session.say('قل هو الله احد');
+      heard!('قل هو الله احد');
       await tester.pumpAndSettle();
-      expect(session.recited, ['ikhlas']);
+      expect(recited, ['ikhlas']);
     });
 
-    testWidgets('بطاقتُها على الرفّ لدرسها وحده', (tester) async {
-      Future<StudyGamesPack> load() async => const StudyGamesPack(lessonId: 'L1', games: []);
+    testWidgets('بطاقتُها الرابعةُ على الرفّ بعد ألعاب الدرس، ولدرسها وحده', (tester) async {
+      final games = [matchingGame()];
+      Future<StudyGamesPack> load() async => StudyGamesPack(lessonId: 'L1', games: games);
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(body: StudyGamesTab(load: load, onWin: (_) async => null)),
       ));
@@ -194,7 +309,12 @@ void main() {
         ),
       ));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
       expect(find.byType(QuranShelfCard), findsOneWidget);
+      final gameTop = tester.getTopLeft(find.text('صِل')).dy;
+      final quranTop = tester.getTopLeft(find.byType(QuranShelfCard)).dy;
+      expect(quranTop, greaterThan(gameTop), reason: 'بعد ألعاب الدرس لا قبلها');
+
       await tester.tap(find.byKey(const ValueKey('quran-shelf-card')));
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(QuranRecitationGame), findsOneWidget);

@@ -110,6 +110,10 @@ class StudentSoundService with WidgetsBindingObserver {
   /// منه.
   final AudioPlayer _bedPlayer = AudioPlayer();
 
+  /// التصفيقُ خلف عبارة التشجيع: مشغّلٌ خاصٌّ به ليُسمعا معاً — مشغّلٌ واحد
+  /// يقطع الأوّلَ إذا بدأ الثاني.
+  final AudioPlayer _clapPlayer = AudioPlayer();
+
   /// Whether the music has been asked for at all.
   ///
   /// Set once, by the hub, and never cleared: the music is meant to carry on
@@ -177,6 +181,7 @@ class StudentSoundService with WidgetsBindingObserver {
         _dealPlayer,
         _ambientPlayer,
         _bedPlayer,
+        _clapPlayer,
       ]) {
         await player.setAudioContext(mixing);
       }
@@ -190,6 +195,7 @@ class StudentSoundService with WidgetsBindingObserver {
       await _effectsPlayer.setReleaseMode(ReleaseMode.stop);
       await _voicePlayer.setReleaseMode(ReleaseMode.stop);
       await _dealPlayer.setReleaseMode(ReleaseMode.stop);
+      await _clapPlayer.setReleaseMode(ReleaseMode.stop);
       await _feedbackAudio.initialize();
     } catch (_) {
       // The student experience remains usable if local preferences are absent.
@@ -203,6 +209,7 @@ class StudentSoundService with WidgetsBindingObserver {
       await _effectsPlayer.stop();
       await _voicePlayer.stop();
       await _dealPlayer.stop();
+      await _clapPlayer.stop();
       await stopLoginVoice();
       await stopSpeaking();
       await _feedbackAudio.stop();
@@ -300,6 +307,7 @@ class StudentSoundService with WidgetsBindingObserver {
         _voicePlayer.stop,
         _effectsPlayer.stop,
         _dealPlayer.stop,
+        _clapPlayer.stop,
         // وخلفيةُ الدخول معها: مشغّلٌ خاصٌّ بها لا يسكت إن لم يُذكر هنا،
         // فكانت موسيقى تعمل وحدها في جيبٍ مغلق.
         _bedPlayer.stop,
@@ -1140,7 +1148,9 @@ class StudentSoundService with WidgetsBindingObserver {
   /// one — the guard below is what prevents the stop from starting a clap.
   void stopEffects() {
     _applauseCancelled = true;
+    _sequence++;
     unawaited(_effectsPlayer.stop().catchError((_) {}));
+    unawaited(_clapPlayer.stop().catchError((_) {}));
   }
 
   bool _applauseCancelled = false;
@@ -1157,12 +1167,12 @@ class StudentSoundService with WidgetsBindingObserver {
     unawaited(_playSequence(const [('audio/start_gun.wav', 0.85)]));
   }
 
-  /// ── التشجيع: صوتٌ مسجّلٌ ثم تصفيق ──
+  /// ── التشجيع: عبارةٌ مسجّلة، والتصفيقُ خلفها ──
   ///
   /// عباراتُ تشجيعٍ بصوتٍ مسجّل (لا TTS)، منسوخةٌ إلى المشروع بأسماءٍ
   /// لاتينية: «أحسنت يا بطل»، «رائع»، «صحيح، استمرّ يا بطل»، «مبدع جدّاً».
-  /// والتصفيقُ يدخل لحظةَ انتهاء العبارة — بحدث الانتهاء في [_playSequence]
-  /// لا بمؤقّت، فلا تراكبَ ولا فجوة.
+  /// والتصفيقُ يبدأ معها في اللحظة نفسها على مشغّلٍ آخر، أخفضَ منها، فتُسمع
+  /// العبارةُ فوقه — ثم يخفت ويسكت بعد انتهائها ([_cheerOverClapping]).
   static const encouragementClips = [
     'audio/encouragement/encouragement_ahsant_ya_batal.mp3',
     'audio/encouragement/encouragement_rai.mp3',
@@ -1185,40 +1195,70 @@ class StudentSoundService with WidgetsBindingObserver {
   String nextEncouragementClip() =>
       _lastEncouragement = pickEncouragementClip(_lastEncouragement, _random);
 
-  /// تشجيعٌ قصير لإجابةٍ صحيحة أو حرفٍ كُتب: عبارةٌ ثم تصفيقةٌ قصيرة.
+  /// تشجيعٌ لإجابةٍ صحيحة أو حرفٍ كُتب: عبارةٌ وخلفها التصفيق.
   ///
   /// لا يفتح نافذةَ [_justApplauded]: يتكرّر في الجولة الواحدة، ونغمةُ
   /// المكافأة أو الاحتفالُ الكبير بعده يجب أن يُسمعا.
   void playCheer() {
     _applauseCancelled = false;
     HapticFeedback.mediumImpact();
-    unawaited(_playSequence(cheerSequence(nextEncouragementClip())));
+    unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
   /// التصفيقُ النقيّ: «تصفيق.mp3» منسوخاً إلى المشروع باسمٍ لاتيني — الأسماءُ
   /// العربية في مسارات الأصول تُرمَّز في بيان الحزمة فلا يجدها فحصُ الوجود.
   static const clapping = 'audio/encouragement/clapping.mp3';
 
-  /// التسلسلُ كاملاً في كل مواضع النجاح: العبارةُ ثم [clapping] — ولا شيءَ
-  /// غيرهما.
+  /// علوُّ التصفيق خلف العبارة: خلفيةٌ هادئة لا تغطّي الكلام.
+  static const clappingBedVolume = 0.3;
+
+  /// الطبقتان معاً في كل مواضع النجاح: العبارةُ بكامل علوّها و[clapping]
+  /// خلفها أخفض — ولا شيءَ غيرهما.
   @visibleForTesting
-  static List<(String, double)> cheerSequence(String phrase) => [
+  static List<(String, double)> cheerLayers(String phrase) => [
         (phrase, _encouragementVolume),
-        (clapping, 0.8),
+        (clapping, clappingBedVolume),
       ];
 
-  /// الاحتفالُ بإنهاء اختبارٍ أو لعبةٍ أو مرحلة: عبارةُ تشجيعٍ ثم التصفيقُ كاملاً.
+  /// يشغّل العبارةَ والتصفيقَ معاً، ثم يُخفت التصفيقَ بعد انتهاء العبارة.
+  ///
+  /// تشجيعٌ جديد قبل انتهاء السابق يأخذ المشغّلين ([_sequence]): ما بقي من
+  /// خفوت السابق لا يمسّ تصفيقَ الجديد.
+  Future<void> _cheerOverClapping(String phrase) async {
+    if (muted.value || _backgrounded) return;
+    final generation = ++_sequence;
+    final layers = cheerLayers(phrase);
+    try {
+      await Future.wait([_effectsPlayer.stop(), _clapPlayer.stop()]);
+      if (generation != _sequence) return;
+      final done = _effectsPlayer.onPlayerComplete.first;
+      await Future.wait([
+        _clapPlayer.play(AssetSource(layers[1].$1), volume: layers[1].$2),
+        _effectsPlayer.play(AssetSource(layers[0].$1), volume: layers[0].$2),
+      ]);
+      await done.timeout(const Duration(seconds: 8));
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      for (final volume in const [0.22, 0.14, 0.07]) {
+        if (generation != _sequence) return;
+        await _clapPlayer.setVolume(volume);
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+      if (generation == _sequence) await _clapPlayer.stop();
+    } catch (_) {
+      // صوتُ الاحتفال زينة — لا يجوز أن يكسر المسار الذي أطلقه.
+      if (generation == _sequence) unawaited(_clapPlayer.stop().catchError((_) {}));
+    }
+  }
+
+  /// الاحتفالُ بإنهاء اختبارٍ أو لعبةٍ أو مرحلة: عبارةُ تشجيعٍ وخلفها التصفيق.
   void playApplause() {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence(cheerSequence(nextEncouragementClip())));
+    unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
-  /// إنهاء الدرس: عبارةُ تشجيعٍ ثم التصفيق — بلا نغمةٍ قبلهما.
-  ///
-  /// العبارةُ هي التمهيد الذي كانت النغمةُ تؤدّيه: التصفيقُ يدخل على أثرها
-  /// لا من الذروة بلا مقدّمة.
+  /// إنهاء الدرس: عبارةُ تشجيعٍ وخلفها التصفيق — بلا نغمةٍ معهما.
   ///
   /// ولا يحتاج حارساً ضد التكرار عند إعادة فتح الشاشة: نداؤه الوحيد خلف
   /// `reward.alreadyRewarded`، وسجلّ الأنشطة في الخادم يمنع مكافأة النشاط
@@ -1227,7 +1267,7 @@ class StudentSoundService with WidgetsBindingObserver {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence(cheerSequence(nextEncouragementClip())));
+    unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
   /// يشغّل مقاطع متتابعة، كلٌّ عند انتهاء سابقه.
