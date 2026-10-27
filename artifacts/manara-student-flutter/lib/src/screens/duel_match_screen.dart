@@ -226,8 +226,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
         _fastTimer = Timer(const Duration(milliseconds: 1600), () {
           if (mounted) setState(() => _fastLabel = null);
         });
-        HapticFeedback.mediumImpact();
-        sound.play(StudentSoundCue.success);
+        sound.playCheer();
         _confetti.play();
       } else if (_game.winner == QuestionWinner.rival) {
         sound.play(StudentSoundCue.warning);
@@ -243,7 +242,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
       if (result?.match?.iWon == true) {
         _confetti.play();
         sound.playApplause();
-        if ((result?.gems ?? 0) > 0) sound.play(StudentSoundCue.gameReward);
+        // playReward لا يقطع التشجيعَ والتصفيق: يصمت ما دام التصفيق يُسمع.
+        if ((result?.gems ?? 0) > 0) sound.playReward();
       }
     }
     if (phase == DuelPhase.failed &&
