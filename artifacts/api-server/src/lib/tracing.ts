@@ -12,9 +12,10 @@
  * وعشرون»). ولا تحتاج نصّاً: درسُ الروضة كثيراً ما يكون بلا شرحٍ مكتوب.
  * ومساراتُ التتبّع لا تُرسل من هنا: يحملها التطبيقُ محسوبةً مسبقاً من خطّه.
  *
- * ── والمكافأةُ ثابتة ──
- * [TRACING_REWARD] بعد [ALPHABET_REWARD_AFTER] عناصر — مرّةً لكل درس
- * (`درس::tracing`).
+ * ── والمكافأةُ لكل حرف ──
+ * جوهرةٌ ونقطةٌ ([TRACING_REWARD]) عن كل حرفٍ أو عددٍ يكتبه الطفلُ صحيحاً،
+ * مرّةً لكل حرفٍ في الدرس ([tracingRewardKey]): الجلسةُ مفتوحةٌ بلا حدّ، ومن
+ * أعاد كتابةَ حرفٍ كتبه من قبل يلعب بحرّيةٍ ولا يكسب شيئاً جديداً.
  *
  * بلا شبكة ولا قاعدة بيانات، فيُختبر وحده.
  */
@@ -27,8 +28,8 @@ export const TRACING_GAME_ID = "tracing" as const;
 export type TracingKind = TracingItem["kind"];
 export type TracingLang = TracingItem["lang"];
 
-/** داخل حدود [REWARD_LIMITS] في `studyGames.ts`. */
-export const TRACING_REWARD = { gems: 6, points: 30 } as const;
+/** عن كل حرفٍ أو عددٍ يُكتب صحيحاً، مرّةً لكل حرفٍ في الدرس. */
+export const TRACING_REWARD = { gems: 1, points: 1 } as const;
 
 // بالرموز لا بالحروف: نطاقُ «ً-ٰ» المكتوب بحروفه يشمل الأرقامَ الهندية ٠-٩
 // (U+0660–0669) فيمحوها.
@@ -246,16 +247,24 @@ export function alphabetStart(items: TracingItem[], title: string): number {
   return 0;
 }
 
-/** بعد كم عنصراً تُصرف المكافأة: المجموعاتُ طويلة، فلا ينتظر الطفلُ ٢٨ حرفاً. */
-export const ALPHABET_REWARD_AFTER = 5;
+/**
+ * مفتاحُ مكافأة حرفٍ في سجلّ الطالب، أو `null` إن لم يكن [item] من مجموعة
+ * الدرس — فلا يُصرف لنصٍّ يرسله التطبيقُ من عنده، ولا يُكتب في السجلّ
+ * مفتاحٌ بطولٍ يختاره هو.
+ */
+export function tracingRewardKey(
+  lesson: { id: string; subject?: string; grade?: string },
+  item: string,
+): string | null {
+  const set = tracingSetFor(lesson);
+  if (!set || !alphabetItems(set).some((entry) => entry.text === item)) return null;
+  return `tracing:${lesson.id}:${item}`;
+}
 
 // ── اللعبة ───────────────────────────────────────────────────────────
 
 /** لعبةُ التتبّع بصيغة بقيّة ألعاب البطاقة، من عناصرَ جاهزة. */
-export function tracingGame(
-  items: TracingItem[],
-  { rewardAfter = items.length, start = 0 }: { rewardAfter?: number; start?: number } = {},
-): StudyGame | null {
+export function tracingGame(items: TracingItem[], { start = 0 }: { start?: number } = {}): StudyGame | null {
   if (items.length === 0) return null;
   const en = items[0].lang === "en";
   return {
@@ -271,7 +280,6 @@ export function tracingGame(
       drop_targets: [],
       correct_pairs: [],
       tracing: items,
-      reward_after: Math.min(Math.max(1, rewardAfter), items.length),
       start: Math.min(Math.max(0, start), items.length - 1),
     },
     gems_reward: TRACING_REWARD.gems,
@@ -284,10 +292,7 @@ export function alphabetGame(lesson: { title: string; subject?: string; grade?: 
   const set = tracingSetFor(lesson);
   if (!set) return null;
   const items = alphabetItems(set);
-  return tracingGame(items, {
-    rewardAfter: ALPHABET_REWARD_AFTER,
-    start: alphabetStart(items, lesson.title),
-  });
+  return tracingGame(items, { start: alphabetStart(items, lesson.title) });
 }
 
 /** يضيف لعبةَ التتبّع إلى ألعاب الدرس، ولا يكرّرها إن وُجدت. */

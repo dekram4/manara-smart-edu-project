@@ -68,8 +68,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('تتبّع واكتب!'), findsOneWidget);
     expect(find.text('✨ العب واكسب جواهر!'), findsOneWidget);
-    expect(find.text('+6'), findsOneWidget);
-    expect(find.text('+30 XP'), findsOneWidget);
+    expect(find.text('+1 لكل حرف'), findsOneWidget, reason: 'جوهرةٌ لكل حرف');
     expect(find.text('هيّا نلعب'), findsOneWidget);
   });
 

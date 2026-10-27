@@ -220,3 +220,45 @@ String arabicIndicDigits(String value) => value.replaceAllMapped(
       RegExp('[0-9]'),
       (m) => String.fromCharCode(0x0660 + int.parse(m[0]!)),
     );
+
+/// أسماءُ الحروف العربية بأصواتٍ مسجّلة (ElevenLabs)، في `assets/audio/ar/`.
+///
+/// تُشغَّل هذه بدل محرّك النطق: صوتٌ واحدٌ واضحٌ فصيح على كل جهاز، لا ما
+/// يملكه هذا الجهازُ من أصواتٍ أو لا يملكه. والأسماءُ لاتينية في الحزمة —
+/// «letter_ba.mp3» لا «حرف الباء.mp3»: المسافةُ والحروفُ العربية في مسارات
+/// الأصول تتعثّر على بعض المنصّات — والربطُ بالحرف هنا.
+const arabicLetterClips = <String, String>{
+  'ا': 'audio/ar/letter_alif.mp3',
+  'ب': 'audio/ar/letter_ba.mp3',
+  'ت': 'audio/ar/letter_ta.mp3',
+  'ث': 'audio/ar/letter_tha.mp3',
+  'ج': 'audio/ar/letter_jim.mp3',
+  'ح': 'audio/ar/letter_hha.mp3',
+  'خ': 'audio/ar/letter_kha.mp3',
+  'د': 'audio/ar/letter_dal.mp3',
+  'ذ': 'audio/ar/letter_dhal.mp3',
+  'ر': 'audio/ar/letter_ra.mp3',
+  'ز': 'audio/ar/letter_zay.mp3',
+  'س': 'audio/ar/letter_sin.mp3',
+  'ش': 'audio/ar/letter_shin.mp3',
+  'ص': 'audio/ar/letter_sad.mp3',
+  'ض': 'audio/ar/letter_dad.mp3',
+  'ط': 'audio/ar/letter_tta.mp3',
+  'ظ': 'audio/ar/letter_zza.mp3',
+  'ع': 'audio/ar/letter_ain.mp3',
+  'غ': 'audio/ar/letter_ghain.mp3',
+  'ف': 'audio/ar/letter_fa.mp3',
+  'ق': 'audio/ar/letter_qaf.mp3',
+  'ك': 'audio/ar/letter_kaf.mp3',
+  'ل': 'audio/ar/letter_lam.mp3',
+  'م': 'audio/ar/letter_mim.mp3',
+  'ن': 'audio/ar/letter_nun.mp3',
+  'ه': 'audio/ar/letter_ha.mp3',
+  'و': 'audio/ar/letter_waw.mp3',
+  'ي': 'audio/ar/letter_ya.mp3',
+};
+
+/// المقطعُ المسجّل لعنصرٍ إن كان حرفاً عربياً له تسجيل، وإلا `null` — فيُنطق
+/// بمحرّك النطق (الإنجليزيةُ والأعداد).
+String? recordedClipFor(TracingItem item) =>
+    item.kind == 'letter' && item.lang == 'ar' ? arabicLetterClips[item.text] : null;

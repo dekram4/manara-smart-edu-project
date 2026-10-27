@@ -37,6 +37,7 @@ class FakeContent implements StudentContentService {
     String? rewardId,
     int? correctAnswers,
     int? quizTotal,
+    String? tracingItem,
   }) async {
     rewarded.add(correctAnswers);
     return RewardResult(

@@ -4,7 +4,7 @@ import { parseStudyGameActivityId, rewardOf } from "../lib/studyGames";
 import {
   TRACING_GAME_ID,
   TRACING_REWARD,
-  tracingSetFor,
+  tracingRewardKey,
 } from "../lib/tracing";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
@@ -505,7 +505,8 @@ function rewardFor(
 async function studyGameReward(
   activityId: string,
   student: StudentActor,
-): Promise<{ gems: number; points: number } | null> {
+  tracingItem = "",
+): Promise<{ gems: number; points: number; rewardKey?: string } | null> {
   const parsed = parseStudyGameActivityId(activityId);
   if (!parsed) return null;
   const settings = config();
@@ -518,11 +519,14 @@ async function studyGameReward(
   const data = Array.isArray(rows) ? asMap(rows[0]?.data) : {};
   if (!Object.keys(data).length || !matchesStudentScope(data, student)) return null;
   if (parsed.gameId === TRACING_GAME_ID) {
-    // حروفُ «روضة منارة المعرفة» وأرقامُها وحدها — ولو بلا نصّ: مقدارٌ ثابت،
-    // مرّةً لكل درس. ولا تتبّعَ في غيرها، فلا مكافأةَ له.
-    return tracingSetFor({ subject: text(data.subject), grade: text(data.grade) })
-      ? { ...TRACING_REWARD }
-      : null;
+    // حروفُ «روضة منارة المعرفة» وأرقامُها وحدها: جوهرةٌ ونقطةٌ عن كل حرف،
+    // مرّةً لكل حرفٍ في الدرس — والمفتاحُ يبنيه الخادمُ من حرفٍ تحقّق أنه من
+    // مجموعة الدرس. ولا تتبّعَ في غيرها، فلا مكافأةَ له.
+    const rewardKey = tracingRewardKey(
+      { id: parsed.lessonId, subject: text(data.subject), grade: text(data.grade) },
+      tracingItem,
+    );
+    return rewardKey ? { ...TRACING_REWARD, rewardKey } : null;
   }
   return rewardOf(data.studyGames, parsed.gameId);
 }
@@ -554,9 +558,9 @@ router.post("/student/progress/reward", async (req, res) => {
       return;
     }
     const current = readGamification(asMap(row.data).gamification);
-    let studyGame: { gems: number; points: number } | null = null;
+    let studyGame: { gems: number; points: number; rewardKey?: string } | null = null;
     if (activityType === "study_game") {
-      studyGame = await studyGameReward(activityId, student);
+      studyGame = await studyGameReward(activityId, student, text(body.tracingItem));
       if (!studyGame) {
         res.status(404).json({ error: "اللعبة غير موجودة في هذا الدرس" });
         return;
@@ -566,7 +570,8 @@ router.post("/student/progress/reward", async (req, res) => {
       current,
       activityType,
       activityId,
-      text(body.rewardId),
+      // حرفُ التتبّع: مفتاحُه من الخادم لا ممّا يرسله التطبيق.
+      studyGame?.rewardKey ?? text(body.rewardId),
       body.correctAnswers == null ? null : num(body.correctAnswers),
       body.quizTotal == null ? null : num(body.quizTotal),
       studyGame,

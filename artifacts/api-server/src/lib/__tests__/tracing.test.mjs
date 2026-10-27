@@ -22,9 +22,9 @@ const {
   englishNumberWords,
   KINDERGARTEN_GRADE,
   TRACING_REWARD,
-  ALPHABET_REWARD_AFTER,
+  tracingRewardKey,
 } = tracing;
-const { REWARD_LIMITS, parseStudyGameActivityId, GAME_TYPES, STUDY_GAMES_SCHEMA } = studyGames;
+const { parseStudyGameActivityId, GAME_TYPES, STUDY_GAMES_SCHEMA } = studyGames;
 
 const texts = (items) => items.map((item) => item.text);
 const KG = KINDERGARTEN_GRADE;
@@ -98,22 +98,32 @@ test("كلماتُ الأعداد العربية والإنجليزية", () => 
   for (const [n, words] of Object.entries(en)) assert.equal(englishNumberWords(Number(n)), words, n);
 });
 
-test("اللعبة: المجموعةُ كلُّها، تبدأ من حرف الدرس أو عدده، والمكافأةُ بعد خمسة", () => {
+test("اللعبة: المجموعةُ كلُّها، وتبدأ من حرف الدرس أو عدده", () => {
   const game = alphabetGame({ title: "الوحدة الأولى — حرف الباء", subject: "الحروف العربية", grade: KG });
   assert.equal(game.id, "tracing");
   assert.equal(game.title, "تتبّع واكتب!");
   assert.equal(game.items.tracing.length, 28);
   assert.equal(game.items.start, 1, "يفتح على الباء");
-  assert.equal(game.items.reward_after, ALPHABET_REWARD_AFTER);
+  assert.equal(game.items.reward_after, undefined, "لا حدَّ خمسة: الجلسةُ مفتوحة");
   const numbers = (title) => alphabetGame({ title, subject: "الأرقام العربية", grade: KG }).items.start;
   assert.equal(numbers(""), 0);
   assert.equal(numbers("العدد ٢٥"), 25);
   assert.equal(numbers("العدد 100"), 100, "أيّاً كانت أرقامُ العنوان");
   assert.equal(alphabetGame({ title: "Letter C", subject: "الحروف الإنجليزية", grade: KG }).items.start, 2);
-  assert.ok(TRACING_REWARD.gems >= REWARD_LIMITS.gems.min && TRACING_REWARD.gems <= REWARD_LIMITS.gems.max);
-  assert.ok(
-    TRACING_REWARD.points >= REWARD_LIMITS.points.min && TRACING_REWARD.points <= REWARD_LIMITS.points.max,
-  );
+});
+
+test("المكافأةُ جوهرةٌ ونقطةٌ عن كل حرف، ومفتاحُها لحرفٍ من مجموعة الدرس وحده", () => {
+  assert.deepEqual({ ...TRACING_REWARD }, { gems: 1, points: 1 });
+  const lesson = { id: "L1", subject: "الحروف العربية", grade: KG };
+  assert.equal(tracingRewardKey(lesson, "ب"), "tracing:L1:ب");
+  assert.notEqual(tracingRewardKey(lesson, "ب"), tracingRewardKey(lesson, "ت"), "لكل حرفٍ مفتاحُه");
+  assert.equal(tracingRewardKey(lesson, "Aa"), null, "ليس من حروف الدرس");
+  assert.equal(tracingRewardKey(lesson, ""), null);
+  assert.equal(tracingRewardKey(lesson, "ب".repeat(500)), null, "لا مفتاحَ بطولٍ يختاره التطبيق");
+  const numbers = { id: "L2", subject: "الأرقام العربية", grade: KG };
+  assert.equal(tracingRewardKey(numbers, "٢٥"), "tracing:L2:٢٥");
+  assert.equal(tracingRewardKey(numbers, "١٠١"), null);
+  assert.equal(tracingRewardKey({ ...lesson, grade: "الصف الأول" }, "ب"), null, "خارج الروضة لا مكافأة");
 });
 
 test("تُضاف إلى الحزمة مرّةً واحدة، ولا شيءَ إن لم تكن لعبة", () => {

@@ -18,6 +18,9 @@ import 'tracing_shelf_card.dart';
 /// يصرف مكافأة لعبةٍ فاز بها الطفل — الخادمُ يقرّر المقدار من سجلّ الدرس.
 typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
 
+/// يصرف جوهرةَ حرفٍ كُتب في «تتبّع واكتب» — مرّةً لكل حرفٍ في الدرس.
+typedef StudyTracingWin = Future<RewardResult?> Function(StudyGame game, TracingItem item);
+
 /// تبويبُ «ألعاب الدرس» في بطاقة المذاكرة: ثلاثُ ألعابٍ يولّدها الذكاءُ
 /// الاصطناعي من نصّ الدرس — سحبٌ وإسقاط، ومطابقة، وسباقُ أسئلةٍ بلا نهاية.
 ///
@@ -30,11 +33,15 @@ class StudyGamesTab extends StatefulWidget {
     this.fresh,
     this.seenKey,
     this.allowTracing = true,
+    this.onTraced,
     super.key,
   });
 
   final Future<StudyGamesPack> Function() load;
   final StudyGameWin onWin;
+
+  /// حرفٌ كُتب صحيحاً في «تتبّع واكتب»: جوهرتُه بلا نافذة احتفال.
+  final StudyTracingWin? onTraced;
 
   /// لعبةُ التتبّع لهذا الدرس: لروضة منارة المعرفة في موادّها الأربع وحدها
   /// ([tracingAllowedFor]). وإلا تُحذف من الرفّ ولو أرسلها الخادم.
@@ -311,6 +318,7 @@ class _StudyGamesTabState extends State<StudyGamesTab>
               onBack: () => setState(() => _active = null),
               onReplay: () => _open(active),
               onWin: () => _won(active),
+              onTraced: (item) async => widget.onTraced?.call(active, item),
               onNeedMore: widget.fresh == null ? null : _moreQuestions,
             ),
     );
@@ -543,6 +551,7 @@ class _GameStage extends StatelessWidget {
     required this.onReplay,
     required this.onWin,
     this.onNeedMore,
+    this.onTraced,
     super.key,
   });
 
@@ -551,6 +560,7 @@ class _GameStage extends StatelessWidget {
   final VoidCallback onReplay;
   final Future<void> Function() onWin;
   final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
+  final Future<RewardResult?> Function(TracingItem item)? onTraced;
 
   @override
   Widget build(BuildContext context) {
@@ -618,8 +628,7 @@ class _GameStage extends StatelessWidget {
             StudyGameType.tracing =>
               TracingGame(
                 game: game,
-                onWin: onWin,
-                onReplay: onReplay,
+                onTraced: (item) async => onTraced?.call(item),
               ),
           },
         ),
