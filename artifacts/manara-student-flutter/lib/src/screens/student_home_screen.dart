@@ -218,7 +218,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// ينتظر هنا، ويبدأ فورَ انتهائه.
   bool _greetingDone = false;
   Timer? _greetingCap;
-  VoidCallback? _afterGreeting;
+
+  /// بطاقةٌ مفتوحة فوق الواجهة: الاحتفالُ ينتظر العودة.
+  bool _inCard = false;
 
   /// أقصى انتظارٍ للترحيب: جهازٌ بلا صوتٍ لا يُبلّغ بانتهائه أبداً.
   static const _greetingCapAfter = Duration(seconds: 16);
@@ -227,9 +229,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _greetingCap?.cancel();
     if (_greetingDone) return;
     _greetingDone = true;
-    final next = _afterGreeting;
-    _afterGreeting = null;
-    if (mounted) next?.call();
+    // مكافأةٌ انتظرت الترحيب: الآن، ما دام الطالبُ في الواجهة.
+    final waiting = _pendingFrom;
+    if (waiting != null && mounted) _celebrateProgress(waiting, _gamification);
   }
 
   bool _dealBegun = false;
@@ -252,6 +254,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// A card was opened on top of the hub: the lesson gets the silence.
   @override
   void didPushNext() {
+    // بطاقةٌ فُتحت: الترحيبُ والاحتفالُ يسكتان الآن، ولا احتفالَ داخلها.
+    _inCard = true;
+    StudentSoundService.instance.enterCard();
     StudentSoundService.instance.pauseAmbient();
     // الواجهةُ مغطّاة: لا داعي لسؤال الخادم كل ربع دقيقة عن بطاقاتٍ لا تُرى.
     _stopCardAccessPoll();
@@ -264,6 +269,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // came straight back out, it stops with them.
     unawaited(StudentSoundService.instance.stopSpeaking());
     StudentSoundService.instance.resumeAmbient();
+    // عاد إلى الواجهة: هنا تُسمع حصيلةُ ما جمعه — والترحيبُ الذي قطعه دخولُ
+    // البطاقة انتهى — عبر [_loadGamification] أدناه.
+    _inCard = false;
+    StudentSoundService.instance.leaveCard();
+    _greetingCap?.cancel();
+    _greetingDone = true;
     // The course may have changed while the student was inside a card —
     // a teacher adds a unit or renames one mid-session. The cached copy is
     // dropped so the next lesson switch reads the tree again rather than
@@ -391,21 +402,19 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     StudentGamification updated,
   ) {
     if (!mounted) return;
-    final gainedXp = updated.xp - previous.xp;
-    final gainedGems = updated.gems - previous.gems;
+    // ما انتظر من قبل يُحسب معه: احتفالٌ واحدٌ بالحصيلة كلّها.
+    final from = _pendingFrom ?? previous;
+    final gainedXp = updated.xp - from.xp;
+    final gainedGems = updated.gems - from.gems;
     if (gainedXp <= 0 && gainedGems <= 0) return;
 
-    if (!_greetingDone) {
-      // الترحيبُ يُقال: المكافأةُ بعده، لا فوقه. وإن وصلت مكافأتان قبل
-      // انتهائه فواحدةٌ بمجموعهما.
-      final waiting = _pendingFrom ?? previous;
-      _pendingFrom = waiting;
-      _afterGreeting = () {
-        _pendingFrom = null;
-        _celebrateProgress(waiting, _gamification);
-      };
+    if (!_greetingDone || _inCard) {
+      // الترحيبُ يُقال، أو الطالبُ داخل بطاقة: المكافأةُ بعد الترحيب وفي
+      // الواجهة، لا فوقه ولا داخل البطاقة.
+      _pendingFrom = from;
       return;
     }
+    _pendingFrom = null;
 
     if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
       _rewardController.play();
