@@ -405,6 +405,116 @@ void main() {
     });
   });
 
+  group('التقدّمُ يتبع الإصبعَ بالضبط — على شاشة تابلت وحرفٍ حقيقي', () {
+    // هذا ما كان يفشل على الجهاز: على شاشةٍ كبيرة وحرفٍ عريض كان نصفُ قطر
+    // القرب ~١٤٥ بكسلاً والنقاطُ متباعدةً ~٦٥، فيسبق التلوينُ الإصبعَ ويكتمل
+    // الحرفُ وهو في منتصفه. والاختباراتُ السابقة بأشكالٍ صغيرة لم تُظهره.
+    const ba = TracingItem(text: 'ب', kind: 'letter', lang: 'ar');
+
+    Future<TracePolyline> bootTablet(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TracingGame(
+              game: _game(const ['ب']),
+              onTraced: (_) async => null,
+              shapeBuilder: (item) async => precomputedTracingShape(ba),
+              speak: (_, __) async {},
+              playClip: (_) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await openTile(tester, 0);
+      final state = stateOf(tester);
+      final origin = tester.getTopLeft(find.byKey(const ValueKey('tracing-board')));
+      return TracePolyline([
+        for (final p in state.plan!.strokes.first.points) origin + state.toCanvas(p),
+      ]);
+    }
+
+    testWidgets('التلوينُ لا يسبق الإصبعَ في أيّ لحظة', (tester) async {
+      final line = await bootTablet(tester);
+      expect(line.total, greaterThan(400), reason: 'حرفٌ بحجمه على تابلت');
+      final gesture = await tester.startGesture(line.at(0));
+      for (var along = 6.0; along < line.total * 0.6; along += 6) {
+        await gesture.moveTo(line.at(along));
+        await tester.pump(const Duration(milliseconds: 16));
+        final progress = stateOf(tester).progress;
+        expect(progress, lessThanOrEqualTo(along + 1), reason: 'سبق الإصبعَ عند $along');
+        expect(progress, greaterThan(along - 12), reason: 'تخلّف عن الإصبع عند $along');
+      }
+      expect(cheer, findsNothing, reason: 'في منتصف الحرف لا يكتمل');
+      await gesture.up();
+    });
+
+    testWidgets('يقف الإصبعُ قبل الآخر بقليل: لا يكتمل، ثم يكتمل عند آخر نقطة', (tester) async {
+      final line = await bootTablet(tester);
+      final gesture = await tester.startGesture(line.at(0));
+      for (var along = 6.0; along <= line.total - 40; along += 6) {
+        await gesture.moveTo(line.at(along));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(stateOf(tester).progress, lessThan(line.total - 30));
+      expect(stateOf(tester).plan!.strokes, hasLength(2));
+      // الجرّةُ الأولى ما زالت مفتوحة: نقطةُ الباء لا تُلمس بعد.
+      expect(find.text('محاولات خاطئة: 1'), findsNothing);
+      // ثم إلى آخر نقطةٍ بالضبط.
+      for (var along = line.total - 34; along <= line.total; along += 6) {
+        await gesture.moveTo(line.at(along));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.moveTo(line.points.last);
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      expect(stateOf(tester).progress, -1, reason: 'اكتملت الجرّة وانتقل إلى النقطة');
+    });
+
+    testWidgets('إصبعٌ ساكنٌ لا يتقدّم معه شيء', (tester) async {
+      final line = await bootTablet(tester);
+      final gesture = await tester.startGesture(line.at(0));
+      await gesture.moveTo(line.at(30));
+      await tester.pump();
+      final before = stateOf(tester).progress;
+      for (var i = 0; i < 5; i++) {
+        await gesture.moveTo(line.at(30) + const Offset(0.5, 0.5));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(stateOf(tester).progress, closeTo(before, 2));
+      await gesture.up();
+    });
+  });
+
+  group('TracePolyline', () {
+    final line = TracePolyline(const [Offset(0, 0), Offset(100, 0), Offset(100, 100)]);
+
+    test('الطولُ والموضع', () {
+      expect(line.total, 200);
+      expect(line.at(50), const Offset(50, 0));
+      expect(line.at(150), const Offset(100, 50));
+      expect(line.at(999), const Offset(100, 100));
+    });
+
+    test('الإسقاطُ داخل النافذة وحدها', () {
+      final near = line.project(const Offset(40, 10), from: 0, to: 200);
+      expect(near.along, closeTo(40, 0.001));
+      expect(near.distance, closeTo(10, 0.001));
+      // نافذةٌ تنتهي عند ٢٠: لا يُسقط أبعد منها ولو كان الإصبعُ هناك.
+      final capped = line.project(const Offset(90, 0), from: 0, to: 20);
+      expect(capped.along, closeTo(20, 0.001));
+    });
+
+    test('النقاطُ المعبورة', () {
+      expect(line.passed(0), 0);
+      expect(line.passed(99), 0);
+      expect(line.passed(100), 1);
+      expect(line.passed(200), 2);
+    });
+  });
+
   group('الحرفُ المرسوم هو نقاطُه', () {
     test('مسلكُ الحرف يمرّ بكل نقطة تتبّعٍ عينها', () {
       final shape = precomputedTracingShape(const TracingItem(text: 'ج', kind: 'letter', lang: 'ar'))!;

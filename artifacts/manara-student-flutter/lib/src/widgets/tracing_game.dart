@@ -104,6 +104,13 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
 
   /// آخرُ نقطةٍ بلغها الإصبع في الجرّة الحالية؛ -1 قبل أن تبدأ.
   int _reached = -1;
+
+  /// أين بلغ الإصبعُ على مسار الجرّة الحالية، بطول المسار على الشاشة (بكسل)؛
+  /// -1 قبل أن يبدأ. وكلُّ ما يُلوَّن منه — لا من النقاط القريبة من الإصبع.
+  double _progress = -1;
+
+  /// موضعُ [_progress] على المسار: إليه يمتدّ التلوين، ومنه يكمل الطفل.
+  Offset? _progressPoint;
   List<Offset> _trail = [];
   final List<List<Offset>> _doneTrails = [];
   bool _itemDone = false;
@@ -214,6 +221,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     _unavailable = false;
     _stroke = 0;
     _reached = -1;
+    _progress = -1;
+    _progressPoint = null;
     _trail = [];
     _doneTrails.clear();
     _strokeTrailBase = 0;
@@ -272,6 +281,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     setState(() {
       _stroke = 0;
       _reached = -1;
+      _progress = -1;
+      _progressPoint = null;
       _trail = [];
       _doneTrails.clear();
       _strokeTrailBase = 0;
@@ -287,27 +298,40 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   /// سُمكُ الخطّ على الشاشة.
   double get _inkPx => (_shape?.plan.inkWidth ?? 0.1) * _dest.height;
 
-  /// كم يقترب الإصبعُ من نقطةٍ لتُحتسب — واسعٌ لإصبعٍ صغيرٍ غير دقيق.
-  double get _hitRadius => math.max(34, _inkPx * 1.45);
+  /// ── التقدّمُ يتبع الإصبعَ وحده ──
+  /// كان التقدّمُ يُحسب بـ«أيُّ نقطةٍ صار الإصبعُ قريباً منها»، ونصفُ قطر
+  /// القرب من سُمك الخطّ: على شاشة تابلت نحو ١٤٥ بكسلاً، والنقاطُ متباعدةٌ نحو
+  /// ٦٥. فكان الإصبعُ «يبلغ» نقطتين أمامه قبل أن يصلهما، والتلوينُ يسبقه،
+  /// والحرفُ يكتمل وهو في منتصفه.
+  ///
+  /// والآن التقدّمُ إسقاطُ الإصبع على المسار نفسه، بطوله ([TracePolyline]):
+  /// يتلوّن المسارُ إلى النقطة التي تحت الإصبع لا أبعد، ولا يتقدّم في خطوةٍ
+  /// إلا قليلاً — فلا يقفز إلى ما لم يمرّ به الإصبع، ولا عبرَ حلقةٍ يقترب
+  /// طرفاها. ويكتمل حين يبلغ الإسقاطُ آخرَ المسار **والإصبعُ** على آخر نقطة.
 
-  /// كم يبتعد عن الخطّ قبل أن تُعاد الجرّة.
-  double get _offRadius => math.max(70, _inkPx * 2.8);
+  /// نصفُ عرض الممرّ حول خطّ المسار: نصفُ سُمك الحرف وهامشٌ لإصبعٍ صغير.
+  /// أبعدُ منه خروجٌ عن الخطّ.
+  double get _corridor => math.max(40, _inkPx * 0.5 + 30);
 
-  /// أقصى ما يتقدّمه الإصبعُ من نقاطٍ في خطوةٍ واحدة. والحركةُ السريعة لا
-  /// تحتاج أكثر: ما بين موضعين للإصبع يُملأ خطوةً خطوة ([_move]).
-  static const _maxStepsPerMove = 2;
+  /// كم يقترب الإصبعُ من بداية الجرّة ليبدأها، أو من موضع توقّفه ليكملها.
+  double get _startRadius => math.max(30, _inkPx * 0.6);
+
+  /// كم يقترب الإصبعُ من آخر نقطةٍ لتكتمل الجرّة — قريبٌ، لا مسافةَ نقطتين.
+  double get _finishRadius => math.max(22, _inkPx * 0.35);
+
+  /// طولُ الخطوة التي تُقسَم إليها حركةُ الإصبع بين إطارين.
+  static const _subStep = 8.0;
+
+  /// أقصى ما يتقدّمه الإسقاطُ في خطوةٍ واحدة: أكثرُ من الخطوة قليلاً لزوايا
+  /// الحرف، وأقلُّ بكثيرٍ من المسافة بين طرفَي حلقة.
+  static const _maxAdvance = 24.0;
+
+  /// كم يُنظر خلفَ التقدّم: إصبعٌ رجع قليلاً لا يُعدّ خارجاً.
+  static const _lookBack = 12.0;
 
   /// أوّلُ ما يخصّ الجرّةَ الحالية في [_doneTrails]: قطعُها التي رُسمت قبل
   /// أن يرفع الطفلُ إصبعه، تُمحى إن أُعيدت الجرّة.
   int _strokeTrailBase = 0;
-
-  static double _distanceToSegment(Offset p, Offset a, Offset b) {
-    final ab = b - a;
-    final length = ab.distanceSquared;
-    if (length == 0) return (p - a).distance;
-    final t = (((p - a).dx * ab.dx + (p - a).dy * ab.dy) / length).clamp(0.0, 1.0);
-    return (p - (a + ab * t)).distance;
-  }
 
   // ── اللمس على اللوحة ─────────────────────────────────────────────
 
@@ -317,19 +341,31 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     return strokes[_stroke];
   }
 
+  /// مسارُ الجرّة الحالية على الشاشة.
+  TracePolyline? get _line {
+    final stroke = _current;
+    if (stroke == null || stroke.isDot) return null;
+    return TracePolyline([for (final p in stroke.points) _toCanvas(p)]);
+  }
+
+  /// أين بلغ الإصبعُ على الجرّة الحالية بطول مسارها (بكسل)، للاختبار.
+  @visibleForTesting
+  double get progress => _progress;
+
   void _down(Offset position) {
     final stroke = _current;
     if (stroke == null || _itemDone) return;
+    if (stroke.isDot) {
+      if ((position - _toCanvas(stroke.points.single)).distance <= math.max(30, _inkPx * 0.8)) {
+        _completeStroke([position]);
+      } else {
+        _miss(tr('study.trace.tapDot'));
+      }
+      return;
+    }
     // ── رفع إصبعه في منتصف الجرّة: يكمل من حيث توقّف ──
-    // كانت الجرّةُ تُعاد من أوّلها مع كل رفعٍ خفيف، فيُجبَر الطفلُ على رسم
-    // الحرف كلِّه بلمسةٍ واحدة لا تنقطع.
-    if (_reached >= 0 && !stroke.isDot) {
-      final points = stroke.points;
-      final near = [
-        points[_reached],
-        if (_reached + 1 < points.length) points[_reached + 1],
-      ].any((p) => (position - _toCanvas(p)).distance <= _hitRadius * 1.5);
-      if (near) {
+    if (_progress >= 0) {
+      if ((position - _progressPoint!).distance <= _startRadius) {
         _lastPos = position;
         setState(() {
           _trail = [position];
@@ -343,31 +379,26 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       return;
     }
     final start = _toCanvas(stroke.points.first);
-    final reach = stroke.isDot ? _hitRadius * 1.4 : _hitRadius;
-    if ((position - start).distance <= reach) {
-      if (stroke.isDot) {
-        _completeStroke([position]);
-        return;
-      }
+    if ((position - start).distance <= _startRadius) {
       _lastPos = position;
       setState(() {
+        _progress = 0;
+        _progressPoint = start;
         _reached = 0;
         _trail = [position];
         _hint = null;
       });
     } else {
-      _miss(stroke.isDot ? tr('study.trace.tapDot') : tr('study.trace.start'));
+      _miss(tr('study.trace.start'));
     }
   }
 
-  /// ── الحركةُ السريعة ──
-  /// الجهازُ يرسل موضعَ الإصبع كلَّ إطار؛ وإصبعٌ سريعٌ يقطع بين إطارين أكثرَ من
-  /// نقطة، فكان يُحسب خارجاً عن الخطّ وتُعاد الجرّة. فما بين الموضعين يُملأ
-  /// بخطواتٍ أقصرَ من نصف مسافة الاحتساب، وكلُّ خطوةٍ تُحسب وحدها.
+  /// حركةُ الإصبع تُقسَم خطواتٍ قصيرة، كلٌّ منها يُسقَط على المسار وحده:
+  /// إصبعٌ سريعٌ بين إطارين لا يقفز التقدّمُ معه فوق ما لم يمرّ به.
   void _move(Offset position) {
-    if (_current == null || _reached < 0) return;
+    if (_current == null || _progress < 0) return;
     final from = _lastPos ?? position;
-    final steps = math.max(1, ((position - from).distance / (_hitRadius * 0.5)).ceil());
+    final steps = math.max(1, ((position - from).distance / _subStep).ceil());
     for (var i = 1; i <= steps; i++) {
       if (!_step(Offset.lerp(from, position, i / steps)!)) {
         _lastPos = null;
@@ -379,41 +410,27 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
 
   /// خطوةٌ واحدة للإصبع؛ `false` إن انتهت بها الجرّة — اكتملت أو أُعيدت.
   bool _step(Offset position) {
-    final stroke = _current;
-    if (stroke == null || _reached < 0) return false;
-    final points = stroke.points;
-    final last = points.length - 1;
-    var reached = _reached;
-    // إلى الأمام وحده، وبحدٍّ: أبعدُ نقطةٍ في النافذة يبلغها الإصبع. لا رجوعَ
-    // يُحتسب، ولا قفزَ إلى ما وراء النافذة.
-    var window = math.min(last, reached + _maxStepsPerMove);
-    // ── ولا اكتمالَ قبل آخر نقطة، وبالترتيب ──
-    // النقطةُ الأخيرة لا تُبلغ إلا من التي قبلها: حرفٌ يلتقي آخرُه بأوّله
-    // (الهاء، الصاد، الخمسة) لا يُغلَق بلمسةٍ قرب بدايته.
-    if (window == last && reached < last - 1) window = last - 1;
-    for (var i = window; i > reached; i--) {
-      if ((position - _toCanvas(points[i])).distance <= _hitRadius) {
-        reached = i;
-        break;
-      }
-    }
-    // بعيدٌ عن الخطّ: عن كل قطعةٍ في النافذة، لا عن القطعة التالية وحدها —
-    // تمريرٌ سريعٌ يسبق النقطة التالية ليس خروجاً.
-    var off = double.infinity;
-    for (var i = math.max(0, _reached); i < window; i++) {
-      off = math.min(off, _distanceToSegment(position, _toCanvas(points[i]), _toCanvas(points[i + 1])));
-    }
-    if (window == _reached) off = (position - _toCanvas(points[reached])).distance;
-    if (off > _offRadius) {
+    final line = _line;
+    if (line == null || _progress < 0) return false;
+    final hit = line.project(
+      position,
+      from: math.max(0, _progress - _lookBack),
+      to: math.min(line.total, _progress + _maxAdvance),
+    );
+    if (hit.distance > _corridor) {
       _miss(tr('study.trace.offPath'));
       return false;
     }
-    if (reached == last) {
+    final progress = math.max(_progress, hit.along);
+    // ── لا اكتمالَ قبل آخر المسار، والإصبعُ عليه ──
+    if (progress >= line.total - 0.5 && (position - line.points.last).distance <= _finishRadius) {
       _completeStroke([..._trail, position]);
       return false;
     }
     setState(() {
-      _reached = reached;
+      _progress = progress;
+      _progressPoint = line.at(progress);
+      _reached = line.passed(progress);
       _trail = [..._trail, position];
     });
     return true;
@@ -421,7 +438,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
 
   void _up() {
     final stroke = _current;
-    if (stroke == null || _reached < 0) return;
+    if (stroke == null || _progress < 0) return;
     // رفع إصبعه قبل نهاية الجرّة: يبقى ما رسمه وما بلغه، ويكمل منه.
     _lastPos = null;
     setState(() {
@@ -436,6 +453,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     setState(() {
       _mistakes += 1;
       _reached = -1;
+      _progress = -1;
+      _progressPoint = null;
       _trail = [];
       // ما رُسم من هذه الجرّة قبل رفع الإصبع يُمحى معها.
       _doneTrails.removeRange(_strokeTrailBase, _doneTrails.length);
@@ -451,6 +470,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       _strokeTrailBase = _doneTrails.length;
       _stroke += 1;
       _reached = -1;
+      _progress = -1;
+      _progressPoint = null;
       _trail = [];
       _hint = null;
     });
@@ -851,6 +872,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
                 dest: _dest,
                 stroke: _stroke,
                 reached: _reached,
+                progressPoint: _progressPoint,
                 trail: _trail,
                 doneTrails: _doneTrails,
                 pulse: _pulse.value,
@@ -883,6 +905,76 @@ Path tracingLanePath(List<Offset> points) {
     path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
   }
   return path;
+}
+
+/// مسارُ جرّةٍ على الشاشة بطوله: منه يُعرف أين بلغ الإصبع.
+class TracePolyline {
+  TracePolyline(this.points) : _cumulative = _lengths(points);
+
+  final List<Offset> points;
+  final List<double> _cumulative;
+
+  static List<double> _lengths(List<Offset> points) {
+    final out = <double>[0];
+    for (var i = 1; i < points.length; i++) {
+      out.add(out.last + (points[i] - points[i - 1]).distance);
+    }
+    return out;
+  }
+
+  /// طولُ المسار كلِّه.
+  double get total => _cumulative.last;
+
+  /// الموضعُ على المسار بعد [along] من بدايته.
+  Offset at(double along) {
+    final s = along.clamp(0.0, total);
+    for (var i = 1; i < points.length; i++) {
+      if (s <= _cumulative[i]) {
+        final span = _cumulative[i] - _cumulative[i - 1];
+        final t = span == 0 ? 0.0 : (s - _cumulative[i - 1]) / span;
+        return Offset.lerp(points[i - 1], points[i], t)!;
+      }
+    }
+    return points.last;
+  }
+
+  /// كم نقطةً من نقاط المسار بلغها [along] (فهرسُ آخرها).
+  int passed(double along) {
+    var index = 0;
+    for (var i = 0; i < _cumulative.length; i++) {
+      if (_cumulative[i] <= along + 0.5) index = i;
+    }
+    return index;
+  }
+
+  /// أقربُ موضعٍ على المسار إلى [p] بين [from] و[to] من طوله: أين يقع، وكم
+  /// يبعد الإصبعُ عنه.
+  ({double along, double distance}) project(Offset p, {required double from, required double to}) {
+    var bestAlong = from;
+    var bestDistance = double.infinity;
+    for (var i = 1; i < points.length; i++) {
+      final a0 = _cumulative[i - 1];
+      final a1 = _cumulative[i];
+      if (a1 < from || a0 > to) continue;
+      final a = points[i - 1];
+      final b = points[i];
+      final ab = b - a;
+      final length2 = ab.distanceSquared;
+      var t = length2 == 0 ? 0.0 : ((p - a).dx * ab.dx + (p - a).dy * ab.dy) / length2;
+      // ‏داخل النافذة وحدها: لا إسقاطَ على ما قبلها ولا ما بعدها.
+      final span = a1 - a0;
+      final tMin = span == 0 ? 0.0 : ((from - a0) / span).clamp(0.0, 1.0);
+      final tMax = span == 0 ? 1.0 : ((to - a0) / span).clamp(0.0, 1.0);
+      t = t.clamp(tMin, tMax);
+      final q = a + ab * t;
+      final d = (p - q).distance;
+      if (d < bestDistance) {
+        bestDistance = d;
+        bestAlong = a0 + span * t;
+      }
+    }
+    return (along: bestAlong, distance: bestDistance);
+  }
 }
 
 /// بطاقةُ حرفٍ أو رقمٍ في الشبكة: كبيرةٌ ملوّنة، تصغر قليلاً تحت الإصبع،
@@ -1054,6 +1146,7 @@ class _TracingPainter extends CustomPainter {
     required this.dest,
     required this.stroke,
     required this.reached,
+    required this.progressPoint,
     required this.trail,
     required this.doneTrails,
     required this.pulse,
@@ -1066,6 +1159,9 @@ class _TracingPainter extends CustomPainter {
   final Rect dest;
   final int stroke;
   final int reached;
+
+  /// موضعُ الإصبع على المسار: إليه يمتدّ التلوينُ بالضبط.
+  final Offset? progressPoint;
   final List<Offset> trail;
   final List<List<Offset>> doneTrails;
   final double pulse;
@@ -1137,6 +1233,27 @@ class _TracingPainter extends CustomPainter {
 
     final current = strokes[stroke];
     final points = current.points;
+    // التلوينُ على المسار إلى موضع الإصبع بالضبط ([progressPoint]) — لا إلى
+    // آخر نقطةٍ عُبرت، ولا أبعد.
+    final reachedPoint = progressPoint;
+    if (reachedPoint != null && reached >= 0) {
+      final path = Path()..moveTo(_at(points.first).dx, _at(points.first).dy);
+      for (final p in points.sublist(1, reached + 1)) {
+        final q = _at(p);
+        path.lineTo(q.dx, q.dy);
+      }
+      path.lineTo(reachedPoint.dx, reachedPoint.dy);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = _drawn.withValues(alpha: 0.85)
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..strokeWidth = math.max(10, inkPx * 0.75),
+      );
+      canvas.drawCircle(reachedPoint, math.max(8, inkPx * 0.42), Paint()..color = _drawn);
+    }
     for (var i = 1; i < points.length; i++) {
       final p = _at(points[i]);
       final isNext = i == reached + 1;
