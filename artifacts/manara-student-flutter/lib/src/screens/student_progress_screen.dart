@@ -382,10 +382,10 @@ class _LeaderboardSectionState extends State<_LeaderboardSection> {
             ),
             Text(
               trf('board.count', {'n': '${board.total}'}),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF64748B),
+                color: StudentSurface.mutedInk(context),
               ),
             ),
           ],
@@ -713,9 +713,9 @@ class _Trouble extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
-                  color: Color(0xFF64748B),
+                  color: StudentSurface.mutedInk(context),
                 ),
               ),
             ],

@@ -56,8 +56,17 @@ abstract final class StudentSurface {
       isDark(context) ? Colors.white : const Color(0xFF183047);
 
   /// Secondary text: labels, hints, captions.
+  ///
+  /// أفتحُ في الداكن ممّا كان (B6BDCC): التلميحاتُ الصغيرة بخطٍّ رفيع كانت
+  /// تبهت على الأرضية الداكنة.
   static Color mutedInk(BuildContext context) =>
-      isDark(context) ? const Color(0xFFB6BDCC) : const Color(0xFF5B6B7C);
+      isDark(context) ? const Color(0xFFCDD5E3) : const Color(0xFF5B6B7C);
+
+  /// لونُ العلامة (أخضر، بنفسجي، فيروزي…) لنصٍّ أو أيقونةٍ على الأرضية
+  /// نفسها أو على بطاقة: كما هو في الفاتح، وأسطعُ في الداكن — درجاتُ العلامة
+  /// الغامقة مقروءةٌ على الأبيض وتغرق في الأسود.
+  static Color vivid(BuildContext context, Color brand) =>
+      isDark(context) ? Color.lerp(brand, Colors.white, 0.45)! : brand;
 
   /// The hairline around a card.
   static Color outline(BuildContext context) => isDark(context)
@@ -296,7 +305,7 @@ abstract final class StudentTheme {
     const canvas = Color(0xFF0E1117);
     const surface = Color(0xFF171B26);
     const ink = Colors.white;
-    const mutedInk = Color(0xFFB6BDCC);
+    const mutedInk = Color(0xFFCDD5E3);
 
     final base = ThemeData(
       useMaterial3: true,

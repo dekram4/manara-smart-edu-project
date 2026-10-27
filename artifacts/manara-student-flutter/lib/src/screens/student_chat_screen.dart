@@ -1264,7 +1264,7 @@ class _ChatStatus extends StatelessWidget {
       child: Padding(
           padding: EdgeInsets.all(28),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 58, color: Color(0xFF0B8693)),
+            Icon(icon, size: 58, color: StudentSurface.vivid(context, const Color(0xFF0B8693))),
             SizedBox(height: 14),
             Text(message,
                 textAlign: TextAlign.center,
