@@ -23,6 +23,18 @@ void main() {
     expect(gate.allow(StudentSoundCue.success), isTrue);
   });
 
+  testWidgets('داخل البطاقة لا احتفال، وفي الواجهة يُسمع', (tester) async {
+    final sound = StudentSoundService.instance;
+    sound.enterCard();
+    expect(sound.insideCard, isTrue);
+    expect(sound.playCelebration(gems: true), isFalse);
+    sound.leaveCard();
+    expect(sound.insideCard, isFalse);
+    expect(sound.playCelebration(gems: true), isTrue);
+    sound.stopEffects();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   group('التشجيع ثم التصفيق', () {
     test('كلُّ عبارة تشجيعٍ ملفٌّ داخل assets/audio/encouragement/', () {
       expect(StudentSoundService.encouragementClips, hasLength(4));

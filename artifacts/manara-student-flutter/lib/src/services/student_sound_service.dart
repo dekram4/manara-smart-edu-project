@@ -1153,6 +1153,7 @@ class StudentSoundService with WidgetsBindingObserver {
   /// مستمرٌّ تحتهما.
   void playGems() {
     HapticFeedback.mediumImpact();
+    if (_insideCard) return;
     if (_cheering) {
       _gemsQueued = true;
       return;
@@ -1164,6 +1165,33 @@ class StudentSoundService with WidgetsBindingObserver {
 
   /// عبارةُ تشجيعٍ أو صوتُ جواهر يُقال الآن فوق التصفيق.
   bool _cheering = false;
+
+  /// ── الاحتفالُ في الواجهة وحدها ──
+  /// الطالبُ داخل بطاقةٍ أو لعبة: لا تشجيعَ ولا تصفيقَ ولا صوتَ جواهر هنا —
+  /// الاهتزازُ والصورةُ وحدهما. وحصيلةُ ما جمعه تُسمع حين يعود إلى واجهة
+  /// البطاقات، مرّةً واحدة ([StudentHomeScreen] يقارن ما كان بما صار).
+  bool _insideCard = false;
+
+  @visibleForTesting
+  bool get insideCard => _insideCard;
+
+  /// فتح الطالبُ بطاقة: ما يُقال من ترحيبٍ أو احتفالٍ يسكت الآن، ولا يُسمع
+  /// احتفالٌ حتى يعود ([leaveCard]).
+  void enterCard() {
+    _insideCard = true;
+    _gemsQueued = false;
+    stopEffects();
+    unawaited(stopHubGreeting());
+  }
+
+  /// عاد إلى واجهة البطاقات.
+  void leaveCard() => _insideCard = false;
+
+  /// يُسكت ترحيبَ الواجهة إن كان هو ما يُقال — لا سطرَ البطاقة التي فُتحت.
+  Future<void> stopHubGreeting() async {
+    final clip = _voiceClip;
+    if (clip == _dashboardClip || clip == _welcomeClip) await stopSpeaking();
+  }
 
   /// صوتُ جواهر ينتظر انتهاءَ العبارة الجارية.
   bool _gemsQueued = false;
@@ -1177,7 +1205,7 @@ class StudentSoundService with WidgetsBindingObserver {
   /// [gems]: كسب جواهر جديدة — فصوتُها بعد العبارة، والتصفيقُ تحتهما. ويعيد
   /// `false` إن لم يُسمع شيء (التصفيقُ لهذا النجاح يُسمع بعد).
   bool playCelebration({bool gems = false}) {
-    if (_justApplauded) return false;
+    if (_justApplauded || _insideCard) return false;
     playApplause();
     if (gems) playGems();
     return true;
@@ -1243,8 +1271,9 @@ class StudentSoundService with WidgetsBindingObserver {
   /// لا يفتح نافذةَ [_justApplauded]: يتكرّر في الجولة الواحدة، ونغمةُ
   /// المكافأة أو الاحتفالُ الكبير بعده يجب أن يُسمعا.
   void playCheer() {
-    _applauseCancelled = false;
     HapticFeedback.mediumImpact();
+    if (_insideCard) return;
+    _applauseCancelled = false;
     unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
@@ -1307,9 +1336,10 @@ class StudentSoundService with WidgetsBindingObserver {
 
   /// الاحتفالُ بإنهاء اختبارٍ أو لعبةٍ أو مرحلة: عبارةُ تشجيعٍ وخلفها التصفيق.
   void playApplause() {
+    HapticFeedback.heavyImpact();
+    if (_insideCard) return;
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
-    HapticFeedback.heavyImpact();
     unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
@@ -1319,9 +1349,10 @@ class StudentSoundService with WidgetsBindingObserver {
   /// `reward.alreadyRewarded`، وسجلّ الأنشطة في الخادم يمنع مكافأة النشاط
   /// نفسه مرتين — فالدرس المنتهي سلفاً يأخذ النغمة الهادئة لا الاحتفال.
   void playLessonComplete() {
+    HapticFeedback.heavyImpact();
+    if (_insideCard) return;
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
-    HapticFeedback.heavyImpact();
     unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
