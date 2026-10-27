@@ -77,7 +77,12 @@ class StudentVoiceService {
     _speechReady = true;
     try {
       _speechAvailable = await _speech.initialize(
-        onError: (_) => _onLiveEnd?.call(),
+        onError: (_) {
+          // تعرّفٌ على الجهاز لم ينجح (لا نموذجَ عربياً منزَّلاً): الاستماعُ
+          // التالي بالخدمة العادية، ما بقي التطبيقُ مفتوحاً.
+          if (_liveOnDevice) _preferOnDevice = false;
+          _onLiveEnd?.call();
+        },
         onStatus: (status) {
           if (status == SpeechToText.doneStatus || status == SpeechToText.notListeningStatus) {
             _onLiveEnd?.call();
@@ -124,6 +129,12 @@ class StudentVoiceService {
   /// انتهاءُ استماعٍ حيّ ([listenLive]): صمتٌ أو خطأٌ أو إيقاف.
   VoidCallback? _onLiveEnd;
 
+  /// التعرّفُ على الجهاز نفسه أوّلاً: كلماتُه الجزئية تصل أسرعَ بكثير — لا
+  /// ذهابَ إلى خادم Google وإياب — فيتلوّن النصُّ مع صوت الطفل. وإن لم يكن
+  /// على الجهاز نموذجٌ عربيّ فشل أوّلُ استماع، فيُعاد بالخدمة العادية.
+  bool _preferOnDevice = true;
+  bool _liveOnDevice = false;
+
   /// استماعٌ حيّ للتسميع: كلُّ ما سُمع حتى الآن يصل مع كل كلمةٍ جديدة
   /// ([onWords]) — فيتلوّن النصّ والطفلُ يقرأ — و[onEnd] مرّةً حين يتوقّف.
   ///
@@ -143,14 +154,21 @@ class StudentVoiceService {
     if (!await prepare()) return false;
     await stopSpeaking();
     var ended = false;
+    var heard = false;
+    final startedAt = DateTime.now();
     void end() {
       if (ended) return;
       ended = true;
       _onLiveEnd = null;
+      // على الجهاز وانتهى في لحظته بلا كلمة: لا نموذجَ يسمع — بالخدمة العادية.
+      if (_liveOnDevice && !heard && DateTime.now().difference(startedAt) < const Duration(seconds: 2)) {
+        _preferOnDevice = false;
+      }
       onEnd();
     }
 
     _onLiveEnd = end;
+    _liveOnDevice = _preferOnDevice;
     try {
       await _speech.listen(
         listenOptions: SpeechListenOptions(
@@ -159,8 +177,10 @@ class StudentVoiceService {
           pauseFor: pause,
           partialResults: true,
           listenMode: ListenMode.dictation,
+          onDevice: _liveOnDevice,
         ),
         onResult: (result) {
+          if (result.recognizedWords.trim().isNotEmpty) heard = true;
           onWords(result.recognizedWords.trim());
           if (result.finalResult) end();
         },
@@ -168,6 +188,11 @@ class StudentVoiceService {
       return true;
     } catch (_) {
       _onLiveEnd = null;
+      if (_liveOnDevice) {
+        // رفض التعرّفَ على الجهاز من أوّله: مرّةً أخرى بالخدمة العادية.
+        _preferOnDevice = false;
+        return listenLive(onWords: onWords, onEnd: onEnd, locale: locale, limit: limit, pause: pause);
+      }
       return false;
     }
   }

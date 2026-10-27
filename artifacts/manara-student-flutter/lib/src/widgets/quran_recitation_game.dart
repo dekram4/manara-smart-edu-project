@@ -101,6 +101,10 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
   /// تُسمَع التلاوةُ الصحيحة الآن، والمايكُ مغلقٌ لها.
   bool _helping = false;
 
+  /// آخرُ كلمةٍ سمعها المحرّك: تظهر تحت النصّ لحظةَ تُسمع، فيرى الطفلُ أن
+  /// صوته وصل.
+  String? _lastHeard;
+
   /// رقمُ الاستماع الجاري: ما يصل من استماعٍ سابقٍ لا يُحسب.
   int _session = 0;
   int _endedSession = -1;
@@ -174,6 +178,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     final surah = _surah;
     _tracker = surah == null ? null : RecitationTracker(surah);
     _heard = '';
+    _lastHeard = null;
     _done = false;
     _message = null;
     _gems = null;
@@ -194,6 +199,17 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
       _tracker = null;
     });
     if (!_still) _shine.repeat();
+  }
+
+  /// السورةُ السابقة أو التالية في القائمة، من شاشة التسميع نفسها.
+  Future<void> _step(int delta) async {
+    final surah = _surah;
+    if (surah == null) return;
+    final index = widget.surahs.indexOf(surah) + delta;
+    if (index < 0 || index >= widget.surahs.length) return;
+    await _quiet();
+    if (!mounted) return;
+    _open(widget.surahs[index]);
   }
 
   Future<void> _restart() async {
@@ -241,7 +257,11 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     final tracker = _tracker;
     if (!mounted || session != _session || _done || _helping || tracker == null) return;
     _heard = heard;
-    setState(() => tracker.hear(heard));
+    setState(() {
+      tracker.hear(heard);
+      final words = heard.trim().split(RegExp(r'\s+'));
+      _lastHeard = heard.trim().isEmpty ? null : words.last;
+    });
     if (tracker.complete) unawaited(_complete());
   }
 
@@ -256,8 +276,9 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
       return;
     }
     if (_wantListening && !_helping && !_done) {
-      // أغلقه النظامُ والطفلُ لم يُغلقه: يُفتح من جديد بعد لحظة.
-      Future<void>.delayed(const Duration(milliseconds: 250), () {
+      // أغلقه النظامُ والطفلُ لم يُغلقه: يُفتح من جديد في الحال — كلُّ
+      // لحظةٍ بين استماعين كلماتٌ تضيع.
+      scheduleMicrotask(() {
         if (mounted) unawaited(_startListening());
       });
     } else {
@@ -520,8 +541,17 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
                 ),
                 child: _units(context, tracker),
               ),
+              if (_wantListening && _lastHeard != null && !_done) ...[
+                const SizedBox(height: 10),
+                Center(child: _heardChip(_lastHeard!)),
+              ],
             ],
           ),
+        ),
+        // تحت النصّ دائماً، لا في آخر ما يُمرَّر إليه.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+          child: _surahNav(surah),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
@@ -609,6 +639,100 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     );
   }
 
+  /// آخرُ ما سُمع، لحظةَ يُسمع.
+  Widget _heardChip(String word) => Container(
+        key: const ValueKey('quran-heard'),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: teal.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: teal.withValues(alpha: 0.4)),
+        ),
+        child: Text(
+          '🎙️ $word',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: teal),
+        ),
+      );
+
+  /// السورةُ السابقة والتالية: ينتقل الطفلُ إليهما دون الرجوع إلى القائمة.
+  Widget _surahNav(QuranSurah surah) {
+    final index = widget.surahs.indexOf(surah);
+    final hasPrev = index > 0;
+    final hasNext = index >= 0 && index < widget.surahs.length - 1;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    // ‏بترتيب القراءة: السابقةُ في البداية (يمين العربية) والتالية في النهاية.
+    return Row(
+      children: [
+        _navButton(
+          key: const ValueKey('quran-prev'),
+          enabled: hasPrev,
+          label: hasPrev ? trf('quran.prev', {'name': widget.surahs[index - 1].name}) : tr('quran.prevNone'),
+          icon: rtl ? Icons.arrow_forward_rounded : Icons.arrow_back_rounded,
+          iconFirst: true,
+          onTap: () => _step(-1),
+        ),
+        const SizedBox(width: 12),
+        _navButton(
+          key: const ValueKey('quran-next'),
+          enabled: hasNext,
+          label: hasNext ? trf('quran.next', {'name': widget.surahs[index + 1].name}) : tr('quran.nextNone'),
+          icon: rtl ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
+          iconFirst: false,
+          onTap: () => _step(1),
+        ),
+      ],
+    );
+  }
+
+  Widget _navButton({
+    required Key key,
+    required bool enabled,
+    required String label,
+    required IconData icon,
+    required bool iconFirst,
+    required VoidCallback onTap,
+  }) {
+    final colors = enabled
+        ? const [Color(0xFF6366F1), Color(0xFF8B5CF6)]
+        : const [Color(0xFFCBD5E1), Color(0xFFCBD5E1)];
+    final iconWidget = Icon(icon, color: Colors.white, size: 26);
+    final text = Flexible(
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
+      ),
+    );
+    return Expanded(
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        label: label,
+        child: GestureDetector(
+          key: key,
+          onTap: enabled ? onTap : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: colors),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: enabled
+                  ? [BoxShadow(color: colors.first.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: iconFirst
+                  ? [iconWidget, const SizedBox(width: 6), text]
+                  : [text, const SizedBox(width: 6), iconWidget],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// «استمع»: التلاوةُ الصحيحة للآية الخاطئة، يسمعها الطفلُ ثم يردّدها.
   Widget _helpButton(RecitationUnit unit) {
     return Semantics(
@@ -643,10 +767,20 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
 
   Widget _word(BuildContext context, RecitationTracker tracker, int k, {required bool isCurrent}) {
     final state = tracker.status[k];
+    // الكلمةُ التي ينتظرها الآن: أوّلُ ما لم يخضرّ في الخطوة الجارية.
+    final unitOf = tracker.unitOf;
+    var cursor = -1;
+    for (var j = 0; j < unitOf.length; j++) {
+      if (unitOf[j] == tracker.currentUnit && tracker.status[j] != RecitedWord.correct) {
+        cursor = j;
+        break;
+      }
+    }
+    final next = isCurrent && k == cursor && state == RecitedWord.pending;
     final line = switch (state) {
       RecitedWord.correct => green,
       RecitedWord.wrong => red,
-      RecitedWord.pending => Colors.transparent,
+      RecitedWord.pending => next ? gold : Colors.transparent,
     };
     final ink = switch (state) {
       RecitedWord.correct => green,
@@ -658,7 +792,9 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
       padding: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: line, width: 3.5)),
-        color: state == RecitedWord.wrong ? red.withValues(alpha: 0.12) : null,
+        color: state == RecitedWord.wrong
+            ? red.withValues(alpha: 0.12)
+            : (next ? gold.withValues(alpha: 0.14) : null),
       ),
       child: Text(
         tracker.words[k],

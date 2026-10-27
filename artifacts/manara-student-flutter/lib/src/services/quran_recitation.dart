@@ -349,12 +349,19 @@ class RecitationTracker {
       final expected = [for (final k in indices) _words[k]];
       // أقصرُ ما يُتمّ الخطوةَ ممّا قيل: فما بعده للخطوة التالية — لا تأخذ
       // «الرجيم» من الاستعاذة «الرحيم» من البسملة بعدها.
-      ({List<RecitedWord> status, List<int> heardAt})? result;
-      for (var p = 1; p <= tail.length; p++) {
-        result = alignWords(expected, tail.sublist(0, p), from: from < 0 ? 0 : from);
-        if (_greenWith(indices, result.status)) break;
+      final start = from < 0 ? 0 : from;
+      var r = alignWords(expected, tail, from: start);
+      if (_greenWith(indices, r.status)) {
+        // تخضرّ بما قيل كلِّه: فبأقصرِ بدايةٍ منه — والبحثُ وحده حين تخضرّ،
+        // لا مع كل كلمةٍ يسمعها المحرّك.
+        for (var p = 1; p < tail.length; p++) {
+          final shorter = alignWords(expected, tail.sublist(0, p), from: start);
+          if (_greenWith(indices, shorter.status)) {
+            r = shorter;
+            break;
+          }
+        }
       }
-      final r = result!;
       for (var k = 0; k < indices.length; k++) {
         final now = r.status[k];
         if (now == RecitedWord.correct) {

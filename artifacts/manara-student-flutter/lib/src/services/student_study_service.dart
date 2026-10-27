@@ -70,7 +70,36 @@ class StudentStudyService {
     final map = await _post(endpoint, lessonId);
     final pack = StudyPack.fromMap(map['pack']);
     if (pack == null) throw const StudyFailure('badPack');
+    await _remember(_packCacheKey(lessonId), map['pack']);
     return pack;
+  }
+
+  static String _packCacheKey(String lessonId) => 'study.pack.cache.$lessonId';
+
+  /// خريطةُ الدرس وتحدّيه كما وصلا آخرَ مرّة، محفوظَين على الجهاز — تُفتح
+  /// بهما البطاقةُ في لحظتها، ويحلّ محلّهما الجديدُ حين يصل.
+  static Future<StudyPack?> cachedPack({required String lessonId}) async {
+    final raw = await _recall(_packCacheKey(lessonId));
+    return raw == null ? null : StudyPack.fromMap(raw);
+  }
+
+  static Future<void> _remember(String key, Object? value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, jsonEncode(value));
+    } catch (_) {
+      // بلا نسخةٍ محفوظة: تُطلب من الخادم في المرّة القادمة كما الآن.
+    }
+  }
+
+  static Future<Object?> _recall(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(key);
+      return raw == null ? null : jsonDecode(raw);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// ألعابُ الدرس: سحبٌ وإسقاط، ومطابقة، وأسئلةٌ متتالية — يولّدها الخادم
@@ -79,12 +108,7 @@ class StudentStudyService {
     final map = await _post(gamesEndpoint, lessonId);
     final pack = StudyGamesPack.fromMap(map['pack']);
     if (pack == null) throw const StudyFailure('badPack');
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_gamesCacheKey(lessonId), jsonEncode(map['pack']));
-    } catch (_) {
-      // بلا نسخةٍ محفوظة: الرفُّ يُطلب من الخادم في المرّة القادمة كما الآن.
-    }
+    await _remember(_gamesCacheKey(lessonId), map['pack']);
     return pack;
   }
 
@@ -97,15 +121,9 @@ class StudentStudyService {
   /// تكن محفوظةً هناك — ثوانٍ يرى فيها الطفلُ «جارٍ التحميل». فتُعرض هذه
   /// فوراً، وتحلّ محلّها الجديدةُ حين تصل.
   static Future<StudyGamesPack?> cachedGames({required String lessonId}) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_gamesCacheKey(lessonId));
-      if (raw == null) return null;
-      final pack = StudyGamesPack.fromMap(jsonDecode(raw));
-      return pack != null && pack.lessonId == lessonId ? pack : null;
-    } catch (_) {
-      return null;
-    }
+    final raw = await _recall(_gamesCacheKey(lessonId));
+    final pack = raw == null ? null : StudyGamesPack.fromMap(raw);
+    return pack != null && pack.lessonId == lessonId ? pack : null;
   }
 
   /// نسخةٌ جديدة من لعبةٍ واحدة — يولّدها الخادم من النصّ الكامل للدرس،
