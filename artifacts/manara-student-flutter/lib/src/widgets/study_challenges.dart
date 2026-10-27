@@ -270,16 +270,16 @@ class _SwipeFactChallengeState extends State<SwipeFactChallenge> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('🔴 ${tr('study.swipeWrong')}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFFDC2626),
+                  color: StudentSurface.vivid(context, const Color(0xFFDC2626)),
                 )),
             Text('${tr('study.swipeRight')} 🟢',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF16A34A),
+                  color: StudentSurface.vivid(context, const Color(0xFF16A34A)),
                 )),
           ],
         ),

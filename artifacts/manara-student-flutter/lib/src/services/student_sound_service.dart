@@ -1173,9 +1173,14 @@ class StudentSoundService with WidgetsBindingObserver {
 
   /// احتفالٌ بنجاحٍ رآه الطالب على الشاشة (نقاطٌ زادت): عبارةٌ وتصفيق،
   /// مرّةً واحدة — لا إن كان التصفيقُ لهذا النجاح يُسمع بعد.
-  void playCelebration() {
-    if (_justApplauded) return;
+  ///
+  /// [gems]: كسب جواهر جديدة — فصوتُها بعد العبارة، والتصفيقُ تحتهما. ويعيد
+  /// `false` إن لم يُسمع شيء (التصفيقُ لهذا النجاح يُسمع بعد).
+  bool playCelebration({bool gems = false}) {
+    if (_justApplauded) return false;
     playApplause();
+    if (gems) playGems();
+    return true;
   }
 
   /// Stops applause already in flight.

@@ -778,7 +778,7 @@ class _SolverEmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.menu_book_outlined, size: 60, color: Color(0xFF0B8693)),
+              Icon(Icons.menu_book_outlined, size: 60, color: StudentSurface.vivid(context, const Color(0xFF0B8693))),
               SizedBox(height: 14),
               Text(
                 tr('solver.noText'),

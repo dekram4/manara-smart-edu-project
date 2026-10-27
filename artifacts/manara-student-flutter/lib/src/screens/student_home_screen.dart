@@ -206,8 +206,30 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
     // Owned here and cancelled in dispose, so nothing outlives this screen.
     _dealCue = Timer(_dealAfter, _beginDeal);
-    // مقطع اللوحة، ويرتدّ إلى ترحيب المحور إن لم يُسقَط بعد.
-    unawaited(StudentSoundService.instance.speakDashboard());
+    // مقطع اللوحة، ويرتدّ إلى ترحيب المحور إن لم يُسقَط بعد. وحين ينتهي —
+    // لا قبل — يُحتفل بما ينتظر الطالبَ من مكافأة ([_celebrateProgress]).
+    _greetingCap = Timer(_greetingCapAfter, _greetingFinished);
+    unawaited(StudentSoundService.instance.speakDashboard(onComplete: _greetingFinished));
+  }
+
+  /// ── الترحيبُ أوّلاً، ثم المكافأة ──
+  /// كانت المكافأةُ التي تنتظر الطالب (سلسلةُ الأيام مثلاً) تُحتفل لحظةَ تصل
+  /// من الخادم — والترحيبُ يُقال — فيتداخل الصوتان. فما يصل قبل انتهاء الترحيب
+  /// ينتظر هنا، ويبدأ فورَ انتهائه.
+  bool _greetingDone = false;
+  Timer? _greetingCap;
+  VoidCallback? _afterGreeting;
+
+  /// أقصى انتظارٍ للترحيب: جهازٌ بلا صوتٍ لا يُبلّغ بانتهائه أبداً.
+  static const _greetingCapAfter = Duration(seconds: 16);
+
+  void _greetingFinished() {
+    _greetingCap?.cancel();
+    if (_greetingDone) return;
+    _greetingDone = true;
+    final next = _afterGreeting;
+    _afterGreeting = null;
+    if (mounted) next?.call();
   }
 
   bool _dealBegun = false;
@@ -373,10 +395,22 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     final gainedGems = updated.gems - previous.gems;
     if (gainedXp <= 0 && gainedGems <= 0) return;
 
+    if (!_greetingDone) {
+      // الترحيبُ يُقال: المكافأةُ بعده، لا فوقه. وإن وصلت مكافأتان قبل
+      // انتهائه فواحدةٌ بمجموعهما.
+      final waiting = _pendingFrom ?? previous;
+      _pendingFrom = waiting;
+      _afterGreeting = () {
+        _pendingFrom = null;
+        _celebrateProgress(waiting, _gamification);
+      };
+      return;
+    }
+
     if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
       _rewardController.play();
     }
-    StudentSoundService.instance.playCelebration();
+    StudentSoundService.instance.playCelebration(gems: gainedGems > 0);
     final phrase = StudentSoundService.instance.playEncouragementArabic();
 
     final parts = <String>[];
@@ -387,8 +421,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
   }
 
+  /// ما كان عليه الطالبُ قبل أوّل مكافأةٍ تنتظر انتهاءَ الترحيب.
+  StudentGamification? _pendingFrom;
+
   @override
   void dispose() {
+    _greetingCap?.cancel();
     studentRouteObserver.unsubscribe(this);
     _stopCardAccessPoll();
     _lifecycle?.dispose();

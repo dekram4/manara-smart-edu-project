@@ -1830,13 +1830,15 @@ class _StateCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(225),
+              // ‏كانت بيضاءَ ثابتة ونصُّها بلون الحبر: في الداكن صار الحبرُ
+              // أبيضَ على أبيض فاختفت رسالةُ الخطأ كلُّها.
+              color: StudentSurface.glass(context, 0.92),
               borderRadius: BorderRadius.circular(28),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: const Color(0xFF0B8693), size: 54),
+                Icon(icon, color: StudentSurface.vivid(context, const Color(0xFF0B8693)), size: 54),
                 const SizedBox(height: 12),
                 Text(
                   title,

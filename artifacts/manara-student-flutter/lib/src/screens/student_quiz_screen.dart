@@ -517,7 +517,7 @@ class _QuizCatalog extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.quiz_outlined, size: 58, color: Color(0xFF0B8693)),
+              Icon(Icons.quiz_outlined, size: 58, color: StudentSurface.vivid(context, const Color(0xFF0B8693))),
               const SizedBox(height: 14),
               Text(tr('quiz.none'), textAlign: TextAlign.center),
             ],
@@ -552,7 +552,7 @@ class _QuizCatalog extends StatelessWidget {
                 Row(
                   children: [
                     Icon(teacher ? Icons.school_rounded : Icons.event_note_rounded,
-                        color: const Color(0xFF0B8693)),
+                        color: StudentSurface.vivid(context, const Color(0xFF0B8693))),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -562,7 +562,7 @@ class _QuizCatalog extends StatelessWidget {
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                       ),
                     ),
-                    if (taken) const Icon(Icons.check_circle_rounded, color: Color(0xFF0B9A67)),
+                    if (taken) Icon(Icons.check_circle_rounded, color: StudentSurface.vivid(context, const Color(0xFF0B9A67))),
                   ],
                 ),
                 const SizedBox(height: 8),

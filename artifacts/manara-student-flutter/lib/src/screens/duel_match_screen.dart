@@ -1160,8 +1160,8 @@ class _WaitingRoomState extends State<_WaitingRoom> {
                 'total':
                     '${ids.where((id) => statuses[id] != DuelPlayerStatus.host).length}',
               }),
-              style: const TextStyle(
-                color: Color(0xFF16A34A),
+              style: TextStyle(
+                color: StudentSurface.vivid(context, const Color(0xFF16A34A)),
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
               ),
@@ -1375,8 +1375,8 @@ class _Scoreboard extends StatelessWidget {
                     duration: const Duration(milliseconds: 400),
                     builder: (context, value, _) => Text(
                       trf('arena.party.points', {'n': '$value'}),
-                      style: const TextStyle(
-                        color: Color(0xFF7C3AED),
+                      style: TextStyle(
+                        color: StudentSurface.vivid(context, const Color(0xFF7C3AED)),
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                       ),
