@@ -1195,15 +1195,16 @@ class StudentSoundService with WidgetsBindingObserver {
     unawaited(_playSequence(cheerSequence(nextEncouragementClip())));
   }
 
-  /// تصفيقةٌ قصيرة للإجابة والحرف، والتصفيقُ الطويل للنهايات.
-  static const shortClap = 'audio/clap2.mp3';
-  static const longClap = 'audio/clap.mp3';
+  /// التصفيقُ النقيّ: «تصفيق.mp3» منسوخاً إلى المشروع باسمٍ لاتيني — الأسماءُ
+  /// العربية في مسارات الأصول تُرمَّز في بيان الحزمة فلا يجدها فحصُ الوجود.
+  static const clapping = 'audio/encouragement/clapping.mp3';
 
-  /// التسلسلُ كاملاً: العبارةُ ثم ملفُّ تصفيقٍ واحد — ولا شيءَ غيرهما.
+  /// التسلسلُ كاملاً في كل مواضع النجاح: العبارةُ ثم [clapping] — ولا شيءَ
+  /// غيرهما.
   @visibleForTesting
-  static List<(String, double)> cheerSequence(String phrase, {bool long = false}) => [
+  static List<(String, double)> cheerSequence(String phrase) => [
         (phrase, _encouragementVolume),
-        (long ? longClap : shortClap, 0.7),
+        (clapping, 0.8),
       ];
 
   /// الاحتفالُ بإنهاء اختبارٍ أو لعبةٍ أو مرحلة: عبارةُ تشجيعٍ ثم التصفيقُ كاملاً.
@@ -1211,7 +1212,7 @@ class StudentSoundService with WidgetsBindingObserver {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence(cheerSequence(nextEncouragementClip(), long: true)));
+    unawaited(_playSequence(cheerSequence(nextEncouragementClip())));
   }
 
   /// إنهاء الدرس: عبارةُ تشجيعٍ ثم التصفيق — بلا نغمةٍ قبلهما.
@@ -1226,7 +1227,7 @@ class StudentSoundService with WidgetsBindingObserver {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence(cheerSequence(nextEncouragementClip(), long: true)));
+    unawaited(_playSequence(cheerSequence(nextEncouragementClip())));
   }
 
   /// يشغّل مقاطع متتابعة، كلٌّ عند انتهاء سابقه.

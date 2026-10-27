@@ -12,6 +12,7 @@ import '../models/study_games.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
+import 'quran_recitation_game.dart';
 import 'tracing_game.dart';
 import 'tracing_shelf_card.dart';
 
@@ -34,6 +35,7 @@ class StudyGamesTab extends StatefulWidget {
     this.seenKey,
     this.allowTracing = true,
     this.onTraced,
+    this.onRecited,
     super.key,
   });
 
@@ -46,6 +48,10 @@ class StudyGamesTab extends StatefulWidget {
   /// لعبةُ التتبّع لهذا الدرس: لروضة منارة المعرفة في موادّها الأربع وحدها
   /// ([tracingAllowedFor]). وإلا تُحذف من الرفّ ولو أرسلها الخادم.
   final bool allowTracing;
+
+  /// «تسميع القرآن الكريم»: لدرس «حفظ وشرح السور القصيرة» في الروضة وحده
+  /// ([quranRecitationAllowedFor]) — وإلا `null` فلا تظهر بطاقتُها أبداً.
+  final QuranRecitationWin? onRecited;
 
   /// نسخةٌ جديدة من لعبة، متجنّبةً ما رآه الطالب — من الذكاء الاصطناعي.
   final Future<StudyGame> Function(StudyGame base, List<String> exclude)? fresh;
@@ -63,6 +69,9 @@ class _StudyGamesTabState extends State<StudyGamesTab>
   String? _error;
   bool _loading = true;
   StudyGame? _active;
+
+  /// «تسميع القرآن» مفتوحة.
+  bool _quranOpen = false;
 
   /// كلُّ فتحٍ للعبة يأخذ مفتاحاً جديداً، فـ«العب مرة أخرى» تبدأ من الصفر.
   int _round = 0;
@@ -243,6 +252,23 @@ class _StudyGamesTabState extends State<StudyGamesTab>
       );
     }
     final error = _error;
+    final onRecited = widget.onRecited;
+    if (onRecited != null && _quranOpen) {
+      return QuranRecitationGame(
+        key: const ValueKey('quran-game'),
+        onRecited: onRecited,
+        onBack: () => setState(() => _quranOpen = false),
+      );
+    }
+    if (error != null && onRecited != null) {
+      // ألعابُ الدرس تعذّرت، والتسميعُ لا يحتاجها: نصوصُ السور في التطبيق.
+      return _GameShelf(
+        key: const ValueKey('shelf'),
+        games: const [],
+        onOpen: _open,
+        onOpenQuran: () => setState(() => _quranOpen = true),
+      );
+    }
     if (error != null) {
       return Center(
         child: Padding(
@@ -311,6 +337,7 @@ class _StudyGamesTabState extends State<StudyGamesTab>
               key: const ValueKey('shelf'),
               games: pack.games,
               onOpen: _open,
+              onOpenQuran: onRecited == null ? null : () => setState(() => _quranOpen = true),
             )
           : _GameStage(
               key: ValueKey('game-${active.id}-$_round'),
@@ -363,10 +390,13 @@ class _Palette {
 }
 
 class _GameShelf extends StatelessWidget {
-  const _GameShelf({required this.games, required this.onOpen, super.key});
+  const _GameShelf({required this.games, required this.onOpen, this.onOpenQuran, super.key});
 
   final List<StudyGame> games;
   final ValueChanged<StudyGame> onOpen;
+
+  /// بطاقةُ «تسميع القرآن» أوّلَ الرفّ، لدرسها وحده.
+  final VoidCallback? onOpenQuran;
 
   @override
   Widget build(BuildContext context) {
@@ -383,6 +413,7 @@ class _GameShelf extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
+        if (onOpenQuran != null) QuranShelfCard(onTap: onOpenQuran!),
         for (var i = 0; i < games.length; i++)
           if (games[i].type == StudyGameType.tracing)
             // التتبّعُ للصغار أوّلاً: بطاقتُه أبهجُ ما في الرفّ.

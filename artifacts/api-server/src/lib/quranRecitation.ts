@@ -1,0 +1,73 @@
+/**
+ * لعبةُ «تسميع القرآن الكريم» في بطاقة المذاكرة — حصراً لدرسٍ واحد.
+ *
+ * ── متى تظهر ──
+ * الصفُّ «روضة منارة المعرفة» **و**المادّةُ «القرآن الكريم» **و**الدرسُ «حفظ
+ * وشرح السور القصيرة» معاً ([quranRecitationAllowed]). ولا تظهر في غيره أبداً.
+ * والتطبيقُ يحمل نصوصَ السور ويقيّم التلاوة على الجهاز؛ وهنا القاعدةُ والمكافأة.
+ *
+ * ── المكافأةُ لكل سورة ──
+ * [QURAN_REWARD] عن كل سورةٍ تُسمَّع كاملةً صحيحة، مرّةً لكل سورةٍ في الدرس
+ * ([quranRewardKey]): والمفتاحُ يبنيه الخادم من سورةٍ تحقّق أنها من السور الثماني.
+ *
+ * بلا شبكة ولا قاعدة بيانات، فيُختبر وحده.
+ */
+import { isKindergartenGrade } from "./tracing";
+
+export const QURAN_GAME_ID = "quran" as const;
+
+/** عن كل سورةٍ تُسمَّع كاملةً صحيحة، مرّةً لكل سورةٍ في الدرس. */
+export const QURAN_REWARD = { gems: 3, points: 3 } as const;
+
+/** السورُ القصيرة في الدرس، بمعرّفاتها في التطبيق. */
+export const QURAN_SURAHS = [
+  "fatiha",
+  "kafirun",
+  "nasr",
+  "masad",
+  "ikhlas",
+  "falaq",
+  "nas",
+  "kawthar",
+] as const;
+
+export type QuranSurahId = (typeof QURAN_SURAHS)[number];
+
+const TASHKEEL = /[ً-ٰٟـ]/g;
+
+function key(value: string): string {
+  return value
+    .replace(TASHKEEL, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function isQuranSubject(subject: string): boolean {
+  return key(subject).includes("القران الكريم");
+}
+
+/** «حفظ وشرح السور القصيرة» — ولو سبقته «درس» أو تلته وحدةٌ أو رقم. */
+export function isShortSurahsLesson(lesson: string): boolean {
+  return key(lesson).includes(key("حفظ وشرح السور القصيرة"));
+}
+
+export function quranRecitationAllowed(lesson: { grade?: string; subject?: string; lesson?: string }): boolean {
+  return (
+    isKindergartenGrade(lesson.grade ?? "") &&
+    isQuranSubject(lesson.subject ?? "") &&
+    isShortSurahsLesson(lesson.lesson ?? "")
+  );
+}
+
+/** مفتاحُ مكافأة سورةٍ في درسٍ، أو `null` لدرسٍ آخر أو سورةٍ ليست من الثماني. */
+export function quranRewardKey(
+  lesson: { id: string; grade?: string; subject?: string; lesson?: string },
+  surah: string,
+): string | null {
+  if (!quranRecitationAllowed(lesson)) return null;
+  if (!(QURAN_SURAHS as readonly string[]).includes(surah)) return null;
+  return `quran:${lesson.id}:${surah}`;
+}

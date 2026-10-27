@@ -6,6 +6,7 @@ import {
   TRACING_REWARD,
   tracingRewardKey,
 } from "../lib/tracing";
+import { QURAN_GAME_ID, QURAN_REWARD, quranRewardKey } from "../lib/quranRecitation";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { createRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
@@ -506,6 +507,7 @@ async function studyGameReward(
   activityId: string,
   student: StudentActor,
   tracingItem = "",
+  quranSurah = "",
 ): Promise<{ gems: number; points: number; rewardKey?: string } | null> {
   const parsed = parseStudyGameActivityId(activityId);
   if (!parsed) return null;
@@ -527,6 +529,15 @@ async function studyGameReward(
       tracingItem,
     );
     return rewardKey ? { ...TRACING_REWARD, rewardKey } : null;
+  }
+  if (parsed.gameId === QURAN_GAME_ID) {
+    // «تسميع القرآن الكريم» لدرس «حفظ وشرح السور القصيرة» في الروضة وحده:
+    // مكافأةٌ عن كل سورةٍ سُمِّعت كاملةً صحيحة، مرّةً لكل سورة.
+    const rewardKey = quranRewardKey(
+      { id: parsed.lessonId, subject: text(data.subject), grade: text(data.grade), lesson: text(data.lesson) },
+      quranSurah,
+    );
+    return rewardKey ? { ...QURAN_REWARD, rewardKey } : null;
   }
   return rewardOf(data.studyGames, parsed.gameId);
 }
@@ -560,7 +571,12 @@ router.post("/student/progress/reward", async (req, res) => {
     const current = readGamification(asMap(row.data).gamification);
     let studyGame: { gems: number; points: number; rewardKey?: string } | null = null;
     if (activityType === "study_game") {
-      studyGame = await studyGameReward(activityId, student, text(body.tracingItem));
+      studyGame = await studyGameReward(
+        activityId,
+        student,
+        text(body.tracingItem),
+        text(body.quranSurah),
+      );
       if (!studyGame) {
         res.status(404).json({ error: "اللعبة غير موجودة في هذا الدرس" });
         return;

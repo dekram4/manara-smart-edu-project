@@ -38,6 +38,7 @@ class FakeContent implements StudentContentService {
     int? correctAnswers,
     int? quizTotal,
     String? tracingItem,
+    String? quranSurah,
   }) async {
     rewarded.add(correctAnswers);
     return RewardResult(
