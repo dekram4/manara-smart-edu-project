@@ -827,6 +827,15 @@ class _StartAdventureButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = enabled ? const Color(0xFFFF9F1C) : const Color(0xFFB6BEC6);
+    // جاهزٌ للانطلاق: يتوهّج ويتنفّس ليدعو الطفلَ إليه.
+    return _GlowPulse(
+      color: color,
+      active: enabled && !busy,
+      child: _button(color),
+    );
+  }
+
+  Widget _button(Color color) {
     return StudentPressScale(
       child: StudentEmbossedShell(
         color: color,
@@ -862,6 +871,86 @@ class _StartAdventureButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// توهّجٌ ملوّنٌ يتنفّس حول [child] ونبضٌ خفيفٌ في حجمه، ما دام [active].
+/// ويسكن لمن طلب تقليل الحركة.
+class _GlowPulse extends StatefulWidget {
+  const _GlowPulse({required this.color, required this.active, required this.child});
+
+  final Color color;
+  final bool active;
+  final Widget child;
+
+  @override
+  State<_GlowPulse> createState() => _GlowPulseState();
+}
+
+class _GlowPulseState extends State<_GlowPulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _clock;
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_GlowPulse old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  void _sync() {
+    final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (widget.active && !still) {
+      if (!_clock.isAnimating) _clock.repeat(reverse: true);
+    } else {
+      _clock
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _clock,
+      child: widget.child,
+      builder: (context, child) {
+        final t = Curves.easeInOut.transform(_clock.value);
+        return Transform.scale(
+          scale: 1 + 0.025 * t,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                if (widget.active)
+                  BoxShadow(
+                    color: widget.color.withValues(alpha: 0.35 + 0.3 * t),
+                    blurRadius: 12 + 14 * t,
+                    spreadRadius: 1 + 3 * t,
+                  ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

@@ -332,6 +332,13 @@ class _MasarPathBoardState extends State<MasarPathBoard>
     duration: const Duration(milliseconds: 1700),
   );
 
+  /// الجوُّ الحيّ فوق اللوحة: فقاعاتٌ ونجومٌ تسبح، وموجةُ ضوءٍ تعبر — دورةٌ
+  /// طويلة فلا تتكرّر الحركةُ أمام عين الطفل كلَّ ثانية.
+  late final AnimationController _ambient = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 14),
+  );
+
   int _from = 0;
   int _to = 0;
   bool _started = false;
@@ -356,8 +363,10 @@ class _MasarPathBoardState extends State<MasarPathBoard>
     if (reduced) {
       _pulse.stop();
       _pulse.value = 0;
+      _ambient.stop();
     } else {
       _pulse.repeat();
+      _ambient.repeat();
     }
   }
 
@@ -398,6 +407,7 @@ class _MasarPathBoardState extends State<MasarPathBoard>
     _walk.removeStatusListener(_onWalkFinished);
     _walk.dispose();
     _pulse.dispose();
+    _ambient.dispose();
     super.dispose();
   }
 
@@ -550,6 +560,17 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   ),
                 ),
 
+                // الجوُّ الحيّ: فقاعاتٌ تصعد ونجومٌ تتلألأ وموجةُ ضوء — في
+                // طبقةٍ وحدها تُرسم بساعتها، لا تمسّ اللمس ولا ما فوقها.
+                if (!_reducedMotion)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: RepaintBoundary(
+                        child: CustomPaint(painter: _AmbientPainter(_ambient)),
+                      ),
+                    ),
+                  ),
+
                 // The three English signs, replaced with Arabic cheers.
                 for (var i = 0; i < _signs.length; i++)
                   Positioned.fromRect(
@@ -620,11 +641,34 @@ class _MasarPathBoardState extends State<MasarPathBoard>
                   ),
                 ),
 
+                // تموّجٌ يتّسع حول المحطة الجارية: «من هنا».
+                if (!_reducedMotion && widget.activeIndex < _tiles.length)
+                  Positioned.fromRect(
+                    rect: place(_tiles[widget.activeIndex]).inflate(
+                      place(_tiles[widget.activeIndex]).shortestSide * 0.35,
+                    ),
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _RipplePainter(
+                          progress: _pulse.value,
+                          color: widget.stages[widget.activeIndex].color,
+                        ),
+                      ),
+                    ),
+                  ),
+
                 for (var i = 0;
                     i < widget.stages.length && i < _tiles.length;
                     i++)
                   Positioned.fromRect(
-                    rect: place(_tiles[i]),
+                    // المحطاتُ تطفو قليلاً معاً، فاللوحةُ تتنفّس — معاً لا
+                    // كلٌّ في وقته: صفّا المحطات يبقيان مستويين كما رُسما.
+                    rect: place(_tiles[i]).shift(Offset(
+                      0,
+                      _reducedMotion
+                          ? 0
+                          : -math.sin(2 * math.pi * _pulse.value) * place(_tiles[i]).height * 0.03,
+                    )),
                     child: _StageField(
                       stage: widget.stages[i],
                       active: i == widget.activeIndex,
@@ -649,6 +693,122 @@ class _MasarPathBoardState extends State<MasarPathBoard>
       },
     );
   }
+}
+
+/// فقاعاتٌ تصعد ونجومٌ تتلألأ، وموجةُ ضوءٍ ناعمة تعبر اللوحة.
+class _AmbientPainter extends CustomPainter {
+  _AmbientPainter(this.clock) : super(repaint: clock);
+
+  final Animation<double> clock;
+
+  /// لكل فقاعة: موضعُها الأفقي، وحجمُها، وإزاحتُها في الدورة، وسرعتُها.
+  static const _bubbles = [
+    (0.06, 9.0, 0.00, 1.0),
+    (0.17, 6.0, 0.35, 1.4),
+    (0.29, 11.0, 0.62, 0.8),
+    (0.41, 7.0, 0.15, 1.2),
+    (0.53, 10.0, 0.80, 0.9),
+    (0.66, 6.5, 0.48, 1.3),
+    (0.78, 12.0, 0.25, 0.7),
+    (0.91, 8.0, 0.70, 1.1),
+    (0.97, 5.5, 0.05, 1.5),
+  ];
+
+  static const _stars = [
+    (0.12, 0.10),
+    (0.34, 0.06),
+    (0.58, 0.12),
+    (0.83, 0.08),
+    (0.70, 0.22),
+    (0.22, 0.24),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = clock.value;
+    // موجةُ ضوء: شريطٌ شفّافٌ يعبر من جهةٍ إلى أخرى.
+    final sweep = (t * 2) % 1.0;
+    final x = size.width * (sweep * 1.6 - 0.3);
+    final band = Rect.fromLTWH(x - size.width * 0.15, 0, size.width * 0.3, size.height);
+    canvas.drawRect(
+      band,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(band),
+    );
+    // فقاعاتٌ تصعد وتتمايل.
+    for (final (fx, r, phase, speed) in _bubbles) {
+      final p = (t * speed * 3 + phase) % 1.0;
+      final c = Offset(
+        size.width * fx + math.sin(2 * math.pi * (p * 2 + phase)) * 12,
+        size.height * (1.05 - 1.15 * p),
+      );
+      final fade = math.sin(math.pi * p);
+      canvas.drawCircle(c, r, Paint()..color = Colors.white.withValues(alpha: 0.22 * fade));
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = Colors.white.withValues(alpha: 0.55 * fade),
+      );
+    }
+    // نجومٌ رباعيةٌ تتلألأ في السماء.
+    for (var i = 0; i < _stars.length; i++) {
+      final (fx, fy) = _stars[i];
+      final glow = 0.5 - 0.5 * math.cos(2 * math.pi * (t * 6 + i / _stars.length));
+      final c = Offset(size.width * fx, size.height * fy);
+      final r = 4 + 5 * glow;
+      final star = Path()
+        ..moveTo(c.dx, c.dy - r)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx + r, c.dy)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy + r)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx - r, c.dy)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy - r)
+        ..close();
+      canvas.drawPath(star, Paint()..color = const Color(0xFFFFF59D).withValues(alpha: 0.35 + 0.6 * glow));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_AmbientPainter old) => old.clock != clock;
+}
+
+/// حلقتان تتّسعان وتخفتان حول المحطة الجارية، كتموّج الماء.
+class _RipplePainter extends CustomPainter {
+  _RipplePainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    for (final shift in const [0.0, 0.5]) {
+      final p = (progress + shift) % 1.0;
+      final rect = Rect.fromCenter(
+        center: center,
+        width: size.width * (0.62 + 0.38 * p),
+        height: size.height * (0.62 + 0.38 * p),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, Radius.circular(rect.shortestSide * 0.22)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3 * (1 - p) + 1
+          ..color = color.withValues(alpha: 0.55 * (1 - p)),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RipplePainter old) => old.progress != progress || old.color != color;
 }
 
 /// لوحة صغيرة على اللوح السادس: كم مستوى اختاره الطفل من خمسة.

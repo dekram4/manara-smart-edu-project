@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/interactive_study.dart';
@@ -78,7 +79,33 @@ class StudentStudyService {
     final map = await _post(gamesEndpoint, lessonId);
     final pack = StudyGamesPack.fromMap(map['pack']);
     if (pack == null) throw const StudyFailure('badPack');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_gamesCacheKey(lessonId), jsonEncode(map['pack']));
+    } catch (_) {
+      // بلا نسخةٍ محفوظة: الرفُّ يُطلب من الخادم في المرّة القادمة كما الآن.
+    }
     return pack;
+  }
+
+  static String _gamesCacheKey(String lessonId) => 'study.games.cache.$lessonId';
+
+  /// ألعابُ الدرس كما وصلت آخرَ مرّة، محفوظةً على الجهاز.
+  ///
+  /// ── لماذا ──
+  /// الحزمةُ تُطلب من الخادم كلّما فُتح الرفّ، ومن الذكاء الاصطناعي إن لم
+  /// تكن محفوظةً هناك — ثوانٍ يرى فيها الطفلُ «جارٍ التحميل». فتُعرض هذه
+  /// فوراً، وتحلّ محلّها الجديدةُ حين تصل.
+  static Future<StudyGamesPack?> cachedGames({required String lessonId}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_gamesCacheKey(lessonId));
+      if (raw == null) return null;
+      final pack = StudyGamesPack.fromMap(jsonDecode(raw));
+      return pack != null && pack.lessonId == lessonId ? pack : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// نسخةٌ جديدة من لعبةٍ واحدة — يولّدها الخادم من النصّ الكامل للدرس،

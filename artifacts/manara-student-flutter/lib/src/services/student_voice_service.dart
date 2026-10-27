@@ -128,13 +128,17 @@ class StudentVoiceService {
   /// ([onWords]) — فيتلوّن النصّ والطفلُ يقرأ — و[onEnd] مرّةً حين يتوقّف.
   ///
   /// خلافاً لـ[listen]: هنا الكلماتُ الجزئية هي المقصود، والصمتُ المُنهي
-  /// أطول — الطفلُ يتذكّر الآيةَ التالية قبل أن يقرأها.
+  /// طويل — الطفلُ يتذكّر الآيةَ التالية قبل أن يقرأها. وما يُنهيه النظامُ
+  /// رغم ذلك يُعيد المتّصلُ فتحه ([onEnd]).
+  ///
+  /// ولا يُكتب صوتٌ إلى ملفّ: خدمةُ التعرّف تأخذ الصوتَ من المايك في الذاكرة
+  /// وتعيد نصّاً — لا تسجيلَ ولا ملفّاتٍ مؤقّتة على الجهاز.
   Future<bool> listenLive({
     required ValueChanged<String> onWords,
     required VoidCallback onEnd,
     String locale = 'ar_SA',
-    Duration limit = const Duration(minutes: 2),
-    Duration pause = const Duration(seconds: 6),
+    Duration limit = const Duration(minutes: 10),
+    Duration pause = const Duration(seconds: 30),
   }) async {
     if (!await prepare()) return false;
     await stopSpeaking();

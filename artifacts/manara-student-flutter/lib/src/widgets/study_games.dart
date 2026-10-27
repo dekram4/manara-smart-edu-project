@@ -36,10 +36,14 @@ class StudyGamesTab extends StatefulWidget {
     this.allowTracing = true,
     this.onTraced,
     this.onRecited,
+    this.cached,
     super.key,
   });
 
   final Future<StudyGamesPack> Function() load;
+
+  /// الحزمةُ المحفوظة على الجهاز: تُعرض فوراً، وتحلّ محلّها [load] حين تصل.
+  final Future<StudyGamesPack?> Function()? cached;
   final StudyGameWin onWin;
 
   /// حرفٌ كُتب صحيحاً في «تتبّع واكتب»: جوهرتُه بلا نافذة احتفال.
@@ -90,21 +94,26 @@ class _StudyGamesTabState extends State<StudyGamesTab>
       _loading = true;
       _error = null;
     });
+    // الرفُّ المحفوظ أوّلاً، بلا انتظار الخادم.
+    final saved = await widget.cached?.call();
+    if (saved != null && mounted && _pack == null) {
+      setState(() {
+        _pack = _allowed(saved);
+        _loading = false;
+      });
+    }
     try {
-      var pack = await widget.load();
-      if (!widget.allowTracing) {
-        pack = StudyGamesPack(
-          lessonId: pack.lessonId,
-          games: [for (final game in pack.games) if (game.type != StudyGameType.tracing) game],
-        );
-      }
+      final pack = _allowed(await widget.load());
       if (!mounted) return;
       setState(() {
         _pack = pack;
         _loading = false;
+        _error = null;
       });
     } catch (error) {
       if (!mounted) return;
+      // الخادمُ تعذّر والرفُّ المحفوظ معروض: يبقى، بلا رسالة خطأ.
+      if (_pack != null) return;
       final message = switch (error) {
         StudyServerFailure(:final message) => message,
         StudyFailure(:final message) => message,
@@ -116,6 +125,13 @@ class _StudyGamesTabState extends State<StudyGamesTab>
       });
     }
   }
+
+  StudyGamesPack _allowed(StudyGamesPack pack) => widget.allowTracing
+      ? pack
+      : StudyGamesPack(
+          lessonId: pack.lessonId,
+          games: [for (final game in pack.games) if (game.type != StudyGameType.tracing) game],
+        );
 
   /// تُحضَّر نسخةٌ جديدة من اللعبة الآن.
   bool _preparing = false;
@@ -416,11 +432,12 @@ class _GameShelf extends StatelessWidget {
         for (var i = 0; i < games.length; i++)
           if (games[i].type == StudyGameType.tracing)
             // التتبّعُ للصغار أوّلاً: بطاقتُه أبهجُ ما في الرفّ.
-            TracingShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i]))
+            // حركتُها الدائمة في طبقةٍ وحدها: لا تُعيد رسمَ الرفّ كلّه كلَّ إطار.
+            RepaintBoundary(child: TracingShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i])))
           else
             _ShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i])),
         // بعد ألعاب الدرس لا مكانها: الرابعةُ بعد الثلاث.
-        if (onOpenQuran != null) QuranShelfCard(onTap: onOpenQuran!),
+        if (onOpenQuran != null) RepaintBoundary(child: QuranShelfCard(onTap: onOpenQuran!)),
       ],
     );
   }

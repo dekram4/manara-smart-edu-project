@@ -1,7 +1,7 @@
 name: manara_student
 description: تطبيق منارة المعرفة المخصص للطلاب.
 publish_to: "none"
-version: 1.1.31+33
+version: 1.1.32+34
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -144,6 +144,9 @@ flutter:
     # أسماءُ السور بصوتٍ مسجّل، تُسمع لحظةَ اختيار السورة في «تسميع القرآن» —
     # انظر QuranSurah.nameClip.
     - assets/audio/surah_names/
+    # تلاوةُ كل آيةٍ للسور القصيرة، والاستعاذةُ والبسملة (الحصري، مرتّل) — زرُّ
+    # «استمع» بجانب الآية الخاطئة في «تسميع القرآن». انظر RecitationUnit.clip.
+    - assets/audio/quran/
   fonts:
     # خطُّ لعبة «تتبّع واكتب» مضمَّناً لا منزَّلاً: مساراتُ حروف الروضة
     # تُحسب مسبقاً من أشكاله (tool/generate_tracing_glyphs.dart)، فيجب أن
