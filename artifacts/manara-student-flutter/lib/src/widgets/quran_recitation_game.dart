@@ -257,11 +257,16 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     final tracker = _tracker;
     if (!mounted || session != _session || _done || _helping || tracker == null) return;
     _heard = heard;
+    final unitBefore = tracker.currentUnit;
     setState(() {
       tracker.hear(heard);
       final words = heard.trim().split(RegExp(r'\s+'));
       _lastHeard = heard.trim().isEmpty ? null : words.last;
     });
+    // آيةٌ (أو استعاذةٌ أو بسملة) صحّت كلُّها: نغمةُ نجاحٍ في لحظتها.
+    if (tracker.currentUnit > unitBefore && !tracker.complete) {
+      StudentSoundService.instance.playInstantSuccess();
+    }
     if (tracker.complete) unawaited(_complete());
   }
 

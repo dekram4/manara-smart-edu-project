@@ -23,7 +23,7 @@ void main() {
     expect(gate.allow(StudentSoundCue.success), isTrue);
   });
 
-  testWidgets('داخل البطاقة لا احتفال، وفي الواجهة يُسمع', (tester) async {
+  testWidgets('داخل البطاقة: لا تصفيقَ ولا جواهر، وفي الواجهة الاحتفالُ كاملاً', (tester) async {
     final sound = StudentSoundService.instance;
     sound.enterCard();
     expect(sound.insideCard, isTrue);
