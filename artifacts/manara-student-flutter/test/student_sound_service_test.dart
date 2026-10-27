@@ -33,10 +33,12 @@ void main() {
       expect(File('assets/${StudentSoundService.clapping}').existsSync(), isTrue);
     });
 
-    test('التسلسلُ عبارةٌ ثم ملفُّ تصفيقٍ نقيّ واحد — بلا نغمةٍ ولا لحن', () {
+    test('العبارةُ والتصفيقُ معاً، والتصفيقُ خلفها أخفض — بلا نغمةٍ ولا لحن', () {
       const phrase = 'audio/encouragement/encouragement_rai.mp3';
-      final clips = StudentSoundService.cheerSequence(phrase).map((c) => c.$1).toList();
-      expect(clips, [phrase, 'audio/encouragement/clapping.mp3']);
+      final layers = StudentSoundService.cheerLayers(phrase);
+      expect(layers.map((c) => c.$1), [phrase, 'audio/encouragement/clapping.mp3']);
+      expect(layers[1].$2, lessThan(layers[0].$2));
+      expect(layers[1].$2, lessThanOrEqualTo(0.4));
     });
 
     test('العبارةُ لا تتكرّر مرّتين متتاليتين، وكلُّها تُسمع', () {

@@ -395,7 +395,7 @@ class _GameShelf extends StatelessWidget {
   final List<StudyGame> games;
   final ValueChanged<StudyGame> onOpen;
 
-  /// بطاقةُ «تسميع القرآن» أوّلَ الرفّ، لدرسها وحده.
+  /// بطاقةُ «تسميع القرآن» آخرَ الرفّ — بعد ألعاب الدرس — لدرسها وحده.
   final VoidCallback? onOpenQuran;
 
   @override
@@ -413,13 +413,14 @@ class _GameShelf extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        if (onOpenQuran != null) QuranShelfCard(onTap: onOpenQuran!),
         for (var i = 0; i < games.length; i++)
           if (games[i].type == StudyGameType.tracing)
             // التتبّعُ للصغار أوّلاً: بطاقتُه أبهجُ ما في الرفّ.
             TracingShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i]))
           else
             _ShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i])),
+        // بعد ألعاب الدرس لا مكانها: الرابعةُ بعد الثلاث.
+        if (onOpenQuran != null) QuranShelfCard(onTap: onOpenQuran!),
       ],
     );
   }
