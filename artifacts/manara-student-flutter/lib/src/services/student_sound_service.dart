@@ -1109,18 +1109,27 @@ class StudentSoundService with WidgetsBindingObserver {
     return at != null && DateTime.now().difference(at) < _applauseQuiet;
   }
 
-  /// The coin/gem chime for earning XP or gems.
+  /// ── النجاحُ صوتُه عبارةٌ وتصفيقٌ فقط ──
+  ///
+  /// لا لحنَ ولا جرسَ موسيقيّاً في مواضع النجاح: كلُّها [playCheer] أو
+  /// [playApplause] — عبارةُ تشجيعٍ مسجّلة ثم تصفيقٌ نقيّ. وما كان هنا من
+  /// نغمة `success-reward.wav` للجوهرة والمستوى أُزيل.
+
+  /// كسبُ جوهرةٍ أو نقاط: اهتزازٌ وحده — التشجيعُ والتصفيقُ سُمعا قبله لِما
+  /// استحقّها، ونغمةٌ فوقهما تقطعهما.
   void playReward() {
     if (_justApplauded) return;
     HapticFeedback.mediumImpact();
-    play(StudentSoundCue.gameReward);
   }
 
-  /// A bigger celebration for finishing a lesson, quiz, or leveling up.
-  void playLevelUp() {
+  /// ارتقاءُ مستوى: الاحتفالُ نفسُه، ما لم يكن التصفيقُ يُسمع الآن.
+  void playLevelUp() => playCelebration();
+
+  /// احتفالٌ بنجاحٍ رآه الطالب على الشاشة (نقاطٌ زادت): عبارةٌ وتصفيق،
+  /// مرّةً واحدة — لا إن كان التصفيقُ لهذا النجاح يُسمع بعد.
+  void playCelebration() {
     if (_justApplauded) return;
-    HapticFeedback.heavyImpact();
-    play(StudentSoundCue.levelUp);
+    playApplause();
   }
 
   /// Stops applause already in flight.
@@ -1139,7 +1148,6 @@ class StudentSoundService with WidgetsBindingObserver {
   /// رقمُ آخر تسلسلٍ بدأ في [_playSequence].
   int _sequence = 0;
 
-  /// Applause: `clap2.mp3` then `clap.mp3`, back to back.
   /// طلقةُ البدء: لحظةَ «انطلق!» في ألعاب «تحدَّ زملاءك».
   ///
   /// `start_gun.wav` مولَّدٌ في المشروع (طقطقةٌ حادّة ثم دويٌّ منخفض)، لا
@@ -1184,28 +1192,32 @@ class StudentSoundService with WidgetsBindingObserver {
   void playCheer() {
     _applauseCancelled = false;
     HapticFeedback.mediumImpact();
-    unawaited(_playSequence([
-      (nextEncouragementClip(), _encouragementVolume),
-      ('audio/clap2.mp3', 0.7),
-    ]));
+    unawaited(_playSequence(cheerSequence(nextEncouragementClip())));
   }
+
+  /// تصفيقةٌ قصيرة للإجابة والحرف، والتصفيقُ الطويل للنهايات.
+  static const shortClap = 'audio/clap2.mp3';
+  static const longClap = 'audio/clap.mp3';
+
+  /// التسلسلُ كاملاً: العبارةُ ثم ملفُّ تصفيقٍ واحد — ولا شيءَ غيرهما.
+  @visibleForTesting
+  static List<(String, double)> cheerSequence(String phrase, {bool long = false}) => [
+        (phrase, _encouragementVolume),
+        (long ? longClap : shortClap, 0.7),
+      ];
 
   /// الاحتفالُ بإنهاء اختبارٍ أو لعبةٍ أو مرحلة: عبارةُ تشجيعٍ ثم التصفيقُ كاملاً.
   void playApplause() {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence([
-      (nextEncouragementClip(), _encouragementVolume),
-      ('audio/clap2.mp3', 0.7),
-      ('audio/clap.mp3', 0.7),
-    ]));
+    unawaited(_playSequence(cheerSequence(nextEncouragementClip(), long: true)));
   }
 
-  /// إنهاء الدرس: هتاف ثم تصفيق.
+  /// إنهاء الدرس: عبارةُ تشجيعٍ ثم التصفيق — بلا نغمةٍ قبلهما.
   ///
-  /// نغمة المكافأة تُصعِّد أولاً، ثم يدخل التصفيق على أثرها — والترتيب مقصود:
-  /// التصفيق وحده يبدأ من الذروة بلا تمهيد، فيفاجئ الطفل بدل أن يحتفي به.
+  /// العبارةُ هي التمهيد الذي كانت النغمةُ تؤدّيه: التصفيقُ يدخل على أثرها
+  /// لا من الذروة بلا مقدّمة.
   ///
   /// ولا يحتاج حارساً ضد التكرار عند إعادة فتح الشاشة: نداؤه الوحيد خلف
   /// `reward.alreadyRewarded`، وسجلّ الأنشطة في الخادم يمنع مكافأة النشاط
@@ -1214,12 +1226,7 @@ class StudentSoundService with WidgetsBindingObserver {
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     HapticFeedback.heavyImpact();
-    unawaited(_playSequence([
-      ('audio/success-reward.wav', 0.85),
-      (nextEncouragementClip(), _encouragementVolume),
-      ('audio/clap2.mp3', 0.7),
-      ('audio/clap.mp3', 0.7),
-    ]));
+    unawaited(_playSequence(cheerSequence(nextEncouragementClip(), long: true)));
   }
 
   /// يشغّل مقاطع متتابعة، كلٌّ عند انتهاء سابقه.
@@ -1272,10 +1279,8 @@ class StudentSoundService with WidgetsBindingObserver {
   String playEncouragementArabic() {
     // The phrase is still returned so the caller can show it; only the
     // sound is held back while applause is still running.
-    if (!_justApplauded) {
-      HapticFeedback.selectionClick();
-      play(StudentSoundCue.success);
-    }
+    // ولا جرسَ معها: صوتُ النجاح هو [playApplause] عند المتّصل.
+    if (!_justApplauded) HapticFeedback.selectionClick();
     return tr(
       encouragementPhraseKeys[_random.nextInt(encouragementPhraseKeys.length)],
     );
