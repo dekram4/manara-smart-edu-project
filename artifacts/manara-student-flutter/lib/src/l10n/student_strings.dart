@@ -690,6 +690,8 @@ class StudentStrings {
     'content.gameFailed': 'تعذر تشغيل اللعبة',
     'content.watched': 'تمت المشاهدة ✓',
     'content.watchHint': 'اضغط للمشاهدة',
+    'content.previewHint': 'اضغط للمشاهدة، أو أبقِ إصبعك لتلمح ٣ ثوانٍ 👆',
+    'content.videoCount': '{n} فيديو',
     'content.back': 'رجوع',
     'content.continue': 'متابعة',
 
@@ -1644,6 +1646,8 @@ class StudentStrings {
     'content.gameFailed': 'Could not start the game',
     'content.watched': 'Watched ✓',
     'content.watchHint': 'Tap to watch',
+    'content.previewHint': 'Tap to watch, or hold to peek for 3 seconds 👆',
+    'content.videoCount': '{n} videos',
     'content.back': 'Back',
     'content.continue': 'Continue',
 

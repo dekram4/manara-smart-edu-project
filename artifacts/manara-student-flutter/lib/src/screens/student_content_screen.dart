@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -466,48 +467,44 @@ class _LessonModule extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           sliver: SliverList.list(
       children: [
-        Text(
-          tr('content.lessonVideo'),
-          style: TextStyle(
-            color: StudentSurface.ink(context),
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-          ),
-        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08),
-        const SizedBox(height: 4),
-        Text(
-          lesson.scopeLabel.isEmpty
-              ? tr('content.yourVideos')
-              : lesson.scopeLabel,
-          style: TextStyle(
-            color: StudentSurface.mutedInk(context),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        // ‏لافتةُ الدرس: تدرّجٌ دافئ، وشاشةُ عرضٍ تطفو، واسمُ الدرس كبيراً،
+        // ومكانُه في المنهج شاراتٍ ملوّنة — وعددُ فيديوهاته.
+        _LessonBanner(lesson: lesson)
+            .animate()
+            .fadeIn(duration: 320.ms)
+            .slideY(begin: 0.08, curve: Curves.easeOutBack),
         if (lessons.length > 1) ...[
           const SizedBox(height: 14),
           SizedBox(
-            height: 45,
+            height: 58,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               itemCount: lessons.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 final item = lessons[index];
-                return ChoiceChip(
+                return _LessonPill(
+                  label: item.lessonName.isNotEmpty ? item.lessonName : item.unit,
+                  color: _lessonColors[index % _lessonColors.length],
                   selected: item.id == lesson.id,
-                  onSelected: (_) => onLessonChanged(item),
-                  label: Text(
-                    item.lessonName.isNotEmpty ? item.lessonName : item.unit,
-                  ),
-                  selectedColor: const Color(0xFFBFEFED),
+                  onTap: () {
+                    StudentSoundService.instance.playTap();
+                    onLessonChanged(item);
+                  },
                 );
               },
             ),
           ),
         ],
         const SizedBox(height: 16),
+        if (lesson.videos.isNotEmpty)
+          _SectionTitle(
+            emoji: '🎬',
+            text: tr('content.lessonVideo'),
+            hint: tr('content.previewHint'),
+          ),
+        if (lesson.videos.isNotEmpty) const SizedBox(height: 12),
         if (lesson.videos.isEmpty)
           _StateCard(
             icon: Icons.video_call_outlined,
@@ -540,6 +537,291 @@ class _LessonModule extends StatelessWidget {
               contentService: contentService,
               onGamificationChanged: onGamificationChanged,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// ألوانُ الدروس والحلقات بالتناوب: زاهيةٌ دافئة.
+const _lessonColors = [
+  Color(0xFFF59E0B),
+  Color(0xFF0EA5E9),
+  Color(0xFFEC4899),
+  Color(0xFF10B981),
+  Color(0xFF8B5CF6),
+  Color(0xFFF97316),
+];
+
+/// لافتةُ الدرس في أعلى «شرح الدرس»: تدرّجٌ دافئٌ تعبره لمعة، وشاشةُ عرضٍ
+/// تطفو، واسمُ الدرس كبيراً، ومكانُه في المنهج شاراتٍ ملوّنة.
+class _LessonBanner extends StatefulWidget {
+  const _LessonBanner({required this.lesson});
+
+  final LessonContent lesson;
+
+  @override
+  State<_LessonBanner> createState() => _LessonBannerState();
+}
+
+class _LessonBannerState extends State<_LessonBanner> with SingleTickerProviderStateMixin {
+  late final AnimationController _clock;
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (still) {
+      _clock.stop();
+    } else if (!_clock.isAnimating) {
+      _clock.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lesson = widget.lesson;
+    final title = lesson.lessonName.trim().isNotEmpty ? lesson.lessonName : tr('content.yourVideos');
+    final chips = [
+      if (lesson.subject.trim().isNotEmpty) ('📚', lesson.subject),
+      if (lesson.unit.trim().isNotEmpty) ('🧩', lesson.unit),
+      if (lesson.videos.isNotEmpty) ('🎞️', trf('content.videoCount', {'n': lesson.videos.length})),
+    ];
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _clock,
+        builder: (context, _) {
+          final t = _clock.value;
+          final float = math.sin(2 * math.pi * t);
+          return Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              gradient: const LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: [Color(0xFFF59E0B), Color(0xFFF97316), Color(0xFFEC4899)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF97316).withValues(alpha: 0.30 + 0.10 * float.abs()),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // لمعةٌ تعبر اللافتة.
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: FractionalTranslation(
+                      translation: Offset(t * 3 - 1.5, 0),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withValues(alpha: 0),
+                              Colors.white.withValues(alpha: 0.18),
+                              Colors.white.withValues(alpha: 0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Row(
+                    children: [
+                      Transform.translate(
+                        offset: Offset(0, -5 * float),
+                        child: Container(
+                          width: 76,
+                          height: 76,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.75), width: 2.5),
+                          ),
+                          child: const Text('📺', style: TextStyle(fontSize: 42)),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tr('content.lessonVideo'),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.92),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                height: 1.2,
+                                fontWeight: FontWeight.w900,
+                                shadows: [Shadow(color: Color(0x55000000), offset: Offset(0, 2), blurRadius: 4)],
+                              ),
+                            ),
+                            if (chips.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  for (final (emoji, label) in chips)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.24),
+                                        borderRadius: BorderRadius.circular(999),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+                                      ),
+                                      child: Text(
+                                        '$emoji $label',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// زرُّ درسٍ في شريط الدروس: كبسولةٌ ملوّنة، تمتلئ بلونها وتكبر حين تُختار.
+class _LessonPill extends StatelessWidget {
+  const _LessonPill({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutBack,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: EdgeInsets.symmetric(vertical: selected ? 0 : 4),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? LinearGradient(colors: [color, Color.lerp(color, Colors.black, 0.15)!])
+                : null,
+            color: selected ? null : StudentSurface.card(context),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withValues(alpha: selected ? 1 : 0.5), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: selected ? 0.4 : 0.12),
+                blurRadius: selected ? 12 : 4,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(selected ? '▶️' : '🎬', style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: selected ? Colors.white : StudentSurface.ink(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// عنوانُ قسمٍ برمزٍ كبير وتلميحٍ تحته.
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.emoji, required this.text, this.hint});
+
+  final String emoji;
+  final String text;
+  final String? hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 26)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                text,
+                style: TextStyle(color: StudentSurface.ink(context), fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+              if (hint != null)
+                Text(
+                  hint!,
+                  style: TextStyle(color: StudentSurface.mutedInk(context), fontSize: 12.5, fontWeight: FontWeight.w700),
+                ),
+            ],
           ),
         ),
       ],
@@ -591,6 +873,7 @@ class _LessonCompletionButtonState extends State<_LessonCompletionButton> {
         // هتاف ثم تصفيق عند إنهاء الدرس فعلاً؛ والنقرة المتكرّرة التي لا
         // تكسب شيئاً تأخذ النغمة الهادئة أعلاه.
         StudentSoundService.instance.playLessonComplete();
+        if (reward.gems > 0) StudentSoundService.instance.playReward();
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1171,6 +1454,7 @@ class _VideoCarouselState extends State<_VideoCarousel> {
         const completed = false;
         return _VideoCard(
           video: video,
+          index: index,
           apiBaseUrl: widget.apiBaseUrl,
           completed: completed,
           onPressed: () {
@@ -1211,35 +1495,83 @@ class _VideoCarouselState extends State<_VideoCarousel> {
 class _VideoCard extends StatelessWidget {
   const _VideoCard({
     required this.video,
+    required this.index,
     required this.apiBaseUrl,
     required this.completed,
     required this.onPressed,
   });
 
   final LessonVideo video;
+
+  /// ترتيبُه في الدرس: لونُ إطاره ورقمُ شارته.
+  final int index;
   final String apiBaseUrl;
   final bool completed;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return StudentVideoHoverPreview(
-      video: video,
-      apiBaseUrl: apiBaseUrl,
-      borderRadius: const BorderRadius.all(Radius.circular(16)),
-      child: StudentPressScale(
-        child: VideoThumbnailCard(
-          video: video,
-          onTap: onPressed,
-          // A finished lesson video shows a full bar, the way a watched
-          // clip does, instead of a separate "completed" chip.
-          progress: completed ? 1 : null,
-          subtitle: completed
-              ? tr('content.watched')
-              : video.description ?? tr('content.watchHint'),
+    final color = _lessonColors[index % _lessonColors.length];
+    // ‏إطارٌ بلون الحلقة وشارةُ رقمها: الطفلُ يعدّ «الفيديو الأوّل، الثاني…».
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            color.withValues(alpha: StudentSurface.isDark(context) ? 0.30 : 0.16),
+            color.withValues(alpha: StudentSurface.isDark(context) ? 0.12 : 0.05),
+          ],
         ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 2),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.18), blurRadius: 12, offset: const Offset(0, 5))],
       ),
-    ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          StudentVideoHoverPreview(
+            video: video,
+            apiBaseUrl: apiBaseUrl,
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            child: StudentPressScale(
+              child: VideoThumbnailCard(
+                video: video,
+                onTap: onPressed,
+                // A finished lesson video shows a full bar, the way a watched
+                // clip does, instead of a separate "completed" chip.
+                progress: completed ? 1 : null,
+                subtitle: completed
+                    ? tr('content.watched')
+                    : video.description ?? tr('content.watchHint'),
+              ),
+            ),
+          ),
+          PositionedDirectional(
+            top: -6,
+            start: -6,
+            child: IgnorePointer(
+              child: Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [color, Color.lerp(color, Colors.black, 0.2)!]),
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 2))],
+                ),
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms, delay: (60 * index.clamp(0, 8)).ms).slideY(begin: 0.12, curve: Curves.easeOutBack);
   }
 }
 

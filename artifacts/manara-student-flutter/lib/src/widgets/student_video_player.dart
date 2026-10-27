@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -122,9 +123,21 @@ String? _youtubeIdFromUrl(String url) {
 /// of spinning forever.
 const Duration _kLoadTimeout = Duration(seconds: 20);
 
-/// Plays a short, muted preview only while a desktop pointer is over a card.
-/// The underlying player is mounted lazily, so scrolling a library does not
-/// open every video connection at once.
+/// معاينةٌ قصيرةٌ صامتة للفيديو (٣ ثوانٍ) كما في يوتيوب — بالمؤشّر وباللمس.
+///
+/// ── متى ──
+/// - الماوس: حين يقف المؤشّرُ على البطاقة، وتتوقّف حين يخرج.
+/// - اللمس: حين يُبقي الطفلُ إصبعَه على البطاقة لحظةً ([holdDelay])، وتتوقّف
+///   حين يرفعه. ولمسةٌ سريعة تبقى «افتح الفيديو» كما كانت؛ والإصبعُ الذي
+///   أمسك للمعاينة لا يفتحه حين يُرفع — المعاينةُ وحدها ما طلبه.
+/// - وتنتهي وحدها بعد [previewDuration] وتعود البطاقةُ إلى غلافها.
+///
+/// ── ماذا يُعرض ──
+/// مقطعُ MP4: الفيديو نفسه، صامتاً. ويوتيوب على الجوّال: لقطاتُه الثلاث من
+/// منتصفه تتعاقب وتقترب — مشغّلُ يوتيوب صفحةُ ويب تحتاج ثوانيَ لتبدأ، فكان
+/// الطفلُ يرى دائرةَ تحميلٍ طوالَ معاينته. وعلى الحاسوب المشغّلُ نفسه.
+///
+/// والمشغّلُ لا يُنشأ إلا للمعاينة، فقائمةٌ طويلة لا تفتح اتصالاً لكل فيديو.
 class StudentVideoHoverPreview extends StatefulWidget {
   const StudentVideoHoverPreview({
     required this.video,
@@ -132,6 +145,7 @@ class StudentVideoHoverPreview extends StatefulWidget {
     required this.child,
     this.enabled = true,
     this.previewDuration = const Duration(seconds: 3),
+    this.holdDelay = const Duration(milliseconds: 320),
     this.borderRadius = const BorderRadius.all(Radius.circular(24)),
     super.key,
   });
@@ -141,6 +155,10 @@ class StudentVideoHoverPreview extends StatefulWidget {
   final Widget child;
   final bool enabled;
   final Duration previewDuration;
+
+  /// كم يُمسك الإصبعُ قبل أن تبدأ المعاينة: أقصرُ من «ضغطٍ مطوّل» النظام،
+  /// وأطولُ من لمسةٍ تفتح الفيديو.
+  final Duration holdDelay;
   final BorderRadius borderRadius;
 
   @override
@@ -152,11 +170,16 @@ class _StudentVideoHoverPreviewState extends State<StudentVideoHoverPreview> {
   Timer? _previewTimer;
   bool _previewing = false;
 
+  /// معاينةٌ واحدةٌ في الشاشة: التي تبدأ توقف ما قبلها.
+  static _StudentVideoHoverPreviewState? _active;
+
   bool get _motionEnabled =>
       !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
 
-  void _startPreview(PointerEnterEvent _) {
+  void _begin() {
     if (!widget.enabled || !_motionEnabled) return;
+    if (_active != this) _active?._finishPreview();
+    _active = this;
     _previewTimer?.cancel();
     if (!_previewing) setState(() => _previewing = true);
     _previewTimer = Timer(widget.previewDuration, _finishPreview);
@@ -164,8 +187,11 @@ class _StudentVideoHoverPreviewState extends State<StudentVideoHoverPreview> {
 
   void _finishPreview() {
     _previewTimer?.cancel();
+    if (_active == this) _active = null;
     if (mounted && _previewing) setState(() => _previewing = false);
   }
+
+  void _startPreview(PointerEnterEvent _) => _begin();
 
   void _stopPreview(PointerExitEvent _) => _finishPreview();
 
@@ -178,44 +204,153 @@ class _StudentVideoHoverPreviewState extends State<StudentVideoHoverPreview> {
   @override
   void dispose() {
     _previewTimer?.cancel();
+    if (_active == this) _active = null;
     super.dispose();
+  }
+
+  /// يوتيوب على جهازٍ لمسيّ: لقطاتٌ تتعاقب بدل مشغّلٍ يحمّل.
+  bool get _storyboard {
+    if (kIsWeb) return false;
+    final mobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    return mobile && _youtubeIdFromUrl(widget.video.url) != null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final id = _youtubeIdFromUrl(widget.video.url);
     return MouseRegion(
       cursor: widget.enabled
           ? SystemMouseCursors.click
           : SystemMouseCursors.basic,
       onEnter: widget.enabled ? _startPreview : null,
       onExit: widget.enabled ? _stopPreview : null,
-      child: ClipRRect(
-        borderRadius: widget.borderRadius,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            widget.child,
-            if (_previewing)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: StudentVideoPlayer(
-                    key: ValueKey('hover-preview-${widget.video.id}'),
-                    video: widget.video,
-                    apiBaseUrl: widget.apiBaseUrl,
-                    compact: true,
-                    autoPlay: true,
-                    muted: true,
+      // إمساكُ الإصبع: يفوز على لمسة البطاقة بعد [holdDelay]، فلا يفتح
+      // الفيديو حين يُرفع؛ وتحريكُه للتمرير قبل ذلك يُلغيه كما يُلغي اللمسة.
+      child: RawGestureDetector(
+        gestures: {
+          if (widget.enabled)
+            LongPressGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(duration: widget.holdDelay),
+              (recognizer) => recognizer
+                ..onLongPressStart = (_) {
+                  HapticFeedback.selectionClick();
+                  _begin();
+                }
+                ..onLongPressEnd = (_) {
+                  _finishPreview();
+                }
+                ..onLongPressCancel = _finishPreview,
+            ),
+        },
+        child: ClipRRect(
+          borderRadius: widget.borderRadius,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              widget.child,
+              if (_previewing)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: _storyboard && id != null
+                        ? _YoutubeStoryboard(
+                            key: ValueKey('preview-story-${widget.video.id}'),
+                            videoId: id,
+                            duration: widget.previewDuration,
+                          )
+                        : StudentVideoPlayer(
+                            key: ValueKey('hover-preview-${widget.video.id}'),
+                            video: widget.video,
+                            apiBaseUrl: widget.apiBaseUrl,
+                            compact: true,
+                            autoPlay: true,
+                            muted: true,
+                          ),
                   ),
                 ),
-              ),
-            if (_previewing)
-              const PositionedDirectional(
-                top: 12,
-                end: 12,
-                child: _PreviewBadge(),
-              ),
-          ],
+              if (_previewing)
+                const PositionedDirectional(
+                  top: 12,
+                  end: 12,
+                  child: _PreviewBadge(),
+                ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// لقطاتُ يوتيوب الثلاث من داخل الفيديو تتعاقب وتقترب ببطء — معاينةٌ تبدأ
+/// في لحظتها، بلا مشغّلٍ ولا انتظار.
+class _YoutubeStoryboard extends StatefulWidget {
+  const _YoutubeStoryboard({required this.videoId, required this.duration, super.key});
+
+  final String videoId;
+  final Duration duration;
+
+  @override
+  State<_YoutubeStoryboard> createState() => _YoutubeStoryboardState();
+}
+
+class _YoutubeStoryboardState extends State<_YoutubeStoryboard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock;
+
+  List<String> get _frames => [
+        for (final n in const [1, 2, 3]) 'https://img.youtube.com/vi/${widget.videoId}/hq$n.jpg',
+      ];
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = AnimationController(vsync: this, duration: widget.duration)..forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    for (final url in _frames) {
+      // لقطةٌ لا تُجلب (بلا شبكة): تبقى خلفيةٌ سوداء، بلا خطأٍ يُسجَّل.
+      unawaited(precacheImage(NetworkImage(url), context, onError: (_, __) {}));
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final frames = _frames;
+    return ColoredBox(
+      color: Colors.black,
+      child: AnimatedBuilder(
+        animation: _clock,
+        builder: (context, _) {
+          final t = _clock.value * frames.length;
+          final index = t.floor().clamp(0, frames.length - 1);
+          final within = t - index;
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            child: Transform.scale(
+              key: ValueKey(index),
+              scale: 1.04 + 0.08 * within,
+              child: Image.network(
+                frames[index],
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

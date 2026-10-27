@@ -1140,12 +1140,33 @@ class StudentSoundService with WidgetsBindingObserver {
   /// [playApplause] — عبارةُ تشجيعٍ مسجّلة ثم تصفيقٌ نقيّ. وما كان هنا من
   /// نغمة `success-reward.wav` للجوهرة والمستوى أُزيل.
 
-  /// كسبُ جوهرةٍ أو نقاط: اهتزازٌ وحده — التشجيعُ والتصفيقُ سُمعا قبله لِما
-  /// استحقّها، ونغمةٌ فوقهما تقطعهما.
-  void playReward() {
-    if (_justApplauded) return;
+  /// كسبُ جواهر جديدة: صوتُ الجواهر وخلفه التصفيق ([playGems]).
+  void playReward() => playGems();
+
+  /// صوتُ الجواهر: «جواهر.mp3» منسوخاً إلى المشروع باسمٍ لاتيني.
+  static const gemsClip = 'audio/encouragement/jawaher.mp3';
+
+  /// جواهرُ جديدة: صوتُ الجواهر وخلفه التصفيقُ هادئاً، كعبارات التشجيع.
+  ///
+  /// والجواهرُ تُكسب غالباً لحظةَ احتفالٍ يُسمع ([playApplause]): فإن كانت
+  /// عبارةُ التشجيع تُقال الآن لم يقطعها — يُقال صوتُ الجواهر بعدها، والتصفيقُ
+  /// مستمرٌّ تحتهما.
+  void playGems() {
     HapticFeedback.mediumImpact();
+    if (_cheering) {
+      _gemsQueued = true;
+      return;
+    }
+    _gemsQueued = false;
+    _applauseCancelled = false;
+    unawaited(_cheerOverClapping(gemsClip));
   }
+
+  /// عبارةُ تشجيعٍ أو صوتُ جواهر يُقال الآن فوق التصفيق.
+  bool _cheering = false;
+
+  /// صوتُ جواهر ينتظر انتهاءَ العبارة الجارية.
+  bool _gemsQueued = false;
 
   /// ارتقاءُ مستوى: الاحتفالُ نفسُه، ما لم يكن التصفيقُ يُسمع الآن.
   void playLevelUp() => playCelebration();
@@ -1245,6 +1266,7 @@ class StudentSoundService with WidgetsBindingObserver {
     if (muted.value || _backgrounded) return;
     final generation = ++_sequence;
     final layers = cheerLayers(phrase);
+    _cheering = true;
     try {
       await Future.wait([_effectsPlayer.stop(), _clapPlayer.stop()]);
       if (generation != _sequence) return;
@@ -1254,6 +1276,15 @@ class StudentSoundService with WidgetsBindingObserver {
         _effectsPlayer.play(AssetSource(layers[0].$1), volume: layers[0].$2),
       ]);
       await done.timeout(const Duration(seconds: 8));
+      // جواهرُ كُسبت والعبارةُ تُقال: صوتُها الآن، والتصفيقُ مستمرّ تحته.
+      while (_gemsQueued && generation == _sequence && !muted.value && !_backgrounded) {
+        _gemsQueued = false;
+        final gems = _effectsPlayer.onPlayerComplete.first;
+        await _clapPlayer.setVolume(clappingBedVolume);
+        await _effectsPlayer.play(AssetSource(gemsClip), volume: _encouragementVolume);
+        await gems.timeout(const Duration(seconds: 8));
+      }
+      _cheering = false;
       await Future<void>.delayed(const Duration(milliseconds: 450));
       for (final volume in const [0.22, 0.14, 0.07]) {
         if (generation != _sequence) return;
@@ -1264,6 +1295,8 @@ class StudentSoundService with WidgetsBindingObserver {
     } catch (_) {
       // صوتُ الاحتفال زينة — لا يجوز أن يكسر المسار الذي أطلقه.
       if (generation == _sequence) unawaited(_clapPlayer.stop().catchError((_) {}));
+    } finally {
+      if (generation == _sequence) _cheering = false;
     }
   }
 
