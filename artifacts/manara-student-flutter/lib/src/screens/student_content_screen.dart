@@ -139,11 +139,7 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
       _rewardController.play();
     }
-    if (stats.level > previous.level) {
-      StudentSoundService.instance.playLevelUp();
-    } else {
-      StudentSoundService.instance.playReward();
-    }
+    StudentSoundService.instance.playCelebration();
     StudentSoundService.instance.playEncouragementArabic();
     _announceUnlockedGames(previous, stats);
   }

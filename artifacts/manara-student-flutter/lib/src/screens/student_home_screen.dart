@@ -376,11 +376,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
       _rewardController.play();
     }
-    if (updated.level > previous.level) {
-      StudentSoundService.instance.playLevelUp();
-    } else {
-      StudentSoundService.instance.playReward();
-    }
+    StudentSoundService.instance.playCelebration();
     final phrase = StudentSoundService.instance.playEncouragementArabic();
 
     final parts = <String>[];
