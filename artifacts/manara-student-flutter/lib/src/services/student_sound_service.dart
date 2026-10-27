@@ -1270,11 +1270,37 @@ class StudentSoundService with WidgetsBindingObserver {
   ///
   /// لا يفتح نافذةَ [_justApplauded]: يتكرّر في الجولة الواحدة، ونغمةُ
   /// المكافأة أو الاحتفالُ الكبير بعده يجب أن يُسمعا.
+  ///
+  /// وداخل البطاقة يبقى التشجيعُ الفوريّ — العبارةُ القصيرة وحدها، بلا تصفيق:
+  /// التصفيقُ والجواهرُ للواجهة ([enterCard]).
   void playCheer() {
     HapticFeedback.mediumImpact();
-    if (_insideCard) return;
     _applauseCancelled = false;
+    if (_insideCard) {
+      unawaited(_phraseOnly(nextEncouragementClip()));
+      return;
+    }
     unawaited(_cheerOverClapping(nextEncouragementClip()));
+  }
+
+  /// عبارةُ تشجيعٍ قصيرة وحدها — داخل البطاقات.
+  Future<void> _phraseOnly(String phrase) async {
+    if (muted.value || _backgrounded) return;
+    final generation = ++_sequence;
+    try {
+      await _effectsPlayer.stop();
+      if (generation != _sequence) return;
+      await _effectsPlayer.play(AssetSource(phrase), volume: _encouragementVolume);
+    } catch (_) {
+      // زينة: لا تكسر ما أطلقها.
+    }
+  }
+
+  /// نجاحٌ فوريّ قصير بلا كلام — آيةٌ صحّت في التسميع. نغمةٌ لا عبارة: المايكُ
+  /// مفتوح، وعبارةٌ مسموعةٌ يكتبها محرّكُ التعرّف كأنها قراءةُ الطفل.
+  void playInstantSuccess() {
+    HapticFeedback.lightImpact();
+    play(StudentSoundCue.success);
   }
 
   /// التصفيقُ النقيّ: «تصفيق.mp3» منسوخاً إلى المشروع باسمٍ لاتيني — الأسماءُ
@@ -1337,7 +1363,11 @@ class StudentSoundService with WidgetsBindingObserver {
   /// الاحتفالُ بإنهاء اختبارٍ أو لعبةٍ أو مرحلة: عبارةُ تشجيعٍ وخلفها التصفيق.
   void playApplause() {
     HapticFeedback.heavyImpact();
-    if (_insideCard) return;
+    if (_insideCard) {
+      // داخل البطاقة: عبارةُ التشجيع وحدها — التصفيقُ والجواهرُ في الواجهة.
+      unawaited(_phraseOnly(nextEncouragementClip()));
+      return;
+    }
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     unawaited(_cheerOverClapping(nextEncouragementClip()));
@@ -1350,7 +1380,11 @@ class StudentSoundService with WidgetsBindingObserver {
   /// نفسه مرتين — فالدرس المنتهي سلفاً يأخذ النغمة الهادئة لا الاحتفال.
   void playLessonComplete() {
     HapticFeedback.heavyImpact();
-    if (_insideCard) return;
+    if (_insideCard) {
+      // داخل البطاقة: عبارةُ التشجيع وحدها — التصفيقُ والجواهرُ في الواجهة.
+      unawaited(_phraseOnly(nextEncouragementClip()));
+      return;
+    }
     _lastApplause = DateTime.now();
     _applauseCancelled = false;
     unawaited(_cheerOverClapping(nextEncouragementClip()));
