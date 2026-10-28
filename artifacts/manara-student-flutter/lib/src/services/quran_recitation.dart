@@ -411,6 +411,28 @@ class RecitationTracker {
 
   List<RecitedWord> get status => List.unmodifiable(_status);
 
+  // ── للرسم: بلا نسخ ──
+  //
+  // [status] و[unitOf] تعيدان نسخةً في كل مرّة — لقطةٌ تبقى كما هي. والواجهةُ
+  // تقرأ كلمةً كلمة، فكانت تنسخ القائمةَ كلَّها لكل كلمةٍ في كل إعادة رسم.
+
+  int get wordCount => _words.length;
+  String wordAt(int k) => _words[k];
+  RecitedWord statusAt(int k) => _status[k];
+  int unitAt(int k) => _unitOf[k];
+
+  /// الكلمةُ التي ينتظرها الآن: أوّلُ ما لم يخضرّ في الخطوة الجارية، أو -1.
+  int get cursor {
+    for (var k = 0; k < _words.length; k++) {
+      if (_unitOf[k] == _unit && _status[k] != RecitedWord.correct) return k;
+    }
+    return -1;
+  }
+
+  /// بصمةُ ما يُرى: تتغيّر حين يتغيّر لونُ كلمةٍ أو الخطوةُ الجارية — وإلا فلا
+  /// داعيَ لإعادة الرسم.
+  String get signature => '$_unit|${_status.map((s) => s.index).join()}';
+
   int _unit = 0;
   int _consumed = 0;
 
