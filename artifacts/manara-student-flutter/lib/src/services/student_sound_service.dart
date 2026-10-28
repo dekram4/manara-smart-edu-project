@@ -1167,9 +1167,10 @@ class StudentSoundService with WidgetsBindingObserver {
   bool _cheering = false;
 
   /// ── الاحتفالُ في الواجهة وحدها ──
-  /// الطالبُ داخل بطاقةٍ أو لعبة: لا تشجيعَ ولا تصفيقَ ولا صوتَ جواهر هنا —
-  /// الاهتزازُ والصورةُ وحدهما. وحصيلةُ ما جمعه تُسمع حين يعود إلى واجهة
-  /// البطاقات، مرّةً واحدة ([StudentHomeScreen] يقارن ما كان بما صار).
+  /// الطالبُ داخل بطاقةٍ أو لعبة: التشجيعُ الفوريّ وخلفه التصفيقُ الهادئ
+  /// ([playCheer]) لحظةَ الإجابة، ولا صوتَ جواهر ولا احتفالَ بالحصيلة هنا.
+  /// وحصيلةُ ما جمعه تُسمع حين يعود إلى واجهة البطاقات، مرّةً واحدة
+  /// ([StudentHomeScreen] يقارن ما كان بما صار).
   bool _insideCard = false;
 
   @visibleForTesting
@@ -1271,29 +1272,12 @@ class StudentSoundService with WidgetsBindingObserver {
   /// لا يفتح نافذةَ [_justApplauded]: يتكرّر في الجولة الواحدة، ونغمةُ
   /// المكافأة أو الاحتفالُ الكبير بعده يجب أن يُسمعا.
   ///
-  /// وداخل البطاقة يبقى التشجيعُ الفوريّ — العبارةُ القصيرة وحدها، بلا تصفيق:
-  /// التصفيقُ والجواهرُ للواجهة ([enterCard]).
+  /// وهو هو داخل البطاقات: العبارةُ وخلفها التصفيقُ الهادئ لحظةَ الإجابة.
+  /// أمّا صوتُ الجواهر والحصيلةُ فللواجهة وحدها ([enterCard]).
   void playCheer() {
     HapticFeedback.mediumImpact();
     _applauseCancelled = false;
-    if (_insideCard) {
-      unawaited(_phraseOnly(nextEncouragementClip()));
-      return;
-    }
     unawaited(_cheerOverClapping(nextEncouragementClip()));
-  }
-
-  /// عبارةُ تشجيعٍ قصيرة وحدها — داخل البطاقات.
-  Future<void> _phraseOnly(String phrase) async {
-    if (muted.value || _backgrounded) return;
-    final generation = ++_sequence;
-    try {
-      await _effectsPlayer.stop();
-      if (generation != _sequence) return;
-      await _effectsPlayer.play(AssetSource(phrase), volume: _encouragementVolume);
-    } catch (_) {
-      // زينة: لا تكسر ما أطلقها.
-    }
   }
 
   /// نجاحٌ فوريّ قصير بلا كلام — آيةٌ صحّت في التسميع. نغمةٌ لا عبارة: المايكُ
@@ -1364,8 +1348,9 @@ class StudentSoundService with WidgetsBindingObserver {
   void playApplause() {
     HapticFeedback.heavyImpact();
     if (_insideCard) {
-      // داخل البطاقة: عبارةُ التشجيع وحدها — التصفيقُ والجواهرُ في الواجهة.
-      unawaited(_phraseOnly(nextEncouragementClip()));
+      // داخل البطاقة: تشجيعٌ فوريّ وخلفه التصفيقُ الهادئ — ولا يُحسب احتفالاً
+      // بالحصيلة، فتُسمع حين يعود إلى الواجهة.
+      playCheer();
       return;
     }
     _lastApplause = DateTime.now();
@@ -1381,8 +1366,9 @@ class StudentSoundService with WidgetsBindingObserver {
   void playLessonComplete() {
     HapticFeedback.heavyImpact();
     if (_insideCard) {
-      // داخل البطاقة: عبارةُ التشجيع وحدها — التصفيقُ والجواهرُ في الواجهة.
-      unawaited(_phraseOnly(nextEncouragementClip()));
+      // داخل البطاقة: تشجيعٌ فوريّ وخلفه التصفيقُ الهادئ — ولا يُحسب احتفالاً
+      // بالحصيلة، فتُسمع حين يعود إلى الواجهة.
+      playCheer();
       return;
     }
     _lastApplause = DateTime.now();
