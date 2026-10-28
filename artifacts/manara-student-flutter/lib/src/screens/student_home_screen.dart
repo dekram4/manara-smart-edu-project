@@ -1736,10 +1736,15 @@ class _SectionTileState extends State<_SectionTile>
               alignment: Alignment.center,
               transform: matrix,
               child: Container(
+                  key: const ValueKey('portal-card-surface'),
                   padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
-                    color: StudentSurface.glass(context, 0.72 + lift * 0.18),
+                    // في الفاتح أبيضُ ناصعٌ ثابت: الزجاجُ الشفّاف كان يُظهر
+                    // المنارةَ من خلف الأيقونة فتبهت. وفي الداكن يبقى زجاجاً.
+                    color: StudentSurface.isDark(context)
+                        ? StudentSurface.glass(context, 0.72 + lift * 0.18)
+                        : Colors.white,
                     border: Border.all(
                       color: rim.withValues(alpha: 0.45 + glow * 0.52),
                       width: 1.6 + lift * 1.4,
@@ -1920,10 +1925,132 @@ class _LighthouseBackdrop extends StatelessWidget {
               resolution: 0.8,
             ),
           ),
+          if (night) const _TowerGlow(key: ValueKey('tower-glow')),
         ],
       ),
     );
   }
+}
+
+/// إضاءةٌ ناعمة على أعلى المنارة في الوضع الداكن: هالةٌ ذهبية حول المصباح
+/// تتنفّس ببطء، وضوءٌ خافت ينسكب على رأس البرج.
+///
+/// تُرسم فوق الرسم الباهت لا تحته، فلا تخفت بخفوته (٠٫٢٢). وموضعُها مصباحُ
+/// الرسم نفسه ([LivingArtSpecs]) محسوباً على مربّع `BoxFit.contain` — فتلحق
+/// البرجَ في أيّ اتجاهٍ للشاشة.
+class _TowerGlow extends StatefulWidget {
+  const _TowerGlow({super.key});
+
+  @override
+  State<_TowerGlow> createState() => _TowerGlowState();
+}
+
+class _TowerGlowState extends State<_TowerGlow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 4200),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // «تقليل الحركة»: إضاءةٌ ثابتة في منتصف نَفَسها.
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _breath
+        ..stop()
+        ..value = 0.5;
+    } else if (!_breath.isAnimating) {
+      _breath.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final beacon = LivingArtSpecs.of('assets/images/lighthouse_main_bg.png')
+            .beacon ??
+        const Offset(0.5, 0.17);
+    return RepaintBoundary(
+      child: CustomPaint(
+        painter: _TowerGlowPainter(
+          beacon: beacon,
+          breath: CurvedAnimation(parent: _breath, curve: Curves.easeInOutSine),
+        ),
+        size: Size.infinite,
+      ),
+    );
+  }
+}
+
+class _TowerGlowPainter extends CustomPainter {
+  _TowerGlowPainter({required this.beacon, required this.breath})
+      : super(repaint: breath);
+
+  /// موضعُ المصباح نسبةً إلى الرسم المربّع.
+  final Offset beacon;
+  final Animation<double> breath;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // الرسمُ مربّعٌ و`contain` في المنتصف.
+    final side = math.min(size.width, size.height);
+    final origin = Offset((size.width - side) / 2, (size.height - side) / 2);
+    final lamp = origin + Offset(beacon.dx * side, beacon.dy * side);
+    final k = 0.78 + 0.22 * breath.value;
+
+    void glow(Rect rect, List<Color> colors, List<double> stops) {
+      canvas.drawOval(
+        rect,
+        Paint()
+          ..blendMode = BlendMode.screen
+          ..shader = RadialGradient(colors: colors, stops: stops)
+              .createShader(rect),
+      );
+    }
+
+    // هالةٌ واسعة دافئة تُضيء السماءَ حول الرأس.
+    glow(
+      Rect.fromCircle(center: lamp, radius: side * (0.40 + 0.03 * breath.value)),
+      [
+        const Color(0xFFFFC46B).withValues(alpha: 0.26 * k),
+        const Color(0xFFFF9F43).withValues(alpha: 0.10 * k),
+        const Color(0x00FF9F43),
+      ],
+      const [0.0, 0.45, 1.0],
+    );
+    // ضوءٌ ينسكب على أعلى البرج: بيضويٌّ طويلٌ تحت المصباح.
+    glow(
+      Rect.fromCenter(
+        center: lamp + Offset(0, side * 0.13),
+        width: side * 0.24,
+        height: side * 0.36,
+      ),
+      [
+        const Color(0xFFFFE2A8).withValues(alpha: 0.20 * k),
+        const Color(0x00FFE2A8),
+      ],
+      const [0.0, 1.0],
+    );
+    // قلبُ المصباح: نقطةٌ ساطعة ناعمة الحوافّ.
+    glow(
+      Rect.fromCircle(center: lamp, radius: side * 0.085),
+      [
+        const Color(0xFFFFF6D8).withValues(alpha: 0.70 * k),
+        const Color(0xFFFFD27A).withValues(alpha: 0.32 * k),
+        const Color(0x00FFD27A),
+      ],
+      const [0.0, 0.4, 1.0],
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TowerGlowPainter old) => old.beacon != beacon;
 }
 
 /// Level, XP and gems as three raised glass badges, centred in the top
