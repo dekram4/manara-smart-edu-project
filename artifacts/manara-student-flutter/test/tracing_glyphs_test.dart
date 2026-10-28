@@ -12,13 +12,13 @@ import 'package:manara_student/src/services/tracing_glyphs.dart';
 /// الجدولُ من جديد، افترقت نقاطُ اللوحة عن الحرف الذي تحتها بلا خطأٍ ظاهر.
 /// فهذا يفشل، ويقول كيف يُصلَح.
 void main() {
-  testWidgets('الجدولُ المحسوب مسبقاً يطابق الخطَّ والخوارزمية', (tester) async {
+  testWidgets('الجدولُ المحسوب مسبقاً يطابق الخطَّ والطرقَ المرسومة', (tester) async {
     await tester.runAsync(() async {
       final bytes = File('assets/fonts/Tajawal-Bold.ttf').readAsBytesSync();
       await (FontLoader(tracingFontFamily)..addFont(Future.value(ByteData.sublistView(bytes)))).load();
       final stale = <String>[];
       for (final item in kindergartenTracingItems) {
-        final fresh = await rasterizeTracingShape(item, planInIsolate: false);
+        final fresh = await routedTracingShape(item);
         final stored = precomputedTracingShape(item);
         if (fresh == null || stored == null || jsonEncode(fresh.toJson()) != jsonEncode(stored.toJson())) {
           stale.add(item.text);

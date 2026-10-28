@@ -186,6 +186,51 @@ void main() {
       expect(quranWordMatches('لم', 'وَلَمْ'), isFalse);
     });
 
+    test('خطأُ الحركة لا يُغتفر: مدٌّ زائدٌ أو ناقص، وتنوين', () {
+      // «مَلِكِ» مكانَ «مَالِكِ»: مدٌّ ناقص — كان يُقبل بتساهل الحرف.
+      expect(quranWordMatches('ملك', 'مَالِكِ'), isFalse);
+      expect(quranWordMatches('مالك', 'مَالِكِ'), isTrue);
+      // مدٌّ زائد.
+      expect(quranWordMatches('الرحيمي', 'الرَّحِيمِ'), isFalse);
+      expect(quranWordMatches('العلمين', 'الْعَالَمِينَ'), isFalse);
+      // تنوينٌ زائدٌ في آخر الكلمة.
+      expect(quranWordMatches('مسدن', 'مَسَدٍ'), isFalse);
+      // وحرفٌ ساكنٌ أخطأه المحرّكُ يبقى مغتفراً.
+      expect(quranWordMatches('المستقين', 'الْمُسْتَقِيمَ'), isTrue);
+    });
+
+    test('حركاتٌ كتبها المحرّك تُقارن بحركات الآية، وغيابُها ليس خطأً', () {
+      expect(quranWordMatches('الْحَمْدُ', 'الْحَمْدُ'), isTrue);
+      // ضمّةُ الدال صارت فتحة.
+      expect(quranWordMatches('الْحَمْدَ', 'الْحَمْدُ'), isFalse);
+      // كسرةُ الباء صارت فتحة.
+      expect(quranWordMatches('رَبَّ', 'رَبِّ'), isFalse);
+      // شدّةٌ ناقصة.
+      expect(quranWordMatches('رَبِ', 'رَبِّ'), isFalse);
+      // تشكيلٌ جزئيّ صحيح: يُحاسَب على ما كُتب وحده.
+      expect(quranWordMatches('ربِّ', 'رَبِّ'), isTrue);
+      // بلا تشكيلٍ أصلاً كما تكتب أكثرُ المحرّكات.
+      expect(quranWordMatches('رب', 'رَبِّ'), isTrue);
+    });
+
+    test('الخطُّ الأحمر لحظةَ تُخطأ الحركة، ولا يتقدّم حتى تُصحَّح', () {
+      final tracker = RecitationTracker(quranSurahs.firstWhere((s) => s.id == 'fatiha'))..startSession();
+      // الاستعاذةُ ثم البسملةُ ثم الآياتُ حتى «مالك يوم الدين».
+      tracker.hear('أعوذ بالله من الشيطان الرجيم');
+      tracker.hear('أعوذ بالله من الشيطان الرجيم بسم الله الرحمن الرحيم');
+      tracker.startSession();
+      tracker.hear('الحمد لله رب العالمين');
+      tracker.startSession();
+      tracker.hear('الرحمن الرحيم');
+      tracker.startSession();
+      final unit = tracker.currentUnit;
+      tracker.hear('ملك يوم الدين');
+      expect(tracker.currentUnit, unit, reason: 'لا انتقالَ والمدُّ ناقص');
+      expect(tracker.blocked, isTrue);
+      tracker.hear('ملك يوم الدين مالك يوم الدين');
+      expect(tracker.currentUnit, greaterThan(unit), reason: 'صحّح فاخضرّت');
+    });
+
     test('خطأُ حرفٍ من محرّك التعرّف في كلمةٍ طويلة يُقبل، وفي القصيرة لا', () {
       expect(quranWordMatches('المستقيم', 'الْمُسْتَقِيمَ'), isTrue);
       expect(quranWordMatches('المستقين', 'الْمُسْتَقِيمَ'), isTrue);
