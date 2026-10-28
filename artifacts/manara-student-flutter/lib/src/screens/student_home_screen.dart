@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/motion.dart';
 import 'package:flutter/physics.dart';
@@ -88,6 +89,19 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// يعيش خارج البطاقات لأن القائمة تتخلّص منها عند السحب. بدونه تعيد كل
   /// بطاقة حركة دخولها كلّما عادت إلى الشاشة.
   final DealEntranceTracker _dealTracker = DealEntranceTracker();
+
+  /// رأسُ الواجهة (بطاقةُ الترحيب وملخّصُ المسار): المنارةُ تُرسم تحته
+  /// لا خلفه، فلا تختفي قمّتُها وراء عبارة الترحيب.
+  final GlobalKey _headerKey = GlobalKey();
+  final ValueNotifier<double> _artTop = ValueNotifier<double>(0);
+
+  void _measureHeader() {
+    final box = _headerKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    // ‏حشوةُ الصفحة العليا (٨) + الرأس + فسحةٌ صغيرة.
+    final top = 8 + box.size.height + 10;
+    if ((top - _artTop.value).abs() > 1) _artTop.value = top;
+  }
 
   /// Starts the deal a beat after the hub opens.
   Timer? _dealCue;
@@ -435,6 +449,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   @override
   void dispose() {
+    _artTop.dispose();
     _greetingCap?.cancel();
     studentRouteObserver.unsubscribe(this);
     _stopCardAccessPoll();
@@ -970,7 +985,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       ),
       body: Stack(
         children: [
-          const _LighthouseBackdrop(),
+          _LighthouseBackdrop(artTop: _artTop),
           StudentCelebration(controller: _rewardController),
           SafeArea(
             top: false,
@@ -993,24 +1008,34 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: StudentAnimatedCard(
-                      child: _WelcomeCard(
-                        profile: widget.profile,
-                        onCharacterTap: _openPersonality,
-                      ),
-                    ),
-                  ),
-                  if (_academicContext != null) ...[
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: _AcademicContextSummary(
-                        academicContext: _academicContext!,
-                      ),
-                    ),
-                  ],
+                  Builder(builder: (context) {
+                    WidgetsBinding.instance
+                        .addPostFrameCallback((_) => _measureHeader());
+                    return Column(
+                      key: _headerKey,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: StudentAnimatedCard(
+                            child: _WelcomeCard(
+                              profile: widget.profile,
+                              onCharacterTap: _openPersonality,
+                            ),
+                          ),
+                        ),
+                        if (_academicContext != null) ...[
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
+                            child: _AcademicContextSummary(
+                              academicContext: _academicContext!,
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  }),
                   const SizedBox(height: 24),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -1743,8 +1768,26 @@ class _SectionTileState extends State<_SectionTile>
                     // في الفاتح أبيضُ ناصعٌ ثابت: الزجاجُ الشفّاف كان يُظهر
                     // المنارةَ من خلف الأيقونة فتبهت. وفي الداكن يبقى زجاجاً.
                     color: StudentSurface.isDark(context)
-                        ? StudentSurface.glass(context, 0.72 + lift * 0.18)
+                        ? null
                         : Colors.white,
+                    // وفي الداكن ينعكس ضوءُ المنارة على حافّة البطاقة العليا:
+                    // زجاجٌ يدفأ لونُه من أعلى ويعود إلى لونه في أسفله.
+                    gradient: StudentSurface.isDark(context)
+                        ? LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color.alphaBlend(
+                                const Color(0xFFFFC46B)
+                                    .withValues(alpha: 0.16 + lift * 0.06),
+                                StudentSurface.glass(
+                                    context, 0.72 + lift * 0.18),
+                              ),
+                              StudentSurface.glass(context, 0.72 + lift * 0.18),
+                            ],
+                            stops: const [0.0, 0.55],
+                          )
+                        : null,
                     border: Border.all(
                       color: rim.withValues(alpha: 0.45 + glow * 0.52),
                       width: 1.6 + lift * 1.4,
@@ -1882,7 +1925,10 @@ const _lockedGreyscale = ColorFilter.matrix(<double>[
 /// tower whole in either orientation (covering would crop the lantern off
 /// a landscape screen), and [IgnorePointer] keeps it from eating taps.
 class _LighthouseBackdrop extends StatelessWidget {
-  const _LighthouseBackdrop();
+  const _LighthouseBackdrop({required this.artTop});
+
+  /// أين تبدأ المنارة: تحت رأس الواجهة، فتظهر قمّتُها كاملة فوق الشريط.
+  final ValueListenable<double> artTop;
 
   @override
   Widget build(BuildContext context) {
@@ -1915,17 +1961,36 @@ class _LighthouseBackdrop extends StatelessWidget {
               ),
             ),
           ),
-          Opacity(
-            opacity: night ? 0.22 : 0.55,
-            // ‏المنارةُ حيّة: مصباحُها ينبض وشعاعُه يدور، والطائرُ والسمكة
-            // ‏يطيران، والكرةُ والألعاب تتمايل وتقفز، ونجيماتٌ تلمع.
-            child: const LivingArt(
-              asset: 'assets/images/lighthouse_main_bg.png',
-              fit: BoxFit.contain,
-              resolution: 0.8,
+          ValueListenableBuilder<double>(
+            valueListenable: artTop,
+            builder: (context, top, child) => Padding(
+              padding: EdgeInsets.only(top: top),
+              child: child,
+            ),
+            // الرسمُ والإضاءةُ في المربّع نفسه، أعلى المساحة تحت الرأس.
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (night)
+                  const _TowerGlow(
+                    key: ValueKey('tower-glow'),
+                    layer: _GlowLayer.behind,
+                  ),
+                Opacity(
+                  opacity: night ? 0.30 : 0.55,
+                  // ‏المنارةُ حيّة: مصباحُها ينبض وشعاعُه يدور، والطائرُ
+                  // ‏والسمكة يطيران، والكرةُ والألعاب تتمايل وتقفز.
+                  child: const LivingArt(
+                    asset: 'assets/images/lighthouse_main_bg.png',
+                    fit: BoxFit.contain,
+                    alignment: Alignment.topCenter,
+                    resolution: 0.8,
+                  ),
+                ),
+                if (night) const _TowerGlow(layer: _GlowLayer.front),
+              ],
             ),
           ),
-          if (night) const _TowerGlow(key: ValueKey('tower-glow')),
         ],
       ),
     );
@@ -1938,8 +2003,14 @@ class _LighthouseBackdrop extends StatelessWidget {
 /// تُرسم فوق الرسم الباهت لا تحته، فلا تخفت بخفوته (٠٫٢٢). وموضعُها مصباحُ
 /// الرسم نفسه ([LivingArtSpecs]) محسوباً على مربّع `BoxFit.contain` — فتلحق
 /// البرجَ في أيّ اتجاهٍ للشاشة.
+/// طبقتا الإضاءة: [behind] هالةٌ واسعة وضوءٌ يغمر الصفحة خلف الرسم،
+/// و[front] قلبُ المصباح وأشعّتُه فوق الرسم الباهت.
+enum _GlowLayer { behind, front }
+
 class _TowerGlow extends StatefulWidget {
-  const _TowerGlow({super.key});
+  const _TowerGlow({required this.layer, super.key});
+
+  final _GlowLayer layer;
 
   @override
   State<_TowerGlow> createState() => _TowerGlowState();
@@ -1979,6 +2050,7 @@ class _TowerGlowState extends State<_TowerGlow>
     return RepaintBoundary(
       child: CustomPaint(
         painter: _TowerGlowPainter(
+          layer: widget.layer,
           beacon: beacon,
           breath: CurvedAnimation(parent: _breath, curve: Curves.easeInOutSine),
         ),
@@ -1989,60 +2061,109 @@ class _TowerGlowState extends State<_TowerGlow>
 }
 
 class _TowerGlowPainter extends CustomPainter {
-  _TowerGlowPainter({required this.beacon, required this.breath})
-      : super(repaint: breath);
+  _TowerGlowPainter({
+    required this.layer,
+    required this.beacon,
+    required this.breath,
+  }) : super(repaint: breath);
+
+  final _GlowLayer layer;
 
   /// موضعُ المصباح نسبةً إلى الرسم المربّع.
   final Offset beacon;
   final Animation<double> breath;
 
+  static const _gold = Color(0xFFFFC46B);
+  static const _amber = Color(0xFFFF9F43);
+  static const _cream = Color(0xFFFFF6D8);
+
   @override
   void paint(Canvas canvas, Size size) {
-    // الرسمُ مربّعٌ و`contain` في المنتصف.
+    // الرسمُ مربّعٌ و`contain` في أعلى المساحة.
     final side = math.min(size.width, size.height);
-    final origin = Offset((size.width - side) / 2, (size.height - side) / 2);
+    final origin = Offset((size.width - side) / 2, 0);
     final lamp = origin + Offset(beacon.dx * side, beacon.dy * side);
-    final k = 0.78 + 0.22 * breath.value;
+    final b = breath.value;
+    final k = 0.8 + 0.2 * b;
 
     void glow(Rect rect, List<Color> colors, List<double> stops) {
       canvas.drawOval(
         rect,
         Paint()
-          ..blendMode = BlendMode.screen
           ..shader = RadialGradient(colors: colors, stops: stops)
               .createShader(rect),
       );
     }
 
-    // هالةٌ واسعة دافئة تُضيء السماءَ حول الرأس.
-    glow(
-      Rect.fromCircle(center: lamp, radius: side * (0.40 + 0.03 * breath.value)),
-      [
-        const Color(0xFFFFC46B).withValues(alpha: 0.26 * k),
-        const Color(0xFFFF9F43).withValues(alpha: 0.10 * k),
-        const Color(0x00FF9F43),
-      ],
-      const [0.0, 0.45, 1.0],
-    );
+    if (layer == _GlowLayer.behind) {
+      // ضوءٌ يغمر الصفحةَ كلَّها من المصباح — ينعكس على البطاقات تحته.
+      final reach = size.longestSide * 0.95;
+      glow(
+        Rect.fromCircle(center: lamp, radius: reach),
+        [
+          _gold.withValues(alpha: 0.16 * k),
+          _amber.withValues(alpha: 0.06 * k),
+          const Color(0x00FF9F43),
+        ],
+        const [0.0, 0.5, 1.0],
+      );
+      // هالةٌ دافئة واضحة حول رأس البرج.
+      glow(
+        Rect.fromCircle(center: lamp, radius: side * (0.46 + 0.04 * b)),
+        [
+          _gold.withValues(alpha: 0.42 * k),
+          _amber.withValues(alpha: 0.16 * k),
+          const Color(0x00FF9F43),
+        ],
+        const [0.0, 0.45, 1.0],
+      );
+      return;
+    }
+
+    // أشعّةٌ ناعمة تخرج من المصباح يميناً ويساراً.
+    for (final dir in const [-1.0, 1.0]) {
+      final length = side * (0.75 + 0.05 * b);
+      final spread = side * 0.10;
+      final end = lamp + Offset(dir * length, -side * 0.04);
+      final path = Path()
+        ..moveTo(lamp.dx, lamp.dy - side * 0.012)
+        ..lineTo(end.dx, end.dy - spread)
+        ..lineTo(end.dx, end.dy + spread)
+        ..lineTo(lamp.dx, lamp.dy + side * 0.012)
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, side * 0.02)
+          ..shader = LinearGradient(
+            colors: [
+              _cream.withValues(alpha: 0.34 * k),
+              _gold.withValues(alpha: 0.10 * k),
+              const Color(0x00FFC46B),
+            ],
+            stops: const [0.0, 0.45, 1.0],
+          ).createShader(Rect.fromPoints(lamp, end)),
+      );
+    }
     // ضوءٌ ينسكب على أعلى البرج: بيضويٌّ طويلٌ تحت المصباح.
     glow(
       Rect.fromCenter(
         center: lamp + Offset(0, side * 0.13),
-        width: side * 0.24,
-        height: side * 0.36,
+        width: side * 0.26,
+        height: side * 0.38,
       ),
       [
-        const Color(0xFFFFE2A8).withValues(alpha: 0.20 * k),
+        const Color(0xFFFFE2A8).withValues(alpha: 0.30 * k),
         const Color(0x00FFE2A8),
       ],
       const [0.0, 1.0],
     );
     // قلبُ المصباح: نقطةٌ ساطعة ناعمة الحوافّ.
     glow(
-      Rect.fromCircle(center: lamp, radius: side * 0.085),
+      Rect.fromCircle(center: lamp, radius: side * 0.10),
       [
-        const Color(0xFFFFF6D8).withValues(alpha: 0.70 * k),
-        const Color(0xFFFFD27A).withValues(alpha: 0.32 * k),
+        _cream.withValues(alpha: 0.92 * k),
+        const Color(0xFFFFD27A).withValues(alpha: 0.45 * k),
         const Color(0x00FFD27A),
       ],
       const [0.0, 0.4, 1.0],
@@ -2050,7 +2171,8 @@ class _TowerGlowPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_TowerGlowPainter old) => old.beacon != beacon;
+  bool shouldRepaint(_TowerGlowPainter old) =>
+      old.beacon != beacon || old.layer != layer;
 }
 
 /// Level, XP and gems as three raised glass badges, centred in the top

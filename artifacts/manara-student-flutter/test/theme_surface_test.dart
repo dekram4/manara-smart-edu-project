@@ -187,7 +187,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      // ‏لا pumpAndSettle: إضاءةُ الداكن تتنفّس بلا نهاية.
+      await tester.pump(const Duration(milliseconds: 500));
       final box = tester.widget<DecoratedBox>(find.byType(DecoratedBox).first);
       final gradient =
           (box.decoration as BoxDecoration).gradient! as LinearGradient;

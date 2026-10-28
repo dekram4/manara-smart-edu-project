@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'ambient_lighting.dart';
 import 'living_art.dart';
 
 /// Every portal's own artwork, faded behind that portal's screen.
@@ -80,6 +81,13 @@ class PortalWatermark extends StatelessWidget {
               resolution: 0.6,
             ),
           ),
+          // ‏في الوضع الداكن: إضاءةُ المشهد — فانوسٌ أو ساعةٌ مضيئة أو كشّاف —
+          // ‏فوق الرسم الباهت وتحت المحتوى.
+          if (Theme.of(context).brightness == Brightness.dark)
+            AmbientLighting(
+              key: const ValueKey('ambient-lighting'),
+              lights: AmbientScenes.of(asset),
+            ),
         ],
       ),
     );
