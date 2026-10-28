@@ -49,9 +49,14 @@ export function isQuranSubject(subject: string): boolean {
   return key(subject).includes("القران الكريم");
 }
 
-/** «حفظ وشرح السور القصيرة» — ولو سبقته «درس» أو تلته وحدةٌ أو رقم. */
+/**
+ * درسُ حفظ السور القصيرة بأيّ اسمٍ سُمّي: «حفظ وشرح السور القصيرة» أو «تعلم
+ * وحفظ السور القصيرة» — ولو سبقته «درس» أو تلته وحدةٌ أو رقم. والقاعدةُ
+ * نفسُها في التطبيق (`isShortSurahsLesson`).
+ */
 export function isShortSurahsLesson(lesson: string): boolean {
-  return key(lesson).includes(key("حفظ وشرح السور القصيرة"));
+  const k = key(lesson);
+  return k.includes(key("السور القصيرة")) && k.includes("حفظ");
 }
 
 export function quranRecitationAllowed(lesson: { grade?: string; subject?: string; lesson?: string }): boolean {

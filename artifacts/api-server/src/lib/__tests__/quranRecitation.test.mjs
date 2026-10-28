@@ -26,7 +26,9 @@ test("الصفُّ والمادّةُ والدرسُ معاً — بأيّ هم�
   assert.ok(quranRecitationAllowed({ ...lesson, subject: "القران الكريم", lesson: "درس: حفظ وشرح السور القصيره" }));
   assert.ok(!quranRecitationAllowed({ ...lesson, grade: "الصف الأول" }));
   assert.ok(!quranRecitationAllowed({ ...lesson, subject: "الحروف العربية" }));
+  assert.ok(quranRecitationAllowed({ ...lesson, lesson: "تعلم وحفظ السور القصيرة" }));
   assert.ok(!quranRecitationAllowed({ ...lesson, lesson: "سورة الفيل" }));
+  assert.ok(!quranRecitationAllowed({ ...lesson, lesson: "قصص السور القصيرة" }));
   assert.ok(!quranRecitationAllowed({}));
 });
 

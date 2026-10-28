@@ -56,6 +56,11 @@ void main() {
         quranRecitationAllowedFor(grade: 'روضه مناره المعرفه', subject: 'القران الكريم', lesson: 'درس: حفظ وشرح السور القصيره'),
         isTrue,
       );
+      // ‏والاسمُ الجديد للدرس.
+      expect(
+        quranRecitationAllowedFor(grade: 'روضة منارة المعرفة', subject: 'القرآن الكريم', lesson: 'تعلم وحفظ السور القصيرة'),
+        isTrue,
+      );
     });
 
     test('وأيُّ صفٍّ أو مادّةٍ أو درسٍ آخر: لا', () {

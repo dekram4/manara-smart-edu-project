@@ -131,8 +131,13 @@ String _key(String value) => normalizeQuranWord(value).replaceAll(RegExp(r'\s+')
 
 bool isQuranSubject(String? subject) => _key(subject ?? '').contains('القران الكريم');
 
-bool isShortSurahsLesson(String? lesson) =>
-    _key(lesson ?? '').contains(_key('حفظ وشرح السور القصيرة'));
+/// درسُ حفظ السور القصيرة بأيّ اسمٍ سُمّي: «حفظ وشرح السور القصيرة» أو
+/// «تعلم وحفظ السور القصيرة» — حفظٌ والسورُ القصيرة معاً. والقاعدةُ نفسُها
+/// في الخادم (`isShortSurahsLesson`)، وإلا رُدّت مكافأةُ السورة.
+bool isShortSurahsLesson(String? lesson) {
+  final key = _key(lesson ?? '');
+  return key.contains(_key('السور القصيرة')) && key.contains('حفظ');
+}
 
 bool quranRecitationAllowedFor({
   required String? grade,

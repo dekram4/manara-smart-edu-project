@@ -17,6 +17,9 @@ import '../services/student_auth_service.dart';
 import '../services/student_path_memory.dart';
 import '../services/student_challenge_service.dart';
 import 'home_layout.dart';
+import 'kindergarten_card_screens.dart';
+import '../services/quran_recitation.dart';
+import '../services/tracing_scope.dart';
 import '../services/student_study_service.dart';
 import '../services/student_duel_service.dart';
 import '../services/student_leaderboard_service.dart';
@@ -333,6 +336,23 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   static String _cardIdOf(_HomeSection section) =>
       section.titleKey.replaceFirst('portal.', '');
 
+  /// بطاقتا الروضة لا تظهران إلا في نطاقهما، وسائرُ البطاقات دائماً.
+  bool _isCardVisible(int index) {
+    final context = _academicContext;
+    return switch (index) {
+      recitationModule => quranRecitationAllowedFor(
+          grade: context?.grade,
+          subject: context?.subject,
+          lesson: context?.lesson,
+        ),
+      writingModule => tracingAllowedFor(
+          grade: context?.grade,
+          subject: context?.subject,
+        ),
+      _ => true,
+    };
+  }
+
   bool _isCardLocked(int index) =>
       index >= 0 &&
       index < _homeSections.length &&
@@ -584,6 +604,35 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           ),
         ),
       );
+      return;
+    }
+
+    if (kindergartenModules.contains(index)) {
+      final academic = _academicContext;
+      if (academic == null) return;
+      final service = StudentContentService(
+        widget.authService.client,
+        baseUrl: widget.apiBaseUrl,
+        authService: widget.authService,
+      );
+      Navigator.of(context)
+          .push(
+        StudentPageRoute<void>(
+          immersive: true,
+          builder: (_) => index == recitationModule
+              ? QuranRecitationCardScreen(
+                  profile: widget.profile,
+                  contentService: service,
+                  academicContext: academic,
+                )
+              : WritingCardScreen(
+                  profile: widget.profile,
+                  contentService: service,
+                  academicContext: academic,
+                ),
+        ),
+      )
+          .then((_) => _loadGamification());
       return;
     }
 
@@ -1062,6 +1111,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                     child: _HomeSectionGrid(
                       onSectionPressed: (index) => unawaited(_openCard(index)),
                       isLocked: _isCardLocked,
+                      isVisible: _isCardVisible,
                       dealTracker: _dealTracker,
                     ),
                   ),
@@ -1262,6 +1312,27 @@ const _homeSections = <_HomeSection>[
     // شاشتُها تشغّل `booksound.mp3` بنفسها.
     ownsVoice: true,
   ),
+  // Index 11 — «أبطال تسميع القرآن»: لدرس حفظ السور القصيرة في الروضة وحده.
+  _HomeSection(
+    titleKey: 'portal.recite',
+    subtitleKey: 'portal.recite.sub',
+    descriptionKey: 'portal.recite.desc',
+    image: 'assets/images/icon_quran.png',
+    colors: [Color(0xFF047857), Color(0xFF10B981)],
+    accent: Color(0xFFA7F3D0),
+    // شاشتُها تشغّل ترحيبَها بنفسها.
+    ownsVoice: true,
+  ),
+  // Index 12 — «قلمي السحري»: لدروس الحروف والأرقام في الروضة وحدها.
+  _HomeSection(
+    titleKey: 'portal.write',
+    subtitleKey: 'portal.write.sub',
+    descriptionKey: 'portal.write.desc',
+    image: 'assets/images/icon_writing.png',
+    colors: [Color(0xFF1D4ED8), Color(0xFF38BDF8)],
+    accent: Color(0xFFBAE6FD),
+    ownsVoice: true,
+  ),
 ];
 
 /// A shelf of wide 3D game-portal tiles — the module grid the student picks
@@ -1284,7 +1355,13 @@ class _HomeSectionGrid extends StatelessWidget {
     required this.onSectionPressed,
     required this.isLocked,
     required this.dealTracker,
+    this.isVisible = _always,
   });
+
+  static bool _always(int index) => true;
+
+  /// بطاقتا الروضة تُعرضان في نطاقهما وحده.
+  final bool Function(int index) isVisible;
 
   final ValueChanged<int> onSectionPressed;
 
@@ -1317,6 +1394,12 @@ class _HomeSectionGrid extends StatelessWidget {
     // screen.
     const breathingRoom = 46.0;
 
+    // ‏الترتيبُ البصريّ بلا ما لا يظهر في هذا الدرس.
+    final order = [
+      for (final module in homeVisualOrder)
+        if (isVisible(module)) module,
+    ];
+
     return SizedBox(
       height: cardHeight + breathingRoom * 2,
       // Every card is built at once, not as it scrolls into view.
@@ -1348,7 +1431,7 @@ class _HomeSectionGrid extends StatelessWidget {
         ),
         child: Row(
           children: [
-            for (var index = 0; index < homeVisualOrder.length; index++) ...[
+            for (var index = 0; index < order.length; index++) ...[
               if (index > 0) const SizedBox(width: 12),
               SizedBox(
                 width: cardWidth,
@@ -1363,15 +1446,15 @@ class _HomeSectionGrid extends StatelessWidget {
                     // Named by its portal rather than its position, so the
                     // key survives the rail being reordered.
                     key: ValueKey(
-                      'portal-tile-${_homeSections[homeVisualOrder[index]].titleKey}',
+                      'portal-tile-${_homeSections[order[index]].titleKey}',
                     ),
-                    section: _homeSections[homeVisualOrder[index]],
+                    section: _homeSections[order[index]],
                     // Staggers each card's float so the rail breathes rather
                     // than pulsing as one block.
                     index: index,
-                    locked: isLocked(homeVisualOrder[index]),
+                    locked: isLocked(order[index]),
                     // الموضعُ المنطقيّ لا البصريّ: المستقبِل يوزّع به.
-                    onPressed: () => onSectionPressed(homeVisualOrder[index]),
+                    onPressed: () => onSectionPressed(order[index]),
                   ),
                 ),
               ),
