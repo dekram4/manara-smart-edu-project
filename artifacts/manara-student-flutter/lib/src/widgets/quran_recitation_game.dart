@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../l10n/student_strings.dart';
 import '../models/student_gamification.dart';
 import '../services/quran_recitation.dart';
+import '../services/quran_recitation_worker.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
@@ -109,6 +110,11 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
   int _session = 0;
   int _endedSession = -1;
 
+  /// التقييمُ في خيطٍ جانبيّ ([RecitationWorker])، وطابورُه بترتيبه.
+  late final Future<RecitationWorker> _worker = RecitationWorker.start();
+  final RecitationQueue _jobs = RecitationQueue();
+  bool _evaluating = false;
+
   bool _done = false;
   String? _message;
   int? _gems;
@@ -152,6 +158,8 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
   void dispose() {
     _wantListening = false;
     if (_listening) unawaited(_stop());
+    _jobs.clear();
+    unawaited(_worker.then((worker) => worker.dispose()));
     _pulse.dispose();
     _shine.dispose();
     super.dispose();
@@ -176,6 +184,8 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
 
   void _reset() {
     final surah = _surah;
+    // ما ينتظر التقييمَ للسورة السابقة لا يُحسب لهذه.
+    _jobs.clear();
     _tracker = surah == null ? null : RecitationTracker(surah);
     _heard = '';
     _lastHeard = null;
@@ -234,7 +244,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     final tracker = _tracker;
     if (tracker == null || !_wantListening || _done || _helping) return;
     final session = ++_session;
-    tracker.startSession();
+    _enqueue(const StartSession());
     _heard = '';
     final listen = widget.listen ?? StudentVoiceService.instance.listenLive;
     final started = await listen(onWords: (words) => _onWords(session, words), onEnd: () => _onEnd(session));
@@ -257,24 +267,61 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     final tracker = _tracker;
     if (!mounted || session != _session || _done || _helping || tracker == null) return;
     _heard = heard;
-    final unitBefore = tracker.currentUnit;
+    // الكلمةُ المسموعة تظهر في لحظتها؛ وتقييمُها في الخيط الجانبيّ.
     setState(() {
-      tracker.hear(heard);
       final words = heard.trim().split(RegExp(r'\s+'));
       _lastHeard = heard.trim().isEmpty ? null : words.last;
     });
-    // آيةٌ (أو استعاذةٌ أو بسملة) صحّت كلُّها: نغمةُ نجاحٍ في لحظتها.
-    if (tracker.currentUnit > unitBefore && !tracker.complete) {
-      StudentSoundService.instance.playInstantSuccess();
+    _enqueue(Heard(heard));
+  }
+
+  void _enqueue(RecitationJob job) {
+    _jobs.add(job);
+    if (!_evaluating) unawaited(_drain());
+  }
+
+  /// يقيّم ما في الطابور بترتيبه، والشاشةُ حرّةٌ في أثنائه.
+  Future<void> _drain() async {
+    _evaluating = true;
+    try {
+      while (!_jobs.isEmpty) {
+        final tracker = _tracker;
+        if (tracker == null || _done) {
+          _jobs.clear();
+          break;
+        }
+        final job = _jobs.take();
+        final unitBefore = tracker.currentUnit;
+        final RecitationTracker next;
+        switch (job) {
+          case StartSession():
+            tracker.startSession();
+            next = tracker;
+          case Heard(:final transcript, :final ended):
+            next = await (await _worker).hear(tracker, transcript, ended: ended);
+        }
+        // أُغلقت السورةُ أو أُعيدت في أثناء التقييم: النتيجةُ لسورةٍ لم تعد.
+        if (!mounted || _tracker != tracker) continue;
+        setState(() => _tracker = next);
+        // آيةٌ (أو استعاذةٌ أو بسملة) صحّت كلُّها: نغمةُ نجاحٍ في لحظتها.
+        if (next.currentUnit > unitBefore && !next.complete) {
+          StudentSoundService.instance.playInstantSuccess();
+        }
+        if (next.complete) {
+          _jobs.clear();
+          unawaited(_complete());
+        }
+      }
+    } finally {
+      _evaluating = false;
     }
-    if (tracker.complete) unawaited(_complete());
   }
 
   void _onEnd(int session) {
     if (!mounted || session == _endedSession) return;
     _endedSession = session;
     final tracker = _tracker;
-    if (session == _session) tracker?.hear(_heard, ended: true);
+    if (session == _session) _enqueue(Heard(_heard, ended: true));
     setState(() => _listening = false);
     if (tracker != null && tracker.complete) {
       unawaited(_complete());
