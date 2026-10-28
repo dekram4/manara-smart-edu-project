@@ -148,12 +148,36 @@ bool quranRecitationAllowedFor({
 
 // ── التقييم ───────────────────────────────────────────────────────────
 
+// ── الذاكرة ──
+//
+// المطابقةُ تُستدعى في كل خانةٍ من جدول [alignWords]، والجدولُ يُبنى مع كل نصٍّ
+// جزئيٍّ يرسله المايك — مئاتُ المرّات في الثانية للكلمات نفسها. وكانت كلُّ
+// مرّةٍ تعيد توحيدَ الحروف وتفكيكَ الحركات بالتعابير النمطية حرفاً حرفاً، فثقُل
+// التقييمُ حتى تجمّدت الشاشة. فكلُّ كلمةٍ تُحلَّل مرّةً واحدة، وكلُّ زوجٍ
+// يُطابَق مرّةً واحدة — والنتيجةُ هي هي.
+
+final _normalized = <String, String>{};
+final _voweledCache = <String, List<(String, String)>>{};
+final _matches = <String, bool>{};
+
+/// أقصى ما تحفظه كلُّ ذاكرة: تُفرَّغ إن امتلأت، فلا تكبر بلا حدّ في جلسةٍ طويلة.
+const _cacheLimit = 4096;
+
+V _remember<V>(Map<String, V> cache, String key, V Function(String key) compute) {
+  final known = cache[key];
+  if (known != null) return known;
+  if (cache.length >= _cacheLimit) cache.clear();
+  return cache[key] = compute(key);
+}
+
 // بالرموز: التشكيلُ، والألفُ الخنجرية، والتطويل.
 final _marks = RegExp('[ً-ٰٟـ]');
 
 /// الكلمةُ كما يكتبها محرّكُ التعرّف: بلا تشكيل، والهمزاتُ والتاءُ المربوطة
 /// والألفُ المقصورة موحّدة.
-String normalizeQuranWord(String word) => word
+String normalizeQuranWord(String word) => _remember(_normalized, word, _normalize);
+
+String _normalize(String word) => word
     .replaceAll(_marks, '')
     .replaceAll(RegExp('[أإآٱ]'), 'ا')
     .replaceAll('ى', 'ي')
@@ -204,7 +228,9 @@ int _edit(String a, String b) {
 final _harakat = RegExp('[ً-ْ]');
 
 /// الحرفُ وحركاتُه كما كُتبت، بعد توحيد الحرف كما في [normalizeQuranWord].
-List<(String, String)> _voweled(String word) {
+List<(String, String)> _voweled(String word) => _remember(_voweledCache, word, _vowel);
+
+List<(String, String)> _vowel(String word) {
   final out = <(String, String)>[];
   for (final rune in word.replaceAll('ـ', '').runes) {
     final c = String.fromCharCode(rune);
@@ -242,7 +268,10 @@ bool _harakatDiffer(String heard, String expected) {
 /// لا تساهلَ فيها أبداً: حركةٌ كتبها المحرّكُ تخالف حركةَ الآية خطأ، وحرفُ
 /// مدٍّ أو تنوينٌ زائدٌ أو ناقص خطأ ([_edit]) — فيظهر الخطُّ الأحمر ويُعيد
 /// الطفلُ القراءة.
-bool quranWordMatches(String heard, String expected) {
+bool quranWordMatches(String heard, String expected) =>
+    _remember(_matches, '$heard $expected', (_) => _wordMatches(heard, expected));
+
+bool _wordMatches(String heard, String expected) {
   if (_harakatDiffer(heard, expected)) return false;
   final a = normalizeQuranWord(heard);
   final b = normalizeQuranWord(expected);
