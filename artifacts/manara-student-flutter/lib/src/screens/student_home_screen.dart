@@ -1930,6 +1930,23 @@ class _LighthouseBackdrop extends StatelessWidget {
   /// أين تبدأ المنارة: تحت رأس الواجهة، فتظهر قمّتُها كاملة فوق الشريط.
   final ValueListenable<double> artTop;
 
+  /// مربّعُ الرسم داخل المساحة تحت الرأس.
+  ///
+  /// رأسيّاً: الرسمُ كلُّه بعرض الشاشة (`contain`). أمّا الأفقيّ فالمساحةُ
+  /// تحت الرأس قصيرةٌ عريضة، و`contain` فيها صغّر المنارةَ إلى ثلث العرض؛
+  /// فيُكبَّر الرسمُ هناك ويُرفع قليلاً حتى تلامس قمّتُه حافّةَ المساحة،
+  /// ويُقصّ أسفلُه (الألعابُ عند القاعدة) — المنارةُ هي ما يُرى.
+  static Rect _towerSquare(Size area) {
+    final w = area.width, h = area.height;
+    if (w <= h) {
+      final side = math.min(w, h);
+      return Rect.fromLTWH((w - side) / 2, 0, side, side);
+    }
+    final side = math.max(h, math.min(w * 0.62, h * 1.45));
+    // ‏قمّةُ البرج على نحو ٢٪ من أعلى الرسم: تُرفع إلى حافّة المساحة.
+    return Rect.fromLTWH((w - side) / 2, -side * 0.015, side, side);
+  }
+
   @override
   Widget build(BuildContext context) {
     // This gradient *is* the hub's background — it covers the whole
@@ -1967,29 +1984,41 @@ class _LighthouseBackdrop extends StatelessWidget {
               padding: EdgeInsets.only(top: top),
               child: child,
             ),
-            // الرسمُ والإضاءةُ في المربّع نفسه، أعلى المساحة تحت الرأس.
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (night)
-                  const _TowerGlow(
-                    key: ValueKey('tower-glow'),
-                    layer: _GlowLayer.behind,
+            // الرسمُ والإضاءةُ في مربّعٍ واحد، أعلى المساحة تحت الرأس.
+            child: LayoutBuilder(builder: (context, box) {
+              final square = _towerSquare(box.biggest);
+              return Stack(
+                fit: StackFit.expand,
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fromRect(
+                    rect: square,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (night)
+                          const _TowerGlow(
+                            key: ValueKey('tower-glow'),
+                            layer: _GlowLayer.behind,
+                          ),
+                        Opacity(
+                          opacity: night ? 0.30 : 0.55,
+                          // ‏المنارةُ حيّة: مصباحُها ينبض وشعاعُه يدور،
+                          // ‏والطائرُ والسمكة يطيران، والألعاب تتمايل وتقفز.
+                          child: const LivingArt(
+                            asset: 'assets/images/lighthouse_main_bg.png',
+                            fit: BoxFit.contain,
+                            resolution: 0.8,
+                          ),
+                        ),
+                        if (night) const _TowerGlow(layer: _GlowLayer.front),
+                      ],
+                    ),
                   ),
-                Opacity(
-                  opacity: night ? 0.30 : 0.55,
-                  // ‏المنارةُ حيّة: مصباحُها ينبض وشعاعُه يدور، والطائرُ
-                  // ‏والسمكة يطيران، والكرةُ والألعاب تتمايل وتقفز.
-                  child: const LivingArt(
-                    asset: 'assets/images/lighthouse_main_bg.png',
-                    fit: BoxFit.contain,
-                    alignment: Alignment.topCenter,
-                    resolution: 0.8,
-                  ),
-                ),
-                if (night) const _TowerGlow(layer: _GlowLayer.front),
-              ],
-            ),
+                ],
+              );
+            }),
           ),
         ],
       ),
@@ -2097,7 +2126,7 @@ class _TowerGlowPainter extends CustomPainter {
 
     if (layer == _GlowLayer.behind) {
       // ضوءٌ يغمر الصفحةَ كلَّها من المصباح — ينعكس على البطاقات تحته.
-      final reach = size.longestSide * 0.95;
+      final reach = size.longestSide * 1.35;
       glow(
         Rect.fromCircle(center: lamp, radius: reach),
         [
