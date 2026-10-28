@@ -102,9 +102,27 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
   /// تُسمَع التلاوةُ الصحيحة الآن، والمايكُ مغلقٌ لها.
   bool _helping = false;
 
-  /// آخرُ كلمةٍ سمعها المحرّك: تظهر تحت النصّ لحظةَ تُسمع، فيرى الطفلُ أن
-  /// صوته وصل.
-  String? _lastHeard;
+  /// آخرُ كلمةٍ سمعها المحرّك: تظهر تحت النصّ، فيرى الطفلُ أن صوته وصل.
+  ///
+  /// في مُخطِرٍ لا في حال الشاشة: المحرّكُ يرسل نصّاً جزئياً مراتٍ في الثانية،
+  /// وكانت كلُّ مرّةٍ تعيد بناءَ السورة كلِّها لتغيّر كلمةً واحدة تحتها. فالآن
+  /// لا يُعاد إلا هذا السطر، وبإيقاعٍ ثابت ([_heardEvery]) لا مع كل جزء.
+  final ValueNotifier<String?> _lastHeard = ValueNotifier<String?>(null);
+  String? _heardPending;
+  Timer? _heardTimer;
+
+  /// أقصى إيقاعٍ لتحديث الكلمة المسموعة: ثماني مرّاتٍ في الثانية — تبدو فوريّة.
+  static const _heardEvery = Duration(milliseconds: 120);
+
+  void _showHeard(String? word) {
+    _heardPending = word;
+    if (_heardTimer != null) return;
+    _lastHeard.value = word;
+    _heardTimer = Timer(_heardEvery, () {
+      _heardTimer = null;
+      if (mounted && _heardPending != _lastHeard.value) _showHeard(_heardPending);
+    });
+  }
 
   /// رقمُ الاستماع الجاري: ما يصل من استماعٍ سابقٍ لا يُحسب.
   int _session = 0;
@@ -130,6 +148,10 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
 
   @visibleForTesting
   bool get done => _done;
+
+  /// للاختبار: الكلمةُ المسموعة المعروضة الآن.
+  @visibleForTesting
+  String? get heardWord => _lastHeard.value;
 
   @visibleForTesting
   bool get listening => _listening;
@@ -160,6 +182,8 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     if (_listening) unawaited(_stop());
     _jobs.clear();
     unawaited(_worker.then((worker) => worker.dispose()));
+    _heardTimer?.cancel();
+    _lastHeard.dispose();
     _pulse.dispose();
     _shine.dispose();
     super.dispose();
@@ -188,7 +212,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     _jobs.clear();
     _tracker = surah == null ? null : RecitationTracker(surah);
     _heard = '';
-    _lastHeard = null;
+    _showHeard(null);
     _done = false;
     _message = null;
     _gems = null;
@@ -246,6 +270,8 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     final session = ++_session;
     _enqueue(const StartSession());
     _heard = '';
+    // استماعٌ جديد: لا تبقى تحت النصّ كلمةٌ من الاستماع السابق.
+    _showHeard(null);
     final listen = widget.listen ?? StudentVoiceService.instance.listenLive;
     final started = await listen(onWords: (words) => _onWords(session, words), onEnd: () => _onEnd(session));
     if (!mounted || session != _session) return;
@@ -267,11 +293,10 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     final tracker = _tracker;
     if (!mounted || session != _session || _done || _helping || tracker == null) return;
     _heard = heard;
-    // الكلمةُ المسموعة تظهر في لحظتها؛ وتقييمُها في الخيط الجانبيّ.
-    setState(() {
-      final words = heard.trim().split(RegExp(r'\s+'));
-      _lastHeard = heard.trim().isEmpty ? null : words.last;
-    });
+    // لا إعادةَ بناءٍ للشاشة هنا: الكلمةُ المسموعة في سطرها، وتقييمُها في الخيط
+    // الجانبيّ — والسورةُ تُرسم من جديد حين يتغيّر لونُ كلمةٍ فقط ([_drain]).
+    final trimmed = heard.trim();
+    _showHeard(trimmed.isEmpty ? null : trimmed.substring(trimmed.lastIndexOf(' ') + 1));
     _enqueue(Heard(heard));
   }
 
@@ -292,6 +317,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
         }
         final job = _jobs.take();
         final unitBefore = tracker.currentUnit;
+        final seen = tracker.signature;
         final RecitationTracker next;
         switch (job) {
           case StartSession():
@@ -302,7 +328,13 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
         }
         // أُغلقت السورةُ أو أُعيدت في أثناء التقييم: النتيجةُ لسورةٍ لم تعد.
         if (!mounted || _tracker != tracker) continue;
-        setState(() => _tracker = next);
+        // لونٌ تغيّر أو خطوةٌ تقدّمت: يُعاد الرسم. وإلا فلا — أكثرُ النصوص
+        // الجزئية لا تغيّر شيئاً ممّا يُرى.
+        if (next.signature != seen) {
+          setState(() => _tracker = next);
+        } else {
+          _tracker = next;
+        }
         // آيةٌ (أو استعاذةٌ أو بسملة) صحّت كلُّها: نغمةُ نجاحٍ في لحظتها.
         if (next.currentUnit > unitBefore && !next.complete) {
           StudentSoundService.instance.playInstantSuccess();
@@ -591,12 +623,19 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
                   border: Border.all(color: emerald.withValues(alpha: 0.35), width: 2),
                   boxShadow: [BoxShadow(color: emerald.withValues(alpha: 0.12), blurRadius: 14, offset: const Offset(0, 5))],
                 ),
-                child: _units(context, tracker),
+                // ‏تُرسم وحدها: نبضُ زرّ المايك وسطرُ الكلمة المسموعة لا يعيدان رسمها.
+                child: RepaintBoundary(child: _units(context, tracker)),
               ),
-              if (_wantListening && _lastHeard != null && !_done) ...[
-                const SizedBox(height: 10),
-                Center(child: _heardChip(_lastHeard!)),
-              ],
+              if (_wantListening && !_done)
+                ValueListenableBuilder<String?>(
+                  valueListenable: _lastHeard,
+                  builder: (context, word, _) => word == null
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Center(child: _heardChip(word)),
+                        ),
+                ),
             ],
           ),
         ),
@@ -629,16 +668,18 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
   /// الخطواتُ بترتيبها: ما قُرئ أخضر، والجاريةُ مظلّلة وبجانبها زرُّ
   /// «استمع» إن كان فيها أحمر، وما بعدها باهتٌ حتى يُبلغ.
   Widget _units(BuildContext context, RecitationTracker tracker) {
-    final unitOf = tracker.unitOf;
     final current = tracker.currentUnit;
+    final cursor = tracker.cursor;
+    final blocked = tracker.blocked;
     final children = <Widget>[];
+    var k = 0;
     for (var u = 0; u < tracker.units.length; u++) {
       final unit = tracker.units[u];
       final isCurrent = u == current && !_done;
-      final words = [
-        for (var k = 0; k < unitOf.length; k++)
-          if (unitOf[k] == u) _word(context, tracker, k, isCurrent: isCurrent),
-      ];
+      final words = <Widget>[];
+      for (; k < tracker.wordCount && tracker.unitAt(k) == u; k++) {
+        words.add(_word(context, tracker, k, isCurrent: isCurrent, cursor: cursor));
+      }
       children.add(AnimatedOpacity(
         key: ValueKey('quran-unit-$u'),
         duration: const Duration(milliseconds: 220),
@@ -648,7 +689,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
           padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
           decoration: BoxDecoration(
             color: isCurrent
-                ? gold.withValues(alpha: tracker.blocked ? 0.2 : 0.12)
+                ? gold.withValues(alpha: blocked ? 0.2 : 0.12)
                 : (unit.kind == RecitationUnitKind.verse ? null : emerald.withValues(alpha: 0.06)),
             borderRadius: BorderRadius.circular(16),
             border: isCurrent ? Border.all(color: gold.withValues(alpha: 0.6), width: 2) : null,
@@ -677,7 +718,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
                       '﴿${_arabicDigits(unit.number!)}﴾',
                       style: const TextStyle(fontSize: 20, height: 2.1, fontWeight: FontWeight.w800, color: gold),
                     ),
-                  if (isCurrent && tracker.blocked) _helpButton(unit),
+                  if (isCurrent && blocked) _helpButton(unit),
                 ],
               ),
             ],
@@ -817,17 +858,10 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     );
   }
 
-  Widget _word(BuildContext context, RecitationTracker tracker, int k, {required bool isCurrent}) {
-    final state = tracker.status[k];
-    // الكلمةُ التي ينتظرها الآن: أوّلُ ما لم يخضرّ في الخطوة الجارية.
-    final unitOf = tracker.unitOf;
-    var cursor = -1;
-    for (var j = 0; j < unitOf.length; j++) {
-      if (unitOf[j] == tracker.currentUnit && tracker.status[j] != RecitedWord.correct) {
-        cursor = j;
-        break;
-      }
-    }
+  /// [cursor]: الكلمةُ التي ينتظرها الآن ([RecitationTracker.cursor]) — تُحسب
+  /// مرّةً للسورة كلّها لا لكل كلمة.
+  Widget _word(BuildContext context, RecitationTracker tracker, int k, {required bool isCurrent, required int cursor}) {
+    final state = tracker.statusAt(k);
     final next = isCurrent && k == cursor && state == RecitedWord.pending;
     final line = switch (state) {
       RecitedWord.correct => green,
@@ -849,7 +883,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
             : (next ? gold.withValues(alpha: 0.14) : null),
       ),
       child: Text(
-        tracker.words[k],
+        tracker.wordAt(k),
         style: TextStyle(fontSize: 27, height: 1.9, fontWeight: FontWeight.w800, color: ink),
       ),
     );

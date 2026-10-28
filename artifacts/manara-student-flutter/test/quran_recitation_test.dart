@@ -250,6 +250,57 @@ void main() {
   });
 
   group('واجهةُ التسميع', () {
+    testWidgets('النصُّ المباشر لا يعيد بناءَ السورة، والخطُّ الأحمر في الإطار التالي', (tester) async {
+      ValueChanged<String>? heard;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: QuranRecitationGame(
+            onRecited: (_) async => null,
+            onBack: () {},
+            playName: (_) {},
+            listen: ({required onWords, required onEnd}) async {
+              heard = onWords;
+              return true;
+            },
+            stopListening: () async {},
+          ),
+        ),
+      ));
+      await tester.tap(find.byKey(const ValueKey('quran-surah-kawthar')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('quran-mic')));
+      await tester.pump();
+
+      final opening = spokenWords(istiadha.split(' '));
+      heard!(opening.join(' '));
+      await tester.pump();
+      final before = tester.widget(find.byKey(const ValueKey('quran-word-0')));
+
+      // المحرّكُ يعيد النصَّ نفسَه، ثم دفعةٌ من الأجزاء في إطارٍ واحد: لا لونَ
+      // تغيّر، فلا تُعاد السورة — والكلمةُ المسموعة تلحق بآخرها بإيقاعها.
+      heard!(opening.join(' '));
+      await tester.pump();
+      expect(identical(tester.widget(find.byKey(const ValueKey('quran-word-0'))), before), isTrue,
+          reason: 'نصٌّ جزئيٌّ لم يغيّر لوناً لا يعيد بناءَ السورة');
+      for (final partial in ['ب', 'بس', 'بسم']) {
+        heard!('${opening.join(' ')} $partial');
+      }
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(tester.state<QuranRecitationGameState>(find.byType(QuranRecitationGame)).heardWord, 'بسم',
+          reason: 'الكلمةُ المسموعة آخرُ ما قيل');
+
+      // خطأٌ في البسملة: أحمرُ في الإطار التالي مباشرةً.
+      final basmalaStart = opening.length;
+      heard!('${opening.join(' ')} بسم الله الرحيم');
+      await tester.pump();
+      final state = tester.state<QuranRecitationGameState>(find.byType(QuranRecitationGame));
+      expect(state.tracker!.statusAt(basmalaStart + 2), wrong);
+      final word = tester.widget<Container>(find.byKey(ValueKey('quran-word-${basmalaStart + 2}')));
+      expect(((word.decoration! as BoxDecoration).border! as Border).bottom.color, QuranRecitationGameState.red);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
     testWidgets('السورُ الثماني في القائمة، واسمُ السورة يُسمع لحظةَ اختيارها', (tester) async {
       final played = <String>[];
       await tester.pumpWidget(MaterialApp(
