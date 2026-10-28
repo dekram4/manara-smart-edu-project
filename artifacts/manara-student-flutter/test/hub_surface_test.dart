@@ -51,19 +51,20 @@ void main() {
   }
 
   /// لونُ خلفية كلّ مربّعِ بطاقة في الشريط.
-  List<Color?> tileColors(WidgetTester tester) {
+  List<BoxDecoration> tileDecorations(WidgetTester tester) {
     final surfaces = find.byKey(const ValueKey('portal-card-surface'));
     expect(surfaces, findsWidgets);
     return [
       for (final e in surfaces.evaluate())
-        ((e.widget as Container).decoration! as BoxDecoration).color,
+        (e.widget as Container).decoration! as BoxDecoration,
     ];
   }
 
   testWidgets('light mode: solid white cards, no tower glow', (tester) async {
     await pumpHub(tester, Brightness.light);
-    for (final color in tileColors(tester)) {
-      expect(color, Colors.white);
+    for (final d in tileDecorations(tester)) {
+      expect(d.color, Colors.white);
+      expect(d.gradient, isNull);
     }
     expect(find.byKey(const ValueKey('tower-glow')), findsNothing);
     await tester.pumpWidget(const SizedBox());
@@ -71,10 +72,26 @@ void main() {
 
   testWidgets('dark mode: glass cards and a glow on the tower', (tester) async {
     await pumpHub(tester, Brightness.dark);
-    for (final color in tileColors(tester)) {
-      expect(color!.a, lessThan(1.0));
+    for (final d in tileDecorations(tester)) {
+      // زجاجٌ يدفأ من أعلى بضوء المنارة.
+      final colors = (d.gradient! as LinearGradient).colors;
+      expect(colors.last.a, lessThan(1.0));
+      expect(colors.first.r, greaterThan(colors.last.r));
     }
     expect(find.byKey(const ValueKey('tower-glow')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the tower starts below the welcome header', (tester) async {
+    await pumpHub(tester, Brightness.dark);
+    final art =
+        find.byWidgetPredicate((w) => w.runtimeType.toString() == 'LivingArt');
+    expect(art, findsOneWidget);
+    final welcome = find
+        .byWidgetPredicate((w) => w.runtimeType.toString() == '_WelcomeCard');
+    final artTop = tester.getTopLeft(art).dy;
+    final headerBottom = tester.getBottomLeft(welcome).dy;
+    expect(artTop, greaterThanOrEqualTo(headerBottom));
     await tester.pumpWidget(const SizedBox());
   });
 }
