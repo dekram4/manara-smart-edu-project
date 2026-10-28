@@ -17,8 +17,6 @@ import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
-import '../services/quran_recitation.dart';
-import '../services/tracing_scope.dart';
 import '../services/study_rotation.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
@@ -297,27 +295,6 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
   /// ── المكافأةُ يقرّرها الخادم ──
   /// المعرّفُ `درس::لعبة`، والخادمُ يقرأ جواهرَها ونقاطَها من سجلّ الدرس
   /// ويصرفها مرّةً لكل لعبة — فالإعادةُ للمتعة لا لجمع الجواهر.
-  /// جوهرةُ حرفٍ في «تتبّع واكتب»: الخادمُ يصرفها مرّةً لكل حرفٍ في الدرس.
-  Future<RewardResult?> _rewardTraced(StudyGame game, TracingItem item) =>
-      widget.contentService.rewardActivity(
-        profile: widget.profile,
-        activityType: 'study_game',
-        activityId: '$_lessonId::${game.id}',
-        tracingItem: item.text,
-      );
-
-  /// سورةٌ سُمِّعت كاملةً صحيحة: الخادمُ يصرف مكافأتها مرّةً لكل سورةٍ في الدرس.
-  Future<RewardResult?> _rewardRecited(QuranSurah surah) async {
-    final result = await widget.contentService.rewardActivity(
-      profile: widget.profile,
-      activityType: 'study_game',
-      activityId: '$_lessonId::quran',
-      quranSurah: surah.id,
-    );
-    if (result.gems > 0 && mounted) _confetti.play();
-    return result;
-  }
-
   Future<RewardResult?> _rewardGame(StudyGame game) async {
     final result = await widget.contentService.rewardActivity(
       profile: widget.profile,
@@ -462,7 +439,6 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
           load: _takeGames,
           cached: () => StudentStudyService.cachedGames(lessonId: _lessonId),
           onWin: _rewardGame,
-          onTraced: _rewardTraced,
           // ‏إعادةُ اللعب نسخةٌ جديدة من النصّ الكامل للدرس، لا تكرّر ما رآه.
           fresh: (base, exclude) => widget.studyService.fetchFreshGame(
             lessonId: _lessonId,
@@ -470,19 +446,9 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
             exclude: exclude,
           ),
           seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
-          // ‏«تتبّع واكتب» لروضة منارة المعرفة في موادّها الأربع وحدها.
-          allowTracing: tracingAllowedFor(
-            grade: widget.academicContext?.grade,
-            subject: widget.academicContext?.subject,
-          ),
-          // ‏«تسميع القرآن الكريم» لدرس «حفظ وشرح السور القصيرة» في الروضة وحده.
-          onRecited: quranRecitationAllowedFor(
-            grade: widget.academicContext?.grade,
-            subject: widget.academicContext?.subject,
-            lesson: widget.academicContext?.lesson,
-          )
-              ? _rewardRecited
-              : null,
+          // ‏«تتبّع واكتب» و«تسميع القرآن» خرجتا إلى بطاقتين في الواجهة
+          // ‏(«قلمي السحري» و«أبطال تسميع القرآن»): لا تتكرّران هنا.
+          allowTracing: false,
         ),
       ],
     );
