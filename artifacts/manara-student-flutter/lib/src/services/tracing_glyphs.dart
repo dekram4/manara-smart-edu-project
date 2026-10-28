@@ -5,9 +5,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart' show StringCharacters;
 
 import '../models/study_games.dart';
 import 'tracing_glyph_data.g.dart';
+import 'tracing_routes.dart';
 import 'tracing_path.dart';
 
 /// خطُّ التتبّع المضمَّن في التطبيق (`assets/fonts/Tajawal-Bold.ttf`).
@@ -161,15 +163,13 @@ class _PlanResult {
   final TracePlan plan;
 }
 
-/// من البكسلات إلى المسار: الحبرُ، ثم القصُّ حوله، ثم [TracePlanner].
-_PlanResult? _planFromPixels(_PlanRequest request) {
-  final width = request.width;
-  final height = request.height;
+/// الحبرُ مقصوصاً حوله بهامش ٣ بكسلات: الإطارُ الذي تُقاس فيه المسارات.
+({Rect crop, List<List<bool>> ink})? _inkCrop(Uint8List alpha, int width, int height) {
   var minX = width, minY = height, maxX = -1, maxY = -1;
   final ink = List.generate(height, (_) => List<bool>.filled(width, false));
   for (var y = 0; y < height; y++) {
     for (var x = 0; x < width; x++) {
-      if (request.alpha[(y * width + x) * 4 + 3] > 110) {
+      if (alpha[(y * width + x) * 4 + 3] > 110) {
         ink[y][x] = true;
         if (x < minX) minX = x;
         if (y < minY) minY = y;
@@ -184,15 +184,86 @@ _PlanResult? _planFromPixels(_PlanRequest request) {
   final top = math.max(0, minY - margin);
   final right = math.min(width - 1, maxX + margin);
   final bottom = math.min(height - 1, maxY + margin);
-  final cropped = [
-    for (var y = top; y <= bottom; y++) ink[y].sublist(left, right + 1),
-  ];
-  final plan = TracePlanner.plan(cropped, rtl: request.rtl, topFirst: request.topFirst);
-  if (plan.isEmpty) return null;
-  return _PlanResult(
-    Rect.fromLTRB(left.toDouble(), top.toDouble(), right + 1.0, bottom + 1.0),
-    plan,
+  return (
+    crop: Rect.fromLTRB(left.toDouble(), top.toDouble(), right + 1.0, bottom + 1.0),
+    ink: [for (var y = top; y <= bottom; y++) ink[y].sublist(left, right + 1)],
   );
+}
+
+/// من البكسلات إلى المسار: الحبرُ، ثم القصُّ حوله، ثم [TracePlanner].
+_PlanResult? _planFromPixels(_PlanRequest request) {
+  final cut = _inkCrop(request.alpha, request.width, request.height);
+  if (cut == null) return null;
+  final plan = TracePlanner.plan(cut.ink, rtl: request.rtl, topFirst: request.topFirst);
+  if (plan.isEmpty) return null;
+  return _PlanResult(cut.crop, plan);
+}
+
+/// يرسم [item] ويبني مساراته من الطرق المرسومة باليد ([tracingRoutes]) — لتوليد
+/// الجدول. الأعدادُ من أكثر من رقمٍ تُركَّب من طرق أرقامها، كلُّ رقمٍ في
+/// موضعه من العدد وبترتيب كتابته من اليسار. و`null` لعنصرٍ لا طريقَ له.
+Future<TracingShape?> routedTracingShape(TracingItem item) async {
+  final painter = tracingTextPainter(item);
+  final width = (painter.width + tracingPad * 2).ceil();
+  final height = (painter.height + tracingPad * 2).ceil();
+  final recorder = ui.PictureRecorder();
+  painter.paint(ui.Canvas(recorder), const Offset(tracingPad, tracingPad));
+  final image = await recorder.endRecording().toImage(width, height);
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  image.dispose();
+  if (bytes == null) return null;
+  final alpha = bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes);
+  final cut = _inkCrop(alpha, width, height);
+  if (cut == null) return null;
+  final crop = cut.crop;
+
+  final own = tracingRoutes[tracingGlyphKey(item)];
+  final List<List<TracePoint>> routes;
+  if (own != null) {
+    routes = own;
+  } else if (item.kind == 'number' && item.text.length > 1) {
+    routes = [];
+    final chars = item.text.characters.toList();
+    var offset = 0;
+    for (final char in chars) {
+      final digit = tracingRoutes['number|${item.lang}|$char'];
+      if (digit == null) return null;
+      // موضعُ الرقم في العدد: صندوقُه في النصّ، ثم حبرُه داخل ذلك الصندوق.
+      final box = painter
+          .getBoxesForSelection(TextSelection(baseOffset: offset, extentOffset: offset + char.length))
+          .first;
+      offset += char.length;
+      final from = (box.left + tracingPad).floor();
+      final to = (box.right + tracingPad).ceil();
+      var minX = width, minY = height, maxX = -1, maxY = -1;
+      for (var y = 0; y < height; y++) {
+        for (var x = math.max(0, from); x < math.min(width, to); x++) {
+          if (alpha[(y * width + x) * 4 + 3] > 110) {
+            minX = math.min(minX, x);
+            maxX = math.max(maxX, x);
+            minY = math.min(minY, y);
+            maxY = math.max(maxY, y);
+          }
+        }
+      }
+      if (maxX < 0) return null;
+      final digitCrop = Rect.fromLTRB(minX - 3.0, minY - 3.0, maxX + 4.0, maxY + 4.0);
+      for (final stroke in digit) {
+        routes.add([
+          for (final p in stroke)
+            TracePoint(
+              (digitCrop.left + p.x * digitCrop.width - crop.left) / crop.width,
+              (digitCrop.top + p.y * digitCrop.height - crop.top) / crop.height,
+            ),
+        ]);
+      }
+    }
+  } else {
+    return null;
+  }
+  final plan = TracePlanner.route(cut.ink, routes);
+  if (plan.isEmpty) return null;
+  return TracingShape(crop: crop, plan: plan);
 }
 
 /// حروفُ الروضة وأرقامُها كما يرسلها الخادم (`alphabetItems` في `lib/tracing.ts`)

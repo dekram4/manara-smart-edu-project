@@ -163,23 +163,87 @@ String normalizeQuranWord(String word) => word
     .replaceAll('ء', '')
     .replaceAll(RegExp(r'[^ء-ي\s]'), '');
 
+/// حروفُ المدّ: فرقٌ فيها فرقٌ في الحركة — مدٌّ زائدٌ أو ناقص («مالك» و«ملك»).
+const _vowelLetters = 'اوي';
+
+/// كلفةُ ما لا يُتساهل فيه: أكبرُ من أيّ تساهلٍ مسموح.
+const _harakatError = 100;
+
+/// مسافةُ تحريرٍ تُغتفر فيها الحروفُ الساكنة وحدها.
+///
+/// محرّكُ التعرّف يخطئ في حرفٍ ساكنٍ يقرؤه الطفل صحيحاً («المستقين»)، فيُغتفر.
+/// أمّا حرفُ مدٍّ زائدٌ أو ناقص أو مبدَل، ونونٌ زائدةٌ أو ناقصةٌ في آخر الكلمة
+/// (التنوين)، فهي ما يكتبه المحرّكُ حين تُخطأ الحركة — فلا تُغتفر.
 int _edit(String a, String b) {
-  var previous = List<int>.generate(b.length + 1, (j) => j);
+  int weight(String c, {bool last = false}) =>
+      _vowelLetters.contains(c) || (last && c == 'ن') ? _harakatError : 1;
+  var previous = List<int>.filled(b.length + 1, 0);
+  for (var j = 1; j <= b.length; j++) {
+    previous[j] = previous[j - 1] + weight(b[j - 1], last: j == b.length);
+  }
   for (var i = 1; i <= a.length; i++) {
-    final row = List<int>.filled(b.length + 1, 0)..[0] = i;
+    final row = List<int>.filled(b.length + 1, 0)
+      ..[0] = previous[0] + weight(a[i - 1], last: i == a.length);
     for (var j = 1; j <= b.length; j++) {
-      final cost = a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
-      row[j] = [previous[j] + 1, row[j - 1] + 1, previous[j - 1] + cost].reduce((x, y) => x < y ? x : y);
+      final same = a[i - 1] == b[j - 1];
+      final swap = same
+          ? 0
+          : (_vowelLetters.contains(a[i - 1]) || _vowelLetters.contains(b[j - 1]) ? _harakatError : 1);
+      row[j] = [
+        previous[j] + weight(a[i - 1], last: i == a.length),
+        row[j - 1] + weight(b[j - 1], last: j == b.length),
+        previous[j - 1] + swap,
+      ].reduce((x, y) => x < y ? x : y);
     }
     previous = row;
   }
   return previous[b.length];
 }
 
-/// هل [heard] هي [expected]؟ تساهلٌ بحرفٍ في الكلمة المتوسّطة وحرفين في
+// الحركاتُ الثماني: الفتحة والضمة والكسرة وتنوينُها، والشدّة والسكون.
+final _harakat = RegExp('[ً-ْ]');
+
+/// الحرفُ وحركاتُه كما كُتبت، بعد توحيد الحرف كما في [normalizeQuranWord].
+List<(String, String)> _voweled(String word) {
+  final out = <(String, String)>[];
+  for (final rune in word.replaceAll('ـ', '').runes) {
+    final c = String.fromCharCode(rune);
+    if (_harakat.hasMatch(c)) {
+      if (out.isNotEmpty) out[out.length - 1] = (out.last.$1, out.last.$2 + c);
+      continue;
+    }
+    final letter = normalizeQuranWord(c);
+    if (letter.isNotEmpty) out.add((letter, ''));
+  }
+  return out;
+}
+
+/// حركاتُ ما سُمع تخالف حركاتِ الآية؟ لا يُحكم إلا حيث كتب المحرّكُ حركةً:
+/// أكثرُ المحرّكات تكتب بلا تشكيل، وغيابُ الحركة ليس خطأً فيها.
+bool _harakatDiffer(String heard, String expected) {
+  final a = _voweled(heard);
+  if (a.every((entry) => entry.$2.isEmpty)) return false;
+  final b = _voweled(expected);
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i].$1 != b[i].$1) return false;
+    final said = a[i].$2.split('')..sort();
+    final want = b[i].$2.split('')..sort();
+    if (said.isNotEmpty && said.join() != want.join()) return true;
+  }
+  return false;
+}
+
+/// هل [heard] هي [expected]؟ تساهلٌ بحرفٍ ساكنٍ في الكلمة المتوسّطة وحرفين في
 /// الطويلة — محرّكُ التعرّف يخطئ في حرفٍ ما يقرؤه الطفل صحيحاً — ولا تساهلَ
 /// في كلمةٍ من ثلاثة أحرفٍ فأقلّ («لم» ليست «لن»، و«أحد» ليست «واحد»).
+///
+/// ── والحركاتُ ──
+/// لا تساهلَ فيها أبداً: حركةٌ كتبها المحرّكُ تخالف حركةَ الآية خطأ، وحرفُ
+/// مدٍّ أو تنوينٌ زائدٌ أو ناقص خطأ ([_edit]) — فيظهر الخطُّ الأحمر ويُعيد
+/// الطفلُ القراءة.
 bool quranWordMatches(String heard, String expected) {
+  if (_harakatDiffer(heard, expected)) return false;
   final a = normalizeQuranWord(heard);
   final b = normalizeQuranWord(expected);
   if (a == b) return true;
@@ -196,15 +260,16 @@ bool quranWordMatches(String heard, String expected) {
 
 enum RecitedWord { pending, correct, wrong }
 
-/// كلماتُ ما سُمع. وحرفُ عطفٍ أو جرٍّ كتبه المحرّكُ وحده («و لم») يُلصق
+/// كلماتُ ما سُمع كما كتبها المحرّك — بحركاتها إن كتبها، فتُحاسَب عليها
+/// ([quranWordMatches]). وحرفُ عطفٍ أو جرٍّ كتبه المحرّكُ وحده («و لم») يُلصق
 /// بما بعده كما في المصحف («ولم»).
 List<String> _heardWords(String heard) {
   final out = <String>[];
   String? clitic;
-  for (final w in heard.split(RegExp(r'\s+'))) {
-    final word = normalizeQuranWord(w);
-    if (word.isEmpty) continue;
-    if (word.length == 1 && 'وفبلك'.contains(word)) {
+  for (final word in heard.split(RegExp(r'\s+'))) {
+    final bare = normalizeQuranWord(word);
+    if (bare.isEmpty) continue;
+    if (bare.length == 1 && 'وفبلك'.contains(bare)) {
       clitic = (clitic ?? '') + word;
       continue;
     }

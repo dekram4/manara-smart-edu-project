@@ -208,6 +208,126 @@ class TracePlanner {
     );
   }
 
+  /// مسارٌ مرسومٌ باليد لحرفٍ أو رقم: جرّاتٌ بترتيب الكتابة كما في المنهج،
+  /// كلٌّ منها نقاطُ عبورٍ ([TracePoint] من 0 إلى 1 في إطار [ink]).
+  ///
+  /// ── لماذا ──
+  /// [plan] يستنتج الترتيبَ والاتجاه من الشكل، وهذا يصيب أغلب الحروف لا
+  /// كلَّها: السينُ تُكتب أسنانُها متّصلةً من اليمين، والصادُ حلقتُها أوّلاً،
+  /// والـ B ساقُها ثم بطناها. والعُرفُ يُعلَّم ولا يُستنتج — فيُكتب هنا.
+  ///
+  /// ── والنقاطُ على الحبر دائماً ──
+  /// كلُّ نقطة عبورٍ تُلصق بأقرب بكسلٍ من هيكل الخطّ، وبين كلّ نقطتين أقصرُ
+  /// طريقٍ على الهيكل نفسه. فالنقاطُ اليدويّة تقول «من أين وإلى أين وبأيّ
+  /// ترتيب»، والخطُّ يقول «من أيّ طريق». وجرّةٌ من نقطةٍ واحدة نُقطةُ حرف:
+  /// تُلمس في وسط حبرها.
+  static TracePlan route(
+    List<List<bool>> ink,
+    List<List<TracePoint>> strokes, {
+    double spacing = 0.13,
+  }) {
+    final height = ink.length;
+    final width = height == 0 ? 0 : ink.first.length;
+    final grid = _Grid(width, height);
+    var inkCount = 0;
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        if (ink[y][x]) {
+          grid.set(x, y, true);
+          inkCount++;
+        }
+      }
+    }
+    if (inkCount == 0) {
+      return TracePlan(strokes: const [], width: width, height: height, inkWidth: 0);
+    }
+    final shapeHeight = math.max(grid.bounds().height, 1);
+    final skeleton = _thin(grid.copy());
+    _removeStaircase(skeleton);
+    final skeletonCount = skeleton.count();
+    final inkWidth = skeletonCount == 0 ? 0.0 : inkCount / skeletonCount / shapeHeight;
+    _pruneSpurs(skeleton, (shapeHeight * 0.08).round().clamp(2, 12));
+    final bones = <_P>[];
+    skeleton.forEachSet(bones.add);
+    final components = _components(grid);
+    final step = math.max(2.0, shapeHeight * spacing);
+
+    _P nearest(Iterable<_P> pool, TracePoint w) {
+      final tx = w.x * width, ty = w.y * height;
+      return pool.reduce((a, b) =>
+          math.pow(a.x - tx, 2) + math.pow(a.y - ty, 2) <= math.pow(b.x - tx, 2) + math.pow(b.y - ty, 2)
+              ? a
+              : b);
+    }
+
+    List<_P> between(_P from, _P to) {
+      if (from == to) return [from];
+      final previous = <int, _P>{from.key(width): from};
+      final queue = <_P>[from];
+      for (var head = 0; head < queue.length; head++) {
+        final current = queue[head];
+        if (current == to) break;
+        for (final n in skeleton.neighbours(current)) {
+          if (previous.containsKey(n.key(width))) continue;
+          previous[n.key(width)] = current;
+          queue.add(n);
+        }
+      }
+      if (!previous.containsKey(to.key(width))) {
+        throw StateError('no skeleton path from $from to $to');
+      }
+      final path = <_P>[to];
+      var at = to;
+      while (at != from) {
+        at = previous[at.key(width)]!;
+        path.add(at);
+      }
+      return path.reversed.toList();
+    }
+
+    final out = <TraceStroke>[];
+    for (final waypoints in strokes) {
+      if (waypoints.length == 1) {
+        // نُقطةُ الحرف: وسطُ القطعة التي تقع عليها.
+        final hit = nearest(components.expand((c) => c), waypoints.first);
+        final component = components.firstWhere((c) => c.contains(hit));
+        final cx = component.map((p) => p.x).reduce((a, b) => a + b) / component.length;
+        final cy = component.map((p) => p.y).reduce((a, b) => a + b) / component.length;
+        out.add(TraceStroke([TracePoint(cx / width, cy / height)]));
+        continue;
+      }
+      final snapped = [for (final w in waypoints) nearest(bones, w)];
+      final path = <_P>[snapped.first];
+      for (var i = 1; i < snapped.length; i++) {
+        path.addAll(between(snapped[i - 1], snapped[i]).skip(1));
+      }
+      out.add(TraceStroke([
+        for (final p in _resample(path, step)) TracePoint(p.x / width, p.y / height),
+      ]));
+    }
+    return TracePlan(strokes: out, width: width, height: height, inkWidth: inkWidth);
+  }
+
+  /// هيكلُ الخطّ كما يمشي عليه [route] — لأداة التدقيق البصريّ وحدها.
+  static List<TracePoint> skeletonOf(List<List<bool>> ink) {
+    final height = ink.length;
+    final width = height == 0 ? 0 : ink.first.length;
+    final grid = _Grid(width, height);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        if (ink[y][x]) grid.set(x, y, true);
+      }
+    }
+    if (grid.count() == 0) return const [];
+    final shapeHeight = math.max(grid.bounds().height, 1);
+    final skeleton = _thin(grid);
+    _removeStaircase(skeleton);
+    _pruneSpurs(skeleton, (shapeHeight * 0.08).round().clamp(2, 12));
+    final out = <TracePoint>[];
+    skeleton.forEachSet((p) => out.add(TracePoint(p.x / width, p.y / height)));
+    return out;
+  }
+
   // ── المكوّنات المتّصلة ──────────────────────────────────────────────
 
   static List<List<_P>> _components(_Grid grid) {
