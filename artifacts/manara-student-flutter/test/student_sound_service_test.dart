@@ -27,6 +27,12 @@ void main() {
     final sound = StudentSoundService.instance;
     sound.enterCard();
     expect(sound.insideCard, isTrue);
+    // التشجيعُ الفوريّ وخلفه التصفيقُ الهادئ: العبارةُ والتصفيقُ معاً، والتصفيقُ أخفض.
+    final layers = StudentSoundService.cheerLayers(StudentSoundService.encouragementClips.first);
+    expect(layers.map((l) => l.$1), contains(StudentSoundService.clapping));
+    expect(layers.last.$2, lessThan(layers.first.$2));
+    sound.playCheer();
+    // والحصيلةُ وصوتُ الجواهر للواجهة وحدها.
     expect(sound.playCelebration(gems: true), isFalse);
     sound.leaveCard();
     expect(sound.insideCard, isFalse);
