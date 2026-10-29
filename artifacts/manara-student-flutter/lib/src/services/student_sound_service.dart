@@ -557,12 +557,45 @@ class StudentSoundService with WidgetsBindingObserver {
   Future<void> stopPathVoice() async {
     final clip = _voiceClip;
     // الاسمان معاً: المقطع المورَّد والقديم. ولولا ذلك لبقي `masar.mp3`
-    // يتكلّم فوق ترحيب المحور بعد مغادرة الشاشة.
+    // يتكلّم فوق ترحيب المحور بعد مغادرة الشاشة. ومعهما توجيهُ الخطوات.
     if (clip == null ||
-        !(clip.startsWith('audio/voice/path_') || clip == _pathOverride)) {
+        !(clip.startsWith('audio/voice/path_') ||
+            clip == _pathOverride ||
+            clip.startsWith(_pathPromptDir))) {
       return;
     }
     await stopSpeaking();
+  }
+
+  static const _pathPromptDir = 'audio/prompts/';
+
+  /// التوجيهُ الصوتيّ لخطوةٍ في خريطة المغامرة («اختر صفّك»...) — من
+  /// `assets/audio/prompts/`.
+  ///
+  /// [afterGreeting]: إن كان ترحيبُ الشاشة ما يزال يُقال انتظر نهايته — فلا
+  /// يقطع التوجيهُ الأوّلُ الترحيبَ في منتصفه. وتوجيهٌ يلي توجيهاً يقطعه: الطفلُ
+  /// انتقل إلى خطوةٍ أخرى، والمسموعُ يتبع ما يراه.
+  Future<void> speakPathPrompt(String asset, {bool afterGreeting = false}) async {
+    if (muted.value || _backgrounded) return;
+    final clip = _voiceClip ?? '';
+    final greeting = clip.startsWith('audio/voice/path_') || clip == _pathOverride;
+    if (afterGreeting && greeting && _voicePlayer.state == PlayerState.playing) {
+      try {
+        await _voicePlayer.onPlayerComplete.first.timeout(const Duration(seconds: 15));
+      } catch (_) {
+        // انتهت المهلة أو أُوقف المشغّل: يُقال التوجيهُ الآن.
+      }
+      // تقدّم الطفلُ إلى خطوةٍ أخرى في أثناء الترحيب: توجيهُها هو ما يُقال.
+      if (_voiceClip != clip) return;
+    }
+    if (muted.value || _backgrounded) return;
+    try {
+      await _voicePlayer.stop();
+      _voiceClip = asset;
+      await _voicePlayer.play(AssetSource(asset), volume: 1.0);
+    } catch (_) {
+      // بلا صوت: الصورُ الكبيرة تكفي الطفلَ ليختار.
+    }
   }
 
   /// الملفات الصوتية المورَّدة بأسمائها، لكل شاشةٍ وبطاقة.

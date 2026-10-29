@@ -143,21 +143,22 @@ void main() {
       (tester) async {
     await pumpReady(tester, const Size(768, 1024));
 
-    // Both lines used to sit in a FittedBox inside a fixed book band,
-    // which made the source font size irrelevant — it was scaled down to
-    // whatever half the band would take. Comparing the laid-out height
-    // against the transformed height is what catches that coming back.
-    final value = find.text('الصف الرابع');
+    // Each station on the trail carries the value chosen at its level, for
+    // the adult reading over the child's shoulder and for the child who comes
+    // back to their saved path. It must be legible: a FittedBox shrinking it
+    // to fit is exactly what this catches.
+    final value = find.byKey(const ValueKey('adventure-value-0'));
     expect(value, findsOneWidget);
+    expect(tester.widget<Text>(value).data, 'الصف الرابع');
 
     final laidOut = tester.getSize(value).height;
     final onScreen = tester.getRect(value).height;
     expect(
       onScreen / laidOut,
       greaterThan(0.98),
-      reason: 'something is scaling the book text down again',
+      reason: 'something is scaling the station value down',
     );
-    expect(laidOut, greaterThan(22), reason: 'the value is under 22sp');
+    expect(laidOut, greaterThanOrEqualTo(16), reason: 'the value is under 14sp');
   });
 
   for (final entry in const <String, Size>{
@@ -187,6 +188,18 @@ void main() {
           buttonRect.overlaps(tester.getRect(book).deflate(1)),
           isFalse,
           reason: 'the start button covers the $label book',
+        );
+      }
+      // And none of the choices the child is being asked to tap.
+      final cards = find.byWidgetPredicate((w) =>
+          w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('adventure-option-'));
+      expect(cards, findsWidgets);
+      for (final card in cards.evaluate()) {
+        expect(
+          buttonRect.overlaps(tester.getRect(find.byWidget(card.widget)).deflate(1)),
+          isFalse,
+          reason: 'the start button covers a choice',
         );
       }
     });

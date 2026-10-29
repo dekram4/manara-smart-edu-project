@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
@@ -15,7 +16,7 @@ import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
-import '../widgets/masar_path_board.dart';
+import '../widgets/adventure_route_map.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_mascot.dart';
@@ -404,6 +405,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       upload: _contentService.savePath,
     ));
     StudentSoundService.instance.playTap();
+    HapticFeedback.heavyImpact();
     // Silenced here, at the tap, rather than in dispose: by the time this
     // route is torn down the hub has begun its own welcome on the same player.
     unawaited(StudentSoundService.instance.stopPathVoice());
@@ -505,15 +507,17 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // The board: the artwork stretched to fill the screen,
-                    // with the six levels printed into the squares already
-                    // drawn on it and patches over the English signs.
+                    // خريطةُ المغامرة: المجرّةُ تملأ الشاشة، والدربُ وخياراتُ
+                    // الخطوة الجارية فوقها، وأسفلُها لزرّ «ابدأ المغامرة».
                     if (_ready)
                       Positioned.fromRect(
                         rect: imageRect,
-                        child: MasarPathBoard(
-                          stages: _journeyStations,
+                        child: AdventureRouteMap(
+                          steps: _journeySteps,
                           activeIndex: _journeyStage,
+                          onActivate: (index) => setState(() => _journeyStage = index),
+                          // ‏والزرُّ يتوهّج ويثب: فسحةٌ فوقه لا تلامسه فيها البطاقات.
+                          bottomInset: startBand + (_awaitingLessons ? 70 : 12),
                         ),
                       ),
                     if (!_ready)
@@ -649,63 +653,60 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
-  /// One control per book, in hierarchy order, each pinned onto that book's
-  /// page area via its measured slot.
-  ///
-  /// Six levels, six books, one each — grade, term, subject, chapter, unit,
-  /// lesson.
-  ///
-  /// The chapter used to share the red book with the unit, and only when
-  /// the teacher had configured more than one of them; with a single
-  /// chapter it was not shown at all. So a level the teacher had filled in
-  /// was invisible here, and even when it appeared it was half a book wide.
-  /// Freeing the navy book — the start button moved out from under the
-  /// stack to its own band below — gave every level a book of its own and
-  /// let the control read the same way at every level.
-  /// The five levels, in the order the cascade resolves them.
-  ///
-  /// Built fresh on each frame from the same fields the cascade writes, so
-  /// the map can hold no stale copy of the tree. Every `onSelected` is the
-  /// existing selector, untouched: the map changes how a level is picked,
-  /// never what picking one does.
-  List<MasarStage> get _journeyStations => [
-        MasarStage(
+  /// الخطواتُ الخمس بترتيب الشجرة، تُبنى من جديد في كل إطارٍ من الحقول نفسها
+  /// التي يكتبها الاختيار — فلا نسخةَ قديمة من الشجرة في الخريطة. وكلُّ
+  /// `onSelected` هو المختارُ القائم كما هو: الخريطةُ تغيّر كيف يُختار المستوى،
+  /// لا ما يفعله اختيارُه.
+  List<AdventureStep> get _journeySteps => [
+        AdventureStep(
           label: tr('path.grade'),
+          title: tr('route.pickGrade'),
+          prompt: RouteArt.selectGrade,
           icon: Icons.school_rounded,
           color: const Color(0xFF2FA8BE),
           value: _grade,
           options: _gradeOptions,
+          artFor: (_, index) => RouteArt.gate(index),
           onSelected: (value) {
             _selectGrade(value);
             _advanceJourney(0);
           },
         ),
-        MasarStage(
+        AdventureStep(
           label: tr('path.subject'),
+          title: tr('route.pickSubject'),
+          prompt: RouteArt.selectSubject,
           icon: Icons.menu_book_rounded,
           color: const Color(0xFFA974BE),
           value: _subject,
           options: _subjectOptions,
+          artFor: (subject, _) => RouteArt.subject(subject),
+          badgeFor: (subject, _) => RouteArt.initial(subject),
           onSelected: (value) {
             _selectSubject(value);
             _advanceJourney(1);
           },
         ),
-        MasarStage(
+        AdventureStep(
           label: tr('path.term'),
-          icon: Icons.bookmarks_rounded,
-          color: const Color(0xFFC0392B),
+          title: tr('route.pickTerm'),
+          prompt: RouteArt.selectTerm,
+          icon: Icons.wb_sunny_rounded,
+          color: const Color(0xFFF59E0B),
           value: _term,
           options: _termOptions,
+          artFor: (_, index) => RouteArt.term(index),
           onSelected: (value) {
             _selectTerm(value);
             _advanceJourney(2);
           },
         ),
-        MasarStage(
+        AdventureStep(
           label: tr('path.unit'),
+          title: tr('route.pickUnit'),
+          prompt: RouteArt.selectUnit,
           icon: Icons.category_rounded,
-          color: const Color(0xFF2E7D4F),
+          color: const Color(0xFF22C55E),
           value: _unit,
           options: _unitOptions,
           onSelected: (value) {
@@ -713,10 +714,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
             _advanceJourney(3);
           },
         ),
-        MasarStage(
+        AdventureStep(
           label: tr('path.lesson'),
+          title: tr('route.pickLesson'),
+          prompt: RouteArt.selectLesson,
           icon: Icons.play_lesson_rounded,
-          color: const Color(0xFF12406B),
+          color: const Color(0xFFEC4899),
           value: _lesson?.lessonName,
           options: _lessonOptions,
           onSelected: (value) {
@@ -741,7 +744,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   int _journeyStage = 0;
 
   void _advanceJourney(int from) {
-    final next = math.min(from + 1, _journeyStations.length - 1);
+    final next = math.min(from + 1, _journeySteps.length - 1);
     if (next == _journeyStage) return;
     setState(() => _journeyStage = next);
   }
@@ -933,8 +936,12 @@ class _GlowPulseState extends State<_GlowPulse> with SingleTickerProviderStateMi
       child: widget.child,
       builder: (context, child) {
         final t = Curves.easeInOut.transform(_clock.value);
-        return Transform.scale(
-          scale: 1 + 0.025 * t,
+        // نبضٌ ووثبةٌ صغيرة: الزرُّ يقفز ليدعو الطفلَ إليه.
+        final hop = Curves.easeOutBack.transform(_clock.value) * 4;
+        return Transform.translate(
+          offset: Offset(0, -hop),
+          child: Transform.scale(
+          scale: 1 + 0.05 * t,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
@@ -948,6 +955,7 @@ class _GlowPulseState extends State<_GlowPulse> with SingleTickerProviderStateMi
               ],
             ),
             child: child,
+          ),
           ),
         );
       },
