@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/widgets/quiz_games.dart';
 
-/// ألعابُ الاختبار: الاختيارُ الأوّل هو الإجابة، ويُبلَغ بعد أن يرى الطفلُ نتيجته.
+/// ألعابُ الأسئلة الأربع: الاختيارُ الأوّل هو الإجابة، ويُبلَغ بعد أن يرى
+/// الطفلُ نتيجته؛ ولمسةٌ ثانية لا تُحسب.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -14,121 +16,53 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  Future<void> pump(WidgetTester tester, Widget game) async {
+  void muteAudio(WidgetTester tester) {
     for (final channel in ['xyz.luan/audioplayers', 'xyz.luan/audioplayers.global']) {
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(MethodChannel(channel), (_) async => null);
     }
-    tester.view.physicalSize = const Size(1024, 720);
+  }
+
+  /// يُرسم ويُنتظر حتى يدخل القطارُ المحطة وتطفو البالونات.
+  Future<void> pump(WidgetTester tester, Widget game, {Size size = const Size(1024, 720)}) async {
+    muteAudio(tester);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: game)));
-    await tester.pump(const Duration(milliseconds: 300));
-  }
-
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 20; i++) {
+    for (var i = 0; i < 16; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
   }
 
-  group('البالونات', () {
-    testWidgets('الصحيحةُ تنفجر ثم تُبلَغ، ولمسةٌ ثانية لا تُحسب', (tester) async {
-      final answers = <String>[];
-      await pump(
-        tester,
-        BalloonQuizQuestion(prompt: 'رقبتُه طويلة؟', options: options, isCorrect: isCorrect, onAnswered: answers.add),
-      );
-      await tester.tap(find.byKey(const ValueKey('balloon-3')));
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(answers, isEmpty, reason: 'يرى الانفجارَ أوّلاً');
-      await tester.tap(find.byKey(const ValueKey('balloon-0')), warnIfMissed: false);
-      await settle(tester);
-      expect(answers, ['زرافة']);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 3));
-    });
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 22; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
 
-    testWidgets('الخاطئةُ تُبلَغ كما هي — تُحسب خطأً كما في القائمة', (tester) async {
-      final answers = <String>[];
-      await pump(
-        tester,
-        BalloonQuizQuestion(prompt: 'رقبتُه طويلة؟', options: options, isCorrect: isCorrect, onAnswered: answers.add),
-      );
-      await tester.tap(find.byKey(const ValueKey('balloon-1')));
-      await settle(tester);
-      expect(answers, ['قطة']);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 3));
-    });
+  Future<void> finish(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  }
 
-    testWidgets('سؤالٌ أُجيب من قبل لا يُجاب ثانيةً', (tester) async {
-      final answers = <String>[];
-      await pump(
-        tester,
-        BalloonQuizQuestion(
-          prompt: 'رقبتُه طويلة؟',
-          options: options,
-          isCorrect: isCorrect,
-          onAnswered: answers.add,
-          answered: 'فيل',
-        ),
-      );
-      await tester.tap(find.byKey(const ValueKey('balloon-3')), warnIfMissed: false);
-      await settle(tester);
-      expect(answers, isEmpty);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 3));
-    });
-  });
+  Widget game(QuizGameStyle style, List<String> answers, {String? answered}) => switch (style) {
+        QuizGameStyle.balloons => BalloonQuizQuestion(
+            prompt: 'رقبتُه طويلة؟', options: options, isCorrect: isCorrect, onAnswered: answers.add, answered: answered),
+        _ => quizGameFor(style, prompt: 'رقبتُه طويلة؟', options: options, isCorrect: isCorrect, onAnswered: answers.add),
+      };
 
-  group('الصيد', () {
-    testWidgets('تُلمس السمكةُ فتنزل الصنّارة، ثم تُبلَغ الإجابة', (tester) async {
-      final answers = <String>[];
-      await pump(
-        tester,
-        FishingQuizQuestion(prompt: 'رقبتُه طويلة؟', options: options, isCorrect: isCorrect, onAnswered: answers.add),
-      );
-      await tester.tap(find.byKey(const ValueKey('fish-3')));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(answers, isEmpty);
-      await settle(tester);
-      expect(answers, ['زرافة']);
-      expect(find.text('اصطدتها! 🎉'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 3));
-    });
+  const keys = {
+    QuizGameStyle.balloons: 'balloon',
+    QuizGameStyle.fishing: 'fish',
+    QuizGameStyle.train: 'wagon',
+    QuizGameStyle.slingshot: 'target',
+  };
 
-    testWidgets('السمكةُ الخاطئة تفلت، وتُبلَغ خطأً', (tester) async {
-      final answers = <String>[];
-      await pump(
-        tester,
-        FishingQuizQuestion(prompt: 'رقبتُه طويلة؟', options: options, isCorrect: isCorrect, onAnswered: answers.add),
-      );
-      await tester.tap(find.byKey(const ValueKey('fish-0')));
-      await settle(tester);
-      expect(answers, ['أسد']);
-      expect(find.text('اصطدتها! 🎉'), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 3));
-    });
-  });
-
-  for (final (name, style, key) in [
-    ('القطار', QuizGameStyle.train, 'crate'),
-    ('المقلاع', QuizGameStyle.slingshot, 'target'),
-  ]) {
-    group(name, () {
-      Widget game(List<String> answers) => quizGameFor(
-            style,
-            prompt: 'رقبتُه طويلة؟',
-            options: options,
-            isCorrect: isCorrect,
-            onAnswered: answers.add,
-          );
-
+  for (final MapEntry(key: style, value: key) in keys.entries) {
+    group(style.name, () {
       testWidgets('الصحيحةُ تُرى ثم تُبلَغ، ولمسةٌ ثانية لا تُحسب', (tester) async {
         final answers = <String>[];
-        await pump(tester, game(answers));
+        await pump(tester, game(style, answers));
         await tester.tap(find.byKey(ValueKey('$key-3')));
         await tester.pump(const Duration(milliseconds: 300));
         expect(answers, isEmpty, reason: 'يرى النتيجةَ أوّلاً');
@@ -136,30 +70,78 @@ void main() {
         await settle(tester);
         expect(answers, ['زرافة']);
         expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox());
-        await tester.pump(const Duration(seconds: 3));
+        await finish(tester);
       });
 
-      testWidgets('الخاطئةُ تُبلَغ كما هي', (tester) async {
+      testWidgets('الخاطئةُ تُبلَغ كما هي — تُحسب خطأً', (tester) async {
         final answers = <String>[];
-        await pump(tester, game(answers));
+        await pump(tester, game(style, answers));
         await tester.tap(find.byKey(ValueKey('$key-1')));
         await settle(tester);
         expect(answers, ['قطة']);
-        await tester.pumpWidget(const SizedBox());
-        await tester.pump(const Duration(seconds: 3));
+        await finish(tester);
       });
 
-      testWidgets('لا تجاوزَ على هاتفٍ رأسيّ', (tester) async {
-        tester.view.physicalSize = const Size(360, 640);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.reset);
-        await tester.pumpWidget(MaterialApp(home: Scaffold(body: game([]))));
-        await tester.pump(const Duration(milliseconds: 300));
+      testWidgets('الإجاباتُ كلُّها ظاهرةٌ بخطٍّ كبير، بلا تجاوزٍ على هاتفٍ رأسيّ', (tester) async {
+        await pump(tester, game(style, []), size: const Size(360, 640));
         expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox());
-        await tester.pump(const Duration(seconds: 3));
+        for (final option in options) {
+          expect(find.text(option), findsOneWidget);
+        }
+        final prompt = tester.widget<Text>(find.byKey(const ValueKey('quiz-prompt')));
+        expect(prompt.style!.fontSize, greaterThanOrEqualTo(24));
+        await finish(tester);
       });
     });
   }
+
+  testWidgets('البالونات: سؤالٌ أُجيب من قبل لا يُجاب ثانيةً', (tester) async {
+    final answers = <String>[];
+    await pump(tester, game(QuizGameStyle.balloons, answers, answered: 'فيل'));
+    await tester.tap(find.byKey(const ValueKey('balloon-3')), warnIfMissed: false);
+    await settle(tester);
+    expect(answers, isEmpty);
+    await finish(tester);
+  });
+
+  testWidgets('الصيد: الصحيحةُ تُرفع من الماء — «اصطدتها!»', (tester) async {
+    final answers = <String>[];
+    await pump(tester, game(QuizGameStyle.fishing, answers));
+    await tester.tap(find.byKey(const ValueKey('fish-3')));
+    await settle(tester);
+    expect(find.text(tr('quiz.game.caught')), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('المقلاع: سحبُ الخيط يُري المسار، وإفلاتُه يرمي الحصاة', (tester) async {
+    final answers = <String>[];
+    await pump(tester, game(QuizGameStyle.slingshot, answers));
+    final pouch = tester.getCenter(find.byKey(const ValueKey('sling-pouch')));
+    final gesture = await tester.startGesture(pouch);
+    for (var i = 1; i <= 8; i++) {
+      await gesture.moveTo(pouch + Offset(-10.0 * i, 9.0 * i));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.text(tr('quiz.game.pull')), findsNothing, reason: 'الإرشادُ يختفي والخيطُ مشدود');
+    await gesture.up();
+    await settle(tester);
+    // ‏أصاب هدفاً فأُبلغ، أو أخطأها كلَّها فيُدعى ليصوّب ثانيةً.
+    expect(answers.length == 1 || find.text(tr('quiz.game.missed')).evaluate().isNotEmpty, isTrue);
+    expect(tester.takeException(), isNull);
+    await finish(tester);
+  });
+
+  testWidgets('الأغلفةُ الأربع تُرسم بلا خطأ', (tester) async {
+    muteAudio(tester);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Row(children: [
+          for (final style in QuizGameStyle.values)
+            Expanded(child: SizedBox(height: 128, child: QuizGameCoverArt(style: style))),
+        ]),
+      ),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 }

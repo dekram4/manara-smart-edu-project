@@ -120,6 +120,22 @@ class StudyGame {
   /// من أيّ عنصرٍ تبدأ اللعبة: حرفُ الدرس.
   final int tracingStart;
 
+  /// اللعبةُ نفسُها بأسئلةٍ أخرى — مكافأتُها ومعرّفُها كما هما.
+  StudyGame withQuestions(List<StudyQuickQuestion> questions) => StudyGame(
+        id: id,
+        type: type,
+        title: title,
+        instructions: instructions,
+        dragItems: dragItems,
+        dropTargets: dropTargets,
+        pairs: pairs,
+        questions: questions,
+        gemsReward: gemsReward,
+        pointsReward: pointsReward,
+        tracing: tracing,
+        tracingStart: tracingStart,
+      );
+
   /// السلّةُ أو المعنى الصحيح لهذه البطاقة.
   String? targetOf(String item) {
     for (final pair in pairs) {

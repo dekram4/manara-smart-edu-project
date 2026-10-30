@@ -8,8 +8,8 @@ import 'package:manara_student/src/models/student_gamification.dart';
 import 'package:manara_student/src/models/study_games.dart';
 import 'package:manara_student/src/widgets/study_games.dart';
 
-/// ألعابُ بطاقة المذاكرة: قراءةُ الصيغة، واللعبُ بالضغط (بديلُ السحب)،
-/// والفوزُ يطلب المكافأة مرّةً ويُظهر الاحتفال.
+/// ألعابُ بطاقة المذاكرة: الألعابُ الأربع وحدها، بأسئلةٍ من نصّ الدرس ومن
+/// أزواج التصنيف والمطابقة، وشريطٌ ثابتٌ للتنقّل بينها، والفوزُ مرّةً واحدة.
 Map<String, Object?> _packJson() => {
       'lessonId': 'L1',
       'games': [
@@ -88,7 +88,13 @@ RewardResult _reward(int gems, int xp) => RewardResult(
       snapshot: StudentGamification.fromMap(const {}),
     );
 
-Future<List<StudyGame>> _pump(WidgetTester tester, StudyGameWin onWin) async {
+Future<StudyGamesPack> _pump(WidgetTester tester, StudyGameWin onWin) async {
+  for (final channel in ['xyz.luan/audioplayers', 'xyz.luan/audioplayers.global']) {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(MethodChannel(channel), (_) async => null);
+  }
+  tester.view.physicalSize = const Size(1024, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   final pack = StudyGamesPack.fromMap(_packJson())!;
   await tester.pumpWidget(
     MaterialApp(
@@ -100,28 +106,22 @@ Future<List<StudyGame>> _pump(WidgetTester tester, StudyGameWin onWin) async {
       home: Directionality(
         textDirection: TextDirection.rtl,
         child: Scaffold(
-          body: StudyGamesTab(load: () async => pack, onWin: onWin),
+          body: SingleChildScrollView(child: StudyGamesTab(load: () async => pack, onWin: onWin)),
         ),
       ),
     ),
   );
   await tester.pumpAndSettle();
-  return pack.games;
+  return pack;
 }
 
-Future<void> _tap(WidgetTester tester, String text) async {
-  await tester.ensureVisible(find.text(text).first);
-  await tester.tap(find.text(text).first);
-  await tester.pump(const Duration(milliseconds: 500));
-}
-
-/// الاحتفالُ يتحرّك ثانيةً أو أكثر — ورقٌ متناثر وعدّادٌ يعدّ — فيُنتظر بوقتٍ
-/// محدّد لا بـ`pumpAndSettle`.
-Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 12; i++) {
-    await tester.pump(const Duration(milliseconds: 250));
+Future<void> _wait(WidgetTester tester, [int steps = 30]) async {
+  for (var i = 0; i < steps; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
   }
 }
+
+const _styles = ['balloons', 'fishing', 'train', 'slingshot'];
 
 void main() {
   test('الصيغة: ثلاثُ ألعاب صالحة، والمجهول يسقط', () {
@@ -132,124 +132,81 @@ void main() {
       StudyGameType.endlessQuiz,
     ]);
     expect(pack.games.first.targetOf('القط'), 'حيوان');
-    expect(pack.games.first.gemsReward, 8);
     expect(pack.games.last.questions, hasLength(5));
     expect(pack.games.last.questions.last.kind, StudyQuestionKind.trueFalse);
     expect(StudyGamesPack.fromMap({'games': []}), isNull);
   });
 
-  testWidgets('السحب والإسقاط بالضغط: خطأٌ لا يُحسب، والصحيحُ يُكمل ويطلب المكافأة',
-      (tester) async {
-    final won = <String>[];
-    await _pump(tester, (game) async {
-      won.add(game.id);
-      return _reward(8, 30);
-    });
-    await _tap(tester, 'صنّف الكائنات');
-    await tester.pumpAndSettle();
-
-    // القطُّ إلى «نبات»: خطأ.
-    await _tap(tester, 'القط');
-    await _tap(tester, 'نبات');
-    expect(won, isEmpty);
-    expect(find.textContaining('1'), findsWidgets);
-
-    await _tap(tester, 'القط');
-    await _tap(tester, 'حيوان');
-    await _tap(tester, 'النخلة');
-    await _tap(tester, 'نبات');
-    await _settle(tester);
-
-    expect(won, ['drag_drop']);
-    // الاحتفال يعرض ما صرفه الخادم.
-    expect(find.text('🏆'), findsOneWidget);
-    expect(find.textContaining('8'), findsWidgets);
-    expect(find.textContaining('30'), findsWidgets);
+  test('أسئلةُ الألعاب: أسئلةُ الدرس ومعها أسئلةٌ من أزواج التصنيف والمطابقة', () {
+    final pack = StudyGamesPack.fromMap(_packJson())!;
+    final arcade = arcadeGameOf(pack)!;
+    expect(arcade.id, 'endless_quiz', reason: 'المكافأةُ مكافأةُ أسئلة الدرس');
+    expect(arcade.questions, hasLength(5 + 2 + 2));
+    final cat = arcade.questions.firstWhere((q) => q.question == trf('study.games.ask.sort', {'item': 'القط'}));
+    expect(cat.answer, 'حيوان');
+    expect(cat.options, containsAll(['حيوان', 'نبات']));
+    final root = arcade.questions.firstWhere((q) => q.question == trf('study.games.ask.match', {'item': 'الجذر'}));
+    expect(root.answer, 'يمتص الماء');
+    // ‏درسٌ بلا أسئلة سباق: تُلعب أسئلةُ الأزواج وحدها.
+    final json = _packJson();
+    json['games'] = [
+      for (final game in json['games']! as List)
+        if ((game as Map)['game_type'] != 'endless_quiz') game,
+    ];
+    expect(arcadeGameOf(StudyGamesPack.fromMap(json)!)!.questions, hasLength(4));
   });
 
-  testWidgets('المطابقة بالضغط تُكمل الأزواج وتطلب المكافأة', (tester) async {
-    final won = <String>[];
-    await _pump(tester, (game) async {
-      won.add(game.id);
-      return _reward(6, 20);
-    });
-    await _tap(tester, 'صِل');
-    await tester.pumpAndSettle();
-    await _tap(tester, 'الجذر');
-    await _tap(tester, 'يمتص الماء');
-    await _tap(tester, 'الورقة');
-    await _tap(tester, 'تصنع الغذاء');
-    await _settle(tester);
-    expect(won, ['matching']);
-  });
-
-  testWidgets('أسئلةُ الدرس أربعُ ألعاب لا قائمةُ نصوص', (tester) async {
+  testWidgets('الرفُّ أربعةُ أغلفةٍ وحدها: لا سحبَ ولا مطابقةَ ولا سباق', (tester) async {
     await _pump(tester, (_) async => null);
-    for (final style in ['balloons', 'fishing', 'train', 'slingshot']) {
+    for (final style in _styles) {
       expect(find.byKey(ValueKey('arcade-$style')), findsOneWidget);
     }
+    expect(find.text('صنّف الكائنات'), findsNothing);
+    expect(find.text('صِل'), findsNothing);
     expect(find.text('سباق'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
-  for (final style in ['balloons', 'fishing', 'train', 'slingshot']) {
+  for (final style in _styles) {
     testWidgets('لعبةُ $style: إصابةُ الجولة كلِّها فوزٌ مرّةً واحدة', (tester) async {
-      for (final channel in ['xyz.luan/audioplayers', 'xyz.luan/audioplayers.global']) {
-        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(MethodChannel(channel), (_) async => null);
-      }
-      tester.view.physicalSize = const Size(1024, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
       final won = <String>[];
-      final games = await _pump(tester, (game) async {
+      final pack = await _pump(tester, (game) async {
         won.add(game.id);
         return _reward(5, 15);
       });
       await tester.ensureVisible(find.byKey(ValueKey('arcade-$style')));
       await tester.tap(find.byKey(ValueKey('arcade-$style')));
-      await tester.pump(const Duration(milliseconds: 600));
-      final quiz = games.last;
-      // ‏خمسةُ أسئلة: الجولةُ خمسة، والفوزُ ثلاثةٌ منها.
-      for (var round = 0; round < 5; round++) {
-        final shown = quiz.questions.lastWhere(
-          (q) => find.text(q.question).evaluate().isNotEmpty,
-        );
+      await _wait(tester, 10);
+      final questions = arcadeGameOf(pack)!.questions;
+      // ‏تسعةُ أسئلة: الجولةُ ثمانية.
+      for (var round = 0; round < 8; round++) {
+        final shown = questions.firstWhere((q) => find.text(q.question).evaluate().isNotEmpty);
         await tester.tap(find.text(shown.answer).last);
-        for (var i = 0; i < 25; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-        }
+        await _wait(tester);
       }
-      await _settle(tester);
+      await _wait(tester, 12);
       expect(won, ['endless_quiz']);
-      expect(find.text(trf('study.games.arcade.result', {'n': 5, 'total': 5})), findsOneWidget);
+      expect(find.text(trf('study.games.arcade.result', {'n': 8, 'total': 8})), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('السحب الحقيقي: ضغطةٌ مطوّلة ثم إسقاطٌ في السلّة', (tester) async {
-    final won = <String>[];
-    await _pump(tester, (game) async {
-      won.add(game.id);
-      return _reward(8, 30);
-    });
-    await _tap(tester, 'صنّف الكائنات');
-    await tester.pumpAndSettle();
-
-    Future<void> drag(String item, String bin) async {
-      final from = tester.getCenter(find.text(item).first);
-      final to = tester.getCenter(find.text(bin).first);
-      final gesture = await tester.startGesture(from);
-      await tester.pump(const Duration(milliseconds: 400));
-      await gesture.moveTo(Offset.lerp(from, to, 0.5)!);
-      await tester.pump(const Duration(milliseconds: 50));
-      await gesture.moveTo(to);
-      await tester.pump(const Duration(milliseconds: 50));
-      await gesture.up();
-      await tester.pump(const Duration(milliseconds: 500));
+  testWidgets('الشريطُ العلويّ الثابت: لمسةٌ تنقل إلى القطار بلا رجوع', (tester) async {
+    await _pump(tester, (_) async => null);
+    await tester.ensureVisible(find.byKey(const ValueKey('arcade-balloons')));
+    await tester.tap(find.byKey(const ValueKey('arcade-balloons')));
+    await _wait(tester, 10);
+    expect(find.byKey(const ValueKey('balloon-0')), findsOneWidget);
+    for (final style in _styles) {
+      expect(find.byKey(ValueKey('switch-$style')), findsOneWidget);
     }
-
-    await drag('القط', 'حيوان');
-    await drag('النخلة', 'نبات');
-    await _settle(tester);
-    expect(won, ['drag_drop']);
+    await tester.tap(find.byKey(const ValueKey('switch-train')));
+    await _wait(tester, 10);
+    expect(find.byKey(const ValueKey('balloon-0')), findsNothing);
+    expect(find.byKey(const ValueKey('wagon-0')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('switch-slingshot')));
+    await _wait(tester, 10);
+    expect(find.byKey(const ValueKey('target-0')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

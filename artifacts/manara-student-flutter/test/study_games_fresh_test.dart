@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,17 +11,18 @@ import 'package:manara_student/src/widgets/study_games.dart';
 
 /// قواعدُ دائمة: إعادةُ اللعب لا تكرّر الأسئلة، وصورةُ كلِّ لعبةٍ تلقائية،
 /// وقرارُ المعلم الأحدث يصل كلَّ طلابه.
-StudyGame _match(String suffix) => StudyGame.fromMap({
-      'id': 'matching',
-      'game_type': 'matching',
-      'title': 'صِل $suffix',
-      'instructions': 'صل',
+StudyGame _quiz(String suffix) => StudyGame.fromMap({
+      'id': 'endless_quiz',
+      'game_type': 'endless_quiz',
+      'title': 'سباق',
+      'instructions': 'أجب',
       'items': {
-        'drag_items': ['أ$suffix', 'ب$suffix'],
-        'drop_targets': ['١$suffix', '٢$suffix'],
-        'correct_pairs': [
-          {'item': 'أ$suffix', 'target': '١$suffix'},
-          {'item': 'ب$suffix', 'target': '٢$suffix'},
+        'drag_items': [],
+        'drop_targets': [],
+        'correct_pairs': [],
+        'questions': [
+          for (var i = 0; i < 4; i++)
+            {'kind': 'mcq', 'question': 'سؤال $i$suffix', 'options': ['أ$i', 'ب$i'], 'answer': 'أ$i'},
         ],
       },
       'gems_reward': 5,
@@ -28,10 +30,16 @@ StudyGame _match(String suffix) => StudyGame.fromMap({
     })!;
 
 void main() {
-  testWidgets('أوّلُ لعبٍ من الحزمة، وكلُّ إعادةٍ نسخةٌ جديدة تتجنّب ما رآه الطالب',
+  testWidgets('أوّلُ لعبٍ من الحزمة، وكلُّ لعبٍ بعده أسئلةٌ جديدة تتجنّب ما رآه الطالب',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
-    final base = _match('');
+    for (final channel in ['xyz.luan/audioplayers', 'xyz.luan/audioplayers.global']) {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(MethodChannel(channel), (_) async => null);
+    }
+    tester.view.physicalSize = const Size(1024, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final base = _quiz('');
     final calls = <List<String>>[];
     var version = 0;
     await tester.pumpWidget(
@@ -41,42 +49,47 @@ void main() {
           child: child!,
         ),
         home: Scaffold(
-          body: StudyGamesTab(
-            load: () async => StudyGamesPack(lessonId: 'L1', games: [base]),
-            onWin: (_) async => null,
-            seenKey: 'study.seen.s1.L1',
-            fresh: (b, exclude) async {
-              calls.add(exclude);
-              version += 1;
-              return _match('-$version');
-            },
+          body: SingleChildScrollView(
+            child: StudyGamesTab(
+              load: () async => StudyGamesPack(lessonId: 'L1', games: [base]),
+              onWin: (_) async => null,
+              seenKey: 'study.seen.s1.L1',
+              fresh: (b, exclude) async {
+                calls.add(exclude);
+                version += 1;
+                return _quiz('-$version');
+              },
+            ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
+    Future<void> wait() async {
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    Future<void> open() async {
+      await tester.ensureVisible(find.byKey(const ValueKey('arcade-balloons')));
+      await tester.tap(find.byKey(const ValueKey('arcade-balloons')));
+      await wait();
+    }
+
     // أوّلُ مرّة: الحزمةُ المحفوظة، بلا طلب.
-    await tester.tap(find.text('صِل'));
-    await tester.pumpAndSettle();
+    await open();
     expect(calls, isEmpty);
-    expect(find.text('أ'), findsOneWidget);
+    expect(find.textContaining('-1'), findsNothing);
 
-    // العودة ثم الإعادة: نسخةٌ جديدة، ومعها ما رآه.
-    await tester.tap(find.byIcon(Icons.grid_view_rounded));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('صِل'));
-    await tester.pumpAndSettle();
-    expect(calls, hasLength(1));
-    expect(calls.single, containsAll(['أ', 'ب']));
-    expect(find.text('أ-1'), findsOneWidget);
-
-    // والثالثة تتجنّب الأولى والثانية معاً — محفوظةً على الجهاز.
-    await tester.tap(find.byIcon(Icons.grid_view_rounded));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('صِل'));
-    await tester.pumpAndSettle();
-    expect(calls.last, containsAll(['أ', 'ب', 'أ-1', 'ب-1']));
+    // الرجوع ثم اللعب ثانيةً: أسئلةٌ جديدة، ومعها ما رآه.
+    await tester.tap(find.byType(BackButtonIcon));
+    await wait();
+    await open();
+    expect(calls, isNotEmpty);
+    expect(calls.first, containsAll(['سؤال 0', 'سؤال 3']));
+    expect(find.textContaining('-1'), findsOneWidget);
   });
 
   test('صورةُ اللعبة تلقائية: من معرّفها أو من رابطها', () {

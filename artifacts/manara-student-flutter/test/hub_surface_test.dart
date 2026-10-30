@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/models/student_profile.dart';
 import 'package:manara_student/src/screens/student_home_screen.dart';
 import 'package:manara_student/src/services/student_auth_service.dart';
@@ -82,16 +83,13 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('the tower starts below the welcome header', (tester) async {
+  testWidgets('no welcome line after login: the hub opens on its cards', (tester) async {
     await pumpHub(tester, Brightness.dark);
-    final art =
-        find.byWidgetPredicate((w) => w.runtimeType.toString() == 'LivingArt');
-    expect(art, findsOneWidget);
-    final welcome = find
-        .byWidgetPredicate((w) => w.runtimeType.toString() == '_WelcomeCard');
-    final artTop = tester.getTopLeft(art).dy;
-    final headerBottom = tester.getBottomLeft(welcome).dy;
-    expect(artTop, greaterThanOrEqualTo(headerBottom));
+    expect(
+      find.byWidgetPredicate((w) => w.runtimeType.toString() == '_WelcomeCard'),
+      findsNothing,
+    );
+    expect(find.text(tr('hub.welcome')), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 }

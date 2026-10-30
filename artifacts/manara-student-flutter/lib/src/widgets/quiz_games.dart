@@ -31,42 +31,32 @@ Widget quizGameFor(
         SlingshotQuizQuestion(key: key, prompt: prompt, options: options, isCorrect: isCorrect, onAnswered: onAnswered),
     };
 
-/// السماءُ والمرج (خلفيةُ الدخول) والصفّ (خلفيةُ المسار): رسومُ التطبيق نفسها.
-const quizSkyArt = 'assets/images/auth/login_bg_custom.png';
-const quizClassroomArt = 'assets/images/routes/route_bg_custom.png';
+/// رسومُ الألعاب الأربع، داخل `assets/images/games/` ومعلنةٌ في pubspec.
+class QuizGameArt {
+  static const fishingBg = 'assets/images/games/fishing_bg.png';
+  static const fish = 'assets/images/games/fish_item.png';
+  static const balloonBg = 'assets/images/games/balloon_bg.png';
+  static const balloon = 'assets/images/games/balloon_item.png';
+  static const slingshotBg = 'assets/images/games/slingshot_bg.png';
+  static const trainBg = 'assets/images/games/train_bg.png';
+  static const train = 'assets/images/games/train_item.png';
 
-/// خلفيةٌ من رسوم التطبيق نفسها (السماءُ والمرج، أو الصفّ)، باهتةً تحت
-/// اللعبة — لا صورٌ جديدةٌ تُكبّر التطبيق.
-class _GameBackdrop extends StatelessWidget {
-  const _GameBackdrop(this.asset);
+  /// الخلفيةُ لكل لعبة — وهي غلافُ بطاقتها أيضاً.
+  static String background(QuizGameStyle style) => switch (style) {
+        QuizGameStyle.balloons => balloonBg,
+        QuizGameStyle.fishing => fishingBg,
+        QuizGameStyle.train => trainBg,
+        QuizGameStyle.slingshot => slingshotBg,
+      };
 
-  final String asset;
-
-  static const sky = quizSkyArt;
-  static const classroom = quizClassroomArt;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset(
-          asset,
-          fit: BoxFit.cover,
-          cacheWidth: 900,
-          errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFFE0F2FE)),
-        ),
-        const ColoredBox(color: Color(0x66FFFFFF)),
-      ],
-    );
-  }
+  /// أبعادُ الخلفيات الأربع (١٢٨٠×٧٢٠).
+  static const backgroundSize = Size(1280, 720);
 }
 
 /// ما يُعرض من السؤال في اللعبة، والإجابةُ الصحيحة تُعرف بـ[isCorrect].
 ///
 /// الاختيارُ الأوّل هو الإجابة ([onAnswered]): اللعبةُ تُريه أصاب أم أخطأ في
-/// لحظته — بالونٌ ينفجر أو سمكةٌ تُصطاد — ثم تُبلغ الاختبارَ بما اختار، والدرجةُ
-/// تُحسب كما تُحسب في القائمة.
+/// لحظته — بالونٌ ينفجر أو سمكةٌ تُصطاد — ثم تُبلغ الجولةَ بما اختار.
 abstract class QuizGameQuestion extends StatefulWidget {
   const QuizGameQuestion({
     required this.prompt,
@@ -86,7 +76,7 @@ abstract class QuizGameQuestion extends StatefulWidget {
   final String? answered;
 }
 
-/// زمنُ ما بين الاختيار وإبلاغ الاختبار: يرى فيه الطفلُ النتيجة.
+/// زمنُ ما بين الاختيار وإبلاغ الجولة: يرى فيه الطفلُ النتيجة.
 const quizGameReveal = Duration(milliseconds: 1100);
 
 void _celebrate(bool correct) {
@@ -98,6 +88,8 @@ void _celebrate(bool correct) {
   }
 }
 
+bool _still(BuildContext context) => MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
 const _palette = [
   Color(0xFFEF4444),
   Color(0xFF3B82F6),
@@ -107,7 +99,65 @@ const _palette = [
   Color(0xFFEC4899),
 ];
 
-/// السؤالُ بخطٍّ كبيرٍ فوق اللعبة.
+const _ink = Color(0xFF1E293B);
+const _right = Color(0xFF16A34A);
+const _wrong = Color(0xFFDC2626);
+const _gold = Color(0xFFFFC83D);
+
+/// حالُ كلِّ خيارٍ بعد الاختيار.
+enum _Mark { idle, right, wrong, reveal }
+
+_Mark _markOf(String option, String? picked, bool Function(String) isCorrect) {
+  if (picked == null) return _Mark.idle;
+  if (option == picked) return isCorrect(option) ? _Mark.right : _Mark.wrong;
+  // ‏أخطأ: يُرى الصحيحُ متوهّجاً فيتعلّم.
+  return isCorrect(option) && !isCorrect(picked) ? _Mark.reveal : _Mark.idle;
+}
+
+/// تدويرُ الألوان [degrees] درجةً — بالونٌ واحدٌ مرسوم يصير بالوناتٍ بألوانٍ
+/// شتّى، بلمعته وظلاله.
+ColorFilter _hue(double degrees) {
+  final a = degrees * math.pi / 180;
+  final c = math.cos(a);
+  final s = math.sin(a);
+  return ColorFilter.matrix(<double>[
+    0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928, 0, 0, //
+    0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.140, 0.072 - c * 0.072 - s * 0.283, 0, 0,
+    0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072, 0, 0,
+    0, 0, 0, 1, 0,
+  ]);
+}
+
+/// موضعُ نقطةٍ من الخلفية ([frac] من عرضها وارتفاعها) بعد رسمها بـ`BoxFit.cover`
+/// بمحاذاة [align] في [box] — ليقف القطارُ على السكّة والسمكُ تحت الماء.
+Offset _artPoint(Size box, Alignment align, Offset frac) {
+  const art = QuizGameArt.backgroundSize;
+  final scale = math.max(box.width / art.width, box.height / art.height);
+  final drawn = Size(art.width * scale, art.height * scale);
+  final dx = (box.width - drawn.width) * (align.x + 1) / 2;
+  final dy = (box.height - drawn.height) * (align.y + 1) / 2;
+  return Offset(dx + frac.dx * drawn.width, dy + frac.dy * drawn.height);
+}
+
+class _Backdrop extends StatelessWidget {
+  const _Backdrop(this.asset, {this.alignment = Alignment.center});
+
+  final String asset;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      asset,
+      fit: BoxFit.cover,
+      alignment: alignment,
+      cacheWidth: 1280,
+      errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFFBAE6FD)),
+    );
+  }
+}
+
+/// السؤالُ بخطٍّ كبيرٍ جداً فوق اللعبة — لطفل الروضة.
 class _Prompt extends StatelessWidget {
   const _Prompt(this.text);
 
@@ -115,29 +165,157 @@ class _Prompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 4))],
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1E3A5F), height: 1.4),
+    return LayoutBuilder(builder: (context, box) {
+      final size = (box.maxWidth / 22).clamp(24.0, 38.0).toDouble();
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: _gold, width: 3),
+          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 12, offset: Offset(0, 5))],
+        ),
+        child: Text(
+          text,
+          key: const ValueKey('quiz-prompt'),
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: size, fontWeight: FontWeight.w900, color: const Color(0xFF1E3A5F), height: 1.3),
+        ),
+      );
+    });
+  }
+}
+
+/// كبسولةُ الإجابة: بيضاءُ ناصعة بخطٍّ عريضٍ داكن، وحافّتُها تقول النتيجة.
+class _Capsule extends StatelessWidget {
+  const _Capsule(this.text, {required this.fontSize, required this.maxWidth, this.mark = _Mark.idle});
+
+  final String text;
+  final double fontSize;
+  final double maxWidth;
+  final _Mark mark;
+
+  @override
+  Widget build(BuildContext context) {
+    final edge = switch (mark) {
+      _Mark.right => _right,
+      _Mark.wrong => _wrong,
+      _Mark.reveal => _gold,
+      _Mark.idle => Colors.white,
+    };
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: math.max(maxWidth, fontSize * 2)),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: fontSize * 0.55, vertical: fontSize * 0.18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: edge, width: mark == _Mark.idle ? 2 : 4),
+          boxShadow: [
+            BoxShadow(
+              color: mark == _Mark.reveal ? _gold.withValues(alpha: 0.9) : const Color(0x40000000),
+              blurRadius: mark == _Mark.reveal ? 18 : 6,
+              spreadRadius: mark == _Mark.reveal ? 3 : 0,
+              offset: mark == _Mark.reveal ? Offset.zero : const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (mark == _Mark.right || mark == _Mark.wrong) ...[
+                Icon(mark == _Mark.right ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    color: mark == _Mark.right ? _right : _wrong, size: fontSize),
+                SizedBox(width: fontSize * 0.2),
+              ],
+              Text(
+                text,
+                maxLines: 1,
+                style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: _ink, height: 1.25),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+/// السؤالُ فوق مسرح اللعبة.
+class _Frame extends StatelessWidget {
+  const _Frame({required this.prompt, required this.stage});
+
+  final String prompt;
+  final Widget stage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _Prompt(prompt),
+        const SizedBox(height: 10),
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 14, offset: Offset(0, 6))],
+            ),
+            child: ClipRRect(borderRadius: BorderRadius.circular(23), child: stage),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// قصاصاتٌ ملوّنة تنطلق من [origin] ثم تسقط بالجاذبية وتدور.
+class _ConfettiPainter extends CustomPainter {
+  _ConfettiPainter(this.t, this.origin, {this.count = 34, this.spread = 1});
+
+  final double t;
+  final Offset origin;
+  final int count;
+  final double spread;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0 || t >= 1) return;
+    final fade = t < 0.75 ? 1.0 : (1 - t) / 0.25;
+    final reach = size.shortestSide * 0.55 * spread;
+    for (var i = 0; i < count; i++) {
+      final a = -math.pi / 2 + (i / count - 0.5) * math.pi * 1.9 + (i % 3) * 0.07;
+      final speed = reach * (0.55 + (i * 37 % 10) / 20);
+      final p = origin + Offset(math.cos(a), math.sin(a)) * speed * t + Offset(0, reach * 1.1 * t * t);
+      final paint = Paint()..color = _palette[i % _palette.length].withValues(alpha: fade.clamp(0.0, 1.0));
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(a + t * (6 + i % 5));
+      if (i % 4 == 0) {
+        canvas.drawCircle(Offset.zero, 4.5, paint);
+      } else {
+        canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-6, -3, 12, 6), const Radius.circular(1.5)), paint);
+      }
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ConfettiPainter old) => old.t != t || old.origin != origin;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 // البالونات
 // ═══════════════════════════════════════════════════════════════════════
 
-/// «البالونات»: الخياراتُ في بالوناتٍ ملوّنة تطفو وتتمايل. الصحيحةُ تنفجر
-/// بقصاصاتٍ وتصفيق، والخاطئةُ تهتزّ وتذبل.
+/// «البالونات المتفجّرة»: بالوناتٌ مستقلّةٌ ملوّنة تطير بحركةٍ تموّجية فوق
+/// المرج، والإجابةُ كبيرةٌ واضحةٌ داخل كلٍّ منها. الصحيحةُ تنفجر بصوت الفقع
+/// وقصاصاتٍ ملوّنة، والخاطئةُ تهتزّ وتذبل ويتوهّج الصحيح.
 class BalloonQuizQuestion extends QuizGameQuestion {
   const BalloonQuizQuestion({
     required super.prompt,
@@ -153,25 +331,31 @@ class BalloonQuizQuestion extends QuizGameQuestion {
 }
 
 class _BalloonQuizQuestionState extends State<BalloonQuizQuestion> with TickerProviderStateMixin {
-  late final AnimationController _float = AnimationController(vsync: this, duration: const Duration(seconds: 4));
-  late final AnimationController _burst = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+  late final AnimationController _float = AnimationController(vsync: this, duration: const Duration(seconds: 5));
+  late final AnimationController _rise = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  late final AnimationController _pop = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
   String? _picked;
   Timer? _report;
+
+  /// ألوانُ البالونات: الأحمرُ المرسوم، ثم أزرقُ وأخضرُ وذهبيٌّ وبنفسجيٌّ ووردي.
+  static const _hues = [0.0, 215.0, 120.0, 275.0, 48.0, 320.0];
 
   @override
   void initState() {
     super.initState();
     _picked = widget.answered;
-    if (_picked != null) _burst.value = 1;
+    if (_picked != null) _pop.value = 1;
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+    if (_still(context)) {
       _float.stop();
-    } else if (!_float.isAnimating) {
-      _float.repeat();
+      _rise.value = 1;
+    } else {
+      if (!_float.isAnimating) _float.repeat();
+      if (_rise.value == 0 && !_rise.isAnimating) _rise.forward();
     }
   }
 
@@ -179,7 +363,8 @@ class _BalloonQuizQuestionState extends State<BalloonQuizQuestion> with TickerPr
   void dispose() {
     _report?.cancel();
     _float.dispose();
-    _burst.dispose();
+    _rise.dispose();
+    _pop.dispose();
     super.dispose();
   }
 
@@ -187,8 +372,9 @@ class _BalloonQuizQuestionState extends State<BalloonQuizQuestion> with TickerPr
     if (_picked != null || option.isEmpty) return;
     final correct = widget.isCorrect(option);
     setState(() => _picked = option);
+    if (correct) StudentSoundService.instance.playGameEffect(StudentSoundService.balloonPop);
     _celebrate(correct);
-    _burst.forward(from: 0);
+    _pop.forward(from: 0);
     _report = Timer(quizGameReveal, () {
       if (mounted) widget.onAnswered(option);
     });
@@ -196,244 +382,154 @@ class _BalloonQuizQuestionState extends State<BalloonQuizQuestion> with TickerPr
 
   @override
   Widget build(BuildContext context) {
-    final options = widget.options;
-    return Column(
-      children: [
-        _Prompt(widget.prompt),
-        const SizedBox(height: 10),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Stack(
-              children: [
-                const Positioned.fill(child: _GameBackdrop(_GameBackdrop.sky)),
-                Positioned.fill(child: _balloons(options)),
-              ],
-            ),
-          ),
-        ),
-      ],
+    return _Frame(
+      prompt: widget.prompt,
+      stage: Stack(
+        fit: StackFit.expand,
+        children: [
+          const _Backdrop(QuizGameArt.balloonBg),
+          LayoutBuilder(builder: (context, box) => _balloons(box.biggest)),
+        ],
+      ),
     );
   }
 
-  Widget _balloons(List<String> options) {
-    return LayoutBuilder(builder: (context, box) {
-            final count = options.length;
-            final columns = count <= 3 ? count : (count / 2).ceil();
-            final rows = (count / columns).ceil();
-            final width = box.maxWidth / columns;
-            final balloon = math.min(width * 0.82, box.maxHeight / rows * 0.7).clamp(70.0, 190.0).toDouble();
-            return Stack(
-              children: [
-                for (var i = 0; i < count; i++)
-                  AnimatedBuilder(
-                    animation: Listenable.merge([_float, _burst]),
-                    builder: (context, _) {
-                      final column = i % columns;
-                      final row = i ~/ columns;
-                      final phase = i * 0.37;
-                      final bob = math.sin((_float.value + phase) * 2 * math.pi) * 10;
-                      final sway = math.sin((_float.value * 0.5 + phase) * 2 * math.pi) * 0.06;
-                      final cellH = box.maxHeight / rows;
-                      final left = column * width + (width - balloon) / 2;
-                      final top = row * cellH + (cellH - balloon * 1.35) / 2 + bob;
-                      return Positioned(
-                        left: left,
-                        top: top,
-                        width: balloon,
-                        height: balloon * 1.35,
-                        child: Transform.rotate(
-                          angle: sway,
-                          child: _Balloon(
-                            key: ValueKey('balloon-$i'),
-                            label: options[i],
-                            color: _palette[i % _palette.length],
-                            state: _stateOf(options[i]),
-                            burst: _burst.value,
-                            onTap: () => _tap(options[i]),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            );
-    });
+  Widget _balloons(Size stage) {
+    final options = widget.options;
+    final count = options.length;
+    final wide = stage.width >= stage.height * 1.05;
+    final columns = wide ? math.min(count, 4) : math.min(count, 2);
+    final rows = (count / columns).ceil();
+    final cellW = stage.width / columns;
+    final cellH = stage.height / rows;
+    // ‏البالونُ المرسوم ٢٩٣×٦١٥: جسمُه النصفُ الأعلى وخيطُه ما تحته.
+    const aspect = 293 / 615;
+    // ‏فسحةٌ لانجرافه يميناً ويساراً، فلا يُقصّ عند الحافّة.
+    final h = math.min(cellH * 0.94, cellW * 0.72 / aspect);
+    final w = h * aspect;
+    final font = (w * 0.2).clamp(17.0, 34.0).toDouble();
+    return AnimatedBuilder(
+      animation: Listenable.merge([_float, _rise, _pop]),
+      builder: (context, _) {
+        final rise = Curves.easeOutBack.transform(_rise.value);
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            for (var i = 0; i < count; i++) _balloon(i, stage, cellW, cellH, w, h, font, rise, columns),
+          ],
+        );
+      },
+    );
   }
 
-  _BalloonState _stateOf(String option) {
-    final picked = _picked;
-    if (picked == null) return _BalloonState.idle;
-    if (option == picked) return widget.isCorrect(option) ? _BalloonState.popped : _BalloonState.wrong;
-    // ‏أخطأ: يُرى الصحيحُ متوهّجاً فيتعلّم.
-    return widget.isCorrect(option) ? _BalloonState.reveal : _BalloonState.idle;
-  }
-}
-
-enum _BalloonState { idle, popped, wrong, reveal }
-
-class _Balloon extends StatelessWidget {
-  const _Balloon({
-    required this.label,
-    required this.color,
-    required this.state,
-    required this.burst,
-    required this.onTap,
-    super.key,
-  });
-
-  final String label;
-  final Color color;
-  final _BalloonState state;
-  final double burst;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, box) {
-      final w = box.maxWidth;
-      final popped = state == _BalloonState.popped;
-      final wrong = state == _BalloonState.wrong;
-      final shake = wrong ? math.sin(burst * math.pi * 8) * (1 - burst) * 10 : 0.0;
-      final body = Opacity(
-        opacity: popped ? (1 - burst).clamp(0.0, 1.0) : (wrong ? 1 - burst * 0.55 : 1),
-        child: Transform.scale(
-          scale: popped ? 1 + burst * 0.5 : (wrong ? 1 - burst * 0.15 : 1),
-          child: Column(
-            children: [
-              Container(
-                width: w,
-                height: w * 1.12,
-                alignment: Alignment.center,
-                padding: EdgeInsets.all(w * 0.12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.all(Radius.elliptical(w / 2, w * 0.56)),
-                  gradient: RadialGradient(
-                    center: const Alignment(-0.35, -0.45),
-                    radius: 0.9,
-                    colors: [Color.lerp(color, Colors.white, 0.45)!, color, Color.lerp(color, Colors.black, 0.2)!],
-                    stops: const [0, 0.55, 1],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (state == _BalloonState.reveal ? const Color(0xFFFFD166) : color).withValues(alpha: 0.5),
-                      blurRadius: state == _BalloonState.reveal ? 26 : 12,
-                      spreadRadius: state == _BalloonState.reveal ? 4 : 0,
-                    ),
-                  ],
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      shadows: [Shadow(color: Colors.black38, blurRadius: 4)],
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(child: CustomPaint(size: Size(w, double.infinity), painter: _StringPainter(color))),
-            ],
-          ),
-        ),
-      );
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
+  Widget _balloon(int i, Size stage, double cellW, double cellH, double w, double h, double font, double rise, int columns) {
+    final option = widget.options[i];
+    final mark = _markOf(option, _picked, widget.isCorrect);
+    final phase = i * 0.29;
+    final t = _float.value;
+    // ‏تموّجٌ: صعودٌ وهبوطٌ وانجرافٌ جانبيٌّ بطورٍ مختلفٍ لكل بالون.
+    final bob = math.sin((t + phase) * 2 * math.pi) * h * 0.035;
+    final drift = math.sin((t * 2 + phase * 1.7) * 2 * math.pi) * w * 0.12;
+    final tilt = math.sin((t * 2 + phase) * 2 * math.pi) * 0.07;
+    final p = _pop.value;
+    var dx = drift;
+    var dy = bob + (1 - rise) * (stage.height + h) * (0.8 + i * 0.12);
+    var scale = 1.0;
+    var balloonOpacity = 1.0;
+    if (mark == _Mark.right) {
+      // ‏ينتفخ لحظةً ثم يختفي، وتبقى إجابتُه بعلامة الصواب.
+      scale = 1 + math.min(p / 0.12, 1) * 0.18;
+      balloonOpacity = p < 0.12 ? 1 : 0;
+    } else if (mark == _Mark.wrong) {
+      dx += math.sin(p * math.pi * 9) * (1 - p) * 12;
+      scale = 1 - p * 0.22;
+      dy += p * h * 0.12;
+      balloonOpacity = 1 - p * 0.45;
+    }
+    final column = i % columns;
+    final row = i ~/ columns;
+    final left = column * cellW + (cellW - w) / 2 + dx;
+    final top = row * cellH + (cellH - h) / 2 + dy;
+    final body = Offset(left + w / 2, top + h * 0.27);
+    return Positioned(
+      left: left - w * 0.4,
+      top: top - h * 0.2,
+      width: w * 1.8,
+      height: h * 1.4,
+      child: GestureDetector(
+        key: ValueKey('balloon-$i'),
+        behavior: HitTestBehavior.translucent,
+        onTap: () => _tap(option),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Transform.translate(offset: Offset(shake, 0), child: body),
-            if (popped && burst < 1)
+            if (mark == _Mark.reveal)
               Positioned(
-                left: -w * 0.5,
-                top: -w * 0.4,
-                width: w * 2,
-                height: w * 2,
-                child: IgnorePointer(child: CustomPaint(painter: _BurstPainter(burst, color))),
+                left: w * 0.4 - w * 0.2,
+                top: h * 0.2 - w * 0.1,
+                width: w * 1.4,
+                height: w * 1.4,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.75), blurRadius: 40, spreadRadius: 6)],
+                  ),
+                ),
               ),
-            if (popped && burst > 0.5)
+            Positioned(
+              left: w * 0.4,
+              top: h * 0.2,
+              width: w,
+              height: h,
+              child: Opacity(
+                opacity: balloonOpacity.clamp(0.0, 1.0),
+                child: Transform.rotate(
+                  angle: tilt,
+                  alignment: Alignment.bottomCenter,
+                  child: Transform.scale(
+                    scale: scale,
+                    alignment: const Alignment(0, -0.45),
+                    child: ColorFiltered(
+                      colorFilter: _hue(_hues[i % _hues.length]),
+                      child: Image.asset(QuizGameArt.balloon, fit: BoxFit.contain, cacheWidth: 300),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: h * 0.2 + h * 0.27 - font * 0.95,
+              child: Center(
+                child: Transform.translate(
+                  offset: Offset(math.sin(tilt) * h * 0.25, mark == _Mark.right ? -p * h * 0.08 : 0),
+                  child: _Capsule(option, fontSize: font, maxWidth: w * 1.25, mark: mark),
+                ),
+              ),
+            ),
+            if (mark == _Mark.right)
               Positioned.fill(
-                child: Center(
-                  child: Opacity(
-                    opacity: ((burst - 0.5) * 2).clamp(0.0, 1.0),
-                    child: Icon(Icons.check_circle_rounded, color: const Color(0xFF22C55E), size: w * 0.45),
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _ConfettiPainter(p, body - Offset(left - w * 0.4, top - h * 0.2), count: 40, spread: 1.4),
                   ),
                 ),
               ),
           ],
         ),
-      );
-    });
-  }
-}
-
-class _StringPainter extends CustomPainter {
-  _StringPainter(this.color);
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final x = size.width / 2;
-    final path = Path()..moveTo(x, 0);
-    for (var y = 0.0; y < size.height; y += 6) {
-      path.lineTo(x + math.sin(y / 9) * 4, y);
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = Color.lerp(color, Colors.black, 0.35)!,
+      ),
     );
   }
-
-  @override
-  bool shouldRepaint(_StringPainter old) => old.color != color;
-}
-
-/// قصاصاتٌ وشظايا تتطاير من البالون حين ينفجر.
-class _BurstPainter extends CustomPainter {
-  _BurstPainter(this.t, this.color);
-  final double t;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final fade = (1 - t).clamp(0.0, 1.0);
-    for (var i = 0; i < 18; i++) {
-      final a = i * math.pi * 2 / 18;
-      final r = size.shortestSide * (0.12 + 0.38 * t) * (0.8 + (i % 3) * 0.15);
-      final p = c + Offset(math.cos(a), math.sin(a)) * r;
-      final paint = Paint()..color = (i.isEven ? _palette[i % _palette.length] : color).withValues(alpha: fade);
-      if (i % 3 == 0) {
-        canvas.drawCircle(p, 5, paint);
-      } else {
-        canvas.save();
-        canvas.translate(p.dx, p.dy);
-        canvas.rotate(a + t * 4);
-        canvas.drawRect(const Rect.fromLTWH(-5, -2.5, 10, 5), paint);
-        canvas.restore();
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BurstPainter old) => old.t != t;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// الصيد
+// الصيد البحري
 // ═══════════════════════════════════════════════════════════════════════
 
-/// «الصيد»: الطالبُ (بشخصيته) على الرصيف بصنّارة، والخياراتُ أسماكٌ تسبح في
-/// البحر. يلمس سمكةً فتنزل الصنّارةُ إليها: الصحيحةُ تُرفع وتلمع، والخاطئةُ
-/// تفلت وتسبح بعيداً.
+/// «الصيد البحري»: الطالبُ بشخصيته على الرصيف بصنّارة، والأسماكُ تسبح في
+/// الأعماق تحمل الإجاباتِ في كبسولاتٍ ناصعة. يلمس سمكةً فتنزل السنّارةُ
+/// إليها: الصحيحةُ تُرفع من الماء برذاذٍ وفقاعات، والخاطئةُ تفلت وتهرب.
 class FishingQuizQuestion extends QuizGameQuestion {
   const FishingQuizQuestion({
     required super.prompt,
@@ -449,10 +545,17 @@ class FishingQuizQuestion extends QuizGameQuestion {
 }
 
 class _FishingQuizQuestionState extends State<FishingQuizQuestion> with TickerProviderStateMixin {
-  late final AnimationController _swim = AnimationController(vsync: this, duration: const Duration(seconds: 9));
-  late final AnimationController _cast = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+  late final AnimationController _swim = AnimationController(vsync: this, duration: const Duration(seconds: 10));
+  late final AnimationController _cast = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
   int? _target;
   Timer? _report;
+
+  /// ألوانُ الأسماك: البرتقاليةُ المرسومة، ثم زرقاءُ وورديةٌ وخضراء.
+  static const _hues = [0.0, 185.0, 300.0, 95.0, 235.0, 40.0];
+
+  /// سطحُ الماء وقاعُه في رسمة البحر (من ارتفاعها).
+  static const _surface = 0.47;
+  static const _sand = 0.84;
 
   @override
   void initState() {
@@ -467,7 +570,7 @@ class _FishingQuizQuestionState extends State<FishingQuizQuestion> with TickerPr
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_target == null && !(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+    if (_target == null && !_still(context)) {
       if (!_swim.isAnimating) _swim.repeat();
     } else {
       _swim.stop();
@@ -488,297 +591,310 @@ class _FishingQuizQuestionState extends State<FishingQuizQuestion> with TickerPr
     _swim.stop();
     setState(() => _target = index);
     HapticFeedback.selectionClick();
-    _cast.forward(from: 0).then((_) {
-      if (mounted) _celebrate(widget.isCorrect(option));
+    final correct = widget.isCorrect(option);
+    _cast.forward(from: 0);
+    // ‏النتيجةُ لحظةَ تعضّ السمكةُ الطُّعم.
+    Future<void>.delayed(const Duration(milliseconds: 560), () {
+      if (mounted) _celebrate(correct);
     });
-    _report = Timer(quizGameReveal + const Duration(milliseconds: 500), () {
+    _report = Timer(const Duration(milliseconds: 1700), () {
       if (mounted) widget.onAnswered(option);
     });
   }
 
-  /// موضعُ السمكة [i] في البحر: حارةٌ لكلّ سمكة، تسبح فيها ذهاباً وإياباً.
-  Offset _fishAt(int i, Size sea, double fishW) {
-    final lanes = widget.options.length;
-    final laneH = sea.height / lanes;
-    final phase = i * 0.29;
-    final travel = (sea.width - fishW) * 0.5 * (1 + math.sin((_swim.value + phase) * 2 * math.pi));
-    return Offset(travel, laneH * i + laneH * 0.15);
-  }
-
-  bool _facingRight(int i) => math.cos((_swim.value + i * 0.29) * 2 * math.pi) > 0;
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _Prompt(widget.prompt),
-        const SizedBox(height: 10),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: LayoutBuilder(builder: (context, box) {
-              final size = box.biggest;
-              final skyH = size.height * 0.3;
-              final sea = Size(size.width, size.height - skyH);
-              final lanes = widget.options.length;
-              final fishH = (sea.height / lanes * 0.7).clamp(36.0, 90.0).toDouble();
-              final fishW = (fishH * 2.6).clamp(110.0, size.width * 0.55).toDouble();
-              final avatar = (skyH * 0.7).clamp(48.0, 110.0).toDouble();
-              final tip = Offset(size.width * 0.5, skyH * 0.12);
-              return AnimatedBuilder(
-                animation: Listenable.merge([_swim, _cast]),
-                builder: (context, _) {
-                  final target = _target;
-                  Offset? hook;
-                  var lifted = Offset.zero;
-                  if (target != null && target >= 0) {
-                    final fish = _fishAt(target, sea, fishW) + Offset(fishW / 2, skyH + fishH / 2);
-                    final down = Curves.easeOut.transform((_cast.value * 2).clamp(0.0, 1.0));
-                    final up = Curves.easeInOut.transform(((_cast.value - 0.5) * 2).clamp(0.0, 1.0));
-                    final correct = widget.isCorrect(widget.options[target]);
-                    hook = Offset.lerp(tip, fish, down)!;
-                    if (correct) {
-                      // ‏الصحيحةُ تُرفع مع الصنّارة إلى الرصيف.
-                      hook = Offset.lerp(fish, tip + Offset(0, skyH * 0.45), up)!;
-                      lifted = hook - fish;
-                    } else {
-                      hook = Offset.lerp(fish, tip, up)!;
-                    }
-                  }
-                  return Stack(
-                    children: [
-                      // ‏السماءُ والبحر.
-                      Positioned.fill(
-                        child: CustomPaint(painter: _SeaPainter(skyH: skyH, wave: _swim.value)),
+    return _Frame(
+      prompt: widget.prompt,
+      stage: LayoutBuilder(builder: (context, box) {
+        final size = box.biggest;
+        final surfaceY = _artPoint(size, Alignment.center, const Offset(0, _surface)).dy.clamp(size.height * 0.25, size.height * 0.5).toDouble();
+        final floorY = math.min(_artPoint(size, Alignment.center, const Offset(0, _sand)).dy, size.height - 8);
+        final count = widget.options.length;
+        // ‏شاشةٌ عريضة: الأسماكُ في سربين جنباً إلى جنب، فتكبر وتُقرأ إجاباتُها.
+        final columns = size.width > size.height * 1.2 && count > 2 ? 2 : 1;
+        final lanes = (count / columns).ceil();
+        final top = surfaceY + (floorY - surfaceY) * 0.06;
+        final laneH = (floorY - top) / lanes;
+        final fishH = math.min(laneH * 0.96, size.width / columns * 0.5 / 2.476).clamp(34.0, 130.0).toDouble();
+        final fishW = fishH * 2.476;
+        final avatar = (surfaceY * 0.62).clamp(44.0, 104.0).toDouble();
+        final pierW = math.max(size.width * 0.2, avatar * 1.6);
+        final pierY = surfaceY - avatar * 0.12;
+        final tip = Offset(pierW + size.width * 0.06, pierY - avatar * 1.05);
+        final font = (fishH * 0.4).clamp(18.0, 32.0).toDouble();
+        return AnimatedBuilder(
+          animation: Listenable.merge([_swim, _cast]),
+          builder: (context, _) {
+            final target = _target;
+            final c = _cast.value;
+            Offset? hook;
+            Offset? splash;
+            double splashT = 0;
+            var lifted = Offset.zero;
+            if (target != null && target >= 0) {
+              final fish = _fishAt(target, size, top, laneH, fishW, fishH, columns) + Offset(fishW / 2, fishH * 0.35);
+              final down = Curves.easeOut.transform((c / 0.35).clamp(0.0, 1.0));
+              final up = Curves.easeInOut.transform(((c - 0.42) / 0.4).clamp(0.0, 1.0));
+              final correct = widget.isCorrect(widget.options[target]);
+              hook = Offset.lerp(tip, fish, down)!;
+              if (correct && c > 0.42) {
+                // ‏تُرفع مع الصنّارة إلى فوق الرصيف.
+                final air = Offset(pierW + fishW * 0.15, surfaceY - avatar * 0.9);
+                hook = Offset.lerp(fish, air, up)!;
+                lifted = hook - fish;
+                splash = Offset(fish.dx + lifted.dx * 0.4, surfaceY);
+                splashT = ((c - 0.55) / 0.45).clamp(0.0, 1.0);
+              } else if (!correct && c > 0.42) {
+                hook = Offset.lerp(fish, tip, up)!;
+              }
+            }
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Positioned.fill(child: _Backdrop(QuizGameArt.fishingBg)),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _SeaLifePainter(
+                        t: _swim.value + c,
+                        surfaceY: surfaceY,
+                        floorY: floorY,
+                        pier: Rect.fromLTWH(0, pierY, pierW, 16),
                       ),
-                      // ‏الرصيفُ والشخصيةُ والصنّارة.
-                      Positioned(
-                        left: size.width * 0.5 - avatar * 1.6,
-                        top: skyH - avatar * 0.95,
-                        width: avatar,
-                        height: avatar,
-                        child: const FittedBox(child: StudentAvatarView(size: 96, showRing: false)),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: pierW * 0.5 - avatar * 0.5,
+                  top: pierY - avatar * 0.98,
+                  width: avatar,
+                  height: avatar,
+                  child: const FittedBox(child: StudentAvatarView(size: 96, showRing: false)),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _RodPainter(
+                        hand: Offset(pierW * 0.5 + avatar * 0.32, pierY - avatar * 0.45),
+                        tip: tip,
+                        hook: hook,
+                        sway: math.sin(_swim.value * 2 * math.pi * 3) * 3,
                       ),
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _RodPainter(
-                              hand: Offset(size.width * 0.5 - avatar * 0.9, skyH - avatar * 0.4),
-                              tip: tip,
-                              hook: hook,
-                            ),
-                          ),
-                        ),
-                      ),
-                      for (var i = 0; i < lanes; i++)
-                        Builder(builder: (context) {
-                          final at = _fishAt(i, sea, fishW) + Offset(0, skyH);
-                          final picked = target == i;
-                          final correct = widget.isCorrect(widget.options[i]);
-                          final escaping = picked && !correct;
-                          final reveal = target != null && !picked && correct;
-                          final offset = picked && correct
-                              ? lifted
-                              : escaping
-                                  ? Offset(size.width * 0.6 * ((_cast.value - 0.5) * 2).clamp(0.0, 1.0), 0)
-                                  : Offset.zero;
-                          return Positioned(
-                            left: at.dx + offset.dx,
-                            top: at.dy + offset.dy,
-                            width: fishW,
-                            height: fishH,
-                            child: Opacity(
-                              opacity: escaping ? (1 - ((_cast.value - 0.5) * 2).clamp(0.0, 1.0) * 0.7) : 1,
-                              child: _Fish(
-                                key: ValueKey('fish-$i'),
-                                label: widget.options[i],
-                                color: _palette[i % _palette.length],
-                                facingRight: target != null ? true : _facingRight(i),
-                                glow: reveal || (picked && correct && _cast.value > 0.9),
-                                onTap: () => _tap(i),
-                              ),
-                            ),
-                          );
-                        }),
-                      if (target != null && target >= 0 && widget.isCorrect(widget.options[target]) && _cast.value > 0.9)
-                        Positioned(
-                          top: 8,
-                          right: 12,
-                          child: Text(tr('quiz.game.caught'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, shadows: [Shadow(color: Colors.black45, blurRadius: 6)])),
-                        ),
-                    ],
-                  );
-                },
-              );
-            }),
+                    ),
+                  ),
+                ),
+                for (var i = 0; i < count; i++) _fish(i, size, top, laneH, fishW, fishH, columns, font, lifted),
+                if (splash != null)
+                  Positioned.fill(
+                    child: IgnorePointer(child: CustomPaint(painter: _SplashPainter(splashT, splash, fishW))),
+                  ),
+                if (target != null && target >= 0 && widget.isCorrect(widget.options[target]) && c > 0.85)
+                  PositionedDirectional(
+                    top: 10,
+                    end: 14,
+                    child: Text(
+                      tr('quiz.game.caught'),
+                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white, shadows: [Shadow(color: Colors.black54, blurRadius: 8)]),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      }),
+    );
+  }
+
+  /// موضعُ السمكة [i]: حارةٌ لكلّ سمكة في سربها، تسبح فيها ذهاباً وإياباً بتموّج.
+  Offset _fishAt(int i, Size stage, double top, double laneH, double fishW, double fishH, int columns) {
+    final lanes = (widget.options.length / columns).ceil();
+    final lane = i % lanes;
+    final band = stage.width / columns;
+    final phase = i * 0.31;
+    final t = _swim.value;
+    final travel = math.max(0.0, band - fishW - 16) * 0.5 * (1 + math.sin((t + phase) * 2 * math.pi));
+    final wave = math.sin((t * 6 + phase) * 2 * math.pi) * fishH * 0.06;
+    return Offset(band * (i ~/ lanes) + 8 + travel, top + laneH * lane + (laneH - fishH) / 2 + wave);
+  }
+
+  bool _facingRight(int i) => math.cos((_swim.value + i * 0.31) * 2 * math.pi) > 0;
+
+  Widget _fish(int i, Size stage, double top, double laneH, double fishW, double fishH, int columns, double font, Offset lifted) {
+    final option = widget.options[i];
+    final target = _target;
+    final c = _cast.value;
+    final picked = target == i;
+    final correct = widget.isCorrect(option);
+    final escape = picked && !correct ? ((c - 0.42) / 0.5).clamp(0.0, 1.0) : 0.0;
+    final mark = target == null || target < 0 ? _Mark.idle : _markOf(option, widget.options[target], widget.isCorrect);
+    final at = _fishAt(i, stage, top, laneH, fishW, fishH, columns);
+    var offset = picked && correct ? lifted : Offset(stage.width * 0.9 * Curves.easeIn.transform(escape), -escape * fishH * 0.4);
+    if (picked && !correct && c > 0.3 && c < 0.5) offset += Offset(math.sin(c * 120) * 6, 0);
+    final facingRight = target != null ? (picked && !correct ? true : _facingRight(i)) : _facingRight(i);
+    final wag = math.sin((_swim.value * 30 + i) * 2 * math.pi) * 0.05;
+    final hanging = picked && correct && c > 0.42;
+    return Positioned(
+      left: at.dx + offset.dx,
+      top: at.dy + offset.dy,
+      width: fishW,
+      height: fishH,
+      child: Opacity(
+        opacity: (1 - escape * 0.9).clamp(0.0, 1.0),
+        child: GestureDetector(
+          key: ValueKey('fish-$i'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _tap(i),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              if (mark == _Mark.reveal)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.all(Radius.elliptical(fishW / 2, fishH / 2)),
+                      boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.85), blurRadius: 30, spreadRadius: 4)],
+                    ),
+                  ),
+                ),
+              Positioned.fill(
+                child: Transform.rotate(
+                  angle: hanging ? -math.pi / 2 * 0.9 : wag,
+                  child: Transform.flip(
+                    flipX: !facingRight,
+                    child: ColorFiltered(
+                      colorFilter: _hue(_hues[i % _hues.length]),
+                      child: Image.asset(QuizGameArt.fish, fit: BoxFit.contain, cacheWidth: 520),
+                    ),
+                  ),
+                ),
+              ),
+              _Capsule(option, fontSize: font, maxWidth: fishW * 0.86, mark: mark),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-class _SeaPainter extends CustomPainter {
-  _SeaPainter({required this.skyH, required this.wave});
-  final double skyH;
-  final double wave;
+/// حياةُ البحر فوق الرسمة: فقاعاتٌ تصعد، وموجٌ يلمع على السطح، والرصيفُ
+/// الخشبيّ بأعمدته في الماء.
+class _SeaLifePainter extends CustomPainter {
+  _SeaLifePainter({required this.t, required this.surfaceY, required this.floorY, required this.pier});
+
+  final double t;
+  final double surfaceY;
+  final double floorY;
+  final Rect pier;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final sky = Rect.fromLTWH(0, 0, size.width, skyH);
-    canvas.drawRect(
-      sky,
-      Paint()..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF7DD3FC), Color(0xFFE0F2FE)]).createShader(sky),
-    );
-    // ‏الشمس.
-    canvas.drawCircle(Offset(size.width * 0.85, skyH * 0.35), skyH * 0.18, Paint()..color = const Color(0xFFFDE047));
-    final sea = Rect.fromLTWH(0, skyH, size.width, size.height - skyH);
-    canvas.drawRect(
-      sea,
-      Paint()..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF38BDF8), Color(0xFF0369A1)]).createShader(sea),
-    );
-    // ‏موجُ السطح.
-    final path = Path()..moveTo(0, skyH);
-    for (var x = 0.0; x <= size.width; x += 8) {
-      path.lineTo(x, skyH + math.sin((x / 40) + wave * 2 * math.pi) * 5);
+    final bubble = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = Colors.white.withValues(alpha: 0.7);
+    for (var i = 0; i < 16; i++) {
+      final x = size.width * ((i * 0.137 + 0.05) % 1) + math.sin((t * 3 + i) * 2 * math.pi) * 6;
+      final y = floorY - (floorY - surfaceY) * ((t * (0.8 + (i % 3) * 0.3) + i * 0.067) % 1);
+      canvas.drawCircle(Offset(x, y), 3 + (i % 4).toDouble(), bubble);
     }
-    path
-      ..lineTo(size.width, skyH - 8)
-      ..lineTo(0, skyH - 8)
-      ..close();
-    canvas.drawPath(path, Paint()..color = const Color(0xFFBAE6FD));
-    // ‏الرصيف.
-    final dock = Rect.fromLTWH(size.width * 0.5 - skyH * 1.6, skyH - 10, skyH * 1.2, 14);
-    canvas.drawRRect(RRect.fromRectAndRadius(dock, const Radius.circular(4)), Paint()..color = const Color(0xFF92400E));
-    // ‏فقاعات.
-    for (var i = 0; i < 10; i++) {
-      final x = size.width * ((i * 0.137 + 0.05) % 1);
-      final y = skyH + (size.height - skyH) * (1 - ((wave + i * 0.1) % 1));
-      canvas.drawCircle(Offset(x, y), 3 + (i % 3).toDouble(), Paint()..color = Colors.white.withValues(alpha: 0.35));
+    // ‏لمعانُ الموج على السطح.
+    final glint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.55)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 7; i++) {
+      final x = size.width * ((i * 0.19 + t * 0.6) % 1);
+      final y = surfaceY + math.sin((t * 4 + i) * 2 * math.pi) * 3;
+      canvas.drawLine(Offset(x, y), Offset(x + 16, y), glint);
+    }
+    // ‏الرصيف: ألواحٌ خشبيّة على أعمدة.
+    final wood = Paint()..color = const Color(0xFF8B5A2B);
+    final dark = Paint()..color = const Color(0xFF5C3A1A);
+    for (final x in [pier.left + 10, pier.center.dx, pier.right - 14]) {
+      canvas.drawRect(Rect.fromLTWH(x, pier.top, 9, surfaceY - pier.top + 34), dark);
+    }
+    canvas.drawRRect(RRect.fromRectAndRadius(pier, const Radius.circular(4)), wood);
+    for (var x = pier.left + 18; x < pier.right; x += 22) {
+      canvas.drawLine(Offset(x, pier.top + 2), Offset(x, pier.bottom - 2), dark..strokeWidth = 1.5);
     }
   }
 
   @override
-  bool shouldRepaint(_SeaPainter old) => old.wave != wave || old.skyH != skyH;
+  bool shouldRepaint(_SeaLifePainter old) => old.t != t || old.surfaceY != surfaceY || old.pier != pier;
 }
 
 class _RodPainter extends CustomPainter {
-  _RodPainter({required this.hand, required this.tip, this.hook});
+  _RodPainter({required this.hand, required this.tip, required this.sway, this.hook});
   final Offset hand;
   final Offset tip;
+  final double sway;
   final Offset? hook;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final top = tip + Offset(0, sway);
     canvas.drawLine(
       hand,
-      tip,
+      top,
       Paint()
-        ..strokeWidth = 5
+        ..strokeWidth = 6
         ..strokeCap = StrokeCap.round
         ..color = const Color(0xFF78350F),
     );
-    final end = hook ?? tip + const Offset(0, 40);
-    canvas.drawLine(tip, end, Paint()..strokeWidth = 1.6..color = const Color(0xFF334155));
-    // ‏الخطّاف.
-    canvas.drawArc(Rect.fromCircle(center: end + const Offset(0, 5), radius: 6), 0, math.pi, false,
-        Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = const Color(0xFF64748B));
+    final end = hook ?? top + const Offset(0, 46);
+    canvas.drawLine(top, end, Paint()..strokeWidth = 2..color = const Color(0xFF1E293B));
+    // ‏العوّامةُ والخطّاف.
+    if (hook == null) canvas.drawCircle(end - const Offset(0, 10), 6, Paint()..color = const Color(0xFFEF4444));
+    canvas.drawArc(Rect.fromCircle(center: end + const Offset(0, 6), radius: 7), 0, math.pi, false,
+        Paint()..style = PaintingStyle.stroke..strokeWidth = 2.5..color = const Color(0xFF475569));
   }
 
   @override
-  bool shouldRepaint(_RodPainter old) => old.hook != hook || old.tip != tip || old.hand != hand;
+  bool shouldRepaint(_RodPainter old) => old.hook != hook || old.tip != tip || old.hand != hand || old.sway != sway;
 }
 
-class _Fish extends StatelessWidget {
-  const _Fish({
-    required this.label,
-    required this.color,
-    required this.facingRight,
-    required this.glow,
-    required this.onTap,
-    super.key,
-  });
-
-  final String label;
-  final Color color;
-  final bool facingRight;
-  final bool glow;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: LayoutBuilder(builder: (context, box) {
-        final h = box.maxHeight;
-        final body = Expanded(
-          child: Container(
-            alignment: Alignment.center,
-            padding: EdgeInsets.symmetric(horizontal: h * 0.25),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.all(Radius.elliptical(h * 1.2, h / 2)),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color.lerp(color, Colors.white, 0.35)!, color],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: (glow ? const Color(0xFFFFD166) : Colors.black).withValues(alpha: glow ? 0.8 : 0.2),
-                  blurRadius: glow ? 20 : 6,
-                  spreadRadius: glow ? 3 : 0,
-                ),
-              ],
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, shadows: [Shadow(color: Colors.black38, blurRadius: 4)]),
-              ),
-            ),
-          ),
-        );
-        final tail = SizedBox(width: h * 0.45, height: h * 0.8, child: CustomPaint(painter: _TailPainter(color, pointsRight: !facingRight)));
-        return Row(children: facingRight ? [tail, body] : [body, tail]);
-      }),
-    );
-  }
-}
-
-class _TailPainter extends CustomPainter {
-  _TailPainter(this.color, {required this.pointsRight});
-  final Color color;
-  final bool pointsRight;
+/// رذاذٌ وحلقاتٌ حين تخرج السمكةُ من الماء.
+class _SplashPainter extends CustomPainter {
+  _SplashPainter(this.t, this.at, this.width);
+  final double t;
+  final Offset at;
+  final double width;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = pointsRight
-        ? (Path()
-          ..moveTo(0, size.height / 2)
-          ..lineTo(size.width, 0)
-          ..lineTo(size.width, size.height)
-          ..close())
-        : (Path()
-          ..moveTo(size.width, size.height / 2)
-          ..lineTo(0, 0)
-          ..lineTo(0, size.height)
-          ..close());
-    canvas.drawPath(path, Paint()..color = color);
+    if (t <= 0 || t >= 1) return;
+    final fade = (1 - t).clamp(0.0, 1.0);
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = Colors.white.withValues(alpha: fade * 0.9);
+    for (var k = 0; k < 2; k++) {
+      final r = width * (0.25 + t * 0.6) * (1 - k * 0.35);
+      canvas.drawOval(Rect.fromCenter(center: at, width: r * 2, height: r * 0.5), ring);
+    }
+    final drop = Paint()..color = const Color(0xFFE0F2FE).withValues(alpha: fade);
+    for (var i = 0; i < 14; i++) {
+      final a = -math.pi * (0.15 + 0.7 * i / 13);
+      final v = width * (0.45 + (i % 3) * 0.12);
+      final p = at + Offset(math.cos(a) * v * t, math.sin(a) * v * t + width * 0.9 * t * t);
+      canvas.drawCircle(p, 4 + (i % 3).toDouble(), drop);
+    }
   }
 
   @override
-  bool shouldRepaint(_TailPainter old) => old.color != color || old.pointsRight != pointsRight;
+  bool shouldRepaint(_SplashPainter old) => old.t != t || old.at != at;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// القطار
+// قطار الإجابات السعيد
 // ═══════════════════════════════════════════════════════════════════════
 
-/// «القطار»: الإجاباتُ صناديقُ على الرصيف، والقطارُ — والطالبُ بشخصيته في
-/// مقصورته — ينتظر بعربةٍ فارغة. الصندوقُ الصحيحُ يطير إلى العربة وينطلق
-/// القطار؛ والخاطئُ يهتزّ ويسقط، والصحيحُ يتوهّج.
+/// «قطار الإجابات السعيد»: يدخل القطارُ المحطةَ الريفية بدخانه وصافرته،
+/// والإجاباتُ مثبّتةٌ على عرباته. يختار الطالبُ العربةَ الصحيحة فتمتلئ
+/// بالهدايا وينطلق القطار؛ والخاطئةُ تهتزّ وتتوهّج الصحيحة.
 class TrainQuizQuestion extends QuizGameQuestion {
   const TrainQuizQuestion({
     required super.prompt,
@@ -793,19 +909,51 @@ class TrainQuizQuestion extends QuizGameQuestion {
   State<TrainQuizQuestion> createState() => _TrainQuizQuestionState();
 }
 
+/// قطعُ القطار المرسوم (١٤٠٠×٤٣٦): ثلاثُ عرباتٍ ثم القاطرة، بأجزاءٍ من عرضه.
+class _TrainSprite {
+  static const width = 1400.0;
+  static const height = 436.0;
+  static const wagons = [(0.0, 334.0), (334.0, 646.0), (646.0, 953.0)];
+  static const engine = (953.0, 1400.0);
+
+  /// المدخنةُ في القاطرة (من عرضها وارتفاعها).
+  static const chimney = Offset(0.7, 0.16);
+}
+
 class _TrainQuizQuestionState extends State<TrainQuizQuestion> with TickerProviderStateMixin {
-  late final AnimationController _chug = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-  late final AnimationController _go = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
+  late final AnimationController _arrive = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
+  late final AnimationController _smoke = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+  late final AnimationController _load = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+  late final AnimationController _depart = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
   int? _picked;
   final List<Timer> _timers = [];
+
+  /// سكّةُ المحطة في الرسمة (من ارتفاعها): عليها تقف العجلات.
+  static const _rail = 0.705;
+
+  @override
+  void initState() {
+    super.initState();
+    final answered = widget.answered;
+    if (answered != null) {
+      _picked = widget.options.indexOf(answered);
+      _arrive.value = 1;
+      _load.value = 1;
+    }
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      _chug.stop();
-    } else if (!_chug.isAnimating) {
-      _chug.repeat();
+    if (_still(context)) {
+      _arrive.value = 1;
+      _smoke.stop();
+      return;
+    }
+    if (!_smoke.isAnimating) _smoke.repeat();
+    if (_arrive.value == 0 && !_arrive.isAnimating) {
+      StudentSoundService.instance.playGameEffect(StudentSoundService.trainWhistle);
+      _arrive.forward();
     }
   }
 
@@ -814,369 +962,229 @@ class _TrainQuizQuestionState extends State<TrainQuizQuestion> with TickerProvid
     for (final timer in _timers) {
       timer.cancel();
     }
-    _chug.dispose();
-    _go.dispose();
+    _arrive.dispose();
+    _smoke.dispose();
+    _load.dispose();
+    _depart.dispose();
     super.dispose();
   }
 
   void _tap(int index) {
     final option = widget.options[index];
-    if (_picked != null || widget.answered != null || option.isEmpty) return;
-    HapticFeedback.selectionClick();
-    setState(() => _picked = index);
+    if (_picked != null || option.isEmpty) return;
     final correct = widget.isCorrect(option);
-    _go.forward(from: 0);
-    // ‏الصحيحُ يُفرح حين يستقرّ في العربة، والخاطئُ في لحظته.
-    _timers
-      ..add(Timer(Duration(milliseconds: correct ? 650 : 0), () {
-        if (mounted) _celebrate(correct);
-      }))
-      ..add(Timer(quizGameReveal + const Duration(milliseconds: 500), () {
-        if (mounted) widget.onAnswered(option);
+    setState(() => _picked = index);
+    _arrive.value = 1;
+    _celebrate(correct);
+    _load.forward(from: 0);
+    if (correct) {
+      _timers.add(Timer(const Duration(milliseconds: 650), () {
+        if (!mounted) return;
+        StudentSoundService.instance.playGameEffect(StudentSoundService.trainWhistle);
+        if (!_still(context)) _depart.forward();
       }));
+    }
+    _timers.add(Timer(quizGameReveal + const Duration(milliseconds: 600), () {
+      if (mounted) widget.onAnswered(option);
+    }));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _Prompt(widget.prompt),
-        const SizedBox(height: 10),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: LayoutBuilder(builder: (context, box) {
-              final size = box.biggest;
-              final count = widget.options.length;
-              final crate = math.min(size.width / (count * 1.1 + 0.4), size.height * 0.26).clamp(56.0, 150.0).toDouble();
-              final trackY = size.height * 0.86;
-              final carH = (size.height * 0.28).clamp(70.0, 160.0).toDouble();
-              final carW = carH * 1.25;
-              final trainLeft = size.width * 0.1;
-              // ‏حيث يستقرّ الصندوقُ فوق العربة (وهي أوّلُ القطار من الخلف).
-              final wagonSlot = Offset(trainLeft + carW / 2 - crate / 2, trackY - carH * 0.806 - crate * 0.66);
-              return AnimatedBuilder(
-                animation: Listenable.merge([_chug, _go]),
-                builder: (context, _) {
-                  final picked = _picked;
-                  final correctPick = picked != null && widget.isCorrect(widget.options[picked]);
-                  final fly = Curves.easeInOut.transform((_go.value / 0.45).clamp(0.0, 1.0));
-                  final depart = correctPick ? Curves.easeIn.transform(((_go.value - 0.45) / 0.55).clamp(0.0, 1.0)) : 0.0;
-                  final trainShift = depart * size.width;
-                  final wheel = _chug.value + depart * 6;
-                  final bounce = math.sin(_chug.value * 2 * math.pi) * 2;
-                  return Stack(
-                    children: [
-                      const Positioned.fill(child: _GameBackdrop(_GameBackdrop.classroom)),
-                      // ‏الرصيف.
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        top: size.height * 0.08 + crate,
-                        height: 12,
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Color(0xFF92400E),
-                            boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 6, offset: Offset(0, 4))],
+    return _Frame(
+      prompt: widget.prompt,
+      stage: LayoutBuilder(builder: (context, box) {
+        final size = box.biggest;
+        final n = widget.options.length;
+        final wagonPx = [for (var i = 0; i < n; i++) _wagonSlice(i).$2 - _wagonSlice(i).$1];
+        final enginePx = _TrainSprite.engine.$2 - _TrainSprite.engine.$1;
+        final totalPx = wagonPx.fold<double>(enginePx, (a, b) => a + b);
+        final railY = _artPoint(size, Alignment.center, const Offset(0, _rail)).dy.clamp(size.height * 0.45, size.height - 6).toDouble();
+        final h = math.min(size.width * 0.97 * _TrainSprite.height / totalPx, railY * 0.8);
+        final k = h / _TrainSprite.height;
+        final trainW = totalPx * k;
+        final font = (h * 0.19).clamp(15.0, 32.0).toDouble();
+        return AnimatedBuilder(
+          animation: Listenable.merge([_arrive, _smoke, _load, _depart]),
+          builder: (context, _) {
+            final arrive = Curves.easeOutCubic.transform(_arrive.value);
+            final stop = (size.width - trainW) / 2;
+            final x = stop - (1 - arrive) * (stop + trainW + 20) + Curves.easeInCubic.transform(_depart.value) * (size.width - stop + 20);
+            final moving = _arrive.value < 1 || _depart.value > 0;
+            final jiggle = moving ? math.sin(_smoke.value * 2 * math.pi * 10) * 1.6 : 0.0;
+            final top = railY - h + jiggle;
+            // ‏العرباتُ من اليسار، والأولى ملاصقةٌ للقاطرة يمينَها.
+            final parts = <Widget>[];
+            var left = x;
+            for (var i = n - 1; i >= 0; i--) {
+              final w = wagonPx[i] * k;
+              parts.add(_wagon(i, left, top, w, h, font));
+              left += w;
+            }
+            final engineW = enginePx * k;
+            parts.add(Positioned(
+              left: left,
+              top: top,
+              width: engineW,
+              height: h,
+              child: _Slice(from: _TrainSprite.engine.$1, to: _TrainSprite.engine.$2),
+            ));
+            final chimney = Offset(left + engineW * _TrainSprite.chimney.dx, top + h * _TrainSprite.chimney.dy);
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Positioned.fill(child: _Backdrop(QuizGameArt.trainBg)),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(painter: _SmokePainter(_smoke.value, chimney, h, busy: moving)),
+                  ),
+                ),
+                ...parts,
+                if (_arrive.value < 1 || (_depart.value > 0 && _depart.value < 0.6))
+                  Positioned(
+                    left: chimney.dx - 30,
+                    top: math.max(4, chimney.dy - h * 0.75),
+                    child: IgnorePointer(
+                      child: Transform.rotate(
+                        angle: -0.12,
+                        child: Text(
+                          tr('quiz.game.toot'),
+                          style: TextStyle(
+                            fontSize: (h * 0.16).clamp(14.0, 26.0).toDouble(),
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            shadows: const [Shadow(color: Color(0xAA1E293B), blurRadius: 6)],
                           ),
                         ),
                       ),
-                      // ‏السكّة.
-                      Positioned.fill(child: CustomPaint(painter: _TrackPainter(trackY, wheel))),
-                      // ‏القطار: العربةُ الفارغة، ثم القاطرةُ والطالبُ فيها.
-                      Positioned(
-                        left: trainLeft + trainShift,
-                        top: trackY - carH + bounce,
-                        child: Row(
-                          textDirection: TextDirection.ltr,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            _Wagon(width: carW, height: carH * 0.62, wheel: wheel),
-                            SizedBox(width: carW * 0.12),
-                            _Locomotive(width: carW, height: carH, wheel: wheel, smoke: _chug.value),
-                          ],
-                        ),
-                      ),
-                      for (var i = 0; i < count; i++)
-                        Builder(builder: (context) {
-                          final home = Offset(
-                            (size.width - count * crate * 1.1) / 2 + i * crate * 1.1 + crate * 0.05,
-                            size.height * 0.08,
-                          );
-                          var at = home;
-                          var opacity = 1.0;
-                          var angle = 0.0;
-                          var scale = 1.0;
-                          final mine = picked == i;
-                          if (mine && correctPick) {
-                            // ‏إلى العربة في قوس، ثم ينطلق معها.
-                            final arc = Offset(0, -size.height * 0.18 * math.sin(fly * math.pi));
-                            at = Offset.lerp(home, wagonSlot, fly)! + arc + Offset(trainShift, bounce * fly);
-                            scale = 1 - 0.2 * fly;
-                          } else if (mine) {
-                            angle = math.sin(_go.value * math.pi * 10) * (1 - _go.value) * 0.3;
-                            final fall = Curves.easeIn.transform(((_go.value - 0.4) / 0.6).clamp(0.0, 1.0));
-                            at = home + Offset(0, size.height * 0.5 * fall);
-                            opacity = 1 - ((_go.value - 0.5) * 2).clamp(0.0, 1.0);
-                          }
-                          final glow = picked != null && !mine && widget.isCorrect(widget.options[i]);
-                          return Positioned(
-                            left: at.dx,
-                            top: at.dy,
-                            width: crate,
-                            height: crate,
-                            child: Opacity(
-                              opacity: opacity,
-                              child: Transform.rotate(
-                                angle: angle,
-                                child: Transform.scale(
-                                  scale: scale,
-                                  child: _Crate(
-                                    key: ValueKey('crate-$i'),
-                                    label: widget.options[i],
-                                    color: _palette[i % _palette.length],
-                                    glow: glow,
-                                    onTap: () => _tap(i),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                    ],
-                  );
-                },
-              );
-            }),
-          ),
-        ),
-      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      }),
     );
   }
-}
 
-class _Crate extends StatelessWidget {
-  const _Crate({required this.label, required this.color, required this.glow, required this.onTap, super.key});
+  (double, double) _wagonSlice(int i) => _TrainSprite.wagons[i % _TrainSprite.wagons.length];
 
-  final String label;
-  final Color color;
-  final bool glow;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFD97706),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF92400E), width: 3),
-          boxShadow: [
-            BoxShadow(
-              color: (glow ? const Color(0xFFFFD166) : Colors.black).withValues(alpha: glow ? 0.9 : 0.25),
-              blurRadius: glow ? 22 : 6,
-              spreadRadius: glow ? 4 : 0,
-              offset: const Offset(0, 3),
+  Widget _wagon(int i, double left, double top, double w, double h, double font) {
+    final option = widget.options[i];
+    final picked = _picked;
+    final mark = picked == null || picked < 0 ? _Mark.idle : _markOf(option, widget.options[picked], widget.isCorrect);
+    final l = _load.value;
+    final shake = mark == _Mark.wrong ? math.sin(l * math.pi * 10) * (1 - l) * 8 : 0.0;
+    final bounce = mark == _Mark.right ? math.sin(l * math.pi) * -h * 0.06 : 0.0;
+    final slice = _wagonSlice(i);
+    Widget art = _Slice(from: slice.$1, to: slice.$2);
+    // ‏عربةٌ رابعةٌ فأكثر: الرسمةُ نفسُها بلونٍ آخر.
+    if (i >= _TrainSprite.wagons.length) art = ColorFiltered(colorFilter: _hue(150.0 * (i ~/ 3)), child: art);
+    return Positioned(
+      left: left + shake,
+      top: top + bounce - h * 0.55,
+      width: w,
+      height: h * 1.55,
+      child: GestureDetector(
+        key: ValueKey('wagon-$i'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _tap(i),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (mark == _Mark.reveal)
+              Positioned(
+                left: w * 0.05,
+                right: w * 0.05,
+                top: h * 0.6,
+                bottom: h * 0.1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(h * 0.2),
+                    boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.75), blurRadius: 26)],
+                  ),
+                ),
+              ),
+            Positioned(left: 0, right: 0, bottom: 0, height: h, child: art),
+            // ‏الهدايا تسقط في العربة الصحيحة وتبقى فوقها.
+            if (mark == _Mark.right)
+              for (var g = 0; g < 3; g++)
+                Positioned(
+                  left: w * (0.12 + g * 0.27),
+                  top: h * 0.55 * Curves.bounceOut.transform(((l - g * 0.12) / 0.7).clamp(0.0, 1.0)) - h * 0.05,
+                  child: Opacity(
+                    opacity: l > g * 0.12 ? 1 : 0,
+                    child: Text(const ['🎁', '⭐', '🎈'][g], style: TextStyle(fontSize: (h * 0.22).clamp(14.0, 40.0).toDouble())),
+                  ),
+                ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: h * 0.55 + h * 0.3,
+              child: Center(child: _Capsule(option, fontSize: font, maxWidth: w * 0.94, mark: mark)),
             ),
           ],
         ),
-        child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, shadows: [Shadow(color: Colors.black38, blurRadius: 4)]),
-            ),
-          ),
+      ),
+    );
+  }
+}
+
+/// جزءٌ من رسمة القطار بين [from] و[to] (بالبكسل من عرضها).
+class _Slice extends StatelessWidget {
+  const _Slice({required this.from, required this.to});
+
+  final double from;
+  final double to;
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction = (to - from) / _TrainSprite.width;
+    final x = fraction >= 1 ? 0.0 : -1 + 2 * (from / _TrainSprite.width) / (1 - fraction);
+    return LayoutBuilder(builder: (context, box) {
+      final full = box.maxWidth / fraction;
+      return ClipRect(
+        child: OverflowBox(
+          minWidth: full,
+          maxWidth: full,
+          alignment: Alignment(x, 0),
+          child: Image.asset(QuizGameArt.train, width: full, height: box.maxHeight, fit: BoxFit.fill, cacheWidth: 1400),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
-class _Locomotive extends StatelessWidget {
-  const _Locomotive({required this.width, required this.height, required this.wheel, required this.smoke});
-
-  final double width;
-  final double height;
-  final double wheel;
-  final double smoke;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // ‏الدخان.
-          for (var i = 0; i < 3; i++)
-            Positioned(
-              left: width * 0.66 - i * 10 - smoke * 8,
-              top: -height * 0.12 - i * 16 - smoke * 10,
-              child: Opacity(
-                opacity: (0.75 - i * 0.2 - smoke * 0.2).clamp(0.0, 1.0),
-                child: Container(
-                  width: 16.0 + i * 8,
-                  height: 16.0 + i * 8,
-                  decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle),
-                ),
-              ),
-            ),
-          // ‏المدخنة.
-          Positioned(
-            left: width * 0.68,
-            top: height * 0.08,
-            width: width * 0.12,
-            height: height * 0.26,
-            child: Container(
-              decoration: BoxDecoration(color: const Color(0xFF1F2937), borderRadius: BorderRadius.circular(3)),
-            ),
-          ),
-          // ‏جسمُ القاطرة.
-          Positioned(
-            left: width * 0.3,
-            top: height * 0.3,
-            width: width * 0.7,
-            height: height * 0.42,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFEF4444),
-                borderRadius: const BorderRadius.horizontal(right: Radius.circular(30), left: Radius.circular(6)),
-                border: Border.all(color: const Color(0xFF7F1D1D), width: 2),
-              ),
-            ),
-          ),
-          // ‏المقصورةُ وفيها الطالب.
-          Positioned(
-            left: 0,
-            top: height * 0.02,
-            width: width * 0.44,
-            height: height * 0.7,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDC2626),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF7F1D1D), width: 2),
-              ),
-              child: Container(
-                decoration: BoxDecoration(color: const Color(0xFFBAE6FD), borderRadius: BorderRadius.circular(6)),
-                child: const FittedBox(child: StudentAvatarView(size: 64, showRing: false)),
-              ),
-            ),
-          ),
-          for (final x in [0.15, 0.5, 0.82])
-            Positioned(
-              left: width * x - height * 0.15,
-              top: height * 0.68,
-              child: _Wheel(size: height * 0.3, turn: wheel),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Wagon extends StatelessWidget {
-  const _Wagon({required this.width, required this.height, required this.wheel});
-
-  final double width;
-  final double height;
-  final double wheel;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: height * 1.3,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            height: height,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF3B82F6),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF1E3A8A), width: 2),
-              ),
-            ),
-          ),
-          for (final x in [0.22, 0.78])
-            Positioned(left: width * x - height * 0.22, top: height * 0.84, child: _Wheel(size: height * 0.44, turn: wheel)),
-        ],
-      ),
-    );
-  }
-}
-
-class _Wheel extends StatelessWidget {
-  const _Wheel({required this.size, required this.turn});
-
-  final double size;
-  final double turn;
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: turn * 2 * math.pi,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1F2937),
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFF9CA3AF), width: 3),
-        ),
-        child: Center(child: Container(width: size * 0.6, height: 3, color: const Color(0xFF9CA3AF))),
-      ),
-    );
-  }
-}
-
-class _TrackPainter extends CustomPainter {
-  _TrackPainter(this.y, this.shift);
-  final double y;
-  final double shift;
+/// دخانٌ يتصاعد من المدخنة كتلاً بيضاء تكبر وتبهت — أكثفُ والقطارُ يسير.
+class _SmokePainter extends CustomPainter {
+  _SmokePainter(this.t, this.at, this.scale, {required this.busy});
+  final double t;
+  final Offset at;
+  final double scale;
+  final bool busy;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final sleeper = Paint()..color = const Color(0xFF78350F);
-    const gap = 26.0;
-    final offset = -(shift * gap) % gap;
-    for (var x = offset - gap; x < size.width; x += gap) {
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y + 2, 14, 12), const Radius.circular(2)), sleeper);
+    final puffs = busy ? 6 : 3;
+    for (var i = 0; i < puffs; i++) {
+      final p = (t + i / puffs) % 1;
+      final r = scale * (0.05 + p * 0.12);
+      final c = at + Offset(-p * scale * (busy ? 0.5 : 0.15) + math.sin(p * 6 + i) * 4, -p * scale * 0.7);
+      canvas.drawCircle(c, r, Paint()..color = Colors.white.withValues(alpha: (1 - p) * 0.85));
     }
-    final rail = Paint()
-      ..color = const Color(0xFF475569)
-      ..strokeWidth = 4;
-    canvas.drawLine(Offset(0, y + 2), Offset(size.width, y + 2), rail);
-    canvas.drawLine(Offset(0, y + 13), Offset(size.width, y + 13), rail);
   }
 
   @override
-  bool shouldRepaint(_TrackPainter old) => old.shift != shift || old.y != y;
+  bool shouldRepaint(_SmokePainter old) => old.t != t || old.at != at || old.busy != busy;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// المقلاع
+// المقلاع الذكي
 // ═══════════════════════════════════════════════════════════════════════
 
-/// «المقلاع»: الطالبُ بشخصيته يمسك مقلاعاً، والإجاباتُ أهدافٌ معلّقة تتمايل.
-/// يلمس هدفاً فيُشدّ المطاطُ وتنطلق الحصاةُ في قوس: الصحيحُ ينفجر نجوماً،
-/// والخاطئُ يترنّح وتسقط الحصاة، والصحيحُ يتوهّج.
+/// «المقلاع الذكي»: يسحب الطالبُ خيطَ المقلاع بإصبعه فيظهر خطُّ مسارٍ تنبّؤيٌّ
+/// منقّط، ويُفلته فتنطلق الحصاةُ نحو الأهداف الطافية في الهواء. وتكفي لمسةُ
+/// الهدف أيضاً: تُصوَّب الحصاةُ إليه وحدها — لطفلٍ لم تتعوّد يدُه السحبَ بعد.
 class SlingshotQuizQuestion extends QuizGameQuestion {
   const SlingshotQuizQuestion({
     required super.prompt,
@@ -1192,261 +1200,476 @@ class SlingshotQuizQuestion extends QuizGameQuestion {
 }
 
 class _SlingshotQuizQuestionState extends State<SlingshotQuizQuestion> with TickerProviderStateMixin {
-  late final AnimationController _sway = AnimationController(vsync: this, duration: const Duration(seconds: 3));
-  late final AnimationController _shot = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
-  int? _picked;
-  final List<Timer> _timers = [];
+  late final AnimationController _float = AnimationController(vsync: this, duration: const Duration(seconds: 4));
+  late final AnimationController _flight = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
+  late final AnimationController _hit = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  late final AnimationController _snap = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
+
+  /// الخلفيةُ محاذاةً لليسار: فيها المقلاعُ المرسوم، فلا يقصّه هاتفٌ رأسيّ.
+  static const _align = Alignment(-0.85, 0);
+
+  /// شدُّ الخيطين على شعبتي المقلاع في الرسمة، ومستقرُّ الحصاة بينهما.
+  static const _leftBand = Offset(0.139, 0.483);
+  static const _rightBand = Offset(0.197, 0.476);
+
+  /// عدّةُ الطيران: الجاذبيةُ والسرعةُ نسبةً إلى ارتفاع المسرح.
+  static const _gravity = 1.7;
+  static const _power = 5.2;
+  static const _aimTime = 0.75;
+
+  String? _picked;
+  int? _hitIndex;
+  Offset? _pull;
+  Offset? _launchFrom;
+  Offset _velocity = Offset.zero;
+  int? _aimed;
+  bool _missed = false;
+  Timer? _report;
+  Timer? _missTimer;
+
+  /// هندسةُ المسرح من آخر رسم — يقرؤها مستمعُ الطيران ليعرف ما أصاب.
+  Size _stage = Size.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _picked = widget.answered;
+    if (_picked != null) _hit.value = 1;
+    _flight.addListener(_onFlight);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      _sway.stop();
-    } else if (!_sway.isAnimating) {
-      _sway.repeat();
+    if (_still(context)) {
+      _float.stop();
+    } else if (!_float.isAnimating) {
+      _float.repeat();
     }
   }
 
   @override
   void dispose() {
-    for (final timer in _timers) {
-      timer.cancel();
-    }
-    _sway.dispose();
-    _shot.dispose();
+    _report?.cancel();
+    _missTimer?.cancel();
+    _float.dispose();
+    _flight.dispose();
+    _hit.dispose();
+    _snap.dispose();
     super.dispose();
   }
 
-  void _tap(int index) {
-    final option = widget.options[index];
-    if (_picked != null || widget.answered != null || option.isEmpty) return;
+  Offset get _rest {
+    final a = _artPoint(_stage, _align, _leftBand);
+    final b = _artPoint(_stage, _align, _rightBand);
+    return Offset.lerp(a, b, 0.5)! + Offset(0, _stage.height * 0.01);
+  }
+
+  double get _maxPull => _stage.height * 0.26;
+
+  double get _targetRadius => (math.min(_stage.width, _stage.height) * 0.085).clamp(26.0, 62.0).toDouble();
+
+  Offset _targetAt(int i) {
+    final n = widget.options.length;
+    final xs = _stage.width * (0.42 + 0.5 * (n == 1 ? 0.5 : i / (n - 1)));
+    final bandTop = _stage.height * 0.14;
+    final bandH = _stage.height * 0.42;
+    final y = bandTop + bandH * (i.isEven ? 0.15 : 0.75) + math.sin((_float.value + i * 0.27) * 2 * math.pi) * _stage.height * 0.03;
+    return Offset(xs.clamp(_targetRadius * 1.2, _stage.width - _targetRadius * 1.2).toDouble(), y);
+  }
+
+  Offset _stoneAt(double seconds) =>
+      _launchFrom! + _velocity * seconds + Offset(0, 0.5 * _gravity * _stage.height * seconds * seconds);
+
+  bool get _flying => _flight.isAnimating;
+
+  bool get _locked => _picked != null || _flying;
+
+  // ── السحب ──
+
+  void _onPanStart(DragStartDetails details) {
+    if (_locked) return;
+    if ((details.localPosition - _rest).distance > _stage.shortestSide * 0.22) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _missed = false;
+      _pull = _rest;
+    });
+  }
+
+  void _onPanUpdate(DragUpdateDetails details) {
+    if (_pull == null || _locked) return;
+    var d = details.localPosition - _rest;
+    if (d.distance > _maxPull) d = d / d.distance * _maxPull;
+    setState(() => _pull = _rest + d);
+  }
+
+  void _onPanEnd(DragEndDetails details) {
+    final pull = _pull;
+    if (pull == null || _locked) return;
+    final d = _rest - pull;
+    if (d.distance < _maxPull * 0.18) {
+      // ‏شدٌّ خفيف: يرجع الخيطُ بلا رمية.
+      setState(() => _pull = null);
+      return;
+    }
+    _fire(pull, d * _power * (_stage.height / _maxPull) / 2.6);
+  }
+
+  /// لمسةُ الهدف: الحصاةُ تُصوَّب إليه وتصيبه.
+  void _aim(int i) {
+    if (_locked || widget.options[i].isEmpty) return;
+    final from = _rest;
+    final to = _targetAt(i);
+    const t = _aimTime;
+    final g = _gravity * _stage.height;
+    _aimed = i;
+    _fire(from, Offset((to.dx - from.dx) / t, (to.dy - from.dy - 0.5 * g * t * t) / t));
+  }
+
+  void _fire(Offset from, Offset velocity) {
     HapticFeedback.mediumImpact();
-    setState(() => _picked = index);
-    _shot.forward(from: 0);
-    // ‏الفرحُ أو التنبيهُ حين تصيب الحصاةُ هدفها.
-    _timers
-      ..add(Timer(const Duration(milliseconds: 975), () {
-        if (mounted) _celebrate(widget.isCorrect(option));
-      }))
-      ..add(Timer(quizGameReveal + const Duration(milliseconds: 600), () {
-        if (mounted) widget.onAnswered(option);
-      }));
+    setState(() {
+      _missed = false;
+      _pull = null;
+      _launchFrom = from;
+      _velocity = velocity;
+    });
+    _snap.forward(from: 0);
+    _flight.forward(from: 0);
+  }
+
+  void _onFlight() {
+    if (_launchFrom == null || _picked != null || !_flight.isAnimating) return;
+    final seconds = _flight.value * _flight.duration!.inMilliseconds / 1000;
+    final stone = _stoneAt(seconds);
+    final aimed = _aimed;
+    if (aimed != null) {
+      if (seconds >= _aimTime) _strike(aimed);
+      return;
+    }
+    final r = _targetRadius * 1.15;
+    for (var i = 0; i < widget.options.length; i++) {
+      if ((stone - _targetAt(i)).distance <= r) {
+        _strike(i);
+        return;
+      }
+    }
+    if (stone.dx > _stage.width + 30 || stone.dy > _stage.height + 30 || stone.dx < -30) {
+      _flight.stop();
+      _miss();
+    }
+  }
+
+  void _strike(int i) {
+    _flight.stop();
+    final option = widget.options[i];
+    final correct = widget.isCorrect(option);
+    setState(() {
+      _picked = option;
+      _hitIndex = i;
+      _aimed = null;
+    });
+    if (correct) StudentSoundService.instance.playGameEffect(StudentSoundService.balloonPop);
+    _celebrate(correct);
+    _hit.forward(from: 0);
+    _report = Timer(quizGameReveal, () {
+      if (mounted) widget.onAnswered(option);
+    });
+  }
+
+  void _miss() {
+    setState(() {
+      _missed = true;
+      _launchFrom = null;
+      _aimed = null;
+    });
+    _missTimer?.cancel();
+    _missTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _missed = false);
+    });
+  }
+
+  /// نقاطُ المسار المتوقَّع من الشدّ الحاليّ.
+  List<Offset> _prediction(Offset pull) {
+    final v = (_rest - pull) * _power * (_stage.height / _maxPull) / 2.6;
+    final g = _gravity * _stage.height;
+    return [
+      for (var s = 0.06; s < 1.4; s += 0.06)
+        if (pull.dx + v.dx * s >= -10 && pull.dx + v.dx * s <= _stage.width + 10 && pull.dy + v.dy * s + 0.5 * g * s * s <= _stage.height)
+          pull + v * s + Offset(0, 0.5 * g * s * s),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _Prompt(widget.prompt),
-        const SizedBox(height: 10),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: LayoutBuilder(builder: (context, box) {
-              final size = box.biggest;
-              final count = widget.options.length;
-              final target = math.min(size.width / (count * 1.15 + 0.2), size.height * 0.32).clamp(56.0, 150.0).toDouble();
-              final avatar = (size.height * 0.28).clamp(56.0, 130.0).toDouble();
-              final pouch = Offset(size.width / 2 + avatar * 0.35, size.height - avatar * 0.85);
-              return AnimatedBuilder(
-                animation: Listenable.merge([_sway, _shot]),
-                builder: (context, _) {
-                  final picked = _picked;
-                  final pull = Curves.easeOut.transform((_shot.value / 0.3).clamp(0.0, 1.0));
-                  final flight = Curves.easeIn.transform(((_shot.value - 0.3) / 0.45).clamp(0.0, 1.0));
-                  final impact = ((_shot.value - 0.75) / 0.25).clamp(0.0, 1.0);
-
-                  Offset centerOf(int i) => Offset(
-                        (size.width - count * target * 1.15) / 2 + i * target * 1.15 + target * 0.575,
-                        size.height * 0.06 + target / 2 + math.sin((_sway.value + i * 0.3) * 2 * math.pi) * 8,
-                      );
-
-                  Offset? stone;
-                  if (picked != null) {
-                    final goal = centerOf(picked);
-                    final start = pouch + Offset(0, 26 * pull);
-                    if (_shot.value < 0.3) {
-                      stone = start;
-                    } else if (impact > 0) {
-                      // ‏الخاطئُ تسقط عنه الحصاة، والصحيحُ تختفي فيه.
-                      stone = widget.isCorrect(widget.options[picked])
-                          ? null
-                          : goal + Offset(0, size.height * 0.7 * Curves.easeIn.transform(impact));
-                    } else {
-                      final control = Offset((start.dx + goal.dx) / 2, math.min(start.dy, goal.dy) - size.height * 0.2);
-                      final t = flight;
-                      stone = Offset(
-                        (1 - t) * (1 - t) * start.dx + 2 * (1 - t) * t * control.dx + t * t * goal.dx,
-                        (1 - t) * (1 - t) * start.dy + 2 * (1 - t) * t * control.dy + t * t * goal.dy,
-                      );
-                    }
-                  }
-                  return Stack(
-                    children: [
-                      const Positioned.fill(child: _GameBackdrop(_GameBackdrop.sky)),
-                      for (var i = 0; i < count; i++)
-                        Builder(builder: (context) {
-                          final c = centerOf(i);
-                          final mine = picked == i;
-                          final correct = widget.isCorrect(widget.options[i]);
-                          final hit = mine && correct && impact > 0;
-                          final wobble = mine && !correct ? math.sin(impact * math.pi * 6) * (1 - impact) * 0.4 : 0.0;
-                          return Positioned(
-                            left: c.dx - target / 2,
-                            top: c.dy - target / 2,
-                            width: target,
-                            height: target,
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Positioned.fill(
-                                  child: Opacity(
-                                    opacity: hit ? (1 - impact * 0.7) : 1,
-                                    child: Transform.rotate(
-                                      angle: wobble,
-                                      child: Transform.scale(
-                                        scale: hit ? 1 + impact * 0.3 : 1,
-                                        child: _Target(
-                                          key: ValueKey('target-$i'),
-                                          label: widget.options[i],
-                                          glow: picked != null && !mine && correct,
-                                          onTap: () => _tap(i),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (hit && impact < 1)
-                                  Positioned(
-                                    left: -target * 0.5,
-                                    top: -target * 0.5,
-                                    width: target * 2,
-                                    height: target * 2,
-                                    child: IgnorePointer(child: CustomPaint(painter: _BurstPainter(impact, const Color(0xFFFBBF24)))),
-                                  ),
-                                if (hit && impact > 0.3)
-                                  Positioned.fill(
-                                    child: IgnorePointer(
-                                      child: Center(
-                                        child: Icon(Icons.check_circle_rounded, color: const Color(0xFF22C55E), size: target * 0.55),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        }),
-                      // ‏الطالبُ والمقلاع.
-                      Positioned(
-                        left: size.width / 2 - avatar * 0.85,
-                        top: size.height - avatar,
-                        width: avatar,
-                        height: avatar,
-                        child: const IgnorePointer(child: FittedBox(child: StudentAvatarView(size: 96, showRing: false))),
+    return _Frame(
+      prompt: widget.prompt,
+      stage: LayoutBuilder(builder: (context, box) {
+        _stage = box.biggest;
+        final font = (_targetRadius * 0.62).clamp(16.0, 30.0).toDouble();
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onPanStart: _onPanStart,
+          onPanUpdate: _onPanUpdate,
+          onPanEnd: _onPanEnd,
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_float, _flight, _hit, _snap]),
+            builder: (context, _) {
+              final rest = _rest;
+              final pull = _pull;
+              final stoneR = (_stage.shortestSide * 0.028).clamp(8.0, 16.0).toDouble();
+              Offset? stone;
+              if (_launchFrom != null && _hitIndex == null && (_flying || _flight.value < 1)) {
+                stone = _stoneAt(_flight.value * _flight.duration!.inMilliseconds / 1000);
+              } else if (_picked == null && !_flying) {
+                stone = pull ?? rest;
+              }
+              final pouch = pull ?? Offset.lerp(rest, rest + const Offset(0, 4), _snap.value)!;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Positioned.fill(child: _Backdrop(QuizGameArt.slingshotBg, alignment: _align)),
+                  // ‏موضعُ الجِراب: منه يبدأ السحب.
+                  Positioned(
+                    key: const ValueKey('sling-pouch'),
+                    left: rest.dx - 24,
+                    top: rest.dy - 24,
+                    width: 48,
+                    height: 48,
+                    child: const IgnorePointer(child: SizedBox.expand()),
+                  ),
+                  for (var i = 0; i < widget.options.length; i++) _target(i, font),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _SlingPainter(
+                          left: _artPoint(_stage, _align, _leftBand),
+                          right: _artPoint(_stage, _align, _rightBand),
+                          pouch: pouch,
+                          stone: stone,
+                          stoneRadius: stoneR,
+                          path: pull == null ? const [] : _prediction(pull),
+                        ),
                       ),
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _SlingPainter(
-                              pouch: pouch,
-                              height: avatar,
-                              pull: picked != null && _shot.value < 0.3 ? pull : 0,
-                              stone: stone,
-                              loaded: picked == null,
+                    ),
+                  ),
+                  if (_picked == null && pull == null && !_flying)
+                    Positioned(
+                      left: math.max(6, rest.dx - 90),
+                      top: rest.dy + _stage.height * 0.2,
+                      width: 180,
+                      child: IgnorePointer(
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: (_missed ? const Color(0xFFEA580C) : const Color(0xFF1E293B)).withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              tr(_missed ? 'quiz.game.missed' : 'quiz.game.pull'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  );
-                },
+                    ),
+                ],
               );
-            }),
+            },
           ),
-        ),
-      ],
+        );
+      }),
     );
   }
-}
 
-class _Target extends StatelessWidget {
-  const _Target({required this.label, required this.glow, required this.onTap, super.key});
-
-  final String label;
-  final bool glow;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const RadialGradient(
-            colors: [Colors.white, Colors.white, Color(0xFFEF4444), Color(0xFFEF4444), Colors.white, Colors.white, Color(0xFFEF4444)],
-            stops: [0, 0.5, 0.5, 0.7, 0.7, 0.86, 0.86],
-          ),
-          border: Border.all(color: const Color(0xFF7F1D1D), width: 3),
-          boxShadow: [
-            BoxShadow(
-              color: (glow ? const Color(0xFFFFD166) : Colors.black).withValues(alpha: glow ? 0.9 : 0.25),
-              blurRadius: glow ? 24 : 6,
-              spreadRadius: glow ? 5 : 0,
+  Widget _target(int i, double font) {
+    final option = widget.options[i];
+    final mark = _markOf(option, _picked, widget.isCorrect);
+    final at = _targetAt(i);
+    final r = _targetRadius;
+    final h = _hit.value;
+    final struck = _hitIndex == i;
+    final wobble = mark == _Mark.wrong ? math.sin(h * math.pi * 8) * (1 - h) * 0.35 : 0.0;
+    final scale = mark == _Mark.right ? 1 + math.sin(h * math.pi) * 0.25 : 1.0;
+    return Positioned(
+      left: at.dx - r * 2,
+      top: at.dy - r * 1.2,
+      width: r * 4,
+      height: r * 2.4 + font * 2.2,
+      child: GestureDetector(
+        key: ValueKey('target-$i'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _aim(i),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            Positioned(
+              top: r * 0.2,
+              child: Transform.rotate(
+                angle: wobble,
+                child: Transform.scale(
+                  scale: scale,
+                  child: SizedBox(
+                    width: r * 2,
+                    height: r * 2,
+                    child: CustomPaint(painter: _TargetPainter(glow: mark == _Mark.reveal)),
+                  ),
+                ),
+              ),
             ),
+            Positioned(
+              top: r * 2.3,
+              child: _Capsule(option, fontSize: font, maxWidth: r * 3.8, mark: mark),
+            ),
+            if (struck && mark == _Mark.right)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(painter: _ConfettiPainter(h, Offset(r * 2, r * 1.2), count: 30)),
+                ),
+              ),
           ],
-        ),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: const Color(0xFF1E3A5F), borderRadius: BorderRadius.circular(10)),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-          ),
         ),
       ),
     );
   }
 }
 
-class _SlingPainter extends CustomPainter {
-  _SlingPainter({required this.pouch, required this.height, required this.pull, required this.loaded, this.stone});
-
-  final Offset pouch;
-  final double height;
-  final double pull;
-  final bool loaded;
-  final Offset? stone;
+/// هدفٌ بحلقاتٍ حمراءَ وبيضاء على عمودٍ صغيرٍ طافٍ بجناحين من غيم.
+class _TargetPainter extends CustomPainter {
+  _TargetPainter({required this.glow});
+  final bool glow;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final wood = Paint()
-      ..color = const Color(0xFF92400E)
-      ..strokeWidth = 7
-      ..strokeCap = StrokeCap.round;
-    final base = pouch + Offset(0, height * 0.75);
-    final fork = pouch + Offset(0, height * 0.25);
-    final left = pouch + Offset(-height * 0.22, -height * 0.05);
-    final right = pouch + Offset(height * 0.22, -height * 0.05);
-    canvas.drawLine(base, fork, wood);
-    canvas.drawLine(fork, left, wood);
-    canvas.drawLine(fork, right, wood);
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2;
+    if (glow) canvas.drawCircle(c, r * 1.2, Paint()..color = _gold.withValues(alpha: 0.55)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12));
+    canvas.drawCircle(c + const Offset(0, 4), r, Paint()..color = const Color(0x33000000));
+    const rings = [Color(0xFFDC2626), Colors.white, Color(0xFFDC2626), Colors.white, Color(0xFFFACC15)];
+    for (var k = 0; k < rings.length; k++) {
+      canvas.drawCircle(c, r * (1 - k * 0.19), Paint()..color = rings[k]);
+    }
+    canvas.drawCircle(c, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 2.5..color = const Color(0xFF7F1D1D));
+  }
+
+  @override
+  bool shouldRepaint(_TargetPainter old) => old.glow != glow;
+}
+
+/// الخيطان من شعبتي المقلاع إلى الجِراب، والحصاة، وخطُّ المسار المنقّط.
+class _SlingPainter extends CustomPainter {
+  _SlingPainter({
+    required this.left,
+    required this.right,
+    required this.pouch,
+    required this.stone,
+    required this.stoneRadius,
+    required this.path,
+  });
+
+  final Offset left;
+  final Offset right;
+  final Offset pouch;
+  final Offset? stone;
+  final double stoneRadius;
+  final List<Offset> path;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final dot = Paint()..color = Colors.white;
+    final rim = Paint()..color = const Color(0x661E293B);
+    for (var i = 0; i < path.length; i++) {
+      final r = math.max(2.0, 6.0 - i * 0.18);
+      canvas.drawCircle(path[i], r + 1.5, rim);
+      canvas.drawCircle(path[i], r, dot);
+    }
     final band = Paint()
-      ..color = const Color(0xFF1F2937)
-      ..strokeWidth = 3;
-    final held = pouch + Offset(0, 26 * pull);
-    canvas.drawLine(left, held, band);
-    canvas.drawLine(right, held, band);
-    final s = loaded ? held : stone;
-    if (s == null) return;
-    canvas.drawCircle(s, 9, Paint()..color = const Color(0xFF64748B));
-    canvas.drawCircle(s + const Offset(-3, -3), 3, Paint()..color = Colors.white54);
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF5B2C0F);
+    canvas.drawLine(right, pouch, band);
+    final s = stone;
+    if (s != null && (s - pouch).distance < 1) {
+      _stone(canvas, s);
+      canvas.drawLine(left, pouch, band);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromCenter(center: pouch, width: stoneRadius * 2.6, height: stoneRadius * 1.6), Radius.circular(stoneRadius)),
+        Paint()..color = const Color(0xFF7C3A12),
+      );
+      _stone(canvas, s);
+    } else {
+      canvas.drawLine(left, pouch, band);
+      if (s != null) _stone(canvas, s);
+    }
+  }
+
+  void _stone(Canvas canvas, Offset at) {
+    canvas.drawCircle(at, stoneRadius, Paint()..color = const Color(0xFF64748B));
+    canvas.drawCircle(at - Offset(stoneRadius * 0.3, stoneRadius * 0.3), stoneRadius * 0.35, Paint()..color = const Color(0xFFCBD5E1));
   }
 
   @override
   bool shouldRepaint(_SlingPainter old) =>
-      old.pull != pull || old.stone != stone || old.pouch != pouch || old.loaded != loaded;
+      old.pouch != pouch || old.stone != stone || old.path.length != path.length || old.left != left || old.right != right;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// أغلفةُ الألعاب
+// ═══════════════════════════════════════════════════════════════════════
+
+/// بطلُ اللعبة على غلافها في بطاقة المذاكرة: ثلاثُ بالوناتٍ ملوّنة، أو
+/// سمكة، أو القطار، أو هدفٌ وحصاة — من رسوم اللعبة نفسها.
+class QuizGameCoverArt extends StatelessWidget {
+  const QuizGameCoverArt({required this.style, super.key});
+
+  final QuizGameStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      final h = box.maxHeight;
+      return switch (style) {
+        QuizGameStyle.balloons => FittedBox(
+            child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (hue, lift, angle) in const [(215.0, 0.12, -0.14), (0.0, 0.0, 0.0), (120.0, 0.16, 0.14)])
+                Padding(
+                  padding: EdgeInsets.only(top: h * lift),
+                  child: Transform.rotate(
+                    angle: angle,
+                    child: ColorFiltered(
+                      colorFilter: _hue(hue),
+                      child: Image.asset(QuizGameArt.balloon, height: h * (1 - lift), cacheWidth: 160),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          ),
+        QuizGameStyle.fishing => Center(
+            child: Transform.rotate(
+              angle: -0.18,
+              child: Image.asset(QuizGameArt.fish, height: h * 0.62, cacheWidth: 400),
+            ),
+          ),
+        QuizGameStyle.train => Align(
+            alignment: Alignment.bottomCenter,
+            child: Image.asset(QuizGameArt.train, height: h * 0.62, cacheWidth: 700),
+          ),
+        QuizGameStyle.slingshot => Center(
+            child: SizedBox(
+              width: h * 0.82,
+              height: h * 0.82,
+              child: CustomPaint(painter: _TargetPainter(glow: true)),
+            ),
+          ),
+      };
+    });
+  }
 }
