@@ -19,15 +19,38 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('الصورُ والأصوات', () {
-    test('كتابُ كلّ مادةٍ بأيّ همزةٍ أو تاءٍ كُتبت، ولا كتابَ لمادةٍ بلا صورة', () {
+    test('لكلّ مادةٍ صورتُها بأيّ همزةٍ أو تاءٍ كُتبت', () {
       expect(RouteArt.subject('القرآن الكريم'), 'assets/images/routes/subject_quran.png');
       expect(RouteArt.subject('القران الكريم'), 'assets/images/routes/subject_quran.png');
+      expect(RouteArt.subject('القاعدة النورانية'), 'assets/images/subjects/noorani.png');
+      expect(RouteArt.subject('الحروف العربية'), 'assets/images/subjects/ar_letters.png');
+      expect(RouteArt.subject('اللغة العربية'), 'assets/images/subjects/ar_letters.png');
       expect(RouteArt.subject('الحروف الإنجليزية'), 'assets/images/routes/subject_en_letters.png');
       expect(RouteArt.subject('الأرقام الإنجليزية'), 'assets/images/routes/subject_en_numbers.png');
-      expect(RouteArt.subject('الأرقام العربية'), 'assets/images/routes/subject_ar_numbers.png');
+      expect(RouteArt.subject('الأرقام العربية'), 'assets/images/subjects/ar_numbers_conv.png');
+      expect(RouteArt.subject('اللغة الإنجليزية'), 'assets/images/subjects/en_subj_1.png');
+      expect(RouteArt.subject('الرياضيات'), 'assets/images/subjects/math_1.png');
       expect(RouteArt.subject('العلوم'), 'assets/images/routes/subject_science.png');
-      expect(RouteArt.subject('الحروف العربية'), isNull);
-      expect(RouteArt.initial('الحروف العربية'), 'ح');
+      expect(RouteArt.subject('الثقافة العامة'), 'assets/images/subjects/general_1.png');
+    });
+
+    test('لا خيارَ بلا صورة: مادةٌ لا تُعرف تأخذ من الثقافة العامة، ثابتةً لاسمها', () {
+      final art = RouteArt.subject('التربية الفنية');
+      expect(RouteArt.general, contains(art));
+      expect(RouteArt.subject('التربية الفنية'), art);
+    });
+
+    test('الوحداتُ والدروس من صور مادّتها، تدور عليها ولا تبدأ بصورة المادة', () {
+      expect(RouteArt.item('الرياضيات', 0), 'assets/images/subjects/math_2.png');
+      expect(RouteArt.item('الرياضيات', 5), 'assets/images/subjects/math_1.png');
+      expect(RouteArt.item('العلوم', 0), 'assets/images/subjects/science_1.png');
+      // مادةٌ بصورةٍ واحدة: الصورةُ نفسُها، لا فراغ.
+      expect(RouteArt.item('الحروف العربية', 3), 'assets/images/subjects/ar_letters.png');
+    });
+
+    test('الأرقامُ عربية', () {
+      expect(arabicDigits(1), '١');
+      expect(arabicDigits(12), '١٢');
     });
 
     test('بوابتان تتناوبان على الصفوف، وشمسٌ ومطرٌ على الفصول', () {
@@ -39,17 +62,28 @@ void main() {
     });
 
     test('كلُّ صورةٍ وصوتٍ في الخريطة داخل assets/ بمسارٍ نسبيّ', () {
-      final images = [
+      final images = {
         RouteArt.background,
         RouteArt.gate(0),
         RouteArt.gate(1),
         RouteArt.term(0),
         RouteArt.term(1),
-        for (final s in ['القرآن', 'الحروف الإنجليزية', 'الأرقام الإنجليزية', 'الأرقام العربية', 'العلوم'])
-          RouteArt.subject(s)!,
-      ];
+        for (final pool in [
+          RouteArt.quran,
+          RouteArt.noorani,
+          RouteArt.arabicLetters,
+          RouteArt.arabicNumbers,
+          RouteArt.englishLetters,
+          RouteArt.englishNumbers,
+          RouteArt.english,
+          RouteArt.math,
+          RouteArt.science,
+          RouteArt.general,
+        ])
+          ...pool,
+      };
       for (final image in images) {
-        expect(image, startsWith('assets/images/routes/'));
+        expect(image, matches(RegExp(r'^assets/images/(routes|subjects)/')));
         expect(File(image).existsSync(), isTrue, reason: image);
       }
       for (final prompt in [

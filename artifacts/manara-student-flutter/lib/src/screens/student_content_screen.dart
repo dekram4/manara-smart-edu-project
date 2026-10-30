@@ -319,8 +319,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
                         : const [Color(0xFF4B267F), Color(0xFF8B5CF6)],
                   ),
                 ),
-                // انتقال القسم (مواصفة الحركة §5.4): العنوانُ ظاهر، والجسمُ
-                // تحت التعتيم ومُحمِّلِ الشخصيتين حتى يصل المحتوى.
+                // انتقال القسم (مواصفة الحركة §5.4): البطاقةُ فوراً، وشريطٌ
+                // رفيعٌ أعلاها حتى يصل المحتوى.
                 Expanded(
                   child: MotionSectionOverlay(
                     ready: !_loading,

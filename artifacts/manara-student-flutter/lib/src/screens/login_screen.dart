@@ -4,6 +4,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../models/student_profile.dart';
+import '../services/saved_accounts.dart';
 import '../services/student_auth_service.dart';
 import '../theme/student_theme.dart';
 import '../services/student_sound_service.dart';
@@ -12,7 +14,9 @@ import '../widgets/student_no_back.dart';
 import '../l10n/student_strings.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/lively.dart';
+import '../widgets/login_backdrop.dart';
 import '../widgets/login_scene.dart';
+import '../widgets/student_avatar_view.dart';
 import '../widgets/student_mascot.dart';
 import 'academic_selection_screen.dart';
 
@@ -21,12 +25,16 @@ class LoginScreen extends StatefulWidget {
     required this.authService,
     required this.initializationError,
     required this.apiBaseUrl,
+    this.savedAccounts,
     super.key,
   });
 
   final StudentAuthService? authService;
   final String? initializationError;
   final String apiBaseUrl;
+
+  /// الحساباتُ المحفوظة على الجهاز؛ وبلا قيمةٍ [SavedAccounts.instance].
+  final SavedAccounts? savedAccounts;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -42,9 +50,22 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loginSucceeded = false;
   String? _errorMessage;
 
+  SavedAccounts get _saved => widget.savedAccounts ?? SavedAccounts.instance;
+
+  /// الحساباتُ المحفوظة على هذا الجهاز، تُعرض حين يلمس الطفلُ حقلَ الاسم.
+  List<SavedAccount> _accounts = const [];
+  final FocusNode _usernameFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
+
+  /// اختار «حساب آخر»: يكتب بنفسه، فلا تُفتح القائمةُ ثانيةً فوق ما يكتب.
+  bool _manualEntry = false;
+  bool _pickerOpen = false;
+
   @override
   void initState() {
     super.initState();
+    _usernameFocus.addListener(_onUsernameFocus);
+    unawaited(_loadAccounts());
     // خلفيةُ الشاشة تبدأ مع ظهورها. وتُؤجَّل إلى ما بعد أوّل إطار كي لا
     // يزاحم فكُّ المقطع رسمَ الشاشة الأول.
     WidgetsBinding.instance.addPostFrameCallback(
@@ -57,7 +78,90 @@ class _LoginScreenState extends State<LoginScreen> {
     unawaited(StudentSoundService.instance.stopLoginVoice());
     _usernameController.dispose();
     _passwordController.dispose();
+    _usernameFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAccounts() async {
+    final accounts = await _saved.load();
+    if (mounted) setState(() => _accounts = accounts);
+  }
+
+  void _onUsernameFocus() {
+    if (!_usernameFocus.hasFocus || _accounts.isEmpty || _manualEntry || _pickerOpen) return;
+    // ‏حساباتٌ محفوظة: تُعرض صورُها بدل لوحة المفاتيح.
+    _usernameFocus.unfocus();
+    unawaited(_pickAccount());
+  }
+
+  /// شبكةُ الحسابات المحفوظة: لمسةٌ على صورة الطفل تُدخله.
+  Future<void> _pickAccount() async {
+    _pickerOpen = true;
+    StudentSoundService.instance.playTap();
+    final shown = _AccountsNotifier(() => _accounts);
+    final choice = await showDialog<_AccountChoice>(
+      context: context,
+      builder: (context) => _AccountPicker(
+        onRemove: (account) async {
+          await _saved.remove(account.username);
+          await _loadAccounts();
+        },
+        accountsListenable: shown,
+      ),
+    );
+    shown.dispose();
+    _pickerOpen = false;
+    if (!mounted) return;
+    switch (choice) {
+      case _PickedAccount(:final account):
+        final password = await _saved.passwordFor(account.username);
+        if (!mounted) return;
+        _usernameController.text = account.username;
+        _passwordController.text = password ?? '';
+        if ((password ?? '').isEmpty) {
+          // ‏كلمةُ المرور لم تُحفظ: يكتبها هو.
+          _manualEntry = true;
+          _passwordFocus.requestFocus();
+          return;
+        }
+        await _submit();
+      case _OtherAccount():
+        _manualEntry = true;
+        _usernameFocus.requestFocus();
+      case null:
+        break;
+    }
+  }
+
+  /// بعد دخولٍ ناجح: يُسأل الطالبُ مرّةً أن يحفظ حسابه؛ ومحفوظٌ يُحدَّث بصمت
+  /// (شخصيةٌ جديدة، كلمةُ مرورٍ تغيّرت).
+  Future<void> _offerToSave(StudentProfile student, String username, String password) async {
+    final account = SavedAccount(
+      username: username,
+      displayName: student.name,
+      appearance: student.appearance,
+    );
+    try {
+      if (await _saved.isSaved(username)) {
+        await _saved.save(account, password);
+        return;
+      }
+      if (!await _saved.shouldOffer(username) || !mounted) return;
+      final keep = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => _SaveAccountDialog(account: account),
+      );
+      if (keep == true) {
+        await _saved.save(account, password);
+      } else {
+        await _saved.decline(username);
+      }
+    } catch (error) {
+      // ‏المخزنُ المشفّر غيرُ متاح: يُكمل الدخولُ بلا حفظ.
+      debugPrint('[accounts] could not save the account: $error');
+    }
   }
 
   Future<void> _submit() async {
@@ -81,14 +185,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      final username = _usernameController.text.trim();
+      final password = _passwordController.text;
       final student = await widget.authService!.signIn(
-        username: _usernameController.text,
-        password: _passwordController.text,
+        username: username,
+        password: password,
       );
       StudentSoundService.instance.play(StudentSoundCue.loginSuccess);
       if (!mounted) return;
       setState(() => _loginSucceeded = true);
-      await Future<void>.delayed(const Duration(milliseconds: 360));
+      await _offerToSave(student, username, password);
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         StudentPageRoute<void>(
@@ -148,17 +254,8 @@ class _LoginScreenState extends State<LoginScreen> {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFE3EEF7), Color(0xFFF7F1E6), Color(0xFFE9F1F5)],
-                ),
-              ),
-            ),
-          ),
+          // ‏سماءٌ ومرجٌ وكتبٌ تنجرف ببطء، في الوضعين.
+          const Positioned.fill(child: LoginBackdrop()),
           // ‏خلفيةٌ حيّة على طريقة «لمسة»: حروفٌ وأرقامٌ وفقاعاتٌ تطفو خلف
           // ‏السبورة. طبقةٌ مرسومة لا تستقبل لمسة ولا تمسّ تخطيط المشهد.
           const Positioned.fill(child: LoginAmbience()),
@@ -342,8 +439,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         top: 10,
                         left: 14,
                         right: 14,
+                        // ‏يساراً صريحاً: أزرارُ الصوت والعرض في اليمين بالجهة الفعلية،
+                        // ‏فلو تبع اتجاهَ اللغة لجلس فوقها في العربية.
                         child: Align(
-                          alignment: AlignmentDirectional.topStart,
+                          alignment: Alignment.topLeft,
                           child: _LandscapeBrand(
                             // ‏نحو سُبع الارتفاع، وبحدّين: لا يتضخّم على
                             // ‏تابلت ولا يتلاشى على هاتف.
@@ -465,6 +564,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             initializationError: widget.initializationError,
                             usernameController: _usernameController,
                             passwordController: _passwordController,
+                            usernameFocus: _usernameFocus,
+                            passwordFocus: _passwordFocus,
                             hidePassword: _hidePassword,
                             isLoading: _isLoading,
                             loginSucceeded: _loginSucceeded,
@@ -606,6 +707,8 @@ class _BoardLoginForm extends StatelessWidget {
     required this.initializationError,
     required this.usernameController,
     required this.passwordController,
+    required this.usernameFocus,
+    required this.passwordFocus,
     required this.hidePassword,
     required this.isLoading,
     required this.loginSucceeded,
@@ -622,6 +725,8 @@ class _BoardLoginForm extends StatelessWidget {
   final String? initializationError;
   final TextEditingController usernameController;
   final TextEditingController passwordController;
+  final FocusNode usernameFocus;
+  final FocusNode passwordFocus;
   final bool hidePassword;
   final bool isLoading;
   final bool loginSucceeded;
@@ -668,7 +773,9 @@ class _BoardLoginForm extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _SolidField(
+              key: const ValueKey('login-username'),
               controller: usernameController,
+              focusNode: usernameFocus,
               hint: tr('login.username'),
               icon: Icons.person_rounded,
               hasError: showValidationFeedback && usernameController.text.trim().isEmpty,
@@ -680,7 +787,9 @@ class _BoardLoginForm extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _SolidField(
+              key: const ValueKey('login-password'),
               controller: passwordController,
+              focusNode: passwordFocus,
               hint: tr('login.password'),
               icon: Icons.lock_rounded,
               obscureText: hidePassword,
@@ -790,6 +899,7 @@ class _BoardLoginForm extends StatelessWidget {
 class _SolidField extends StatelessWidget {
   const _SolidField({
     required this.controller,
+    this.focusNode,
     required this.hint,
     required this.icon,
     this.obscureText = false,
@@ -800,9 +910,11 @@ class _SolidField extends StatelessWidget {
     this.onChanged,
     this.onFieldSubmitted,
     this.validator,
+    super.key,
   });
 
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String hint;
   final IconData icon;
   final bool obscureText;
@@ -829,6 +941,7 @@ class _SolidField extends StatelessWidget {
       ),
       child: TextFormField(
         controller: controller,
+        focusNode: focusNode,
         obscureText: obscureText,
         textInputAction: textInputAction,
         autofillHints: autofillHints,
@@ -932,4 +1045,221 @@ class _LandscapeBrand extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// ما اختاره الطفلُ من شبكة الحسابات.
+sealed class _AccountChoice {
+  const _AccountChoice();
+}
+
+class _PickedAccount extends _AccountChoice {
+  const _PickedAccount(this.account);
+  final SavedAccount account;
+}
+
+class _OtherAccount extends _AccountChoice {
+  const _OtherAccount();
+}
+
+/// يُعيد بناءَ الشبكة حين يُزال منها حساب.
+class _AccountsNotifier extends ChangeNotifier {
+  _AccountsNotifier(this.read);
+  final List<SavedAccount> Function() read;
+  void changed() => notifyListeners();
+}
+
+/// «اختر حسابك»: صورُ الحسابات المحفوظة وأسماؤها؛ لمسةٌ تُدخل، والضغطُ
+/// المطوّل يُزيل الحسابَ من هذا الجهاز بعد تأكيد.
+class _AccountPicker extends StatelessWidget {
+  const _AccountPicker({
+    required this.onRemove,
+    required this.accountsListenable,
+  });
+
+  final Future<void> Function(SavedAccount account) onRemove;
+  final _AccountsNotifier accountsListenable;
+
+  Future<void> _confirmRemove(BuildContext context, SavedAccount account) async {
+    final remove = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(tr('login.removeAccount'), textAlign: TextAlign.center),
+        content: Text(account.displayName, textAlign: TextAlign.center),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(tr('login.cancel'))),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(tr('login.remove'))),
+        ],
+      ),
+    );
+    if (remove != true) return;
+    await onRemove(account);
+    accountsListenable.changed();
+    if (context.mounted && accountsListenable.read().isEmpty) {
+      Navigator.of(context).pop(const _OtherAccount());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      key: const ValueKey('login-account-picker'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+          child: ListenableBuilder(
+            listenable: accountsListenable,
+            builder: (context, _) {
+              final shown = accountsListenable.read();
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tr('login.pickAccount'),
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tr('login.savedHint'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 14),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 14,
+                        runSpacing: 14,
+                        children: [
+                          for (final account in shown)
+                            _AccountTile(
+                              key: ValueKey('login-account-${account.username}'),
+                              account: account,
+                              onTap: () => Navigator.of(context).pop(_PickedAccount(account)),
+                              onLongPress: () => _confirmRemove(context, account),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    key: const ValueKey('login-other-account'),
+                    onPressed: () => Navigator.of(context).pop(const _OtherAccount()),
+                    icon: const Icon(Icons.person_add_alt_1_rounded),
+                    label: Text(
+                      tr('login.otherAccount'),
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountTile extends StatelessWidget {
+  const _AccountTile({
+    required this.account,
+    required this.onTap,
+    required this.onLongPress,
+    super.key,
+  });
+
+  final SavedAccount account;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: account.displayName,
+      child: StudentPressScale(
+        child: Material(
+          color: const Color(0xFFFFF4E0),
+          borderRadius: BorderRadius.circular(22),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: onTap,
+            onLongPress: onLongPress,
+            child: Container(
+              width: 128,
+              padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFFF9F1C), width: 2),
+              ),
+              child: Column(
+                children: [
+                  StudentAvatarView(size: 84, appearance: account.appearance ?? const {}),
+                  const SizedBox(height: 8),
+                  Text(
+                    account.displayName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// «هل تريد حفظ حسابك على هذا الجهاز لتسجيل الدخول السريع؟» — بعد أوّل
+/// دخولٍ ناجح، وبصورة الطفل واسمه.
+class _SaveAccountDialog extends StatelessWidget {
+  const _SaveAccountDialog({required this.account});
+
+  final SavedAccount account;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      key: const ValueKey('login-save-dialog'),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      title: Column(
+        children: [
+          StudentAvatarView(size: 88, appearance: account.appearance ?? const {}),
+          const SizedBox(height: 10),
+          Text(
+            tr('login.saveTitle'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, height: 1.4),
+          ),
+        ],
+      ),
+      content: Text(
+        account.displayName,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          key: const ValueKey('login-save-no'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(tr('login.saveNo'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        ),
+        FilledButton.icon(
+          key: const ValueKey('login-save-yes'),
+          onPressed: () => Navigator.of(context).pop(true),
+          icon: const Icon(Icons.bookmark_add_rounded),
+          label: Text(tr('login.saveYes'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFFF9F1C)),
+        ),
+      ],
+    );
+  }
 }
