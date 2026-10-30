@@ -620,8 +620,13 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
 // ─────────────────────────────────────────────────────────────────────
 
 /// لعبةٌ في صفحةٍ كاملةٍ فوق صفحة المذاكرة. الشريطُ العلويّ ثابتٌ فيه الألعابُ
-/// الأربع: لمسةٌ تنقل إلى غيرها فوراً بأسئلة الدرس نفسها، بلا رجوعٍ إلى البطاقة.
+/// الأربع: لمسةٌ تنقل إلى غيرها بأسئلة الدرس نفسها، بلا رجوعٍ إلى البطاقة.
 /// و«العب مرة أخرى» أسئلةٌ جديدة.
+///
+/// ── مقدّمةٌ لا دخولٌ مفاجئ ──
+/// كلُّ لعبةٍ تُفتح — أوّلَ مرّةٍ أو انتقالاً من أخرى — على شاشةٍ قصيرةٍ
+/// تُقدّمها بعبارتها المسجّلة ([QuizGameArt.intro])، ثم تبدأ حين تنتهي
+/// العبارة. ولمسةُ «هيا نلعب!» تبدأها قبل ذلك.
 class _GamePage extends StatefulWidget {
   const _GamePage({
     required this.first,
@@ -647,6 +652,66 @@ class _GamePageState extends State<_GamePage> {
   int _round = 0;
   bool _preparing = false;
 
+  /// شاشةُ المقدّمة ظاهرة.
+  bool _intro = true;
+  bool _introHeard = false;
+  bool _introSeen = false;
+  Timer? _introMin;
+  Timer? _introCap;
+
+  /// أقصرُ ما تبقى المقدّمة (تُرى ولو كان الصوتُ مكتوماً)، وأطولُ ما تنتظر
+  /// العبارةَ إن لم يُعلَم انتهاؤها.
+  static const _introShortest = Duration(milliseconds: 1800);
+  static const _introLongest = Duration(seconds: 7);
+
+  @override
+  void initState() {
+    super.initState();
+    _beginIntro();
+  }
+
+  @override
+  void dispose() {
+    _introMin?.cancel();
+    _introCap?.cancel();
+    StudentSoundService.instance.stopGameSounds();
+    super.dispose();
+  }
+
+  void _beginIntro() {
+    _introMin?.cancel();
+    _introCap?.cancel();
+    _intro = true;
+    _introHeard = false;
+    _introSeen = false;
+    final style = _style;
+    _introMin = Timer(_introShortest, () {
+      _introSeen = true;
+      _maybeStart();
+    });
+    _introCap = Timer(_introLongest, _startGame);
+    StudentSoundService.instance.playGameIntro(
+      QuizGameArt.intro(style),
+      onComplete: () {
+        // ‏عبارةُ لعبةٍ تُركت قبل أن تنتهي لا تبدأ غيرها.
+        if (style != _style) return;
+        _introHeard = true;
+        _maybeStart();
+      },
+    );
+  }
+
+  void _maybeStart() {
+    if (_introHeard && _introSeen) _startGame();
+  }
+
+  void _startGame() {
+    _introMin?.cancel();
+    _introCap?.cancel();
+    if (!mounted || !_intro) return;
+    setState(() => _intro = false);
+  }
+
   Future<void> _replay() async {
     if (_preparing) return;
     setState(() => _preparing = true);
@@ -665,6 +730,7 @@ class _GamePageState extends State<_GamePage> {
     setState(() {
       _style = style;
       _round += 1;
+      _beginIntro();
     });
   }
 
@@ -682,7 +748,9 @@ class _GamePageState extends State<_GamePage> {
               onPick: _switch,
             ),
             Expanded(
-              child: _preparing
+              child: _intro
+                  ? _GameIntro(key: ValueKey('intro-${_style.name}'), style: _style, onStart: _startGame)
+                  : _preparing
                   ? _Waiting(emoji: '✨', text: tr('study.games.fresh'))
                   : ArcadeQuizGame(
                       key: ValueKey('arcade-${_style.name}-$_round'),
@@ -694,6 +762,153 @@ class _GamePageState extends State<_GamePage> {
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// مقدّمةُ اللعبة: خلفيتُها وبطلُها يقفز إلى الشاشة، واسمُها كبيراً ودعوتُها،
+/// وزرُّ «هيا نلعب!» ينبض — والعبارةُ المسجّلة تُسمع.
+class _GameIntro extends StatefulWidget {
+  const _GameIntro({required this.style, required this.onStart, super.key});
+
+  final QuizGameStyle style;
+  final VoidCallback onStart;
+
+  @override
+  State<_GameIntro> createState() => _GameIntroState();
+}
+
+class _GameIntroState extends State<_GameIntro> with TickerProviderStateMixin {
+  late final AnimationController _enter =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  late final AnimationController _pulse =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _enter.value = 1;
+      _pulse.stop();
+    } else {
+      if (_enter.value == 0 && !_enter.isAnimating) _enter.forward();
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _enter.dispose();
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = widget.style;
+    final colors = _ArcadeInfo.colors(style);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onStart,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(QuizGameArt.background(style), fit: BoxFit.cover, cacheWidth: 1280),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [colors.first.withValues(alpha: 0.25), colors.last.withValues(alpha: 0.75)],
+                  ),
+                ),
+              ),
+              AnimatedBuilder(
+                animation: Listenable.merge([_enter, _pulse]),
+                builder: (context, _) {
+                  final t = Curves.elasticOut.transform(_enter.value);
+                  final fade = Curves.easeOut.transform(_enter.value);
+                  final beat = Curves.easeInOut.transform(_pulse.value);
+                  return LayoutBuilder(builder: (context, box) {
+                    final art = (box.maxHeight * 0.36).clamp(90.0, 220.0).toDouble();
+                    final title = (box.maxWidth / 14).clamp(28.0, 52.0).toDouble();
+                    return Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Transform.scale(
+                              scale: 0.4 + 0.6 * t,
+                              child: SizedBox(height: art, width: art * 1.8, child: QuizGameCoverArt(style: style)),
+                            ),
+                            const SizedBox(height: 10),
+                            Opacity(
+                              opacity: fade,
+                              child: Text(
+                                '${_ArcadeInfo.emoji(style)} ${_ArcadeInfo.title(style)}',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: title,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  shadows: const [Shadow(color: Color(0xAA000000), blurRadius: 10, offset: Offset(0, 3))],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Opacity(
+                              opacity: fade,
+                              child: Text(
+                                _ArcadeInfo.hint(style),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: title * 0.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  shadows: const [Shadow(color: Color(0xAA000000), blurRadius: 8)],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Transform.scale(
+                              scale: 0.94 + beat * 0.1,
+                              child: Semantics(
+                                button: true,
+                                child: GestureDetector(
+                                  key: const ValueKey('game-intro-start'),
+                                  onTap: widget.onStart,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(color: colors.first, width: 3),
+                                      boxShadow: [BoxShadow(color: Color.lerp(colors.first, Colors.black, 0.4)!, offset: const Offset(0, 5))],
+                                    ),
+                                    child: Text(
+                                      tr('study.games.intro.start'),
+                                      style: TextStyle(fontSize: title * 0.55, fontWeight: FontWeight.w900, color: colors.first),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  });
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

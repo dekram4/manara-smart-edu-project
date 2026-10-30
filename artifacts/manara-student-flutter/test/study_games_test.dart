@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,7 @@ import 'package:manara_student/src/l10n/student_strings.dart';
 
 import 'package:manara_student/src/models/student_gamification.dart';
 import 'package:manara_student/src/models/study_games.dart';
+import 'package:manara_student/src/widgets/quiz_games.dart';
 import 'package:manara_student/src/widgets/study_games.dart';
 
 /// ألعابُ بطاقة المذاكرة: الألعابُ الأربع وحدها، بأسئلةٍ من نصّ الدرس ومن
@@ -123,6 +126,13 @@ Future<void> _wait(WidgetTester tester, [int steps = 30]) async {
 
 const _styles = ['balloons', 'fishing', 'train', 'slingshot'];
 
+/// مقدّمةُ اللعبة ظاهرة، ثم «هيا نلعب!».
+Future<void> _start(WidgetTester tester) async {
+  expect(find.byKey(const ValueKey('game-intro-start')), findsOneWidget);
+  await tester.tap(find.byKey(const ValueKey('game-intro-start')));
+  await _wait(tester, 10);
+}
+
 void main() {
   test('الصيغة: ثلاثُ ألعاب صالحة، والمجهول يسقط', () {
     final pack = StudyGamesPack.fromMap(_packJson())!;
@@ -177,6 +187,7 @@ void main() {
       await tester.ensureVisible(find.byKey(ValueKey('arcade-$style')));
       await tester.tap(find.byKey(ValueKey('arcade-$style')));
       await _wait(tester, 10);
+      await _start(tester);
       final questions = arcadeGameOf(pack)!.questions;
       // ‏تسعةُ أسئلة: الجولةُ ثمانية.
       for (var round = 0; round < 8; round++) {
@@ -196,6 +207,9 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('arcade-balloons')));
     await tester.tap(find.byKey(const ValueKey('arcade-balloons')));
     await _wait(tester, 10);
+    // ‏مقدّمةٌ قبل اللعبة، لا دخولٌ مفاجئ.
+    expect(find.byKey(const ValueKey('balloon-0')), findsNothing);
+    await _start(tester);
     expect(find.byKey(const ValueKey('balloon-0')), findsOneWidget);
     for (final style in _styles) {
       expect(find.byKey(ValueKey('switch-$style')), findsOneWidget);
@@ -203,10 +217,30 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('switch-train')));
     await _wait(tester, 10);
     expect(find.byKey(const ValueKey('balloon-0')), findsNothing);
+    expect(find.byKey(const ValueKey('wagon-0')), findsNothing, reason: 'مقدّمةُ القطار أوّلاً');
+    await _start(tester);
     expect(find.byKey(const ValueKey('wagon-0')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('switch-slingshot')));
     await _wait(tester, 10);
+    await _start(tester);
     expect(find.byKey(const ValueKey('target-0')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('المقدّمةُ تبدأ اللعبةَ وحدها إن لم يُلمس شيء', (tester) async {
+    await _pump(tester, (_) async => null);
+    await tester.ensureVisible(find.byKey(const ValueKey('arcade-fishing')));
+    await tester.tap(find.byKey(const ValueKey('arcade-fishing')));
+    await _wait(tester, 10);
+    expect(find.byKey(const ValueKey('fish-0')), findsNothing);
+    // ‏لا خبرَ بانتهاء العبارة في الاختبار: المهلةُ القصوى تبدأها.
+    await _wait(tester, 80);
+    expect(find.byKey(const ValueKey('fish-0')), findsOneWidget);
+  });
+
+  test('لكل لعبةٍ عبارةُ مقدّمتها في الحزمة', () {
+    for (final style in QuizGameStyle.values) {
+      expect(File('assets/${QuizGameArt.intro(style)}').existsSync(), isTrue, reason: style.name);
+    }
   });
 }

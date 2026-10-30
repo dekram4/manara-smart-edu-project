@@ -76,6 +76,8 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('arcade-balloons')));
       await tester.tap(find.byKey(const ValueKey('arcade-balloons')));
       await wait();
+      await tester.tap(find.byKey(const ValueKey('game-intro-start')));
+      await wait();
     }
 
     // أوّلُ مرّة: الحزمةُ المحفوظة، بلا طلب.
