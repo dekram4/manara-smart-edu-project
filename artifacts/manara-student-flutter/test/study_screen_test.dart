@@ -133,7 +133,7 @@ void main() {
     final study = await pump(tester);
     expect(find.text('أجزاء النبات'), findsOneWidget);
     expect(find.text(tr('study.tabGames')), findsOneWidget);
-    for (final style in ['balloons', 'fishing', 'train', 'slingshot']) {
+    for (final style in ['balloons', 'fishing', 'train', 'slingshot', 'basket']) {
       expect(find.byKey(ValueKey('arcade-$style')), findsOneWidget);
     }
     expect(find.text(tr('study.tabMap')), findsNothing);

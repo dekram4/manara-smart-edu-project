@@ -56,6 +56,7 @@ void main() {
     QuizGameStyle.fishing: 'fish',
     QuizGameStyle.train: 'wagon',
     QuizGameStyle.slingshot: 'target',
+    QuizGameStyle.basket: 'fruit',
   };
 
   for (final MapEntry(key: style, value: key) in keys.entries) {
@@ -77,6 +78,12 @@ void main() {
         final answers = <String>[];
         await pump(tester, game(style, answers));
         await tester.tap(find.byKey(ValueKey('$key-1')));
+        // ‏السلّة: الخاطئةُ لا تُنهي السؤال؛ يُنهيه جمعُ الصحيحة، ويُحسب خطأً.
+        if (style == QuizGameStyle.basket) {
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(answers, isEmpty);
+          await tester.tap(find.byKey(ValueKey('$key-3')));
+        }
         await settle(tester);
         expect(answers, ['قطة']);
         await finish(tester);
@@ -86,8 +93,16 @@ void main() {
         await pump(tester, game(style, []), size: const Size(360, 640));
         expect(tester.takeException(), isNull);
         for (final option in options) {
-          expect(find.text(option), findsOneWidget);
+          // ‏مطبوعةٌ على الأصل: حدٌّ داكنٌ تحت خطٍّ أبيض — نصّان لا صندوق.
+          expect(find.text(option), findsNWidgets(2));
         }
+        expect(
+          find.byWidgetPredicate((w) => w is DecoratedBox && w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).color == Colors.white &&
+              (w.decoration as BoxDecoration).borderRadius == BorderRadius.circular(999)),
+          findsNothing,
+          reason: 'لا كبسولاتٍ بيضاء فوق الأصول',
+        );
         final prompt = tester.widget<Text>(find.byKey(const ValueKey('quiz-prompt')));
         expect(prompt.style!.fontSize, greaterThanOrEqualTo(24));
         await finish(tester);
@@ -143,5 +158,46 @@ void main() {
     ));
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('السلّة: سؤالٌ بإجابتين صحيحتين لا يكتمل إلا بجمعهما', (tester) async {
+    final answers = <String>[];
+    await pump(
+      tester,
+      BasketQuizQuestion(
+        prompt: 'اجمع الحيوانات',
+        options: const ['قطة', 'نخلة', 'أسد', 'وردة'],
+        isCorrect: (o) => o == 'قطة' || o == 'أسد',
+        onAnswered: answers.add,
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('fruit-0')));
+    await settle(tester);
+    expect(answers, isEmpty, reason: 'بقيت ثمرةٌ صحيحة');
+    expect(find.text(trf('quiz.game.basketLeft', {'n': 1})), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('fruit-2')));
+    await settle(tester);
+    expect(answers, hasLength(1));
+    expect(['قطة', 'أسد'], contains(answers.single));
+    await finish(tester);
+  });
+
+  testWidgets('السلّة: تُسحب يميناً ويساراً فتلتقط الثمرةَ الساقطة', (tester) async {
+    final answers = <String>[];
+    await pump(
+      tester,
+      BasketQuizQuestion(prompt: 'أيّها حيوان؟', options: const ['قطة'], isCorrect: (o) => o == 'قطة', onAnswered: answers.add),
+    );
+    final basket = tester.getCenter(find.byKey(const ValueKey('basket')));
+    await tester.dragFrom(basket, const Offset(-120, 0));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getCenter(find.byKey(const ValueKey('basket'))).dx, lessThan(basket.dx - 60));
+    await tester.dragFrom(tester.getCenter(find.byKey(const ValueKey('basket'))), const Offset(120, 0));
+    // ‏الثمرةُ الوحيدة في وسط الشجرة: تسقط في السلّة خلال دورة.
+    for (var i = 0; i < 90; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(answers, ['قطة']);
+    await finish(tester);
   });
 }

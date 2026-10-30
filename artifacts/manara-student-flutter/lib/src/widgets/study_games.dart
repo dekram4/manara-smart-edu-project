@@ -42,13 +42,17 @@ StudyGame? arcadeGameOf(StudyGamesPack pack) {
 }
 
 /// أسئلةٌ من أزواج لعبةِ تصنيفٍ أو مطابقة: لكل بطاقةٍ سؤالٌ خياراتُه سلّتُها
-/// وما سواها من السلال (أربعٌ على الأكثر).
+/// وما سواها من السلال (أربعٌ على الأكثر). ولكل سلّةِ تصنيفٍ سؤالُ جمعٍ
+/// لسلّة قطف الثمار: «اجمع كلَّ ما هو…»، وصحيحُه كلُّ بطاقاتها.
 List<StudyQuickQuestion> pairQuestionsOf(StudyGame game) {
   final sort = game.type == StudyGameType.dragDrop;
   if (!sort && game.type != StudyGameType.matching) return const [];
   final targets = <String>{...game.dropTargets, for (final pair in game.pairs) pair.target}.toList();
   if (targets.length < 2) return const [];
   return [
+    if (sort)
+      for (final target in targets)
+        if (_collectOf(game, target) case final question?) question,
     for (final pair in game.pairs)
       StudyQuickQuestion(
         question: trf(sort ? 'study.games.ask.sort' : 'study.games.ask.match', {'item': pair.item}),
@@ -62,7 +66,23 @@ List<StudyQuickQuestion> pairQuestionsOf(StudyGame game) {
   ];
 }
 
-/// «ألعاب الدرس» في بطاقة المذاكرة: أربعُ ألعابٍ تفاعليةٍ وحدها — البالونات
+/// سؤالُ جمعٍ لسلّة [target]: بطاقاتُها صحيحة (أربعٌ على الأكثر)، وبطاقاتُ
+/// غيرها خاطئة، وستُّ ثمارٍ على الأكثر.
+StudyQuickQuestion? _collectOf(StudyGame game, String target) {
+  final right = [for (final pair in game.pairs) if (pair.target == target) pair.item].take(4).toList();
+  final wrong = [for (final pair in game.pairs) if (pair.target != target) pair.item];
+  if (right.isEmpty || wrong.isEmpty) return null;
+  final options = [...right, ...wrong.take(math.max(2, 6 - right.length))];
+  return StudyQuickQuestion(
+    kind: StudyQuestionKind.collect,
+    question: trf('study.games.ask.collect', {'item': target}),
+    options: options,
+    answer: right.first,
+    alsoCorrect: right.skip(1).toList(),
+  );
+}
+
+/// «ألعاب الدرس» في بطاقة المذاكرة: خمسُ ألعابٍ تفاعليةٍ وحدها — البالونات
 /// المتفجّرة، والصيدُ البحريّ، وقطارُ الإجابات السعيد، والمقلاعُ الذكيّ —
 /// تُلعب فيها أسئلةُ الدرس ([arcadeGameOf]).
 ///
@@ -352,6 +372,7 @@ class _ArcadeInfo {
         QuizGameStyle.fishing => '🎣',
         QuizGameStyle.train => '🚂',
         QuizGameStyle.slingshot => '🎯',
+        QuizGameStyle.basket => '🧺',
       };
 
   static String title(QuizGameStyle style) => tr('study.games.arcade.${style.name}');
@@ -363,6 +384,7 @@ class _ArcadeInfo {
         QuizGameStyle.fishing => const [Color(0xFF0284C7), Color(0xFF14B8A6)],
         QuizGameStyle.train => const [Color(0xFFDC2626), Color(0xFFF97316)],
         QuizGameStyle.slingshot => const [Color(0xFF7C3AED), Color(0xFF16A34A)],
+        QuizGameStyle.basket => const [Color(0xFF16A34A), Color(0xFFF59E0B)],
       };
 }
 
@@ -398,7 +420,7 @@ class _ArcadeShelf extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           LayoutBuilder(builder: (context, box) {
-            final columns = box.maxWidth >= 640 ? 4 : 2;
+            final columns = box.maxWidth >= 900 ? 5 : (box.maxWidth >= 600 ? 3 : 2);
             const gap = 14.0;
             final width = (box.maxWidth - gap * (columns - 1)) / columns;
             return Wrap(
@@ -624,9 +646,9 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
 /// و«العب مرة أخرى» أسئلةٌ جديدة.
 ///
 /// ── مقدّمةٌ لا دخولٌ مفاجئ ──
-/// كلُّ لعبةٍ تُفتح — أوّلَ مرّةٍ أو انتقالاً من أخرى — على شاشةٍ قصيرةٍ
-/// تُقدّمها بعبارتها المسجّلة ([QuizGameArt.intro])، ثم تبدأ حين تنتهي
-/// العبارة. ولمسةُ «هيا نلعب!» تبدأها قبل ذلك.
+/// كلُّ لعبةٍ تُفتح — أوّلَ مرّةٍ أو انتقالاً من أخرى — على شاشةٍ ترحيبيةٍ
+/// تُقدّمها بعبارتها المسجّلة ([QuizGameArt.intro]). ولا تبدأ اللعبةُ وحدها
+/// أبداً: تنتظر الطفلَ حتى يضغط «هيا نلعب!».
 class _GamePage extends StatefulWidget {
   const _GamePage({
     required this.first,
@@ -652,17 +674,11 @@ class _GamePageState extends State<_GamePage> {
   int _round = 0;
   bool _preparing = false;
 
-  /// شاشةُ المقدّمة ظاهرة.
+  /// شاشةُ المقدّمة ظاهرة، حتى يضغط الطفلُ «هيا نلعب!».
   bool _intro = true;
-  bool _introHeard = false;
-  bool _introSeen = false;
-  Timer? _introMin;
-  Timer? _introCap;
 
-  /// أقصرُ ما تبقى المقدّمة (تُرى ولو كان الصوتُ مكتوماً)، وأطولُ ما تنتظر
-  /// العبارةَ إن لم يُعلَم انتهاؤها.
-  static const _introShortest = Duration(milliseconds: 1800);
-  static const _introLongest = Duration(seconds: 7);
+  /// ما سُئل في هذه الصفحة من أيّ لعبة: اللعبةُ التالية تبدأ بغيره.
+  final _asked = <String>{};
 
   @override
   void initState() {
@@ -672,43 +688,18 @@ class _GamePageState extends State<_GamePage> {
 
   @override
   void dispose() {
-    _introMin?.cancel();
-    _introCap?.cancel();
     StudentSoundService.instance.stopGameSounds();
     super.dispose();
   }
 
   void _beginIntro() {
-    _introMin?.cancel();
-    _introCap?.cancel();
     _intro = true;
-    _introHeard = false;
-    _introSeen = false;
-    final style = _style;
-    _introMin = Timer(_introShortest, () {
-      _introSeen = true;
-      _maybeStart();
-    });
-    _introCap = Timer(_introLongest, _startGame);
-    StudentSoundService.instance.playGameIntro(
-      QuizGameArt.intro(style),
-      onComplete: () {
-        // ‏عبارةُ لعبةٍ تُركت قبل أن تنتهي لا تبدأ غيرها.
-        if (style != _style) return;
-        _introHeard = true;
-        _maybeStart();
-      },
-    );
-  }
-
-  void _maybeStart() {
-    if (_introHeard && _introSeen) _startGame();
+    StudentSoundService.instance.playGameIntro(QuizGameArt.intro(_style));
   }
 
   void _startGame() {
-    _introMin?.cancel();
-    _introCap?.cancel();
     if (!mounted || !_intro) return;
+    StudentSoundService.instance.playTap();
     setState(() => _intro = false);
   }
 
@@ -759,6 +750,7 @@ class _GamePageState extends State<_GamePage> {
                       onWin: () => widget.onWin(_game),
                       onReplay: _replay,
                       onNeedMore: widget.onNeedMore,
+                      asked: _asked,
                     ),
             ),
           ],
@@ -811,10 +803,7 @@ class _GameIntroState extends State<_GameIntro> with TickerProviderStateMixin {
     final colors = _ArcadeInfo.colors(style);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onStart,
-        child: ClipRRect(
+      child: ClipRRect(
           borderRadius: BorderRadius.circular(26),
           child: Stack(
             fit: StackFit.expand,
@@ -909,7 +898,6 @@ class _GameIntroState extends State<_GameIntro> with TickerProviderStateMixin {
               ),
             ],
           ),
-        ),
       ),
     );
   }
@@ -945,7 +933,7 @@ class _GameBar extends StatelessWidget {
           Expanded(
             // ‏على هاتفٍ ضيّق: رمزُ اللعبة كبيراً وحده، واسمُها يُقرأ لقارئ الشاشة.
             child: LayoutBuilder(builder: (context, box) {
-              final compact = box.maxWidth < 440;
+              final compact = box.maxWidth < 620;
               return Row(
                 children: [
                   for (final each in QuizGameStyle.values)
@@ -1029,19 +1017,23 @@ class _BarChip extends StatelessWidget {
 ///
 /// والفوزُ إصابةُ ثلاثة أخماسها: تُصرف المكافأةُ مرّةً، ويُعاد اللعبُ ما شاء.
 class ArcadeQuizGame extends StatefulWidget {
-  const ArcadeQuizGame({
+  ArcadeQuizGame({
     required this.game,
     required this.style,
     required this.onWin,
     required this.onReplay,
     this.onNeedMore,
+    Set<String>? asked,
     super.key,
-  });
+  }) : asked = asked ?? <String>{};
 
   final StudyGame game;
   final QuizGameStyle style;
   final Future<void> Function() onWin;
   final VoidCallback onReplay;
+
+  /// ما سُئل في هذه الجلسة من أيّ لعبة — يُضاف إليه ما يُسأل هنا.
+  final Set<String> asked;
 
   /// أسئلةٌ جديدة من الذكاء الاصطناعي حين تقلّ أسئلةُ الدرس عن الجولة.
   final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
@@ -1053,8 +1045,23 @@ class ArcadeQuizGame extends StatefulWidget {
 class _ArcadeQuizGameState extends State<ArcadeQuizGame> {
   static const _maxGoal = 8;
   final _random = math.Random();
-  late List<StudyQuickQuestion> _deck = [...widget.game.questions]..shuffle(_random);
-  late final int goal = math.min(_maxGoal, math.max(4, widget.game.questions.length));
+  late List<StudyQuickQuestion> _deck = _dealt();
+  late final int goal = math.min(_maxGoal, math.max(4, _deck.length));
+
+  /// أسئلةُ هذه اللعبة: أسئلةُ الجمع لسلّة الثمار أوّلاً (ولها وحدها)، وما لم
+  /// يُسأل في هذه الجلسة قبل ما سُئل — فينتقل الطفلُ من لعبةٍ إلى أخرى فيجد
+  /// أسئلةً لم يرها، وتتوزّع أسئلةُ الدرس على الألعاب كلّها.
+  List<StudyQuickQuestion> _dealt() {
+    final basket = widget.style == QuizGameStyle.basket;
+    final all = widget.game.questions;
+    var pool = basket ? [...all] : [for (final q in all) if (!q.multi) q];
+    if (pool.isEmpty) pool = [...all];
+    pool.shuffle(_random);
+    final asked = widget.asked;
+    int rank(StudyQuickQuestion q) => (asked.contains(q.question) ? 2 : 0) + (basket && !q.multi ? 1 : 0);
+    pool.sort((a, b) => rank(a).compareTo(rank(b)));
+    return pool;
+  }
   late StudyQuickQuestion? _question = _deck.isEmpty ? null : _deck.first;
   late List<String> _options = _question == null ? const [] : _optionsFor(_question!);
   final _results = <bool>[];
@@ -1093,7 +1100,8 @@ class _ArcadeQuizGameState extends State<ArcadeQuizGame> {
   void _answered(String option) {
     final question = _question;
     if (question == null || _over) return;
-    final right = option == question.answer;
+    final right = question.isCorrect(option);
+    widget.asked.add(question.question);
     setState(() {
       _results.add(right);
       if (!_over) {
@@ -1139,7 +1147,7 @@ class _ArcadeQuizGameState extends State<ArcadeQuizGame> {
                         widget.style,
                         prompt: question.question,
                         options: _options,
-                        isCorrect: (option) => option == question.answer,
+                        isCorrect: question.isCorrect,
                         onAnswered: _answered,
                       ),
                     ),

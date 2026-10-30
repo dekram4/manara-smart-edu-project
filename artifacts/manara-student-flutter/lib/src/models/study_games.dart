@@ -39,11 +39,15 @@ class StudyGamePair {
 enum StudyQuestionKind {
   mcq,
   trueFalse,
-  fillBlank;
+  fillBlank,
+
+  /// «اجمع كلَّ ما هو…»: أكثرُ من إجابةٍ صحيحة — لسلّة قطف الثمار.
+  collect;
 
   static StudyQuestionKind parse(Object? value) => switch (value) {
         'true_false' => trueFalse,
         'fill_blank' => fillBlank,
+        'collect' => collect,
         _ => mcq,
       };
 }
@@ -54,12 +58,24 @@ class StudyQuickQuestion {
     required this.question,
     required this.options,
     required this.answer,
+    this.alsoCorrect = const [],
   });
 
   final StudyQuestionKind kind;
   final String question;
   final List<String> options;
   final String answer;
+
+  /// إجاباتٌ صحيحةٌ أخرى غيرُ [answer] — في أسئلة الجمع.
+  final List<String> alsoCorrect;
+
+  /// الإجاباتُ الصحيحة كلُّها.
+  List<String> get answers => [answer, ...alsoCorrect];
+
+  bool isCorrect(String option) => option == answer || alsoCorrect.contains(option);
+
+  /// أكثرُ من إجابةٍ صحيحة.
+  bool get multi => alsoCorrect.isNotEmpty || kind == StudyQuestionKind.collect;
 }
 
 /// حرفٌ أو رقمٌ أو كلمةٌ يتتبّعها الطفل بإصبعه.
@@ -171,8 +187,12 @@ class StudyGame {
                 if (_text(option).isNotEmpty) _text(option),
             ],
             answer: _text(entry['answer']),
+            alsoCorrect: [
+              for (final extra in _list(entry['answers']))
+                if (_text(extra).isNotEmpty && _text(extra) != _text(entry['answer'])) _text(extra),
+            ],
           ),
-    ].where((q) => q.question.isNotEmpty && q.options.contains(q.answer)).toList();
+    ].where((q) => q.question.isNotEmpty && q.options.contains(q.answer) && q.alsoCorrect.every(q.options.contains)).toList();
 
     final game = StudyGame(
       id: _text(raw['id']).isEmpty ? type.wire : _text(raw['id']),

@@ -70,12 +70,16 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('dark mode: glass cards and a glow on the tower', (tester) async {
+  testWidgets('dark mode: solid black cards and a glow on the tower', (tester) async {
     await pumpHub(tester, Brightness.dark);
     for (final d in tileDecorations(tester)) {
-      // زجاجٌ يدفأ من أعلى بضوء المنارة.
+      // أسودُ مصمتٌ لا زجاج، يدفأ قليلاً من أعلى بضوء المنارة.
       final colors = (d.gradient! as LinearGradient).colors;
-      expect(colors.last.a, lessThan(1.0));
+      for (final color in colors) {
+        expect(color.a, 1.0);
+        expect(color.computeLuminance(), lessThan(0.02));
+      }
+      expect(colors.last, const Color(0xFF000000));
       expect(colors.first.r, greaterThan(colors.last.r));
     }
     expect(find.byKey(const ValueKey('tower-glow')), findsOneWidget);
