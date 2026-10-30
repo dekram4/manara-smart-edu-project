@@ -14,7 +14,6 @@ import '../services/student_sound_service.dart';
 import '../widgets/unit_exam_gate.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
-import '../widgets/quiz_games.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_icon_notice.dart';
 
@@ -41,9 +40,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
   Map<String, dynamic>? _activeQuiz;
   List<Map<String, dynamic>> _questions = const [];
   final Map<String, String> _answers = {};
-
-  /// كيف يُجيب الطفل: بالوناتٌ أو صيدٌ أو قائمة — والبالوناتُ أوّلاً.
-  QuizPlayMode _playMode = QuizPlayMode.balloons;
   bool _loading = true;
   bool _submitting = false;
   String? _error;
@@ -474,16 +470,6 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
         answers: _answers,
         questionIndex: _questionIndex,
         submitting: _submitting,
-        playMode: _playMode,
-        onPlayMode: (mode) {
-          StudentSoundService.instance.playTap();
-          setState(() => _playMode = mode);
-        },
-        // ‏في اللعبة: الاختيارُ الأوّل هو الإجابة، ثم السؤالُ التالي وحده.
-        onGameAnswer: (id, value) => setState(() {
-          _answers[id] = value;
-          if (_questionIndex < _questions.length - 1) _questionIndex++;
-        }),
         onAnswer: (id, value) {
           if (_answers[id] != value) {
             StudentSoundService.instance.play(StudentSoundCue.answerSelected);
@@ -652,47 +638,12 @@ class _QuizCatalog extends StatelessWidget {
   }
 }
 
-/// اختيارُ طريقة الإجابة: 🎈 البالونات، 🎣 الصيد، 📝 القائمة.
-class _PlayModePicker extends StatelessWidget {
-  const _PlayModePicker({required this.mode, required this.onChanged});
-
-  final QuizPlayMode mode;
-  final ValueChanged<QuizPlayMode> onChanged;
-
-  static const _labels = {
-    QuizPlayMode.balloons: 'quiz.mode.balloons',
-    QuizPlayMode.fishing: 'quiz.mode.fishing',
-    QuizPlayMode.list: 'quiz.mode.list',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final entry in _labels.entries)
-          ChoiceChip(
-            key: ValueKey('quiz-mode-${entry.key.name}'),
-            label: Text(tr(entry.value), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-            selected: mode == entry.key,
-            onSelected: (_) => onChanged(entry.key),
-          ),
-      ],
-    );
-  }
-}
-
 class _QuestionList extends StatelessWidget {
   const _QuestionList({
     required this.questions,
     required this.answers,
     required this.questionIndex,
     required this.submitting,
-    required this.playMode,
-    required this.onPlayMode,
-    required this.onGameAnswer,
     required this.onAnswer,
     required this.onPrevious,
     required this.onNext,
@@ -703,40 +654,10 @@ class _QuestionList extends StatelessWidget {
   final Map<String, String> answers;
   final int questionIndex;
   final bool submitting;
-  final QuizPlayMode playMode;
-  final ValueChanged<QuizPlayMode> onPlayMode;
-  final void Function(String id, String value) onGameAnswer;
   final void Function(String id, String value) onAnswer;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final VoidCallback onSubmit;
-
-  Widget _gameFor(Map<String, dynamic> question, String id, List<String> options, String? selected) {
-    bool isCorrect(String option) => StudentAssessmentRules.isAnswerCorrect(question, option);
-    void answered(String option) {
-      if (!submitting) onGameAnswer(id, option);
-    }
-
-    final prompt = _text(question['question']);
-    final key = ValueKey('game-$questionIndex-${playMode.name}');
-    return playMode == QuizPlayMode.fishing
-        ? FishingQuizQuestion(
-            key: key,
-            prompt: prompt,
-            options: options,
-            isCorrect: isCorrect,
-            onAnswered: answered,
-            answered: selected,
-          )
-        : BalloonQuizQuestion(
-            key: key,
-            prompt: prompt,
-            options: options,
-            isCorrect: isCorrect,
-            onAnswered: answered,
-            answered: selected,
-          );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -767,15 +688,7 @@ class _QuestionList extends StatelessWidget {
             backgroundColor: StudentSurface.track(context),
           ),
         ),
-        const SizedBox(height: 12),
-        _PlayModePicker(mode: playMode, onChanged: onPlayMode),
-        const SizedBox(height: 12),
-        if (playMode != QuizPlayMode.list)
-          SizedBox(
-            height: (MediaQuery.sizeOf(context).height * 0.58).clamp(320.0, 620.0).toDouble(),
-            child: _gameFor(question, id, options, selected),
-          )
-        else
+        const SizedBox(height: 18),
         // كلُّ سؤالٍ يقفز إلى مكانه حين يُفتح.
         LivelyStagger(
           key: ValueKey('question-$questionIndex'),

@@ -112,4 +112,54 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
     });
   });
+
+  for (final (name, style, key) in [
+    ('القطار', QuizGameStyle.train, 'crate'),
+    ('المقلاع', QuizGameStyle.slingshot, 'target'),
+  ]) {
+    group(name, () {
+      Widget game(List<String> answers) => quizGameFor(
+            style,
+            prompt: 'رقبتُه طويلة؟',
+            options: options,
+            isCorrect: isCorrect,
+            onAnswered: answers.add,
+          );
+
+      testWidgets('الصحيحةُ تُرى ثم تُبلَغ، ولمسةٌ ثانية لا تُحسب', (tester) async {
+        final answers = <String>[];
+        await pump(tester, game(answers));
+        await tester.tap(find.byKey(ValueKey('$key-3')));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(answers, isEmpty, reason: 'يرى النتيجةَ أوّلاً');
+        await tester.tap(find.byKey(ValueKey('$key-0')), warnIfMissed: false);
+        await settle(tester);
+        expect(answers, ['زرافة']);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 3));
+      });
+
+      testWidgets('الخاطئةُ تُبلَغ كما هي', (tester) async {
+        final answers = <String>[];
+        await pump(tester, game(answers));
+        await tester.tap(find.byKey(ValueKey('$key-1')));
+        await settle(tester);
+        expect(answers, ['قطة']);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 3));
+      });
+
+      testWidgets('لا تجاوزَ على هاتفٍ رأسيّ', (tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(MaterialApp(home: Scaffold(body: game([]))));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 3));
+      });
+    });
+  }
 }

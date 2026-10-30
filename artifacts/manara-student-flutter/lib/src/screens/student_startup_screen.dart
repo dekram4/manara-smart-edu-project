@@ -11,7 +11,6 @@ import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_sound_service.dart';
-import '../theme/student_theme.dart';
 import '../widgets/splash_intro.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_immersive.dart';
@@ -148,10 +147,12 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
   /// الفيلمُ فُكّ ويُعرض: الشاشةُ له، والافتتاحيةُ لا تبدأ.
   bool _videoShown = false;
 
-  /// كم يُنتظر فكُّ الفيلم قبل العدول إلى الافتتاحية. ملفٌّ في الحزمة يُفكّ
-  /// في جزءٍ من الثانية؛ وما أبطأ من هذا فجهازٌ يتعثّر، والطفلُ لا ينتظر
-  /// أمام أرضيةٍ فارغة.
-  static const _videoGrace = Duration(seconds: 3);
+  /// كم يُنتظر فكُّ الفيلم قبل العدول إلى الافتتاحية المرسومة.
+  ///
+  /// كانت ثلاثَ ثوانٍ، فكان تابلتٌ بطيءُ الفكّ يُري الطفلَ الشعارَ والشخصيةَ
+  /// المرسومة قبل الفيلم — واجهةً قبل الفيلم. فالمهلةُ الآن لجهازٍ تعطّل حقاً،
+  /// والانتظارُ على أسودٍ كأرضيّة الفيلم، وزرُّ «تخطي» ظاهرٌ طوالَه.
+  static const _videoGrace = Duration(seconds: 10);
   Timer? _videoGiveUp;
 
   /// سقفُ البقاء مع الفيلم فوق طوله: إن لم يُبلَّغ انتهاؤه — مشغّلٌ لا يُرسل
@@ -447,7 +448,8 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
     // وتعود حين تُغادَر الشاشة (انظر StudentImmersive).
     return StudentImmersive(
       child: Scaffold(
-      backgroundColor: StudentSurface.warmGround(context),
+      // ‏أسودُ كأرضيّة الفيلم: لا يُرى قبله شيء.
+      backgroundColor: Colors.black,
       body: GestureDetector(
         // Tap anywhere to skip.
         behavior: HitTestBehavior.opaque,
@@ -455,20 +457,22 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [
-                    Color(0xFFFFF4DF),
-                    Color(0xFFFDECD8),
-                    Color(0xFFE7F3F6),
-                  ],
+            // ‏أرضيّةُ الافتتاحية المرسومة وحدها — حين تعطّل الفيلم. وقبل أن يُفكّ
+            // ‏الفيلمُ أسودٌ فقط.
+            if (_introStarted)
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                    colors: [
+                      Color(0xFFFFF4DF),
+                      Color(0xFFFDECD8),
+                      Color(0xFFE7F3F6),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            // وقبل أن يُفكّ الفيلم — جزءٌ من الثانية — الأرضيةُ وحدها.
             if (_videoShown && _video != null)
               _WelcomeFilm(video: _video!)
             else if (_introStarted) ...[

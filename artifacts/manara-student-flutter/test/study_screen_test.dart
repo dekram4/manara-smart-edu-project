@@ -146,7 +146,7 @@ void main() {
 
   testWidgets('قرارٌ صحيح: لوحةٌ خضراءُ وشارةُ جواهر، ثم التالي', (tester) async {
     await pump(tester);
-    await tester.tap(find.text(tr('study.tabStory')));
+    await tester.ensureVisible(find.text(tr('study.start')));
     await settle(tester);
     expect(find.text(tr('study.storyTitle')), findsOneWidget);
     expect(find.text(tr('study.chipGems')), findsOneWidget);
@@ -162,7 +162,7 @@ void main() {
 
   testWidgets('قرارٌ خاطئ: «فكرة مفيدة» لا عقاب', (tester) async {
     await pump(tester);
-    await tester.tap(find.text(tr('study.tabStory')));
+    await tester.ensureVisible(find.text(tr('study.start')));
     await settle(tester);
     await tester.tap(find.text(tr('study.start')));
     await settle(tester);
@@ -177,7 +177,7 @@ void main() {
       await tester.tap(find.text('الساق'));
       await settle(tester);
       expect(tester.takeException(), isNull, reason: '$size map');
-      await tester.tap(find.text(tr('study.tabStory')));
+      await tester.ensureVisible(find.text(tr('study.start')));
       await settle(tester);
       await tester.tap(find.text(tr('study.start')));
       await settle(tester);
