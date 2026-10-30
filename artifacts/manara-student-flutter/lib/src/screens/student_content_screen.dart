@@ -78,6 +78,20 @@ class _StudentContentScreenState extends State<StudentContentScreen>
     _rewardController = ConfettiController(
       duration: const Duration(seconds: 2),
     );
+    // ‏ما وصل من قبل (أو ملأته لوحةُ البطاقات مسبقاً): البطاقةُ تُفتح عليه في
+    // ‏إطارها الأوّل، ثم يتجدّد من الخادم بلا مؤشّر.
+    final cachedLessons = StudentContentService.lastResult<List<LessonContent>>(
+      StudentContentService.resultKey('lessons', widget.profile, widget.academicContext),
+    );
+    if (cachedLessons != null) {
+      _lessons = cachedLessons;
+      _selectedLesson = cachedLessons.isEmpty ? null : cachedLessons.first;
+      _apiGames = [
+        ...?StudentContentService.lastResult<List<HtmlGame>>('gameCatalog|${widget.apiBaseUrl}'),
+        ...?StudentContentService.lastResult<List<HtmlGame>>('teacherGames|${widget.apiBaseUrl}'),
+      ];
+      _loading = false;
+    }
     _loadContent();
     // ── المحتوى كما في Supabase الآن ──
     // كان يُقرأ مرّةً عند فتح البطاقة، فتعديلٌ أو حذفٌ من المعلّم لا يصل
@@ -175,51 +189,45 @@ class _StudentContentScreenState extends State<StudentContentScreen>
   }
 
   Future<void> _loadContent() async {
-    List<LessonContent> lessons = const [];
+    // ‏الطلباتُ الأربعة معاً لا واحداً بعد واحد: كانت متتاليةً، فتنتظر البطاقةُ
+    // ‏أربعَ رحلاتٍ إلى الخادم قبل أن يظهر شيءٌ منها.
     String? lessonError;
-    try {
-      lessons = await _contentService.fetchLessons(
-        widget.profile,
-        academicContext: widget.academicContext,
-      );
-    } catch (error) {
-      lessonError = trf('content.lessonLoadError', {'error': error});
-    }
-
-    List<HtmlGame> apiGames = const [];
-    try {
-      // The API catalog is intentionally independent from lesson_configs so
-      // the games portal still works when the lesson query is unavailable.
-      apiGames = await _contentService.fetchGameCatalog();
-    } catch (_) {
-      // Supabase lesson games remain available if the optional API catalog
-      // is unavailable.
-    }
     String? gamesError;
-    try {
-      // ألعابُ معلّم الطالب من «الترفيه والألعاب»: بعد ألعاب الفهرس، فلا
-      // تُزيح لعبةً فتحها الطالب بمستواه.
-      apiGames = [...apiGames, ...await _contentService.fetchTeacherGames()];
-    } catch (error) {
+    final lessonsRequest = _contentService
+        .fetchLessons(widget.profile, academicContext: widget.academicContext)
+        .catchError((Object error) {
+      lessonError = trf('content.lessonLoadError', {'error': error});
+      return const <LessonContent>[];
+    });
+    // The API catalog is intentionally independent from lesson_configs so
+    // the games portal still works when the lesson query is unavailable.
+    final catalogRequest = _contentService
+        .fetchGameCatalog()
+        .catchError((Object _) => const <HtmlGame>[]);
+    // ألعابُ معلّم الطالب من «الترفيه والألعاب»: بعد ألعاب الفهرس، فلا
+    // تُزيح لعبةً فتحها الطالب بمستواه.
+    final teacherRequest = _contentService.fetchTeacherGames().catchError((Object error) {
       // تعذّرت: ألعابُ الفهرس والدروس كما هي، والسببُ يُعرض إن لم يبقَ شيء.
-      gamesError = error is StateError
-          ? error.message.toString()
-          : tr('content.gamesUnreachable');
-    }
+      gamesError = error is StateError ? error.message.toString() : tr('content.gamesUnreachable');
+      return const <HtmlGame>[];
+    });
+    // The profile snapshot keeps content usable when progress is unavailable.
+    final progressRequest = _contentService
+        .fetchGamification(widget.profile)
+        .catchError((Object _) => _gamification);
 
-    var gamification = _gamification;
-    try {
-      gamification = await _contentService.fetchGamification(widget.profile);
-    } catch (_) {
-      // The profile snapshot keeps content usable when progress is unavailable.
-    }
+    final lessons = await lessonsRequest;
+    final apiGames = [...await catalogRequest, ...await teacherRequest];
+    final gamification = await progressRequest;
 
     if (!mounted) return;
     setState(() {
       _lessons = lessons;
       _apiGames = apiGames;
       _gamesError = gamesError;
-      _selectedLesson = lessons.isEmpty ? null : lessons.first;
+      // ‏درسٌ فتحه الطالبُ وهو يتجدّد يبقى مفتوحاً إن لم يُحذف.
+      _selectedLesson = StudentContentService.keepSelectedLesson(lessons, _selectedLesson) ??
+          (lessons.isEmpty ? null : lessons.first);
       _gamification = gamification;
       _loading = false;
       _error = lessonError;

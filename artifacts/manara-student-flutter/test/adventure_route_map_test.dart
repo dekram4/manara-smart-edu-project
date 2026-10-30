@@ -41,27 +41,31 @@ void main() {
       expect(RouteArt.subject('التربية الفنية'), art);
     });
 
-    test('الوحداتُ والدروس من صور مادّتها، تدور عليها ولا تبدأ بصورة المادة', () {
-      expect(RouteArt.item('الرياضيات', 0), 'assets/images/subjects/math_2.png');
-      expect(RouteArt.item('الرياضيات', 5), 'assets/images/subjects/math_1.png');
-      expect(RouteArt.item('العلوم', 0), 'assets/images/subjects/science_1.png');
-      expect(RouteArt.item('الحروف العربية', 0), 'assets/images/subjects/ar_letters_1.png');
-      expect(RouteArt.item('الحروف العربية', 3), 'assets/images/subjects/ar_letters_4.png');
+    test('صورةُ الدرس من اسمه: السورةُ مصحفٌ لا حروف، والجمعُ علاماتُ الحساب', () {
+      final surahs = RouteArt.assign('القرآن الكريم', ['سورة الفاتحة', 'سورة الناس', 'سورة الفلق', 'سورة الإخلاص']);
+      for (final art in surahs) {
+        expect(art, isNot(contains('ar_letters')), reason: 'صورةُ حروفٍ على سورة: $art');
+        expect(RouteArt.quran, contains(art));
+      }
+      expect(RouteArt.assign('الرياضيات', ['الجمع']).single, 'assets/images/subjects/math_5.png');
+      expect(RouteArt.assign('الرياضيات', ['الأشكال الهندسية']).single, 'assets/images/subjects/math_2.png');
+      expect(RouteArt.assign('العلوم', ['جسم الإنسان']).single, 'assets/images/subjects/science_4.png');
+      expect(RouteArt.assign('الحروف العربية', ['حرف الباء']).single, contains('ar_letters_'));
     });
 
     test('الأرقامُ العربية بأرقامها (١٢٣): لا مكعّباتُ 1 2 3 ولا الفرجارُ وأدواتُ الهندسة', () {
-      for (var i = 0; i < 12; i++) {
-        final art = RouteArt.item('الأرقام العربية', i);
-        expect(art, contains('ar_digits_'), reason: art);
+      final art = RouteArt.assign('الأرقام العربية', [for (var i = 1; i <= 8; i++) 'الدرس $i']);
+      for (final image in art) {
+        expect(image, contains('ar_digits_'), reason: image);
       }
       expect(RouteArt.arabicNumbers, isNot(contains('assets/images/subjects/math_2.png')));
       expect(RouteArt.arabicNumbers, isNot(contains('assets/images/subjects/ar_numbers_conv.png')));
     });
 
-    test('لا تتكرّر صورةٌ في قائمةٍ ما اتّسعت صورُ مادّتها', () {
-      for (final subject in ['الرياضيات', 'العلوم', 'اللغة الإنجليزية', 'الحروف العربية', 'الأرقام العربية', 'الحروف الإنجليزية']) {
+    test('لا تتكرّر صورةٌ في قائمةٍ ما بقيت صورةٌ لم تُستعمل', () {
+      for (final subject in ['الرياضيات', 'العلوم', 'اللغة الإنجليزية', 'الحروف العربية', 'الأرقام العربية', 'القرآن الكريم']) {
         final count = RouteArt.pool(subject).length - 1;
-        final shown = [for (var i = 0; i < count; i++) RouteArt.item(subject, i)];
+        final shown = RouteArt.assign(subject, [for (var i = 1; i <= count; i++) 'الوحدة $i']);
         expect(shown.toSet(), hasLength(count), reason: subject);
       }
     });
@@ -102,7 +106,7 @@ void main() {
           ...pool,
       };
       for (final image in images) {
-        expect(image, matches(RegExp(r'^assets/images/(routes|subjects)/')));
+        expect(image, startsWith('assets/images/'));
         expect(File(image).existsSync(), isTrue, reason: image);
       }
       for (final prompt in [
@@ -210,12 +214,12 @@ void main() {
       expect(valueAt(tester, 4), 'الماء');
 
       // والزرُّ جاهز.
-      final start = tester.widget<FilledButton>(find.byType(FilledButton).first);
-      expect(start.onPressed, isNotNull);
+      final start = tester.widget<GestureDetector>(find.byKey(const ValueKey('path-start')));
+      expect(start.onTap, isNotNull);
       await tester.pump(const Duration(milliseconds: 300));
     });
 
-    testWidgets('لحظةَ الدخول والمسارُ يُقرأ: ترحيبٌ بشخصية الطالب واسمه على خلفية الخريطة', (tester) async {
+    testWidgets('لحظةَ الدخول والمسارُ يُقرأ: شخصيةُ الطالب على خلفية الخريطة، بلا عبارة ترحيب', (tester) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -228,18 +232,16 @@ void main() {
       ));
       // ‏الإطارُ الأوّل: الترحيبُ والمسارُ لم يصل بعد.
       expect(find.byKey(const ValueKey('path-welcome-panel')), findsOneWidget);
-      expect(find.text(tr('path.welcomeHero')), findsOneWidget);
-      expect(find.text('سارة'), findsOneWidget);
+      expect(find.text('سارة'), findsNothing);
       expect(find.byType(StudentAvatarView), findsWidgets);
       expect(find.byKey(const ValueKey('adventure-background')), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 5));
     });
 
-    testWidgets('ترحيبٌ باسم الطالب وشخصيته في أعلى الخريطة', (tester) async {
+    testWidgets('لا عبارةَ ترحيبٍ على الخريطة ولا في «تغيير الدرس»', (tester) async {
       await pump(tester);
-      expect(find.byKey(const ValueKey('path-welcome')), findsOneWidget);
-      expect(find.text(trf('path.welcomeName', {'name': 'طالب'})), findsOneWidget);
+      expect(find.byKey(const ValueKey('path-welcome')), findsNothing);
       await tester.pump(const Duration(milliseconds: 300));
     });
 
@@ -283,7 +285,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
       await tester.tap(find.byKey(const ValueKey('adventure-option-0-0')));
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.tap(find.byType(FilledButton).first);
+      await tester.tap(find.byKey(const ValueKey('path-start')));
       await tester.pump(const Duration(milliseconds: 500));
       expect(results, hasLength(2));
       expect(results.last?.grade, kg);
