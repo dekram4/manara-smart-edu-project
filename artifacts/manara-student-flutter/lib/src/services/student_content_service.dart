@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -421,7 +422,60 @@ class StudentContentService {
     ]);
   }
 
+  // ── آخرُ ما وصل: البطاقةُ تُفتح عليه فوراً ──
+  //
+  // كانت كلُّ بطاقةٍ تسأل الخادمَ حين تُفتح وتنتظر جوابه، فيلمسها الطفلُ ولا
+  // يرى محتواها حتى يعود الجواب. فكلُّ طلبٍ ناجحٍ يُحفظ هنا بمفتاحه (نوعُه
+  // والطالبُ ودرسُه)، والبطاقةُ تُعرض عليه في إطارها الأوّل ثم تتجدّد في
+  // الخلفية. ولوحةُ البطاقات تملؤه مسبقاً ([prefetchCards]) فلا تنتظر حتى
+  // أوّلُ لمسة.
+
+  static final Map<String, Object> _lastResults = {};
+
+  /// مفتاحُ طلبٍ لطالبٍ ودرس.
+  static String resultKey(String kind, StudentProfile profile, [AcademicContext? academicContext]) =>
+      '$kind|${profile.id}|${academicContext?.label ?? ''}|${academicContext?.lessonId ?? ''}';
+
+  /// آخرُ نتيجةٍ ناجحةٍ لـ[key]، أو `null` إن لم يصل شيءٌ بعد.
+  static T? lastResult<T>(String key) {
+    final value = _lastResults[key];
+    return value is T ? value : null;
+  }
+
+  @visibleForTesting
+  static void clearLastResults() => _lastResults.clear();
+
+  Future<T> _remember<T extends Object>(String key, Future<T> request) async {
+    final value = await request;
+    _lastResults[key] = value;
+    return value;
+  }
+
+  /// يملأ ما تُفتح عليه البطاقاتُ قبل أن تُلمس: الدروسُ والألعابُ والسينما
+  /// والاختبارات. وكلُّ طلبٍ وحدَه: فشلُ أحدها لا يمسّ غيرَه ولا يُظهر شيئاً.
+  void prefetchCards(StudentProfile profile, AcademicContext? academicContext) {
+    for (final request in <Future<Object>>[
+      fetchLessons(profile, academicContext: academicContext),
+      fetchGameCatalog(),
+      fetchTeacherGames(),
+      fetchCinemaVideos(profile, academicContext: academicContext),
+      fetchAvailableQuizzes(profile, academicContext: academicContext),
+      fetchQuizResults(profile),
+    ]) {
+      unawaited(request.then<void>((_) {}, onError: (Object _) {}));
+    }
+  }
+
   Future<List<LessonContent>> fetchLessons(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) =>
+      _remember(
+        resultKey('lessons', profile, academicContext),
+        _fetchLessons(profile, academicContext: academicContext),
+      );
+
+  Future<List<LessonContent>> _fetchLessons(
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
@@ -601,7 +655,10 @@ class StudentContentService {
   /// طلابُ كل معلّمٍ يرون ألعابَ معلّمٍ آخر. فالفارغةُ فارغة، والخطأُ لا ألعاب:
   /// ألعابُ معلّم الطالب تصل من [fetchTeacherGames] وحدها. والنسخةُ المدمجة
   /// تبقى لتطبيقٍ بلا خادمٍ مُعدّ (التطوير والاختبار) فقط.
-  Future<List<HtmlGame>> fetchGameCatalog() async {
+  Future<List<HtmlGame>> fetchGameCatalog() =>
+      _remember('gameCatalog|$baseUrl', _fetchGameCatalog());
+
+  Future<List<HtmlGame>> _fetchGameCatalog() async {
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return _embeddedGameCatalog('');
 
@@ -623,7 +680,10 @@ class StudentContentService {
   /// من ألعاب معلّمه وحده. وتصل بصيغة الفهرس نفسها، فتُقرأ بمحلّله وتُعرض
   /// بعد ألعابه في الرفّ نفسه. وأيُّ تعذّرٍ — خادمٌ أقدم، بطاقةٌ مغلقة، شبكة —
   /// قائمةٌ فارغة: ألعابُ الفهرس تبقى كما هي.
-  Future<List<HtmlGame>> fetchTeacherGames() async {
+  Future<List<HtmlGame>> fetchTeacherGames() =>
+      _remember('teacherGames|$baseUrl', _fetchTeacherGames());
+
+  Future<List<HtmlGame>> _fetchTeacherGames() async {
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return const [];
     final (status, body) = await _apiGet('/api/student/entertainment');
@@ -665,6 +725,15 @@ class StudentContentService {
   /// يُقرأ المفتاح القديم مباشرةً بالقاعدة نفسها: الصفّ والمعلم وحدهما.
   /// [academicContext] لم يعد يقيّد شيئاً، ويبقى في التوقيع لمن يمرّره.
   Future<List<LessonVideo>> fetchCinemaVideos(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
+  }) =>
+      _remember(
+        resultKey('cinema', profile, academicContext),
+        _fetchCinemaVideos(profile, academicContext: academicContext),
+      );
+
+  Future<List<LessonVideo>> _fetchCinemaVideos(
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
@@ -775,6 +844,15 @@ class StudentContentService {
   Future<List<Map<String, dynamic>>> fetchAvailableQuizzes(
     StudentProfile profile, {
     AcademicContext? academicContext,
+  }) =>
+      _remember(
+        resultKey('quizzes', profile, academicContext),
+        _fetchAvailableQuizzes(profile, academicContext: academicContext),
+      );
+
+  Future<List<Map<String, dynamic>>> _fetchAvailableQuizzes(
+    StudentProfile profile, {
+    AcademicContext? academicContext,
   }) async {
     final response = await client
         .from('created_quizzes')
@@ -810,7 +888,10 @@ class StudentContentService {
   }
 
   /// Results are always filtered by student ID before they reach the UI.
-  Future<List<Map<String, dynamic>>> fetchQuizResults(
+  Future<List<Map<String, dynamic>>> fetchQuizResults(StudentProfile profile) =>
+      _remember(resultKey('quizResults', profile), _fetchQuizResults(profile));
+
+  Future<List<Map<String, dynamic>>> _fetchQuizResults(
     StudentProfile profile,
   ) async {
     // ‏من الخادم بجلسة الطالب: نتائجُه وحده. كان الجدولُ يُقرأ بالمفتاح العام،

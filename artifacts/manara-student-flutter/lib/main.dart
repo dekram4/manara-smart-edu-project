@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/config/supabase_config.dart';
 import 'src/l10n/student_strings.dart';
-import 'src/screens/student_entry.dart';
+import 'src/screens/student_startup_screen.dart';
 import 'src/services/student_auth_service.dart';
 import 'src/services/student_sound_service.dart';
 import 'src/theme/student_theme.dart';
@@ -161,7 +161,7 @@ class ManaraStudentApp extends StatelessWidget {
                 textDirection: StudentSettings.direction,
                 child: child ?? const SizedBox.shrink(),
               ),
-              home: StudentEntry(
+              home: StudentStartupScreen(
                 authService: client == null
                     ? null
                     : StudentAuthService(client!, apiBaseUrl: apiBaseUrl),

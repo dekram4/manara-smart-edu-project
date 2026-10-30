@@ -505,8 +505,10 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                 // the text in the squares readable rather than merely present.
 
                 const edge = 12.0;
-                // The start button keeps its own band across the foot.
-                const startBand = 76.0;
+                // ‏زرُّ «ابدأ المغامرة» صورةٌ مستديرة: شريطُه بقدرها، وتكبر مع
+                // ‏الشاشة في حدّين — لا تُضيّق على الخيارات في هاتفٍ أفقي.
+                final startButton = (areaSize.shortestSide * 0.14).clamp(64.0, 108.0).toDouble();
+                final startBand = startButton + edge * 2;
 
                 // اللوح يملأ الشاشة كلها. الرقع والزر تطفو فوقه، ولا
                 // تقتطع منه: الصورة هي الشاشة، وكل ما عليها موضوع بنسبة
@@ -575,12 +577,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         left: edge,
                         right: edge,
                         bottom: edge,
-                        height: startBand - edge,
+                        height: startButton,
                         child: _FlyAway(
                           away: _leaving,
                           angle: 0.18,
                           delay: const Duration(milliseconds: 60),
                           child: _StartAdventureButton(
+                            size: startButton,
                             enabled: _selection != null && !_isEntering,
                             busy: _isEntering,
                             onPressed: _enterDashboard,
@@ -606,14 +609,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                             )
                           : _LeaveButton(onPressed: _signOut),
                     ),
-                    // ‏الترحيبُ بشخصية الطالب نفسِه واسمِه، في وسط الأعلى.
-                    if (_ready)
-                      Positioned(
-                        top: 4,
-                        left: 132,
-                        right: 132,
-                        child: Center(child: _WelcomeBadge(name: widget.profile.name)),
-                      ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -662,7 +657,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 
   Widget _buildLoadingOrError() {
     if (_loading) {
-      return _WelcomePanel(name: widget.profile.name);
+      return const _WelcomePanel();
     }
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -727,8 +722,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           color: const Color(0xFF22C55E),
           value: _unit,
           options: _unitOptions,
-          // ‏من صور المادة المختارة نفسها، مرقّمةً بالأرقام العربية.
-          artFor: (_, index) => RouteArt.item(_subject ?? '', index),
+          // ‏صورةُ ما يدلّ عليه اسمُ الوحدة، وإلا من صور مادّتها — بلا تكرار.
+          artFor: (_, index) => RouteArt.assign(_subject ?? '', _unitOptions)[index],
           numbered: true,
           onSelected: (value) {
             _selectUnit(value);
@@ -743,8 +738,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           color: const Color(0xFFEC4899),
           value: _lesson?.lessonName,
           options: _lessonOptions,
-          // ‏تبدأ بعد صور الوحدات، فلا يشبه الدرسُ الأوّلُ الوحدةَ الأولى.
-          artFor: (_, index) => RouteArt.item(_subject ?? '', index + 2),
+          // ‏صورةُ ما يدلّ عليه اسمُ الدرس («سورة الفاتحة» مصحف)، بلا تكرار.
+          artFor: (_, index) => RouteArt.assign(_subject ?? '', _lessonOptions)[index],
           numbered: true,
           onSelected: (value) {
             _selectLessonNamed(value);
@@ -850,54 +845,10 @@ class _LeaveButton extends StatelessWidget {
   }
 }
 
-/// «أهلاً بك يا بطل، {name}!» بشخصية الطالب نفسِه — في وسط أعلى الخريطة.
-///
-/// الشخصيةُ ما اختاره الطالب ([StudentAvatars.selected]، وقد أُخذت من ملفّه عند
-/// فتح الشاشة)، وإن لم يختر بعدُ فالشخصيةُ الأساسية.
-class _WelcomeBadge extends StatelessWidget {
-  const _WelcomeBadge({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Container(
-        key: const ValueKey('path-welcome'),
-        padding: const EdgeInsetsDirectional.fromSTEB(4, 4, 16, 4),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFFFFF7D6), Colors.white]),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0xFFFFC85C), width: 2),
-          boxShadow: const [BoxShadow(color: Color(0x33F59E0B), blurRadius: 12, offset: Offset(0, 4))],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const StudentAvatarView(size: 38, showRing: false),
-            const SizedBox(width: 8),
-            Text(
-              trf('path.welcomeName', {'name': name}),
-              style: const TextStyle(
-                color: Color(0xFF1E3A5F),
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// ما يراه الطالبُ لحظةَ يدخل، والمسارُ يُقرأ: شخصيتُه كبيرةً في هالةٍ تنبض،
-/// و«أهلاً بك يا بطل!» واسمُه — لا دائرةَ انتظارٍ مجرّدة.
+/// ما يراه الطالبُ لحظةَ يدخل والمسارُ يُقرأ: شخصيتُه كبيرةً في هالةٍ تنبض —
+/// بلا عبارة ترحيب — ودائرةُ الانتظار تحتها.
 class _WelcomePanel extends StatelessWidget {
-  const _WelcomePanel({required this.name});
-
-  final String name;
+  const _WelcomePanel();
 
   @override
   Widget build(BuildContext context) {
@@ -922,28 +873,6 @@ class _WelcomePanel extends StatelessWidget {
               radius: 80,
               child: const StudentAvatarView(size: 132),
             ),
-            const SizedBox(height: 16),
-            Text(
-              tr('path.welcomeHero'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFFB45309),
-                fontSize: 30,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF1E3A5F),
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
             const SizedBox(height: 14),
             StudentRiveLoading(size: 64, label: tr('path.loading')),
           ],
@@ -953,63 +882,87 @@ class _WelcomePanel extends StatelessWidget {
   }
 }
 
-/// The chunky 3D "start the adventure" button on the lower books.
+/// «ابدأ المغامرة!»: الزرُّ المستدير المصمَّم لها
+/// (`assets/images/routes/start_adventure_btn.png`) يتوهّج وينبض ويثب، واسمُه
+/// بجانبه كي يعرفه من يقرأ. ويهتزّ الجهازُ عند لمسه ([_enterDashboard]).
+///
+/// معطّلٌ (المسارُ لم يكتمل): رماديٌّ باهت لا يتوهّج. وفي أثناء الانطلاق: دائرةُ
+/// انتظارٍ فوقه.
 class _StartAdventureButton extends StatelessWidget {
   const _StartAdventureButton({
+    required this.size,
     required this.enabled,
     required this.busy,
     required this.onPressed,
   });
 
+  static const asset = 'assets/images/routes/start_adventure_btn.png';
+
+  final double size;
   final bool enabled;
   final bool busy;
   final VoidCallback onPressed;
 
+  static const _grey = ColorFilter.matrix(<double>[
+    0.33, 0.33, 0.33, 0, 0, //
+    0.33, 0.33, 0.33, 0, 0,
+    0.33, 0.33, 0.33, 0, 0,
+    0, 0, 0, 0.6, 0,
+  ]);
+
   @override
   Widget build(BuildContext context) {
-    final color = enabled ? const Color(0xFFFF9F1C) : const Color(0xFFB6BEC6);
-    // جاهزٌ للانطلاق: يتوهّج ويتنفّس ليدعو الطفلَ إليه.
-    return _GlowPulse(
-      color: color,
-      active: enabled && !busy,
-      child: _button(color),
-    );
-  }
-
-  Widget _button(Color color) {
-    return StudentPressScale(
-      child: StudentEmbossedShell(
-        color: color,
-        depth: 6,
-        borderRadius: 24,
-        // Expands so the button's face covers the whole shell — without
-        // this the button sizes to its label and leaves the darker 3D
-        // ledge showing beside it.
-        child: SizedBox.expand(
-          child: FilledButton.icon(
-            onPressed: enabled ? onPressed : null,
-            icon: busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
-                  )
-                : const Icon(Icons.rocket_launch_rounded),
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(tr(busy ? 'path.preparing' : 'path.start')),
+    Widget image = Image.asset(asset, width: size, height: size, fit: BoxFit.contain);
+    if (!enabled && !busy) image = ColorFiltered(colorFilter: _grey, child: image);
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: tr(busy ? 'path.preparing' : 'path.start'),
+      child: GestureDetector(
+        key: const ValueKey('path-start'),
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onPressed : null,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            StudentPressScale(
+              child: _GlowPulse(
+                color: const Color(0xFFFF7A1A),
+                active: enabled && !busy,
+                radius: size / 2,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    image,
+                    if (busy)
+                      SizedBox(
+                        width: size * 0.5,
+                        height: size * 0.5,
+                        child: const CircularProgressIndicator(strokeWidth: 4, color: Colors.white),
+                      ),
+                  ],
+                ),
+              ),
             ),
-            style: FilledButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: const Color(0xFFB6BEC6),
-              disabledForegroundColor: Colors.white70,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            const SizedBox(width: 12),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  tr(busy ? 'path.preparing' : 'path.start'),
+                  style: TextStyle(
+                    color: enabled || busy ? const Color(0xFFC2410C) : const Color(0xFF94A3B8),
+                    fontSize: (size * 0.34).clamp(20.0, 34.0).toDouble(),
+                    fontWeight: FontWeight.w900,
+                    shadows: const [
+                      Shadow(color: Colors.white, blurRadius: 8),
+                      Shadow(color: Colors.white, blurRadius: 3),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

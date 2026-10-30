@@ -170,7 +170,7 @@ void main() {
         (tester) async {
       await pumpReady(tester, entry.value);
 
-      final buttonRect = tester.getRect(find.byType(FilledButton).first);
+      final buttonRect = tester.getRect(find.byKey(const ValueKey('path-start')));
 
       // A full-width band across the foot of a short landscape window
       // landed on the lowest book and on the guide beside it. Every book

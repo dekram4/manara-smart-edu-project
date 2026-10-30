@@ -168,6 +168,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     unawaited(StudentAvatars.adoptFromProfile(widget.profile.appearance));
     _contentService = StudentContentService(widget.authService.client,
         baseUrl: widget.apiBaseUrl, authService: widget.authService);
+    if (given != null) _prefetchCards();
     // خدمةٌ واحدة تعيش مع الشاشة لا واحدةٌ لكل فتحة: ذاكرةُ ما رآه
     // الطفل من أسئلة تسكن فيها، فلا تُعاد عليه بين جولةٍ وأخرى.
     _challengeService = StudentChallengeService(
@@ -379,6 +380,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       ),
     );
   }
+
+  /// تُملأ بياناتُ البطاقات للدرس الجاري قبل أن تُلمس، فتُفتح كلُّ بطاقةٍ على
+  /// محتواها فوراً ([StudentContentService.prefetchCards]).
+  void _prefetchCards() => _contentService.prefetchCards(widget.profile, _academicContext);
 
   /// يفتح البطاقة فوراً على ما يعرفه من صلاحياتها.
   ///
@@ -731,6 +736,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
     if (chosen == null || !mounted) return;
     setState(() => _academicContext = chosen);
+    _prefetchCards();
     unawaited(StudentPathMemory.save(
       widget.profile.id,
       chosen,
@@ -784,6 +790,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // ولا يُبدَّل درسٌ اختاره الطالبُ بينما كان هذا يُقرأ.
     if (restored != null && _academicContext == null) {
       setState(() => _academicContext = restored);
+      _prefetchCards();
     }
   }
 

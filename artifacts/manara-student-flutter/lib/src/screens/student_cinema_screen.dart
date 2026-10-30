@@ -55,7 +55,15 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       baseUrl: widget.apiBaseUrl,
       authService: widget.authService,
     );
-    _loadVideos();
+    // ‏ما وصل من قبل: السينما تُفتح عليه فوراً، وتتجدّد في الخلفية.
+    final cached = StudentContentService.lastResult<List<LessonVideo>>(
+      StudentContentService.resultKey('cinema', widget.profile, widget.academicContext),
+    );
+    if (cached != null) {
+      _videos = cached;
+      _loading = false;
+    }
+    _loadVideos(quiet: cached != null);
   }
 
   @override
@@ -63,11 +71,14 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
     super.dispose();
   }
 
-  Future<void> _loadVideos() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  /// [quiet]: تجديدٌ تحت ما يُعرض، بلا مؤشّر تحميل.
+  Future<void> _loadVideos({bool quiet = false}) async {
+    if (!quiet) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final values = await Future.wait<Object>([
         _contentService.fetchCinemaVideos(
@@ -87,7 +98,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      // ‏تجديدٌ في الخلفية فشل: يبقى ما يُعرض — إلا بطاقةً أُغلقت.
+      if (!mounted || (quiet && error is! StudentCardLockedException)) return;
       setState(() {
         _loading = false;
         // بطاقةٌ أُغلقت بعد فتح الواجهة: رسالتُها كما هي، لا «تعذّر التحميل».

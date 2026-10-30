@@ -72,12 +72,17 @@ class RouteArt {
 
   // ‏كلُّ مجموعةٍ أوّلُها صورةُ المادة، وما بعدها لوحداتها ودروسها: صورٌ مختلفة
   // ‏ما اتّسعت، فلا تتكرّر صورةٌ في قائمةٍ إلا إن زادت خياراتُها على صورها.
+  static const _images = 'assets/images/';
+
+  /// القرآنُ: مصاحفُ وكتبٌ ومسجد — لا صورُ حروف على سورةٍ قرآنية.
   static const quran = [
     '${_routes}subject_quran.png',
+    '${_images}icon_quran.png',
+    '${_images}book.png',
     '${_subjects}noorani.png',
-    '${_subjects}ar_letters.png',
-    '${_subjects}ar_letters_1.png',
   ];
+
+  /// القاعدةُ النورانية: تعليمُ الحروف للقراءة، فمع المصاحف مكعّباتُ الحروف.
   static const noorani = [
     '${_subjects}noorani.png',
     '${_routes}subject_quran.png',
@@ -183,11 +188,59 @@ class RouteArt {
   /// صورةُ المادة في بطاقتها.
   static String subject(String name) => pool(name).first;
 
-  /// صورةُ الوحدة أو الدرس [index] في مادّته: تدور على صور المادة، تبدأ بعد
-  /// صورة المادة نفسها إن كان لها غيرُها — فلا تشبه الوحدةُ الأولى المادة.
-  static String item(String subject, int index) {
+  /// صورُ ما يدلّ عليه اسمُ الوحدة أو الدرس، بالأَولى فالأَولى — أو لا شيء.
+  ///
+  /// «سورة الفاتحة» مصحف، و«الجمع» علاماتُ الحساب، و«الأشكال» الهندسة،
+  /// و«جسم الإنسان» الهيكل... والحروفُ عربيةٌ أو إنجليزية بحسب المادة.
+  static List<String> byName(String name, String subject) {
+    final key = _key(name);
+    final english = RegExp('انجليز|انكليز|english').hasMatch(_key(subject));
+    bool has(String pattern) => RegExp(pattern).hasMatch(key);
+    if (has('سور|سوره|قران|مصحف|تلاو|تجويد|ايه|ايات')) return quran;
+    if (has('نوران|القاعده')) return noorani;
+    if (english || has('letter|alphabet|abc|word|vocab')) {
+      if (has('number|count|رقم|ارقام|عدد|اعداد')) return englishNumbers;
+      if (has('letter|alphabet|abc|حرف|حروف')) return englishLetters.sublist(1);
+      if (has('word|vocab|كلم|مفرد')) return ['${_subjects}en_subj_1.png', '${_subjects}en_subj_3.png'];
+    }
+    if (has('حرف|حروف|هجاء')) return arabicLetters.sublist(1);
+    if (has('جمع|طرح|ضرب|قسم|عمليات|حساب')) {
+      return ['${_subjects}math_5.png', '${_subjects}math_4.png', '${_subjects}math_6.png', '${_subjects}math_1.png'];
+    }
+    if (has('هندس|شكل|اشكال|زاوي|قياس|مسطر|مثلث|مربع|دائر')) {
+      return ['${_subjects}math_2.png', '${_subjects}math_3.png', '${_subjects}general_1.png'];
+    }
+    if (has('رقم|ارقام|عدد|اعداد|عد ')) return english ? englishNumbers : arabicNumbers;
+    if (has('جسم|عظم|هيكل|حواس|انسان')) return ['${_subjects}science_4.png', '${_subjects}science_3.png'];
+    if (has('تجرب|مختبر|كيمي|مخلوط|ماده|مواد')) return ['${_subjects}science_2.png', '${_subjects}science_3.png'];
+    if (has('مجهر|خلي|كائن|بكتير')) return ['${_subjects}science_1.png', '${_routes}subject_science.png'];
+    if (has('نبات|شجر|زراع|بيئ|طبيع')) return ['${_subjects}general_2.png'];
+    if (has('ضوء|شمس|طقس|فصول|مطر')) return ['${_subjects}general_1.png'];
+    return const [];
+  }
+
+  /// صورٌ لقائمة وحداتٍ أو دروسٍ معاً: لكلٍّ ما يدلّ عليه اسمُه ([byName])، وإلا
+  /// من صور مادّته بعد صورة المادة نفسها — ولا تتكرّر صورةٌ ما بقيت أخرى لم
+  /// تُستعمل. فلا تقع صورةٌ واحدة على درسين متجاورين عبثاً.
+  static List<String> assign(String subject, List<String> names) {
     final images = pool(subject);
-    return images[(index + (images.length > 1 ? 1 : 0)) % images.length];
+    final rest = images.length > 1 ? images.sublist(1) : images;
+    final used = <String>{};
+    final out = <String>[];
+    for (final name in names) {
+      String? pick;
+      for (final candidate in [...byName(name, subject), ...rest]) {
+        if (!used.contains(candidate)) {
+          pick = candidate;
+          break;
+        }
+      }
+      // ‏نفدت الصورُ قبل الأسماء: تدور من جديد.
+      pick ??= rest[out.length % rest.length];
+      used.add(pick);
+      out.add(pick);
+    }
+    return out;
   }
 }
 
@@ -419,6 +472,8 @@ class _RouteBackdropState extends State<RouteBackdrop> with SingleTickerProvider
             drift: drift,
             imageKey: const ValueKey('adventure-background'),
             blur: 1.6,
+            // ‏أفقياً كاملةً كما طُلب؛ ورأسياً ملءُ الشاشة بلا تكبير.
+            containInLandscape: true,
           ),
           // ‏غشاءٌ أبيض: الصورةُ حاضرةٌ ولا تشدّ العين عن الخيارات.
           const DecoratedBox(
