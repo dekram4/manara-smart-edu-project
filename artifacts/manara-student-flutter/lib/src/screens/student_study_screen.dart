@@ -330,13 +330,12 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
                       setState(() {});
                     },
                   ),
-                  // انتقال القسم (مواصفة الحركة §5.4)، وسطرُ «جارٍ التحضير»
-                  // تحت الشخصيتين لأن التحضير يطول.
+                  // انتقال القسم (مواصفة الحركة §5.4): المحتوى فوراً، وشريطٌ
+                  // رفيعٌ أعلاه ما دام يُحضَّر.
                   Expanded(
                     child: MotionSectionOverlay(
                       ready: !_loading,
                       label: tr('study.preparing'),
-                      caption: tr('study.preparing'),
                       child: _loading ? const SizedBox.expand() : _body(context),
                     ),
                   ),

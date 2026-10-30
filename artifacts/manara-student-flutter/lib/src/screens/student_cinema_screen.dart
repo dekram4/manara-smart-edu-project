@@ -224,8 +224,8 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       body: Stack(
         children: [
           const PortalWatermark(asset: PortalBackgrounds.cinema, dark: true),
-          // انتقال القسم (مواصفة الحركة §5.4): تعتيمٌ ومُحمِّلُ الشخصيتين حتى
-          // تصل الفيديوهات، ثم يتلاشى الغطاء في 240ms.
+          // انتقال القسم (مواصفة الحركة §5.4): السينما فوراً، وشريطٌ رفيعٌ
+          // أعلاها حتى تصل الفيديوهات.
           MotionSectionOverlay(
             ready: !_loading,
             label: tr('widget.loading'),

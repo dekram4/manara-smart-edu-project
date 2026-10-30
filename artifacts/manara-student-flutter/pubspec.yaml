@@ -1,7 +1,7 @@
 name: manara_student
 description: تطبيق منارة المعرفة المخصص للطلاب.
 publish_to: "none"
-version: 1.1.46+48
+version: 1.1.47+49
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -31,6 +31,10 @@ dependencies:
   media_kit_libs_windows_video: 1.0.9
   google_fonts: ^8.2.1
   crypto: ^3.0.6
+  # الحساباتُ المحفوظة على التابلت: كلمةُ المرور مشفّرةً في مخزن المفاتيح
+  # (Android Keystore) — انظر SavedAccounts. وعلى 9.x عمداً: 10.x يتطلّب
+  # أدواتَ بناءٍ أحدثَ ممّا يُبنى به التطبيق.
+  flutter_secure_storage: ^9.2.4
   # ساعةٌ تُزيَّف في الاختبار: عدّادُ سؤال المبارزة يُقرأ منها، فيُختبر بلا انتظار.
   clock: ^1.1.2
   http: ^1.2.2
@@ -152,6 +156,10 @@ flutter:
     - assets/images/routes/
     # التوجيهُ الصوتيّ لكل خطوةٍ في خريطة المغامرة («اختر صفّك»...).
     - assets/audio/prompts/
+    # صورُ المواد والوحدات والدروس في خريطة المغامرة — انظر RouteArt.
+    - assets/images/subjects/
+    # خلفيةُ شاشة الدخول — انظر LoginBackdrop.
+    - assets/images/auth/
   fonts:
     # خطُّ لعبة «تتبّع واكتب» مضمَّناً لا منزَّلاً: مساراتُ حروف الروضة
     # تُحسب مسبقاً من أشكاله (tool/generate_tracing_glyphs.dart)، فيجب أن

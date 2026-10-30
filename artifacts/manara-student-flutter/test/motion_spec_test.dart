@@ -24,7 +24,6 @@ void main() {
     expect(MotionDurations.pressIn.inMilliseconds, 80);
     expect(MotionDurations.pressOut.inMilliseconds, 140);
     expect(MotionDurations.overlayOut.inMilliseconds, 240);
-    expect(MotionDurations.loaderLoop.inMilliseconds, 1000);
     expect(MotionDurations.playerCardIn.inMilliseconds, 220);
     expect(MotionDurations.skeletonToArt.inMilliseconds, 90);
 
@@ -39,9 +38,10 @@ void main() {
   for (final size in [portrait, landscape]) {
     final shape = size.width > size.height ? 'أفقي' : 'رأسي';
 
-    testWidgets('غطاء القسم والمُحمِّل يتلاشيان في 240ms ($shape)', (tester) async {
+    testWidgets('البطاقةُ تُفتح على محتواها فوراً، وشريطٌ رفيعٌ وحده ما دام يُحمَّل ($shape)', (tester) async {
       var ready = false;
       late StateSetter setReady;
+      var taps = 0;
       await pumpAt(
         tester,
         size,
@@ -49,23 +49,22 @@ void main() {
           setReady = setState;
           return MotionSectionOverlay(
             ready: ready,
-            caption: 'جارٍ التحضير',
-            child: const Center(child: Text('المحتوى')),
+            child: Center(
+              child: TextButton(onPressed: () => taps++, child: const Text('المحتوى')),
+            ),
           );
         }),
       );
-      expect(find.byType(MotionCharacterLoader), findsOneWidget);
-      expect(find.text('جارٍ التحضير'), findsOneWidget);
+      // لا غطاءَ ولا شخصيتين تدوران: المحتوى ظاهرٌ ويُلمس من الإطار الأوّل.
+      expect(find.text('المحتوى'), findsOneWidget);
+      expect(find.byKey(const ValueKey('section-loading')), findsOneWidget);
+      await tester.tap(find.text('المحتوى'));
+      expect(taps, 1);
       expect(tester.takeException(), isNull);
 
       setReady(() => ready = true);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      // في منتصف التلاشي: ما زال ظاهراً.
-      expect(find.byType(MotionCharacterLoader), findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 130));
-      await tester.pump();
-      expect(find.byType(MotionCharacterLoader), findsNothing);
+      expect(find.byKey(const ValueKey('section-loading')), findsNothing);
       expect(find.text('المحتوى'), findsOneWidget);
     });
 
@@ -135,16 +134,4 @@ void main() {
     });
   }
 
-  testWidgets('المُحمِّل لا يدور حين تُطلب حركةٌ أقل', (tester) async {
-    await tester.pumpWidget(
-      const MediaQuery(
-        data: MediaQueryData(disableAnimations: true),
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: MotionCharacterLoader(),
-        ),
-      ),
-    );
-    expect(tester.hasRunningAnimations, isFalse);
-  });
 }

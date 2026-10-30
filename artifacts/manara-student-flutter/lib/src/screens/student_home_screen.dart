@@ -144,9 +144,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   static const _cardAccessPollEvery = Duration(seconds: 15);
 
-  /// أقصى انتظارٍ لقراءة الصلاحيات قبل فتح بطاقة.
-  static const _cardAccessTapWait = Duration(seconds: 4);
-
   @override
   void initState() {
     super.initState();
@@ -382,28 +379,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
   }
 
-  bool _checkingCard = false;
-
-  /// يتحقّق من صلاحية البطاقة من المصدر قبل فتحها — في كل لمسة.
+  /// يفتح البطاقة فوراً على ما يعرفه من صلاحياتها.
   ///
-  /// المقفلةُ تُردّ فوراً برسالتها، ثم تُقرأ الصلاحيات (لعلّها فُتحت).
-  /// والمفتوحةُ لا تُفتح على ما في الذاكرة: تُقرأ الصلاحيات أولاً، فبطاقةٌ
-  /// أغلقها المعلمُ للتوّ لا تُفتح. وبمهلةٍ ([_cardAccessTapWait]): إن لم يُجب
-  /// المصدر مضت بآخر ما عرفته، ولا يُترك الطفل أمام بطاقةٍ لا تستجيب.
+  /// كانت تنتظر قراءةَ الصلاحيات من المصدر قبل كل فتح (حتى أربع ثوانٍ)، فيلمس
+  /// الطفلُ البطاقة ولا يحدث شيءٌ ثانيتين أو ثلاثاً على شبكة التابلت. والصلاحياتُ
+  /// تُقرأ دورياً في الخلفية أصلاً ([_loadCardAccess])، فما في الذاكرة حديث:
+  /// المقفلةُ تُردّ برسالتها، والمفتوحةُ تُفتح في لحظتها — وتُقرأ الصلاحياتُ
+  /// بعدها، فبطاقةٌ أغلقها المعلمُ للتوّ لا تُفتح من اللمسة التالية.
   Future<void> _openCard(int index) async {
-    if (_isCardLocked(index)) {
-      _showCardLocked();
-      unawaited(_loadCardAccess());
-      return;
-    }
-    if (_checkingCard) return;
-    _checkingCard = true;
-    try {
-      await _loadCardAccess().timeout(_cardAccessTapWait, onTimeout: () {});
-    } finally {
-      _checkingCard = false;
-    }
-    if (!mounted) return;
+    unawaited(_loadCardAccess());
     if (_isCardLocked(index)) {
       _showCardLocked();
       return;

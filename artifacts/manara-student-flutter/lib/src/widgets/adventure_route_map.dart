@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 
 /// خطوةٌ في خريطة المغامرة: مستوىً من شجرة المسار (الصف، المادة...).
@@ -19,8 +19,8 @@ class AdventureStep {
     required this.value,
     required this.options,
     required this.onSelected,
-    this.artFor,
-    this.badgeFor,
+    required this.artFor,
+    this.numbered = false,
   });
 
   /// اسمُ المستوى تحت محطّته («الصف»).
@@ -37,25 +37,29 @@ class AdventureStep {
   final List<String> options;
   final ValueChanged<String> onSelected;
 
-  /// صورةُ الخيار ([RouteArt]) — بوابةٌ أو كتابٌ أو فصل — أو `null` فيُرسم
-  /// كوكباً مرقّماً.
-  final String? Function(String option, int index)? artFor;
+  /// صورةُ الخيار ([RouteArt]) — لكل خيارٍ صورة، فلا تبقى بطاقةٌ فارغة.
+  final String Function(String option, int index) artFor;
 
-  /// ما يُكتب على الكوكب حين لا صورة: رقمُ الخيار، إلا أن يُعطى غيرُه
-  /// (أوّلُ حرفٍ من اسم المادة — [RouteArt.initial]).
-  final String Function(String option, int index)? badgeFor;
+  /// الوحداتُ والدروس: على كل بطاقةٍ رقمُها بالأرقام العربية، فيعرف الطفلُ
+  /// ترتيبها وإن لم يقرأ اسمها.
+  final bool numbered;
 
   bool get isChosen => (value ?? '').trim().isNotEmpty;
   bool get isOpen => options.isNotEmpty;
 }
 
-/// صورُ الخريطة وتوجيهاتُها، في `assets/images/routes/` و`assets/audio/prompts/`.
+/// «١٢» لا «12»: أرقامُ الخريطة عربيةٌ أيّاً كانت لغةُ الواجهة.
+String arabicDigits(int n) => '$n'.split('').map((d) => '٠١٢٣٤٥٦٧٨٩'[int.parse(d)]).join();
+
+/// صورُ الخريطة وتوجيهاتُها، في `assets/images/` و`assets/audio/prompts/`.
 ///
-/// لطفلٍ لا يقرأ بعد: الصفُّ بوابة، والمادةُ كتابُها، والفصلُ شمسٌ أو مطر.
+/// لطفلٍ لا يقرأ بعد: الصفُّ بوابة، والمادةُ صورتُها، والفصلُ شمسٌ أو مطر،
+/// والوحداتُ والدروس من صور مادّتها نفسها. ولا خيارَ بلا صورة: مادةٌ لا
+/// تُعرف تأخذ من صور الثقافة العامة ([pool]).
 class RouteArt {
   const RouteArt._();
 
-  static const background = 'assets/images/routes/background.png';
+  static const background = 'assets/images/routes/route_bg_custom.png';
 
   static const selectGrade = 'audio/prompts/select_grade.mp3';
   static const selectSubject = 'audio/prompts/select_subject.mp3';
@@ -63,47 +67,89 @@ class RouteArt {
   static const selectUnit = 'audio/prompts/select_unit.mp3';
   static const selectLesson = 'audio/prompts/select_lesson.mp3';
 
+  static const _routes = 'assets/images/routes/';
+  static const _subjects = 'assets/images/subjects/';
+
+  static const quran = ['${_routes}subject_quran.png', '${_subjects}noorani.png'];
+  static const noorani = ['${_subjects}noorani.png', '${_routes}subject_quran.png'];
+  static const arabicLetters = ['${_subjects}ar_letters.png'];
+  static const arabicNumbers = ['${_subjects}ar_numbers_conv.png', '${_subjects}math_2.png'];
+  static const englishLetters = ['${_routes}subject_en_letters.png', '${_subjects}en_learn.png', '${_subjects}en_subj_4.png'];
+  static const englishNumbers = ['${_routes}subject_en_numbers.png', '${_subjects}math_6.png'];
+  static const english = [
+    '${_subjects}en_subj_1.png',
+    '${_subjects}en_subj_2.png',
+    '${_subjects}en_subj_3.png',
+    '${_subjects}en_subj_4.png',
+    '${_subjects}en_learn.png',
+  ];
+  static const math = [
+    '${_subjects}math_1.png',
+    '${_subjects}math_2.png',
+    '${_subjects}math_3.png',
+    '${_subjects}math_4.png',
+    '${_subjects}math_5.png',
+    '${_subjects}math_6.png',
+  ];
+  static const science = [
+    '${_routes}subject_science.png',
+    '${_subjects}science_1.png',
+    '${_subjects}science_2.png',
+    '${_subjects}science_3.png',
+    '${_subjects}science_4.png',
+  ];
+  static const general = ['${_subjects}general_1.png', '${_subjects}general_2.png'];
+
   /// بوابتان تتناوبان على الصفوف.
-  static String gate(int index) => 'assets/images/routes/gate_${index.isEven ? 1 : 2}.png';
+  static String gate(int index) => '${_routes}gate_${index.isEven ? 1 : 2}.png';
 
   /// الفصلُ الأوّل شمس، والثاني غيمةُ مطر — وما بعدهما يتناوبان.
-  static String term(int index) => 'assets/images/routes/term_${index.isEven ? 1 : 2}.png';
+  static String term(int index) => '${_routes}term_${index.isEven ? 1 : 2}.png';
 
-  /// أوّلُ حرفٍ من الاسم بلا «ال» — شارةُ مادةٍ لا كتابَ لها.
-  static String initial(String name) {
-    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
-    if (words.isEmpty) return '?';
-    final word = words.first;
-    final bare = word.startsWith('ال') && word.length > 2 ? word.substring(2) : word;
-    return bare.characters.first;
+  static String _key(String name) => name
+      .replaceAll(RegExp('[ً-ٰٟـ]'), '')
+      .toLowerCase()
+      .replaceAll(RegExp('[أإآٱ]'), 'ا')
+      .replaceAll('ة', 'ه');
+
+  /// صورُ المادة: أوّلُها صورتُها في بطاقتها، وكلُّها لوحداتها ودروسها.
+  static List<String> pool(String subject) {
+    final key = _key(subject);
+    bool has(String pattern) => RegExp(pattern).hasMatch(key);
+    final isEnglish = has('انجليز|انكليز|english');
+    final isNumbers = has('ارقام|اعداد|numbers|digits');
+    final isLetters = has('حروف|هجاء|letters|alphabet');
+    if (has('نوران')) return noorani;
+    if (has('قران|quran')) return quran;
+    if (isEnglish && isLetters) return englishLetters;
+    if (isEnglish && isNumbers) return englishNumbers;
+    if (isEnglish) return english;
+    if (isNumbers) return arabicNumbers;
+    if (isLetters || has('عربي|arabic')) return arabicLetters;
+    if (has('رياضيات|حساب|math')) return math;
+    if (has('علوم|science')) return science;
+    if (has('ثقاف|general')) return general;
+    // مادةٌ لا تُعرف: صورةٌ من الثقافة العامة، ثابتةٌ لاسمها.
+    return [general[key.hashCode.abs() % general.length], ...general];
   }
 
-  /// كتابُ المادة إن كان لها كتاب، وإلا `null`.
-  static String? subject(String name) {
-    final key = name
-        .replaceAll(RegExp('[ً-ٰٟـ]'), '')
-        .toLowerCase()
-        .replaceAll(RegExp('[أإآٱ]'), 'ا')
-        .replaceAll('ة', 'ه');
-    final english = RegExp('انجليز|انكليز|english').hasMatch(key);
-    final numbers = RegExp('ارقام|اعداد|numbers|digits|math|رياضيات').hasMatch(key);
-    if (key.contains('قران') || key.contains('quran')) return 'assets/images/routes/subject_quran.png';
-    if (english && RegExp('حروف|letters|alphabet').hasMatch(key)) {
-      return 'assets/images/routes/subject_en_letters.png';
-    }
-    if (english && numbers) return 'assets/images/routes/subject_en_numbers.png';
-    if (numbers) return 'assets/images/routes/subject_ar_numbers.png';
-    if (key.contains('علوم') || key.contains('science')) return 'assets/images/routes/subject_science.png';
-    return null;
+  /// صورةُ المادة في بطاقتها.
+  static String subject(String name) => pool(name).first;
+
+  /// صورةُ الوحدة أو الدرس [index] في مادّته: تدور على صور المادة، تبدأ بعد
+  /// صورة المادة نفسها إن كان لها غيرُها — فلا تشبه الوحدةُ الأولى المادة.
+  static String item(String subject, int index) {
+    final images = pool(subject);
+    return images[(index + (images.length > 1 ? 1 : 0)) % images.length];
   }
 }
 
 /// «خريطةُ المغامرة»: شاشةُ اختيار المسار لطفلٍ لا يقرأ بعد.
 ///
-/// فوق خلفية المجرّة دربٌ من خمس محطّات — الصف، المادة، الفصل، الوحدة،
-/// الدرس — تتوهّج الجاريةُ منها، وتحتها خياراتُها صوراً كبيرة: بواباتٌ وكتبٌ
-/// وشمسٌ ومطر وكواكبُ مرقّمة. ولكل خطوةٍ صوتٌ يقول ما يُطلب، يُسمع حين تصير
-/// جارية ويُعاد بلمس محطّتها أو زرّ السمّاعة.
+/// فوق صفٍّ دراسيٍّ هادئٍ مضيء دربٌ من خمس محطّاتٍ مرقّمة — الصف، المادة،
+/// الفصل، الوحدة، الدرس — تتوهّج الجاريةُ منها، وتحتها خياراتُها صوراً كبيرة.
+/// ولكل خطوةٍ صوتٌ يقول ما يُطلب، يُسمع حين تصير جارية ويُعاد بلمس محطّتها أو
+/// زرّ السمّاعة.
 ///
 /// الاختيارُ نفسُه للشاشة ([AdventureStep.onSelected]): الخريطةُ تغيّر كيف يُختار
 /// المستوى، لا ما يفعله اختيارُه.
@@ -129,10 +175,20 @@ class AdventureRouteMap extends StatefulWidget {
   State<AdventureRouteMap> createState() => _AdventureRouteMapState();
 }
 
-class _AdventureRouteMapState extends State<AdventureRouteMap> with SingleTickerProviderStateMixin {
+/// حبرُ الخريطة: كحليٌّ عميق يُقرأ فوق الصفّ المضيء.
+const _ink = Color(0xFF1E3A5F);
+const _gold = Color(0xFFF59E0B);
+
+class _AdventureRouteMapState extends State<AdventureRouteMap> with TickerProviderStateMixin {
   late final AnimationController _clock = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2400),
+  );
+
+  /// انجرافُ الخلفية البطيء ونجومُها الطافية: دورةٌ طويلة لا تُلحظ إلا هادئة.
+  late final AnimationController _drift = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 24),
   );
 
   bool get _still => MediaQuery.maybeOf(context)?.disableAnimations ?? false;
@@ -153,8 +209,12 @@ class _AdventureRouteMapState extends State<AdventureRouteMap> with SingleTicker
       _clock
         ..stop()
         ..value = 0.5;
-    } else if (!_clock.isAnimating) {
-      _clock.repeat();
+      _drift
+        ..stop()
+        ..value = 0;
+    } else {
+      if (!_clock.isAnimating) _clock.repeat();
+      if (!_drift.isAnimating) _drift.repeat(reverse: true);
     }
   }
 
@@ -167,6 +227,7 @@ class _AdventureRouteMapState extends State<AdventureRouteMap> with SingleTicker
   @override
   void dispose() {
     _clock.dispose();
+    _drift.dispose();
     super.dispose();
   }
 
@@ -199,36 +260,18 @@ class _AdventureRouteMapState extends State<AdventureRouteMap> with SingleTicker
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       if (!box.maxWidth.isFinite || !box.maxHeight.isFinite || box.maxWidth <= 1 || box.maxHeight <= 1) {
-        return const ColoredBox(color: Color(0xFF1E1B4B));
+        return const ColoredBox(color: Color(0xFFFFF7E8));
       }
       final size = box.biggest;
       // ‏هاتفٌ أفقيٌّ قصير: دربٌ أقصرُ وفُسَحٌ أضيق، فيبقى للخيارات مكان.
       final compact = size.height < 440;
       final trailHeight = compact ? 80.0 : (size.shortestSide * 0.22).clamp(96.0, 140.0).toDouble();
       final gap = compact ? 2.0 : 6.0;
-      final dpr = MediaQuery.devicePixelRatioOf(context);
       final active = _active;
       return Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(
-            RouteArt.background,
-            key: const ValueKey('adventure-background'),
-            fit: BoxFit.cover,
-            cacheWidth: (size.width * dpr).clamp(360.0, 2000.0).round(),
-            errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF1E1B4B)),
-          ),
-          // ظلٌّ ناعمٌ أسفلَ المجرّة: الكتابةُ البيضاء والزرُّ يُقرآن فوقها.
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x330B1026), Color(0x000B1026), Color(0x880B1026)],
-                stops: [0, 0.35, 1],
-              ),
-            ),
-          ),
+          _Backdrop(drift: _drift, size: size),
           Padding(
             padding: EdgeInsets.fromLTRB(8, 54, 8, widget.bottomInset),
             child: Column(
@@ -279,7 +322,110 @@ class _AdventureRouteMapState extends State<AdventureRouteMap> with SingleTicker
   }
 }
 
-/// الدربُ: خمسُ محطّاتٍ يصل بينها خطٌّ مضيء، والجاريةُ تنبض.
+/// الخلفيةُ: صفٌّ دراسيٌّ ينجرف ببطءٍ شديد، تحت غشاءٍ أبيضَ خفيف وتمويهٍ
+/// يسير يجعلانه هادئاً لا يزاحم الخيارات — ونجومٌ وفقاعاتٌ تطفو فوقه.
+class _Backdrop extends StatelessWidget {
+  const _Backdrop({required this.drift, required this.size});
+
+  final Animation<double> drift;
+  final Size size;
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedBuilder(
+            animation: drift,
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.6, sigmaY: 1.6),
+              child: Image.asset(
+                RouteArt.background,
+                key: const ValueKey('adventure-background'),
+                fit: BoxFit.cover,
+                cacheWidth: (size.width * dpr * 1.08).clamp(360.0, 2200.0).round(),
+                errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFFFFF7E8)),
+              ),
+            ),
+            builder: (context, child) {
+              final t = Curves.easeInOutSine.transform(drift.value);
+              return Transform.scale(
+                scale: 1.04 + 0.03 * t,
+                alignment: Alignment(-0.3 + 0.6 * t, 0),
+                child: child,
+              );
+            },
+          ),
+          // ‏غشاءٌ أبيض: الصورةُ حاضرةٌ ولا تشدّ العين عن الخيارات.
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xB3FFFFFF), Color(0x8CFFFFFF), Color(0xA6FFFFFF)],
+              ),
+            ),
+          ),
+          RepaintBoundary(child: CustomPaint(painter: _FloatPainter(drift))),
+        ],
+      ),
+    );
+  }
+}
+
+/// نجومٌ وفقاعاتٌ ملوّنة تطفو ببطء وتتلألأ — خفيفةٌ لا تُلهي.
+class _FloatPainter extends CustomPainter {
+  _FloatPainter(this.clock) : super(repaint: clock);
+
+  final Animation<double> clock;
+
+  static const _colors = [
+    Color(0xFFFBBF24),
+    Color(0xFF60A5FA),
+    Color(0xFFF472B6),
+    Color(0xFF34D399),
+    Color(0xFFA78BFA),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = clock.value;
+    for (var i = 0; i < 14; i++) {
+      final seed = i * 0.6180339;
+      final x = (seed * 7.3 % 1) * size.width;
+      final rise = ((t * (0.6 + (i % 3) * 0.2) + seed) % 1);
+      final y = size.height * (1.05 - rise * 1.1);
+      final sway = math.sin((t * 2 + seed) * 2 * math.pi) * 14;
+      final r = 3.0 + (i % 4) * 2.2;
+      final color = _colors[i % _colors.length];
+      final twinkle = 0.35 + 0.35 * math.sin((t * 6 + seed * 9) * 2 * math.pi).abs();
+      final center = Offset(x + sway, y);
+      if (i.isEven) {
+        canvas.drawCircle(center, r, Paint()..color = color.withValues(alpha: 0.28 * twinkle + 0.1));
+      } else {
+        _star(canvas, center, r * 1.4, Paint()..color = color.withValues(alpha: 0.4 * twinkle + 0.15));
+      }
+    }
+  }
+
+  void _star(Canvas canvas, Offset c, double r, Paint paint) {
+    final path = Path();
+    for (var k = 0; k < 10; k++) {
+      final a = -math.pi / 2 + k * math.pi / 5;
+      final rr = k.isEven ? r : r * 0.45;
+      final p = c + Offset(math.cos(a), math.sin(a)) * rr;
+      k == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(path..close(), paint);
+  }
+
+  @override
+  bool shouldRepaint(_FloatPainter old) => false;
+}
+
+/// الدربُ: خمسُ محطّاتٍ مرقّمة يصل بينها خطٌّ، والجاريةُ تنبض.
 class _Trail extends StatelessWidget {
   const _Trail({required this.steps, required this.activeIndex, required this.pulse, required this.onTap});
 
@@ -297,7 +443,7 @@ class _Trail extends StatelessWidget {
       final disc = math.min(slot * 0.6, box.maxHeight - 50).clamp(28.0, 120.0).toDouble();
       return Stack(
         children: [
-          // الخطُّ بين المحطّات: ما قُطع منه ذهبيّ، وما بقي منقّطٌ باهت.
+          // الخطُّ بين المحطّات: ما قُطع منه ذهبيّ، وما بقي منقّط.
           Positioned.fill(
             child: CustomPaint(
               painter: _TrailPainter(
@@ -358,7 +504,7 @@ class _TrailPainter extends CustomPainter {
       final paint = Paint()
         ..strokeWidth = walked ? 6 : 4
         ..strokeCap = StrokeCap.round
-        ..color = walked ? const Color(0xFFFFD166) : Colors.white.withValues(alpha: 0.45);
+        ..color = walked ? _gold : _ink.withValues(alpha: 0.35);
       if (walked) {
         canvas.drawLine(
           a,
@@ -367,7 +513,7 @@ class _TrailPainter extends CustomPainter {
             ..strokeWidth = 14
             ..strokeCap = StrokeCap.round
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6)
-            ..color = const Color(0xFFFFD166).withValues(alpha: 0.35 + 0.2 * math.sin(pulse * 2 * math.pi).abs()),
+            ..color = _gold.withValues(alpha: 0.3 + 0.2 * math.sin(pulse * 2 * math.pi).abs()),
         );
         canvas.drawLine(a, b, paint);
       } else {
@@ -388,8 +534,8 @@ class _TrailPainter extends CustomPainter {
       old.reached != reached || old.pulse != pulse || old.rtl != rtl || old.count != count;
 }
 
-/// محطّةٌ على الدرب: صورةُ ما اختير فيها (أو أيقونتُها)، واسمُها تحتها،
-/// وعلامةُ ✓ إن اختير.
+/// محطّةٌ على الدرب: رقمُها، وصورةُ ما اختير فيها (أو أيقونتُها)، واسمُها
+/// تحتها، وما اختير فيها.
 class _Station extends StatelessWidget {
   const _Station({
     required this.step,
@@ -412,7 +558,8 @@ class _Station extends StatelessWidget {
   Widget build(BuildContext context) {
     final glow = active ? 0.5 + 0.5 * math.sin(pulse * 2 * math.pi) : 0.0;
     final chosenIndex = step.isChosen ? step.options.indexOf(step.value!) : -1;
-    final art = step.isChosen ? step.artFor?.call(step.value!, math.max(0, chosenIndex)) : null;
+    final art = step.isChosen ? step.artFor(step.value!, math.max(0, chosenIndex)) : null;
+    final badge = disc * 0.36;
     return Semantics(
       button: true,
       selected: active,
@@ -438,37 +585,63 @@ class _Station extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
-                          colors: [Color.lerp(step.color, Colors.white, 0.35)!, step.color],
+                          colors: [Colors.white, Color.lerp(step.color, Colors.white, 0.55)!],
                         ),
                         border: Border.all(
-                          color: active ? const Color(0xFFFFD166) : Colors.white.withValues(alpha: 0.8),
+                          color: active ? _gold : step.color,
                           width: active ? 4 : 2.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: (active ? const Color(0xFFFFD166) : step.color).withValues(alpha: 0.45 + 0.35 * glow),
-                            blurRadius: 10 + 14 * glow,
+                            color: (active ? _gold : step.color).withValues(alpha: 0.35 + 0.35 * glow),
+                            blurRadius: 8 + 14 * glow,
                             spreadRadius: 1 + 3 * glow,
                           ),
                         ],
                       ),
                       child: art == null
-                          ? FittedBox(child: Icon(step.icon, color: Colors.white))
+                          ? FittedBox(child: Icon(step.icon, color: step.color))
                           : Image.asset(art, fit: BoxFit.contain, cacheWidth: 192),
                     ),
+                    // ‏رقمُ المحطّة بالأرقام العربية.
+                    PositionedDirectional(
+                      top: -badge * 0.15,
+                      start: -badge * 0.15,
+                      child: Container(
+                        key: ValueKey('adventure-station-number-$index'),
+                        width: badge,
+                        height: badge,
+                        alignment: Alignment.center,
+                        // ‏كحليٌّ لا أخضر: الأخضرُ علامةُ «اختير» وحدها.
+                        decoration: BoxDecoration(
+                          color: active ? _gold : _ink,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: FittedBox(
+                          child: Padding(
+                            padding: const EdgeInsets.all(3),
+                            child: Text(
+                              arabicDigits(index + 1),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                     if (step.isChosen)
-                      Positioned(
-                        right: -2,
+                      PositionedDirectional(
+                        end: -2,
                         bottom: -2,
                         child: Container(
-                          width: disc * 0.34,
-                          height: disc * 0.34,
+                          width: badge,
+                          height: badge,
                           decoration: BoxDecoration(
                             color: const Color(0xFF22C55E),
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 2),
                           ),
-                          child: FittedBox(child: Icon(Icons.check_rounded, color: Colors.white)),
+                          child: const FittedBox(child: Icon(Icons.check_rounded, color: Colors.white)),
                         ),
                       ),
                   ],
@@ -480,11 +653,11 @@ class _Station extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: active ? const Color(0xFFFFD166) : Colors.white,
+                  color: active ? const Color(0xFFB45309) : _ink,
                   fontSize: 15,
                   height: 1.2,
                   fontWeight: FontWeight.w900,
-                  shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
+                  shadows: const [Shadow(color: Colors.white, blurRadius: 6)],
                 ),
               ),
               // ‏ما اختير في المستوى: للكبير يقرؤه، وللعائد يرى مسارَه كما تركه.
@@ -496,11 +669,11 @@ class _Station extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: _ink,
                     fontSize: 14,
                     height: 1.25,
                     fontWeight: FontWeight.w800,
-                    shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+                    shadows: [Shadow(color: Colors.white, blurRadius: 6)],
                   ),
                 ),
             ],
@@ -548,10 +721,13 @@ class _PromptTitle extends StatelessWidget {
             child: Text(
               step.title,
               style: TextStyle(
-                color: Colors.white,
+                color: _ink,
                 fontSize: compact ? 22 : 30,
                 fontWeight: FontWeight.w900,
-                shadows: const [Shadow(color: Colors.black87, blurRadius: 8, offset: Offset(0, 2))],
+                shadows: const [
+                  Shadow(color: Colors.white, blurRadius: 10),
+                  Shadow(color: Colors.white, blurRadius: 4),
+                ],
               ),
             ),
           ),
@@ -602,8 +778,8 @@ class _Choices extends StatelessWidget {
         key: ValueKey('adventure-option-$stepIndex-$j'),
         label: step.options[j],
         index: j,
-        art: step.artFor?.call(step.options[j], j),
-        badge: step.badgeFor?.call(step.options[j], j),
+        art: step.artFor(step.options[j], j),
+        numbered: step.numbered,
         color: step.color,
         selected: step.options[j] == step.value,
         width: height * _aspect,
@@ -657,9 +833,9 @@ class _ChoiceCard extends StatelessWidget {
     required this.label,
     required this.index,
     required this.art,
+    required this.numbered,
     required this.color,
     required this.selected,
-    this.badge,
     required this.width,
     required this.height,
     required this.clock,
@@ -669,10 +845,8 @@ class _ChoiceCard extends StatelessWidget {
 
   final String label;
   final int index;
-  final String? art;
-
-  /// ما يُكتب على الكوكب بدل الرقم.
-  final String? badge;
+  final String art;
+  final bool numbered;
   final Color color;
   final bool selected;
   final double width;
@@ -680,25 +854,10 @@ class _ChoiceCard extends StatelessWidget {
   final Animation<double> clock;
   final VoidCallback onTap;
 
-  static const _planets = [
-    [Color(0xFFF97316), Color(0xFFFBBF24)],
-    [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-    [Color(0xFF06B6D4), Color(0xFF3B82F6)],
-    [Color(0xFF22C55E), Color(0xFF14B8A6)],
-    [Color(0xFFEF4444), Color(0xFFF59E0B)],
-  ];
-
-  String get _number {
-    final n = '${index + 1}';
-    return StudentSettings.isArabic
-        ? n.split('').map((d) => '٠١٢٣٤٥٦٧٨٩'[int.parse(d)]).join()
-        : n;
-  }
-
   @override
   Widget build(BuildContext context) {
     final artSize = height * 0.62;
-    final planet = _planets[index % _planets.length];
+    final badge = (height * 0.2).clamp(22.0, 44.0).toDouble();
     return Semantics(
       button: true,
       selected: selected,
@@ -708,7 +867,7 @@ class _ChoiceCard extends StatelessWidget {
         child: AnimatedBuilder(
           animation: clock,
           builder: (context, child) {
-            // تطفو البطاقاتُ قليلاً، كلٌّ في وقته، كأنها في الفضاء.
+            // تطفو البطاقاتُ قليلاً، كلٌّ في وقته.
             final bob = math.sin((clock.value + index * 0.17) * 2 * math.pi) * 4;
             return Transform.translate(offset: Offset(0, bob), child: child);
           },
@@ -722,16 +881,17 @@ class _ChoiceCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(26),
-                color: Colors.white.withValues(alpha: selected ? 0.28 : 0.14),
+                color: Colors.white.withValues(alpha: 0.94),
                 border: Border.all(
-                  color: selected ? const Color(0xFFFFD166) : Colors.white.withValues(alpha: 0.55),
-                  width: selected ? 4 : 2,
+                  color: selected ? _gold : color.withValues(alpha: 0.55),
+                  width: selected ? 4 : 2.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: (selected ? const Color(0xFFFFD166) : color).withValues(alpha: selected ? 0.6 : 0.3),
+                    color: (selected ? _gold : color).withValues(alpha: selected ? 0.55 : 0.28),
                     blurRadius: selected ? 22 : 12,
                     spreadRadius: selected ? 2 : 0,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -743,41 +903,41 @@ class _ChoiceCard extends StatelessWidget {
                       alignment: Alignment.center,
                       clipBehavior: Clip.none,
                       children: [
-                        if (art != null)
-                          Image.asset(art!, fit: BoxFit.contain, cacheWidth: 384)
-                        else
-                          Container(
-                            width: artSize * 0.86,
-                            height: artSize * 0.86,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: planet,
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                        Image.asset(art, fit: BoxFit.contain, cacheWidth: 384),
+                        if (numbered)
+                          PositionedDirectional(
+                            top: 0,
+                            start: 0,
+                            child: Container(
+                              key: ValueKey('adventure-option-number-$index'),
+                              width: badge,
+                              height: badge,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _ink,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                               ),
-                              boxShadow: [BoxShadow(color: planet.first.withValues(alpha: 0.6), blurRadius: 16)],
-                            ),
-                            alignment: Alignment.center,
-                            child: FittedBox(
-                              child: Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: Text(
-                                  badge ?? _number,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 64,
-                                    fontWeight: FontWeight.w900,
-                                    shadows: [Shadow(color: Colors.black38, blurRadius: 6)],
+                              child: FittedBox(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Text(
+                                    arabicDigits(index + 1),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w900,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
                         if (selected)
-                          Positioned(
+                          PositionedDirectional(
                             top: 0,
-                            right: 0,
+                            end: 0,
                             child: Container(
                               padding: const EdgeInsets.all(3),
                               decoration: BoxDecoration(
@@ -800,11 +960,10 @@ class _ChoiceCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: _ink,
                           fontSize: 16,
                           height: 1.25,
                           fontWeight: FontWeight.w900,
-                          shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
                         ),
                       ),
                     ),

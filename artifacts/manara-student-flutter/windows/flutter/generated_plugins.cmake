@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
   file_selector_windows
   flutter_inappwebview_windows
+  flutter_secure_storage_windows
   flutter_tts
   media_kit_libs_windows_video
   media_kit_video

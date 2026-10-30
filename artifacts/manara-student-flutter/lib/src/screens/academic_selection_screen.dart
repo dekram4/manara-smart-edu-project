@@ -681,7 +681,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           value: _subject,
           options: _subjectOptions,
           artFor: (subject, _) => RouteArt.subject(subject),
-          badgeFor: (subject, _) => RouteArt.initial(subject),
           onSelected: (value) {
             _selectSubject(value);
             _advanceJourney(1);
@@ -709,6 +708,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           color: const Color(0xFF22C55E),
           value: _unit,
           options: _unitOptions,
+          // ‏من صور المادة المختارة نفسها، مرقّمةً بالأرقام العربية.
+          artFor: (_, index) => RouteArt.item(_subject ?? '', index),
+          numbered: true,
           onSelected: (value) {
             _selectUnit(value);
             _advanceJourney(3);
@@ -722,6 +724,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           color: const Color(0xFFEC4899),
           value: _lesson?.lessonName,
           options: _lessonOptions,
+          // ‏تبدأ بعد صور الوحدات، فلا يشبه الدرسُ الأوّلُ الوحدةَ الأولى.
+          artFor: (_, index) => RouteArt.item(_subject ?? '', index + 2),
+          numbered: true,
           onSelected: (value) {
             _selectLessonNamed(value);
             _advanceJourney(4);

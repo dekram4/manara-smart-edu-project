@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../widgets/student_avatar_view.dart';
 
 /// مُدَد الحركة ومنحنياتها، منقولةً بأرقامها من مواصفة الحركة
 /// (LAMSA_ANIMATION_SPEC.md §1، الجدولان D وE).
@@ -26,7 +25,6 @@ class MotionDurations {
   static const pressIn = Duration(milliseconds: 80);
   static const pressOut = Duration(milliseconds: 140);
   static const overlayOut = Duration(milliseconds: 240);
-  static const loaderLoop = Duration(milliseconds: 1000);
   static const playerCardIn = Duration(milliseconds: 220);
 
   /// الشاشةُ السوداء قبل بطاقة المشغّل (§5.7: «≈ 0.7 s»).
@@ -70,7 +68,6 @@ class _BackOutCurve extends Curve {
 class MotionColors {
   const MotionColors._();
 
-  static const bgLoader = Color(0xFF161626);
   static const cardPressed = Color(0xFFEADFF7);
   static const scrim = Color(0xD120083C); // rgba(32, 8, 60, 0.82)
   static const teal = Color(0xFF17A695);
@@ -105,130 +102,21 @@ Widget motionArtFrameBuilder(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §5.4 / §6.5 — مُحمِّلُ الشخصيتين وطبقةُ التعتيم
+// §5.4 — انتقالُ القسم
 // ═══════════════════════════════════════════════════════════════════════
 
-/// شخصيتا منارة — شخصيةُ الطالب التي اختارها ([StudentAvatarView]) وشخصيةُ
-/// المسار (`path_mascot`)، كما هما بلا تعديل — تتمايلان
-/// وخلفهما كرتان (فيروزية وبنفسجية) تدوران دورةً كل [MotionDurations.loaderLoop].
+/// انتقالُ القسم: المحتوى في لحظته، وشريطٌ رفيعٌ أعلاه ما دام يُحمَّل.
 ///
-/// المقاسُ نسبةٌ من [size] كله، فيصغر ويكبر مع الشاشة في الاتجاهين.
-class MotionCharacterLoader extends StatefulWidget {
-  const MotionCharacterLoader({this.size = 120, super.key});
-
-  final double size;
-
-  @override
-  State<MotionCharacterLoader> createState() => _MotionCharacterLoaderState();
-}
-
-class _MotionCharacterLoaderState extends State<MotionCharacterLoader>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _loop = AnimationController(
-    vsync: this,
-    duration: MotionDurations.loaderLoop,
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_reduceMotion(context)) {
-      _loop.stop();
-    } else if (!_loop.isAnimating) {
-      _loop.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _loop.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = widget.size / 120; // الأرقام في المواصفة لمربّعٍ عرضه 120.
-    Widget character(String asset) => Image.asset(
-          asset,
-          width: 54 * s,
-          height: 54 * s,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => SizedBox(width: 54 * s, height: 54 * s),
-        );
-
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: AnimatedBuilder(
-        animation: _loop,
-        builder: (context, _) {
-          final t = _loop.value;
-          Offset orbit(double phase, double r) {
-            final a = (t + phase) * 2 * math.pi;
-            return Offset(math.cos(a) * r * s, math.sin(a) * r * s);
-          }
-
-          Widget bob(double phase, Widget child) {
-            final a = (t + phase) * 2 * math.pi;
-            return Transform.translate(
-              offset: Offset(0, math.sin(a) * 4 * s),
-              child: Transform.rotate(
-                angle: math.sin(a) * 6 * math.pi / 180,
-                child: child,
-              ),
-            );
-          }
-
-          Widget blob(double diameter, Color color, Offset offset) =>
-              Transform.translate(
-                offset: offset,
-                child: Container(
-                  width: diameter * s,
-                  height: diameter * s,
-                  decoration:
-                      BoxDecoration(color: color, shape: BoxShape.circle),
-                ),
-              );
-
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              blob(70, MotionColors.orbitTeal, orbit(0, 22)),
-              blob(86, MotionColors.orbitPurple, orbit(0.5, 14)),
-              PositionedDirectional(
-                start: 8 * s,
-                top: 22 * s,
-                // شخصيةُ الطالب نفسُه لا الرسمُ القديم: القاعدةُ في التطبيق أن
-                // يرى الطفلُ شخصيته حيثما ظهرت شخصية (card_header_avatar_test).
-                child: bob(
-                  0,
-                  StudentAvatarView(size: 54 * s, showRing: false),
-                ),
-              ),
-              PositionedDirectional(
-                end: 8 * s,
-                top: 34 * s,
-                child: bob(0.25, character('assets/images/path_mascot.png')),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// انتقالُ القسم (§5.4): ليس انزلاقاً، بل قَطعٌ وتعتيمٌ ومُحمِّل.
-///
-/// الشاشةُ تُبنى فوراً بخلفيتها، ويغطّي جسمَها لونُ [MotionColors.bgLoader]
-/// بشفافية 0.88 ومُحمِّلُ الشخصيتين في وسطه. وحين يصير [ready] صحيحاً يتلاشى
-/// الغطاء في [MotionDurations.overlayOut] كاشفاً المحتوى.
-class MotionSectionOverlay extends StatefulWidget {
+/// ── لماذا لا غطاءَ ولا مُحمِّل ──
+/// كانت الشاشةُ تُغطّى بتعتيمٍ ومُحمِّلِ الشخصيتين الدوّارتين حتى يصل المحتوى،
+/// فيلمس الطفلُ البطاقة ويرى شخصيتين تدوران ثانيتين أو ثلاثاً قبل أن يرى
+/// شيئاً منها. والآن تُفتح البطاقةُ فوراً بخلفيتها وما يُعرض منها، وما يُحمَّل
+/// يكتفي بشريطٍ رفيعٍ في أعلاها لا يحجب ولا يمنع اللمس.
+class MotionSectionOverlay extends StatelessWidget {
   const MotionSectionOverlay({
     required this.ready,
     required this.child,
     this.label,
-    this.caption,
     super.key,
   });
 
@@ -238,84 +126,23 @@ class MotionSectionOverlay extends StatefulWidget {
   /// ما يقرؤه قارئ الشاشة أثناء التحميل.
   final String? label;
 
-  /// سطرٌ تحت المُحمِّل لما يطول انتظاره (تحضيرُ المذاكرة مثلاً).
-  final String? caption;
-
-  @override
-  State<MotionSectionOverlay> createState() => _MotionSectionOverlayState();
-}
-
-class _MotionSectionOverlayState extends State<MotionSectionOverlay> {
-  /// يُزال الغطاء من الشجرة بعد تلاشيه، فلا يبقى مُحمِّلٌ يدور مخفياً.
-  late bool _covered = !widget.ready;
-
-  @override
-  void didUpdateWidget(covariant MotionSectionOverlay oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!widget.ready && !_covered) setState(() => _covered = true);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        widget.child,
-        if (_covered)
-          IgnorePointer(
-            ignoring: widget.ready,
-            child: AnimatedOpacity(
-              opacity: widget.ready ? 0 : 1,
-              duration: _reduceMotion(context)
-                  ? Duration.zero
-                  : MotionDurations.overlayOut,
-              curve: MotionCurves.std,
-              onEnd: () {
-                if (widget.ready && mounted) setState(() => _covered = false);
-              },
+        child,
+        if (!ready)
+          Align(
+            alignment: Alignment.topCenter,
+            child: IgnorePointer(
               child: Semantics(
-                label: widget.label,
+                label: label,
                 liveRegion: true,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ColoredBox(
-                        color: MotionColors.bgLoader.withValues(alpha: 0.88)),
-                    LayoutBuilder(
-                      builder: (context, box) {
-                        // ثلثُ الضلع الأقصر، بين 96 و168: يصلح للهاتف رأسياً
-                        // وأفقياً وللوح.
-                        final side = math.min(box.maxWidth, box.maxHeight);
-                        final size = (side / 3).clamp(96.0, 168.0).toDouble();
-                        return Center(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                MotionCharacterLoader(size: size),
-                                if (widget.caption != null) ...[
-                                  const SizedBox(height: 12),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 24),
-                                    child: Text(
-                                      widget.caption!,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                child: const LinearProgressIndicator(
+                  key: ValueKey('section-loading'),
+                  minHeight: 3,
+                  backgroundColor: Colors.transparent,
                 ),
               ),
             ),
