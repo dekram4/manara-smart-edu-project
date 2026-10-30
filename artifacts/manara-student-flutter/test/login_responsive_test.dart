@@ -98,15 +98,17 @@ void main() {
     // ‏جُرّبت أرضيةٌ تعلو بالمشهد فوق النافذة ليتّسع، فكبرت السبورة ولزم
     // ‏النزول والطلوع لرؤيتها. فنُزع التمرير، وأُخذ العرض من مكان أصدق:
     // ‏كتلة الشعار تتنحّى في الوضع الأفقي حيث الارتفاع هو القيد.
-    const expectations = <String, ({Size size, double atLeast})>{
-      'landscape tablet 4:3 1024x768': (size: Size(1024, 768), atLeast: 0.9),
-      'landscape tablet 16:10 1280x800': (size: Size(1280, 800), atLeast: 0.9),
-      'portrait tablet 4:3 768x1024': (size: Size(768, 1024), atLeast: 0.9),
-      'portrait phone 393x851': (size: Size(393, 851), atLeast: 0.9),
+    // ‏على التابلت سبورةٌ مريحةٌ في الوسط لا تملأ الشاشة (طُلب صراحةً: كانت
+    // ‏عملاقةً على الآيباد) — بين النصف والأربعة أخماس. وعلى الهاتف تملؤها.
+    const expectations = <String, ({Size size, double atLeast, double atMost})>{
+      'landscape tablet 4:3 1024x768': (size: Size(1024, 768), atLeast: 0.5, atMost: 0.8),
+      'landscape tablet 16:10 1280x800': (size: Size(1280, 800), atLeast: 0.5, atMost: 0.8),
+      'portrait tablet 4:3 768x1024': (size: Size(768, 1024), atLeast: 0.7, atMost: 0.85),
+      'portrait phone 393x851': (size: Size(393, 851), atLeast: 0.9, atMost: 1.0),
       // ‏الهاتف الأفقي لا يبلغها: ٣٩٣ نقطة ارتفاعاً لا تتّسع لأكثر، وبلوغها
       // ‏يقتضي تمريراً — وهو ما نُزع عمداً. ٦٥٪ تمسك الانهيار إلى شريط،
       // ‏وكان ٥٣٪ قبل أن يتنحّى الشعار.
-      'landscape phone 851x393': (size: Size(851, 393), atLeast: 0.65),
+      'landscape phone 851x393': (size: Size(851, 393), atLeast: 0.65, atMost: 1.0),
     };
 
     for (final entry in expectations.entries) {
@@ -122,6 +124,11 @@ void main() {
           boardShare(tester, entry.value.size),
           greaterThanOrEqualTo(entry.value.atLeast),
           reason: 'the board shrank back into a narrow strip',
+        );
+        expect(
+          boardShare(tester, entry.value.size),
+          lessThanOrEqualTo(entry.value.atMost),
+          reason: 'the board is giant again on a tablet',
         );
         // ‏ولا تمرير في الشجرة كلّها: ملء الشاشة لا نزولاً وطلوعاً.
         expect(find.byType(SingleChildScrollView), findsNothing);

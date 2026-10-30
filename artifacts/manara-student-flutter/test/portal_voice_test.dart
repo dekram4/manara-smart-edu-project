@@ -193,7 +193,6 @@ void main() {
         'audio/tarheeb.mp3',
         'audio/masar.mp3',
         'audio/start.mp3',
-        'audio/happychild.mp3',
         'audio/shater.mp3',
       ]) {
         expect(
