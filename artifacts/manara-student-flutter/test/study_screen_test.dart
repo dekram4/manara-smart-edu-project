@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/models/academic_context.dart';
-import 'package:manara_student/src/models/interactive_study.dart';
+import 'package:manara_student/src/models/study_games.dart';
 import 'package:manara_student/src/models/student_content.dart';
 import 'package:manara_student/src/models/student_gamification.dart';
 import 'package:manara_student/src/models/student_profile.dart';
@@ -13,13 +13,38 @@ import 'package:manara_student/src/services/student_content_service.dart';
 import 'package:manara_student/src/services/student_settings.dart';
 import 'package:manara_student/src/services/student_study_service.dart';
 
-import 'interactive_study_test.dart' as data;
-
-/// شاشةُ المذاكرة بتصميمها الجديد: مسارُ محطات، ومبدّلٌ، وتحدٍّ بمراحله.
+/// شاشةُ المذاكرة: ألعابُ الدرس وحدها — لا خريطةَ ولا تحدّيَ قصصيّ.
 class FakeStudy implements StudentStudyService {
+  int packs = 0;
+
   @override
-  Future<StudyPack> fetch({required String lessonId}) async =>
-      StudyPack.fromMap(data.pack())!;
+  Future<StudyGamesPack> fetchGames({required String lessonId}) async => StudyGamesPack.fromMap({
+        'lessonId': lessonId,
+        'games': [
+          {
+            'id': 'endless_quiz',
+            'game_type': 'endless_quiz',
+            'title': 'سباق',
+            'instructions': 'أجب',
+            'items': {
+              'drag_items': [],
+              'drop_targets': [],
+              'correct_pairs': [],
+              'questions': [
+                {'kind': 'mcq', 'question': 'ماذا يمتصّ الجذر؟', 'options': ['الماء', 'الضوء'], 'answer': 'الماء'},
+              ],
+            },
+            'gems_reward': 5,
+            'points_reward': 15,
+          },
+        ],
+      })!;
+
+  @override
+  Future<Never> fetch({required String lessonId}) async {
+    packs += 1;
+    throw StateError('الخريطةُ والتحدي لا يُطلبان');
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -83,17 +108,17 @@ void main() {
     StudentSettings.resetForTest();
   });
 
-  Future<FakeContent> pump(WidgetTester tester, {Size size = const Size(390, 844)}) async {
+  Future<FakeStudy> pump(WidgetTester tester, {Size size = const Size(390, 844)}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final content = FakeContent();
+    final study = FakeStudy();
     await tester.pumpWidget(
       MaterialApp(
         home: StudentStudyScreen(
           profile: profile,
-          studyService: FakeStudy(),
-          contentService: content,
+          studyService: study,
+          contentService: FakeContent(),
           academicContext: context,
         ),
       ),
@@ -101,88 +126,27 @@ void main() {
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    return content;
+    return study;
   }
 
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-  }
-
-  testWidgets('الخريطةُ مسارُ محطاتٍ مرقّمة، والدرسُ في الرأس', (tester) async {
-    await pump(tester);
+  testWidgets('ألعابُ الدرس وحدها: لا خريطةَ ولا تحدّيَ قصصيّ', (tester) async {
+    final study = await pump(tester);
     expect(find.text('أجزاء النبات'), findsOneWidget);
-    expect(find.text('النبات'), findsWidgets);
-    for (final title in ['الجذر', 'الساق', 'الورقة']) {
-      expect(find.text(title), findsOneWidget);
+    expect(find.text(tr('study.tabGames')), findsOneWidget);
+    for (final style in ['balloons', 'fishing', 'train', 'slingshot']) {
+      expect(find.byKey(ValueKey('arcade-$style')), findsOneWidget);
     }
-    expect(find.text('1'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
-    expect(find.text(trf('study.mapIntro', {'n': '3'})), findsOneWidget);
-    // الشرحُ مطويٌّ حتى يُطلب.
-    expect(find.text('يمتصّ الماء'), findsNothing);
+    expect(find.text(tr('study.tabMap')), findsNothing);
+    expect(find.text(tr('study.tabStory')), findsNothing);
+    expect(find.text(tr('study.start')), findsNothing);
+    expect(study.packs, 0, reason: 'لا يُطلب من الخادم ما لا يُعرض');
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('المحطةُ تنفتح بشرحها وزرّ تحدّيها', (tester) async {
-    await pump(tester);
-    await tester.tap(find.text('الجذر'));
-    await settle(tester);
-    expect(find.text('يمتصّ الماء'), findsOneWidget);
-    expect(find.text(tr('study.challengeBranch')), findsOneWidget);
-  });
-
-  testWidgets('تحدّي المحطة يفتح التحدي، والمبدّلُ يتبعه', (tester) async {
-    await pump(tester);
-    await tester.tap(find.text('الجذر'));
-    await settle(tester);
-    await tester.tap(find.text(tr('study.challengeBranch')));
-    await settle(tester);
-    // الموقفُ الأوّل من مغامرة الجذر، وشريطُ التقدّم «١ من ٣».
-    expect(find.text('مغامرة البستان'), findsOneWidget);
-    expect(find.text(trf('study.step', {'n': '1', 'total': '3'})), findsOneWidget);
-  });
-
-  testWidgets('قرارٌ صحيح: لوحةٌ خضراءُ وشارةُ جواهر، ثم التالي', (tester) async {
-    await pump(tester);
-    await tester.ensureVisible(find.text(tr('study.start')));
-    await settle(tester);
-    expect(find.text(tr('study.storyTitle')), findsOneWidget);
-    expect(find.text(tr('study.chipGems')), findsOneWidget);
-    await tester.tap(find.text(tr('study.start')));
-    await settle(tester);
-    await tester.tap(find.text('بوّابة الماء'));
-    await settle(tester);
-    expect(find.text(tr('study.feedbackRight')), findsOneWidget);
-    expect(find.text('النبات يحتاج الماء'), findsOneWidget);
-    expect(find.text(trf('study.gemNow', {'gems': '2'})), findsOneWidget);
-    expect(find.text(tr('study.next')), findsOneWidget);
-  });
-
-  testWidgets('قرارٌ خاطئ: «فكرة مفيدة» لا عقاب', (tester) async {
-    await pump(tester);
-    await tester.ensureVisible(find.text(tr('study.start')));
-    await settle(tester);
-    await tester.tap(find.text(tr('study.start')));
-    await settle(tester);
-    await tester.tap(find.text('بوّابة الرمل'));
-    await settle(tester);
-    expect(find.text(tr('study.feedbackLearn')), findsOneWidget);
   });
 
   testWidgets('لا تجاوزَ على شاشةٍ ضيّقةٍ ولا عريضة', (tester) async {
     for (final size in const [Size(320, 640), Size(1280, 720)]) {
       await pump(tester, size: size);
-      await tester.tap(find.text('الساق'));
-      await settle(tester);
-      expect(tester.takeException(), isNull, reason: '$size map');
-      await tester.ensureVisible(find.text(tr('study.start')));
-      await settle(tester);
-      await tester.tap(find.text(tr('study.start')));
-      await settle(tester);
-      expect(tester.takeException(), isNull, reason: '$size story');
-      // يُنزع بين المقاسين: الشاشةُ نفسها في الموضع نفسه تحفظ حالَها.
+      expect(tester.takeException(), isNull, reason: '$size');
       await tester.pumpWidget(const SizedBox());
     }
   });

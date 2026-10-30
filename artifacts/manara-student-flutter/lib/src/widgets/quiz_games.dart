@@ -49,6 +49,14 @@ class QuizGameArt {
         QuizGameStyle.slingshot => slingshotBg,
       };
 
+  /// عبارةُ مقدّمة كل لعبةٍ بصوتها المسجّل.
+  static String intro(QuizGameStyle style) => switch (style) {
+        QuizGameStyle.balloons => 'audio/games/intro_balloons.mp3',
+        QuizGameStyle.fishing => 'audio/games/intro_fishing.mp3',
+        QuizGameStyle.train => 'audio/games/intro_train.mp3',
+        QuizGameStyle.slingshot => 'audio/games/intro_slingshot.mp3',
+      };
+
   /// أبعادُ الخلفيات الأربع (١٢٨٠×٧٢٠).
   static const backgroundSize = Size(1280, 720);
 }
@@ -191,12 +199,16 @@ class _Prompt extends StatelessWidget {
 
 /// كبسولةُ الإجابة: بيضاءُ ناصعة بخطٍّ عريضٍ داكن، وحافّتُها تقول النتيجة.
 class _Capsule extends StatelessWidget {
-  const _Capsule(this.text, {required this.fontSize, required this.maxWidth, this.mark = _Mark.idle});
+  const _Capsule(this.text, {required this.fontSize, required this.maxWidth, this.mark = _Mark.idle, this.glowing = false});
 
   final String text;
   final double fontSize;
   final double maxWidth;
   final _Mark mark;
+
+  /// فوق جسمٍ ملوّنٍ متحرّك (السمكة): حدٌّ داكنٌ سميك وهالةٌ بيضاء مضيئة،
+  /// فلا تذوب الإجابةُ في لون السمكة ولا في زرقة الماء.
+  final bool glowing;
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +216,7 @@ class _Capsule extends StatelessWidget {
       _Mark.right => _right,
       _Mark.wrong => _wrong,
       _Mark.reveal => _gold,
-      _Mark.idle => Colors.white,
+      _Mark.idle => glowing ? const Color(0xFF0F172A) : Colors.white,
     };
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: math.max(maxWidth, fontSize * 2)),
@@ -213,8 +225,9 @@ class _Capsule extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: edge, width: mark == _Mark.idle ? 2 : 4),
+          border: Border.all(color: edge, width: mark == _Mark.idle ? (glowing ? 3.5 : 2) : 4),
           boxShadow: [
+            if (glowing && mark == _Mark.idle) const BoxShadow(color: Color(0xEEFFFFFF), blurRadius: 16, spreadRadius: 4),
             BoxShadow(
               color: mark == _Mark.reveal ? _gold.withValues(alpha: 0.9) : const Color(0x40000000),
               blurRadius: mark == _Mark.reveal ? 18 : 6,
@@ -236,7 +249,7 @@ class _Capsule extends StatelessWidget {
               Text(
                 text,
                 maxLines: 1,
-                style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: _ink, height: 1.25),
+                style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: glowing ? Colors.black : _ink, height: 1.25),
               ),
             ],
           ),
@@ -622,7 +635,7 @@ class _FishingQuizQuestionState extends State<FishingQuizQuestion> with TickerPr
         final pierW = math.max(size.width * 0.2, avatar * 1.6);
         final pierY = surfaceY - avatar * 0.12;
         final tip = Offset(pierW + size.width * 0.06, pierY - avatar * 1.05);
-        final font = (fishH * 0.4).clamp(18.0, 32.0).toDouble();
+        final font = (fishH * 0.5).clamp(22.0, 38.0).toDouble();
         return AnimatedBuilder(
           animation: Listenable.merge([_swim, _cast]),
           builder: (context, _) {
@@ -770,7 +783,7 @@ class _FishingQuizQuestionState extends State<FishingQuizQuestion> with TickerPr
                   ),
                 ),
               ),
-              _Capsule(option, fontSize: font, maxWidth: fishW * 0.86, mark: mark),
+              _Capsule(option, fontSize: font, maxWidth: fishW * 0.92, mark: mark, glowing: true),
             ],
           ),
         ),
@@ -952,9 +965,19 @@ class _TrainQuizQuestionState extends State<TrainQuizQuestion> with TickerProvid
     }
     if (!_smoke.isAnimating) _smoke.repeat();
     if (_arrive.value == 0 && !_arrive.isAnimating) {
-      StudentSoundService.instance.playGameEffect(StudentSoundService.trainWhistle);
+      _rumble();
       _arrive.forward();
     }
+  }
+
+  /// صوتُ محرّك السكّة والقطارُ يدخل المحطة: «صوت القطار» ثم «صوت القطار2»
+  /// يبدأ قبل أن ينتهي الأوّل، فيتداخلان صوتاً واحداً متّصلاً.
+  void _rumble() {
+    final sound = StudentSoundService.instance;
+    sound.playGameEffect(StudentSoundService.trainMove.first);
+    _timers.add(Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) sound.playGameEffect(StudentSoundService.trainMove.last);
+    }));
   }
 
   @override
@@ -980,7 +1003,8 @@ class _TrainQuizQuestionState extends State<TrainQuizQuestion> with TickerProvid
     if (correct) {
       _timers.add(Timer(const Duration(milliseconds: 650), () {
         if (!mounted) return;
-        StudentSoundService.instance.playGameEffect(StudentSoundService.trainWhistle);
+        // ‏ينطلق بالمقطع الطويل من صوت المحرّك.
+        StudentSoundService.instance.playGameEffect(StudentSoundService.trainMove.last);
         if (!_still(context)) _depart.forward();
       }));
     }

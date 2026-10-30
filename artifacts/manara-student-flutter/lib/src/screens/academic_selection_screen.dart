@@ -110,14 +110,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
     _loadGamification();
     unawaited(StudentAvatars.adoptFromProfile(widget.profile.appearance));
-    // The screen greets the student once it is on screen, in the same voice
-    // as the welcome before it and the hub after it. Not when they came back
-    // to change their lesson: the steps' own prompts are enough then.
-    if (!widget.pickOnly) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(StudentSoundService.instance.speakPath());
-      });
-    }
+    // ‏بلا عبارة ترحيب بعد الدخول، لا مكتوبةً ولا مسموعة: توجيهُ كل خطوةٍ
+    // («اختر صفّك»...) هو أوّلُ ما يُسمع.
   }
 
   @override

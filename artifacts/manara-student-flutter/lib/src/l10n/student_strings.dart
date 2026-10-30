@@ -48,7 +48,6 @@ class StudentStrings {
     // Portal hub
     'hub.changeLesson': 'تغيير الدرس',
     'hub.changeLessonTooltip': 'تغيير الدرس أو المسار',
-    'hub.welcome': 'أهلًا بك في منارة المعرفة',
 
     // Portal cards
     'portal.lesson': 'شرح الدرس',
@@ -218,6 +217,7 @@ class StudentStrings {
     'study.games.arcade.slingshot': 'المقلاع الذكي',
     'study.games.arcade.slingshotHint': 'اسحب المقلاع وأصب هدفَ الإجابة!',
     'study.games.ask.sort': '«{item}» من أيّ مجموعة؟',
+    'study.games.intro.start': 'هيا نلعب! ▶',
     'study.games.ask.match': 'ما الذي يناسب «{item}»؟',
     'study.games.arcade.progress': 'السؤال {n} من {total}',
     'study.games.arcade.result': 'أصبتَ {n} من {total}',
@@ -830,7 +830,6 @@ class StudentStrings {
     'path.treeFallback':
         'تعذر قراءة إعدادات الشجرة؛ تم عرض المسارات المكتملة من الدروس المتاحة فقط.',
     'path.loadError': 'تعذر تحميل البيانات الأكاديمية من Supabase: {error}',
-    'path.greeting': 'أهلًا {name}',
     'path.loading': 'جارٍ تحميل المسار الأكاديمي',
     'path.empty': 'لا توجد مسارات أكاديمية متاحة حاليًا.',
     'path.unit': 'الوحدة',
@@ -1072,7 +1071,6 @@ class StudentStrings {
 
     'hub.changeLesson': 'Change lesson',
     'hub.changeLessonTooltip': 'Change the lesson or path',
-    'hub.welcome': 'Welcome to Manara',
 
     'portal.lesson': 'The Lesson',
     'portal.lesson.sub': 'Learn the fun way',
@@ -1230,6 +1228,7 @@ class StudentStrings {
     'study.games.arcade.slingshot': 'Smart slingshot',
     'study.games.arcade.slingshotHint': 'Pull the slingshot and hit the answer!',
     'study.games.ask.sort': 'Which group does “{item}” belong to?',
+    'study.games.intro.start': 'Let’s play! ▶',
     'study.games.ask.match': 'What goes with “{item}”?',
     'study.games.arcade.progress': 'Question {n} of {total}',
     'study.games.arcade.result': 'You got {n} of {total}',
@@ -1823,7 +1822,6 @@ class StudentStrings {
     'path.treeFallback':
         'Could not read the course tree; only complete paths from available lessons are shown.',
     'path.loadError': 'Could not load the course data from Supabase: {error}',
-    'path.greeting': 'Hello {name}',
     'path.loading': 'Loading your course',
     'path.empty': 'No courses are available right now.',
     'path.unit': 'Unit',
