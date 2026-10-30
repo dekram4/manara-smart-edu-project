@@ -1839,12 +1839,14 @@ class _SectionTileState extends State<_SectionTile>
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
                     // في الفاتح أبيضُ ناصعٌ ثابت: الزجاجُ الشفّاف كان يُظهر
-                    // المنارةَ من خلف الأيقونة فتبهت. وفي الداكن يبقى زجاجاً.
+                    // المنارةَ من خلف الأيقونة فتبهت.
                     color: StudentSurface.isDark(context)
                         ? null
                         : Colors.white,
-                    // وفي الداكن ينعكس ضوءُ المنارة على حافّة البطاقة العليا:
-                    // زجاجٌ يدفأ لونُه من أعلى ويعود إلى لونه في أسفله.
+                    // وفي الداكن أسودُ مصمَتٌ لا زجاج: الزجاجُ كان يخلط
+                    // البطاقاتِ بشعاع المنارة فيبهت الشعاع. والأسودُ الغامق
+                    // يجعل النورَ فوق البرج هو الساطعَ وحده في الشاشة، ويبقى
+                    // انعكاسُه دفئاً خفيفاً على حافّة البطاقة العليا.
                     gradient: StudentSurface.isDark(context)
                         ? LinearGradient(
                             begin: Alignment.topCenter,
@@ -1852,13 +1854,12 @@ class _SectionTileState extends State<_SectionTile>
                             colors: [
                               Color.alphaBlend(
                                 const Color(0xFFFFC46B)
-                                    .withValues(alpha: 0.16 + lift * 0.06),
-                                StudentSurface.glass(
-                                    context, 0.72 + lift * 0.18),
+                                    .withValues(alpha: 0.10 + lift * 0.06),
+                                const Color(0xFF050505),
                               ),
-                              StudentSurface.glass(context, 0.72 + lift * 0.18),
+                              const Color(0xFF000000),
                             ],
-                            stops: const [0.0, 0.55],
+                            stops: const [0.0, 0.5],
                           )
                         : null,
                     border: Border.all(
@@ -2076,7 +2077,9 @@ class _LighthouseBackdrop extends StatelessWidget {
                             layer: _GlowLayer.behind,
                           ),
                         Opacity(
-                          opacity: night ? 0.30 : 0.55,
+                          // ‏في الداكن أسطعُ من قبل: البطاقاتُ سوداءُ مصمتة
+                          // ‏تحتها، فيبرز البرجُ وشعاعُه فوقها.
+                          opacity: night ? 0.5 : 0.55,
                           // ‏المنارةُ حيّة: مصباحُها ينبض وشعاعُه يدور،
                           // ‏والطائرُ والسمكة يطيران، والألعاب تتمايل وتقفز.
                           child: const LivingArt(

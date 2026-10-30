@@ -9,7 +9,7 @@ import '../services/student_sound_service.dart';
 import 'student_avatar_view.dart';
 
 /// ألعابُ أسئلة الدرس: كلُّ لعبةٍ تعرض السؤالَ نفسَه بطريقتها.
-enum QuizGameStyle { balloons, fishing, train, slingshot }
+enum QuizGameStyle { balloons, fishing, train, slingshot, basket }
 
 /// اللعبةُ [style] لسؤالٍ واحد.
 Widget quizGameFor(
@@ -29,6 +29,8 @@ Widget quizGameFor(
         TrainQuizQuestion(key: key, prompt: prompt, options: options, isCorrect: isCorrect, onAnswered: onAnswered),
       QuizGameStyle.slingshot =>
         SlingshotQuizQuestion(key: key, prompt: prompt, options: options, isCorrect: isCorrect, onAnswered: onAnswered),
+      QuizGameStyle.basket =>
+        BasketQuizQuestion(key: key, prompt: prompt, options: options, isCorrect: isCorrect, onAnswered: onAnswered),
     };
 
 /// رسومُ الألعاب الأربع، داخل `assets/images/games/` ومعلنةٌ في pubspec.
@@ -47,6 +49,8 @@ class QuizGameArt {
         QuizGameStyle.fishing => fishingBg,
         QuizGameStyle.train => trainBg,
         QuizGameStyle.slingshot => slingshotBg,
+        // ‏المرجُ بأشجاره، وتحت تاجِ الشجرة المرسومة فوقه.
+        QuizGameStyle.basket => balloonBg,
       };
 
   /// عبارةُ مقدّمة كل لعبةٍ بصوتها المسجّل.
@@ -55,6 +59,8 @@ class QuizGameArt {
         QuizGameStyle.fishing => 'audio/games/intro_fishing.mp3',
         QuizGameStyle.train => 'audio/games/intro_train.mp3',
         QuizGameStyle.slingshot => 'audio/games/intro_slingshot.mp3',
+        // ‏لا عبارةَ مسجّلةً لها بعد: «ألعاب» من أصوات التطبيق نفسها.
+        QuizGameStyle.basket => 'audio/alaab.mp3',
       };
 
   /// أبعادُ الخلفيات الأربع (١٢٨٠×٧٢٠).
@@ -107,7 +113,6 @@ const _palette = [
   Color(0xFFEC4899),
 ];
 
-const _ink = Color(0xFF1E293B);
 const _right = Color(0xFF16A34A);
 const _wrong = Color(0xFFDC2626);
 const _gold = Color(0xFFFFC83D);
@@ -197,62 +202,71 @@ class _Prompt extends StatelessWidget {
   }
 }
 
-/// كبسولةُ الإجابة: بيضاءُ ناصعة بخطٍّ عريضٍ داكن، وحافّتُها تقول النتيجة.
-class _Capsule extends StatelessWidget {
-  const _Capsule(this.text, {required this.fontSize, required this.maxWidth, this.mark = _Mark.idle, this.glowing = false});
+/// الإجابةُ مطبوعةً على جسم الأصل نفسه (البالونة، السمكة، العربة، الهدف):
+/// خطٌّ أبيضُ عريضٌ كبير بحدٍّ داكنٍ سميك حوله — بلا صندوقٍ ولا خلفية — فيُرى
+/// لونُ الأصل ورسمُه كاملاً، وتُقرأ الإجابةُ على أيّ لون.
+///
+/// والحدُّ يقول النتيجة: أخضرُ للصواب، وأحمرُ للخطأ، وذهبيٌّ متوهّجٌ للصحيح
+/// الذي فات الطفلَ.
+class _Label extends StatelessWidget {
+  const _Label(this.text, {required this.fontSize, required this.maxWidth, this.mark = _Mark.idle});
 
   final String text;
   final double fontSize;
   final double maxWidth;
   final _Mark mark;
 
-  /// فوق جسمٍ ملوّنٍ متحرّك (السمكة): حدٌّ داكنٌ سميك وهالةٌ بيضاء مضيئة،
-  /// فلا تذوب الإجابةُ في لون السمكة ولا في زرقة الماء.
-  final bool glowing;
-
   @override
   Widget build(BuildContext context) {
     final edge = switch (mark) {
-      _Mark.right => _right,
-      _Mark.wrong => _wrong,
-      _Mark.reveal => _gold,
-      _Mark.idle => glowing ? const Color(0xFF0F172A) : Colors.white,
+      _Mark.right => const Color(0xFF15803D),
+      _Mark.wrong => const Color(0xFFB91C1C),
+      _Mark.reveal => const Color(0xFFB45309),
+      _Mark.idle => const Color(0xFF0F172A),
     };
+    final style = TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, height: 1.2);
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: math.max(maxWidth, fontSize * 2)),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: fontSize * 0.55, vertical: fontSize * 0.18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: edge, width: mark == _Mark.idle ? (glowing ? 3.5 : 2) : 4),
-          boxShadow: [
-            if (glowing && mark == _Mark.idle) const BoxShadow(color: Color(0xEEFFFFFF), blurRadius: 16, spreadRadius: 4),
-            BoxShadow(
-              color: mark == _Mark.reveal ? _gold.withValues(alpha: 0.9) : const Color(0x40000000),
-              blurRadius: mark == _Mark.reveal ? 18 : 6,
-              spreadRadius: mark == _Mark.reveal ? 3 : 0,
-              offset: mark == _Mark.reveal ? Offset.zero : const Offset(0, 3),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (mark == _Mark.right || mark == _Mark.wrong) ...[
+              Icon(
+                mark == _Mark.right ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                color: mark == _Mark.right ? _right : _wrong,
+                size: fontSize * 1.05,
+                shadows: const [Shadow(color: Colors.white, blurRadius: 6)],
+              ),
+              SizedBox(width: fontSize * 0.15),
+            ],
+            Stack(
+              children: [
+                Text(
+                  text,
+                  maxLines: 1,
+                  style: style.copyWith(
+                    foreground: Paint()
+                      ..style = PaintingStyle.stroke
+                      ..strokeWidth = fontSize * 0.2
+                      ..strokeJoin = StrokeJoin.round
+                      ..color = edge,
+                  ),
+                ),
+                Text(
+                  text,
+                  maxLines: 1,
+                  style: style.copyWith(
+                    color: mark == _Mark.reveal ? const Color(0xFFFFF3B0) : Colors.white,
+                    shadows: [
+                      if (mark == _Mark.reveal) const Shadow(color: _gold, blurRadius: 18),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (mark == _Mark.right || mark == _Mark.wrong) ...[
-                Icon(mark == _Mark.right ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                    color: mark == _Mark.right ? _right : _wrong, size: fontSize),
-                SizedBox(width: fontSize * 0.2),
-              ],
-              Text(
-                text,
-                maxLines: 1,
-                style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, color: glowing ? Colors.black : _ink, height: 1.25),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -517,7 +531,7 @@ class _BalloonQuizQuestionState extends State<BalloonQuizQuestion> with TickerPr
               child: Center(
                 child: Transform.translate(
                   offset: Offset(math.sin(tilt) * h * 0.25, mark == _Mark.right ? -p * h * 0.08 : 0),
-                  child: _Capsule(option, fontSize: font, maxWidth: w * 1.25, mark: mark),
+                  child: _Label(option, fontSize: font, maxWidth: w * 0.86, mark: mark),
                 ),
               ),
             ),
@@ -783,7 +797,7 @@ class _FishingQuizQuestionState extends State<FishingQuizQuestion> with TickerPr
                   ),
                 ),
               ),
-              _Capsule(option, fontSize: font, maxWidth: fishW * 0.92, mark: mark, glowing: true),
+              _Label(option, fontSize: font, maxWidth: fishW * 0.66, mark: mark),
             ],
           ),
         ),
@@ -1145,7 +1159,7 @@ class _TrainQuizQuestionState extends State<TrainQuizQuestion> with TickerProvid
               left: 0,
               right: 0,
               top: h * 0.55 + h * 0.3,
-              child: Center(child: _Capsule(option, fontSize: font, maxWidth: w * 0.94, mark: mark)),
+              child: Center(child: _Label(option, fontSize: font, maxWidth: w * 0.86, mark: mark)),
             ),
           ],
         ),
@@ -1547,7 +1561,7 @@ class _SlingshotQuizQuestionState extends State<SlingshotQuizQuestion> with Tick
             ),
             Positioned(
               top: r * 2.3,
-              child: _Capsule(option, fontSize: font, maxWidth: r * 3.8, mark: mark),
+              child: _Label(option, fontSize: font, maxWidth: r * 3.8, mark: mark),
             ),
             if (struck && mark == _Mark.right)
               Positioned.fill(
@@ -1693,7 +1707,438 @@ class QuizGameCoverArt extends StatelessWidget {
               child: CustomPaint(painter: _TargetPainter(glow: true)),
             ),
           ),
+        QuizGameStyle.basket => Center(
+            child: SizedBox(
+              width: h * 1.3,
+              height: h,
+              child: Stack(
+                children: [
+                  for (final (x, y, color) in const [
+                    (0.05, 0.0, Color(0xFFE53935)),
+                    (0.38, 0.05, Color(0xFFFB8C00)),
+                    (0.7, 0.0, Color(0xFF7CB342)),
+                  ])
+                    Positioned(
+                      left: h * 1.3 * x,
+                      top: h * y,
+                      width: h * 0.34,
+                      height: h * 0.38,
+                      child: CustomPaint(painter: _FruitPainter(color)),
+                    ),
+                  Positioned(
+                    left: h * 0.25,
+                    bottom: 0,
+                    width: h * 0.8,
+                    height: h * 0.5,
+                    child: CustomPaint(painter: _BasketPainter(fruits: const [Color(0xFFE53935), Color(0xFFFDD835)], wrong: false)),
+                  ),
+                ],
+              ),
+            ),
+          ),
       };
     });
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// سلّة قطف الثمار
+// ═══════════════════════════════════════════════════════════════════════
+
+/// «سلّة قطف الثمار»: الإجاباتُ ثمارٌ تتساقط من شجرةٍ كرتونية، والطالبُ
+/// بشخصيته خلف سلّةٍ يحرّكها يميناً ويساراً بإصبعه ليجمع الثمارَ الصحيحة
+/// كلَّها ويتجنّب الخاطئة. وقد يكون للسؤال أكثرُ من إجابةٍ صحيحة.
+///
+/// ولمسُ الثمرة يقطفها إلى السلّة أيضاً — لطفلٍ لم تتعوّد يدُه السحبَ بعد.
+/// فإذا اكتملت الصحيحةُ أُبلغت الجولة: بالصحيحة إن لم تُجمع خاطئة، وإلا
+/// بأوّل خاطئةٍ جُمعت.
+class BasketQuizQuestion extends QuizGameQuestion {
+  const BasketQuizQuestion({
+    required super.prompt,
+    required super.options,
+    required super.isCorrect,
+    required super.onAnswered,
+    super.answered,
+    super.key,
+  });
+
+  @override
+  State<BasketQuizQuestion> createState() => _BasketQuizQuestionState();
+}
+
+class _BasketQuizQuestionState extends State<BasketQuizQuestion> with TickerProviderStateMixin {
+  /// دورةُ السقوط: كلُّ ثمرةٍ تسقط من الشجرة إلى الأرض في دورةٍ واحدة.
+  late final AnimationController _fall = AnimationController(vsync: this, duration: const Duration(seconds: 7));
+  late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
+  late final AnimationController _done = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+
+  /// موضعُ السلّة من عرض المسرح (٠ يسار، ١ يمين)، وما تنساب إليه.
+  double _basket = 0.5;
+  double _basketTo = 0.5;
+
+  /// ما جُمع، وما جُمع خطأً — بأرقام الخيارات.
+  final Set<int> _caught = {};
+  final List<int> _wrongs = [];
+
+  /// موضعُ كل ثمرةٍ في الدورة السابقة: لمعرفة متى عبرت حافّةَ السلّة.
+  final Map<int, double> _last = {};
+  Timer? _report;
+  Size _stage = Size.zero;
+  bool _finished = false;
+
+  /// ألوانُ الثمار: تفّاحٌ أحمر، وبرتقال، وكمّثرى خضراء، وخوخ، وعنب.
+  static const _fruits = [
+    Color(0xFFE53935),
+    Color(0xFFFB8C00),
+    Color(0xFF7CB342),
+    Color(0xFFEC407A),
+    Color(0xFF8E24AA),
+    Color(0xFFFDD835),
+  ];
+
+  List<int> get _correct => [for (var i = 0; i < widget.options.length; i++) if (widget.isCorrect(widget.options[i])) i];
+
+  @override
+  void initState() {
+    super.initState();
+    _fall.addListener(_tick);
+    if (widget.answered != null) _finished = true;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_still(context)) {
+      _fall.stop();
+    } else if (!_fall.isAnimating && !_finished) {
+      _fall.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _report?.cancel();
+    _fall.dispose();
+    _shake.dispose();
+    _done.dispose();
+    super.dispose();
+  }
+
+  double get _canopy => _stage.height * 0.24;
+  double get _fruitR => (math.min(_stage.width, _stage.height) * 0.085).clamp(30.0, 58.0).toDouble();
+  double get _basketW => (_stage.width * 0.22).clamp(120.0, 240.0).toDouble();
+  double get _basketTop => _stage.height - _basketW * 0.42 - 6;
+
+  /// عمودُ الثمرة [i]: موزّعةٌ على عرض الشجرة.
+  double _laneX(int i) {
+    final n = widget.options.length;
+    // ‏بعيداً عن جذعي الشجرة على الطرفين.
+    final margin = math.max(_fruitR * 1.6, _stage.width * 0.13);
+    return n == 1 ? _stage.width / 2 : margin + (_stage.width - 2 * margin) * i / (n - 1);
+  }
+
+  /// نسبةُ سقوط الثمرة [i] في الدورة: كلٌّ بطورها، فلا تسقط معاً.
+  double _phase(int i) {
+    final n = widget.options.length;
+    return (_fall.value + i * (1 / n) * 0.83 + i * 0.07) % 1;
+  }
+
+  Offset _fruitAt(int i) {
+    final p = _phase(i);
+    final hang = _canopy - _fruitR * 0.2;
+    final ground = _stage.height + _fruitR * 2;
+    // ‏تبقى معلّقةً قليلاً في أوّل الدورة ثم تسقط متسارعة.
+    final drop = p < 0.18 ? 0.0 : Curves.easeIn.transform((p - 0.18) / 0.82);
+    final sway = p < 0.18 ? math.sin(p * 40 + i) * 3 : 0.0;
+    return Offset(_laneX(i) + sway, hang + (ground - hang) * drop);
+  }
+
+  void _tick() {
+    if (_finished || _stage == Size.zero) return;
+    var moved = false;
+    if ((_basketTo - _basket).abs() > 0.001) {
+      _basket += (_basketTo - _basket) * 0.18;
+      moved = true;
+    }
+    final basketX = _basket * _stage.width;
+    for (var i = 0; i < widget.options.length; i++) {
+      if (_caught.contains(i) || _wrongs.contains(i)) continue;
+      final at = _fruitAt(i);
+      final before = _last[i];
+      _last[i] = at.dy;
+      if (before != null && before < _basketTop && at.dy >= _basketTop && (at.dx - basketX).abs() < _basketW * 0.5) {
+        _collect(i);
+        return;
+      }
+    }
+    if (moved) setState(() {});
+  }
+
+  void _drag(DragUpdateDetails details) {
+    if (_finished || _stage.width == 0) return;
+    setState(() {
+      _basket = (_basket + details.delta.dx / _stage.width).clamp(0.08, 0.92);
+      _basketTo = _basket;
+    });
+  }
+
+  /// قطفُ الثمرة [i] إلى السلّة: لمسةٌ عليها، أو سقطت فيها.
+  void _collect(int i) {
+    if (_finished || _caught.contains(i) || _wrongs.contains(i)) return;
+    final option = widget.options[i];
+    if (option.isEmpty) return;
+    final right = widget.isCorrect(option);
+    setState(() {
+      _basketTo = (_laneX(i) / _stage.width).clamp(0.08, 0.92);
+      if (right) {
+        _caught.add(i);
+      } else {
+        _wrongs.add(i);
+      }
+    });
+    if (right) {
+      HapticFeedback.selectionClick();
+      StudentSoundService.instance.playGameEffect(StudentSoundService.balloonPop);
+    } else {
+      _celebrate(false);
+      _shake.forward(from: 0);
+    }
+    if (_correct.every(_caught.contains)) _finish();
+  }
+
+  void _finish() {
+    _finished = true;
+    _fall.stop();
+    final perfect = _wrongs.isEmpty;
+    if (perfect) _celebrate(true);
+    _done.forward(from: 0);
+    final report = perfect ? widget.options[_correct.first] : widget.options[_wrongs.first];
+    _report = Timer(quizGameReveal, () {
+      if (mounted) widget.onAnswered(report);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _Frame(
+      prompt: widget.prompt,
+      stage: LayoutBuilder(builder: (context, box) {
+        _stage = box.biggest;
+        final r = _fruitR;
+        final font = (r * 0.62).clamp(17.0, 32.0).toDouble();
+        final remaining = _correct.where((i) => !_caught.contains(i)).length;
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragUpdate: _drag,
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_fall, _shake, _done]),
+            builder: (context, _) {
+              final basketX = _basket * _stage.width;
+              final shake = math.sin(_shake.value * math.pi * 8) * (1 - _shake.value) * 10;
+              final bw = _basketW;
+              final avatar = bw * 0.62;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Positioned.fill(child: _Backdrop(QuizGameArt.balloonBg)),
+                  // ‏الشجرةُ الكرتونية: جذعان على الطرفين وتاجٌ أخضرُ ممتدّ.
+                  Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _TreePainter(canopy: _canopy)))),
+                  // ‏الطالبُ خلف سلّته.
+                  Positioned(
+                    left: basketX - avatar / 2 + shake,
+                    top: _basketTop - avatar * 0.78,
+                    width: avatar,
+                    height: avatar,
+                    child: const IgnorePointer(child: FittedBox(child: StudentAvatarView(size: 96, showRing: false))),
+                  ),
+                  for (var i = 0; i < widget.options.length; i++)
+                    if (!_caught.contains(i) && !_wrongs.contains(i)) _fruit(i, r, font),
+                  // ‏السلّةُ وما فيها.
+                  Positioned(
+                    key: const ValueKey('basket'),
+                    left: basketX - bw / 2 + shake,
+                    top: _basketTop - bw * 0.18,
+                    width: bw,
+                    height: bw * 0.6,
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _BasketPainter(
+                          fruits: [for (final i in _caught) _fruits[i % _fruits.length]],
+                          wrong: _shake.isAnimating,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // ‏كم بقي من الثمار الصحيحة.
+                  PositionedDirectional(
+                    bottom: 10,
+                    start: _stage.width * 0.1,
+                    child: IgnorePointer(
+                      child: _Label(
+                        _finished && _wrongs.isEmpty ? tr('quiz.game.basketFull') : trf('quiz.game.basketLeft', {'n': remaining}),
+                        fontSize: 26,
+                        maxWidth: 300,
+                        mark: _finished ? (_wrongs.isEmpty ? _Mark.right : _Mark.wrong) : _Mark.idle,
+                      ),
+                    ),
+                  ),
+                  if (_finished && _wrongs.isEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(painter: _ConfettiPainter(_done.value, Offset(basketX, _basketTop), count: 40, spread: 1.3)),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _fruit(int i, double r, double font) {
+    final at = _fruitAt(i);
+    final option = widget.options[i];
+    return Positioned(
+      left: at.dx - r * 1.5,
+      top: at.dy - r,
+      width: r * 3,
+      height: r * 2.2,
+      child: GestureDetector(
+        key: ValueKey('fruit-$i'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _collect(i),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              left: r * 0.5,
+              top: 0,
+              width: r * 2,
+              height: r * 2.2,
+              child: CustomPaint(painter: _FruitPainter(_fruits[i % _fruits.length])),
+            ),
+            _Label(option, fontSize: font, maxWidth: r * 2.9),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// تاجُ شجرةٍ كرتونيٍّ عريض في أعلى المسرح: كتلٌ خضراءُ متراكبة بلمعاتٍ فاتحة،
+/// وجذعان بنّيّان على الطرفين، وأوراقٌ صغيرةٌ تتدلّى.
+class _TreePainter extends CustomPainter {
+  _TreePainter({required this.canopy});
+  final double canopy;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final trunk = Paint()..color = const Color(0xFF8D5524);
+    final bark = Paint()
+      ..color = const Color(0xFF6D4C2F)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    for (final x in [size.width * 0.04, size.width * 0.96]) {
+      final rect = Rect.fromCenter(center: Offset(x, size.height * 0.55), width: size.width * 0.07, height: size.height * 1.1);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)), trunk);
+      canvas.drawLine(Offset(x - 6, size.height * 0.3), Offset(x - 2, size.height * 0.6), bark);
+    }
+    final dark = Paint()..color = const Color(0xFF2E7D32);
+    final mid = Paint()..color = const Color(0xFF43A047);
+    final light = Paint()..color = const Color(0xFF66BB6A);
+    final r = canopy * 0.55;
+    final count = (size.width / (r * 1.1)).ceil() + 1;
+    for (var k = 0; k < count; k++) {
+      final x = k * size.width / (count - 1);
+      canvas.drawCircle(Offset(x, canopy * 0.35), r * 1.1, dark);
+    }
+    for (var k = 0; k < count; k++) {
+      final x = (k + 0.5) * size.width / (count - 1);
+      canvas.drawCircle(Offset(x, canopy * 0.55 + (k.isEven ? 0 : 6)), r * 0.85, mid);
+      canvas.drawCircle(Offset(x - r * 0.3, canopy * 0.45), r * 0.3, light);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TreePainter old) => old.canopy != canopy;
+}
+
+/// ثمرةٌ لامعة بعنقٍ وورقة.
+class _FruitPainter extends CustomPainter {
+  _FruitPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2;
+    final c = Offset(r, size.height - r);
+    canvas.drawCircle(c + const Offset(0, 4), r, Paint()..color = const Color(0x33000000));
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.35, -0.4),
+          colors: [Color.lerp(color, Colors.white, 0.45)!, color, Color.lerp(color, Colors.black, 0.25)!],
+          stops: const [0, 0.55, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    final top = Offset(r, size.height - 2 * r);
+    canvas.drawLine(top + const Offset(0, 4), top - Offset(-2, r * 0.3),
+        Paint()..color = const Color(0xFF5D4037)..strokeWidth = 4..strokeCap = StrokeCap.round);
+    final leaf = Path()
+      ..moveTo(top.dx + 2, top.dy - r * 0.15)
+      ..quadraticBezierTo(top.dx + r * 0.6, top.dy - r * 0.55, top.dx + r * 0.75, top.dy - r * 0.1)
+      ..quadraticBezierTo(top.dx + r * 0.35, top.dy + r * 0.05, top.dx + 2, top.dy - r * 0.15);
+    canvas.drawPath(leaf, Paint()..color = const Color(0xFF43A047));
+  }
+
+  @override
+  bool shouldRepaint(_FruitPainter old) => old.color != color;
+}
+
+/// سلّةٌ مضفورة: حافّةٌ سميكة وجسمٌ بخطوطٍ متقاطعة، وفيها ما جُمع من ثمار.
+class _BasketPainter extends CustomPainter {
+  _BasketPainter({required this.fruits, required this.wrong});
+  final List<Color> fruits;
+  final bool wrong;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final rim = h * 0.28;
+    // ‏الثمارُ المجموعة تطلّ من فوق الحافّة.
+    for (var k = 0; k < fruits.length; k++) {
+      final x = w * (0.22 + 0.56 * ((k * 0.37) % 1));
+      canvas.drawCircle(Offset(x, rim * 0.9), h * 0.16, Paint()..color = fruits[k]);
+    }
+    final body = Path()
+      ..moveTo(w * 0.04, rim)
+      ..lineTo(w * 0.96, rim)
+      ..lineTo(w * 0.84, h)
+      ..lineTo(w * 0.16, h)
+      ..close();
+    canvas.drawPath(body, Paint()..color = wrong ? const Color(0xFFC0392B) : const Color(0xFFC68642));
+    final weave = Paint()
+      ..color = const Color(0xFF8D5524)
+      ..strokeWidth = 2.5;
+    canvas.save();
+    canvas.clipPath(body);
+    for (var x = -h; x < w + h; x += 14) {
+      canvas.drawLine(Offset(x, rim), Offset(x + h, h), weave);
+      canvas.drawLine(Offset(x + h, rim), Offset(x, h), weave);
+    }
+    canvas.restore();
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, rim - h * 0.08, w, h * 0.16), Radius.circular(h * 0.08)),
+      Paint()..color = const Color(0xFF8D5524),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BasketPainter old) => old.fruits.length != fruits.length || old.wrong != wrong;
 }

@@ -124,7 +124,7 @@ Future<void> _wait(WidgetTester tester, [int steps = 30]) async {
   }
 }
 
-const _styles = ['balloons', 'fishing', 'train', 'slingshot'];
+const _styles = ['balloons', 'fishing', 'train', 'slingshot', 'basket'];
 
 /// مقدّمةُ اللعبة ظاهرة، ثم «هيا نلعب!».
 Future<void> _start(WidgetTester tester) async {
@@ -151,7 +151,13 @@ void main() {
     final pack = StudyGamesPack.fromMap(_packJson())!;
     final arcade = arcadeGameOf(pack)!;
     expect(arcade.id, 'endless_quiz', reason: 'المكافأةُ مكافأةُ أسئلة الدرس');
-    expect(arcade.questions, hasLength(5 + 2 + 2));
+    // ‏خمسةٌ من السباق، واثنان من التصنيف، واثنان من المطابقة، وسؤالا جمعٍ للسلّة.
+    expect(arcade.questions, hasLength(5 + 2 + 2 + 2));
+    final collect = arcade.questions.where((q) => q.kind == StudyQuestionKind.collect).toList();
+    expect(collect, hasLength(2));
+    expect(collect.first.question, trf('study.games.ask.collect', {'item': 'حيوان'}));
+    expect(collect.first.answers, ['القط']);
+    expect(collect.first.isCorrect('النخلة'), isFalse);
     final cat = arcade.questions.firstWhere((q) => q.question == trf('study.games.ask.sort', {'item': 'القط'}));
     expect(cat.answer, 'حيوان');
     expect(cat.options, containsAll(['حيوان', 'نبات']));
@@ -163,7 +169,7 @@ void main() {
       for (final game in json['games']! as List)
         if ((game as Map)['game_type'] != 'endless_quiz') game,
     ];
-    expect(arcadeGameOf(StudyGamesPack.fromMap(json)!)!.questions, hasLength(4));
+    expect(arcadeGameOf(StudyGamesPack.fromMap(json)!)!.questions, hasLength(6));
   });
 
   testWidgets('الرفُّ أربعةُ أغلفةٍ وحدها: لا سحبَ ولا مطابقةَ ولا سباق', (tester) async {
@@ -192,7 +198,11 @@ void main() {
       // ‏تسعةُ أسئلة: الجولةُ ثمانية.
       for (var round = 0; round < 8; round++) {
         final shown = questions.firstWhere((q) => find.text(q.question).evaluate().isNotEmpty);
-        await tester.tap(find.text(shown.answer).last);
+        // ‏السلّة تُملأ بالصحيحة كلِّها، وغيرُها بلمسة الصحيحة.
+        for (final answer in style == 'basket' ? shown.answers : [shown.answer]) {
+          await tester.tap(find.text(answer).last);
+          await _wait(tester, 3);
+        }
         await _wait(tester);
       }
       await _wait(tester, 12);
@@ -227,15 +237,39 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('المقدّمةُ تبدأ اللعبةَ وحدها إن لم يُلمس شيء', (tester) async {
+  testWidgets('لا تبدأ اللعبةُ وحدها: تنتظر «هيا نلعب!»', (tester) async {
     await _pump(tester, (_) async => null);
     await tester.ensureVisible(find.byKey(const ValueKey('arcade-fishing')));
     await tester.tap(find.byKey(const ValueKey('arcade-fishing')));
     await _wait(tester, 10);
+    // ‏لمسةٌ على الخلفية لا تبدأها، ولا مرورُ الوقت.
+    await tester.tapAt(const Offset(60, 400));
+    await _wait(tester, 100);
     expect(find.byKey(const ValueKey('fish-0')), findsNothing);
-    // ‏لا خبرَ بانتهاء العبارة في الاختبار: المهلةُ القصوى تبدأها.
-    await _wait(tester, 80);
+    expect(find.byKey(const ValueKey('game-intro-start')), findsOneWidget);
+    await _start(tester);
     expect(find.byKey(const ValueKey('fish-0')), findsOneWidget);
+  });
+
+  testWidgets('أسئلةُ الدرس تتوزّع على الألعاب: الانتقالُ يبدأ بما لم يُسأل', (tester) async {
+    final pack = await _pump(tester, (_) async => null);
+    await tester.ensureVisible(find.byKey(const ValueKey('arcade-balloons')));
+    await tester.tap(find.byKey(const ValueKey('arcade-balloons')));
+    await _wait(tester, 10);
+    await _start(tester);
+    final questions = arcadeGameOf(pack)!.questions;
+    final asked = <String>{};
+    for (var round = 0; round < 3; round++) {
+      final shown = questions.firstWhere((q) => find.text(q.question).evaluate().isNotEmpty);
+      asked.add(shown.question);
+      await tester.tap(find.text(shown.answer).last);
+      await _wait(tester);
+    }
+    await tester.tap(find.byKey(const ValueKey('switch-train')));
+    await _wait(tester, 10);
+    await _start(tester);
+    final next = questions.firstWhere((q) => find.text(q.question).evaluate().isNotEmpty);
+    expect(asked, isNot(contains(next.question)));
   });
 
   test('لكل لعبةٍ عبارةُ مقدّمتها في الحزمة', () {
