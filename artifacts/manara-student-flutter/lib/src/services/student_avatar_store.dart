@@ -90,13 +90,15 @@ class StudentAvatars {
   /// Applies the pick stored with the student's profile.
   ///
   /// Called as a profile arrives — signing in, and opening the hub — so the
-  /// character follows the student rather than the phone. A profile with no
-  /// pick recorded yet leaves whatever this device remembers, so a student
-  /// who chose one before this was stored does not lose it.
+  /// character follows the student rather than the device.
+  ///
+  /// ── ومن لم يختر بعدُ: الشخصيةُ الأساسية ──
+  /// كان ملفٌّ بلا اختيارٍ يُبقي ما يتذكّره الجهاز — وتابلتُ الفصل مشترك، فيرى
+  /// الطالبُ الجديد شخصيةَ من دخل قبله. والاختيارُ يُحفظ في الملفّ منذ شاشة
+  /// الشخصية، فلا يضيع على أحدٍ اختارها.
   static Future<void> adoptFromProfile(Map<String, dynamic>? appearance) async {
     final id = idFromAppearance(appearance);
-    if (id == null) return;
-    await select(byId(id));
+    await select(id == null ? fallback : byId(id));
   }
 
   /// Reads the stored pick. Called once at startup; a storage failure

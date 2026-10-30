@@ -639,97 +639,10 @@ class StudentSoundService with WidgetsBindingObserver {
   /// الذي يصلح للكلام يخفض الموسيقى تحت ما يُسمع.
   static const _loginVolume = 0.85;
 
-  /// وعلوُّها تحت الترحيب.
-  ///
-  /// الترحيبُ يمضي من شاشة الإقلاع إلى شاشة الدخول، فتبدأ الخلفيةُ تحته لا
-  /// فوقه. و٠٫٨٥ تحت كلامٍ تجعل الجملةَ تُسمع ولا تُفهَم.
-  static const _loginBedVolume = 0.20;
-
   /// ترحيبُ المحور — مقطعُ لوحة البطاقات، لا مقطعُ فتح التطبيق.
   static const _welcomeClip = 'audio/manara-arabic-student-welcome.mp3';
   static const _pathOverride = 'audio/masar.mp3';
   static const _dashboardClip = 'audio/start.mp3';
-
-  /// ترحيبُ فتح التطبيق، وهذا موضعُه الوحيد.
-  ///
-  /// ── ملفٌّ واحدٌ باسمه، لا سلسلةَ ارتداد ──
-  /// السلسلةُ تعني أنّ غيابَ هذا الملف يُسمِع ملفاً آخر — وهو ما يجعل
-  /// «استُبدل الصوت» و«لم يُستبدل» يبدوان سواءً: لا خطأَ يظهر، ويسمع الطفل
-  /// ترحيباً غيرَ الذي وُضع. فيُنادى باسمه، ويحرسه اختبارٌ يقول إنه في
-  /// الحزمة. وإن غاب فصمتٌ — وصمتٌ يُلاحَظ ويُصلَح.
-  ///
-  /// وهو لهذا الموضع وحده: لوحةُ البطاقات لها مقطعُها، وكلُّ بوابةٍ لها
-  /// سطرُها المسجَّل.
-  static const launchWelcomeClip = 'audio/tarheeeeeeeb.mp3';
-
-  /// طولُ ما يُشغَّل على مشغّل الأصوات، حين يفكّه المشغّل.
-  ///
-  /// شاشةُ الإقلاع تمدّ بقاءَها بطول الترحيب، وهو لا يُعرف قبل الفكّ.
-  Stream<Duration> get voiceDuration => _voicePlayer.onDurationChanged;
-
-  /// ترحيبُ فتح التطبيق، على المشغّل المشترك.
-  ///
-  /// ── ولماذا المشترك لا مشغّلٌ خاصٌّ بشاشة الإقلاع ──
-  /// كان على مشغّلٍ تملكه تلك الشاشة، فكان يموت معها: تُغادَر بعد سبع ثوانٍ
-  /// و`dispose` يتخلّص من المشغّل، فيُقطع الترحيبُ في منتصفه. ثم تبدأ شاشةُ
-  /// الدخول خلفيّتَها فلا يبقى منه شيء — فكان الطفل يسمع نصفَ جملةٍ في كل
-  /// فتحة، ثم موسيقى.
-  ///
-  /// وعلى المشترك يمضي عبر تبديل الشاشة إلى شاشة الدخول ويُكمل جملتَه،
-  /// وخلفيّةُ الدخول تُشغَّل تحته على مشغّلٍ آخر.
-  ///
-  /// ويجري عليه ما يجري على كل منطوق: يسكت عند كتم الصوت، وعند إطفاء
-  /// الشاشة. وكان المشغّلُ الخاصُّ يفلت من الكتم — فجهازٌ مكتومٌ يُرحّب.
-  Future<void> speakLaunchWelcome({VoidCallback? onComplete}) async {
-    if (muted.value || _backgrounded) {
-      onComplete?.call();
-      return;
-    }
-    var fired = false;
-    void finish() {
-      if (fired) return;
-      fired = true;
-      onComplete?.call();
-    }
-
-    try {
-      // والوجودُ يُفحص من بيان الحزمة لا بمحاولةِ تشغيلٍ تفشل: المحاولةُ
-      // الفاشلة على بعض المنصّات تترك المشغّل في حالٍ لا يقبل بعدها ملفاً
-      // ثانياً — فيصمت ما بعده أيضاً.
-      final bundled = await _bundledAssets();
-      if (!bundled.contains('assets/$launchWelcomeClip')) {
-        finish();
-        return;
-      }
-      unawaited(
-        _voicePlayer.onPlayerComplete.first.then(
-          (_) => finish(),
-          onError: (_) => finish(),
-        ),
-      );
-      await _voicePlayer.stop();
-      _voiceClip = launchWelcomeClip;
-      await _voicePlayer.play(
-        AssetSource(launchWelcomeClip),
-        volume: _launchWelcomeVolume,
-      );
-    } catch (_) {
-      // لا صوت على هذا الجهاز: الشاشة تُفتح صامتة ولا تنتظر شيئاً.
-      finish();
-    }
-  }
-
-  /// علوُّ ترحيب الإقلاع.
-  ///
-  /// مضبوطٌ صراحةً لا مقيساً بجدول `voiceRms`: لا مدخلَ فيه للمقاطع المورَّدة،
-  /// فيرتدّ القياسُ إلى ٠٫٦ — وهو أخفضُ مما كان يُسمع. وهذا أوّلُ صوتٍ يسمعه
-  /// الطفل من التطبيق ولا كلامَ فوقه، فيحتمل علوّاً ظاهراً.
-  static const _launchWelcomeVolume = 0.85;
-
-  /// هل ترحيبُ الإقلاع يُسمع الآن؟
-  ///
-  /// شاشةُ الدخول تسأل لتعرف أتبدأ خلفيّتَها تحته أم بعلوّها المعتاد.
-  bool get launchWelcomePlaying => _voiceClip == launchWelcomeClip;
 
   /// المقطع المورَّد إن كان في حزمة البناء، وإلا القديم.
   String _supplied(String? override, String fallback, Set<String> bundled) {
@@ -740,45 +653,18 @@ class StudentSoundService with WidgetsBindingObserver {
   /// خلفية شاشة تسجيل الدخول، تبدأ مع ظهور الشاشة.
   ///
   /// مقطعٌ طويل يُسمع تحت الشاشة ما دام الطفل عليها، ويُقطع عند مغادرتها.
-  /// وهو على مشغّلٍ خاصٍّ به — انظر [_bedPlayer] — فلا يقطع الترحيب.
-  ///
-  /// ── ويبدأ خفيضاً ثم يرتفع ──
-  /// ترحيبُ الإقلاع يمضي إلى هذه الشاشة ويُكمل جملتَه، فتبدأ الخلفيةُ تحته
-  /// بعلوٍّ يُسمع منه الكلام. وحين ينتهي الترحيبُ ترتفع إلى علوّها المعتاد،
-  /// فلا تبقى همساً بقيّةَ الوقت.
+  /// وهو على مشغّلٍ خاصٍّ به — انظر [_bedPlayer] — فلا يقطع ما يُقال.
   Future<void> speakLogin() async {
     if (muted.value || _backgrounded) return;
     try {
       final bundled = await _bundledAssets();
       if (!bundled.contains('assets/$_loginClip')) return;
-      final underVoice = launchWelcomePlaying;
-      _loginBedStopped = false;
       await _bedPlayer.stop();
-      await _bedPlayer.play(
-        AssetSource(_loginClip),
-        volume: underVoice ? _loginBedVolume : _loginVolume,
-      );
-      if (!underVoice) return;
-      unawaited(
-        _voicePlayer.onPlayerComplete.first.then(
-          (_) => _raiseLoginBed(),
-          onError: (_) => _raiseLoginBed(),
-        ),
-      );
+      await _bedPlayer.play(AssetSource(_loginClip), volume: _loginVolume);
     } catch (_) {
       // لا صوت على هذا الجهاز: الشاشة تُفتح صامتة.
     }
   }
-
-  void _raiseLoginBed() {
-    // ولا تُرفع إن كانت قد أُوقفت: الشاشةُ قد تُغادَر قبل أن ينتهي الترحيب،
-    // ورفعُ علوِّ مشغّلٍ متوقّفٍ لا يُسمع — لكنه يُسمع إن كان قد أُعيد
-    // تشغيله لشيءٍ آخر.
-    if (_loginBedStopped) return;
-    unawaited(_bedPlayer.setVolume(_loginVolume).catchError((_) {}));
-  }
-
-  bool _loginBedStopped = false;
 
   /// يوقف خلفية الدخول.
   ///
@@ -786,7 +672,6 @@ class StudentSoundService with WidgetsBindingObserver {
   /// النجاح يكون قد بدأ، فإيقافٌ شاملٌ هنا يقطعه بدل أن يقطع الخلفية. ومشغّلٌ
   /// خاصٌّ بها يجعل ذلك مسألةَ إيقافِ مشغّلٍ لا فحصِ ما يُسمع الآن.
   Future<void> stopLoginVoice() async {
-    _loginBedStopped = true;
     try {
       await _bedPlayer.stop();
     } catch (_) {}
@@ -991,8 +876,7 @@ class StudentSoundService with WidgetsBindingObserver {
         // بعد ثلث ثانية فيُقطع — فلا يُسمع منه شيء، ويبدو أنه «لم يعمل
         // نهائياً». موضعُه الصحيح فتحُ الشاشة لا الخروج منها.
         StudentSoundCue.loginSuccess => 'audio/manara-login-chime.mp3',
-        // ترحيبُ لوحة البطاقات، وهو غيرُ ترحيب فتح التطبيق: ذاك
-        // `launchWelcomeClip` ولا يُنادى إلا من `speakLaunchWelcome`.
+        // ترحيبُ لوحة البطاقات.
         StudentSoundCue.welcome => _welcomeClip,
         StudentSoundCue.gameReward => 'audio/success-reward.wav',
         // Handled above and never reached here; kept only so this switch

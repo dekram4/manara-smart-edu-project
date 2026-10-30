@@ -313,17 +313,31 @@ class _LoginScreenState extends State<LoginScreen> {
                 // logoBlock, and both are clamped — so solve it by
                 // iterating a few times rather than algebraically, which
                 // the clamps would make wrong at the extremes.
-                double boardSize = math.min(
+                // ‏على التابلت والآيباد: سبورةٌ بمقاسٍ مريحٍ في الوسط، لا تملأ
+                // ‏الشاشةَ كلَّها. كانت تُكبَّر حتى يبلغ المشهدُ حافّتَي الشاشة،
+                // ‏فتخرج عملاقةً على لوحٍ كبير. والهاتفُ يبقى كما هو: هناك كلُّ
+                // ‏نقطةٍ تلزم الحقول.
+                final landscape = areaSize.width > areaSize.height;
+                // ‏ولا يتبدّل بالكيبورد: السبورةُ لا يتغيّر حجمُها حين يكتب الطفل.
+                final tablet = areaSize.shortestSide >= 600;
+                double fit(double size) => !tablet
+                    ? size
+                    : math.min(
+                        size,
+                        landscape
+                            ? math.min(areaSize.height * 0.72 / stackSpan, areaSize.width * 0.6 / artW)
+                            : areaSize.width * 0.8 / artW,
+                      );
+                double boardSize = fit(math.min(
                   areaSize.height * 0.99 / (stackSpan + 0.19),
                   areaSize.width * 0.99 / artW,
-                );
+                ));
                 // While the keyboard is open the brand steps aside and
                 // gives the board its height (see `typing`, read above the
                 // Scaffold). On a phone in landscape only about 150px of
                 // window survives the keyboard, and spending a third of
                 // that on a logo leaves writing the student cannot read.
                 // It comes straight back when the keyboard closes.
-                final landscape = areaSize.width > areaSize.height;
                 double logoSize = 0;
                 double logoNameHeight = 0;
                 double logoBlockHeight = 0;
@@ -351,13 +365,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   logoBlockHeight = hideBrand
                       ? 0.0
                       : logoSize + logoNameGap + logoNameHeight;
-                  boardSize = math.min(
+                  boardSize = fit(math.min(
                     (areaSize.height * 0.99 -
                             logoBlockHeight -
                             (hideBrand ? 0.0 : logoGap)) /
                         stackSpan,
                     areaSize.width * 0.99 / artW,
-                  );
+                  ));
                 }
                 boardSize = math.max(boardSize, 1.0);
 

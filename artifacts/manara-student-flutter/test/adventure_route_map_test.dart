@@ -13,6 +13,7 @@ import 'package:manara_student/src/screens/academic_selection_screen.dart';
 import 'package:manara_student/src/services/student_auth_service.dart';
 import 'package:manara_student/src/services/student_settings.dart';
 import 'package:manara_student/src/widgets/adventure_route_map.dart';
+import 'package:manara_student/src/widgets/student_avatar_view.dart';
 
 /// خريطةُ المغامرة في شاشة اختيار المسار: صورُها وأصواتُها، وسيرُ خطواتها.
 void main() {
@@ -27,7 +28,7 @@ void main() {
       expect(RouteArt.subject('اللغة العربية'), 'assets/images/subjects/ar_letters.png');
       expect(RouteArt.subject('الحروف الإنجليزية'), 'assets/images/routes/subject_en_letters.png');
       expect(RouteArt.subject('الأرقام الإنجليزية'), 'assets/images/routes/subject_en_numbers.png');
-      expect(RouteArt.subject('الأرقام العربية'), 'assets/images/subjects/ar_numbers_conv.png');
+      expect(RouteArt.subject('الأرقام العربية'), 'assets/images/subjects/ar_digits_1.png');
       expect(RouteArt.subject('اللغة الإنجليزية'), 'assets/images/subjects/en_subj_1.png');
       expect(RouteArt.subject('الرياضيات'), 'assets/images/subjects/math_1.png');
       expect(RouteArt.subject('العلوم'), 'assets/images/routes/subject_science.png');
@@ -44,8 +45,25 @@ void main() {
       expect(RouteArt.item('الرياضيات', 0), 'assets/images/subjects/math_2.png');
       expect(RouteArt.item('الرياضيات', 5), 'assets/images/subjects/math_1.png');
       expect(RouteArt.item('العلوم', 0), 'assets/images/subjects/science_1.png');
-      // مادةٌ بصورةٍ واحدة: الصورةُ نفسُها، لا فراغ.
-      expect(RouteArt.item('الحروف العربية', 3), 'assets/images/subjects/ar_letters.png');
+      expect(RouteArt.item('الحروف العربية', 0), 'assets/images/subjects/ar_letters_1.png');
+      expect(RouteArt.item('الحروف العربية', 3), 'assets/images/subjects/ar_letters_4.png');
+    });
+
+    test('الأرقامُ العربية بأرقامها (١٢٣): لا مكعّباتُ 1 2 3 ولا الفرجارُ وأدواتُ الهندسة', () {
+      for (var i = 0; i < 12; i++) {
+        final art = RouteArt.item('الأرقام العربية', i);
+        expect(art, contains('ar_digits_'), reason: art);
+      }
+      expect(RouteArt.arabicNumbers, isNot(contains('assets/images/subjects/math_2.png')));
+      expect(RouteArt.arabicNumbers, isNot(contains('assets/images/subjects/ar_numbers_conv.png')));
+    });
+
+    test('لا تتكرّر صورةٌ في قائمةٍ ما اتّسعت صورُ مادّتها', () {
+      for (final subject in ['الرياضيات', 'العلوم', 'اللغة الإنجليزية', 'الحروف العربية', 'الأرقام العربية', 'الحروف الإنجليزية']) {
+        final count = RouteArt.pool(subject).length - 1;
+        final shown = [for (var i = 0; i < count; i++) RouteArt.item(subject, i)];
+        expect(shown.toSet(), hasLength(count), reason: subject);
+      }
     });
 
     test('الأرقامُ عربية', () {
@@ -79,6 +97,7 @@ void main() {
           RouteArt.math,
           RouteArt.science,
           RouteArt.general,
+          RouteArt.arabicNumbers,
         ])
           ...pool,
       };
@@ -193,6 +212,82 @@ void main() {
       // والزرُّ جاهز.
       final start = tester.widget<FilledButton>(find.byType(FilledButton).first);
       expect(start.onPressed, isNotNull);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('لحظةَ الدخول والمسارُ يُقرأ: ترحيبٌ بشخصية الطالب واسمه على خلفية الخريطة', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: AcademicSelectionScreen(
+          profile: const StudentProfile(id: 's1', name: 'سارة', username: 'sara', role: 'student'),
+          authService: authService,
+          apiBaseUrl: '',
+        ),
+      ));
+      // ‏الإطارُ الأوّل: الترحيبُ والمسارُ لم يصل بعد.
+      expect(find.byKey(const ValueKey('path-welcome-panel')), findsOneWidget);
+      expect(find.text(tr('path.welcomeHero')), findsOneWidget);
+      expect(find.text('سارة'), findsOneWidget);
+      expect(find.byType(StudentAvatarView), findsWidgets);
+      expect(find.byKey(const ValueKey('adventure-background')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('ترحيبٌ باسم الطالب وشخصيته في أعلى الخريطة', (tester) async {
+      await pump(tester);
+      expect(find.byKey(const ValueKey('path-welcome')), findsOneWidget);
+      expect(find.text(trf('path.welcomeName', {'name': 'طالب'})), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('«تغيير الدرس»: الخريطةُ نفسُها، والرجوعُ بلا تغيير، والبدءُ يعود بالمسار', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final results = <AcademicContext?>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              results.add(await Navigator.of(context).push<AcademicContext>(
+                MaterialPageRoute(
+                  builder: (_) => AcademicSelectionScreen(
+                    profile: const StudentProfile(id: 's1', name: 'طالب', username: 'student', role: 'student'),
+                    authService: authService,
+                    apiBaseUrl: '',
+                    initialData: data,
+                    pickOnly: true,
+                  ),
+                ),
+              ));
+            },
+            child: const Text('غيّر'),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('غيّر'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      // ‏لا خروجَ من الحساب هنا: رجوعٌ إلى اللوحة.
+      expect(find.byKey(const ValueKey('path-back')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('path-back')));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(results, [null]);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('غيّر'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.byKey(const ValueKey('adventure-option-0-0')));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.byType(FilledButton).first);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(results, hasLength(2));
+      expect(results.last?.grade, kg);
+      expect(results.last?.selectedLesson, isNotNull);
       await tester.pump(const Duration(milliseconds: 300));
     });
 

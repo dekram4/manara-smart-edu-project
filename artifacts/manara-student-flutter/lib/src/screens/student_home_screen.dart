@@ -16,6 +16,7 @@ import '../models/student_gamification.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_path_memory.dart';
 import '../services/student_challenge_service.dart';
+import 'academic_selection_screen.dart';
 import 'home_layout.dart';
 import 'kindergarten_card_screens.dart';
 import '../services/quran_recitation.dart';
@@ -24,13 +25,13 @@ import '../services/student_study_service.dart';
 import '../services/student_duel_service.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
-import '../widgets/lesson_scope_sheet.dart';
 import '../widgets/living_art.dart';
 import '../widgets/living_tile_art.dart';
 import '../widgets/manara_logo.dart';
 import '../widgets/student_display_toggles.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/dealt_card_entrance.dart';
+import '../widgets/change_lesson_button.dart';
 import '../widgets/peer_challenge_card.dart';
 import '../widgets/student_no_back.dart';
 import '../widgets/student_avatar_view.dart';
@@ -683,8 +684,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
         .then((_) => _loadGamification());
   }
 
-  /// Opens the lesson switcher and, if the student confirms, swaps the
-  /// lesson every card works against.
+  /// Opens the adventure map to pick another lesson and, if the student
+  /// starts it, swaps the lesson every card works against.
   ///
   /// The hierarchy is read fresh from Supabase every time the switcher
   /// opens, so a branch the teacher deleted is gone on the student's very
@@ -715,11 +716,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       return;
     }
 
-    final chosen = await LessonScopeSheet.show(
-      context,
-      data: data,
-      current: _academicContext,
-      allowsSubject: widget.profile.allowsSubject,
+    // ‏خريطةُ المغامرة نفسُها التي اختار بها مسارَه أوّلَ مرّة، على درسه الحاليّ،
+    // ‏و«ابدأ المغامرة» تعود بالمسار الجديد إلى هنا.
+    final chosen = await Navigator.of(context).push<AcademicContext>(
+      StudentPageRoute<AcademicContext>(
+        builder: (_) => AcademicSelectionScreen(
+          profile: widget.profile,
+          authService: widget.authService,
+          apiBaseUrl: widget.apiBaseUrl,
+          initialData: data,
+          pickOnly: true,
+        ),
+      ),
     );
     if (chosen == null || !mounted) return;
     setState(() => _academicContext = chosen);

@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/student_sound_service.dart';
+import 'fitted_art_backdrop.dart';
 
 /// خطوةٌ في خريطة المغامرة: مستوىً من شجرة المسار (الصف، المادة...).
 @immutable
@@ -70,12 +70,52 @@ class RouteArt {
   static const _routes = 'assets/images/routes/';
   static const _subjects = 'assets/images/subjects/';
 
-  static const quran = ['${_routes}subject_quran.png', '${_subjects}noorani.png'];
-  static const noorani = ['${_subjects}noorani.png', '${_routes}subject_quran.png'];
-  static const arabicLetters = ['${_subjects}ar_letters.png'];
-  static const arabicNumbers = ['${_subjects}ar_numbers_conv.png', '${_subjects}math_2.png'];
-  static const englishLetters = ['${_routes}subject_en_letters.png', '${_subjects}en_learn.png', '${_subjects}en_subj_4.png'];
-  static const englishNumbers = ['${_routes}subject_en_numbers.png', '${_subjects}math_6.png'];
+  // ‏كلُّ مجموعةٍ أوّلُها صورةُ المادة، وما بعدها لوحداتها ودروسها: صورٌ مختلفة
+  // ‏ما اتّسعت، فلا تتكرّر صورةٌ في قائمةٍ إلا إن زادت خياراتُها على صورها.
+  static const quran = [
+    '${_routes}subject_quran.png',
+    '${_subjects}noorani.png',
+    '${_subjects}ar_letters.png',
+    '${_subjects}ar_letters_1.png',
+  ];
+  static const noorani = [
+    '${_subjects}noorani.png',
+    '${_routes}subject_quran.png',
+    '${_subjects}ar_letters_1.png',
+    '${_subjects}ar_letters_2.png',
+  ];
+
+  /// الحروفُ العربية: لوحةُ الحروف، ثم مكعّباتُها أ ب ت، ث ج ح...
+  static const arabicLetters = [
+    '${_subjects}ar_letters.png',
+    '${_subjects}ar_letters_1.png',
+    '${_subjects}ar_letters_2.png',
+    '${_subjects}ar_letters_3.png',
+    '${_subjects}ar_letters_4.png',
+  ];
+
+  /// الأرقامُ العربية بأرقامها هي (١٢٣) — لا مكعّباتُ 1 2 3 ولا أدواتُ الهندسة.
+  static const arabicNumbers = [
+    '${_subjects}ar_digits_1.png',
+    '${_subjects}ar_digits_2.png',
+    '${_subjects}ar_digits_3.png',
+    '${_subjects}ar_digits_4.png',
+  ];
+  static const englishLetters = [
+    '${_routes}subject_en_letters.png',
+    '${_subjects}en_learn.png',
+    '${_subjects}en_subj_4.png',
+    '${_subjects}en_subj_3.png',
+    '${_subjects}en_subj_2.png',
+  ];
+
+  /// الأرقامُ الإنجليزية: هنا مكانُ مكعّبات 1 2 3.
+  static const englishNumbers = [
+    '${_routes}subject_en_numbers.png',
+    '${_subjects}ar_numbers_conv.png',
+    '${_subjects}math_6.png',
+    '${_subjects}math_5.png',
+  ];
   static const english = [
     '${_subjects}en_subj_1.png',
     '${_subjects}en_subj_2.png',
@@ -98,7 +138,12 @@ class RouteArt {
     '${_subjects}science_3.png',
     '${_subjects}science_4.png',
   ];
-  static const general = ['${_subjects}general_1.png', '${_subjects}general_2.png'];
+  static const general = [
+    '${_subjects}general_1.png',
+    '${_subjects}general_2.png',
+    '${_subjects}science_4.png',
+    '${_subjects}en_subj_1.png',
+  ];
 
   /// بوابتان تتناوبان على الصفوف.
   static String gate(int index) => '${_routes}gate_${index.isEven ? 1 : 2}.png';
@@ -130,7 +175,9 @@ class RouteArt {
     if (has('علوم|science')) return science;
     if (has('ثقاف|general')) return general;
     // مادةٌ لا تُعرف: صورةٌ من الثقافة العامة، ثابتةٌ لاسمها.
-    return [general[key.hashCode.abs() % general.length], ...general];
+    // ‏دورانٌ لا إضافة: كلُّ صورةٍ مرّةً واحدة.
+    final start = key.hashCode.abs() % general.length;
+    return [for (var i = 0; i < general.length; i++) general[(start + i) % general.length]];
   }
 
   /// صورةُ المادة في بطاقتها.
@@ -271,7 +318,7 @@ class _AdventureRouteMapState extends State<AdventureRouteMap> with TickerProvid
       return Stack(
         fit: StackFit.expand,
         children: [
-          _Backdrop(drift: _drift, size: size),
+          RouteBackdrop(drift: _drift),
           Padding(
             padding: EdgeInsets.fromLTRB(8, 54, 8, widget.bottomInset),
             child: Column(
@@ -324,39 +371,54 @@ class _AdventureRouteMapState extends State<AdventureRouteMap> with TickerProvid
 
 /// الخلفيةُ: صفٌّ دراسيٌّ ينجرف ببطءٍ شديد، تحت غشاءٍ أبيضَ خفيف وتمويهٍ
 /// يسير يجعلانه هادئاً لا يزاحم الخيارات — ونجومٌ وفقاعاتٌ تطفو فوقه.
-class _Backdrop extends StatelessWidget {
-  const _Backdrop({required this.drift, required this.size});
+class RouteBackdrop extends StatefulWidget {
+  /// [drift]: ساعةُ الخريطة إن وُجدت؛ وإلا فللخلفية ساعتُها — كما خلف ترحيب
+  /// الشاشة وهي تقرأ المسار.
+  const RouteBackdrop({this.drift, super.key});
 
-  final Animation<double> drift;
-  final Size size;
+  final Animation<double>? drift;
+
+  @override
+  State<RouteBackdrop> createState() => _RouteBackdropState();
+}
+
+class _RouteBackdropState extends State<RouteBackdrop> with SingleTickerProviderStateMixin {
+  AnimationController? _own;
+
+  Animation<double> get drift => widget.drift ?? (_own ??= AnimationController(
+        vsync: this,
+        duration: const Duration(seconds: 24),
+      ));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final own = widget.drift == null ? drift as AnimationController : null;
+    if (own == null) return;
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      own.stop();
+    } else if (!own.isAnimating) {
+      own.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _own?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final dpr = MediaQuery.devicePixelRatioOf(context);
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          AnimatedBuilder(
-            animation: drift,
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.6, sigmaY: 1.6),
-              child: Image.asset(
-                RouteArt.background,
-                key: const ValueKey('adventure-background'),
-                fit: BoxFit.cover,
-                cacheWidth: (size.width * dpr * 1.08).clamp(360.0, 2200.0).round(),
-                errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFFFFF7E8)),
-              ),
-            ),
-            builder: (context, child) {
-              final t = Curves.easeInOutSine.transform(drift.value);
-              return Transform.scale(
-                scale: 1.04 + 0.03 * t,
-                alignment: Alignment(-0.3 + 0.6 * t, 0),
-                child: child,
-              );
-            },
+          FittedArtBackdrop(
+            asset: RouteArt.background,
+            drift: drift,
+            imageKey: const ValueKey('adventure-background'),
+            blur: 1.6,
           ),
           // ‏غشاءٌ أبيض: الصورةُ حاضرةٌ ولا تشدّ العين عن الخيارات.
           const DecoratedBox(

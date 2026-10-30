@@ -18,8 +18,8 @@ import '../services/student_content_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/adventure_route_map.dart';
 import '../widgets/student_experience.dart';
+import '../widgets/student_avatar_view.dart';
 import '../widgets/student_no_back.dart';
-import '../widgets/student_mascot.dart';
 import 'login_screen.dart';
 import 'student_home_screen.dart';
 
@@ -29,6 +29,7 @@ class AcademicSelectionScreen extends StatefulWidget {
     required this.authService,
     required this.apiBaseUrl,
     this.initialData,
+    this.pickOnly = false,
     super.key,
   });
 
@@ -36,15 +37,14 @@ class AcademicSelectionScreen extends StatefulWidget {
   final StudentAuthService authService;
   final String apiBaseUrl;
 
-  /// Stands in for the network fetch so the laid-out scene can be tested.
-  ///
-  /// Without this the screen can only ever be pumped in its loading or
-  /// error state — the books and the start button never render, so any
-  /// test that measures them passes by finding nothing. Every visual
-  /// report about this screen has been about those widgets, so they are
-  /// exactly the ones that need to be reachable.
-  @visibleForTesting
+  /// شجرةُ المسار جاهزةً بدل قراءتها من الخادم: لوحةُ البطاقات تمرّر ما قرأته
+  /// للتوّ حين يغيّر الطالبُ درسَه، والاختباراتُ تمرّر شجرتها.
   final AcademicSelectionData? initialData;
+
+  /// «تغيير الدرس» من لوحة البطاقات: الخريطةُ نفسُها، لكن «ابدأ المغامرة»
+  /// يعود بالمسار المختار ([AcademicContext]) إلى اللوحة بدل أن يفتح لوحةً
+  /// جديدة، والزرُّ في الركن رجوعٌ لا خروجٌ من الحساب.
+  final bool pickOnly;
 
   @override
   State<AcademicSelectionScreen> createState() => _AcademicSelectionScreenState();
@@ -111,10 +111,13 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _loadGamification();
     unawaited(StudentAvatars.adoptFromProfile(widget.profile.appearance));
     // The screen greets the student once it is on screen, in the same voice
-    // as the welcome before it and the hub after it.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(StudentSoundService.instance.speakPath());
-    });
+    // as the welcome before it and the hub after it. Not when they came back
+    // to change their lesson: the steps' own prompts are enough then.
+    if (!widget.pickOnly) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(StudentSoundService.instance.speakPath());
+      });
+    }
   }
 
   @override
@@ -406,6 +409,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     ));
     StudentSoundService.instance.playTap();
     HapticFeedback.heavyImpact();
+    if (widget.pickOnly) {
+      // ‏إلى اللوحة التي جاء منها، بدرسه الجديد.
+      unawaited(StudentSoundService.instance.stopPathVoice());
+      Navigator.of(context).pop(selection);
+      return;
+    }
     // Silenced here, at the tap, rather than in dispose: by the time this
     // route is torn down the hub has begun its own welcome on the same player.
     unawaited(StudentSoundService.instance.stopPathVoice());
@@ -466,10 +475,16 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
+  /// رجوعٌ إلى لوحة البطاقات بلا تغيير (في [AcademicSelectionScreen.pickOnly]).
+  void _back() {
+    StudentSoundService.instance.playTap();
+    unawaited(StudentSoundService.instance.stopPathVoice());
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StudentNoBack(
-      child: Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: StudentSurface.coolGround(context),
       body: Stack(
         children: [
@@ -519,6 +534,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           // ‏والزرُّ يتوهّج ويثب: فسحةٌ فوقه لا تلامسه فيها البطاقات.
                           bottomInset: startBand + (_awaitingLessons ? 70 : 12),
                         ),
+                      ),
+                    // ‏الترحيبُ والانتظار على خلفية الخريطة نفسها، لا على أرضٍ رمادية.
+                    if (!_ready)
+                      Positioned.fromRect(
+                        rect: imageRect,
+                        child: const RouteBackdrop(),
                       ),
                     if (!_ready)
                       Positioned.fromRect(
@@ -575,8 +596,24 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                     Positioned(
                       top: 4,
                       left: 8,
-                      child: _LeaveButton(onPressed: _signOut),
+                      child: widget.pickOnly
+                          ? _LeaveButton(
+                              key: const ValueKey('path-back'),
+                              onPressed: _back,
+                              icon: Icons.arrow_back_rounded,
+                              label: tr('path.back'),
+                              color: const Color(0xFF2563EB),
+                            )
+                          : _LeaveButton(onPressed: _signOut),
                     ),
+                    // ‏الترحيبُ بشخصية الطالب نفسِه واسمِه، في وسط الأعلى.
+                    if (_ready)
+                      Positioned(
+                        top: 4,
+                        left: 132,
+                        right: 132,
+                        child: Center(child: _WelcomeBadge(name: widget.profile.name)),
+                      ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -618,32 +655,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           ),
         ],
       ),
-      ),
     );
+    // ‏شاشةُ الدخول الأولى لا رجوعَ منها إلا بالخروج؛ وتغييرُ الدرس يُرجَع منه.
+    return widget.pickOnly ? scaffold : StudentNoBack(child: scaffold);
   }
 
   Widget _buildLoadingOrError() {
     if (_loading) {
-      return StudentEntrance(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const PathMascot(size: 120),
-            const SizedBox(height: 10),
-            Text(
-              trf('path.greeting', {'name': widget.profile.name}),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: StudentSurface.ink(context),
-                fontSize: 30,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 12),
-            StudentRiveLoading(size: 84, label: tr('path.loading')),
-          ],
-        ),
-      );
+      return _WelcomePanel(name: widget.profile.name);
     }
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -762,17 +781,29 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
 /// الذي يكلّفه شيئاً — فيلبس لون ما لا يُفعل بلا قصد. والأيقونة باب خروج
 /// والكلمة «خروج»، يعرفهما من لا يقرأ بعد.
 class _LeaveButton extends StatelessWidget {
-  const _LeaveButton({required this.onPressed});
+  const _LeaveButton({
+    required this.onPressed,
+    this.icon = Icons.logout_rounded,
+    this.label,
+    this.color = const Color(0xFFE05A5A),
+    super.key,
+  });
 
   final VoidCallback onPressed;
 
+  /// خروجٌ من الحساب افتراضاً؛ وفي «تغيير الدرس» رجوعٌ إلى اللوحة.
+  final IconData icon;
+  final String? label;
+  final Color color;
+
   @override
   Widget build(BuildContext context) {
+    final text = label ?? tr('path.leave');
     return Semantics(
       button: true,
-      label: tr('home.signOut'),
+      label: label ?? tr('home.signOut'),
       child: Tooltip(
-        message: tr('home.signOut'),
+        message: label ?? tr('home.signOut'),
         child: StudentPressScale(
           child: Material(
             color: Colors.transparent,
@@ -784,7 +815,7 @@ class _LeaveButton extends StatelessWidget {
                 // مساحة لمس مريحة لإصبع صغير: أربعون نقطة ارتفاعاً.
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE05A5A),
+                  color: color,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
@@ -798,11 +829,10 @@ class _LeaveButton extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.logout_rounded,
-                        color: Colors.white, size: 18),
+                    Icon(icon, color: Colors.white, size: 18),
                     const SizedBox(width: 6),
                     Text(
-                      tr('path.leave'),
+                      text,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
@@ -814,6 +844,109 @@ class _LeaveButton extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// «أهلاً بك يا بطل، {name}!» بشخصية الطالب نفسِه — في وسط أعلى الخريطة.
+///
+/// الشخصيةُ ما اختاره الطالب ([StudentAvatars.selected]، وقد أُخذت من ملفّه عند
+/// فتح الشاشة)، وإن لم يختر بعدُ فالشخصيةُ الأساسية.
+class _WelcomeBadge extends StatelessWidget {
+  const _WelcomeBadge({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        key: const ValueKey('path-welcome'),
+        padding: const EdgeInsetsDirectional.fromSTEB(4, 4, 16, 4),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFFFFF7D6), Colors.white]),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFFFC85C), width: 2),
+          boxShadow: const [BoxShadow(color: Color(0x33F59E0B), blurRadius: 12, offset: Offset(0, 4))],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const StudentAvatarView(size: 38, showRing: false),
+            const SizedBox(width: 8),
+            Text(
+              trf('path.welcomeName', {'name': name}),
+              style: const TextStyle(
+                color: Color(0xFF1E3A5F),
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ما يراه الطالبُ لحظةَ يدخل، والمسارُ يُقرأ: شخصيتُه كبيرةً في هالةٍ تنبض،
+/// و«أهلاً بك يا بطل!» واسمُه — لا دائرةَ انتظارٍ مجرّدة.
+class _WelcomePanel extends StatelessWidget {
+  const _WelcomePanel({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return StudentEntrance(
+      child: Container(
+        key: const ValueKey('path-welcome-panel'),
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.fromLTRB(28, 24, 28, 22),
+        constraints: const BoxConstraints(maxWidth: 460),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: const Color(0xFFFFC85C), width: 3),
+          boxShadow: const [BoxShadow(color: Color(0x40F59E0B), blurRadius: 30, offset: Offset(0, 10))],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _GlowPulse(
+              color: const Color(0xFFFFC85C),
+              active: true,
+              radius: 80,
+              child: const StudentAvatarView(size: 132),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              tr('path.welcomeHero'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFB45309),
+                fontSize: 30,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              name,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF1E3A5F),
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 14),
+            StudentRiveLoading(size: 64, label: tr('path.loading')),
+          ],
         ),
       ),
     );
@@ -886,11 +1019,19 @@ class _StartAdventureButton extends StatelessWidget {
 /// توهّجٌ ملوّنٌ يتنفّس حول [child] ونبضٌ خفيفٌ في حجمه، ما دام [active].
 /// ويسكن لمن طلب تقليل الحركة.
 class _GlowPulse extends StatefulWidget {
-  const _GlowPulse({required this.color, required this.active, required this.child});
+  const _GlowPulse({
+    required this.color,
+    required this.active,
+    required this.child,
+    this.radius = 24,
+  });
 
   final Color color;
   final bool active;
   final Widget child;
+
+  /// استدارةُ الهالة: زرٌّ مستطيلٌ مستدير، أو شخصيةٌ في دائرة.
+  final double radius;
 
   @override
   State<_GlowPulse> createState() => _GlowPulseState();
@@ -949,7 +1090,7 @@ class _GlowPulseState extends State<_GlowPulse> with SingleTickerProviderStateMi
           scale: 1 + 0.05 * t,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(widget.radius),
               boxShadow: [
                 if (widget.active)
                   BoxShadow(
