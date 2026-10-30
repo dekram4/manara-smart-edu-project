@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:manara_student/src/l10n/student_strings.dart';
 
 import 'package:manara_student/src/models/student_gamification.dart';
 import 'package:manara_student/src/models/study_games.dart';
@@ -180,26 +183,47 @@ void main() {
     expect(won, ['matching']);
   });
 
-  testWidgets('السباق: بلوغُ الهدف فوزٌ مرّةً واحدة', (tester) async {
-    final won = <String>[];
-    final games = await _pump(tester, (game) async {
-      won.add(game.id);
-      return _reward(5, 15);
-    });
-    await _tap(tester, 'سباق');
-    await tester.pumpAndSettle();
-    final quiz = games.last;
-    for (var round = 0; round < 5; round++) {
-      final shown = quiz.questions.firstWhere(
-        (q) => find.text(q.question).evaluate().isNotEmpty,
-      );
-      await _tap(tester, shown.answer);
-      await tester.pump(const Duration(milliseconds: 900));
-      await tester.pump(const Duration(milliseconds: 400));
+  testWidgets('أسئلةُ الدرس أربعُ ألعاب لا قائمةُ نصوص', (tester) async {
+    await _pump(tester, (_) async => null);
+    for (final style in ['balloons', 'fishing', 'train', 'slingshot']) {
+      expect(find.byKey(ValueKey('arcade-$style')), findsOneWidget);
     }
-    await _settle(tester);
-    expect(won, ['endless_quiz']);
+    expect(find.text('سباق'), findsNothing);
   });
+
+  for (final style in ['balloons', 'fishing', 'train', 'slingshot']) {
+    testWidgets('لعبةُ $style: إصابةُ الجولة كلِّها فوزٌ مرّةً واحدة', (tester) async {
+      for (final channel in ['xyz.luan/audioplayers', 'xyz.luan/audioplayers.global']) {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(MethodChannel(channel), (_) async => null);
+      }
+      tester.view.physicalSize = const Size(1024, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final won = <String>[];
+      final games = await _pump(tester, (game) async {
+        won.add(game.id);
+        return _reward(5, 15);
+      });
+      await tester.ensureVisible(find.byKey(ValueKey('arcade-$style')));
+      await tester.tap(find.byKey(ValueKey('arcade-$style')));
+      await tester.pump(const Duration(milliseconds: 600));
+      final quiz = games.last;
+      // ‏خمسةُ أسئلة: الجولةُ خمسة، والفوزُ ثلاثةٌ منها.
+      for (var round = 0; round < 5; round++) {
+        final shown = quiz.questions.lastWhere(
+          (q) => find.text(q.question).evaluate().isNotEmpty,
+        );
+        await tester.tap(find.text(shown.answer).last);
+        for (var i = 0; i < 25; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+      await _settle(tester);
+      expect(won, ['endless_quiz']);
+      expect(find.text(trf('study.games.arcade.result', {'n': 5, 'total': 5})), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('السحب الحقيقي: ضغطةٌ مطوّلة ثم إسقاطٌ في السلّة', (tester) async {
     final won = <String>[];

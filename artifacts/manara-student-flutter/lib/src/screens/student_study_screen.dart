@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../widgets/lively.dart';
 import '../theme/motion.dart';
 
@@ -25,13 +24,13 @@ import '../widgets/study_games.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 
-/// «مغامرة الأذكياء ومهمة المذاكرة»: خريطةُ الدرس، وتحدٍّ قصصيٌّ فيه.
+/// «مغامرة الأذكياء ومهمة المذاكرة»: خريطةُ الدرس، وتحدٍّ قصصيٌّ فيه، وألعابُه.
 ///
-/// ── تبويبان لا شاشةٌ واحدة ──
-/// الخريطةُ تُري الطفل شكلَ الدرس، والتحدي يسأله فيما رآه. وهما عملان
-/// مختلفان: الأول يُقرأ ويُتأمّل، والثاني يُلعب. فجمعُهما في عمودٍ واحد
-/// يجعل الطفل يمرّ على الخريطة بإصبعه ليصل إلى الزرّ، فلا ينظر إليها.
-/// وتبويبان يجعلان كلاً منهما مكاناً يُقصد.
+/// ── صفحةٌ واحدةٌ لا تبويبات ──
+/// الأقسامُ الثلاثة رحلةٌ واحدة تُقرأ من أعلى إلى أسفل: يمرّ الطفلُ على محطات
+/// الدرس، ثم يُختبر فيها بحكاية، ثم يلعب بأسئلتها. ولكل قسمٍ رأسٌ كرتونيٌّ
+/// بلونه يدلّ عليه، وبين الأقسام آثارُ أقدامٍ تقود إلى ما بعدها — فلا يبحث
+/// الطفلُ عن تبويبٍ لا يراه زرّاً.
 class StudentStudyScreen extends StatefulWidget {
   const StudentStudyScreen({
     required this.profile,
@@ -52,17 +51,13 @@ class StudentStudyScreen extends StatefulWidget {
   State<StudentStudyScreen> createState() => _StudentStudyScreenState();
 }
 
-class _StudentStudyScreenState extends State<StudentStudyScreen>
-    with SingleTickerProviderStateMixin {
+class _StudentStudyScreenState extends State<StudentStudyScreen> {
   StudyPack? _pack;
   String? _error;
   bool _loading = true;
 
-  late final TabController _tabs = TabController(length: 3, vsync: this)
-    // والسحبُ بين التبويبين يحرّك المبدّل في الرأس كما يحرّكه الضغط.
-    ..addListener(() {
-      if (mounted) setState(() {});
-    });
+  /// رأسُ «التحدي القصصي»: يُمرَّر إليه حين يبدأ تحدٍّ من الخريطة.
+  final _storyKey = GlobalKey();
   late final ConfettiController _confetti =
       ConfettiController(duration: const Duration(milliseconds: 600));
 
@@ -104,13 +99,12 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     unawaited(_load());
   }
 
-  /// ألعابُ الدرس تُطلب حين يُفتح تبويبُها وحده، لا مع فتح البطاقة: الخريطةُ
-  /// والتحدّي لا ينتظران توليدَ الألعاب على الخادم.
+  /// ألعابُ الدرس تُطلب في قسمها وحده، لا مع الخريطة: الخريطةُ والتحدّي لا
+  /// ينتظران توليدَ الألعاب على الخادم، والمحفوظُ منها يُعرض فوراً.
   Future<StudyGamesPack> _takeGames() => widget.studyService.fetchGames(lessonId: _lessonId);
 
   @override
   void dispose() {
-    _tabs.dispose();
     _confetti.dispose();
     super.dispose();
   }
@@ -216,7 +210,13 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
       _earned = null;
       _alreadyRewarded = false;
     });
-    _tabs.animateTo(1);
+    // ‏الحكايةُ تحت الخريطة: تُمرَّر إليها الصفحة.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final story = _storyKey.currentContext;
+      if (story != null && mounted) {
+        unawaited(Scrollable.ensureVisible(story, duration: const Duration(milliseconds: 450), curve: Curves.easeInOutCubic));
+      }
+    });
   }
 
   void _pick(int choice) {
@@ -290,7 +290,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     }
   }
 
-  /// تبويبُ «ألعاب الدرس»: سحبٌ وإسقاط، ومطابقة، وسباقٌ بلا نهاية.
+  /// «ألعاب الدرس»: سحبٌ وإسقاط، ومطابقة، وأسئلةُ الدرس في أربع ألعاب.
   ///
   /// ── المكافأةُ يقرّرها الخادم ──
   /// المعرّفُ `درس::لعبة`، والخادمُ يقرأ جواهرَها ونقاطَها من سجلّ الدرس
@@ -305,9 +305,6 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     return result;
   }
 
-  /// التبويبُ الظاهر: ٠ الخريطة، ١ التحدي، ٢ الألعاب.
-  int get _tab => _tabs.index;
-
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -317,19 +314,11 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
         body: Stack(
           children: [
             const PortalWatermark(asset: PortalBackgrounds.study),
+            const Positioned.fill(child: _CartoonSky()),
             SafeArea(
               child: Column(
                 children: [
-                  _StudyHeader(
-                    lessonName: widget.academicContext?.lesson ?? '',
-                    showSwitcher: _pack != null,
-                    tab: _tab,
-                    onTab: (index) {
-                      StudentSoundService.instance.playTap();
-                      _tabs.animateTo(index);
-                      setState(() {});
-                    },
-                  ),
+                  _StudyHeader(lessonName: widget.academicContext?.lesson ?? ''),
                   // انتقال القسم (مواصفة الحركة §5.4): المحتوى فوراً، وشريطٌ
                   // رفيعٌ أعلاه ما دام يُحضَّر.
                   Expanded(
@@ -404,52 +393,90 @@ class _StudentStudyScreenState extends State<StudentStudyScreen>
     final pack = _pack;
     if (pack == null) return const SizedBox.shrink();
 
-    return TabBarView(
-      controller: _tabs,
-      children: [
-        _MapTab(
-          mindMap: pack.mindMap,
-          // ضغطةٌ على «تحدَّني في هذه المحطة» تفتح التبويب الثاني بتحدّيها.
-          onChallengeBranch: (branch) {
-            _start(branch);
-            setState(() {});
-          },
-          onChallengeAll: () {
-            _branch = '';
-            _start();
-            setState(() {});
-          },
-        ),
-        _StoryTab(
-          appearance: widget.profile.appearance,
-          branch: _branch,
-          scenario: _scenario,
-          at: _at,
-          picked: _picked,
-          runGems: _runGems,
-          earned: _earned,
-          alreadyRewarded: _alreadyRewarded,
-          busy: _rewarding,
-          onStart: _start,
-          onPick: _pick,
-          onNext: _next,
-        ),
-        StudyGamesTab(
-          load: _takeGames,
-          cached: () => StudentStudyService.cachedGames(lessonId: _lessonId),
-          onWin: _rewardGame,
-          // ‏إعادةُ اللعب نسخةٌ جديدة من النصّ الكامل للدرس، لا تكرّر ما رآه.
-          fresh: (base, exclude) => widget.studyService.fetchFreshGame(
-            lessonId: _lessonId,
-            type: base.type,
-            exclude: exclude,
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 920),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              StudentEntrance(
+                child: _SectionBanner(
+                  emoji: '🗺️',
+                  title: tr('study.tabMap'),
+                  subtitle: tr('study.section.map'),
+                  colors: const [_StudyTokens.violet, Color(0xFF6366F1)],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _MapTab(
+                mindMap: pack.mindMap,
+                // ‏«تحدَّني في هذه المحطة» يبدأ تحدّيها وتُمرَّر الصفحةُ إليه.
+                onChallengeBranch: _start,
+                onChallengeAll: () {
+                  _branch = '';
+                  _start();
+                },
+              ),
+              const _Footsteps(color: _StudyTokens.fuchsia),
+              StudentEntrance(
+                delay: const Duration(milliseconds: 120),
+                child: _SectionBanner(
+                  key: _storyKey,
+                  emoji: '⚡',
+                  title: tr('study.tabStory'),
+                  subtitle: tr('study.section.story'),
+                  colors: const [_StudyTokens.fuchsia, Color(0xFFDB2777)],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _StoryTab(
+                appearance: widget.profile.appearance,
+                branch: _branch,
+                scenario: _scenario,
+                at: _at,
+                picked: _picked,
+                runGems: _runGems,
+                earned: _earned,
+                alreadyRewarded: _alreadyRewarded,
+                busy: _rewarding,
+                onStart: _start,
+                onPick: _pick,
+                onNext: _next,
+              ),
+              const _Footsteps(color: _StudyTokens.gold),
+              StudentEntrance(
+                delay: const Duration(milliseconds: 240),
+                child: _SectionBanner(
+                  emoji: '🎮',
+                  title: tr('study.tabGames'),
+                  subtitle: tr('study.section.games'),
+                  colors: const [Color(0xFFF59E0B), Color(0xFFEC4899)],
+                ),
+              ),
+              const SizedBox(height: 12),
+              StudyGamesTab(
+                embedded: true,
+                load: _takeGames,
+                cached: () => StudentStudyService.cachedGames(lessonId: _lessonId),
+                onWin: _rewardGame,
+                // ‏إعادةُ اللعب نسخةٌ جديدة من النصّ الكامل للدرس، لا تكرّر ما رآه.
+                fresh: (base, exclude) => widget.studyService.fetchFreshGame(
+                  lessonId: _lessonId,
+                  type: base.type,
+                  exclude: exclude,
+                ),
+                seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
+                // ‏«تتبّع واكتب» و«تسميع القرآن» خرجتا إلى بطاقتين في الواجهة
+                // ‏(«قلمي السحري» و«أبطال تسميع القرآن»): لا تتكرّران هنا.
+                allowTracing: false,
+              ),
+            ],
           ),
-          seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
-          // ‏«تتبّع واكتب» و«تسميع القرآن» خرجتا إلى بطاقتين في الواجهة
-          // ‏(«قلمي السحري» و«أبطال تسميع القرآن»): لا تتكرّران هنا.
-          allowTracing: false,
         ),
-      ],
+      ),
     );
   }
 }
@@ -476,333 +503,303 @@ class _StudyTokens {
   ];
 }
 
-/// رأسُ الشاشة: الرجوع، والعنوانُ ودرسُه، والمبدّلُ بين الخريطة والتحدي.
-///
-/// ── مبدّلٌ لا تبويبات ──
-/// شريطُ التبويبات الأصليّ خطٌّ رفيعٌ تحت كلمتين، لا يراه الطفلُ زرّاً. والمبدّلُ
-/// زرّان كبيران بأيقونتيهما، والمختارُ منهما يرتفع على حافّته.
+/// رأسُ الشاشة: الرجوع، والعنوانُ ودرسُه، وزرُّ الصوت.
 class _StudyHeader extends StatelessWidget {
-  const _StudyHeader({
-    required this.lessonName,
-    required this.showSwitcher,
-    required this.tab,
-    required this.onTab,
-  });
+  const _StudyHeader({required this.lessonName});
 
   final String lessonName;
-  final bool showSwitcher;
-  final int tab;
-  final ValueChanged<int> onTab;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 4, 12, 8),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => Navigator.of(context).maybePop(),
-                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                icon: const BackButtonIcon(),
-                color: StudentSurface.ink(context),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // يصغر ولا يُقصّ: «مغامرة الأذكياء ومهمة المذاكرة» أطولُ من
-                    // عرض هاتف، و«…» في عنوان الشاشة يُخفي نصفَ اسمها.
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        tr('portal.study'),
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                          color: StudentSurface.ink(context),
-                        ),
-                      ),
-                    ),
-                    if (lessonName.trim().isNotEmpty)
-                      Text(
-                        lessonName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: StudentSurface.mutedInk(context),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const StudentSoundToggle(),
-            ],
+          IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            icon: const BackButtonIcon(),
+            color: StudentSurface.ink(context),
           ),
-          if (showSwitcher) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _SwitchPill(
-                      icon: '🗺️',
-                      label: tr('study.tabMap'),
-                      selected: tab == 0,
-                      color: _StudyTokens.violet,
-                      onTap: () => onTab(0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // يصغر ولا يُقصّ: «مغامرة الأذكياء ومهمة المذاكرة» أطولُ من
+                // عرض هاتف، و«…» في عنوان الشاشة يُخفي نصفَ اسمها.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    tr('portal.study'),
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: StudentSurface.ink(context),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SwitchPill(
-                      icon: '⚡',
-                      label: tr('study.tabStory'),
-                      selected: tab == 1,
-                      color: _StudyTokens.fuchsia,
-                      onTap: () => onTab(1),
+                ),
+                if (lessonName.trim().isNotEmpty)
+                  Text(
+                    lessonName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: StudentSurface.mutedInk(context),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _GamesPill(
-                      label: tr('study.tabGames'),
-                      selected: tab == 2,
-                      onTap: () => onTab(2),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
+          ),
+          const StudentSoundToggle(),
         ],
       ),
     );
   }
 }
 
-class _SwitchPill extends StatelessWidget {
-  const _SwitchPill({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.color,
-    required this.onTap,
+/// رأسُ قسمٍ في الصفحة: شريطٌ كرتونيٌّ بلونه على حافّةٍ أغمق، ورمزٌ يتمايل
+/// في دائرة، ونجومٌ تلمع. ومن طلب تقليلَ الحركة يراه ساكناً بألوانه.
+class _SectionBanner extends StatefulWidget {
+  const _SectionBanner({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.colors,
+    super.key,
   });
 
-  final String icon;
-  final String label;
-  final bool selected;
-  final Color color;
-  final VoidCallback onTap;
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final List<Color> colors;
 
   @override
-  Widget build(BuildContext context) {
-    final ledge = Color.lerp(color, Colors.black, 0.35)!;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(bottom: selected ? 5 : 0),
-          margin: EdgeInsets.only(top: selected ? 0 : 5),
-          decoration: BoxDecoration(
-            color: selected ? ledge : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            decoration: BoxDecoration(
-              color: selected ? color : StudentSurface.card(context),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: selected ? color : color.withValues(alpha: 0.35),
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(icon, style: const TextStyle(fontSize: 16)),
-                const SizedBox(width: 8),
-                Flexible(
-                  // يصغر ولا يُقصّ: نصفُ «التحدي القصصي» لا يُقرأ.
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w900,
-                        color: selected ? Colors.white : color,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  State<_SectionBanner> createState() => _SectionBannerState();
 }
 
-/// زرُّ «ألعاب الدرس»: أبهجُ ما في البطاقة، يدعو الطفلَ إلى اللعب.
-///
-/// تدرّجٌ بنفسجيٌّ ورديٌّ ذهبيّ، وتوهّجٌ ينبض حوله، ونبضٌ خفيفٌ في حجمه،
-/// و🎮 تتمايل. واختيارُه يُثبّت التوهّجَ ويُبرز حافّته البيضاء. ومن طلب في
-/// جهازه تقليلَ الحركة يراه بألوانه كاملةً ساكناً.
-class _GamesPill extends StatefulWidget {
-  const _GamesPill({required this.label, required this.selected, required this.onTap});
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_GamesPill> createState() => _GamesPillState();
-}
-
-class _GamesPillState extends State<_GamesPill> with SingleTickerProviderStateMixin {
-  static const _violet = Color(0xFF7C3AED);
-  static const _pink = Color(0xFFEC4899);
-  static const _gold = Color(0xFFF59E0B);
-
-  late final AnimationController _pulse =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
-  bool _pressed = false;
-  bool _still = false;
+class _SectionBannerState extends State<_SectionBanner> with SingleTickerProviderStateMixin {
+  late final AnimationController _sway =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (_still) {
-      _pulse
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _sway
         ..stop()
         ..value = 0.5;
-    } else if (!_pulse.isAnimating) {
-      _pulse.repeat(reverse: true);
+    } else if (!_sway.isAnimating) {
+      _sway.repeat(reverse: true);
     }
   }
 
   @override
   void dispose() {
-    _pulse.dispose();
+    _sway.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: widget.selected,
-      child: GestureDetector(
-        key: const ValueKey('study-games-pill'),
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTapUp: (_) {
-          setState(() => _pressed = false);
-          HapticFeedback.selectionClick();
-          widget.onTap();
-        },
-        child: AnimatedScale(
-          scale: _pressed ? 0.93 : 1,
-          duration: const Duration(milliseconds: 120),
-          child: AnimatedBuilder(
-            animation: _pulse,
-            builder: (context, child) {
-              final t = Curves.easeInOut.transform(_pulse.value);
-              final glow = widget.selected ? 1.0 : t;
-              return Transform.scale(
-                scale: 1 + 0.035 * t,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: LinearGradient(
-                      colors: [Colors.white, _gold.withValues(alpha: 0.9), Colors.white],
-                      stops: [0, t, 1],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _pink.withValues(alpha: 0.35 + 0.35 * glow),
-                        blurRadius: 8 + 12 * glow,
-                        spreadRadius: 0.5 + 1.5 * glow,
+    final colors = widget.colors;
+    final ledge = Color.lerp(colors.first, Colors.black, 0.35)!;
+    return Container(
+      padding: const EdgeInsets.only(bottom: 5),
+      decoration: BoxDecoration(
+        color: ledge,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: colors.first.withValues(alpha: 0.35), blurRadius: 18, offset: const Offset(0, 8))],
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 2),
+          gradient: LinearGradient(
+            colors: colors,
+            begin: AlignmentDirectional.topStart,
+            end: AlignmentDirectional.bottomEnd,
+          ),
+        ),
+        child: AnimatedBuilder(
+          animation: _sway,
+          builder: (context, _) {
+            final t = Curves.easeInOut.transform(_sway.value);
+            return Row(
+              children: [
+                Transform.rotate(
+                  angle: (t - 0.5) * 0.35,
+                  child: Transform.scale(
+                    scale: 1 + 0.08 * t,
+                    child: Container(
+                      width: 54,
+                      height: 54,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.28),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
-                      BoxShadow(
-                        color: _violet.withValues(alpha: 0.25),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: const LinearGradient(
-                        colors: [_violet, _pink, _gold],
-                        begin: AlignmentDirectional.centerStart,
-                        end: AlignmentDirectional.centerEnd,
-                      ),
-                      border: widget.selected ? Border.all(color: Colors.white, width: 2) : null,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Transform.rotate(
-                          angle: (t - 0.5) * 0.5,
-                          child: Transform.scale(
-                            scale: 1 + 0.15 * t,
-                            child: const Text('🎮', style: TextStyle(fontSize: 17)),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              widget.label,
-                              maxLines: 1,
-                              style: const TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                shadows: [Shadow(color: Color(0x55000000), offset: Offset(0, 1), blurRadius: 2)],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Opacity(
-                          opacity: 0.4 + 0.6 * t,
-                          child: const Text(' ✨', style: TextStyle(fontSize: 12)),
-                        ),
-                      ],
+                      child: Text(widget.emoji, style: const TextStyle(fontSize: 28)),
                     ),
                   ),
                 ),
-              );
-            },
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          shadows: [Shadow(color: Color(0x55000000), offset: Offset(0, 2), blurRadius: 3)],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.subtitle,
+                        style: const TextStyle(fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w800, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Opacity(opacity: 0.35 + 0.65 * t, child: const Text('✨', style: TextStyle(fontSize: 18))),
+                    Opacity(opacity: 1 - 0.65 * t, child: const Text('⭐', style: TextStyle(fontSize: 13))),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+/// آثارُ أقدامٍ بين قسمين: تقود الطفلَ إلى ما بعدها.
+class _Footsteps extends StatelessWidget {
+  const _Footsteps({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < 4; i++)
+            Padding(
+              padding: EdgeInsets.only(top: i.isEven ? 0 : 10, left: 6, right: 6),
+              child: Container(
+                width: 10,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.25 + i * 0.15),
+                  borderRadius: const BorderRadius.all(Radius.elliptical(5, 7)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// سماءٌ كرتونيّةٌ خلف الصفحة: فقاعاتٌ ونجومٌ ملوّنةٌ باهتة تطفو ببطء.
+/// في طبقةٍ وحدها فلا تُعيد رسمَ الصفحة، وتسكن لمن طلب تقليلَ الحركة.
+class _CartoonSky extends StatefulWidget {
+  const _CartoonSky();
+
+  @override
+  State<_CartoonSky> createState() => _CartoonSkyState();
+}
+
+class _CartoonSkyState extends State<_CartoonSky> with SingleTickerProviderStateMixin {
+  late final AnimationController _drift = AnimationController(vsync: this, duration: const Duration(seconds: 16));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _drift.stop();
+    } else if (!_drift.isAnimating) {
+      _drift.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: CustomPaint(painter: _SkyPainter(_drift, dark: Theme.of(context).brightness == Brightness.dark)),
+      ),
+    );
+  }
+}
+
+class _SkyPainter extends CustomPainter {
+  _SkyPainter(this.drift, {required this.dark}) : super(repaint: drift);
+
+  final Animation<double> drift;
+  final bool dark;
+
+  static const _colors = [
+    Color(0xFF7C3AED),
+    Color(0xFFEC4899),
+    Color(0xFFF59E0B),
+    Color(0xFF0EA5E9),
+    Color(0xFF16A34A),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = drift.value;
+    for (var i = 0; i < 14; i++) {
+      final color = _colors[i % _colors.length].withValues(alpha: dark ? 0.16 : 0.1);
+      final x = size.width * ((i * 0.173 + 0.07) % 1) + math.sin((t + i * 0.13) * 2 * math.pi) * 18;
+      final y = size.height * (1 - ((t * (0.35 + (i % 4) * 0.12) + i * 0.071) % 1.0));
+      final r = 10.0 + (i % 5) * 7;
+      if (i % 3 == 0) {
+        // ‏نجمةٌ بخمس رؤوس.
+        final path = Path();
+        for (var k = 0; k < 10; k++) {
+          final a = -math.pi / 2 + k * math.pi / 5 + t * math.pi * 2 * (i.isEven ? 1 : -1) * 0.25;
+          final rr = k.isEven ? r : r * 0.45;
+          final p = Offset(x + math.cos(a) * rr, y + math.sin(a) * rr);
+          if (k == 0) {
+            path.moveTo(p.dx, p.dy);
+          } else {
+            path.lineTo(p.dx, p.dy);
+          }
+        }
+        canvas.drawPath(path..close(), Paint()..color = color);
+      } else {
+        canvas.drawCircle(Offset(x, y), r, Paint()..color = color);
+        canvas.drawCircle(Offset(x - r * 0.35, y - r * 0.35), r * 0.25, Paint()..color = Colors.white.withValues(alpha: dark ? 0.08 : 0.35));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SkyPainter old) => old.dark != dark;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -839,9 +836,8 @@ class _MapTabState extends State<_MapTab> {
   @override
   Widget build(BuildContext context) {
     final branches = widget.mindMap.branches;
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         StudentEntrance(
           child: _MapHero(
@@ -1149,9 +1145,8 @@ class _StoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final current = scenario;
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (current == null) ...[
           if (earned != null) ...[

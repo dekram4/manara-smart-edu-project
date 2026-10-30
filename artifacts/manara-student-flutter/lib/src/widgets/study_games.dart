@@ -12,6 +12,7 @@ import '../models/study_games.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
+import 'quiz_games.dart';
 import 'quran_recitation_game.dart';
 import 'tracing_game.dart';
 import 'tracing_shelf_card.dart';
@@ -22,8 +23,9 @@ typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
 /// يصرف جوهرةَ حرفٍ كُتب في «تتبّع واكتب» — مرّةً لكل حرفٍ في الدرس.
 typedef StudyTracingWin = Future<RewardResult?> Function(StudyGame game, TracingItem item);
 
-/// تبويبُ «ألعاب الدرس» في بطاقة المذاكرة: ثلاثُ ألعابٍ يولّدها الذكاءُ
-/// الاصطناعي من نصّ الدرس — سحبٌ وإسقاط، ومطابقة، وسباقُ أسئلةٍ بلا نهاية.
+/// «ألعاب الدرس» في بطاقة المذاكرة: ألعابٌ يولّدها الذكاءُ الاصطناعي من نصّ
+/// الدرس — سحبٌ وإسقاط، ومطابقة، وأسئلةُ الدرس تُلعب بالبالونات والصيد
+/// والقطار والمقلاع لا تُقرأ في قائمة.
 ///
 /// الألعابُ تُطلب حين يُفتح التبويب أوّلَ مرّة لا مع الشاشة: من جاء ليقرأ
 /// الخريطة لا ينتظر توليدَ ألعابٍ لم يطلبها.
@@ -37,10 +39,15 @@ class StudyGamesTab extends StatefulWidget {
     this.onTraced,
     this.onRecited,
     this.cached,
+    this.embedded = false,
     super.key,
   });
 
   final Future<StudyGamesPack> Function() load;
+
+  /// داخل صفحة المذاكرة الواحدة: الرفُّ بطوله بلا تمريرٍ خاصٍّ به (تمرّره
+  /// الصفحة)، وكلُّ لعبةٍ تُفتح في صفحةٍ كاملةٍ فوقها.
+  final bool embedded;
 
   /// الحزمةُ المحفوظة على الجهاز: تُعرض فوراً، وتحلّ محلّها [load] حين تصل.
   final Future<StudyGamesPack?> Function()? cached;
@@ -73,6 +80,9 @@ class _StudyGamesTabState extends State<StudyGamesTab>
   String? _error;
   bool _loading = true;
   StudyGame? _active;
+
+  /// لعبةُ الأسئلة التي اختارها لأسئلة الدرس.
+  QuizGameStyle? _style;
 
   /// «تسميع القرآن» مفتوحة.
   bool _quranOpen = false;
@@ -186,30 +196,82 @@ class _StudyGamesTabState extends State<StudyGamesTab>
   StudyGame _baseOf(StudyGameType type) =>
       _pack!.games.firstWhere((game) => game.type == type);
 
-  Future<void> _open(StudyGame game) async {
-    if (_preparing) return;
-    StudentSoundService.instance.playTap();
+  /// اللعبةُ كما تُلعب الآن: المحفوظةُ أوّلَ مرّة، ثم نسخةٌ جديدة لا تكرّر ما رآه.
+  Future<StudyGame?> _choose(StudyGame game) async {
     final base = _baseOf(game.type);
     var chosen = base;
     final seen = await _loadSeen(game.type);
     // التتبّعُ حروفُ الروضة وأرقامُها: المجموعةُ هي هي، لا نسخةَ جديدة لها.
     final fresh = game.type == StudyGameType.tracing ? null : widget.fresh;
     if (seen.isNotEmpty && fresh != null) {
-      if (!mounted) return;
+      if (!mounted) return null;
       setState(() => _preparing = true);
       try {
         chosen = await fresh(base, seen);
       } catch (_) {
         chosen = base;
       }
+      if (mounted) setState(() => _preparing = false);
     }
-    if (!mounted) return;
+    if (!mounted) return null;
+    unawaited(_addSeen(game.type, seenItemsOf(chosen)));
+    return chosen;
+  }
+
+  Future<void> _open(StudyGame game, [QuizGameStyle? style]) async {
+    if (_preparing) return;
+    StudentSoundService.instance.playTap();
+    final chosen = await _choose(game);
+    if (chosen == null || !mounted) return;
+    if (widget.embedded) {
+      await _push(
+        (page) => _GamePage(
+          first: chosen,
+          style: style,
+          replay: () => _choose(game),
+          onWin: _won,
+          onTraced: widget.onTraced,
+          onNeedMore: widget.fresh == null ? null : _moreQuestions,
+        ),
+      );
+      return;
+    }
     setState(() {
-      _preparing = false;
       _active = chosen;
+      _style = style;
       _round += 1;
     });
-    unawaited(_addSeen(game.type, seenItemsOf(chosen)));
+  }
+
+  /// صفحةٌ كاملةٌ فوق صفحة المذاكرة، باتّجاه كتابتها.
+  Future<void> _push(Widget Function(BuildContext page) builder) {
+    final direction = Directionality.of(context);
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (page) => Directionality(textDirection: direction, child: builder(page)),
+      ),
+    );
+  }
+
+  void _openQuran() {
+    final onRecited = widget.onRecited;
+    if (onRecited == null) return;
+    if (!widget.embedded) {
+      setState(() => _quranOpen = true);
+      return;
+    }
+    unawaited(_push(
+      (page) => Scaffold(
+        backgroundColor: StudentSurface.ground(page),
+        body: SafeArea(
+          child: QuranRecitationGame(
+            key: const ValueKey('quran-game'),
+            onRecited: onRecited,
+            onBack: () => Navigator.of(page).maybePop(),
+          ),
+        ),
+      ),
+    ));
   }
 
   /// أسئلةٌ جديدة للسباق حين يقترب من آخر ما عنده — لا يدور على المكرّر.
@@ -249,7 +311,9 @@ class _StudyGamesTabState extends State<StudyGamesTab>
   Widget build(BuildContext context) {
     super.build(context);
     if (_loading) {
-      return Center(
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: widget.embedded ? 28 : 0),
+        child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -265,6 +329,7 @@ class _StudyGamesTabState extends State<StudyGamesTab>
             ),
           ],
         ),
+      ),
       );
     }
     final error = _error;
@@ -281,8 +346,10 @@ class _StudyGamesTabState extends State<StudyGamesTab>
       return _GameShelf(
         key: const ValueKey('shelf'),
         games: const [],
+        embedded: widget.embedded,
         onOpen: _open,
-        onOpenQuran: () => setState(() => _quranOpen = true),
+        onOpenArcade: _open,
+        onOpenQuran: _openQuran,
       );
     }
     if (error != null) {
@@ -352,14 +419,17 @@ class _StudyGamesTabState extends State<StudyGamesTab>
           ? _GameShelf(
               key: const ValueKey('shelf'),
               games: pack.games,
+              embedded: widget.embedded,
               onOpen: _open,
-              onOpenQuran: onRecited == null ? null : () => setState(() => _quranOpen = true),
+              onOpenArcade: _open,
+              onOpenQuran: onRecited == null ? null : _openQuran,
             )
           : _GameStage(
               key: ValueKey('game-${active.id}-$_round'),
               game: active,
+              style: _style,
               onBack: () => setState(() => _active = null),
-              onReplay: () => _open(active),
+              onReplay: () => _open(active, _style),
               onWin: () => _won(active),
               onTraced: (item) async => widget.onTraced?.call(active, item),
               onNeedMore: widget.fresh == null ? null : _moreQuestions,
@@ -378,7 +448,6 @@ class _Palette {
   static const pink = Color(0xFFDB2777);
   static const green = Color(0xFF16A34A);
   static const gold = Color(0xFFF59E0B);
-  static const red = Color(0xFFDC2626);
 
   /// ألوانُ السلال والبطاقات بالتناوب.
   static const bins = [sky, pink, gold, green];
@@ -406,19 +475,30 @@ class _Palette {
 }
 
 class _GameShelf extends StatelessWidget {
-  const _GameShelf({required this.games, required this.onOpen, this.onOpenQuran, super.key});
+  const _GameShelf({
+    required this.games,
+    required this.onOpen,
+    required this.onOpenArcade,
+    this.embedded = false,
+    this.onOpenQuran,
+    super.key,
+  });
 
   final List<StudyGame> games;
   final ValueChanged<StudyGame> onOpen;
+
+  /// أسئلةُ الدرس في لعبةٍ من الأربع.
+  final void Function(StudyGame game, QuizGameStyle style) onOpenArcade;
+
+  /// في صفحة المذاكرة: عمودٌ بطوله تمرّره الصفحة.
+  final bool embedded;
 
   /// بطاقةُ «تسميع القرآن» آخرَ الرفّ — بعد ألعاب الدرس — لدرسها وحده.
   final VoidCallback? onOpenQuran;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-      children: [
+    final children = [
         Text(
           tr('study.games.pick'),
           textAlign: TextAlign.center,
@@ -434,11 +514,23 @@ class _GameShelf extends StatelessWidget {
             // التتبّعُ للصغار أوّلاً: بطاقتُه أبهجُ ما في الرفّ.
             // حركتُها الدائمة في طبقةٍ وحدها: لا تُعيد رسمَ الرفّ كلّه كلَّ إطار.
             RepaintBoundary(child: TracingShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i])))
+          else if (games[i].type == StudyGameType.endlessQuiz)
+            // ‏أسئلةُ الدرس لا تُقرأ في قائمة: تُلعب في واحدةٍ من أربع.
+            _ArcadeShelf(game: games[i], onOpen: (style) => onOpenArcade(games[i], style))
           else
             _ShelfCard(game: games[i], index: i, onTap: () => onOpen(games[i])),
         // بعد ألعاب الدرس لا مكانها: الرابعةُ بعد الثلاث.
         if (onOpenQuran != null) RepaintBoundary(child: QuranShelfCard(onTap: onOpenQuran!)),
-      ],
+    ];
+    if (embedded) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: children,
     );
   }
 }
@@ -596,6 +688,7 @@ class _RewardPill extends StatelessWidget {
 class _GameStage extends StatelessWidget {
   const _GameStage({
     required this.game,
+    this.style,
     required this.onBack,
     required this.onReplay,
     required this.onWin,
@@ -605,6 +698,9 @@ class _GameStage extends StatelessWidget {
   });
 
   final StudyGame game;
+
+  /// لعبةُ الأسئلة لأسئلة الدرس — البالوناتُ إن لم تُختر.
+  final QuizGameStyle? style;
   final VoidCallback onBack;
   final VoidCallback onReplay;
   final Future<void> Function() onWin;
@@ -614,6 +710,7 @@ class _GameStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _Palette.of(game.type);
+    final arcade = game.type == StudyGameType.endlessQuiz ? (style ?? QuizGameStyle.balloons) : null;
     return Column(
       children: [
         Padding(
@@ -630,12 +727,12 @@ class _GameStage extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Text(_Palette.emoji(game.type),
+              Text(arcade == null ? _Palette.emoji(game.type) : _ArcadeInfo.emoji(arcade),
                   style: const TextStyle(fontSize: 22)),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  game.title,
+                  arcade == null ? game.title : _ArcadeInfo.title(arcade),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -651,7 +748,7 @@ class _GameStage extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Text(
-            game.instructions,
+            arcade == null ? game.instructions : _ArcadeInfo.hint(arcade),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.5,
@@ -668,8 +765,9 @@ class _GameStage extends StatelessWidget {
             StudyGameType.matching =>
               MatchingGame(game: game, onWin: onWin, onReplay: onReplay),
             StudyGameType.endlessQuiz =>
-              EndlessQuizGame(
+              ArcadeQuizGame(
                 game: game,
+                style: arcade!,
                 onWin: onWin,
                 onReplay: onReplay,
                 onNeedMore: onNeedMore,
@@ -1228,16 +1326,191 @@ class _MeaningSlot extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// ٣) سباقٌ بلا نهاية: أسئلةٌ متتالية حتى تنفد القلوب
+// ٣) ألعابُ الأسئلة: بالوناتٌ وصيدٌ وقطارٌ ومقلاع
 // ─────────────────────────────────────────────────────────────────────
 
-/// أسئلةٌ سريعةٌ تدور بلا نهاية — كلُّ دورةٍ بترتيبٍ جديد — وثلاثةُ قلوب.
+/// ألعابُ الأسئلة الأربع: اسمُ كلٍّ منها ورمزُها وألوانُها ورسمتُها.
+class _ArcadeInfo {
+  static String emoji(QuizGameStyle style) => switch (style) {
+        QuizGameStyle.balloons => '🎈',
+        QuizGameStyle.fishing => '🎣',
+        QuizGameStyle.train => '🚂',
+        QuizGameStyle.slingshot => '🎯',
+      };
+
+  static String title(QuizGameStyle style) => tr('study.games.arcade.${style.name}');
+
+  static String hint(QuizGameStyle style) => tr('study.games.arcade.${style.name}Hint');
+
+  static List<Color> colors(QuizGameStyle style) => switch (style) {
+        QuizGameStyle.balloons => const [Color(0xFFEC4899), Color(0xFFF59E0B)],
+        QuizGameStyle.fishing => const [Color(0xFF0284C7), Color(0xFF14B8A6)],
+        QuizGameStyle.train => const [Color(0xFFDC2626), Color(0xFFF97316)],
+        QuizGameStyle.slingshot => const [Color(0xFF7C3AED), Color(0xFF16A34A)],
+      };
+
+  /// رسومُ التطبيق نفسها خلف البطاقة — لا صورٌ جديدة.
+  static String art(QuizGameStyle style) => style == QuizGameStyle.train ? quizClassroomArt : quizSkyArt;
+}
+
+/// رفُّ ألعاب الأسئلة: أربعُ بطاقاتٍ، كلٌّ منها تلعب أسئلةَ الدرس بطريقتها.
+class _ArcadeShelf extends StatelessWidget {
+  const _ArcadeShelf({required this.game, required this.onOpen});
+
+  final StudyGame game;
+  final ValueChanged<QuizGameStyle> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const _Bouncing(child: Text('🎮', style: TextStyle(fontSize: 22))),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('study.games.arcade.title'),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
+                ),
+              ),
+              Text(
+                trf('study.games.reward', {'gems': game.gemsReward, 'points': game.pointsReward}),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _Palette.gold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(builder: (context, box) {
+            final columns = box.maxWidth >= 640 ? 4 : 2;
+            final width = (box.maxWidth - 12 * (columns - 1)) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final style in QuizGameStyle.values)
+                  SizedBox(
+                    width: width,
+                    child: _ArcadeCard(style: style, index: style.index, onTap: () => onOpen(style)),
+                  ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArcadeCard extends StatelessWidget {
+  const _ArcadeCard({required this.style, required this.index, required this.onTap});
+
+  final QuizGameStyle style;
+  final int index;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _ArcadeInfo.colors(style);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 420 + index * 120),
+      curve: Curves.easeOutBack,
+      builder: (context, t, child) => Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
+      ),
+      child: Semantics(
+        button: true,
+        label: _ArcadeInfo.title(style),
+        child: _PressScale(
+          onTap: onTap,
+          child: Container(
+            key: ValueKey('arcade-${style.name}'),
+            height: 158,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white, width: 2.5),
+              boxShadow: [
+                BoxShadow(color: Color.lerp(colors.first, Colors.black, 0.4)!, offset: const Offset(0, 5)),
+                BoxShadow(color: colors.first.withValues(alpha: 0.4), blurRadius: 16),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(
+                    _ArcadeInfo.art(style),
+                    fit: BoxFit.cover,
+                    cacheWidth: 400,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [colors.first.withValues(alpha: 0.55), colors.last.withValues(alpha: 0.92)],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _Bouncing(
+                          delay: Duration(milliseconds: index * 260),
+                          child: Text(_ArcadeInfo.emoji(style), style: const TextStyle(fontSize: 44)),
+                        ),
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _ArcadeInfo.title(style),
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _ArcadeInfo.hint(style),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12, height: 1.3, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// أسئلةُ الدرس لعبةً: [goal] سؤالاً، كلٌّ منها في [style] — بالونٌ يُفقع أو
+/// سمكةٌ تُصطاد أو صندوقٌ يُحمَّل أو هدفٌ يُصاب.
 ///
-/// والفوزُ بلوغُ [goal] إجاباتٍ صحيحة: تُصرف المكافأة مرّةً، ويبقى الطفلُ
-/// يلعب ما شاء ليحطّم رقمه.
-class EndlessQuizGame extends StatefulWidget {
-  const EndlessQuizGame({
+/// والفوزُ إصابةُ ثلاثة أخماسها: تُصرف المكافأةُ مرّةً، ويُعاد اللعبُ ما شاء.
+class ArcadeQuizGame extends StatefulWidget {
+  const ArcadeQuizGame({
     required this.game,
+    required this.style,
     required this.onWin,
     required this.onReplay,
     this.onNeedMore,
@@ -1245,68 +1518,50 @@ class EndlessQuizGame extends StatefulWidget {
   });
 
   final StudyGame game;
+  final QuizGameStyle style;
   final Future<void> Function() onWin;
   final VoidCallback onReplay;
 
-  /// أسئلةٌ جديدة من الذكاء الاصطناعي حين يقترب السباقُ من آخر ما عنده —
-  /// [shown] ما ظهر في هذا السباق، فلا يعود.
+  /// أسئلةٌ جديدة من الذكاء الاصطناعي حين تقلّ أسئلةُ الدرس عن الجولة.
   final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
 
   @override
-  State<EndlessQuizGame> createState() => _EndlessQuizGameState();
+  State<ArcadeQuizGame> createState() => _ArcadeQuizGameState();
 }
 
-class _EndlessQuizGameState extends State<EndlessQuizGame> {
-  static const _hearts = 3;
+class _ArcadeQuizGameState extends State<ArcadeQuizGame> {
+  static const _maxGoal = 8;
   final _random = math.Random();
-  late List<StudyQuickQuestion> _deck = _shuffled();
-  int _at = 0;
-  late List<String> _options = _optionsFor(_deck.first);
-  int _lives = _hearts;
-  int _score = 0;
-  int _streak = 0;
-  String? _picked;
+  late List<StudyQuickQuestion> _deck = [...widget.game.questions]..shuffle(_random);
+  late final int goal = math.min(_maxGoal, math.max(4, widget.game.questions.length));
+  late StudyQuickQuestion? _question = _deck.isEmpty ? null : _deck.first;
+  late List<String> _options = _question == null ? const [] : _optionsFor(_question!);
+  final _results = <bool>[];
   bool _won = false;
 
-  /// ‏مهلةُ كل سؤال: السباقُ سباق. وتسكن لمن طلب تقليل الحركة — لا يُستعجَل
-  /// ‏طفلٌ اختار الهدوء.
-  static const _secondsPerQuestion = 20;
-  Timer? _clock;
-  int _timeLeft = _secondsPerQuestion;
-  bool _timed = false;
-
-  int get goal => math.min(15, math.max(5, widget.game.questions.length));
+  int get _correct => _results.where((right) => right).length;
+  int get _needed => (goal * 0.6).ceil();
+  bool get _over => _results.length >= goal;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _timed = !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
-    if (_timed && _clock == null) _startClock();
+  void initState() {
+    super.initState();
+    _topUp();
   }
 
-  @override
-  void dispose() {
-    _clock?.cancel();
-    super.dispose();
-  }
-
-  void _startClock() {
-    _clock?.cancel();
-    if (!_timed) return;
-    _timeLeft = _secondsPerQuestion;
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || _picked != null || _lives == 0) return;
-      if (_timeLeft <= 1) {
-        // ‏انتهى الوقت: كإجابةٍ خاطئة.
-        _pick('');
-      } else {
-        setState(() => _timeLeft -= 1);
-      }
+  /// أسئلةُ الدرس أقلُّ من الجولة: تُطلب أخرى جديدة، وإلى أن تصل تدور هي.
+  void _topUp() {
+    final more = widget.onNeedMore;
+    if (more == null || _deck.isEmpty || _deck.length >= goal) return;
+    more([for (final q in _deck) q.question]).then((fresh) {
+      if (!mounted) return;
+      final known = {for (final q in _deck) q.question};
+      final added = [for (final q in fresh) if (!known.contains(q.question)) q]..shuffle(_random);
+      if (added.isNotEmpty) setState(() => _deck = [..._deck, ...added]);
+    }).catchError((_) {
+      // ‏تعذّرت الدفعة: تدور أسئلةُ الدرس.
     });
   }
-
-  List<StudyQuickQuestion> _shuffled() =>
-      [...widget.game.questions]..shuffle(_random);
 
   /// ‏صح/خطأ بترتيبهما الثابت — «صح» أوّلاً دائماً — وما سواهما يُخلط.
   List<String> _optionsFor(StudyQuickQuestion question) =>
@@ -1314,406 +1569,220 @@ class _EndlessQuizGameState extends State<EndlessQuizGame> {
           ? [...question.options]
           : ([...question.options]..shuffle(_random));
 
-  StudyQuickQuestion get _current => _deck[_at];
-
-  // ── سباقٌ بلا نهاية وبلا تكرار ──
-  // حين يبقى في الدفعة خمسةُ أسئلة، تُطلب دفعةٌ جديدة من الذكاء الاصطناعي في
-  // الخلفية — متجنّبةً كلَّ ما ظهر — وتُلحق بالدفعة. فلا يدور الطفلُ على ما رآه.
-  bool _fetchingMore = false;
-  final _shown = <String>{};
-
-  void _prefetchIfLow() {
-    final more = widget.onNeedMore;
-    if (more == null || _fetchingMore || _deck.length - _at > 5) return;
-    _fetchingMore = true;
-    more([..._shown, for (final q in _deck) q.question]).then((fresh) {
-      if (!mounted) return;
-      final known = {for (final q in _deck) q.question};
-      final added = [for (final q in fresh) if (!known.contains(q.question)) q]
-        ..shuffle(_random);
-      if (added.isNotEmpty) setState(() => _deck = [..._deck, ...added]);
-    }).catchError((_) {
-      // ‏تعذّرت الدفعة: تدور المحفوظة، ويُحاول عند الاقتراب التالي.
-    }).whenComplete(() => _fetchingMore = false);
-  }
-
-  void _pick(String option) {
-    if (_picked != null || _lives == 0) return;
-    _shown.add(_current.question);
-    final right = option == _current.answer;
+  void _answered(String option) {
+    final question = _question;
+    if (question == null || _over) return;
+    final right = option == question.answer;
     setState(() {
-      _picked = option;
-      if (right) {
-        _score += 1;
-        _streak += 1;
-      } else {
-        _lives -= 1;
-        _streak = 0;
+      _results.add(right);
+      if (!_over) {
+        _question = _deck[_results.length % _deck.length];
+        _options = _optionsFor(_question!);
       }
     });
-    if (right) {
-      StudentSoundService.instance.playCheer();
-    } else {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-    }
-    if (right && !_won && _score >= goal) {
+    if (_over && _correct >= _needed && !_won) {
       _won = true;
       unawaited(widget.onWin());
     }
-    Future.delayed(const Duration(milliseconds: 750), () {
-      if (!mounted || _lives == 0) return;
-      _prefetchIfLow();
-      setState(() {
-        _at += 1;
-        if (_at >= _deck.length) {
-          // ‏لم تصل أسئلةٌ جديدة بعد: تدور المحفوظةُ بترتيبٍ آخر حتى تصل.
-          _deck = _shuffled();
-          _at = 0;
-        }
-        _options = _optionsFor(_current);
-        _picked = null;
-      });
-      _startClock();
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final over = _lives == 0;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      children: [
-        Row(
-          children: [
-            for (var i = 0; i < _hearts; i++)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 2),
-                child: AnimatedScale(
-                  scale: i < _lives ? 1 : 0.7,
-                  duration: const Duration(milliseconds: 200),
-                  child: Text(i < _lives ? '❤️' : '🤍',
-                      style: const TextStyle(fontSize: 22)),
-                ),
+    final question = _question;
+    if (question == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Column(
+        children: [
+          _ArcadeProgress(results: _results, goal: goal),
+          const SizedBox(height: 10),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              switchInCurve: Curves.easeOutBack,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: Tween(begin: 0.92, end: 1.0).animate(animation), child: child),
               ),
-            const Spacer(),
-            if (_streak >= 2)
-              _PopIn(
-                key: ValueKey('streak-$_streak'),
-                child: Text(
-                  trf('study.games.streak', {'n': _streak}),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: _Palette.gold,
-                  ),
-                ),
-              ),
-            const SizedBox(width: 10),
-            Text(
-              trf('study.games.score', {'n': _score}),
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                color: StudentSurface.ink(context),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: (_score / goal).clamp(0.0, 1.0),
-            minHeight: 10,
-            color: _won ? _Palette.green : _Palette.violet,
-            backgroundColor: _Palette.violet.withValues(alpha: 0.15),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          trf('study.games.goal', {'n': goal}),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: StudentSurface.mutedInk(context),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (over) ...[
-          const Center(child: Text('🏁', style: TextStyle(fontSize: 56))),
-          const SizedBox(height: 8),
-          Text(
-            trf('study.games.over', {'n': _score}),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: StudentSurface.ink(context),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: _GameButton(
-              label: tr('study.games.playAgain'),
-              color: _Palette.violet,
-              onPressed: widget.onReplay,
-            ),
-          ),
-        ] else
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
-            transitionBuilder: (child, animation) => SlideTransition(
-              position: Tween(begin: const Offset(0.25, 0), end: Offset.zero)
-                  .animate(animation),
-              child: FadeTransition(opacity: animation, child: child),
-            ),
-            child: Column(
-              key: ValueKey('q-$_score-$_lives-$_at'),
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    _KindChip(kind: _current.kind),
-                    const Spacer(),
-                    if (_timed)
-                      Text(
-                        '⏱️ $_timeLeft',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: _timeLeft <= 5
-                              ? _Palette.red
-                              : StudentSurface.ink(context),
-                        ),
+              child: _over
+                  ? _ArcadeResult(
+                      key: const ValueKey('arcade-result'),
+                      correct: _correct,
+                      goal: goal,
+                      needed: _needed,
+                      onReplay: widget.onReplay,
+                    )
+                  : KeyedSubtree(
+                      key: ValueKey('arcade-q-${_results.length}'),
+                      child: quizGameFor(
+                        widget.style,
+                        prompt: question.question,
+                        options: _options,
+                        isCorrect: (option) => option == question.answer,
+                        onAnswered: _answered,
                       ),
-                  ],
-                ),
-                if (_timed) ...[
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: _timeLeft / _secondsPerQuestion,
-                      minHeight: 6,
-                      color: _timeLeft <= 5 ? _Palette.red : _Palette.gold,
-                      backgroundColor: _Palette.gold.withValues(alpha: 0.15),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: _Palette.violet,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0xFF4C1D95), offset: Offset(0, 5)),
-                    ],
-                  ),
-                  child: _QuestionText(
-                    question: _current,
-                    // ‏بعد الإجابة يمتلئ الفراغ بالصحيح.
-                    filled: _picked == null ? null : _current.answer,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (_current.kind == StudyQuestionKind.trueFalse)
-                  Row(
-                    children: [
-                      for (var i = 0; i < _options.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 12),
-                        Expanded(
-                          child: _OptionButton(
-                            label: _options[i],
-                            icon: i == 0 ? '✔️' : '✖️',
-                            tall: true,
-                            state: _picked == null
-                                ? _OptionState.idle
-                                : _options[i] == _current.answer
-                                    ? _OptionState.right
-                                    : _options[i] == _picked
-                                        ? _OptionState.wrong
-                                        : _OptionState.faded,
-                            onTap: () => _pick(_options[i]),
-                          ),
-                        ),
-                      ],
-                    ],
-                  )
-                else
-                for (final option in _options)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _OptionButton(
-                      label: option,
-                      state: _picked == null
-                          ? _OptionState.idle
-                          : option == _current.answer
-                              ? _OptionState.right
-                              : option == _picked
-                                  ? _OptionState.wrong
-                                  : _OptionState.faded,
-                      onTap: () => _pick(option),
-                    ),
-                  ),
-              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// نجومُ الجولة: نجمةٌ لكل إصابة، ونقطةٌ باهتةٌ لما لم يُصب، والسؤالُ الحاليّ متوهّج.
+class _ArcadeProgress extends StatelessWidget {
+  const _ArcadeProgress({required this.results, required this.goal});
+
+  final List<bool> results;
+  final int goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final at = math.min(results.length + 1, goal);
+    return Row(
+      children: [
+        Expanded(
+          child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (var i = 0; i < goal; i++)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: i < results.length
+                        ? (results[i] ? const Color(0xFFFEF3C7) : StudentSurface.mutedInk(context).withValues(alpha: 0.12))
+                        : StudentSurface.card(context),
+                    border: Border.all(
+                      color: i == results.length ? _Palette.violet : _Palette.gold.withValues(alpha: 0.5),
+                      width: i == results.length ? 2.5 : 1.2,
+                    ),
+                  ),
+                  child: i < results.length
+                      ? _PopIn(child: Text(results[i] ? '⭐' : '•', style: const TextStyle(fontSize: 14)))
+                      : null,
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          trf('study.games.arcade.progress', {'n': at, 'total': goal}),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
+        ),
       ],
     );
   }
 }
 
-enum _OptionState { idle, right, wrong, faded }
-
-/// ‏شكلُ السؤال: يقول للطفل ماذا يُطلب منه قبل أن يقرأ.
-class _KindChip extends StatelessWidget {
-  const _KindChip({required this.kind});
-
-  final StudyQuestionKind kind;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (kind) {
-      StudyQuestionKind.trueFalse => (tr('study.games.kindTf'), _Palette.green),
-      StudyQuestionKind.fillBlank => (tr('study.games.kindFill'), _Palette.pink),
-      StudyQuestionKind.mcq => (tr('study.games.kindMcq'), _Palette.sky),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color, width: 1.5),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: color),
-      ),
-    );
-  }
-}
-
-/// ‏نصُّ السؤال، وفراغُ «أكمل» مرسومٌ خانةً يملؤها الجوابُ بعد الاختيار.
-class _QuestionText extends StatelessWidget {
-  const _QuestionText({required this.question, this.filled});
-
-  final StudyQuickQuestion question;
-  final String? filled;
-
-  static final _blank = RegExp(r'_{2,}|\.{3,}|…');
-
-  @override
-  Widget build(BuildContext context) {
-    const style = TextStyle(
-      fontSize: 18,
-      height: 1.5,
-      fontWeight: FontWeight.w900,
-      color: Colors.white,
-    );
-    final match = question.kind == StudyQuestionKind.fillBlank
-        ? _blank.firstMatch(question.question)
-        : null;
-    if (match == null) {
-      return Text(question.question, textAlign: TextAlign.center, style: style);
-    }
-    return Text.rich(
-      TextSpan(
-        style: style,
-        children: [
-          TextSpan(text: question.question.substring(0, match.start)),
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              decoration: BoxDecoration(
-                color: filled == null ? Colors.white24 : _Palette.green,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white, width: 1.5),
-              ),
-              child: Text(filled ?? '  ?  ', style: style),
-            ),
-          ),
-          TextSpan(text: question.question.substring(match.end)),
-        ],
-      ),
-      textAlign: TextAlign.center,
-    );
-  }
-}
-
-class _OptionButton extends StatelessWidget {
-  const _OptionButton({
-    required this.label,
-    required this.state,
-    required this.onTap,
-    this.tall = false,
-    this.icon,
+class _ArcadeResult extends StatelessWidget {
+  const _ArcadeResult({
+    required this.correct,
+    required this.goal,
+    required this.needed,
+    required this.onReplay,
+    super.key,
   });
 
-  final bool tall;
-  final String? icon;
-  final String label;
-  final _OptionState state;
-  final VoidCallback onTap;
+  final int correct;
+  final int goal;
+  final int needed;
+  final VoidCallback onReplay;
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (state) {
-      _OptionState.right => _Palette.green,
-      _OptionState.wrong => _Palette.red,
-      _ => _Palette.sky,
-    };
-    final filled = state == _OptionState.right || state == _OptionState.wrong;
-    return AnimatedOpacity(
-      opacity: state == _OptionState.faded ? 0.45 : 1,
-      duration: const Duration(milliseconds: 180),
-      child: _Shake(
-        active: state == _OptionState.wrong,
-        child: Semantics(
-          button: true,
-          label: label,
-          child: GestureDetector(
-            onTap: onTap,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: tall ? 22 : 14),
-              decoration: BoxDecoration(
-                color: filled ? color : StudentSurface.card(context),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: color, width: 2.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.55),
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  if (icon != null) ...[
-                    Text(icon!, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: filled ? Colors.white : color,
-                      ),
-                    ),
-                  ),
-                  if (state == _OptionState.right)
-                    const Icon(Icons.star_rounded, color: Colors.white),
-                ],
-              ),
+    final won = correct >= needed;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Bouncing(child: Text(won ? '🏆' : '💪', style: const TextStyle(fontSize: 64))),
+            const SizedBox(height: 8),
+            Text(
+              trf('study.games.arcade.result', {'n': correct, 'total': goal}),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
             ),
-          ),
+            const SizedBox(height: 6),
+            Text(
+              won ? tr('study.games.arcade.won') : trf('study.games.arcade.retry', {'n': needed}),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, height: 1.5, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
+            ),
+            const SizedBox(height: 18),
+            _GameButton(label: tr('study.games.playAgain'), color: _Palette.violet, onPressed: onReplay),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+/// لعبةٌ في صفحةٍ كاملةٍ فوق صفحة المذاكرة: «العب مرة أخرى» نسخةٌ جديدة فيها،
+/// والرجوعُ إلى الرفّ رجوعٌ إلى الصفحة.
+class _GamePage extends StatefulWidget {
+  const _GamePage({
+    required this.first,
+    required this.style,
+    required this.replay,
+    required this.onWin,
+    this.onTraced,
+    this.onNeedMore,
+  });
+
+  final StudyGame first;
+  final QuizGameStyle? style;
+  final Future<StudyGame?> Function() replay;
+  final Future<void> Function(StudyGame game) onWin;
+  final StudyTracingWin? onTraced;
+  final Future<List<StudyQuickQuestion>> Function(List<String> shown)? onNeedMore;
+
+  @override
+  State<_GamePage> createState() => _GamePageState();
+}
+
+class _GamePageState extends State<_GamePage> {
+  late StudyGame _game = widget.first;
+  int _round = 0;
+  bool _preparing = false;
+
+  Future<void> _replay() async {
+    if (_preparing) return;
+    setState(() => _preparing = true);
+    final next = await widget.replay();
+    if (!mounted) return;
+    setState(() {
+      _preparing = false;
+      if (next != null) _game = next;
+      _round += 1;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final game = _game;
+    return Scaffold(
+      backgroundColor: StudentSurface.ground(context),
+      body: SafeArea(
+        child: _preparing
+            ? const Center(child: _Bouncing(child: Text('✨', style: TextStyle(fontSize: 54))))
+            : _GameStage(
+                key: ValueKey('page-game-${game.id}-$_round'),
+                game: game,
+                style: widget.style,
+                onBack: () => Navigator.of(context).maybePop(),
+                onReplay: _replay,
+                onWin: () => widget.onWin(game),
+                onTraced: (item) async => widget.onTraced?.call(game, item),
+                onNeedMore: widget.onNeedMore,
+              ),
       ),
     );
   }
@@ -2132,7 +2201,7 @@ class _Shake extends StatelessWidget {
 
 /// يظهر بنبضة: بطاقةٌ استقرّت في مكانها الصحيح.
 class _PopIn extends StatelessWidget {
-  const _PopIn({required this.child, super.key});
+  const _PopIn({required this.child});
 
   final Widget child;
 
