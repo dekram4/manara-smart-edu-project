@@ -290,7 +290,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
     }
   }
 
-  /// «ألعاب الدرس»: سحبٌ وإسقاط، ومطابقة، وأسئلةُ الدرس في أربع ألعاب.
+  /// «ألعاب الدرس»: أسئلةُ الدرس في أربع ألعابٍ تفاعلية وحدها.
   ///
   /// ── المكافأةُ يقرّرها الخادم ──
   /// المعرّفُ `درس::لعبة`، والخادمُ يقرأ جواهرَها ونقاطَها من سجلّ الدرس
@@ -458,7 +458,6 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
               ),
               const SizedBox(height: 12),
               StudyGamesTab(
-                embedded: true,
                 load: _takeGames,
                 cached: () => StudentStudyService.cachedGames(lessonId: _lessonId),
                 onWin: _rewardGame,
@@ -469,9 +468,6 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
                   exclude: exclude,
                 ),
                 seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
-                // ‏«تتبّع واكتب» و«تسميع القرآن» خرجتا إلى بطاقتين في الواجهة
-                // ‏(«قلمي السحري» و«أبطال تسميع القرآن»): لا تتكرّران هنا.
-                allowTracing: false,
               ),
             ],
           ),

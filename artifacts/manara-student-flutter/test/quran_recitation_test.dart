@@ -6,7 +6,6 @@ import 'package:manara_student/src/models/student_gamification.dart';
 import 'package:manara_student/src/models/study_games.dart';
 import 'package:manara_student/src/services/quran_recitation.dart';
 import 'package:manara_student/src/widgets/quran_recitation_game.dart';
-import 'package:manara_student/src/widgets/study_games.dart';
 
 /// ما يكتبه محرّكُ التعرّف: الكلماتُ بلا تشكيل.
 List<String> spokenWords(Iterable<String> words) => words.map(normalizeQuranWord).toList();
@@ -428,32 +427,6 @@ void main() {
         expect(source, isNot(contains('dart:io')), reason: path);
         expect(source, isNot(contains('content_service')), reason: path);
       }
-    });
-
-    testWidgets('بطاقتُها الرابعةُ على الرفّ بعد ألعاب الدرس، ولدرسها وحده', (tester) async {
-      final games = [matchingGame()];
-      Future<StudyGamesPack> load() async => StudyGamesPack(lessonId: 'L1', games: games);
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: StudyGamesTab(load: load, onWin: (_) async => null)),
-      ));
-      await tester.pump();
-      expect(find.byType(QuranShelfCard), findsNothing);
-
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: StudyGamesTab(key: const ValueKey('b'), load: load, onWin: (_) async => null, onRecited: (_) async => null),
-        ),
-      ));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 800));
-      expect(find.byType(QuranShelfCard), findsOneWidget);
-      final gameTop = tester.getTopLeft(find.text('صِل')).dy;
-      final quranTop = tester.getTopLeft(find.byType(QuranShelfCard)).dy;
-      expect(quranTop, greaterThan(gameTop), reason: 'بعد ألعاب الدرس لا قبلها');
-
-      await tester.tap(find.byKey(const ValueKey('quran-shelf-card')));
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.byType(QuranRecitationGame), findsOneWidget);
     });
   });
 }

@@ -114,6 +114,29 @@ class StudentSoundService with WidgetsBindingObserver {
   /// يقطع الأوّلَ إذا بدأ الثاني.
   final AudioPlayer _clapPlayer = AudioPlayer();
 
+  /// مؤثّراتُ ألعاب الأسئلة (فقعُ البالون، صافرةُ القطار): مشغّلٌ خاصٌّ بها،
+  /// فلا تقطع عبارةَ التشجيع التي تُسمع معها ولا تقطعها.
+  final AudioPlayer _gamePlayer = AudioPlayer();
+
+  /// «فقع البالون.wav» منسوخاً إلى المشروع.
+  static const balloonPop = 'audio/games/balloon_pop.wav';
+
+  /// صافرةُ القطار حين يدخل المحطة وحين ينطلق.
+  static const trainWhistle = 'audio/games/train_whistle.wav';
+
+  /// يُسمع مؤثّرَ لعبةٍ ([balloonPop]، [trainWhistle]).
+  void playGameEffect(String asset) {
+    if (muted.value || _backgrounded) return;
+    unawaited(() async {
+      try {
+        await _gamePlayer.stop();
+        await _gamePlayer.play(AssetSource(asset), volume: 0.8);
+      } catch (_) {
+        // ‏بلا صوت على هذا الجهاز: اللعبةُ تُرى كما هي.
+      }
+    }());
+  }
+
   /// Whether the music has been asked for at all.
   ///
   /// Set once, by the hub, and never cleared: the music is meant to carry on
@@ -182,6 +205,7 @@ class StudentSoundService with WidgetsBindingObserver {
         _ambientPlayer,
         _bedPlayer,
         _clapPlayer,
+        _gamePlayer,
       ]) {
         await player.setAudioContext(mixing);
       }
@@ -196,6 +220,7 @@ class StudentSoundService with WidgetsBindingObserver {
       await _voicePlayer.setReleaseMode(ReleaseMode.stop);
       await _dealPlayer.setReleaseMode(ReleaseMode.stop);
       await _clapPlayer.setReleaseMode(ReleaseMode.stop);
+      await _gamePlayer.setReleaseMode(ReleaseMode.stop);
       await _feedbackAudio.initialize();
     } catch (_) {
       // The student experience remains usable if local preferences are absent.
@@ -210,6 +235,7 @@ class StudentSoundService with WidgetsBindingObserver {
       await _voicePlayer.stop();
       await _dealPlayer.stop();
       await _clapPlayer.stop();
+      await _gamePlayer.stop();
       await stopLoginVoice();
       await stopSpeaking();
       await _feedbackAudio.stop();
@@ -308,6 +334,7 @@ class StudentSoundService with WidgetsBindingObserver {
         _effectsPlayer.stop,
         _dealPlayer.stop,
         _clapPlayer.stop,
+        _gamePlayer.stop,
         // وخلفيةُ الدخول معها: مشغّلٌ خاصٌّ بها لا يسكت إن لم يُذكر هنا،
         // فكانت موسيقى تعمل وحدها في جيبٍ مغلق.
         _bedPlayer.stop,
@@ -1256,6 +1283,7 @@ class StudentSoundService with WidgetsBindingObserver {
     _sequence++;
     unawaited(_effectsPlayer.stop().catchError((_) {}));
     unawaited(_clapPlayer.stop().catchError((_) {}));
+    unawaited(_gamePlayer.stop().catchError((_) {}));
   }
 
   bool _applauseCancelled = false;

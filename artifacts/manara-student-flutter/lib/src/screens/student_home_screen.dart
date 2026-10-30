@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/motion.dart';
 import 'package:flutter/physics.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../models/academic_context.dart';
 import '../models/cinema_unlock.dart';
@@ -94,8 +93,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// بطاقة حركة دخولها كلّما عادت إلى الشاشة.
   final DealEntranceTracker _dealTracker = DealEntranceTracker();
 
-  /// رأسُ الواجهة (بطاقةُ الترحيب وملخّصُ المسار): المنارةُ تُرسم تحته
-  /// لا خلفه، فلا تختفي قمّتُها وراء عبارة الترحيب.
+  /// رأسُ الواجهة (ملخّصُ المسار): المنارةُ تُرسم تحته لا خلفه، فلا تختفي
+  /// قمّتُها وراءه.
   final GlobalKey _headerKey = GlobalKey();
   final ValueNotifier<double> _artTop = ValueNotifier<double>(0);
 
@@ -1063,17 +1062,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                       key: _headerKey,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: StudentAnimatedCard(
-                            child: _WelcomeCard(
-                              profile: widget.profile,
-                              onCharacterTap: _openPersonality,
-                            ),
-                          ),
-                        ),
+                        // ‏بلا عبارة ترحيب: الواجهةُ تبدأ بالمسار ثم البطاقات،
+                        // ‏وشخصيةُ الطالب في الشريط العلويّ.
                         if (_academicContext != null) ...[
-                          const SizedBox(height: 12),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 18),
                             child: _AcademicContextSummary(
@@ -2450,96 +2441,3 @@ class _StatBadge extends StatelessWidget {
   }
 }
 
-/// A translucent card, so the lighthouse behind it stays visible.
-
-/// The greeting banner. Deliberately pale rather than the old deep-indigo
-/// slab: the lighthouse behind it is now a full-strength background, and a
-/// dark band across the top fought it. The student's own character stands
-/// where the logo medallion used to be, floating beside their name.
-class _WelcomeCard extends StatelessWidget {
-  const _WelcomeCard({
-    required this.profile,
-    required this.onCharacterTap,
-  });
-
-  final StudentProfile profile;
-  final VoidCallback onCharacterTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Student3DCard(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          // Both of these were hardcoded white, which is what made the
-          // greeting unreadable in the dark theme: the panel stayed white
-          // while the text colours followed the theme and turned pale, so
-          // "أهلًا جوري داود" was near-white on near-white.
-          color: StudentSurface.glass(context, 0.90),
-          border: Border.all(
-            color: StudentSurface.isDark(context)
-                ? const Color(0x33FFD27A)
-                : Colors.white,
-            width: 1.6,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1A4F46E5),
-              blurRadius: 22,
-              offset: Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // The saved character itself, not the emoji stand-in it used
-            // to route through — that path could still prefer a Ready
-            // Player Me portrait and hide the chosen picture.
-            StudentAvatarView(size: 62, onTap: onCharacterTap)
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .moveY(begin: 0, end: -5, duration: 2200.ms, curve: Curves.easeInOut),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // الترحيب والاسم كتلة واحدة مرحة: كلاهما بالحروف
-                  // المتمايلة، والاسم أكبر لأنه ما يخصّ الطفل وحده.
-                  //
-                  // ولم يعد لونهما يتبع السمة: الحروف تحمل ألوانها الزاهية
-                  // وحدّاً أبيض حولها، فتُقرأ على الفاتح والداكن معاً.
-                  BouncyText(
-                    tr('hub.welcome'),
-                    fontSize: 19.2,
-                    maxScale: 1.1,
-                    minScale: 0.94,
-                  ),
-                  const SizedBox(height: 10),
-                  // The student's own name, at a size that reads as a
-                  // greeting rather than a caption.
-                  //
-                  // It was inside a `FittedBox(scaleDown)`, which meant the
-                  // 22pt set here was a ceiling and not a size: a long name
-                  // on a narrow phone was quietly shrunk to whatever fitted,
-                  // and the one line meant to welcome the child by name came
-                  // out smaller than the label above it. Ellipsis instead —
-                  // a trimmed name at a readable size beats a whole one too
-                  // small to read.
-                  // The one line that greets the child by name, so it is
-                  // the one line that gets the playful face and the rainbow.
-                  // The drop shadow lives inside RainbowText, outside the
-                  // shader — a tinted shadow is just a coloured blur.
-                  BouncyText(
-                    trf('path.greeting', {'name': profile.name}),
-                    fontSize: 36,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
