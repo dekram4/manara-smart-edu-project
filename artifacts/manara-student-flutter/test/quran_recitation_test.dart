@@ -354,9 +354,12 @@ void main() {
       await tester.pumpAndSettle();
       final state = tester.state<QuranRecitationGameState>(find.byType(QuranRecitationGame));
 
+      // «استمع» ظاهرٌ من أوّل التسميع، قبل أيّ خطأ.
+      expect(find.byKey(const ValueKey('quran-help')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('quran-mic')));
       await tester.pump();
       expect(sessions, 1);
+      expect(find.byKey(const ValueKey('quran-help')), findsOneWidget);
       final opening = spokenWords([...istiadha.split(' '), ...basmala.split(' ')]);
       final said = [...opening, 'انا', 'اعطيناك', 'الكوكب'];
       for (var n = 1; n <= said.length; n++) {
