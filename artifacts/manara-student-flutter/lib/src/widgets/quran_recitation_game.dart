@@ -665,8 +665,9 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     );
   }
 
-  /// الخطواتُ بترتيبها: ما قُرئ أخضر، والجاريةُ مظلّلة وبجانبها زرُّ
-  /// «استمع» إن كان فيها أحمر، وما بعدها باهتٌ حتى يُبلغ.
+  /// الخطواتُ بترتيبها: ما قُرئ أخضر، والجاريةُ مظلّلة وبجانبها زرُّ «استمع»
+  /// ظاهراً طوال التسميع — لا بعد الخطأ وحده — فيسمعها الطفلُ متى نسيها
+  /// ويتابع، وما بعدها باهتٌ حتى يُبلغ.
   Widget _units(BuildContext context, RecitationTracker tracker) {
     final current = tracker.currentUnit;
     final cursor = tracker.cursor;
@@ -718,7 +719,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
                       '﴿${_arabicDigits(unit.number!)}﴾',
                       style: const TextStyle(fontSize: 20, height: 2.1, fontWeight: FontWeight.w800, color: gold),
                     ),
-                  if (isCurrent && blocked) _helpButton(unit),
+                  if (isCurrent) _helpButton(unit),
                 ],
               ),
             ],
@@ -826,7 +827,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     );
   }
 
-  /// «استمع»: التلاوةُ الصحيحة للآية الخاطئة، يسمعها الطفلُ ثم يردّدها.
+  /// «استمع»: التلاوةُ الصحيحة للآية الجارية، يسمعها الطفلُ ثم يردّدها.
   Widget _helpButton(RecitationUnit unit) {
     return Semantics(
       button: true,

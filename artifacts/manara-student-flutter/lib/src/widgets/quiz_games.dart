@@ -59,8 +59,7 @@ class QuizGameArt {
         QuizGameStyle.fishing => 'audio/games/intro_fishing.mp3',
         QuizGameStyle.train => 'audio/games/intro_train.mp3',
         QuizGameStyle.slingshot => 'audio/games/intro_slingshot.mp3',
-        // ‏لا عبارةَ مسجّلةً لها بعد: «ألعاب» من أصوات التطبيق نفسها.
-        QuizGameStyle.basket => 'audio/alaab.mp3',
+        QuizGameStyle.basket => 'audio/games/intro_basket.mp3',
       };
 
   /// أبعادُ الخلفيات الأربع (١٢٨٠×٧٢٠).
