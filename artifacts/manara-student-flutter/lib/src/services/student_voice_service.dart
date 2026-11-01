@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 /// الإملاء والنطق في بطاقة حلّ المسائل.
@@ -237,7 +238,7 @@ class StudentVoiceService {
     String locale = 'ar_SA',
     Duration window = const Duration(seconds: 15),
     Duration firstPause = const Duration(seconds: 8),
-    Duration afterSpeech = const Duration(milliseconds: 1800),
+    Duration afterSpeech = const Duration(milliseconds: 1200),
   }) async {
     if (!await prepare()) return false;
     await stopSpeaking();
@@ -290,10 +291,13 @@ class StudentVoiceService {
             pauseFor: heard.isEmpty ? firstPause : afterSpeech,
             partialResults: true,
             cancelOnError: false,
+            // ‏إملاءٌ لا تأكيدُ كلمة: يتابع الكلامَ الطبيعيَّ المتّصل كما يُقال،
+            // ‏فلا يحتاج الطفلُ أن يقطّع «سادن… داود».
+            listenMode: ListenMode.dictation,
           ),
           onResult: (result) {
             if (finished || mine != generation) return;
-            final words = result.recognizedWords.trim();
+            final words = childWords(result);
             if (words.isNotEmpty) {
               if (heard.isEmpty) {
                 // ‏بدأ يتكلّم: صمتٌ قصيرٌ بعد كلامه يكفي ليُنهي.
@@ -320,6 +324,24 @@ class StudentVoiceService {
       finish();
     };
     return session();
+  }
+
+  /// ما سمعه المحرّكُ بكلّ ظنونه: الأرجحُ أوّلاً، ثم ما يليه.
+  ///
+  /// ── لماذا لا الأرجحُ وحده ──
+  /// الاسمُ السريع غيرُ المألوف («سادن داود») يكتبه المحرّكُ أحياناً في ظنّه
+  /// الأوّل كلمةً أخرى («سادة داود») ويكتبه صحيحاً في الثاني. والمطابقةُ
+  /// تبحث عن كلمات الاسم في ما قيل، فضمُّ الظنون كلِّها يجعل الصحيحَ منها
+  /// يكفي — بلا أن يعيد الطفلُ الكلامَ بطيئاً مقطّعاً.
+  @visibleForTesting
+  static String childWords(SpeechRecognitionResult result) {
+    final seen = <String>{};
+    final words = <String>[];
+    for (final alternate in result.alternates) {
+      final text = alternate.recognizedWords.trim();
+      if (text.isNotEmpty && seen.add(text)) words.add(text);
+    }
+    return words.join(' ');
   }
 
   /// يُنهي استماعَ الطفل بما سُمع حتى الآن (لمسةٌ ثانيةٌ على الميكروفون).

@@ -80,6 +80,7 @@ void main() {
     expect(speech.sessions.single.pauseFor, const Duration(seconds: 8));
     expect(speech.sessions.single.listenFor!.inSeconds, greaterThanOrEqualTo(14));
     expect(speech.sessions.single.partialResults, isTrue);
+    expect(speech.sessions.single.listenMode, ListenMode.dictation, reason: 'كلامٌ طبيعيٌّ متّصل');
     expect(results, isEmpty);
   });
 
@@ -104,7 +105,7 @@ void main() {
     speech.say('جوري');
     speech.say('جوري داود');
     expect(partials, ['جوري', 'جوري داود']);
-    expect(speech.pauses, [const Duration(milliseconds: 1800)], reason: 'مرّةً واحدة، عند أوّل كلمة');
+    expect(speech.pauses, [const Duration(milliseconds: 1200)], reason: 'مرّةً واحدة، عند أوّل كلمة');
     await _wait(500);
     speech.status!(SpeechToText.doneStatus);
     expect(results, ['جوري داود']);
@@ -126,5 +127,14 @@ void main() {
     await _wait(500);
     speech.status!(SpeechToText.doneStatus);
     expect(results, ['']);
+  });
+
+  test('كلُّ ظنون المحرّك تُضمّ: الصحيحُ في الظنّ الثاني يكفي', () {
+    final result = SpeechRecognitionResult.init([
+      const SpeechRecognitionWords('سادة داود', null, 0.6),
+      const SpeechRecognitionWords('سادن داود', null, 0.3),
+      const SpeechRecognitionWords('سادة داود', null, 0.1),
+    ], ResultType.partial);
+    expect(StudentVoiceService.childWords(result), 'سادة داود سادن داود');
   });
 }

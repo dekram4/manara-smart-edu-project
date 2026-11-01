@@ -68,4 +68,25 @@ void main() {
     expect(index.best('الفاتحة').single.complete, isFalse, reason: '«سورة» لم تُقل');
     expect(index.best('نبات', only: [0, 1]), isEmpty, reason: 'البحثُ مقصورٌ على ما طُلب');
   });
+
+  test('الكلامُ السريعُ المتّصل يُفهم بلا تقطيع', () {
+    const names = ['سادن داود', 'جوري داود', 'سارة داود', 'صالح علي'];
+    // ‏التصقت الكلمتان.
+    expect(matchFullName('سادنداود', names), 0);
+    // ‏مدٌّ زائدٌ أو ناقص في السماع السريع.
+    expect(matchFullName('سادين داوود', names), 0);
+    expect(matchFullName('جوري داوود', names), 1);
+    // ‏حرفان متقاربان في نطق الطفل.
+    expect(matchFullName('سالح علي', names), 3);
+    // ‏ولا يُخلط اسمٌ بآخر: «سارة» ليست «سادن».
+    expect(matchFullName('سارة داود', names), 2);
+    expect(matchFullName('سامي داود', names), isNull);
+  });
+
+  test('المواد والدروس بالكلام السريع', () {
+    const options = ['القرآن الكريم', 'القاعدة النورانية', 'سورة الفاتحة', 'العلوم'];
+    expect(matchSpoken('القرآنالكريم', options), 0);
+    expect(matchSpoken('سوره الفاتحه', options), 2);
+    expect(matchSpoken('النورانيه', options), 1);
+  });
 }
