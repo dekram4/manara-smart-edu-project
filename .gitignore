@@ -70,3 +70,5 @@ Thumbs.db
 .pub-cache/
 .pub/
 pubspec_overrides.yaml
+# نسخُ ما قبل الترحيل: فيها بياناتُ طلاب — لا تُرفع.
+artifacts/api-server/scripts/backups/
