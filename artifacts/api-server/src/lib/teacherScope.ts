@@ -102,12 +102,116 @@ export function scopeKvForTeacher(
   value: unknown,
   identities: Set<string>,
   hierarchy: unknown,
+  teacherId = "",
 ): unknown {
   const mine = isOwnedBy(identities);
   if (key === HIERARCHY_KEY) {
-    return records(value).filter((config) => mine(config) || TEMPLATE_OWNERS.has(ownerOf(config)));
+    const scoped = records(value).filter((config) => mine(config) || TEMPLATE_OWNERS.has(ownerOf(config)));
+    return teacherId ? canonicalTeacherConfigs(scoped, identities, teacherId) : scoped;
   }
   if (FLAT_KEYS.has(key)) return flatFrom(key, records(hierarchy).filter(mine));
   if (OWNED_RECORD_KEYS.has(key)) return Array.isArray(value) ? records(value).filter(mine) : value;
   return value;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// مدخلاتُ المعلم بمعرّفه
+// ─────────────────────────────────────────────────────────────────────
+
+type Json = Record<string, unknown>;
+
+/** مفتاحُ الصفّ كما تدمجه شاشاتُ الويب (`dedupeHierarchicalConfigs`): حرفيٌّ إلا الحالة. */
+const gradeKey = (config: Json): string => text(config.grade).toLowerCase();
+
+function arrayOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function objectOf(value: unknown): Json {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Json) : {};
+}
+
+/** يضمّ دروسَ [from] ووحداتِه إلى الفصل [into] — اتّحاداً، بلا تكرار. */
+function mergeTerm(into: Json, from: Json): void {
+  const units = arrayOf(into.units).map((u) => text(u)).filter(Boolean);
+  const lessons: Json = { ...objectOf(into.lessons) };
+  const fromLessons = objectOf(from.lessons);
+  for (const unit of [...arrayOf(from.units).map((u) => text(u)), ...Object.keys(fromLessons)]) {
+    if (!unit) continue;
+    if (!units.includes(unit)) units.push(unit);
+    const have = arrayOf(lessons[unit]).map((l) => text(l));
+    for (const lesson of arrayOf(fromLessons[unit]).map((l) => text(l))) {
+      if (lesson && !have.includes(lesson)) have.push(lesson);
+    }
+    if (have.length || unit in fromLessons || unit in lessons) lessons[unit] = have;
+  }
+  into.units = units;
+  if (Object.keys(lessons).length || "lessons" in into || "lessons" in from) into.lessons = lessons;
+}
+
+/** يضمّ موادَّ [from] إلى [into]: المادّةُ والفصلُ باسمهما، وما سواهما يُلحق. */
+function mergeSubjects(into: Json, from: unknown): void {
+  const subjects = arrayOf(into.subjects) as Json[];
+  for (const subject of arrayOf(from) as Json[]) {
+    const name = text(subject?.subject);
+    if (!name) continue;
+    let target = subjects.find((s) => text(s?.subject) === name);
+    if (!target) {
+      subjects.push(structuredClone(subject));
+      continue;
+    }
+    const terms = arrayOf(target.terms) as Json[];
+    for (const term of arrayOf(subject.terms) as Json[]) {
+      const termName = text(term?.term);
+      if (!termName) continue;
+      const existing = terms.find((t) => text(t?.term) === termName);
+      if (existing) mergeTerm(existing, term);
+      else terms.push(structuredClone(term));
+    }
+    target.terms = terms;
+  }
+  into.subjects = subjects;
+}
+
+/**
+ * مدخلاتُ الشجرة التي يملكها هذا المعلم — بأيّ اسمٍ يُعرف به — مختومةً
+ * بمعرّفه، ومدموجاً ما تكرّر منها للصفّ نفسه. وما لغيره كما هو.
+ *
+ * ── لماذا ──
+ * الخادم يعرف المعلّم بكل أسمائه (المعرّف، واسم الدخول، والاسم)، وشاشاتُ
+ * الويب — «الإعدادات الأكاديمية» و«إدارة المحتوى» — لا تعرض إلا ما مالكُه
+ * معرّفُه حرفياً. فمدخلٌ مالكُه اسمُه يصل إلى متصفّحه ولا يُعرض فيه: المادّةُ
+ * التي تحته لا تظهر، وما يُضاف إلى الصفّ نفسه يذهب إلى مدخلٍ ثانٍ. والمالكُ
+ * يُقرأ في الخادم بـ`||` وفي الويب بـ`??`، فمدخلٌ `teacher_id` فيه فارغ
+ * يُنسب في الأوّل إلى المعلم وفي الثاني إلى لا أحد. والختمُ يضع المعرّفَ في
+ * كل حقلٍ للمالك موجود، فيتّفق الاثنان.
+ */
+export function canonicalTeacherConfigs(
+  configs: Json[],
+  identities: Set<string>,
+  teacherId: string,
+): Json[] {
+  const id = text(teacherId);
+  if (!id) return configs;
+  const mine = isOwnedBy(identities);
+  const out: Json[] = [];
+  const byGrade = new Map<string, Json>();
+  for (const config of configs) {
+    if (!mine(config)) {
+      out.push(config);
+      continue;
+    }
+    const stamped: Json = { ...structuredClone(config), teacher_id: id };
+    if ("teacherId" in config) stamped.teacherId = id;
+    if ("createdBy" in config && identities.has(normalizeOwner(config.createdBy))) stamped.createdBy = id;
+    const key = gradeKey(config);
+    const existing = key ? byGrade.get(key) : undefined;
+    if (existing) {
+      mergeSubjects(existing, stamped.subjects);
+      continue;
+    }
+    if (key) byGrade.set(key, stamped);
+    out.push(stamped);
+  }
+  return out;
 }

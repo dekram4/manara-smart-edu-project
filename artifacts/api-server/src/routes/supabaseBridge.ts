@@ -11,7 +11,7 @@ import {
 } from "../lib/challengeBank";
 import { generateChallengeBank } from "../lib/geminiBank";
 import { refreshDuelDomainQuestions } from "../lib/duelDomainJob";
-import { scopeKvForTeacher } from "../lib/teacherScope";
+import { canonicalTeacherConfigs, scopeKvForTeacher } from "../lib/teacherScope";
 
 const router = Router();
 
@@ -202,10 +202,12 @@ function mergeTeacherConfigs(
   remoteValue: unknown,
   requestedValue: unknown,
   identities: Set<string>,
+  teacherId: string,
 ): Record<string, unknown>[] {
   const mine = (config: unknown) => identities.has(ownerKey(config));
-  // ما أرسله المعلم هو حاله كاملاً: ما حذفه ليس فيه، فلا يعود.
-  const requested = asRecords(requestedValue).filter(mine);
+  // ما أرسله المعلم هو حاله كاملاً: ما حذفه ليس فيه، فلا يعود. ويُحفظ
+  // ‏بمعرّفه — لا باسمٍ آخر له — فتعرضه شاشاتُه، ومكرّرُ الصفّ يُدمج.
+  const requested = canonicalTeacherConfigs(asRecords(requestedValue).filter(mine), identities, teacherId);
   // وما لا يملكه يُحفظ كما هو من النسخة المخزّنة — قوالب المشرف وشجرات
   // بقية المعلمين — فلا يمحوها حفظُ أحدهم.
   const retained = asRecords(remoteValue).filter((config) => !mine(config));
@@ -465,7 +467,7 @@ router.get("/supabase/app_kv", async (req: Request, res: Response) => {
       const identities = await teacherIdentities(config, actor.teacherId);
       const hierarchy = values.find(({ key }) => key === HIERARCHY_KEY)?.value;
       for (const entry of values) {
-        entry.value = scopeKvForTeacher(entry.key, entry.value, identities, hierarchy);
+        entry.value = scopeKvForTeacher(entry.key, entry.value, identities, hierarchy, actor.teacherId);
       }
     }
     res.json(values
@@ -534,6 +536,7 @@ router.post("/supabase/app_kv/upsert", async (req: Request, res: Response) => {
               remoteValue,
               row.value,
               await teacherIdentities(config, actor.teacherId),
+              actor.teacherId,
             )
         : isDeletedIdsKey(key)
           ? mergeDeletedIds(remoteValue, row.value)

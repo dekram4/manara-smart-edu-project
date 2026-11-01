@@ -11,6 +11,8 @@ import { dedupeHierarchicalConfigs } from '../../utils/academic';
 import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { readActiveSession } from '../../utils/storage';
 import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
+import { ownedTreeArrived, saveKvConfirmed } from '../../db/confirmedSave';
+import { refreshFromServer } from '../../db/sync';
 
 interface MyAcademicSettingsProps {
   teacher?: TeacherInfo | null;
@@ -156,6 +158,40 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     setGeneralConfigs(generalSettings);
   }
 
+  /**
+   * يؤكّد من الخادم أن الشجرة كما في هذا المتصفّح قد وصلت، ثم يقول ذلك.
+   *
+   * كانت رسالةُ «تم … بنجاح» تظهر لحظةَ الكتابة في المتصفّح، والإرسالُ بعدها
+   * في الخلفية. فإن رُفض الإرسال بقيت المادّةُ أمام المعلّم وحده، ثم محاها أوّلُ
+   * تحميلٍ من الخادم — وأوّلُه حين تُفتح «إدارة المحتوى» — فبدا أنها لم تُربط.
+   * والآن لا نجاح إلا بعد أن يُقرأ ما وصل، وما فشل يُقال بسببه. وبعد النجاح
+   * تُجلب نسخةُ الخادم فتُعيد الشاشاتُ المفتوحة — «إدارة المحتوى» منها — قراءتها.
+   */
+  const confirmSaved = async (message?: string) => {
+    let local: unknown[] = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS) || '[]');
+      local = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      local = [];
+    }
+    const outcome = await saveKvConfirmed(
+      STORAGE_KEYS.HIERARCHICAL_CONFIGS,
+      local,
+      ownedTreeArrived(teacherId, getRecordTeacherId),
+    );
+    if (outcome.ok === false) {
+      alert(`⚠️ لم يُحفظ التعديل في قاعدة البيانات: ${outcome.reason}\nهو في هذا الجهاز وحده الآن — أعد المحاولة من زر «حفظ وتثبيت» أعلى الصفحة.`);
+      return;
+    }
+    if (!outcome.verified) {
+      alert('⚠️ أُرسل التعديل لكن تعذّر التأكّد من وصوله. اضغط «حفظ وتثبيت» أعلى الصفحة للتأكّد.');
+      return;
+    }
+    if (message) alert(message);
+    void refreshFromServer();
+  };
+
   // ========== MY SETTINGS FUNCTIONS ==========
   
   const handleAddGrade = () => {
@@ -184,7 +220,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewGrade('');
     loadSettings(teacherId);
-    alert('✅ تم إضافة الصف بنجاح');
+    void confirmSaved('✅ تم إضافة الصف بنجاح');
   };
 
   const handleAddSubject = () => {
@@ -217,7 +253,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewSubject('');
     loadSettings(teacherId);
-    alert('✅ تم إضافة المادة بنجاح');
+    void confirmSaved('✅ تم إضافة المادة بنجاح');
   };
 
   const handleAddTerm = () => {
@@ -250,7 +286,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewTerm('');
     loadSettings(teacherId);
-    alert('✅ تم إضافة الفصل بنجاح');
+    void confirmSaved('✅ تم إضافة الفصل بنجاح');
   };
 
   const handleAddUnit = () => {
@@ -283,7 +319,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewUnit('');
     loadSettings(teacherId);
-    alert('✅ تم إضافة الوحدة بنجاح');
+    void confirmSaved('✅ تم إضافة الوحدة بنجاح');
   };
 
   // ========== DELETE FUNCTIONS ==========
@@ -307,7 +343,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
     loadSettings(teacherId);
-    alert('✅ تم حذف الصف بنجاح');
+    void confirmSaved('✅ تم حذف الصف بنجاح');
   };
 
   const handleDeleteSubject = (gradeName: string, subjectName: string) => {
@@ -331,7 +367,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
         config.subjects = config.subjects.filter((s: any) => s.subject !== subjectName);
         localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
         loadSettings(teacherId);
-        alert('✅ تم حذف المادة بنجاح');
+        void confirmSaved('✅ تم حذف المادة بنجاح');
       }
     }
   };
@@ -359,7 +395,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
           subject.terms = subject.terms.filter((t: any) => t.term !== termName);
           localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
           loadSettings(teacherId);
-          alert('✅ تم حذف الفصل بنجاح');
+          void confirmSaved('✅ تم حذف الفصل بنجاح');
         }
       }
     }
@@ -401,7 +437,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
             }
             localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
             loadSettings(teacherId);
-            alert('✅ تم حذف الوحدة بنجاح');
+            void confirmSaved('✅ تم حذف الوحدة بنجاح');
           }
         }
       }
@@ -485,6 +521,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
 
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
     loadSettings(teacherId);
+    void confirmSaved();
   };
 
 
@@ -543,6 +580,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     term.lessons = lessons;
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
     loadSettings(teacherId);
+    void confirmSaved();
   };
 
   /// يضيف الدرس المكتوب في حقل هذه الوحدة.
@@ -571,7 +609,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       [...current, name],
     );
     setNewLesson('');
-    alert('✅ تم إضافة الدرس بنجاح');
+    void confirmSaved('✅ تم إضافة الدرس بنجاح');
   };
 
   /// يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس.
@@ -671,7 +709,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
     
     loadSettings(teacherId);
-    alert('✅ تم نسخ الإعداد إلى إعداداتك الخاصة! يمكنك الآن التعديل عليه');
+    void confirmSaved('✅ تم نسخ الإعداد إلى إعداداتك الخاصة! يمكنك الآن التعديل عليه');
     setActiveTab('my');
   };
 
