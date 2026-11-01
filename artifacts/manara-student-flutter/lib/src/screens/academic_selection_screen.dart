@@ -321,8 +321,55 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       (lesson) => _normalized(lesson.lessonName) == _normalized(lessonName),
     );
     if (matches.isEmpty) return;
-    setState(() => _lesson = matches.first);
+    if (!_commitLesson(matches.first)) return;
     _playSelectionFeedback();
+  }
+
+  /// كلُّ دروس المادّة المختارة في الصفّ المختار، من فصولها ووحداتها جميعاً.
+  Iterable<LessonContent> get _subjectLessons sync* {
+    final data = _data;
+    final grade = _grade;
+    final subject = _subject;
+    if (data == null || grade == null || subject == null) return;
+    for (final term in data.termsFor(grade: grade, subject: subject)) {
+      for (final unit in data.unitsFor(grade: grade, subject: subject, term: term)) {
+        yield* data.lessonsFor(grade: grade, subject: subject, term: term, unit: unit);
+      }
+    }
+  }
+
+  /// هل [lesson] من دروس المادّة المختارة الآن؟
+  ///
+  /// يُسأل بالشجرة لا باسم المادّة المكتوب في الدرس: الشجرةُ هي ما رتّبه
+  /// المعلم، والاسمُ قد يُكتب في الدرس بغير ما كُتب في الشجرة.
+  bool _ownsLesson(LessonContent lesson) =>
+      _subjectLessons.any((own) => identical(own, lesson) || own.id == lesson.id);
+
+  /// البابُ الوحيد الذي يدخل منه درسٌ إلى المسار — لمساً أو صوتاً.
+  ///
+  /// الصفُّ ثم المادّةُ ثم الدرس: درسٌ لا يتبع المادّةَ المختارة يُردّ
+  /// بتنبيهٍ يُسمع ويُرى، ولا يتغيّر شيء.
+  /// [placed]: الروضةُ تُخفي الفصلَ والوحدة، فيُكتبان من الدرس نفسه.
+  bool _commitLesson(LessonContent lesson, {bool placed = false}) {
+    if (!_ownsLesson(lesson)) {
+      _refuse(trf('voice.notInSubject', {'name': lesson.lessonName, 'subject': _subject ?? ''}));
+      return false;
+    }
+    setState(() {
+      if (placed) {
+        _term = lesson.term;
+        _unit = lesson.unit;
+      }
+      _lesson = lesson;
+    });
+    return true;
+  }
+
+  /// رفضٌ يُسمع (صوتُ التنبيه واهتزازة) ويُرى (في فقاعة الميكروفون)، بلا تغيير.
+  void _refuse(String why) {
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+    HapticFeedback.mediumImpact();
+    setState(() => _voiceNote = why);
   }
 
   void _playSelectionFeedback() {
@@ -410,6 +457,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null || _isEntering) return;
+    // ‏آخرُ حارس: لا يُفتح درسٌ ليس من المادّة المختارة، مهما كان طريقُه إلى هنا.
+    if (!_ownsLesson(selection.selectedLesson)) {
+      _refuse(trf('voice.notInSubject', {'name': selection.selectedLesson.lessonName, 'subject': selection.subject}));
+      return;
+    }
     unawaited(StudentPathMemory.save(
       widget.profile.id,
       selection,
@@ -514,13 +566,22 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     _voiceIndexedFor = data;
   }
 
-  /// ما قصده الطفلُ في الشجرة كلّها، أو `null`.
+  /// هل [target] ممّا يُختار بالصوت الآن؟ الترتيبُ نفسُه الذي يمشيه اللمس:
+  /// الصفوفُ دائماً، وموادُّ الصفّ المختار، وما تحت المادّة المختارة وحدها.
+  bool _inPath(_VoiceTarget target) {
+    if (target.depth == 0) return true;
+    if (_grade == null || target.grade != _grade) return false;
+    if (target.depth == 1) return true;
+    return _subject != null && target.subject == _subject;
+  }
+
+  /// ما قصده الطفلُ في المسار المختار، أو `null`.
   ///
   /// ── القفزُ إلى أعمق ما ذُكر ──
-  /// يُبحث في الشجرة كلّها لا في الخطوة الجارية: اسمُ درسٍ («الفاتحة») يأخذه
-  /// إلى الدرس نفسه، واسمُ وحدةٍ إلى دروسها، وفصلٌ إلى وحداته — وما فوقها
-  /// يُختار معها. والصفُّ المختار يحصر البحث فيه (طفلُ الروضة لا يقفز إلى
-  /// الصف الثالث بكلمة)، إلا الصفوفَ نفسها.
+  /// يُبحث في المادّة المختارة كلّها لا في الخطوة الجارية: اسمُ درسٍ
+  /// («الفاتحة») يأخذه إلى الدرس نفسه، واسمُ وحدةٍ إلى دروسها، وفصلٌ إلى
+  /// وحداته. أمّا ما في مادّةٍ أخرى أو صفٍّ آخر فلا يُقفز إليه ([_inPath]):
+  /// يُختار صفُّه ثم مادّتُه أوّلاً، كما باللمس — و[_outOfPath] يقول ذلك للطفل.
   ///
   /// وإن تعادل اسمان («الوحدة الأولى» في كل مادّة) قُدّم ما يوافق المسارَ
   /// المختار الآن، ثم الخطوةُ الجارية؛ وإن بقي أكثرُ من واحدٍ لم يُختر شيء.
@@ -533,7 +594,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     final grade = _grade;
     final scope = [
       for (var i = 0; i < targets.length; i++)
-        if (grade == null || targets[i].depth == 0 || targets[i].grade == grade) i,
+        if (_inPath(targets[i])) i,
     ];
     var best = index.best(heard, only: scope);
     if (best.length > 1) {
@@ -549,9 +610,24 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     return targets[best.single.index];
   }
 
-  /// يسير إلى [target]: يختار ما فوقه ثم هو، كما لو لمس الطفلُ كلَّ خطوة.
+  /// ما قاله الطفلُ وهو خارجَ المسار المختار: درسٌ أو وحدةٌ في مادّةٍ أخرى،
+  /// أو مادّةٌ في صفٍّ آخر. يُعرف ليُقال له لماذا رُدّ، لا ليُقفز إليه.
+  _VoiceTarget? _outOfPath(String heard) {
+    final targets = _voiceTargets;
+    final index = _voiceIndex;
+    if (targets == null || index == null) return null;
+    final best = index.best(heard, only: [
+      for (var i = 0; i < targets.length; i++)
+        if (!_inPath(targets[i])) i,
+    ]);
+    return best.isEmpty ? null : targets[best.first.index];
+  }
+
+  /// يسير إلى [target]: يختار ما فوقه ثم هو، كما لو لمس الطفلُ كلَّ خطوة —
+  /// بالدوالّ نفسها التي يستدعيها اللمس، فحالةُ المسار واحدةٌ أيّاً كان الطريق.
   /// الدرسُ يدخل محتواه في لحظته؛ وما سواه يعرض ما تحته (الوحدةُ دروسَها).
   void _jumpTo(_VoiceTarget target) {
+    if (!_inPath(target)) return;
     StudentSoundService.instance.playTap();
     if (target.grade != _grade) _selectGrade(target.grade);
     final subject = target.subject;
@@ -561,8 +637,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     final unit = target.unit;
     if (unit != null && unit != _unit) _selectUnit(unit);
     final lesson = target.lesson;
+    if (lesson != null && !_commitLesson(lesson)) return;
     setState(() {
-      if (lesson != null) _lesson = lesson;
       _voiceNote = trf('voice.picked', {'name': target.name});
       _journeyStage = math.min(target.depth + 1, _journeySteps.length - 1);
     });
@@ -584,8 +660,14 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
     final target = _voiceTarget(heard);
     if (target == null) {
-      StudentSoundService.instance.play(StudentSoundCue.warning);
-      setState(() => _voiceNote = tr('voice.pathUnknown'));
+      final elsewhere = _outOfPath(heard);
+      if (elsewhere == null) {
+        _refuse(tr('voice.pathUnknown'));
+      } else if (elsewhere.grade != _grade) {
+        _refuse(trf('voice.notInGrade', {'name': elsewhere.name, 'grade': _grade ?? ''}));
+      } else {
+        _refuse(trf('voice.notInSubject', {'name': elsewhere.name, 'subject': _subject ?? ''}));
+      }
       return;
     }
     _jumpTo(target);
@@ -880,12 +962,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// صفحةَ البطاقات وألعابَ الدرس فوراً — بلا خطوةٍ وسيطة.
   void _selectKgLesson(String name) {
     final lesson = _kgLessons.where((l) => _normalized(l.lessonName) == _normalized(name)).firstOrNull;
-    if (lesson == null) return;
-    setState(() {
-      _term = lesson.term;
-      _unit = lesson.unit;
-      _lesson = lesson;
-    });
+    if (lesson == null || !_commitLesson(lesson, placed: true)) return;
     _playSelectionFeedback();
     unawaited(_enterDashboard());
   }
