@@ -70,12 +70,37 @@ String _root(String word) {
   return w.length >= 2 || RegExp(r'^\d$').hasMatch(w) ? w : '';
 }
 
-/// كلمتان متقاربتان: متطابقتان، أو إحداهما بدايةُ الأخرى، أو بينهما حرفٌ
-/// واحد في الكلمات الطويلة — خطأُ سماعٍ لا اسمٌ آخر.
+/// كلمتان متقاربتان — خطأُ سماعٍ لا اسمٌ آخر:
+///  • متطابقتان، أو إحداهما بدايةُ الأخرى («عبد» من «عبدالله»)؛
+///  • أو التصقت الكلمةُ بجارتها في الكلام السريع («سادنداود» فيها «داود»)؛
+///  • أو بينهما حرفٌ واحد في الكلمات الطويلة («داوود» و«داود»)؛
+///  • أو هيكلُهما واحدٌ بلا حروف المدّ وبتوحيد الحروف المتقاربة في نطق
+///    الطفل («سادين» و«سادن»، «صالح» و«سالح»).
 bool _close(String said, String written) {
   if (said == written) return true;
   if (said.length >= 3 && written.length >= 3 && (written.startsWith(said) || said.startsWith(written))) return true;
-  return said.length >= 4 && written.length >= 4 && _distance(said, written) <= 1;
+  if (written.length >= 3 && said.length >= written.length + 2 && said.contains(written)) return true;
+  if (said.length >= 4 && written.length >= 4 && _distance(said, written) <= 1) return true;
+  final a = _skeleton(said);
+  final b = _skeleton(written);
+  if (a.length >= 3 && a == b) return true;
+  return a.length >= 4 && b.length >= 4 && _distance(a, b) <= 1;
+}
+
+/// هيكلُ الكلمة كما تُسمع: بلا حروف المدّ (ا و ي) إلا أوّلَها، وبالحروف
+/// المتقاربة في نطق الأطفال حرفاً واحداً — فلا يفرّق السماعُ السريع بين
+/// «سادين» و«سادن» ولا بين «ص» و«س».
+String _skeleton(String word) {
+  const same = {'ص': 'س', 'ث': 'س', 'ط': 'ت', 'ظ': 'ز', 'ذ': 'ز', 'ض': 'د', 'ق': 'ك', 'ه': 'ه', 'ح': 'ه', 'ع': 'ا', 'غ': 'خ'};
+  final out = StringBuffer();
+  for (var i = 0; i < word.length; i++) {
+    var c = same[word[i]] ?? word[i];
+    if (i > 0 && (c == 'ا' || c == 'و' || c == 'ي')) continue;
+    // ‏حرفٌ مكرّرٌ يُقرأ واحداً («داوود» ← «دد» لا «ددد»).
+    if (out.isNotEmpty && out.toString().endsWith(c)) continue;
+    out.write(c);
+  }
+  return out.toString();
 }
 
 int _distance(String a, String b) {
