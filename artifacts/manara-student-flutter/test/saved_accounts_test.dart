@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/models/student_profile.dart';
 import 'package:manara_student/src/screens/login_screen.dart';
 import 'package:manara_student/src/services/saved_accounts.dart';
@@ -81,16 +85,29 @@ void main() {
     late _FakeAuth auth;
     setUp(() => auth = _FakeAuth());
 
-    Future<_FakeAuth> pump(WidgetTester tester, SavedAccounts saved) async {
+    Future<_FakeAuth> pump(
+      WidgetTester tester,
+      SavedAccounts saved, {
+      List<String>? spoken,
+      List<String>? asked,
+    }) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
+      final said = [...?spoken];
       await tester.pumpWidget(MaterialApp(
         home: LoginScreen(
           authService: auth,
           initializationError: null,
           apiBaseUrl: '',
           savedAccounts: saved,
+          voicePrompt: () async => asked?.add('voice_login'),
+          voiceListen: ({required onResult}) async {
+            if (said.isEmpty) return false;
+            final words = said.removeAt(0);
+            scheduleMicrotask(() => onResult(words));
+            return true;
+          },
         ),
       ));
       await tester.pump(const Duration(milliseconds: 300));
@@ -168,6 +185,46 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byKey(const ValueKey('login-account-picker')), findsNothing);
       await settle(tester);
+    });
+  
+    testWidgets('الدخولُ بالصوت: يُسأل «إيش اسمك؟» فيقول اسمه ويُدخَل مباشرة', (tester) async {
+      final saved = SavedAccounts();
+      await saved.save(const SavedAccount(username: 'jory', displayName: 'جوري داود'), 'secret-j');
+      await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'secret-s');
+      final asked = <String>[];
+      final auth = await pump(tester, saved, spoken: ['جوري'], asked: asked);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(asked, ['voice_login'], reason: 'السؤالُ المسموع قبل الاستماع');
+      expect(auth.attempts, [('jory', 'secret-j')]);
+      expect(find.byKey(const ValueKey('login-save-dialog')), findsNothing);
+      await settle(tester);
+    });
+
+    testWidgets('اسمٌ لا يُعرف: لا دخول، ويُدعى ليقوله ثانيةً', (tester) async {
+      final saved = SavedAccounts();
+      await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'secret');
+      final auth = await pump(tester, saved, spoken: ['طائرة', 'سارة']);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(auth.attempts, isEmpty);
+      expect(find.text(tr('voice.nameUnknown')), findsOneWidget);
+      // ‏لمسةٌ على الميكروفون: محاولةٌ ثانية.
+      await tester.tap(find.byKey(const ValueKey('voice-login')));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(auth.attempts, [('sara', 'secret')]);
+      await settle(tester);
+    });
+
+    testWidgets('بلا حسابٍ محفوظ: لا ميكروفون — لا اسمَ يُطابَق', (tester) async {
+      await pump(tester, SavedAccounts(), spoken: ['سارة']);
+      expect(find.byKey(const ValueKey('voice-login')), findsNothing);
+      await settle(tester);
+    });
+
+    test('سؤالُ «إيش اسمك يا بطل؟» في الحزمة', () {
+      expect(File('assets/audio/voice_login.mp3').existsSync(), isTrue);
     });
   });
 }

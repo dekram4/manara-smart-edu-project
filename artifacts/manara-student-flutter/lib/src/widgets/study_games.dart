@@ -12,6 +12,7 @@ import '../models/study_games.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
+import 'attention_glow.dart';
 import 'quiz_games.dart';
 import 'student_experience.dart';
 
@@ -772,10 +773,8 @@ class _GameIntro extends StatefulWidget {
   State<_GameIntro> createState() => _GameIntroState();
 }
 
-class _GameIntroState extends State<_GameIntro> with TickerProviderStateMixin {
+class _GameIntroState extends State<_GameIntro> with SingleTickerProviderStateMixin {
   late final AnimationController _enter =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-  late final AnimationController _pulse =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
 
   @override
@@ -783,17 +782,14 @@ class _GameIntroState extends State<_GameIntro> with TickerProviderStateMixin {
     super.didChangeDependencies();
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
       _enter.value = 1;
-      _pulse.stop();
-    } else {
-      if (_enter.value == 0 && !_enter.isAnimating) _enter.forward();
-      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else if (_enter.value == 0 && !_enter.isAnimating) {
+      _enter.forward();
     }
   }
 
   @override
   void dispose() {
     _enter.dispose();
-    _pulse.dispose();
     super.dispose();
   }
 
@@ -819,11 +815,10 @@ class _GameIntroState extends State<_GameIntro> with TickerProviderStateMixin {
                 ),
               ),
               AnimatedBuilder(
-                animation: Listenable.merge([_enter, _pulse]),
+                animation: _enter,
                 builder: (context, _) {
                   final t = Curves.elasticOut.transform(_enter.value);
                   final fade = Curves.easeOut.transform(_enter.value);
-                  final beat = Curves.easeInOut.transform(_pulse.value);
                   return LayoutBuilder(builder: (context, box) {
                     final art = (box.maxHeight * 0.36).clamp(90.0, 220.0).toDouble();
                     final title = (box.maxWidth / 14).clamp(28.0, 52.0).toDouble();
@@ -866,8 +861,8 @@ class _GameIntroState extends State<_GameIntro> with TickerProviderStateMixin {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            Transform.scale(
-                              scale: 0.94 + beat * 0.1,
+                            AttentionGlow(
+                              color: Colors.white,
                               child: Semantics(
                                 button: true,
                                 child: GestureDetector(

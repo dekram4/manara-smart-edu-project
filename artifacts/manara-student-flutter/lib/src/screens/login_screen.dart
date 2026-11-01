@@ -9,6 +9,7 @@ import '../services/saved_accounts.dart';
 import '../services/student_auth_service.dart';
 import '../theme/student_theme.dart';
 import '../services/student_sound_service.dart';
+import '../services/voice_match.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../l10n/student_strings.dart';
@@ -18,6 +19,7 @@ import '../widgets/login_backdrop.dart';
 import '../widgets/login_scene.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_mascot.dart';
+import '../widgets/voice_mic_button.dart';
 import 'academic_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -26,6 +28,8 @@ class LoginScreen extends StatefulWidget {
     required this.initializationError,
     required this.apiBaseUrl,
     this.savedAccounts,
+    this.voiceListen,
+    this.voicePrompt,
     super.key,
   });
 
@@ -35,6 +39,11 @@ class LoginScreen extends StatefulWidget {
 
   /// الحساباتُ المحفوظة على الجهاز؛ وبلا قيمةٍ [SavedAccounts.instance].
   final SavedAccounts? savedAccounts;
+
+  /// الدخولُ بالصوت: يُسمع الطفلُ اسمه فيُدخَل حسابُه المحفوظ. وللاختبار
+  /// استماعٌ مزيّف ([voiceListen]) وسؤالٌ صامت ([voicePrompt]).
+  final VoiceListen? voiceListen;
+  final Future<void> Function()? voicePrompt;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -60,6 +69,12 @@ class _LoginScreenState extends State<LoginScreen> {
   /// اختار «حساب آخر»: يكتب بنفسه، فلا تُفتح القائمةُ ثانيةً فوق ما يكتب.
   bool _manualEntry = false;
   bool _pickerOpen = false;
+
+  /// سُئل «إيش اسمك يا بطل؟» في هذه الفتحة: لا يُسأل وحده ثانيةً.
+  bool _voiceAsked = false;
+
+  /// ما يُقال للطفل تحت الميكروفون بعد أن تكلّم.
+  String? _voiceNote;
 
   @override
   void initState() {
@@ -115,23 +130,54 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     switch (choice) {
       case _PickedAccount(:final account):
-        final password = await _saved.passwordFor(account.username);
-        if (!mounted) return;
-        _usernameController.text = account.username;
-        _passwordController.text = password ?? '';
-        if ((password ?? '').isEmpty) {
-          // ‏كلمةُ المرور لم تُحفظ: يكتبها هو.
-          _manualEntry = true;
-          _passwordFocus.requestFocus();
-          return;
-        }
-        await _submit();
+        await _enterAs(account);
       case _OtherAccount():
         _manualEntry = true;
         _usernameFocus.requestFocus();
       case null:
         break;
     }
+  }
+
+  /// يدخل بالحساب المحفوظ [account]: اسمُه وكلمةُ مروره من المخزن المشفّر.
+  Future<void> _enterAs(SavedAccount account) async {
+    final password = await _saved.passwordFor(account.username);
+    if (!mounted) return;
+    _usernameController.text = account.username;
+    _passwordController.text = password ?? '';
+    if ((password ?? '').isEmpty) {
+      // ‏كلمةُ المرور لم تُحفظ: يكتبها هو.
+      _manualEntry = true;
+      _passwordFocus.requestFocus();
+      return;
+    }
+    await _submit();
+  }
+
+  /// «إيش اسمك يا بطل؟» — يُسأل الطفلُ بصوتٍ مسجّل قبل أن يُفتح المايك.
+  Future<void> _askName() async {
+    _voiceAsked = true;
+    final prompt = widget.voicePrompt;
+    if (prompt != null) return prompt();
+    final sound = StudentSoundService.instance;
+    await sound.stopLoginVoice();
+    await sound.playClipToEnd('audio/voice_login.mp3', limit: const Duration(seconds: 6));
+  }
+
+  /// قال الطفلُ اسمه: يُطابَق مع أسماء الحسابات المحفوظة على الجهاز وحدها،
+  /// وبمجرّد التطابق يُدخَل. وإن لم يُعرف — أو أشبه اسمين — يُدعى إلى
+  /// المحاولة ثانيةً أو لمس صورته.
+  Future<void> _voiceLogin(String heard) async {
+    final accounts = _accounts;
+    final index = matchSpoken(heard, [for (final a in accounts) '${a.displayName} ${a.username}']);
+    if (index == null) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      setState(() => _voiceNote = tr('voice.nameUnknown'));
+      return;
+    }
+    final account = accounts[index];
+    setState(() => _voiceNote = trf('voice.found', {'name': account.displayName}));
+    await _enterAs(account);
   }
 
   /// بعد دخولٍ ناجح: يُسأل الطالبُ مرّةً أن يحفظ حسابه؛ ومحفوظٌ يُحدَّث بصمت
@@ -624,6 +670,24 @@ class _LoginScreenState extends State<LoginScreen> {
                           mascotSize,
                       child: LivelyFloating(child: StudentInteractiveMascot(size: mascotSize)),
                     ),
+                    // ‏الدخولُ بالصوت: لمن حُفظ حسابُه على هذا الجهاز.
+                    // ‏في الركن الأسفل: الشعارُ في الأعلى، والسبورةُ في الوسط.
+                    if (_accounts.isNotEmpty && !typing && !_loginSucceeded)
+                      Positioned(
+                        bottom: 12,
+                        left: 10,
+                        child: _VoiceLoginCard(
+                          note: _voiceNote,
+                          mic: VoiceMicButton(
+                            key: const ValueKey('voice-login'),
+                            autoStart: !_voiceAsked,
+                            prompt: _askName,
+                            listen: widget.voiceListen,
+                            onHeard: _voiceLogin,
+                            size: 58,
+                          ),
+                        ),
+                      ),
                     Positioned(
                       top: 4,
                       right: 8,
@@ -646,6 +710,41 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
+      ),
+    );
+  }
+}
+
+/// «قل اسمك»: الميكروفونُ المتوهّج وتحته ما يُقال للطفل.
+class _VoiceLoginCard extends StatelessWidget {
+  const _VoiceLoginCard({required this.mic, this.note});
+
+  final Widget mic;
+  final String? note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 156,
+      padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFC4B5FD), width: 2),
+        boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 12, offset: Offset(0, 5))],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          mic,
+          const SizedBox(height: 10),
+          Text(
+            note ?? tr('voice.sayName'),
+            key: const ValueKey('voice-login-note'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, height: 1.35, fontWeight: FontWeight.w900, color: Color(0xFF4C1D95)),
+          ),
+        ],
       ),
     );
   }

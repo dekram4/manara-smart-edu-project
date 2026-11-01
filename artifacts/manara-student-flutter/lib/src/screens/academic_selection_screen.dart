@@ -15,8 +15,11 @@ import '../services/student_path_memory.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
+import '../services/voice_match.dart';
 import '../theme/student_theme.dart';
 import '../widgets/adventure_route_map.dart';
+import '../widgets/attention_glow.dart';
+import '../widgets/voice_mic_button.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_no_back.dart';
@@ -30,8 +33,12 @@ class AcademicSelectionScreen extends StatefulWidget {
     required this.apiBaseUrl,
     this.initialData,
     this.pickOnly = false,
+    this.voiceListen,
     super.key,
   });
+
+  /// الاختيارُ بالصوت؛ وللاختبار استماعٌ مزيّف.
+  final VoiceListen? voiceListen;
 
   final StudentProfile profile;
   final StudentAuthService authService;
@@ -65,6 +72,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   bool _leaving = false;
   String? _loadError;
   StudentGamification _gamification = const StudentGamification();
+
+  /// ما فهمه الميكروفونُ آخرَ مرّة («✓ القرآن الكريم»، أو «لم أفهم»).
+  String? _voiceNote;
 
   /// آخرُ مسارٍ اختاره هذا الطالب، على هذا الجهاز أو في سجلّه — الأحدثُ منهما.
   /// يُقدَّم على مادة ملفّه.
@@ -469,6 +479,31 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
+  /// قال الطفلُ كلمةً («قرآن»، «نورانية»، «حروف»، «أرقام»، «الأول»): تُطابَق
+  /// أوّلاً مع خيارات الخطوة الجارية، ثم ما بعدها، ثم ما قبلها — فيقول
+  /// «قرآن» وهو على خطوة الصف فتُختار المادّة. والاختيارُ هو اختيارُ اللمس
+  /// نفسُه ([AdventureStep.onSelected]): الخريطةُ تتقدّم كما لو لمسها.
+  Future<void> _voicePick(String heard) async {
+    final steps = _journeySteps;
+    final order = [
+      for (var i = _journeyStage; i < steps.length; i++) i,
+      for (var i = 0; i < _journeyStage && i < steps.length; i++) i,
+    ];
+    for (final i in order) {
+      final step = steps[i];
+      if (step.options.isEmpty) continue;
+      final index = matchSpoken(heard, step.options);
+      if (index == null) continue;
+      final option = step.options[index];
+      StudentSoundService.instance.playTap();
+      setState(() => _voiceNote = trf('voice.picked', {'name': option}));
+      step.onSelected(option);
+      return;
+    }
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+    setState(() => _voiceNote = tr('voice.pathUnknown'));
+  }
+
   /// رجوعٌ إلى لوحة البطاقات بلا تغيير (في [AcademicSelectionScreen.pickOnly]).
   void _back() {
     StudentSoundService.instance.playTap();
@@ -529,6 +564,44 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                           onActivate: (index) => setState(() => _journeyStage = index),
                           // ‏والزرُّ يتوهّج ويثب: فسحةٌ فوقه لا تلامسه فيها البطاقات.
                           bottomInset: startBand + (_awaitingLessons ? 70 : 12),
+                          // ‏الميكروفون بجانب السؤال: يختار الطفلُ بصوته بجانب اللمس.
+                          voice: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              VoiceMicButton(
+                                key: const ValueKey('path-voice'),
+                                listen: widget.voiceListen,
+                                onHeard: _voicePick,
+                                // ‏بقدر زرّ السمّاعة بجانبه: لا يزيد ارتفاعَ السطر فتضيق البطاقات.
+                                size: areaSize.shortestSide < 420 ? 30 : (areaSize.shortestSide < 600 ? 40 : 50),
+                                color: const Color(0xFFEC4899),
+                              ),
+                              const SizedBox(width: 8),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: math.min(200, areaSize.width * 0.28)),
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: areaSize.shortestSide < 420 ? 3 : 7),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: Colors.white),
+                                  ),
+                                  child: Text(
+                                    _voiceNote ?? tr('voice.pathHint'),
+                                    key: const ValueKey('path-voice-note'),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: areaSize.shortestSide < 420 ? 11.5 : 13,
+                                      height: 1.25,
+                                      fontWeight: FontWeight.w900,
+                                      color: StudentSurface.ink(context),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     // ‏الترحيبُ والانتظار على خلفية الخريطة نفسها، لا على أرضٍ رمادية.
@@ -920,7 +993,8 @@ class _StartAdventureButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             StudentPressScale(
-              child: _GlowPulse(
+              // ‏هالةٌ تتنفّس وحلقتا نورٍ تنطلقان ولمعةٌ تعبر: لا يفوت الطفلَ.
+              child: AttentionGlow(
                 color: const Color(0xFFFF7A1A),
                 active: enabled && !busy,
                 radius: size / 2,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -301,6 +302,64 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('adventure-station-0')));
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text(tr('route.pickGrade')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+  
+    Future<void> pumpVoice(WidgetTester tester, List<String> said) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: AcademicSelectionScreen(
+          profile: const StudentProfile(id: 's1', name: 'طالب', username: 'student', role: 'student'),
+          authService: authService,
+          apiBaseUrl: '',
+          initialData: data,
+          voiceListen: ({required onResult}) async {
+            if (said.isEmpty) return false;
+            final words = said.removeAt(0);
+            scheduleMicrotask(() => onResult(words));
+            return true;
+          },
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    Future<void> speak(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('path-voice')));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    testWidgets('بالصوت خطوةً خطوة: «الروضة» ثم «علوم» ثم «الثاني»', (tester) async {
+      await pumpVoice(tester, ['الروضة', 'علوم', 'الفصل الثاني']);
+      expect(find.byKey(const ValueKey('path-voice')), findsOneWidget);
+      await speak(tester);
+      expect(valueAt(tester, 0), kg);
+      expect(find.text(tr('route.pickSubject')), findsOneWidget);
+      await speak(tester);
+      expect(valueAt(tester, 1), 'العلوم');
+      await speak(tester);
+      expect(valueAt(tester, 2), 'الفصل الثاني');
+      expect(find.text(tr('route.pickUnit')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('«قرآن» وهو على خطوة الصف: تُختار المادّةُ مباشرة', (tester) async {
+      await pumpVoice(tester, ['قرآن']);
+      await speak(tester);
+      expect(valueAt(tester, 1), 'القرآن الكريم');
+      expect(find.text(trf('voice.picked', {'name': 'القرآن الكريم'})), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('كلمةٌ لا تُفهم: لا شيءَ يتغيّر، ويُقترح ما يقوله', (tester) async {
+      await pumpVoice(tester, ['طائرة']);
+      final before = valueAt(tester, 1);
+      await speak(tester);
+      expect(valueAt(tester, 1), before);
+      expect(find.text(tr('voice.pathUnknown')), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 300));
     });
   });
