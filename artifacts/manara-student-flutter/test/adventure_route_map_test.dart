@@ -163,6 +163,7 @@ void main() {
       lesson(kg, 'العلوم', 'الفصل الأول', 'الوحدة الأولى', 'النبات'),
       lesson(kg, 'العلوم', 'الفصل الثاني', 'الوحدة الأولى', 'الماء'),
       lesson('الصف الأول', 'العلوم', 'الفصل الأول', 'الوحدة الأولى', 'الخلية'),
+      lesson('الصف الأول', 'العلوم', 'الفصل الثاني', 'الوحدة الأولى', 'الضوء'),
     ];
     final data = AcademicSelectionData(
       paths: [
@@ -195,21 +196,26 @@ void main() {
       expect(find.text(tr('route.pickGrade')), findsOneWidget);
       expect(find.byKey(const ValueKey('adventure-option-0-0')), findsOneWidget);
       expect(find.byKey(const ValueKey('adventure-option-0-1')), findsOneWidget);
+      // ‏الروضةُ أوّلُ الصفوف: ثلاثُ محطّات — الصفّ والمادّةُ والدرس.
+      for (var i = 0; i < 3; i++) {
+        expect(find.byKey(ValueKey('adventure-station-$i')), findsOneWidget);
+      }
+      expect(find.byKey(const ValueKey('adventure-station-3')), findsNothing);
+    });
+
+    testWidgets('لمسُ خيارٍ يختاره وينتقل بالطفل إلى الخطوة التالية (الصفوفُ الأخرى بخطواتها الخمس)', (tester) async {
+      await pump(tester);
+      // الصفُّ: الأول — الثاني في القائمة.
+      await tester.tap(find.byKey(const ValueKey('adventure-option-0-1')));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text(tr('route.pickSubject')), findsOneWidget);
+      expect(valueAt(tester, 0), 'الصف الأول');
       for (var i = 0; i < 5; i++) {
         expect(find.byKey(ValueKey('adventure-station-$i')), findsOneWidget);
       }
-    });
 
-    testWidgets('لمسُ خيارٍ يختاره وينتقل بالطفل إلى الخطوة التالية', (tester) async {
-      await pump(tester);
-      // الصفُّ: الروضة.
-      await tester.tap(find.byKey(const ValueKey('adventure-option-0-0')));
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text(tr('route.pickSubject')), findsOneWidget);
-      expect(valueAt(tester, 0), kg);
-
-      // المادةُ: العلوم — الثانيةُ في القائمة.
-      await tester.tap(find.byKey(const ValueKey('adventure-option-1-1')));
+      // المادةُ: العلوم.
+      await tester.tap(find.byKey(const ValueKey('adventure-option-1-0')));
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text(tr('route.pickTerm')), findsOneWidget);
       expect(valueAt(tester, 1), 'العلوم');
@@ -221,7 +227,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('adventure-option-3-0')));
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text(tr('route.pickLesson')), findsOneWidget);
-      expect(valueAt(tester, 4), 'الماء');
+      expect(valueAt(tester, 4), 'الضوء');
 
       // والزرُّ جاهز.
       final start = tester.widget<GestureDetector>(find.byKey(const ValueKey('path-start')));
@@ -342,11 +348,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
     }
 
-    testWidgets('بالصوت خطوةً خطوة: «الروضة» ثم «علوم» ثم «الثاني»', (tester) async {
-      await pumpVoice(tester, ['الروضة', 'علوم', 'الفصل الثاني']);
+    testWidgets('بالصوت خطوةً خطوة: «الصف الأول» ثم «علوم» ثم «الثاني»', (tester) async {
+      await pumpVoice(tester, ['الصف الأول', 'علوم', 'الفصل الثاني']);
       expect(find.byKey(const ValueKey('path-voice')), findsOneWidget);
       await speak(tester);
-      expect(valueAt(tester, 0), kg);
+      expect(valueAt(tester, 0), 'الصف الأول');
       expect(find.text(tr('route.pickSubject')), findsOneWidget);
       await speak(tester);
       expect(valueAt(tester, 1), 'العلوم');
@@ -374,7 +380,8 @@ void main() {
     });
   
     testWidgets('القفزُ الذكيّ: «الفصل الثاني» من خطوة الصف يعرض وحداته مباشرة', (tester) async {
-      await pumpVoice(tester, ['العلوم الفصل الثاني']);
+      await pumpVoice(tester, ['الصف الأول', 'العلوم الفصل الثاني']);
+      await speak(tester);
       await speak(tester);
       expect(valueAt(tester, 1), 'العلوم');
       expect(valueAt(tester, 2), 'الفصل الثاني');
@@ -454,6 +461,9 @@ void main() {
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));
+      // ‏الصفُّ الأول (الروضةُ بلا فصول).
+      await tester.tap(find.byKey(const ValueKey('adventure-option-0-1')));
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.tap(find.byKey(const ValueKey('path-voice')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
@@ -488,6 +498,79 @@ void main() {
       expect(find.byKey(const ValueKey('voice-mic-permission')), findsOneWidget);
       expect(find.text(tr('voice.micAllow')), findsOneWidget);
       await tester.tap(find.text(tr('voice.micLater')));
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+  
+    /// «تغيير الدرس» في الروضة: تُفتح الشاشة، ويُعاد ما اختاره الطفل.
+    Future<List<AcademicContext?>> pumpPick(WidgetTester tester, {List<String> said = const []}) async {
+      grantMic(tester);
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final results = <AcademicContext?>[];
+      final queue = [...said];
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              results.add(await Navigator.of(context).push<AcademicContext>(
+                MaterialPageRoute(
+                  builder: (_) => AcademicSelectionScreen(
+                    profile: const StudentProfile(id: 's1', name: 'طالب', username: 'student', role: 'student'),
+                    authService: authService,
+                    apiBaseUrl: '',
+                    initialData: data,
+                    pickOnly: true,
+                    voiceListen: ({required onResult, onPartial}) async {
+                      if (queue.isEmpty) return false;
+                      final words = queue.removeAt(0);
+                      scheduleMicrotask(() => onResult(words));
+                      return true;
+                    },
+                  ),
+                ),
+              ));
+            },
+            child: const Text('غيّر'),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('غيّر'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      return results;
+    }
+
+    testWidgets('الروضة باللمس: الصفّ ثم المادّة ثم الدرس، والدرسُ يدخل فوراً', (tester) async {
+      final results = await pumpPick(tester);
+      await tester.tap(find.byKey(const ValueKey('adventure-option-0-0')));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text(tr('route.pickSubject')), findsOneWidget);
+      // ‏المادّة: العلوم — ثم الدروس مباشرةً، بلا فصلٍ ولا وحدة.
+      await tester.tap(find.byKey(const ValueKey('adventure-option-1-1')));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text(tr('route.pickTerm')), findsNothing);
+      expect(find.text(tr('route.pickUnit')), findsNothing);
+      expect(find.text(tr('route.pickLesson')), findsOneWidget);
+      // ‏دروسُ المادّة من فصليها معاً: النبات (الأول) والماء (الثاني).
+      expect(find.byKey(const ValueKey('adventure-option-2-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('adventure-option-2-1')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('adventure-option-2-1')));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(results, hasLength(1), reason: 'دخل الدرسَ بلا «ابدأ المغامرة»');
+      expect(results.single?.selectedLesson.lessonName, 'الماء');
+      expect(results.single?.term, 'الفصل الثاني', reason: 'الفصلُ المخفيّ من الدرس نفسه');
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('الروضة بالصوت: «العلوم» ثم «الماء» — يدخل الدرسَ فوراً', (tester) async {
+      final results = await pumpPick(tester, said: ['العلوم', 'الماء']);
+      await speak(tester);
+      expect(find.text(tr('route.pickLesson')), findsOneWidget);
+      expect(results, isEmpty);
+      await speak(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(results.single?.selectedLesson.lessonName, 'الماء');
       await tester.pump(const Duration(milliseconds: 300));
     });
   });

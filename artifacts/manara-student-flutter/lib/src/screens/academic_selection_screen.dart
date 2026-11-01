@@ -15,7 +15,7 @@ import '../services/student_path_memory.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
-import '../services/voice_match.dart' show SpokenIndex;
+import '../services/voice_match.dart' show SpokenIndex, normalizeSpoken;
 import '../theme/student_theme.dart';
 import '../widgets/adventure_route_map.dart';
 import '../widgets/attention_glow.dart';
@@ -497,10 +497,11 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
       targets.add(_VoiceTarget(grade, name: grade));
       for (final subject in _allowedSubjects(data, grade)) {
         targets.add(_VoiceTarget(grade, subject: subject, name: subject));
+        final kg = isKindergarten(grade);
         for (final term in data.termsFor(grade: grade, subject: subject)) {
-          targets.add(_VoiceTarget(grade, subject: subject, term: term, name: term));
+          if (!kg) targets.add(_VoiceTarget(grade, subject: subject, term: term, name: term));
           for (final unit in data.unitsFor(grade: grade, subject: subject, term: term)) {
-            targets.add(_VoiceTarget(grade, subject: subject, term: term, unit: unit, name: unit));
+            if (!kg) targets.add(_VoiceTarget(grade, subject: subject, term: term, unit: unit, name: unit));
             for (final lesson in data.lessonsFor(grade: grade, subject: subject, term: term, unit: unit)) {
               targets.add(_VoiceTarget(grade, subject: subject, term: term, unit: unit, lesson: lesson, name: lesson.lessonName));
             }
@@ -646,7 +647,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                         rect: imageRect,
                         child: AdventureRouteMap(
                           steps: _journeySteps,
-                          activeIndex: _journeyStage,
+                          // ‏صفٌّ بثلاث خطواتٍ بعد صفٍّ بخمس: لا يتجاوز آخرَها.
+                          activeIndex: math.min(_journeyStage, _journeySteps.length - 1),
                           onActivate: (index) => setState(() => _journeyStage = index),
                           // ‏والزرُّ يتوهّج ويثب: فسحةٌ فوقه لا تلامسه فيها البطاقات.
                           bottomInset: startBand + (_awaitingLessons ? 70 : 12),
@@ -828,7 +830,67 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// التي يكتبها الاختيار — فلا نسخةَ قديمة من الشجرة في الخريطة. وكلُّ
   /// `onSelected` هو المختارُ القائم كما هو: الخريطةُ تغيّر كيف يُختار المستوى،
   /// لا ما يفعله اختيارُه.
-  List<AdventureStep> get _journeySteps => [
+  List<AdventureStep> get _journeySteps {
+    final all = _allSteps;
+    if (!_kgPath) return all;
+    // ‏الروضة: الصفّ ثم المادّة ثم الدرس — بلا فصلٍ ولا وحدة.
+    return [all[0], all[1], _kgLessonStep];
+  }
+
+  /// روضةُ منارة المعرفة: مسارُها ثلاثُ خطوات، والدرسُ يدخل محتواه في لحظته.
+  /// وما سواها من الصفوف بخطواته الخمس كما هي.
+  static bool isKindergarten(String? grade) => grade != null && normalizeSpoken(grade).contains('روضه');
+
+  bool get _kgPath => isKindergarten(_grade);
+
+  /// دروسُ المادّة كلُّها في الروضة، من فصولها ووحداتها جميعاً، بترتيبها.
+  List<LessonContent> get _kgLessons {
+    final data = _data;
+    final grade = _grade;
+    final subject = _subject;
+    if (data == null || grade == null || subject == null) return const [];
+    final lessons = <LessonContent>[];
+    for (final term in data.termsFor(grade: grade, subject: subject)) {
+      for (final unit in data.unitsFor(grade: grade, subject: subject, term: term)) {
+        for (final lesson in data.lessonsFor(grade: grade, subject: subject, term: term, unit: unit)) {
+          if (!lessons.any((l) => _normalized(l.lessonName) == _normalized(lesson.lessonName))) lessons.add(lesson);
+        }
+      }
+    }
+    return lessons;
+  }
+
+  AdventureStep get _kgLessonStep {
+    final options = [for (final lesson in _kgLessons) lesson.lessonName];
+    return AdventureStep(
+      label: tr('path.lesson'),
+      title: tr('route.pickLesson'),
+      prompt: RouteArt.selectLesson,
+      icon: Icons.play_lesson_rounded,
+      color: const Color(0xFFEC4899),
+      value: _lesson?.lessonName,
+      options: options,
+      artFor: (_, index) => RouteArt.assign(_subject ?? '', options)[index],
+      numbered: true,
+      onSelected: _selectKgLesson,
+    );
+  }
+
+  /// درسُ الروضة: يُختار ومعه فصلُه ووحدتُه (مخفيّان عن الطفل)، ثم يدخل
+  /// صفحةَ البطاقات وألعابَ الدرس فوراً — بلا خطوةٍ وسيطة.
+  void _selectKgLesson(String name) {
+    final lesson = _kgLessons.where((l) => _normalized(l.lessonName) == _normalized(name)).firstOrNull;
+    if (lesson == null) return;
+    setState(() {
+      _term = lesson.term;
+      _unit = lesson.unit;
+      _lesson = lesson;
+    });
+    _playSelectionFeedback();
+    unawaited(_enterDashboard());
+  }
+
+  List<AdventureStep> get _allSteps => [
         AdventureStep(
           label: tr('path.grade'),
           title: tr('route.pickGrade'),
@@ -904,6 +966,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           },
         ),
       ];
+
 
   /// How far along the trail the student has walked.
   ///
