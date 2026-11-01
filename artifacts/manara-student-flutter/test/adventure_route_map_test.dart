@@ -389,13 +389,35 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
     });
 
-    testWidgets('القفزُ الذكيّ: اسمُ الدرس يتخطّى المراحلَ كلَّها إلى محتواه', (tester) async {
+    testWidgets('درسٌ من مادّةٍ أخرى بالصوت: يُردّ بتنبيه، ولا يتغيّر المسار', (tester) async {
+      // ‏الروضةُ والقرآنُ مختاران؛ «الماء» من دروس العلوم.
+      await pumpVoice(tester, ['الماء']);
+      expect(valueAt(tester, 1), 'القرآن الكريم');
+      await speak(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(valueAt(tester, 1), 'القرآن الكريم');
+      expect(find.text(trf('voice.notInSubject', {'name': 'الماء', 'subject': 'القرآن الكريم'})), findsOneWidget);
+      expect(find.text(tr('route.pickGrade')), findsOneWidget, reason: 'لم يتقدّم خطوة');
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('درسٌ من صفٍّ آخر بالصوت: يُردّ ويُطلب الصفُّ أوّلاً', (tester) async {
+      await pumpVoice(tester, ['الخلية']);
+      await speak(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(valueAt(tester, 0), 'روضة منارة المعرفة');
+      expect(find.text(trf('voice.notInGrade', {'name': 'الخلية', 'grade': 'روضة منارة المعرفة'})), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('القفزُ الذكيّ: اسمُ درسٍ في المادّة المختارة يتخطّى الفصلَ والوحدةَ إلى محتواه', (tester) async {
       grantMic(tester);
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final results = <AcademicContext?>[];
-      final said = ['الماء'];
+      // ‏الصفُّ الأول أوّلاً (مادّتُه الوحيدةُ العلوم تُختار معه)، ثم درسٌ في فصلها الثاني.
+      final said = ['الصف الأول', 'الضوء'];
       await tester.pumpWidget(MaterialApp(
         home: Builder(
           builder: (context) => TextButton(
@@ -426,9 +448,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       await speak(tester);
+      expect(results, isEmpty);
+      await speak(tester);
       await tester.pump(const Duration(milliseconds: 600));
       expect(results, hasLength(1));
-      expect(results.single?.selectedLesson.lessonName, 'الماء');
+      expect(results.single?.selectedLesson.lessonName, 'الضوء');
       expect(results.single?.term, 'الفصل الثاني');
       expect(results.single?.subject, 'العلوم');
       await tester.pump(const Duration(milliseconds: 300));
