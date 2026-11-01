@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +32,14 @@ class _FakeAuth extends StudentAuthService {
       appearance: const {'avatarId': 'girl1'},
     );
   }
+}
+
+/// إذنُ الميكروفون ممنوحٌ في الاختبار: قناةُ الأذون تُجيب «مسموح».
+void grantMic(WidgetTester tester) {
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('flutter.baseflow.com/permissions/methods'),
+    (call) async => call.method == 'requestPermissions' ? {7: 1} : 1,
+  );
 }
 
 /// الحساباتُ المحفوظة: مخزنُها، وسؤالُ الحفظ، والدخولُ بلمسة.
@@ -91,6 +100,7 @@ void main() {
       List<String>? spoken,
       List<String>? asked,
     }) async {
+      grantMic(tester);
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);

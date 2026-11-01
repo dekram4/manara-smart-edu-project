@@ -120,6 +120,10 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     }
     _loadGamification();
     unawaited(StudentAvatars.adoptFromProfile(widget.profile.appearance));
+    // ‏إذنُ الميكروفون مسبقاً، فلا يُغلقه النظامُ حين يضغطه الطفل.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(ensureVoiceMic(context));
+    });
     // ‏بلا عبارة ترحيب بعد الدخول، لا مكتوبةً ولا مسموعة: توجيهُ كل خطوةٍ
     // («اختر صفّك»...) هو أوّلُ ما يُسمع.
   }
@@ -573,6 +577,10 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   }
 
   Future<void> _voicePick(String heard) async {
+    if (heard.trim().isEmpty) {
+      setState(() => _voiceNote = tr('voice.notHeard'));
+      return;
+    }
     final target = _voiceTarget(heard);
     if (target == null) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -651,6 +659,9 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                 listen: widget.voiceListen,
                                 onHeard: _voicePick,
                                 onPartial: _voiceEarly,
+                                onListeningChanged: (on) => setState(() {
+                                  if (on) _voiceNote = tr('voice.listening');
+                                }),
                                 // ‏بقدر زرّ السمّاعة بجانبه: لا يزيد ارتفاعَ السطر فتضيق البطاقات.
                                 size: areaSize.shortestSide < 420 ? 30 : (areaSize.shortestSide < 600 ? 40 : 50),
                                 color: const Color(0xFFEC4899),

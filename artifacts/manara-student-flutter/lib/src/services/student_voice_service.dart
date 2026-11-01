@@ -82,10 +82,12 @@ class StudentVoiceService {
           // التالي بالخدمة العادية، ما بقي التطبيقُ مفتوحاً.
           if (_liveOnDevice) _preferOnDevice = false;
           _onLiveEnd?.call();
+          _onChildEnd?.call();
         },
         onStatus: (status) {
           if (status == SpeechToText.doneStatus || status == SpeechToText.notListeningStatus) {
             _onLiveEnd?.call();
+            _onChildEnd?.call();
           }
         },
       );
@@ -207,6 +209,121 @@ class StudentVoiceService {
       return false;
     }
   }
+
+  /// انتهاءُ جلسةٍ من استماع الطفل ([listenForChild]): صمتٌ أو خطأٌ أو إيقاف.
+  VoidCallback? _onChildEnd;
+
+  /// يُنهي استماعَ الطفل الجاري بما سُمع حتى الآن — لمسةٌ ثانيةٌ على الزرّ.
+  VoidCallback? _finishChild;
+
+  /// استماعٌ لطفلٍ يقول اسمه أو درسه: لا يُغلَق المايكُ قبل أن يتكلّم.
+  ///
+  /// ── لماذا كان يُغلَق في لحظته ──
+  /// مهلةُ الصمت في محرّك التعرّف (`pauseFor`) تبدأ من فتح المايك لا من أوّل
+  /// كلمة. وكانت ثانيةً وخُمساً: الطفلُ يضغط الزرّ ثم يفكّر، فيُغلَق المايكُ
+  /// بصفّارته قبل أن ينطق — وهو ما شُكي منه. والمحرّكُ نفسُه (Android) يُنهي
+  /// الجلسةَ إن لم يسمع كلاماً بعد ثوانٍ.
+  ///
+  /// فهنا: نافذةٌ كاملة [window] (١٥ ثانية)؛ وصمتٌ أوّلُ طويلٌ يُنتظر فيه
+  /// الطفل ([firstPause])؛ فإذا تكلّم قصُر الصمتُ المُنهي ([afterSpeech]) فيمضي
+  /// حين يسكت. وإن أنهى المحرّكُ جلسةً ولم يُسمع شيءٌ والنافذةُ باقية فُتح
+  /// المايكُ من جديد وحده — فلا «يقفل» على الطفل.
+  ///
+  /// [onPartial] الكلماتُ وهي تُقال، و[onResult] مرّةً في الختام بما قيل —
+  /// فارغاً إن لم يُسمع شيء.
+  Future<bool> listenForChild({
+    required ValueChanged<String> onResult,
+    ValueChanged<String>? onPartial,
+    String locale = 'ar_SA',
+    Duration window = const Duration(seconds: 15),
+    Duration firstPause = const Duration(seconds: 8),
+    Duration afterSpeech = const Duration(milliseconds: 1800),
+  }) async {
+    if (!await prepare()) return false;
+    await stopSpeaking();
+    final deadline = DateTime.now().add(window);
+    var heard = '';
+    var finished = false;
+    var generation = 0;
+
+    void finish() {
+      if (finished) return;
+      finished = true;
+      _onChildEnd = null;
+      _finishChild = null;
+      onResult(heard);
+    }
+
+    late Future<bool> Function() session;
+
+    void ended(int of, DateTime startedAt) {
+      // ‏حدثٌ متأخّرٌ من جلسةٍ سابقة، أو «انتهى» يصل مرّتين: يُهمَل.
+      if (finished || of != generation) return;
+      if (DateTime.now().difference(startedAt) < const Duration(milliseconds: 400)) return;
+      generation++;
+      _onChildEnd = null;
+      final remaining = deadline.difference(DateTime.now());
+      if (heard.isNotEmpty || remaining < const Duration(milliseconds: 1500)) {
+        finish();
+        return;
+      }
+      // ‏لم يتكلّم بعد والنافذةُ باقية: يُفتح المايكُ ثانيةً.
+      Future<void>.delayed(const Duration(milliseconds: 250), () {
+        if (!finished) unawaited(session());
+      });
+    }
+
+    session = () async {
+      final mine = generation;
+      final startedAt = DateTime.now();
+      final remaining = deadline.difference(startedAt);
+      if (remaining < const Duration(milliseconds: 1500)) {
+        finish();
+        return true;
+      }
+      _onChildEnd = () => ended(mine, startedAt);
+      try {
+        await _speech.listen(
+          listenOptions: SpeechListenOptions(
+            localeId: locale,
+            listenFor: remaining,
+            pauseFor: heard.isEmpty ? firstPause : afterSpeech,
+            partialResults: true,
+            cancelOnError: false,
+          ),
+          onResult: (result) {
+            if (finished || mine != generation) return;
+            final words = result.recognizedWords.trim();
+            if (words.isNotEmpty) {
+              if (heard.isEmpty) {
+                // ‏بدأ يتكلّم: صمتٌ قصيرٌ بعد كلامه يكفي ليُنهي.
+                try {
+                  _speech.changePauseFor(afterSpeech);
+                } catch (_) {}
+              }
+              heard = words;
+              onPartial?.call(words);
+            }
+            if (result.finalResult) finish();
+          },
+        );
+        return true;
+      } catch (_) {
+        _onChildEnd = null;
+        return false;
+      }
+    };
+
+    _finishChild = () {
+      generation++;
+      unawaited(stopListening());
+      finish();
+    };
+    return session();
+  }
+
+  /// يُنهي استماعَ الطفل بما سُمع حتى الآن (لمسةٌ ثانيةٌ على الميكروفون).
+  void finishChildListening() => _finishChild?.call();
 
   Future<void> stopListening() async {
     try {

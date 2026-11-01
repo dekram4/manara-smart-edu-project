@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,6 +18,14 @@ import 'package:manara_student/src/widgets/adventure_route_map.dart';
 import 'package:manara_student/src/widgets/student_avatar_view.dart';
 
 /// خريطةُ المغامرة في شاشة اختيار المسار: صورُها وأصواتُها، وسيرُ خطواتها.
+/// إذنُ الميكروفون ممنوحٌ في الاختبار: قناةُ الأذون تُجيب «مسموح».
+void grantMic(WidgetTester tester) {
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('flutter.baseflow.com/permissions/methods'),
+    (call) async => call.method == 'requestPermissions' ? {7: 1} : 1,
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -306,6 +315,7 @@ void main() {
     });
   
     Future<void> pumpVoice(WidgetTester tester, List<String> said) async {
+      grantMic(tester);
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -373,6 +383,7 @@ void main() {
     });
 
     testWidgets('القفزُ الذكيّ: اسمُ الدرس يتخطّى المراحلَ كلَّها إلى محتواه', (tester) async {
+      grantMic(tester);
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -417,6 +428,7 @@ void main() {
     });
 
     testWidgets('الكلامُ الجزئيّ: يقفز لحظةَ يكتمل الاسم، بلا انتظار الصمت', (tester) async {
+      grantMic(tester);
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -449,6 +461,34 @@ void main() {
       expect(finals, 0);
       await tester.pump(const Duration(seconds: 4));
       expect(valueAt(tester, 2), 'الفصل الثاني');
+    });
+  
+    testWidgets('لم يتكلّم في النافذة كلّها: «لم أسمعك» بلا تغيير', (tester) async {
+      await pumpVoice(tester, ['']);
+      final before = valueAt(tester, 1);
+      await speak(tester);
+      expect(valueAt(tester, 1), before);
+      expect(find.text(tr('voice.notHeard')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+  
+    testWidgets('الميكروفونُ غيرُ مسموح: شرحٌ لطيفٌ و«اسمح» بدل صفّارة إغلاق', (tester) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('flutter.baseflow.com/permissions/methods'),
+        (call) async => call.method == 'requestPermissions' ? {7: 0} : 0,
+      );
+      await pumpVoice(tester, const []);
+      // ‏pumpVoice يمنح الإذن؛ يُعاد هنا إلى «غير مسموح» قبل أن يُسأل.
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('flutter.baseflow.com/permissions/methods'),
+        (call) async => call.method == 'requestPermissions' ? {7: 0} : 0,
+      );
+      await tester.tap(find.byKey(const ValueKey('path-voice')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const ValueKey('voice-mic-permission')), findsOneWidget);
+      expect(find.text(tr('voice.micAllow')), findsOneWidget);
+      await tester.tap(find.text(tr('voice.micLater')));
+      await tester.pump(const Duration(milliseconds: 300));
     });
   });
 }
