@@ -185,6 +185,11 @@ class _LoginScreenState extends State<LoginScreen> {
   /// انتهى كلامُه: يدخل إن عُرف اسمُه الكامل، وإلا يُدعى ليقوله ثانيةً أو
   /// يلمس صورته.
   Future<void> _voiceLogin(String heard) async {
+    // ‏لم يتكلّم في النافذة كلّها: يُدعى بلطفٍ ليجرّب ثانيةً، بلا صفّارة خطأ.
+    if (heard.trim().isEmpty) {
+      setState(() => _voiceNote = tr('voice.notHeard'));
+      return;
+    }
     final account = _accountNamed(heard);
     if (account == null) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -704,6 +709,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             listen: widget.voiceListen,
                             onHeard: _voiceLogin,
                             onPartial: _voiceEarly,
+                            onListeningChanged: (on) => setState(() {
+                              if (on) _voiceNote = tr('voice.listening');
+                            }),
                             size: 58,
                           ),
                         ),
