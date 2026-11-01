@@ -259,8 +259,12 @@ class AdventureRouteMap extends StatefulWidget {
     required this.activeIndex,
     required this.onActivate,
     this.bottomInset = 0,
+    this.voice,
     super.key,
   });
+
+  /// بجانب سؤال الخطوة («اختر صفّك»): الميكروفونُ يختار به الطفلُ بصوته.
+  final Widget? voice;
 
   final List<AdventureStep> steps;
   final int activeIndex;
@@ -390,7 +394,7 @@ class _AdventureRouteMapState extends State<AdventureRouteMap> with TickerProvid
                 ),
                 if (active != null) ...[
                   SizedBox(height: gap),
-                  _PromptTitle(step: active, onReplay: _speak, compact: compact),
+                  _PromptTitle(step: active, onReplay: _speak, compact: compact, trailing: widget.voice),
                   SizedBox(height: gap),
                   Expanded(
                     child: AnimatedSwitcher(
@@ -803,11 +807,12 @@ class _Station extends StatelessWidget {
 
 /// ما يُطلب الآن، وزرُّ السمّاعة يعيد قوله.
 class _PromptTitle extends StatelessWidget {
-  const _PromptTitle({required this.step, required this.onReplay, this.compact = false});
+  const _PromptTitle({required this.step, required this.onReplay, this.compact = false, this.trailing});
 
   final AdventureStep step;
   final VoidCallback onReplay;
   final bool compact;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -849,6 +854,10 @@ class _PromptTitle extends StatelessWidget {
             ),
           ),
         ),
+        if (trailing != null) ...[
+          SizedBox(width: compact ? 10 : 16),
+          trailing!,
+        ],
       ],
     );
   }
