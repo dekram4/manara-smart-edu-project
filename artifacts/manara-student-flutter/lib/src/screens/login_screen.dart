@@ -9,7 +9,7 @@ import '../services/saved_accounts.dart';
 import '../services/student_auth_service.dart';
 import '../theme/student_theme.dart';
 import '../services/student_sound_service.dart';
-import '../services/voice_match.dart';
+import '../services/voice_match.dart' show matchFullName;
 import '../widgets/student_experience.dart';
 import '../widgets/student_no_back.dart';
 import '../l10n/student_strings.dart';
@@ -164,18 +164,37 @@ class _LoginScreenState extends State<LoginScreen> {
     await sound.playClipToEnd('audio/voice_login.mp3', limit: const Duration(seconds: 6));
   }
 
-  /// قال الطفلُ اسمه: يُطابَق مع أسماء الحسابات المحفوظة على الجهاز وحدها،
-  /// وبمجرّد التطابق يُدخَل. وإن لم يُعرف — أو أشبه اسمين — يُدعى إلى
-  /// المحاولة ثانيةً أو لمس صورته.
-  Future<void> _voiceLogin(String heard) async {
+  /// الحسابُ الذي قاله الطفلُ: اسمُه الأوّلُ والثاني معاً («جوري داود»)
+  /// كما في الحساب المحفوظ على هذا الجهاز ([matchFullName]) — لا الأوّلُ وحده،
+  /// فلا يدخل طالبٌ بحساب زميلٍ يشاركه اسمَه الأوّل.
+  SavedAccount? _accountNamed(String heard) {
     final accounts = _accounts;
-    final index = matchSpoken(heard, [for (final a in accounts) '${a.displayName} ${a.username}']);
-    if (index == null) {
+    final index = matchFullName(heard, [for (final a in accounts) a.displayName]);
+    return index == null ? null : accounts[index];
+  }
+
+  /// كلامٌ لم ينتهِ بعد: إن اكتمل فيه اسمٌ محفوظ دخل في لحظته، بلا انتظار
+  /// الصمت الذي يُنهي الاستماع.
+  bool _voiceEarly(String words) {
+    final account = _accountNamed(words);
+    if (account == null || _isLoading) return false;
+    unawaited(_voiceEnter(account));
+    return true;
+  }
+
+  /// انتهى كلامُه: يدخل إن عُرف اسمُه الكامل، وإلا يُدعى ليقوله ثانيةً أو
+  /// يلمس صورته.
+  Future<void> _voiceLogin(String heard) async {
+    final account = _accountNamed(heard);
+    if (account == null) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       setState(() => _voiceNote = tr('voice.nameUnknown'));
       return;
     }
-    final account = accounts[index];
+    await _voiceEnter(account);
+  }
+
+  Future<void> _voiceEnter(SavedAccount account) async {
     setState(() => _voiceNote = trf('voice.found', {'name': account.displayName}));
     await _enterAs(account);
   }
@@ -684,6 +703,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             prompt: _askName,
                             listen: widget.voiceListen,
                             onHeard: _voiceLogin,
+                            onPartial: _voiceEarly,
                             size: 58,
                           ),
                         ),

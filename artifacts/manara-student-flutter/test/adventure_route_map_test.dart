@@ -315,7 +315,7 @@ void main() {
           authService: authService,
           apiBaseUrl: '',
           initialData: data,
-          voiceListen: ({required onResult}) async {
+          voiceListen: ({required onResult, onPartial}) async {
             if (said.isEmpty) return false;
             final words = said.removeAt(0);
             scheduleMicrotask(() => onResult(words));
@@ -361,6 +361,94 @@ void main() {
       expect(valueAt(tester, 1), before);
       expect(find.text(tr('voice.pathUnknown')), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 300));
+    });
+  
+    testWidgets('القفزُ الذكيّ: «الفصل الثاني» من خطوة الصف يعرض وحداته مباشرة', (tester) async {
+      await pumpVoice(tester, ['العلوم الفصل الثاني']);
+      await speak(tester);
+      expect(valueAt(tester, 1), 'العلوم');
+      expect(valueAt(tester, 2), 'الفصل الثاني');
+      expect(find.text(tr('route.pickUnit')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('القفزُ الذكيّ: اسمُ الدرس يتخطّى المراحلَ كلَّها إلى محتواه', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final results = <AcademicContext?>[];
+      final said = ['الماء'];
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              results.add(await Navigator.of(context).push<AcademicContext>(
+                MaterialPageRoute(
+                  builder: (_) => AcademicSelectionScreen(
+                    profile: const StudentProfile(id: 's1', name: 'طالب', username: 'student', role: 'student'),
+                    authService: authService,
+                    apiBaseUrl: '',
+                    initialData: data,
+                    pickOnly: true,
+                    voiceListen: ({required onResult, onPartial}) async {
+                      if (said.isEmpty) return false;
+                      final words = said.removeAt(0);
+                      scheduleMicrotask(() => onResult(words));
+                      return true;
+                    },
+                  ),
+                ),
+              ));
+            },
+            child: const Text('غيّر'),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('غيّر'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await speak(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(results, hasLength(1));
+      expect(results.single?.selectedLesson.lessonName, 'الماء');
+      expect(results.single?.term, 'الفصل الثاني');
+      expect(results.single?.subject, 'العلوم');
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('الكلامُ الجزئيّ: يقفز لحظةَ يكتمل الاسم، بلا انتظار الصمت', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      var finals = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: AcademicSelectionScreen(
+          profile: const StudentProfile(id: 's1', name: 'طالب', username: 'student', role: 'student'),
+          authService: authService,
+          apiBaseUrl: '',
+          initialData: data,
+          voiceListen: ({required onResult, onPartial}) async {
+            scheduleMicrotask(() {
+              onPartial?.call('الفصل');
+              onPartial?.call('الفصل الثاني');
+            });
+            // ‏النصُّ النهائيّ بعد صمتٍ طويل — لا يُنتظر.
+            Future<void>.delayed(const Duration(seconds: 3), () {
+              finals++;
+              onResult('الفصل الثاني');
+            });
+            return true;
+          },
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.byKey(const ValueKey('path-voice')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(valueAt(tester, 2), 'الفصل الثاني', reason: 'قفز قبل أن يصل النصُّ النهائيّ');
+      expect(finals, 0);
+      await tester.pump(const Duration(seconds: 4));
+      expect(valueAt(tester, 2), 'الفصل الثاني');
     });
   });
 }

@@ -99,10 +99,15 @@ class StudentVoiceService {
   ///
   /// [onResult] يُنادى بالنصّ النهائي وحده لا بكل كلمةٍ جزئية: حقلٌ
   /// يتبدّل نصُّه مع كل مقطعٍ يُربك الطفل ويجعل التراجع مستحيلاً.
+  ///
+  /// [onPartial]: الكلماتُ وهي تُقال — لمن يكفيه أن يسمع اسماً كاملاً فيمضي
+  /// في لحظته بلا انتظار صمتٍ يُنهي الإملاء. و[pause] طولُ ذلك الصمت.
   Future<bool> listen({
     required ValueChanged<String> onResult,
+    ValueChanged<String>? onPartial,
     String locale = 'ar_SA',
     Duration limit = const Duration(seconds: 30),
+    Duration pause = const Duration(seconds: 3),
   }) async {
     if (!await prepare()) return false;
     // النطق يتوقّف أوّلاً: وإلا أملى الجهاز على نفسه ما ينطقه.
@@ -114,10 +119,16 @@ class StudentVoiceService {
           listenFor: limit,
           // صمتٌ ثلاث ثوانٍ يُنهي الإملاء. الطفل لا يعرف متى يضغط
           // «توقّف»، والانتظار إلى آخر المهلة يجعل البطاقة تبدو معلّقة.
-          pauseFor: const Duration(seconds: 3),
+          pauseFor: pause,
+          partialResults: onPartial != null,
         ),
         onResult: (result) {
-          if (result.finalResult) onResult(result.recognizedWords.trim());
+          final words = result.recognizedWords.trim();
+          if (result.finalResult) {
+            onResult(words);
+          } else if (words.isNotEmpty) {
+            onPartial?.call(words);
+          }
         },
       );
       return true;

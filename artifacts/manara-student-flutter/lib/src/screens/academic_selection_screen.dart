@@ -15,7 +15,7 @@ import '../services/student_path_memory.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_content_service.dart';
-import '../services/voice_match.dart';
+import '../services/voice_match.dart' show SpokenIndex;
 import '../theme/student_theme.dart';
 import '../widgets/adventure_route_map.dart';
 import '../widgets/attention_glow.dart';
@@ -479,29 +479,107 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     );
   }
 
-  /// قال الطفلُ كلمةً («قرآن»، «نورانية»، «حروف»، «أرقام»، «الأول»): تُطابَق
-  /// أوّلاً مع خيارات الخطوة الجارية، ثم ما بعدها، ثم ما قبلها — فيقول
-  /// «قرآن» وهو على خطوة الصف فتُختار المادّة. والاختيارُ هو اختيارُ اللمس
-  /// نفسُه ([AdventureStep.onSelected]): الخريطةُ تتقدّم كما لو لمسها.
-  Future<void> _voicePick(String heard) async {
-    final steps = _journeySteps;
-    final order = [
-      for (var i = _journeyStage; i < steps.length; i++) i,
-      for (var i = 0; i < _journeyStage && i < steps.length; i++) i,
+  /// كلُّ عقدةٍ في شجرة المسار — صفٌّ ومادّةٌ وفصلٌ ووحدةٌ ودرس — مفهرسةً
+  /// للصوت مرّةً لكل شجرة ([_voiceIndex])، لا مع كل كلمةٍ يسمعها المايك.
+  List<_VoiceTarget>? _voiceTargets;
+  SpokenIndex? _voiceIndex;
+  AcademicSelectionData? _voiceIndexedFor;
+
+  void _indexVoice() {
+    final data = _data;
+    if (data == null || identical(data, _voiceIndexedFor)) return;
+    final targets = <_VoiceTarget>[];
+    for (final grade in data.grades) {
+      targets.add(_VoiceTarget(grade, name: grade));
+      for (final subject in _allowedSubjects(data, grade)) {
+        targets.add(_VoiceTarget(grade, subject: subject, name: subject));
+        for (final term in data.termsFor(grade: grade, subject: subject)) {
+          targets.add(_VoiceTarget(grade, subject: subject, term: term, name: term));
+          for (final unit in data.unitsFor(grade: grade, subject: subject, term: term)) {
+            targets.add(_VoiceTarget(grade, subject: subject, term: term, unit: unit, name: unit));
+            for (final lesson in data.lessonsFor(grade: grade, subject: subject, term: term, unit: unit)) {
+              targets.add(_VoiceTarget(grade, subject: subject, term: term, unit: unit, lesson: lesson, name: lesson.lessonName));
+            }
+          }
+        }
+      }
+    }
+    _voiceTargets = targets;
+    _voiceIndex = SpokenIndex([for (final t in targets) t.name]);
+    _voiceIndexedFor = data;
+  }
+
+  /// ما قصده الطفلُ في الشجرة كلّها، أو `null`.
+  ///
+  /// ── القفزُ إلى أعمق ما ذُكر ──
+  /// يُبحث في الشجرة كلّها لا في الخطوة الجارية: اسمُ درسٍ («الفاتحة») يأخذه
+  /// إلى الدرس نفسه، واسمُ وحدةٍ إلى دروسها، وفصلٌ إلى وحداته — وما فوقها
+  /// يُختار معها. والصفُّ المختار يحصر البحث فيه (طفلُ الروضة لا يقفز إلى
+  /// الصف الثالث بكلمة)، إلا الصفوفَ نفسها.
+  ///
+  /// وإن تعادل اسمان («الوحدة الأولى» في كل مادّة) قُدّم ما يوافق المسارَ
+  /// المختار الآن، ثم الخطوةُ الجارية؛ وإن بقي أكثرُ من واحدٍ لم يُختر شيء.
+  /// [whole]: كلامٌ لم ينتهِ بعد يُؤخذ به إن قال الاسمَ كاملاً فقط.
+  _VoiceTarget? _voiceTarget(String heard, {bool whole = false}) {
+    _indexVoice();
+    final targets = _voiceTargets;
+    final index = _voiceIndex;
+    if (targets == null || index == null) return null;
+    final grade = _grade;
+    final scope = [
+      for (var i = 0; i < targets.length; i++)
+        if (grade == null || targets[i].depth == 0 || targets[i].grade == grade) i,
     ];
-    for (final i in order) {
-      final step = steps[i];
-      if (step.options.isEmpty) continue;
-      final index = matchSpoken(heard, step.options);
-      if (index == null) continue;
-      final option = step.options[index];
-      StudentSoundService.instance.playTap();
-      setState(() => _voiceNote = trf('voice.picked', {'name': option}));
-      step.onSelected(option);
+    var best = index.best(heard, only: scope);
+    if (best.length > 1) {
+      final along = [for (final m in best) if (targets[m.index].follows(grade, _subject, _term, _unit)) m];
+      if (along.isNotEmpty) best = along;
+    }
+    if (best.length > 1) {
+      final here = [for (final m in best) if (targets[m.index].depth == _journeyStage) m];
+      if (here.isNotEmpty) best = here;
+    }
+    if (best.length != 1) return null;
+    if (whole && !best.single.complete) return null;
+    return targets[best.single.index];
+  }
+
+  /// يسير إلى [target]: يختار ما فوقه ثم هو، كما لو لمس الطفلُ كلَّ خطوة.
+  /// الدرسُ يدخل محتواه في لحظته؛ وما سواه يعرض ما تحته (الوحدةُ دروسَها).
+  void _jumpTo(_VoiceTarget target) {
+    StudentSoundService.instance.playTap();
+    if (target.grade != _grade) _selectGrade(target.grade);
+    final subject = target.subject;
+    if (subject != null && subject != _subject) _selectSubject(subject);
+    final term = target.term;
+    if (term != null && term != _term) _selectTerm(term);
+    final unit = target.unit;
+    if (unit != null && unit != _unit) _selectUnit(unit);
+    final lesson = target.lesson;
+    setState(() {
+      if (lesson != null) _lesson = lesson;
+      _voiceNote = trf('voice.picked', {'name': target.name});
+      _journeyStage = math.min(target.depth + 1, _journeySteps.length - 1);
+    });
+    if (lesson != null) unawaited(_enterDashboard());
+  }
+
+  /// كلامٌ لم ينتهِ: إن قال اسماً كاملاً قفز إليه الآن، بلا انتظار الصمت.
+  bool _voiceEarly(String words) {
+    final target = _voiceTarget(words, whole: true);
+    if (target == null) return false;
+    _jumpTo(target);
+    return true;
+  }
+
+  Future<void> _voicePick(String heard) async {
+    final target = _voiceTarget(heard);
+    if (target == null) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      setState(() => _voiceNote = tr('voice.pathUnknown'));
       return;
     }
-    StudentSoundService.instance.play(StudentSoundCue.warning);
-    setState(() => _voiceNote = tr('voice.pathUnknown'));
+    _jumpTo(target);
   }
 
   /// رجوعٌ إلى لوحة البطاقات بلا تغيير (في [AcademicSelectionScreen.pickOnly]).
@@ -572,6 +650,7 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
                                 key: const ValueKey('path-voice'),
                                 listen: widget.voiceListen,
                                 onHeard: _voicePick,
+                                onPartial: _voiceEarly,
                                 // ‏بقدر زرّ السمّاعة بجانبه: لا يزيد ارتفاعَ السطر فتضيق البطاقات.
                                 size: areaSize.shortestSide < 420 ? 30 : (areaSize.shortestSide < 600 ? 40 : 50),
                                 color: const Color(0xFFEC4899),
@@ -1372,4 +1451,28 @@ class _FlyAway extends StatelessWidget {
         .scaleXY(begin: 1, end: 0.72, duration: travel)
         .rotate(begin: 0, end: angle * 0.5, duration: travel);
   }
+}
+
+/// عقدةٌ في شجرة المسار يقصدها الطفلُ بصوته: الصفُّ وما بعده حتى عمقها.
+class _VoiceTarget {
+  const _VoiceTarget(this.grade, {required this.name, this.subject, this.term, this.unit, this.lesson});
+
+  final String grade;
+  final String? subject;
+  final String? term;
+  final String? unit;
+  final LessonContent? lesson;
+
+  /// ما يُطابَق بالصوت: اسمُ العقدة نفسها.
+  final String name;
+
+  /// ٠ صفّ، ١ مادّة، ٢ فصل، ٣ وحدة، ٤ درس — كمحطّات الخريطة.
+  int get depth => lesson != null ? 4 : unit != null ? 3 : term != null ? 2 : subject != null ? 1 : 0;
+
+  /// على المسار المختار الآن: كلُّ ما فوقه هو ما اختاره الطفل.
+  bool follows(String? grade, String? subject, String? term, String? unit) =>
+      this.grade == grade &&
+      (depth < 2 || this.subject == subject) &&
+      (depth < 3 || this.term == term) &&
+      (depth < 4 || this.unit == unit);
 }

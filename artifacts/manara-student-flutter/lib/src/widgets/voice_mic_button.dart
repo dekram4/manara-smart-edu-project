@@ -7,13 +7,23 @@ import '../l10n/student_strings.dart';
 import '../services/student_voice_service.dart';
 import 'attention_glow.dart';
 
-/// يستمع إلى الطفل مرّةً ويسلّم النصَّ النهائيّ ([onResult]). ويُعيد `false`
-/// إن تعذّر الاستماع (لا إذنَ بالمايك، أو لا خدمةَ تعرّف على الجهاز).
-typedef VoiceListen = Future<bool> Function({required ValueChanged<String> onResult});
+/// يستمع إلى الطفل مرّةً: الكلماتُ وهي تُقال ([onPartial])، ثم النصُّ النهائيّ
+/// ([onResult]). ويُعيد `false` إن تعذّر الاستماع (لا إذنَ بالمايك، أو لا
+/// خدمةَ تعرّف على الجهاز).
+typedef VoiceListen = Future<bool> Function({
+  required ValueChanged<String> onResult,
+  ValueChanged<String>? onPartial,
+});
 
-/// الاستماعُ الافتراضيّ: محرّكُ التعرّف بالعربية، بمهلةٍ قصيرة — كلمةٌ أو اسم.
-Future<bool> defaultVoiceListen({required ValueChanged<String> onResult}) =>
-    StudentVoiceService.instance.listen(onResult: onResult, limit: const Duration(seconds: 8));
+/// الاستماعُ الافتراضيّ: محرّكُ التعرّف بالعربية، بمهلةٍ قصيرة — كلمةٌ أو اسم —
+/// وصمتٌ قصيرٌ يُنهيه: الطفلُ يقول كلمةً ويسكت، فلا يُنتظر ثلاثَ ثوانٍ.
+Future<bool> defaultVoiceListen({required ValueChanged<String> onResult, ValueChanged<String>? onPartial}) =>
+    StudentVoiceService.instance.listen(
+      onResult: onResult,
+      onPartial: onPartial,
+      limit: const Duration(seconds: 8),
+      pause: const Duration(milliseconds: 1200),
+    );
 
 /// زرُّ ميكروفونٍ كبيرٌ يتوهّج: يُلمس فيسمع الطفل، ويسلّم ما قاله ([onHeard]).
 ///
@@ -23,6 +33,8 @@ Future<bool> defaultVoiceListen({required ValueChanged<String> onResult}) =>
 class VoiceMicButton extends StatefulWidget {
   const VoiceMicButton({
     required this.onHeard,
+    this.onPartial,
+    this.stop,
     this.listen,
     this.prompt,
     this.autoStart = false,
@@ -32,6 +44,13 @@ class VoiceMicButton extends StatefulWidget {
   });
 
   final Future<void> Function(String heard) onHeard;
+
+  /// الكلماتُ وهي تُقال: يُعيد `true` إن كفاه ما سمع (اسمٌ كاملٌ عُرف)، فيُغلق
+  /// المايكُ في لحظته ويمضي — بلا انتظار الصمت ولا النصّ النهائيّ.
+  final bool Function(String words)? onPartial;
+
+  /// إغلاقُ المايك حين يكفي الكلامُ الجزئيّ؛ وبلا قيمةٍ محرّكُ التعرّف.
+  final Future<void> Function()? stop;
   final VoiceListen? listen;
   final Future<void> Function()? prompt;
   final bool autoStart;
@@ -75,6 +94,7 @@ class VoiceMicButtonState extends State<VoiceMicButton> {
     if (prompt != null) await prompt();
     if (!mounted) return;
     var answered = false;
+    final early = widget.onPartial;
     final started = await (widget.listen ?? defaultVoiceListen)(
       onResult: (heard) {
         if (answered || !mounted) return;
@@ -85,6 +105,19 @@ class VoiceMicButtonState extends State<VoiceMicButton> {
           if (mounted) setState(() => _busy = false);
         }));
       },
+      onPartial: early == null
+          ? null
+          : (words) {
+              if (answered || !mounted || !early(words)) return;
+              // ‏كفى ما سُمع: يُغلق المايكُ الآن، والنصُّ النهائيُّ إن وصل يُهمَل.
+              answered = true;
+              _giveUp?.cancel();
+              unawaited((widget.stop ?? StudentVoiceService.instance.stopListening)());
+              setState(() {
+                _listening = false;
+                _busy = false;
+              });
+            },
     );
     if (!mounted) return;
     if (!started) {

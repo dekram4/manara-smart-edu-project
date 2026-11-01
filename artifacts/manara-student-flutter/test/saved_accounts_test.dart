@@ -102,10 +102,17 @@ void main() {
           apiBaseUrl: '',
           savedAccounts: saved,
           voicePrompt: () async => asked?.add('voice_login'),
-          voiceListen: ({required onResult}) async {
+          // ‏كمحرّك التعرّف: الكلماتُ تصل واحدةً واحدة، ثم النصُّ النهائيّ.
+          voiceListen: ({required onResult, onPartial}) async {
             if (said.isEmpty) return false;
             final words = said.removeAt(0);
-            scheduleMicrotask(() => onResult(words));
+            scheduleMicrotask(() {
+              final parts = words.split(' ');
+              for (var n = 1; n <= parts.length; n++) {
+                onPartial?.call(parts.take(n).join(' '));
+              }
+              onResult(words);
+            });
             return true;
           },
         ),
@@ -192,10 +199,11 @@ void main() {
       await saved.save(const SavedAccount(username: 'jory', displayName: 'جوري داود'), 'secret-j');
       await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'secret-s');
       final asked = <String>[];
-      final auth = await pump(tester, saved, spoken: ['جوري'], asked: asked);
+      final auth = await pump(tester, saved, spoken: ['أنا جوري داود'], asked: asked);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
       expect(asked, ['voice_login'], reason: 'السؤالُ المسموع قبل الاستماع');
+      // ‏دخل لحظةَ اكتمل الاسمُ في الكلام الجزئيّ، والنصُّ النهائيُّ لم يُدخله ثانيةً.
       expect(auth.attempts, [('jory', 'secret-j')]);
       expect(find.byKey(const ValueKey('login-save-dialog')), findsNothing);
       await settle(tester);
@@ -225,6 +233,22 @@ void main() {
 
     test('سؤالُ «إيش اسمك يا بطل؟» في الحزمة', () {
       expect(File('assets/audio/voice_login.mp3').existsSync(), isTrue);
+    });
+  
+    testWidgets('الاسمُ الأوّل وحده لا يكفي: اسمان متشابهان لا يتداخلان', (tester) async {
+      final saved = SavedAccounts();
+      await saved.save(const SavedAccount(username: 'jory1', displayName: 'جوري داود'), 'a');
+      await saved.save(const SavedAccount(username: 'jory2', displayName: 'جوري سالم'), 'b');
+      final auth = await pump(tester, saved, spoken: ['جوري', 'جوري سالم']);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(auth.attempts, isEmpty, reason: 'جوري وحدها لا تُدخل أحداً');
+      expect(find.text(tr('voice.nameUnknown')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('voice-login')));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(auth.attempts, [('jory2', 'b')]);
+      await settle(tester);
     });
   });
 }

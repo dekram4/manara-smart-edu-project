@@ -45,4 +45,27 @@ void main() {
     expect(matchSpoken('عبدالله', accounts), 2);
     expect(matchSpoken('سارة', accounts), isNull);
   });
+
+  test('الدخولُ بالصوت: الاسمُ الأوّلُ والثاني معاً، لا الأوّلُ وحده', () {
+    const names = ['جوري داود', 'جوري سالم', 'سادن داود', 'ريم'];
+    expect(matchFullName('جوري', names), isNull, reason: 'اسمان يبدآن بجوري');
+    expect(matchFullName('داود', names), isNull);
+    expect(matchFullName('جوري داود', names), 0);
+    expect(matchFullName('أنا اسمي سادن داود', names), 2);
+    expect(matchFullName('جوري سالم', names), 1);
+    expect(matchFullName('سادن', names), isNull, reason: 'لا بدّ من الاسم الثاني');
+    // ‏من ليس له إلا اسمٌ واحد في حسابه يكفيه.
+    expect(matchFullName('ريم', names), 3);
+  });
+
+  test('الفهرس: الأعلى درجةً، وهل قيلت كلماتُ الخيار كلُّها', () {
+    final index = SpokenIndex(['سورة الفاتحة', 'سورة الناس', 'النبات']);
+    final partial = index.best('سورة');
+    expect(partial, hasLength(2), reason: 'تعادل: لم يُقل بعد أيّ سورة');
+    final whole = index.best('سورة الفاتحة');
+    expect(whole.single.index, 0);
+    expect(whole.single.complete, isTrue);
+    expect(index.best('الفاتحة').single.complete, isFalse, reason: '«سورة» لم تُقل');
+    expect(index.best('نبات', only: [0, 1]), isEmpty, reason: 'البحثُ مقصورٌ على ما طُلب');
+  });
 }
