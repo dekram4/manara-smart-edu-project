@@ -94,28 +94,73 @@ int _distance(String a, String b) {
   return previous[b.length];
 }
 
+/// خيارٌ التقى بكلام الطفل: رقمُه، ودرجتُه، وهل قيلت كلماتُه كلُّها.
+class SpokenMatch {
+  const SpokenMatch(this.index, this.score, {required this.complete});
+
+  final int index;
+  final double score;
+
+  /// قيلت كلُّ كلمات الخيار («سورة الفاتحة» لا «سورة» وحدها): كلامٌ لم ينتهِ
+  /// بعد يُؤخذ به في لحظته إن اكتمل الاسم، وإلا انتُظر آخرُه.
+  final bool complete;
+}
+
+/// كلماتُ خياراتٍ مقطّعةٌ مرّةً واحدة، فتُطابَق عليها كلُّ كلمةٍ جزئيةٍ يسمعها
+/// المايك في لحظتها — بلا إعادة تقطيعٍ مع كل مقطع.
+class SpokenIndex {
+  SpokenIndex(List<String> options) : _words = [for (final option in options) spokenWords(option)];
+
+  final List<List<String>> _words;
+
+  int get length => _words.length;
+
+  /// الخياراتُ الأعلى درجةً (أكثرُ من واحدٍ إن تعادلت)، أو فارغةٌ إن لم يلتقِ
+  /// الكلامُ بشيء. [only]: يُقصر البحثُ على هذه الأرقام.
+  List<SpokenMatch> best(String spoken, {Iterable<int>? only}) {
+    final said = spokenWords(spoken).toSet();
+    if (said.isEmpty) return const [];
+    var top = 0.0;
+    var winners = <SpokenMatch>[];
+    for (final i in only ?? List<int>.generate(_words.length, (i) => i)) {
+      final written = _words[i];
+      if (written.isEmpty) continue;
+      final hits = said.where((s) => written.any((w) => _close(s, w))).length;
+      if (hits == 0) continue;
+      // ‏الأقربُ ما التقى بأكثر كلماته، ثم الأخصُّ (أقلُّ كلماتٍ زائدة).
+      final score = hits + hits / (written.length + 1);
+      final complete = written.every((w) => said.any((s) => _close(s, w)));
+      if (score > top + 1e-9) {
+        top = score;
+        winners = [SpokenMatch(i, score, complete: complete)];
+      } else if ((score - top).abs() <= 1e-9) {
+        winners.add(SpokenMatch(i, score, complete: complete));
+      }
+    }
+    return winners;
+  }
+}
+
 /// الخيارُ الذي قصده الطفلُ من [options] — رقمُه، أو `null` إن لم يُفهم أو
 /// تعادل خياران.
 int? matchSpoken(String spoken, List<String> options) {
+  final winners = SpokenIndex(options).best(spoken);
+  return winners.length == 1 ? winners.single.index : null;
+}
+
+/// اسمُ الطالب كما قاله: الاسمُ الأوّل والثاني معاً («جوري داود»)، لا الأوّلُ
+/// وحده — فلا يدخل طالبٌ بحساب زميلٍ يشاركه اسمَه الأوّل. ومن ليس له في
+/// حسابه إلا اسمٌ واحد يكفيه ذاك. ولا يُختار أحدٌ إن انطبق الكلامُ على اسمين.
+int? matchFullName(String spoken, List<String> names) {
   final said = spokenWords(spoken).toSet();
   if (said.isEmpty) return null;
-  var best = 0.0;
-  int? winner;
-  var tied = false;
-  for (var i = 0; i < options.length; i++) {
-    final written = spokenWords(options[i]);
-    if (written.isEmpty) continue;
-    final hits = said.where((s) => written.any((w) => _close(s, w))).length;
-    if (hits == 0) continue;
-    // ‏الأقربُ ما التقى بأكثر كلماته، ثم الأخصُّ (أقلُّ كلماتٍ زائدة).
-    final score = hits + hits / (written.length + 1);
-    if (score > best + 1e-9) {
-      best = score;
-      winner = i;
-      tied = false;
-    } else if ((score - best).abs() <= 1e-9) {
-      tied = true;
-    }
+  int? found;
+  for (var i = 0; i < names.length; i++) {
+    final required = spokenWords(names[i]).take(2).toList();
+    if (required.isEmpty) continue;
+    if (!required.every((w) => said.any((s) => _close(s, w)))) continue;
+    if (found != null) return null;
+    found = i;
   }
-  return tied ? null : winner;
+  return found;
 }
