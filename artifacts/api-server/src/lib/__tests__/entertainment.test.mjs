@@ -212,6 +212,46 @@ test("السجلّاتُ بمالك: ما يملكه المعلم وحده، و�
   assert.equal(scope.normalizeOwner("  سارة "), scope.normalizeOwner("ساره"));
 });
 
+test("مدخلاتُ المعلم بأيّ اسمٍ له تصل مختومةً بمعرّفه، ومكرّرُ الصفّ يُدمج بلا فقد", () => {
+  const kg = "روضة منارة المعرفة";
+  const tree = [
+    // ‏القرآنُ تحت مدخلٍ مالكُه اسمُ المعلم، والمادّةُ الجديدة تحت معرّفه.
+    { grade: kg, createdBy: "داود سيد اكرام", subjects: [
+      { subject: "القرآن الكريم", terms: [{ term: "حفظ", units: ["جزء عم"], lessons: { "جزء عم": ["الفاتحة"] } }] },
+    ] },
+    { grade: kg, teacherId: "t_dawood", subjects: [
+      { subject: "القاعدة النورانية", terms: [] },
+      { subject: "القرآن الكريم", terms: [{ term: "حفظ", units: ["جزء عم", "جزء تبارك"], lessons: { "جزء عم": ["الناس"] } }] },
+    ] },
+    // ‏‎`teacher_id` فارغ: الويب (`??`) لا ينسبه لأحد، والخادم (`||`) ينسبه للمعلم.
+    { grade: "الصف الأول", teacher_id: "", createdBy: "dawood", subjects: [] },
+    { grade: kg, createdBy: "t_other", subjects: [{ subject: "العلوم", terms: [] }] },
+    { grade: "قالب", createdBy: "admin", subjects: [] },
+  ];
+  const me = new Set(["t_dawood", "dawood", scope.normalizeOwner("داود سيد اكرام")]);
+  const out = scope.scopeKvForTeacher("smartEdu_hierarchicalConfigs", tree, me, tree, "t_dawood");
+
+  assert.deepEqual(out.map((c) => c.grade), [kg, "الصف الأول", "قالب"], "مدخلٌ واحد للروضة، ولا شيء لمعلّمٍ آخر");
+  const home = out[0];
+  assert.equal(home.teacher_id, "t_dawood");
+  assert.equal(home.createdBy, "t_dawood");
+  assert.equal(home.teacherId, undefined, "لا يُضاف حقلٌ لم يكن");
+  assert.deepEqual(home.subjects.map((s) => s.subject), ["القرآن الكريم", "القاعدة النورانية"]);
+  assert.deepEqual(home.subjects[0].terms, [
+    { term: "حفظ", units: ["جزء عم", "جزء تبارك"], lessons: { "جزء عم": ["الفاتحة", "الناس"] } },
+  ]);
+  assert.equal(out[1].teacher_id, "t_dawood");
+  assert.equal(out[1].createdBy, "t_dawood");
+  assert.equal(out[2].createdBy, "admin", "القالبُ كما هو");
+  // ‏الأصلُ لا يُمسّ.
+  assert.equal(tree[0].createdBy, "داود سيد اكرام");
+  assert.equal(tree[1].subjects.length, 2);
+  // ‏وبلا معرّفٍ يبقى السلوكُ القديم.
+  assert.equal(scope.scopeKvForTeacher("smartEdu_hierarchicalConfigs", tree, me, tree).length, 4);
+  // ‏ومرّةً ثانية: لا تغيير.
+  assert.deepEqual(scope.canonicalTeacherConfigs(out, me, "t_dawood"), out);
+});
+
 // ── الحماية عبر HTTP ─────────────────────────────────────────────────────
 
 const PORT = 43000 + Math.floor(Math.random() * 2000);

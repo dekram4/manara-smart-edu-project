@@ -76,14 +76,40 @@ export function ownedTreeArrived(
       return JSON.stringify(stored ?? null) === JSON.stringify(sent ?? null);
     }
     const mine = (value: unknown) =>
-      (Array.isArray(value) ? value : [])
-        .filter(config => ownerOf(config) === owner)
-        .map(config => JSON.stringify(config))
-        .sort();
-    const sentMine = mine(sent);
-    const storedMine = new Set(mine(stored));
-    return sentMine.every(config => storedMine.has(config));
+      (Array.isArray(value) ? value : []).filter(config => ownerOf(config) === owner);
+    const storedPaths = new Set(mine(stored).flatMap(treePaths));
+    return mine(sent).flatMap(treePaths).every(path => storedPaths.has(path));
   };
+}
+
+/**
+ * كلُّ مسارٍ في مدخل: الصفّ، والصفّ/المادّة، وما تحتهما حتى الدرس.
+ *
+ * يُقاس الوصولُ بها لا بنصّ المدخل: الخادم يختم المدخلَ بمعرّف المعلّم
+ * ويدمج ما تكرّر منه للصفّ نفسه، فيعود نصُّه مختلفاً ولو وصل كلُّ ما فيه.
+ */
+function treePaths(config: any): string[] {
+  const clean = (value: unknown) => String(value ?? '').trim();
+  const grade = clean(config?.grade);
+  const paths = [grade];
+  for (const subject of Array.isArray(config?.subjects) ? config.subjects : []) {
+    const s = `${grade}\u0000${clean(subject?.subject)}`;
+    paths.push(s);
+    for (const term of Array.isArray(subject?.terms) ? subject.terms : []) {
+      const t = `${s}\u0000${clean(term?.term)}`;
+      paths.push(t);
+      const lessons = term?.lessons && typeof term.lessons === 'object' ? term.lessons : {};
+      const units = [...(Array.isArray(term?.units) ? term.units : []), ...Object.keys(lessons)];
+      for (const unit of units) {
+        const u = `${t}\u0000${clean(unit)}`;
+        paths.push(u);
+        for (const lesson of Array.isArray(lessons[unit]) ? lessons[unit] : []) {
+          paths.push(`${u}\u0000${clean(lesson)}`);
+        }
+      }
+    }
+  }
+  return paths;
 }
 
 /** يحفظ صفوفاً في جدول ثم يقرأ الجدول ليتأكّد من وجودها. */
