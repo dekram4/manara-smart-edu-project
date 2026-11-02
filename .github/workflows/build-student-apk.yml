@@ -168,7 +168,10 @@ jobs:
             echo "::error::حزمة AAB موقَّعةٌ بمفتاح التطوير."
             exit 1
           fi
-          if [ "$(echo "$AAB_CERT" | grep SHA256: | head -1)" != "$(keytool -printcert -jarfile "$APK" | grep SHA256: | head -1)" ]; then
+          # ‏بصمةُ APK من apksigner: توقيعُه v2 وحده (minSdk 24)، فلا يقرؤه keytool.
+          AAB_SHA=$(echo "$AAB_CERT" | grep -m1 "SHA256:" | sed -E 's/.*SHA256:[[:space:]]*//' | tr -d ':' | tr 'A-F' 'a-f')
+          APK_SHA=$(echo "$CERT" | grep -m1 "SHA-256 digest" | sed -E 's/.*digest:[[:space:]]*//')
+          if [ -z "$AAB_SHA" ] || [ "$AAB_SHA" != "$APK_SHA" ]; then
             echo "::error::حزمة AAB وملفّ APK موقَّعان بمفتاحين مختلفين."
             exit 1
           fi
