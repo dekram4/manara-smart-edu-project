@@ -20,7 +20,7 @@
          StudentOrientation.allowed. "fullSensor" rather than "sensor"
          because the latter leaves out reverse portrait on phones. -->
     <application
-        android:label="manara_student"
+        android:label="منارة المعرفة"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -128,6 +128,9 @@ jobs:
           fi
 
           flutter build apk --release "${args[@]}"
+          # ‏حزمةُ Google Play: بالمفتاح نفسه والإعدادات نفسها، فما في المتجر
+          # ‏هو ما في رابط التحميل.
+          flutter build appbundle --release "${args[@]}"
         working-directory: artifacts/manara-student-flutter
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -157,6 +160,18 @@ jobs:
             echo "::error::معرّف التطبيق ليس com.manara.student."
             exit 1
           fi
+          # ‏وحزمةُ Play: Google ترفض حزمةً موقَّعةً بمفتاح التطوير.
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          AAB_CERT=$(keytool -printcert -jarfile "$AAB")
+          echo "$AAB_CERT" | grep -E "Owner:|SHA256:"
+          if echo "$AAB_CERT" | grep -q "CN=Android Debug"; then
+            echo "::error::حزمة AAB موقَّعةٌ بمفتاح التطوير."
+            exit 1
+          fi
+          if [ "$(echo "$AAB_CERT" | grep SHA256: | head -1)" != "$(keytool -printcert -jarfile "$APK" | grep SHA256: | head -1)" ]; then
+            echo "::error::حزمة AAB وملفّ APK موقَّعان بمفتاحين مختلفين."
+            exit 1
+          fi
           rm -f android/key.properties android/app/manara-release.jks
         working-directory: artifacts/manara-student-flutter
 
@@ -167,6 +182,12 @@ jobs:
         with:
           name: student-apk
           path: artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: student-aab
+          path: artifacts/manara-student-flutter/build/app/outputs/bundle/release/app-release.aab
 
       # ‏── رابطُ التحميل يتبع آخرَ بناء ──
       # ‏لوحةُ المشرف تشير إلى releases/latest/download/manara-student.apk.
@@ -183,10 +204,12 @@ jobs:
           VERSION=$(grep -E '^version:' artifacts/manara-student-flutter/pubspec.yaml | sed -E 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/')
           TAG="v$VERSION"
           cp artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-release.apk manara-student.apk
+          # ‏وحزمةُ Google Play بجانبه، تُنزَّل من صفحة الإصدار وتُرفع إلى Play Console.
+          cp artifacts/manara-student-flutter/build/app/outputs/bundle/release/app-release.aab manara-student.aab
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" manara-student.apk --clobber
+            gh release upload "$TAG" manara-student.apk manara-student.aab --clobber
           else
-            gh release create "$TAG" manara-student.apk \
+            gh release create "$TAG" manara-student.apk manara-student.aab \
               --title "تطبيق الطالب $TAG" \
               --notes "بناءٌ تلقائي من ${GITHUB_SHA::7}." \
               --latest
