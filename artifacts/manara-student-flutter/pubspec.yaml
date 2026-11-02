@@ -194,14 +194,10 @@ flutter:
 flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   android: true
-  # This project has no ios/ runner — only android, web and windows — so
-  # there is no Assets.xcassets to write into and the generator fails
-  # outright on `ios: true`. Everything else here is already correct for
-  # iOS and iPadOS: add the platform with
-  # `flutter create --platforms=ios .`, flip this to true, and re-run
-  # `dart run flutter_launcher_icons`. `remove_alpha_ios` is kept ready
-  # because the App Store rejects icons with an alpha channel.
-  ios: false
+  # iOS and iPadOS icons are written into ios/Runner/Assets.xcassets.
+  # `remove_alpha_ios` because the App Store rejects icons with an alpha
+  # channel.
+  ios: true
   remove_alpha_ios: true
   # No adaptive icon: no adaptive_icon_background, no foreground layer.
   # An adaptive icon always has a background layer — a colour draws a square
