@@ -1,5 +1,6 @@
-# ‏iOS 13 أدنى إصدار: ما تحتاجه الإضافات (flutter_inappwebview، speech_to_text، record).
-platform :ios, '13.0'
+# ‏iOS 15 أدنى إصدار. أعلى ما تطلبه الإضافاتُ اليوم 13 (speech_to_text،
+# ‏image_picker، audioplayers، webview)، فكلُّها تعمل عليه.
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -40,7 +41,11 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      # ‏يُرفع ما دون 15 إليه (Xcode يحذّر من إضافةٍ أدنى من التطبيق)، ولا يُخفض
+      # ‏ما فوقه: إضافةٌ تطلب أكثر يجب أن تبقى على ما تطلبه.
+      if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 15.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
       # ‏permission_handler: كلُّ إذنٍ لا يُفعَّل هنا يعود «مرفوضاً» دون أن
       # ‏يُسأل الطالب. وما يُفعَّل يجب أن يكون نصُّه في Info.plist.
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
