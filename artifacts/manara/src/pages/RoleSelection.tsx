@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { ArrowLeft, Check, Cog, Download, Presentation, Settings, Smartphone, UsersRound } from 'lucide-react';
+import { ArrowLeft, Check, Cog, Download, Info, Presentation, Settings, Smartphone, UsersRound } from 'lucide-react';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
 import { fetchStudentApk } from '../utils/studentApk';
 import { ART } from '../components/portal/PortalUI';
@@ -14,6 +14,9 @@ interface RoleSelectionProps {
 interface RoleCard {
   id: 'teacher' | 'parent' | 'admin';
   title: string;
+  /** سطرٌ واحد قصير على البطاقة. */
+  tagline: string;
+  /** الوصفُ الكامل والصلاحيات: في البطاقة المنبثقة عند المرور وحده. */
   description: string;
   features: string[];
   icon: LucideIcon;
@@ -26,8 +29,9 @@ const roles: RoleCard[] = [
   {
     id: 'teacher',
     title: 'بوابة المعلم',
+    tagline: 'الفصول والمحتوى والطلاب',
     description: 'إدارة الفصول والمحتوى التعليمي ومتابعة أداء الطلاب.',
-    features: ['الدروس والاختبارات', 'تقارير الطلاب وأولياء الأمور', 'إصدار الشهادات'],
+    features: ['إنشاء الدروس والاختبارات', 'حسابات الطلاب وأولياء الأمور', 'التقارير ونتائج الاختبارات', 'إصدار الشهادات وطباعتها'],
     icon: Presentation,
     tone: 'primary',
     art: ART.teacher,
@@ -35,8 +39,9 @@ const roles: RoleCard[] = [
   {
     id: 'parent',
     title: 'بوابة ولي الأمر',
+    tagline: 'متابعة الأبناء أولاً بأول',
     description: 'متابعة تحصيل الأبناء ونشاطهم وشهاداتهم أولاً بأول.',
-    features: ['الدرجات ونتائج الاختبارات', 'المستوى والنشاط والجواهر', 'التقارير والشهادات للطباعة'],
+    features: ['الدرجات ونتائج الاختبارات', 'المستوى والنشاط والجواهر', 'تفاصيل كل مادة وتقاريرها', 'الشهادات جاهزة للطباعة'],
     icon: UsersRound,
     tone: 'accent',
     art: ART.family,
@@ -44,8 +49,9 @@ const roles: RoleCard[] = [
   {
     id: 'admin',
     title: 'لوحة المشرف',
+    tagline: 'إدارة المنصّة بالكامل',
     description: 'الإدارة الشاملة للمنصّة والحسابات والإعدادات الأكاديمية.',
-    features: ['المعلمون والحسابات', 'الإعدادات الأكاديمية والمحتوى', 'الصلاحيات وإعدادات النظام'],
+    features: ['المعلمون وكل الحسابات', 'الإعدادات الأكاديمية والمحتوى', 'الصلاحيات وباقاتها', 'إعدادات النظام والشهادات'],
     icon: Settings,
     tone: 'gold',
   },
@@ -57,6 +63,9 @@ const roles: RoleCard[] = [
  * خلفيتُها خلفيةُ شاشة الدخول في تطبيق الطالب نفسُها (سماءٌ ومرجٌ وكتب)،
  * والبرجُ — منارةُ المنصّة — قائمٌ في الجهة اليمنى كما في رئيسية التطبيق.
  * ولكلّ بوابةٍ شخصيتها: المعلمُ أمام سبورته، والعائلة، وترسُ الإدارة للمشرف.
+ *
+ * البطاقةُ خفيفة: الشخصية والاسم وسطرٌ واحد. والوصفُ والصلاحيات في بطاقةٍ
+ * زجاجية تنبثق من أسفلها عند المرور (أو التركيز بلوحة المفاتيح).
  */
 const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   // رابطُ تطبيق الطالب من إعدادات النظام في الخادم — يغيّره المشرف من لوحته.
@@ -120,6 +129,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 key={role.id}
                 type="button"
                 className={`portal-role-card tone-${role.tone}`}
+                aria-describedby={`role-info-${role.id}`}
                 onClick={() => {
                   GameAudioEngine.play('uiSelect');
                   handlers[role.id]();
@@ -134,21 +144,36 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                       <Cog className="is-small" />
                     </span>
                   )}
-                </span>
-                <span className="portal-role-icon" aria-hidden="true">
-                  <Icon />
+                  <span className="portal-role-icon">
+                    <Icon />
+                  </span>
                 </span>
                 <span className="portal-role-title">{role.title}</span>
-                <span className="portal-role-description">{role.description}</span>
-                <span className="portal-role-features">
-                  {role.features.map((feature) => (
-                    <span key={feature}>
-                      <Check aria-hidden="true" /> {feature}
-                    </span>
-                  ))}
-                </span>
+                <span className="portal-role-tagline">{role.tagline}</span>
                 <span className="portal-role-cta">
-                  الدخول إلى البوابة <ArrowLeft aria-hidden="true" />
+                  الدخول <ArrowLeft aria-hidden="true" />
+                </span>
+                <span className="portal-role-hint" aria-hidden="true">
+                  <Info /> مرّر للتفاصيل
+                </span>
+
+                {/* ‏البطاقةُ المنبثقة: تعلو من أسفل البطاقة عند المرور أو التركيز،
+                    فيها الوصفُ والصلاحيات — والبطاقةُ نفسها تبقى خفيفة. */}
+                <span className="portal-role-popover" id={`role-info-${role.id}`} role="tooltip">
+                  <span className="portal-role-popover-title">
+                    <Icon aria-hidden="true" /> {role.title}
+                  </span>
+                  <span className="portal-role-popover-text">{role.description}</span>
+                  <span className="portal-role-popover-list">
+                    {role.features.map((feature) => (
+                      <span key={feature}>
+                        <Check aria-hidden="true" /> {feature}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="portal-role-popover-cta">
+                    الدخول إلى البوابة <ArrowLeft aria-hidden="true" />
+                  </span>
                 </span>
               </button>
             );

@@ -3226,3 +3226,245 @@ button.portal-stat:hover,
 .portal-roles.is-sky .portal-role-card {
   animation-fill-mode: backwards;
 }
+
+/* ——— أزرارُ الإجراءات في الجداول: أيقوناتٌ متساوية متجاورة في طرف الصف ——— */
+.portal-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.portal-table th.portal-actions-head {
+  text-align: end;
+}
+
+.portal-avatar-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--pt-accent);
+  background: var(--pt-accent-soft);
+}
+
+.dashboard-hybrid-table .portal-table td:last-child,
+.dashboard-hybrid-table .portal-table th:last-child {
+  min-width: 0;
+  width: 1%;
+}
+
+/* ==========================================================================
+   بطاقاتُ الأدوار — خفيفة: الشخصية والاسم وسطرٌ واحد وزرّ الدخول؛ والوصفُ
+   والصلاحيات في بطاقةٍ زجاجية تنبثق من أسفلها عند المرور أو التركيز.
+   ========================================================================== */
+
+.portal-roles.is-sky .portal-roles-grid {
+  gap: 1.5rem;
+}
+
+.portal-roles.is-sky .portal-role-card {
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1rem 1rem 1.15rem;
+  text-align: center;
+}
+
+.portal-roles.is-sky .portal-role-stage {
+  position: relative;
+  height: 10.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.portal-roles.is-sky .portal-role-stage .portal-role-art {
+  height: 9.4rem;
+}
+
+.portal-roles.is-sky .portal-role-stage .portal-role-icon {
+  position: absolute;
+  bottom: 0.6rem;
+  inset-inline-start: 0.6rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 14px rgb(15 31 53 / 0.12);
+}
+
+.portal-roles.is-sky .portal-role-stage .portal-role-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.portal-roles.is-sky .portal-role-title {
+  font-size: 1.3rem;
+}
+
+.portal-role-tagline {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #4b5d74;
+}
+
+.portal-roles.is-sky .portal-role-cta {
+  margin-top: 0.7rem;
+  padding: 0.45rem 1.15rem;
+  border-radius: 999px;
+  background: var(--tone-soft);
+  font-size: 0.88rem;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.portal-roles.is-sky .portal-role-card:hover .portal-role-cta {
+  background: var(--tone);
+  color: #fff;
+}
+
+.portal-role-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--pt-subtle);
+}
+
+.portal-role-hint svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+/* ——— البطاقةُ المنبثقة ——— */
+.portal-role-card > .portal-role-popover {
+  position: absolute;
+  z-index: 3;
+  inset-inline: 0.6rem;
+  bottom: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  text-align: start;
+  background: rgb(255 255 255 / 0.9);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgb(255 255 255 / 0.85);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 1),
+    0 0 0 1px color-mix(in srgb, var(--tone) 18%, transparent),
+    0 18px 40px rgb(15 31 53 / 0.18);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px) scale(0.98);
+  transition:
+    opacity 260ms ease,
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 360ms;
+  pointer-events: none;
+}
+
+.portal-role-card:hover > .portal-role-popover,
+.portal-role-card:focus-visible > .portal-role-popover {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 260ms ease,
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
+}
+
+.portal-role-popover-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.portal-role-popover-title svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--tone);
+}
+
+.portal-role-popover-text {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--pt-muted);
+}
+
+.portal-role-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed color-mix(in srgb, var(--tone) 25%, transparent);
+}
+
+.portal-role-popover-list > span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--pt-text);
+}
+
+.portal-role-popover-list svg {
+  flex: 0 0 auto;
+  width: 0.95rem;
+  height: 0.95rem;
+  padding: 0.12rem;
+  border-radius: 999px;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+
+.portal-role-popover-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: var(--tone);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.portal-role-popover-cta svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* ‏على اللمس لا مرور: النقرةُ تفتح البوابة مباشرة، فلا منبثقة ولا تلميح. */
+@media (hover: none) {
+  .portal-role-card > .portal-role-popover,
+  .portal-role-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-role-card > .portal-role-popover {
+    transition: opacity 120ms ease, visibility 0s;
+    transform: none;
+  }
+}
+
+/* ‏قاعدةٌ قديمة تجعل جداول الصفحات الهجينة بأعمدةٍ ثابتة متساوية، فيُعصر عمودُ
+   الإجراءات. جداولُ البوابة تُقاس بمحتواها. */
+.portal-shell .dashboard-main table.portal-table {
+  table-layout: auto;
+}
+
+.portal-shell .dashboard-main table.portal-table td:last-child {
+  max-width: none;
+}
