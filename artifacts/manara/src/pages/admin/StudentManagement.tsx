@@ -11,7 +11,8 @@ import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getPermissionPackages } from '../../permissions';
 import { useRevealForm } from '../../hooks/useRevealForm';
-import { GraduationCap as IconGraduationCap, UsersRound as IconUsersRound } from 'lucide-react';
+import { GraduationCap, Link2Off, Pencil, RotateCcw, Search, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
+import { ART, Badge, EmptyState, PageHeader, Panel, StatCard, studentArt } from '../../components/portal/PortalUI';
 
 interface StudentManagementProps {
   onUpdate: () => void;
@@ -502,32 +503,39 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
   const childrenOf = (parent: any) => getParentChildren(students, parent);
 
   const visibleRecords: any[] = activeTab === 'students' ? filteredStudents : filteredParents;
+  const hasFilter = Boolean(searchTerm.trim()) || filterTeacherId !== 'all' || filterParentId !== 'all' || filterGrade !== 'all';
+  const unlinkedCount = students.filter(s => !parentOf(s)).length;
 
   return (
-     <div className="dashboard-page dashboard-consistent-page dashboard-account-page animate-fadeIn">
-       <div className="dashboard-section-header" style={styles.header}>
-        <h1 style={styles.title}>إدارة الحسابات</h1>
-        <p style={styles.subtitle}>إدارة حسابات الطلاب وأولياء الأمور</p>
-      </div>
+    <div className="portal-page">
+      <PageHeader
+        eyebrow="لوحة المشرف"
+        title="إدارة الحسابات"
+        description="حسابات الطلاب وأولياء الأمور لكل المعلمين: الإضافة والتعديل والربط والتصفية."
+        icon={UsersRound}
+        art={ART.kids}
+        actions={
+          <>
+            <button type="button" onClick={() => quickAddAccount('student')} className="portal-btn portal-btn-primary">
+              <UserPlus aria-hidden="true" /> إضافة طالب
+            </button>
+            <button type="button" onClick={() => quickAddAccount('parent')} className="portal-btn portal-btn-secondary">
+              <UserPlus aria-hidden="true" /> إضافة ولي أمر
+            </button>
+          </>
+        }
+      />
 
-       <div className="dashboard-surface dashboard-account-toolbar" style={styles.quickAddContainer}>
-        <div style={styles.quickAddHeader}>
-          <h3 style={styles.quickAddTitle}>إضافة حساب جديد</h3>
-          <div style={styles.quickAddButtons}>
-            <button onClick={() => quickAddAccount('student')} style={styles.quickAddButton}>إضافة طالب</button>
-            <button onClick={() => quickAddAccount('parent')} style={{...styles.quickAddButton, backgroundColor: COLORS.secondary}}>إضافة ولي أمر</button>
-          </div>
-        </div>
-         <div className="dashboard-stats-grid dashboard-stats-grid-compact" style={styles.quickAddStats}>
-          <div style={styles.statCard}>
-             <div style={styles.statIcon}><IconGraduationCap className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
-             <div style={styles.statContent}><div style={styles.statValue}>{students.length}</div><div style={styles.statLabel}>طالب</div></div>
-          </div>
-          <div style={styles.statCard}>
-             <div style={styles.statIcon}><IconUsersRound className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
-             <div style={styles.statContent}><div style={styles.statValue}>{parents.length}</div><div style={styles.statLabel}>ولي أمر</div></div>
-          </div>
-        </div>
+      <div className="portal-stats">
+        <StatCard label="الطلاب" value={students.length} hint="في كل الفصول" icon={GraduationCap} onClick={() => setActiveTab('students')} />
+        <StatCard label="أولياء الأمور" value={parents.length} hint="حسابات مسجّلة" icon={UsersRound} tone="accent" onClick={() => setActiveTab('parents')} />
+        <StatCard
+          label="طلاب بلا ولي أمر"
+          value={unlinkedCount}
+          hint={unlinkedCount ? 'اربطهم من «تعديل»' : 'كل الطلاب مرتبطون'}
+          icon={Link2Off}
+          tone={unlinkedCount ? 'warning' : 'neutral'}
+        />
       </div>
 
       {showStudentForm && (
@@ -675,179 +683,151 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
       )}
 
-       <div className="dashboard-filter-surface" style={styles.controlsCard}>
-        <div style={styles.controlsHeader}>
-          <div style={styles.searchContainer}>
-            <input 
-              type="text" 
-              value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)} 
-              style={styles.searchInput} 
-              placeholder="بحث عن اسم أو هوية..." 
-            />
+      {/* ‏شريطُ التصفية داخل لوحة الجدول نفسها: التبويبان ثم البحثُ والقوائم
+          في صفٍّ واحد يلتفّ على الشاشات الضيّقة — لا بطاقةَ عائمة تتداخل مع
+          ما فوقها. */}
+      <Panel flush>
+        <div className="portal-directory-toolbar">
+          <div className="portal-tabs" role="tablist" aria-label="نوع الحسابات">
+            <button type="button" role="tab" aria-selected={activeTab === 'students'} className={activeTab === 'students' ? 'is-active' : ''} onClick={() => setActiveTab('students')}>
+              <GraduationCap aria-hidden="true" /> الطلاب <span>{filteredStudents.length}</span>
+            </button>
+            <button type="button" role="tab" aria-selected={activeTab === 'parents'} className={activeTab === 'parents' ? 'is-active' : ''} onClick={() => setActiveTab('parents')}>
+              <UsersRound aria-hidden="true" /> أولياء الأمور <span>{filteredParents.length}</span>
+            </button>
           </div>
-          <div style={styles.tabButtons}>
-            <button onClick={() => setActiveTab('students')} style={{...styles.tabButton, backgroundColor: activeTab === 'students' ? COLORS.primary : '#f3f4f6', color: activeTab === 'students' ? 'white' : COLORS.dark }}>الطلاب</button>
-            <button onClick={() => setActiveTab('parents')} style={{...styles.tabButton, backgroundColor: activeTab === 'parents' ? COLORS.primary : '#f3f4f6', color: activeTab === 'parents' ? 'white' : COLORS.dark }}>أولياء الأمور</button>
-          </div>
-        </div>
-        
-        {/* خيارات التصفية */}
-        <div style={{display: 'flex', gap: '15px', marginTop: '20px', flexWrap: 'wrap'}}>
-          <div style={{flex: '1', minWidth: '200px'}}>
-            <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>تصفية بحسب المعلم</label>
-            <select 
-              value={filterTeacherId} 
-              onChange={e => setFilterTeacherId(e.target.value)}
-              style={{...styles.select, width: '100%'}}
-            >
+          <div className="portal-directory-filters">
+            <label className="portal-search">
+              <Search aria-hidden="true" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="بحث بالاسم أو اسم المستخدم أو الهوية"
+                aria-label="بحث"
+              />
+            </label>
+            <select value={filterTeacherId} onChange={e => setFilterTeacherId(e.target.value)} aria-label="تصفية بحسب المعلم">
               <option value="all">كل المعلمين</option>
               {teachers.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} - {t.subject || 'معلم'}</option>
+                <option key={t.id} value={t.id}>{t.name}{t.subject ? ` — ${t.subject}` : ''}</option>
               ))}
             </select>
-          </div>
-          
-          {activeTab === 'students' && (
-            <>
-              <div style={{flex: '1', minWidth: '200px'}}>
-                <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>تصفية بحسب ولي الأمر</label>
-                <select 
-                  value={filterParentId} 
-                  onChange={e => setFilterParentId(e.target.value)}
-                  style={{...styles.select, width: '100%'}}
-                >
+            {activeTab === 'students' && (
+              <>
+                <select value={filterParentId} onChange={e => setFilterParentId(e.target.value)} aria-label="تصفية بحسب ولي الأمر">
                   <option value="all">كل أولياء الأمور</option>
                   {parents.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} - {p.phoneNumber}</option>
+                    <option key={p.id} value={p.id}>{p.name}{p.phoneNumber ? ` — ${p.phoneNumber}` : ''}</option>
                   ))}
                 </select>
-              </div>
-              
-              <div style={{flex: '1', minWidth: '200px'}}>
-                <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>تصفية بحسب الصف</label>
-                <select 
-                  value={filterGrade} 
-                  onChange={e => setFilterGrade(e.target.value)}
-                  style={{...styles.select, width: '100%'}}
-                >
+                <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} aria-label="تصفية بحسب الصف">
                   <option value="all">كل الصفوف</option>
                   {grades.map((g) => (
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
-              </div>
-            </>
+              </>
+            )}
+            {hasFilter && (
+              <button
+                type="button"
+                className="portal-btn portal-btn-ghost portal-btn-sm"
+                onClick={() => { setSearchTerm(''); setFilterTeacherId('all'); setFilterParentId('all'); setFilterGrade('all'); }}
+              >
+                <X aria-hidden="true" /> مسح الفلاتر
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ‏الجدول للشاشات الكبيرة، والبطاقات أسفلُ للجوال والتابلت (CSS عند 1024). */}
+        <div className="dashboard-hybrid-table">
+          {visibleRecords.length === 0 ? (
+            <EmptyState title="لا نتائج مطابقة" description={hasFilter ? 'غيّر البحث أو الفلاتر.' : 'أضف الحسابات من الأزرار في الأعلى.'} />
+          ) : (
+            <div className="portal-table-wrap">
+              <table className="portal-table">
+                <thead>
+                  <tr>
+                    <th>{activeTab === 'students' ? 'الطالب' : 'ولي الأمر'}</th>
+                    <th>{activeTab === 'students' ? 'رقم الهوية' : 'المعرّف'}</th>
+                    <th>{activeTab === 'students' ? 'الصف' : 'رقم الجوال'}</th>
+                    {activeTab === 'students' && <th>ولي الأمر</th>}
+                    <th>المعلم</th>
+                    {activeTab === 'parents' && <th>الأبناء</th>}
+                    <th className="portal-actions-head">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRecords.map((item: any) => {
+                    const teacher = teacherOf(item);
+                    const parent = activeTab === 'students' ? parentOf(item) : undefined;
+                    const kids = activeTab === 'parents' ? childrenOf(item) : [];
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <div className="flex items-center gap-2.5">
+                            {activeTab === 'students' ? (
+                              <img className="portal-avatar-img" src={studentArt(item.gender)} alt="" aria-hidden="true" loading="lazy" />
+                            ) : (
+                              <span className="portal-avatar-img portal-avatar-letter" aria-hidden="true">{Array.from(String(item.name || '•'))[0]}</span>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-800">{item.name}</p>
+                              {item.username && <p className="text-xs text-slate-500" dir="ltr">{item.username}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="is-num">{activeTab === 'students' ? (item.studentIdNumber || '—') : (item.id || '—')}</td>
+                        <td className="is-num">{activeTab === 'students' ? (item.primaryGrade || item.grade || '—') : (item.phoneNumber || '—')}</td>
+                        {activeTab === 'students' && (
+                          <td>{parent ? <Badge tone="success">{parent.name}</Badge> : <Badge tone="warning">غير مرتبط</Badge>}</td>
+                        )}
+                        <td>
+                          {teacher ? (
+                            <Badge tone="primary">{teacher.name}</Badge>
+                          ) : item.createdBy ? (
+                            <Badge tone="neutral">{item.createdByName || item.createdBy}</Badge>
+                          ) : (
+                            <span className="text-slate-400">غير محدّد</span>
+                          )}
+                        </td>
+                        {activeTab === 'parents' && (
+                          <td>
+                            {kids.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {kids.map(student => <Badge key={student.id} tone="neutral">{student.name}</Badge>)}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">لا أبناء مرتبطون</span>
+                            )}
+                          </td>
+                        )}
+                        <td>
+                          <div className="portal-row-actions">
+                            {activeTab === 'students' && (
+                              <button type="button" onClick={() => handleResetStudentCounter(item as StudentInfo)} className="portal-icon-btn" title="تصفير العدّاد" aria-label={`تصفير عدّاد ${item.name}`}>
+                                <RotateCcw aria-hidden="true" />
+                              </button>
+                            )}
+                            <button type="button" onClick={() => activeTab === 'students' ? handleEditStudent(item) : handleEditParent(item)} className="portal-icon-btn" title="تعديل" aria-label={`تعديل ${item.name}`}>
+                              <Pencil aria-hidden="true" />
+                            </button>
+                            <button type="button" onClick={() => activeTab === 'students' ? handleDeleteStudent(item.id) : handleDeleteParent(item.id)} className="portal-icon-btn is-danger" title="حذف" aria-label={`حذف ${item.name}`}>
+                              <Trash2 aria-hidden="true" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-      </div>
-
-       {/* ===== العرض الهجين =====
-           الجدول للشاشات الكبيرة، والبطاقات للجوال والتابلت. جدول بتسعة
-           أعمدة داخل 375 بكسل لا يُقرأ مهما مُرِّر أفقياً؛ والبطاقة تعرض
-           نفس الحقول مسمّاة صراحةً. الإظهار والإخفاء في CSS عند 1024. */}
-       <div className="dashboard-table-surface dashboard-content-records dashboard-hybrid-table">
-         <table className="w-full min-w-[900px] text-right">
-           <thead className="bg-purple-50 border-b">
-              <tr>
-                <th className="p-4">الاسم</th>
-                <th className="p-4">اسم المستخدم</th>
-                <th className="p-4">رقم الهوية</th>
-                <th className="p-4">{activeTab === 'students' ? 'الصف الأساسي' : 'رقم الجوال'}</th>
-                {activeTab === 'students' && <th className="p-4">ولي الأمر</th>}
-                {activeTab === 'students' && <th className="p-4">المعلم</th>}
-                {activeTab === 'parents' && <th className="p-4">المعلم</th>}
-                {activeTab === 'parents' && <th className="p-4">الطلاب المرتبطين</th>}
-                <th className="p-4">الإجراءات</th>
-              </tr>
-           </thead>
-           <tbody>
-              {(activeTab === 'students' ? filteredStudents : filteredParents).map((item: any) => (
-                <tr key={item.id} className="border-b hover:bg-purple-50 transition-colors">
-                  <td className="p-4 font-bold text-purple-800">{item.name}</td>
-                  <td className="p-4 text-purple-600">{item.username || '-'}</td>
-                  <td className="p-4 text-purple-600 font-mono">{activeTab === 'students' ? (item.studentIdNumber || '-') : (item.id || '-')}</td>
-                  <td className="p-4 text-purple-600">{activeTab === 'students' ? (item.primaryGrade || item.grade || '-') : (item.phoneNumber || '-')}</td>
-                  {activeTab === 'students' && (
-                    <td className="p-4">
-                      {(() => {
-                        const parent = parentOf(item);
-                        return parent ? (
-                          <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
-                            {parent.name}
-                          </span>
-                        ) : (
-                          <span className="text-purple-400 text-sm italic">غير مرتبط</span>
-                        );
-                      })()}
-                    </td>
-                  )}
-                  {activeTab === 'students' && (
-                    <td className="p-4">
-                      {(() => {
-                        const teacher = teachers.find(t => t.id === item.createdBy);
-                        return teacher ? (
-                          <span className="inline-flex items-center gap-1 bg-gradient-to-r from-purple-500 to-purple-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                            {teacher.name}
-                          </span>
-                        ) : item.createdBy ? (
-                          <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-xs font-bold">
-                            {item.createdByName || item.createdBy}
-                          </span>
-                        ) : (
-                          <span className="text-purple-400 text-sm italic">غير محدد</span>
-                        );
-                      })()}
-                    </td>
-                  )}
-                  {activeTab === 'parents' && (
-                    <td className="p-4">
-                      {(() => {
-                        const teacher = teachers.find(t => t.id === item.createdBy);
-                        return teacher ? (
-                          <span className="inline-flex items-center gap-1 bg-gradient-to-r from-purple-500 to-purple-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                            {teacher.name}
-                          </span>
-                        ) : item.createdBy ? (
-                          <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-xs font-bold">
-                            {item.createdByName || item.createdBy}
-                          </span>
-                        ) : (
-                          <span className="text-purple-400 text-sm italic">غير محدد</span>
-                        );
-                      })()}
-                    </td>
-                  )}
-                  {activeTab === 'parents' && (
-                    <td className="p-4">
-                      {childrenOf(item).length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {childrenOf(item).map(student => (
-                            <span key={student.id} className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">
-                             {getStudentEmoji(student)} {student.name}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-purple-400 text-sm italic">لا يوجد طلاب مرتبطين</span>
-                      )}
-                    </td>
-                  )}
-                  <td className="p-4 space-x-2 space-x-reverse">
-                    {activeTab === 'students' && (
-                      <button onClick={() => handleResetStudentCounter(item as StudentInfo)} className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg font-bold text-xs">تصفير العداد</button>
-                    )}
-                    <button onClick={() => activeTab === 'students' ? handleEditStudent(item) : handleEditParent(item)} className="bg-yellow-50 text-yellow-600 px-3 py-1 rounded-lg font-bold text-xs">تعديل</button>
-                    <button onClick={() => activeTab === 'students' ? handleDeleteStudent(item.id) : handleDeleteParent(item.id)} className="bg-red-50 text-red-600 px-3 py-1 rounded-lg font-bold text-xs">حذف</button>
-                  </td>
-                </tr>
-              ))}
-           </tbody>
-         </table>
-         {visibleRecords.length === 0 && (
-           <div className="p-20 text-center text-purple-400 font-bold italic">لا توجد نتائج بحث</div>
-         )}
-      </div>
+      </Panel>
 
       {/* ===== عرض البطاقات — الجوال والتابلت ===== */}
       <div className="dashboard-hybrid-cards">
@@ -921,20 +901,20 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                         onClick={() => handleResetStudentCounter(item as StudentInfo)}
                         className="dashboard-record-action bg-slate-100 text-slate-700 hover:bg-slate-200"
                       >
-                        تصفير العداد
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" /> تصفير العداد
                       </button>
                     )}
                     <button
                       onClick={() => activeTab === 'students' ? handleEditStudent(item) : handleEditParent(item)}
                       className="dashboard-record-action bg-blue-50 text-blue-700 hover:bg-blue-100"
                     >
-                      تعديل
+                      <Pencil className="h-4 w-4" aria-hidden="true" /> تعديل
                     </button>
                     <button
                       onClick={() => activeTab === 'students' ? handleDeleteStudent(item.id) : handleDeleteParent(item.id)}
                       className="dashboard-record-action bg-red-50 text-red-700 hover:bg-red-100"
                     >
-                      حذف
+                      <Trash2 className="h-4 w-4" aria-hidden="true" /> حذف
                     </button>
                   </footer>
                 </article>
