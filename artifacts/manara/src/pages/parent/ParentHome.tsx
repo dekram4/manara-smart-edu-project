@@ -161,7 +161,7 @@ const ParentHome: React.FC<ParentHomeProps> = (props) => {
         title={`مرحباً، ${parent.name}`}
         description="متابعةُ أبنائك في مكانٍ واحد: الدرجات والنشاط والمستوى والشهادات."
         icon={UsersRound}
-        art={ART.kids}
+        art={ART.kidsRun}
         actions={
           props.canAddChild ? (
             <button type="button" className="portal-btn portal-btn-primary" onClick={props.onAddChild}>

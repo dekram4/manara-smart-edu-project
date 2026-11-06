@@ -163,7 +163,7 @@ const TeacherHome: React.FC<TeacherHomeProps> = ({
         title={`مرحباً، ${teacher.name}`}
         description="ملخّص فصولك وطلابك اليوم، ومن يحتاج متابعتك."
         icon={School}
-        art={ART.books}
+        art={ART.board}
         actions={
           <>
             {canOpen(TeacherMenuType.ACCOUNT_MANAGEMENT) && (

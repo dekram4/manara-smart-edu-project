@@ -57,9 +57,8 @@ export const PortalLoginLayout: React.FC<PortalLoginLayoutProps> = ({
         </ul>
       </div>
       <div className="portal-login-art">
-        <img className="portal-login-kids" src={ART.kids} alt="" />
+        <img className="portal-login-kids" src={ART.lighthouse} alt="" />
         <img className="portal-float portal-float-globe" src={ART.globe} alt="" />
-        <img className="portal-float portal-float-books" src={ART.booksStack} alt="" />
       </div>
       <p className="portal-login-legal">© {new Date().getFullYear()} منصة منارة المعرفة التعليمية</p>
     </aside>

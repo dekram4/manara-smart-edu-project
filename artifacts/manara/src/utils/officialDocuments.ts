@@ -17,9 +17,9 @@ import { getQuizResultPercentage } from './quizScoring';
 export type CertificateType = CertificateRecord['type'];
 
 export const CERTIFICATE_TYPES: Record<CertificateType, { title: string; short: string }> = {
-  excellence: { title: 'شهادة تفوّق وامتياز', short: 'تفوّق' },
-  appreciation: { title: 'شهادة شكر وتقدير', short: 'شكر وتقدير' },
-  participation: { title: 'شهادة مشاركة فاعلة', short: 'مشاركة' },
+  excellence: { title: 'شهادة التفوّق', short: 'تفوّق' },
+  appreciation: { title: 'شهادة الشكر والتقدير', short: 'شكر وتقدير' },
+  participation: { title: 'شهادة المشاركة الفعّالة', short: 'مشاركة' },
 };
 
 const PLATFORM = 'منصة منارة المعرفة التعليمية';
@@ -47,18 +47,28 @@ export const certificateNumber = (cert: Pick<CertificateRecord, 'id' | 'date'>):
  */
 export const issuerOf = (cert: CertificateRecord): { name: string; role: string } =>
   cert.issuedBy
-    ? { name: cert.issuedBy, role: cert.issuedByRole === 'admin' ? 'مشرف المنصّة' : 'معلّم/ة المادة' }
+    ? { name: cert.issuedBy, role: cert.issuedByRole === 'admin' ? 'المشرف' : 'معلّم/ة المادة' }
     : { name: cert.teacherName || '', role: 'معلّم/ة المادة' };
 
+/**
+ * نصُّ الشهادة — الصيغُ المعتمدة من إدارة المدرسة بحروفها. لا تذكر المنصّة:
+ * المنصّةُ تعتمد الشهادة في أسفلها، والنصُّ تهنئةٌ للطالب.
+ * والنسبةُ في شهادة التفوّق وحدها.
+ */
 const certificateMessage = (cert: CertificateRecord): SafeHtml => {
-  const average = typeof cert.average === 'number' && Number.isFinite(cert.average) ? `${Math.round(cert.average)}%` : null;
+  const student = html`<b class="student">${cert.studentName}</b>`;
+  // ‏«بالصف [الصف]»: أسماءُ الصفوف تبدأ بكلمة «الصف» فلا تتكرّر.
+  const grade = html`<b>${(cert.grade || '—').replace(/^الصف\s+/, '')}</b>`;
+  const subject = html`<b>${cert.subject}</b>`;
   switch (cert.type) {
-    case 'excellence':
-      return html`لتفوّقه/ها وتميّزه/ها في مادة <b>${cert.subject}</b>${average ? html` بمعدّل <b>${average}</b>` : ''}، خلال <b>${cert.term || 'الفصل الدراسي'}</b>، متمنّين له/ها دوام التوفيق والنجاح.`;
+    case 'excellence': {
+      const hasAverage = typeof cert.average === 'number' && Number.isFinite(cert.average);
+      return html`يسعدنا أن نتقدم بخالص الشكر والتقدير للطالب/ـة ${student} بالصف ${grade}، وذلك نظير تفوقه المتميز والملحوظ في مادة ${subject}${hasAverage ? html`، حيث حقق نسبة <b>${Math.round(cert.average)}%</b> في اختبار المادة` : ''}، متمنين له دوام التقدم والنجاح.`;
+    }
     case 'appreciation':
-      return html`تقديراً لجهوده/ها المتميّزة والتزامه/ها في مادة <b>${cert.subject}</b>${average ? html` بمعدّل <b>${average}</b>` : ''}، خلال <b>${cert.term || 'الفصل الدراسي'}</b>، مع خالص الشكر والتقدير.`;
+      return html`تتقدم إدارة المدرسة بخالص الشكر والتقدير للطالب/ـة ${student} بالصف ${grade}، وذلك تقديراً لجهوده المبذولة وانضباطه المستمر في مادة ${subject}، مع تمنياتنا له بمزيد من التميز.`;
     default:
-      return html`لمشاركته/ها الفاعلة وحضوره/ها المتميّز في مادة <b>${cert.subject}</b>، خلال <b>${cert.term || 'الفصل الدراسي'}</b>، متمنّين له/ها مزيداً من التقدّم.`;
+      return html`تُمنح هذه الشهادة للطالب/ـة ${student} بالصف ${grade}، تقديراً لمشاركته الفعالة وتفاعله الإيجابي في أنشطة مادة ${subject}، مع خالص الشكر والتقدير.`;
   }
 };
 
@@ -94,21 +104,16 @@ body { font-family: 'Tajawal', sans-serif; color: #13243a; -webkit-print-color-a
 .brand div { text-align: right; }
 .brand strong { display: block; font-size: 14pt; font-weight: 800; color: #15335c; }
 .brand span { display: block; font-size: 9.5pt; font-weight: 700; color: #6b7a90; }
-.title { margin-top: 6mm; font-family: 'Amiri', 'Tajawal', serif; font-size: 34pt; font-weight: 700; color: #15335c; line-height: 1.25; }
+.title { margin-top: 8mm; font-family: 'Amiri', 'Tajawal', serif; font-size: 34pt; font-weight: 700; color: #15335c; line-height: 1.25; }
 .rule { display: flex; align-items: center; gap: 3mm; margin: 2.5mm 0 5mm; color: #b08d3c; font-size: 9pt; }
 .rule::before, .rule::after { content: ''; width: 34mm; height: 0.35mm; background: #b08d3c; }
-.lead { font-size: 13pt; font-weight: 500; color: #475569; }
-.name { margin: 3mm 0 3.5mm; padding: 0 10mm 1.5mm; font-size: 27pt; font-weight: 900; color: #13243a; border-bottom: 0.4mm solid #d9c79a; }
-.message { max-width: 210mm; margin-top: 2mm; font-size: 14.5pt; font-weight: 500; line-height: 2; color: #334155; }
+.message { max-width: 220mm; margin-top: auto; font-size: 16pt; font-weight: 500; line-height: 2.15; color: #334155; }
 .message b { font-weight: 800; color: #15335c; }
+.message b.student { padding: 0 1.5mm; font-size: 21pt; font-weight: 900; color: #13243a; border-bottom: 0.4mm solid #d9c79a; }
 .note { margin-top: 2mm; max-width: 190mm; font-size: 12pt; font-weight: 700; color: #8a6a24; }
-.facts { display: flex; gap: 0; margin-top: 6mm; border: 0.3mm solid #dfe5ec; border-radius: 2mm; overflow: hidden; }
-.facts div { padding: 2.2mm 7mm; border-left: 0.3mm solid #dfe5ec; }
-.facts div:last-child { border-left: 0; }
-.facts small { display: block; font-size: 8.5pt; font-weight: 700; color: #6b7a90; }
-.facts strong { display: block; font-size: 11.5pt; font-weight: 800; color: #13243a; }
 .footer { margin-top: auto; width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 10mm; }
 .sign { text-align: center; }
+.sign small { display: block; margin-bottom: 1mm; font-size: 8.5pt; font-weight: 700; color: #8a6a24; letter-spacing: 0.3mm; }
 .sign strong { display: block; min-height: 6mm; font-size: 12pt; font-weight: 800; color: #13243a; }
 .sign .line { width: 58mm; margin: 2mm auto 1.5mm; border-top: 0.35mm solid #334155; }
 .sign span { font-size: 10pt; font-weight: 700; color: #6b7a90; }
@@ -134,14 +139,12 @@ body { font-family: 'Tajawal', sans-serif; color: #13243a; -webkit-print-color-a
     </div>
     <h1 class="title">${type.title}</h1>
     <div class="rule">◆</div>
-    <p class="lead">تشهد ${PLATFORM} بأنّ الطالب/ة</p>
-    <p class="name">${cert.studentName}</p>
     <p class="message">${certificateMessage(cert)}</p>
     ${cert.note ? html`<p class="note">${cert.note}</p>` : ''}
     <div class="footer">
-      <div class="sign"><strong>${issuerOf(cert).name}</strong><div class="line"></div><span>${issuerOf(cert).role}</span></div>
+      <div class="sign"><small>المُصدِر</small><strong>${issuerOf(cert).name}</strong><div class="line"></div><span>${issuerOf(cert).role}</span></div>
       <div class="seal"><div><img src="${logoUrl()}" alt=""><span>منارة المعرفة</span></div></div>
-      <div class="sign"><strong></strong><div class="line"></div><span>إدارة المنصّة</span></div>
+      <div class="sign"><small>الاعتماد</small><strong>إدارة منصة منارة المعرفة</strong><div class="line"></div><span>الختم والاعتماد</span></div>
     </div>
   </div>
   <div class="meta"><span>رقم الشهادة: ${number}</span><span>تاريخ الإصدار: ${hijri(cert.date)} — ${gregorian(cert.date)} م</span></div>
